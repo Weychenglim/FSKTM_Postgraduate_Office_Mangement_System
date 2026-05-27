@@ -1,0 +1,6 @@
+{
+  "name": "FSKTM Postgraduate Administrative Portal",
+  "description": "Interactive login page for the FSKTM Postgraduate Administrative Portal, designed with responsive visual hierarchy and authentication workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
