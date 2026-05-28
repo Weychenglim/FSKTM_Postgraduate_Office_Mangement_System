@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Bell, HelpCircle, LogOut, User, Settings, ShieldAlert } from 'lucide-react';
+import { Bell, HelpCircle, LogOut, User, Settings, ShieldAlert, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface TopHeaderProps {
@@ -12,22 +12,17 @@ interface TopHeaderProps {
   userRole: string;
   onLogout: () => void;
   onHelpdeskTrigger: () => void;
+  onNotificationsTrigger: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   userName,
   userRole,
   onLogout,
-  onHelpdeskTrigger
+  onHelpdeskTrigger,
+  onNotificationsTrigger
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-  const notifications = [
-    { id: 1, title: '2 Mark Periods Overdue', desc: 'Lecturer submission deadline has exceeded 3 days.', priority: 'high' },
-    { id: 2, title: 'Database Synced', desc: 'Postgraduate evaluation logs updated 2 mins ago.', priority: 'low' },
-    { id: 3, title: 'New Exemption Request', desc: 'Student WEA200192 uploaded medical certificate.', priority: 'normal' }
-  ];
 
   return (
     <header 
@@ -36,9 +31,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     >
       {/* Title & Greeting Block */}
       <div id="header-greeting-block" className="flex flex-col text-left">
-        <h4 id="header-greeting" className="text-slate-900 font-extrabold text-base tracking-tight select-none">
+        <h4 id="header-greeting" className="text-slate-900 font-extrabold text-xs md:text-sm tracking-tight select-none">
           Good Morning, {userName}
         </h4>
+      </div>
+
+      {/* Top Header Search Input (From Reference Screenshot) */}
+      <div className="hidden md:flex items-center relative max-w-sm w-full mx-auto px-4">
+        <span className="absolute inset-y-0 left-7 flex items-center pointer-events-none text-slate-400">
+          <Search className="w-4 h-4" />
+        </span>
+        <input 
+          type="text" 
+          placeholder="Search..." 
+          className="w-full bg-slate-50 border border-slate-200 pl-9 pr-4 py-1.5 rounded-full text-xs font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all shadow-3xs"
+        />
       </div>
 
       {/* Utilities Column */}
@@ -48,7 +55,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <div className="relative">
           <button 
             type="button"
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={onNotificationsTrigger}
             className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer relative"
             title="Notifications"
           >
@@ -56,37 +63,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
           </button>
-
-          <AnimatePresence>
-            {showNotifications && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-80 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 p-4 text-left"
-                >
-                  <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
-                    <span className="text-xs font-extrabold text-slate-800 tracking-wider uppercase">Administrative Notices</span>
-                    <span className="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-[9px] font-bold">3 alerts</span>
-                  </div>
-                  <div className="space-y-3">
-                    {notifications.map((item) => (
-                      <div key={item.id} className="p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                        <div className="flex gap-1.5 items-center">
-                          {item.priority === 'high' && <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />}
-                          <span className="text-xs font-bold text-slate-800">{item.title}</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{item.desc}</p>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
         </div>
 
         {/* Global Manual Assistance Help Trigger */}
