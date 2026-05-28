@@ -22,9 +22,58 @@ interface SidebarProps {
   onNavigate: (item: string) => void;
 }
 
+const mapActiveItem = (item: string): string => {
+  const map: Record<string, string> = {
+    'Office Dashboard': 'Dashboard Overview',
+    'Administration Dashboard': 'Dashboard Overview',
+    'Timeline Management': 'Dashboard Overview',
+    'Upload Timeline Drawer': 'Dashboard Overview',
+    'Add Timeline Entry Drawer': 'Dashboard Overview',
+    'Edit Timeline Entry Drawer': 'Dashboard Overview',
+    'Registry Management': 'Registry Management',
+    'Student Registry': 'Registry Management',
+    'Register New Students': 'Registry Management',
+    'Bulk Student Import': 'Registry Management',
+    'Single Student Registration': 'Registry Management',
+    'Staff and Lecturer Accounts': 'Registry Management',
+    'Office Staff Accounts': 'Registry Management',
+    'Lecturer Accounts': 'Registry Management',
+    'Programme Coordinator Accounts': 'Registry Management',
+    'Create New Account': 'Registry Management',
+    'Add New Account': 'Registry Management',
+    'Create Office Staff Account': 'Registry Management',
+    'Create Lecturer Account': 'Registry Management',
+    'Account Detail': 'Registry Management',
+    'FAQ Chatbot': 'FAQ Chatbot',
+    'Academic FAQ Editor': 'FAQ Chatbot',
+    'File Repository': 'File Management',
+    'File Repository with File Preview Drawer': 'File Management',
+    'Upload New Document': 'File Management',
+    'Announcement Management': 'Announcements',
+    'Letter Template Management': 'Letter Generation',
+    'Template Editor': 'Letter Generation',
+    'Letter Generation': 'Letter Generation',
+    'Supervisor Appointment Management': 'Supervisor Appointments',
+    'Supervisor Appointment Detail': 'Supervisor Appointments',
+    'Supervisor Workload Monitoring': 'Supervisor Appointments',
+    'Panel Appointment Management': 'Panel Appointments',
+    'Panel Appointment Detail': 'Panel Appointments',
+    'Panel Workload Monitoring': 'Panel Appointments',
+    'Marks & Evaluation Management': 'Marks Entry',
+    'Mark Entry Period Configuration': 'Marks Entry',
+    'Rubric Components Management': 'Marks Entry',
+    'Evaluation Task Assignment': 'Marks Entry',
+    'Mark Entry Records': 'Marks Entry',
+    'Mark Entry Record Detail': 'Marks Entry',
+    'Notifications & Announcements': 'None'
+  };
+  return map[item] || item;
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
   const menuItems = [
     { id: 'Dashboard Overview', label: 'Dashboard Overview', icon: LayoutDashboard },
+    { id: 'Registry Management', label: 'Registry Management', icon: GraduationCap },
     { id: 'FAQ Chatbot', label: 'FAQ Chatbot', icon: MessageSquareCode },
     { id: 'File Management', label: 'File Management', icon: FolderMinus },
     { id: 'Supervisor Appointments', label: 'Supervisor Appointments', icon: Users },
@@ -34,6 +83,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
     { id: 'Panel Appointments', label: 'Panel Appointments', icon: Award },
     { id: 'Settings', label: 'Settings', icon: SettingsIcon },
   ];
+
+  const mappedActiveItem = mapActiveItem(activeItem);
 
   return (
     <div 
@@ -65,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
       <div id="sidebar-nav-list" className="flex-1 px-4 py-2 overflow-y-auto space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeItem === item.id;
+          const isActive = mappedActiveItem === item.id;
           return (
             <button
               key={item.id}

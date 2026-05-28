@@ -14,6 +14,7 @@ interface AppLayoutProps {
   activeItem: string;
   onNavigate: (item: string) => void;
   onLogout: () => void;
+  onNotificationsTrigger: () => void;
   
   // Handlers for modal interactions
   activeModal: 'period' | 'rubric' | 'generate' | 'help' | null;
@@ -25,6 +26,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   activeItem,
   onNavigate,
   onLogout,
+  onNotificationsTrigger,
   activeModal,
   setActiveModal
 }) => {
@@ -79,6 +81,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           userRole="Office Staff / Admin" 
           onLogout={onLogout}
           onHelpdeskTrigger={() => setActiveModal('help')}
+          onNotificationsTrigger={onNotificationsTrigger}
         />
 
         {/* Actionable page frame details scrollable box */}

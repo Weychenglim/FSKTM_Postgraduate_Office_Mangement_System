@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { SemesterTimeline } from './SemesterTimeline';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
+import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
+import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 
 interface TimelineEntry {
   id: string;
@@ -166,17 +168,18 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     return matchSearch && matchCategory && matchStatus && matchRole;
   });
 
-  // Entry Management Modals
-  const [entryModalOpen, setEntryModalOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
-
-  // Form Fields
-  const [formEventName, setFormEventName] = useState('');
-  const [formCategory, setFormCategory] = useState<TimelineEntry['category']>('Supervisor Appointment');
-  const [formStartDate, setFormStartDate] = useState('');
-  const [formEndDate, setFormEndDate] = useState('');
-  const [formRoles, setFormRoles] = useState<('STUDENT' | 'LECTURER')[]>(['STUDENT']);
-  const [formStatus, setFormStatus] = useState<TimelineEntry['status']>('Upcoming');
+  // Entry Management Modals & Drawers
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(true);
+  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>({
+    id: 'ent_2',
+    event: 'Panel Recommendation Period',
+    category: 'Panel Appointment',
+    startDate: '16 Oct 2025',
+    endDate: '30 Oct 2025',
+    targetRole: ['LECTURER'],
+    status: 'Active'
+  });
 
   const handleApplyFilters = () => {
     setAppliedSearch(searchTerm);
@@ -187,96 +190,54 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   };
 
   const handleOpenAddModal = () => {
-    setEditingEntry(null);
-    setFormEventName('');
-    setFormCategory('Supervisor Appointment');
-    setFormStartDate('2025-10-01');
-    setFormEndDate('2025-10-15');
-    setFormRoles(['STUDENT']);
-    setFormStatus('Upcoming');
-    setEntryModalOpen(true);
+    setAddDrawerOpen(true);
   };
 
   const handleOpenEditModal = (ent: TimelineEntry) => {
     setEditingEntry(ent);
-    setFormEventName(ent.event);
-    setFormCategory(ent.category);
-    // Convert to input date string representation
-    setFormStartDate('2025-10-15');
-    setFormEndDate('2025-10-20');
-    setFormRoles(ent.targetRole);
-    setFormStatus(ent.status);
-    setEntryModalOpen(true);
+    setEditDrawerOpen(true);
   };
 
-  const handleSaveEntry = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formEventName.trim()) {
-      triggerToast('Validation Error: Timeline event requires a valid title.');
-      return;
-    }
+  const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id'>) => {
+    const newEnt: TimelineEntry = {
+      id: `ent_${Date.now()}`,
+      ...newEntryVal
+    };
+    setEntries(prev => [...prev, newEnt]);
 
-    // Format utility dates helper
-    const formattedStart = '20 Oct 2025';
-    const formattedEnd = '25 Oct 2025';
+    // Log action
+    const newLog: UpdateLog = {
+      id: `log_${Date.now()}`,
+      user: 'Admin Office Staff',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
+      date: '27 May 2026',
+      action: 'Added entry',
+      actionColor: 'text-[#16a34a]',
+      details: `Created new timeline milestone: ${newEntryVal.event}`
+    };
+    setUpdateLogs(prev => [newLog, ...prev]);
 
-    if (editingEntry) {
-      // Edit mode
-      setEntries(prev => prev.map(ent => {
-        if (ent.id === editingEntry.id) {
-          return {
-            ...ent,
-            event: formEventName,
-            category: formCategory,
-            targetRole: formRoles,
-            status: formStatus
-          };
-        }
-        return ent;
-      }));
+    triggerToast(`Successfully created timeline entry: "${newEntryVal.event}"`);
+    setAddDrawerOpen(false);
+  };
 
-      // Log action
-      const newLog: UpdateLog = {
-        id: `log_${Date.now()}`,
-        user: 'Admin Office Staff',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-        date: '27 May 2026',
-        action: 'Edited entry',
-        actionColor: 'text-[#d97706]',
-        details: `Updated entry: ${formEventName}`
-      };
-      setUpdateLogs(prev => [newLog, ...prev]);
+  const handleEditEntry = (updated: TimelineEntry) => {
+    setEntries(prev => prev.map(ent => (ent.id === updated.id ? updated : ent)));
 
-      triggerToast(`Successfully modified entry: "${formEventName}"`);
-    } else {
-      // Create mode
-      const newEnt: TimelineEntry = {
-        id: `ent_${Date.now()}`,
-        event: formEventName,
-        category: formCategory,
-        startDate: formattedStart,
-        endDate: formattedEnd,
-        targetRole: formRoles,
-        status: formStatus
-      };
-      setEntries(prev => [...prev, newEnt]);
+    // Log action
+    const newLog: UpdateLog = {
+      id: `log_${Date.now()}`,
+      user: 'Admin Office Staff',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
+      date: '27 May 2026',
+      action: 'Edited entry',
+      actionColor: 'text-[#d97706]',
+      details: `Updated entry: ${updated.event}`
+    };
+    setUpdateLogs(prev => [newLog, ...prev]);
 
-      // Log action
-      const newLog: UpdateLog = {
-        id: `log_${Date.now()}`,
-        user: 'Admin Office Staff',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-        date: '27 May 2026',
-        action: 'Added entry',
-        actionColor: 'text-[#16a34a]',
-        details: `Created new timeline milestone: ${formEventName}`
-      };
-      setUpdateLogs(prev => [newLog, ...prev]);
-
-      triggerToast(`Successfully created timeline entry: "${formEventName}"`);
-    }
-
-    setEntryModalOpen(false);
+    triggerToast(`Successfully modified entry: "${updated.event}"`);
+    setEditDrawerOpen(false);
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
@@ -706,166 +667,23 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         </div>
       </div>
 
-      {/* Reusable Form Dialog Modal for Adding and Editing entries */}
-      {entryModalOpen && (
-        <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-3xs flex items-center justify-center z-50 p-4">
-          <div className="absolute inset-0" onClick={() => setEntryModalOpen(false)} />
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 shadow-2xl relative z-10 border border-slate-100 text-left font-sans">
-            
-            {/* Modal header details */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-500" />
-                <h3 className="text-lg font-black text-[#0c1424] tracking-tight">
-                  {editingEntry ? 'Edit Timeline Entry' : 'Add Timeline Entry'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setEntryModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Add Timeline Slide-in Drawer */}
+      <AddTimelineEntryDrawer
+        isOpen={addDrawerOpen}
+        onClose={() => setAddDrawerOpen(false)}
+        onSave={handleAddEntry}
+      />
 
-            <form onSubmit={handleSaveEntry} className="space-y-4">
-              
-              {/* Event title */}
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Event Name Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Panel Recommendation Period"
-                  value={formEventName}
-                  onChange={(e) => setFormEventName(e.target.value)}
-                  className="w-full text-xs font-bold text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-              </div>
-
-              {/* Category classification dropdown */}
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-520 text-slate-500 tracking-wider block mb-1.5">
-                  Category
-                </label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value as any)}
-                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                >
-                  <option value="Supervisor Appointment">Supervisor Appointment</option>
-                  <option value="Panel Appointment">Panel Appointment</option>
-                  <option value="Document Submission">Document Submission</option>
-                  <option value="Announcements">Announcements</option>
-                  <option value="Marks & Evaluation">Marks & Evaluation</option>
-                </select>
-              </div>
-
-              {/* Horizontal Dates Picker layout */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formStartDate}
-                    onChange={(e) => setFormStartDate(e.target.value)}
-                    className="w-full text-xs text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formEndDate}
-                    onChange={(e) => setFormEndDate(e.target.value)}
-                    className="w-full text-xs text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Target Roles Checkbox parameters */}
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Target Roles Enrolled
-                </label>
-                <div className="flex items-center gap-6 mt-1 text-xs text-slate-705">
-                  <label className="flex items-center gap-2 font-bold cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={formRoles.includes('STUDENT')}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormRoles(prev => [...prev, 'STUDENT']);
-                        } else {
-                          setFormRoles(prev => prev.filter(r => r !== 'STUDENT'));
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>STUDENT</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 font-bold cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={formRoles.includes('LECTURER')}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormRoles(prev => [...prev, 'LECTURER']);
-                        } else {
-                          setFormRoles(prev => prev.filter(r => r !== 'LECTURER'));
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span>LECTURER</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Visual category classification type */}
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Status State
-                </label>
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as any)}
-                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                >
-                  <option value="Completed">Completed (Grey color)</option>
-                  <option value="Active">Active (Navy Blue color)</option>
-                  <option value="Deadline">Deadline (Orange/Red Warning color)</option>
-                  <option value="Upcoming font-bold">Upcoming (Amber light style)</option>
-                </select>
-              </div>
-
-              {/* Actions submit controls */}
-              <div className="flex items-center gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setEntryModalOpen(false)}
-                  className="flex-1 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition"
-                >
-                  CANCEL
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
-                >
-                  SAVE ENTRY
-                </button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Edit Timeline Slide-in Drawer */}
+      <EditTimelineEntryDrawer
+        isOpen={editDrawerOpen}
+        onClose={() => {
+          setEditDrawerOpen(false);
+          setEditingEntry(null);
+        }}
+        entry={editingEntry}
+        onSave={handleEditEntry}
+      />
 
       {/* Upload Timeline Slide-in Drawer */}
       <UploadTimelineDrawer 

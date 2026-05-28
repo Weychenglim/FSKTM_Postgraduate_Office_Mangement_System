@@ -15,6 +15,13 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office staff/admin portal shell with authentication demo state.
 - Sidebar navigation for dashboard overview, supervisor appointments, panel appointments, marks entry, and related administrative modules.
 - Dashboard overview for office staff to monitor postgraduate administrative status, semester timeline, workload-related attention records, and quick module navigation.
+- Registry management UI for student records and staff/lecturer account management.
+- File management UI for repository browsing, document preview, upload flow, metadata, and document status handling.
+- FAQ chatbot administration UI for maintaining academic FAQ entries.
+- Letter generation UI for managing letter templates and template editing workflows.
+- Announcement management UI for composing, filtering, and managing announcements.
+- Notification center UI for office staff alerts and announcements.
+- Forgot-password UI for unauthenticated account recovery guidance.
 - Marks and evaluation management UI for mark entry period configuration, rubric management, evaluation task assignment, submission monitoring, and mark records.
 - Supervisor and panel appointment management UI for appointment status and workload monitoring.
 
@@ -25,3 +32,9 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office staff must be able to open timeline management from the dashboard and return to the dashboard.
 - Dashboard actions must route to existing modules such as Supervisor Appointments, Panel Appointments, and Marks Entry without breaking those modules.
 
+## Office Staff Module Requirements
+
+- Sidebar navigation must expose Dashboard Overview, Registry Management, FAQ Chatbot, File Management, Supervisor Appointments, Letter Generation, Announcements, Marks Entry, Panel Appointments, and Settings.
+- Header notifications must route to the Notifications & Announcements view.
+- Existing Dashboard Overview behavior must remain the default authenticated landing view.
+- Login and forgot-password flows must remain available after logout without blocking direct office-staff UI review during development.
