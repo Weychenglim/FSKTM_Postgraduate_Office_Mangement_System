@@ -22,7 +22,12 @@ import { ActionButton } from './ActionButton';
 import { AlertMessage } from './AlertMessage';
 import { DEMO_CREDENTIALS, DemoUser } from '../types';
 
-export const LoginCard: React.FC = () => {
+interface LoginCardProps {
+  onForgotPasswordClick?: () => void;
+  onLoginSuccess?: (user: DemoUser) => void;
+}
+
+export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onLoginSuccess }) => {
   // Input states
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -78,6 +83,9 @@ export const LoginCard: React.FC = () => {
       if (matchKey && DEMO_CREDENTIALS[matchKey].pass === password) {
         const matched = DEMO_CREDENTIALS[matchKey].user;
         setAuthenticatedUser(matched);
+        if (onLoginSuccess) {
+          onLoginSuccess(matched);
+        }
         setAlert({ 
           type: 'success', 
           message: `Authorization approved! Welcome ${matched.fullName}.` 
@@ -94,6 +102,9 @@ export const LoginCard: React.FC = () => {
             department: "Assigned Division"
           };
           setAuthenticatedUser(customUser);
+          if (onLoginSuccess) {
+            onLoginSuccess(customUser);
+          }
           setAlert({ type: 'success', message: 'Session approved under generic credential configuration.' });
         } else {
           setAlert({ 
@@ -190,7 +201,7 @@ export const LoginCard: React.FC = () => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  onForgotPasswordClick={() => setActiveModal('forgot')}
+                  onForgotPasswordClick={onForgotPasswordClick || (() => setActiveModal('forgot'))}
                   error={errors.pass}
                   autoComplete="current-password"
                   required
