@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart } from 'lucide-react';
+import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart, HelpCircle } from 'lucide-react';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -88,6 +88,39 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         <main id="portal-inner-content" className="flex-1 overflow-y-auto p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
+
+        {/* Portal Footer — single global footer, transparent so it blends with the page background */}
+        <footer id="portal-footer" className="shrink-0 border-t border-[#e2e8f0] font-sans">
+          <div className="max-w-7xl w-full mx-auto px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
+            <div className="text-left font-sans text-slate-400">
+              © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
+            </div>
+            <div id="footer-actions-links" className="flex items-center flex-wrap gap-4 uppercase tracking-wider font-sans text-slate-400">
+              <button
+                type="button"
+                className="hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <span>|</span>
+              <button
+                type="button"
+                className="hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                System Manual
+              </button>
+              <span>|</span>
+              <button
+                type="button"
+                onClick={() => setActiveModal('help')}
+                className="hover:text-slate-800 transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <HelpCircle className="w-3.5 h-3.5 inline text-slate-400" />
+                <span>Support Desk</span>
+              </button>
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Interactive Global admin Modal Overlays */}

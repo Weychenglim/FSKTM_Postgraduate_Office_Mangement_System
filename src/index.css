@@ -4,15 +4,84 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Intermediate slate shades used throughout the generated UI.
+     These are NOT part of Tailwind's default palette, so they must be
+     defined here or the corresponding bg/text/border utilities render nothing. */
+  --color-slate-55:  #f5f8fb;
+  --color-slate-105: #eef2f7;
+  --color-slate-110: #edf1f6;
+  --color-slate-150: #e9eef4;
+  --color-slate-160: #e7edf3;
+  --color-slate-195: #e3e9f1;
+  --color-slate-205: #dfe5ec;
+  --color-slate-250: #d7dde7;
+  --color-slate-305: #c7d2df;
+  --color-slate-350: #b0bccb;
+  --color-slate-355: #aebbc9;
+  --color-slate-405: #909fb4;
+  --color-slate-450: #7c8ca3;
+  --color-slate-455: #7a8aa1;
+  --color-slate-505: #61708a;
+  --color-slate-550: #566377;
+  --color-slate-605: #44536a;
+  --color-slate-650: #3f4c61;
+  --color-slate-655: #3e4b60;
+  --color-slate-705: #2f3f53;
+  --color-slate-750: #293547;
+  --color-slate-755: #283447;
+  --color-slate-805: #1c2739;
+  --color-slate-850: #172033;
+  --color-slate-905: #0e1628;
+  --color-slate-955: #020515;
+
+  /* Extra-subtle shadow referenced widely (subtler than shadow-2xs). */
+  --shadow-3xs: 0 1px 1px 0 rgb(0 0 0 / 0.03);
+
+  /* Fade-in entrance animation referenced by page views via `animate-fade-in`. */
+  --animate-fade-in: fade-in 0.4s ease-out both;
 }
 
-/* Custom fade-in and smooth scroll classes */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Design system — shared component classes.
+   Single source of truth for titles, headings, cards, and
+   tables so every page renders the same way. Change here once
+   to restyle the whole app.
+   ============================================================ */
+@layer components {
+  /* Page heading block */
+  .page-title    { @apply text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight; }
+  .page-subtitle { @apply text-slate-500 text-xs md:text-sm mt-1.5 font-medium; }
+
+  /* In-page / card section headings */
+  .section-heading { @apply text-lg font-extrabold text-[#0c1424] tracking-tight; }
+  .section-label   { @apply text-sm font-extrabold text-[#0c1424]; }
+
+  /* Standard white content card */
+  .app-card { @apply bg-white rounded-2xl border border-slate-200/80; }
+
+  /* Tables */
+  .data-table    { @apply w-full text-left border-collapse font-sans; }
+  .data-thead    { @apply border-b border-slate-200/90; }
+  .data-th       { @apply py-4 px-5 text-[10px] font-extrabold uppercase text-slate-500 tracking-wider; }
+  .data-row      { @apply border-b border-slate-100 hover:bg-slate-50/50 transition-colors; }
+  .data-td       { @apply py-4 px-5 text-xs text-slate-500 font-semibold; }
+  .data-td-strong{ @apply py-4 px-5 text-xs text-slate-800 font-bold; }
+}
+
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: #0b1329;
-    color: #f8fafc;
+    /* Light app shell with dark default text. Both the login and portal
+       layouts set their own full-screen backgrounds, so this only governs
+       the initial paint and prevents invisible (near-white) default text. */
+    background-color: #f1f5f9;
+    color: #0f172a;
     overflow-x: hidden;
   }
 }
-

@@ -274,7 +274,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       <div className="flex">
         <button 
           onClick={onBack} 
-          className="group flex items-center gap-2 text-xs font-extrabold text-[#000d23] hover:text-[#3b82f6] transition-colors uppercase tracking-wider mb-2 cursor-pointer border border-slate-205 rounded-xl px-4 py-2.5 bg-white shadow-3xs"
+          className="group flex items-center gap-2 text-xs font-extrabold text-[#0c1424] hover:text-[#3b82f6] transition-colors uppercase tracking-wider mb-2 cursor-pointer border border-slate-205 rounded-xl px-4 py-2.5 bg-white shadow-3xs"
         >
           <ChevronLeft className="w-4.5 h-4.5 transition-transform group-hover:-translate-x-0.5 text-slate-500" />
           <span>Back to Supervisor Appointment Management</span>
@@ -284,14 +284,14 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       {/* Title & Subtitle with Session Badge */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-1">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#0a152d] tracking-tight">
+          <h1 className="page-title">
             Supervisor Workload Monitoring
           </h1>
           <p className="text-slate-505 text-xs md:text-sm font-semibold mt-1 leading-relaxed text-slate-500">
             Monitor lecturer supervision loads by semester, department, and availability.
           </p>
         </div>
-        <div className="bg-[#0a152d] text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-md shrink-0">
+        <div className="bg-[#0c1424] text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-md shrink-0">
           SESSION 2024/2025
         </div>
       </div>
@@ -348,8 +348,8 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         {/* Filter Card (8 cols) */}
         <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs space-y-5">
           <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-            <Filter className="w-4 h-4 text-[#000d23]" />
-            <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+            <Filter className="w-4 h-4 text-[#0c1424]" />
+            <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
               Filter Supervisors
             </span>
           </div>
@@ -427,7 +427,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           <div className="flex justify-end pt-2">
             <button
               onClick={handleApplyFilters}
-              className="flex items-center gap-2 px-6 py-3 bg-[#0a152d] hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer"
+              className="flex items-center gap-2 px-6 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer"
             >
               <SlidersHorizontal className="w-4 h-4" />
               <span>Apply Filters</span>
@@ -439,8 +439,8 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs flex flex-col justify-between gap-5 h-full">
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-              <Users className="w-4.5 h-4.5 text-[#000d23]" />
-              <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+              <Users className="w-4.5 h-4.5 text-[#0c1424]" />
+              <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
                 Workload Distribution
               </span>
             </div>
@@ -508,7 +508,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         {/* Table Header and Export */}
         <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider block">
+            <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider block">
               Supervisor Workload Records
             </span>
             <span className="text-[10px] font-bold text-slate-400 block mt-1">
@@ -529,14 +529,14 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         <div className="overflow-x-auto text-xs">
           <table className="w-full text-left min-w-[700px] border-collapse font-sans">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                <th className="py-4 px-6">Lecturer ID</th>
-                <th className="py-4 px-6">Lecturer Name</th>
-                <th className="py-4 px-6">Department</th>
-                <th className="py-4 px-6 text-center">Current Students</th>
-                <th className="py-4 px-6 text-center">Workload Limit</th>
-                <th className="py-4 px-6 text-center">Availability</th>
-                <th className="py-4 px-6 text-center">Action</th>
+              <tr className="data-thead bg-slate-50 select-none">
+                <th className="data-th px-6">Lecturer ID</th>
+                <th className="data-th px-6">Lecturer Name</th>
+                <th className="data-th px-6">Department</th>
+                <th className="data-th px-6 text-center">Current Students</th>
+                <th className="data-th px-6 text-center">Workload Limit</th>
+                <th className="data-th px-6 text-center">Availability</th>
+                <th className="data-th px-6 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -672,22 +672,12 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs">
         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <span className="font-extrabold text-[#0f172a] text-xs uppercase tracking-wider block">
+          <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider block">
             Confidential Administrative View
           </span>
           <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500 text-slate-500">
             This module displays comprehensive real-time supervisor listings and availability quotas. Changes to capacity rules, student linkages, or email communication should be carried out via the related panel and mark entry configuration screens.
           </p>
-        </div>
-      </div>
-
-      {/* Footer block */}
-      <div className="pt-6 border-t border-slate-205 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold tracking-wide uppercase mt-12 gap-4">
-        <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-        <div className="flex items-center gap-4 mt-2 md:mt-0">
-          <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Policy details loading..."); }} className="hover:text-slate-650 transition">Privacy Policy</a>
-          <a href="#system" onClick={(e) => { e.preventDefault(); showToast("System diagnostics manual accessed..."); }} className="hover:text-slate-650 transition">System Manual</a>
-          <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Support terminal routed..."); }} className="hover:text-[#0c1424] transition font-bold">Support Desk</a>
         </div>
       </div>
 

@@ -131,11 +131,11 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
 
       {/* Header Title & Actions section */}
       <div id="admin-dashboard-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="text-left space-y-1">
-          <h1 id="admin-dashboard-main-title" className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+        <div className="text-left">
+          <h1 id="admin-dashboard-main-title" className="page-title">
             Administration Dashboard
           </h1>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
+          <p className="page-subtitle">
             Overview administrative status, timeline intervals, and records requiring office review.
           </p>
         </div>
@@ -273,30 +273,30 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left font-sans border-collapse mt-2">
+            <table className="data-table mt-2">
               <thead>
-                <tr className="border-b border-[#f1f5f9] pb-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  <th className="py-3 px-4 text-left">Record Type</th>
-                  <th className="py-3 px-4 text-left">Impact Count</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+                <tr className="data-thead">
+                  <th className="data-th text-left">Record Type</th>
+                  <th className="data-th text-left">Impact Count</th>
+                  <th className="data-th text-center">Status</th>
+                  <th className="data-th text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#efecf6]/10 divide-slate-100">
+              <tbody>
                 {attentionRows.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/40 transition-colors">
+                  <tr key={row.id} className="data-row">
                     {/* Record type text */}
-                    <td className="py-4 px-4 font-bold text-[#0c1424] text-xs max-w-[280px]">
+                    <td className="data-td-strong max-w-[280px]">
                       {row.type}
                     </td>
 
                     {/* Impact amount count */}
-                    <td className="py-4 px-4 font-black text-slate-500 text-xs">
+                    <td className="data-td">
                       {row.count}
                     </td>
 
                     {/* Status Badge */}
-                    <td className="py-4 px-4 text-center">
+                    <td className="data-td text-center">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-[9px] font-extrabold uppercase tracking-wider">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                         <span>{row.status}</span>
@@ -304,7 +304,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                     </td>
 
                     {/* Trigger Navigation callback action */}
-                    <td className="py-4 px-4 text-right">
+                    <td className="data-td text-right">
                       <button
                         onClick={() => {
                           triggerToast(row.detail);
@@ -343,39 +343,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         </div>
 
       </div>
-
-      {/* 4. Footer Section Layout */}
-      <footer id="admin-portal-footer" className="pt-10 border-t border-[#e2e8f0] flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
-        <div className="text-left font-sans text-slate-400">
-          © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
-        </div>
-        <div id="footer-actions-links" className="flex items-center flex-wrap gap-4 uppercase tracking-wider font-sans text-slate-400">
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Opening system privacy policy context...')}
-            className="hover:text-slate-800 transition-colors cursor-pointer"
-          >
-            Privacy Policy
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Downloading latest system administrative manual...')}
-            className="hover:text-slate-800 transition-colors cursor-pointer"
-          >
-            System Manual
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => onShowModal?.('help')}
-            className="hover:text-slate-800 transition-colors cursor-pointer flex items-center gap-1"
-          >
-            <HelpCircle className="w-3.5 h-3.5 inline text-slate-400" />
-            <span>Support Desk</span>
-          </button>
-        </div>
-      </footer>
 
       {/* Create New Timeline Event / Entry Modal Dialog overlay */}
       {newEntryModalOpen && (

@@ -142,7 +142,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
 
         {/* Left Side Column Footer */}
         <div id="left-footer" className="mt-8 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center text-[11px] text-slate-500 font-medium relative z-10 gap-2 text-left">
-          <span id="copyright-text">© 2025 FSKTM Postgraduate Office. All rights reserved.</span>
+          <span id="copyright-text">© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
           <div id="footer-links" className="flex items-center gap-4">
             <a href="#" className="hover:text-indigo-300 transition-colors">Privacy</a>
             <a href="#" className="hover:text-indigo-300 transition-colors">Terms</a>

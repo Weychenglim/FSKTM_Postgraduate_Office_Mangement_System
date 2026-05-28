@@ -247,7 +247,7 @@ export const AcademicFAQEditor: React.FC = () => {
           <span className="text-blue-600 font-extrabold uppercase tracking-widest text-[9px] block">
             Knowledge Management
           </span>
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight mt-0.5">
+          <h1 className="page-title mt-0.5">
             Academic FAQ Editor
           </h1>
         </div>
@@ -504,7 +504,7 @@ export const AcademicFAQEditor: React.FC = () => {
                       <div className={`p-4 rounded-2xl text-[11px] font-semibold leading-relaxed ${
                         isStudent 
                           ? 'bg-slate-200 text-[#0c1424] rounded-br-none' 
-                          : 'bg-[#0f172a] text-white rounded-bl-none shadow-md'
+                          : 'bg-[#0c1424] text-white rounded-bl-none shadow-md'
                       }`}>
                         {msg.text}
                       </div>
@@ -537,7 +537,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 {/* Animated Typing state */}
                 {isTyping && (
                   <div className="flex flex-col items-start mr-auto max-w-[80%]">
-                    <div className="bg-[#0f172a] text-white p-3.5 rounded-2xl rounded-bl-none flex items-center gap-1 shadow-md">
+                    <div className="bg-[#0c1424] text-white p-3.5 rounded-2xl rounded-bl-none flex items-center gap-1 shadow-md">
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />

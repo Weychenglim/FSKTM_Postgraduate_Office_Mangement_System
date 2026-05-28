@@ -695,7 +695,7 @@ export const StudentRegistry: React.FC = () => {
               <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
                 University Postgraduate Secretariat
               </span>
-              <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+              <h1 className="page-title">
                 Student Registry
               </h1>
             </div>
@@ -895,10 +895,10 @@ export const StudentRegistry: React.FC = () => {
 
             {/* DATATABLE LIST VIEW */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="data-table">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 select-none">
-                    <th className="py-4 px-6 w-12 text-center">
+                  <tr className="data-thead bg-slate-50 select-none">
+                    <th className="data-th w-12 text-center">
                       <input
                         type="checkbox"
                         onChange={handleToggleAll}
@@ -906,24 +906,24 @@ export const StudentRegistry: React.FC = () => {
                         className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
                       />
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Student Candidate
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Programme
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider text-center">
+                    <th className="data-th text-center">
                       Academic Status
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Account Status
                     </th>
-                    <th className="py-4 px-6 font-black uppercase text-slate-450 text-[10px] tracking-wider text-center">
+                    <th className="data-th text-center">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#e2e8f0]/60">
+                <tbody>
                   {displayedStudents.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400 font-extrabold select-none">
@@ -934,12 +934,12 @@ export const StudentRegistry: React.FC = () => {
                     displayedStudents.map((student) => {
                       const isChecked = !!selectedRowIds[student.id];
                       return (
-                        <tr 
-                          key={student.id} 
-                          className={`hover:bg-slate-50/50 transition duration-150 ${isChecked ? 'bg-[#0c1424]/[0.01]' : ''}`}
+                        <tr
+                          key={student.id}
+                          className={`data-row ${isChecked ? 'bg-[#0c1424]/[0.01]' : ''}`}
                         >
                           {/* Selector column */}
-                          <td className="py-4 px-6 text-center">
+                          <td className="data-td w-12 text-center">
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -949,7 +949,7 @@ export const StudentRegistry: React.FC = () => {
                           </td>
 
                           {/* Student identity details */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <div className="flex items-center gap-3 text-left">
                               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
                                 {student.avatarText}
@@ -966,22 +966,22 @@ export const StudentRegistry: React.FC = () => {
                           </td>
 
                           {/* Programme column */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <ProgrammeChip label={student.programme} />
                           </td>
 
                           {/* Academic status column */}
-                          <td className="py-4 px-4 text-center">
+                          <td className="data-td text-center">
                             <StatusChip status={student.academicStatus} />
                           </td>
 
                           {/* Account status column */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <AccountStatusIndicator status={student.accountStatus} />
                           </td>
 
                           {/* Action column */}
-                          <td className="py-4 px-6 text-center">
+                          <td className="data-td text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
@@ -1087,7 +1087,7 @@ export const StudentRegistry: React.FC = () => {
             <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
               Secretariat Onboarding Utility
             </span>
-            <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+            <h1 className="page-title">
               Register New Students
             </h1>
           </div>
@@ -1301,12 +1301,12 @@ export const StudentRegistry: React.FC = () => {
                     <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-150 select-none">
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Student ID</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Candidate Name</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Programme Mapped</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider text-center">Validation Status</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider text-center">Edit</th>
+                          <tr className="data-thead bg-slate-50 select-none">
+                            <th className="data-th px-4">Student ID</th>
+                            <th className="data-th px-4">Candidate Name</th>
+                            <th className="data-th px-4">Programme Mapped</th>
+                            <th className="data-th px-4 text-center">Validation Status</th>
+                            <th className="data-th px-4 text-center">Edit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-xs">
@@ -2113,16 +2113,6 @@ export const StudentRegistry: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
-
-      {/* ==================== FOOTER ==================== */}
-      <footer className="mt-16 text-center select-none pt-6 border-t border-slate-200/50 text-slate-400 font-semibold flex flex-col sm:flex-row items-center justify-between gap-4 text-[10.5px]">
-        <p>© 2026 FSKTM Postgraduate Center, University of Malaya. All rights reserved.</p>
-        <div className="flex gap-4">
-          <span className="hover:text-slate-600 cursor-help">Technical Support Secretariat</span>
-          <span className="text-slate-300">•</span>
-          <span className="hover:text-slate-600 cursor-help">Academic Guidelines Docs</span>
-        </div>
-      </footer>
 
     </div>
   );

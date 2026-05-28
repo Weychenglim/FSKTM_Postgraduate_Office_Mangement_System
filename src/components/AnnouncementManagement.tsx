@@ -264,7 +264,7 @@ export const AnnouncementManagement: React.FC = () => {
             
             {/* Header Title inside form box */}
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              <h2 className="section-heading">
                 Draft New Announcement
               </h2>
               <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
@@ -471,7 +471,7 @@ export const AnnouncementManagement: React.FC = () => {
           {/* Header Title inside history pane block */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
             <div>
-              <h2 className="text-2xl font-black text-[#0c1424] tracking-tight">
+              <h2 className="section-heading">
                 Announcement History
               </h2>
               <p className="text-slate-500 text-[11px] font-semibold leading-relaxed mt-1">
@@ -537,9 +537,9 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#f8fafc] text-slate-400 text-[9px] font-black uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-5 py-3">Title & Content</th>
-                    <th className="px-5 py-3 text-right">Target</th>
+                  <tr className="data-thead bg-[#f8fafc]">
+                    <th className="data-th px-5">Title & Content</th>
+                    <th className="data-th px-5 text-right">Target</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

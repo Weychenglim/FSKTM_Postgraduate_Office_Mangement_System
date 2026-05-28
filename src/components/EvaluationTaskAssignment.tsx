@@ -168,10 +168,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           <span>Back to Marks & Evaluation Management</span>
         </button>
 
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+        <h1 className="page-title">
           Evaluation Task Assignment
         </h1>
-        <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
+        <p className="page-subtitle leading-relaxed">
           Generate mark entry tasks for approved panel appointments using the configured period and rubric.
         </p>
       </div>
@@ -352,14 +352,14 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         <div className="overflow-x-auto">
           <table className="w-full min-w-[750px] text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200/80 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                <th className="py-4 px-3">Student ID</th>
-                <th className="py-4 px-3">Student Name</th>
-                <th className="py-4 px-3">Research Title</th>
-                <th className="py-4 px-3">Panel Member</th>
-                <th className="py-4 px-3">Semester</th>
-                <th className="py-4 px-3 text-center">Task Status</th>
-                <th className="py-4 px-3 text-right">Action</th>
+              <tr className="data-thead">
+                <th className="data-th px-3">Student ID</th>
+                <th className="data-th px-3">Student Name</th>
+                <th className="data-th px-3">Research Title</th>
+                <th className="data-th px-3">Panel Member</th>
+                <th className="data-th px-3">Semester</th>
+                <th className="data-th px-3 text-center">Task Status</th>
+                <th className="data-th px-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
@@ -450,11 +450,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         <div className="overflow-x-auto">
           <table className="w-full min-w-[650px] text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-205">
-                <th className="py-3 px-6">Date</th>
-                <th className="py-3 px-6">Action</th>
-                <th className="py-3 px-6">Details</th>
-                <th className="py-3 px-6">Performed By</th>
+              <tr className="data-thead bg-slate-50/50">
+                <th className="data-th px-6">Date</th>
+                <th className="data-th px-6">Action</th>
+                <th className="data-th px-6">Details</th>
+                <th className="data-th px-6">Performed By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">

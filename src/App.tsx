@@ -239,7 +239,7 @@ export default function App() {
                 {/* Header Title section */}
                 <div id="page-metadata-block" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="text-left">
-                    <h1 id="main-view-title" className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+                    <h1 id="main-view-title" className="page-title">
                       Marks & Evaluation Management
                     </h1>
                     <p id="main-view-subtitle" className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium">
@@ -371,7 +371,7 @@ export default function App() {
               </p>
               <button
                 onClick={() => setActiveSidebarItem('Marks Entry')}
-                className="mt-6 px-5 py-2.5 bg-[#000d23] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
+                className="mt-6 px-5 py-2.5 bg-[#0c1424] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
               >
                 Return to Marks Entry
               </button>

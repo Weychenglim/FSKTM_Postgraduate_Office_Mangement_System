@@ -245,10 +245,10 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             <span>Back to Marks & Evaluation Management</span>
           </button>
 
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+          <h1 className="page-title">
             Rubric Components Management
           </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
+          <p className="page-subtitle leading-relaxed">
             Define rubric components, maximum marks, and validation rules for mark entry.
           </p>
         </div>
@@ -352,13 +352,13 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px] text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-205 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                    <th className="py-4.5 px-3">Component</th>
-                    <th className="py-4.5 px-3">Description</th>
-                    <th className="py-4.5 px-3 text-center">Max Marks</th>
-                    <th className="py-4.5 px-3 text-center">Required</th>
-                    <th className="py-4.5 px-3 text-center">Status</th>
-                    <th className="py-4.5 px-3 text-right">Action</th>
+                  <tr className="data-thead">
+                    <th className="data-th px-3">Component</th>
+                    <th className="data-th px-3">Description</th>
+                    <th className="data-th px-3 text-center">Max Marks</th>
+                    <th className="data-th px-3 text-center">Required</th>
+                    <th className="data-th px-3 text-center">Status</th>
+                    <th className="data-th px-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
