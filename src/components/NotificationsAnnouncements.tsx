@@ -287,7 +287,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             <span>Back to Dashboard</span>
           </button>
           
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+          <h1 className="page-title">
             My Notifications & Announcements
           </h1>
         </div>

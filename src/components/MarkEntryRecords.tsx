@@ -302,7 +302,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           <span>Back to Marks & Evaluation Management</span>
         </button>
 
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+        <h1 className="page-title">
           Mark Entry Records
         </h1>
         <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
@@ -501,18 +501,18 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       <div id="mark-records-table-container" className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(241,245,249,0.5)] overflow-hidden">
         
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[950px] text-left border-collapse">
+          <table className="data-table min-w-[950px]">
             <thead>
-              <tr className="border-b border-slate-200 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider bg-slate-50/30">
-                <th className="py-4.5 px-5">Record ID</th>
-                <th className="py-4.5 px-5">Student</th>
-                <th className="py-4.5 px-5">Research Title</th>
-                <th className="py-4.5 px-5">Panel Member</th>
-                <th className="py-4.5 px-5">Semester</th>
-                <th className="py-4.5 px-5 text-center">Total Mark</th>
-                <th className="py-4.5 px-5 text-center">Status</th>
-                <th className="py-4.5 px-5 text-center">Submitted Date</th>
-                <th className="py-4.5 px-5 text-right">Action</th>
+              <tr className="data-thead bg-slate-50/30">
+                <th className="data-th">Record ID</th>
+                <th className="data-th">Student</th>
+                <th className="data-th">Research Title</th>
+                <th className="data-th">Panel Member</th>
+                <th className="data-th">Semester</th>
+                <th className="data-th text-center">Total Mark</th>
+                <th className="data-th text-center">Status</th>
+                <th className="data-th text-center">Submitted Date</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
@@ -686,16 +686,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           <span>Export Records (PDF/CSV)</span>
         </button>
       </div>
-
-      {/* Modern Administrative Footer layout section */}
-      <footer id="records-pannel-footer" className="pt-6 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-slate-400 font-medium font-sans">
-        <span>&copy; 2024 FSKTM Postgraduate Office. All rights reserved.</span>
-        <div className="flex items-center gap-4">
-          <button onClick={() => triggerToast("Viewing Privacy Policy details.")} className="hover:text-slate-600">Privacy Policy</button>
-          <button onClick={() => triggerToast("Viewing Terms of Service.")} className="hover:text-slate-600">Terms of Service</button>
-          <button onClick={() => triggerToast("Opening Secretariat Help desk ticket portal.")} className="hover:text-slate-600">Contact Support</button>
-        </div>
-      </footer>
 
       {/* Interactive Modal to drill into evaluation details (View records details rule) */}
       <AnimatePresence>

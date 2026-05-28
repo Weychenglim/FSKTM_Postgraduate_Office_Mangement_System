@@ -335,11 +335,11 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
       {/* Head section title with actions buttons Row */}
       <div id="timeline-page-intro" className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-        <div className="text-left space-y-1">
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+        <div className="text-left">
+          <h1 className="page-title">
             Timeline Management
           </h1>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
+          <p className="page-subtitle">
             View, upload, and manage semester timeline entries.
           </p>
         </div>
@@ -517,19 +517,19 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
         {/* Data list Table layout */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left font-sans border-collapse">
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-slate-200 text-[9px] font-black text-slate-400 bg-slate-50/20 uppercase tracking-widest text-left select-none">
-                <th className="py-3 px-4">Event</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Start Date</th>
-                <th className="py-3 px-4">End Date</th>
-                <th className="py-3 px-4">Target Role</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-right">Action</th>
+              <tr className="data-thead select-none">
+                <th className="data-th">Event</th>
+                <th className="data-th">Category</th>
+                <th className="data-th">Start Date</th>
+                <th className="data-th">End Date</th>
+                <th className="data-th">Target Role</th>
+                <th className="data-th text-center">Status</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#efecf6]/14 divide-slate-100 text-xs">
+            <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400 italic">
@@ -538,29 +538,29 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                 </tr>
               ) : (
                 filteredEntries.map((ent) => (
-                  <tr key={ent.id} className="hover:bg-slate-50/30 transition-colors">
+                  <tr key={ent.id} className="data-row">
                     {/* Event name banner */}
-                    <td className="py-4 px-4 font-black text-[#0c1424] max-w-[240px]">
+                    <td className="data-td-strong max-w-[240px]">
                       {ent.event}
                     </td>
 
                     {/* Category Label description */}
-                    <td className="py-4 px-4 text-slate-500 font-bold">
+                    <td className="data-td">
                       {ent.category}
                     </td>
 
                     {/* Start timeline */}
-                    <td className="py-4 px-4 font-mono font-bold text-slate-550 text-slate-550">
+                    <td className="data-td font-mono">
                       {ent.startDate}
                     </td>
 
                     {/* End timeline */}
-                    <td className="py-4 px-4 font-mono font-bold text-slate-550 text-slate-550">
+                    <td className="data-td font-mono">
                       {ent.endDate}
                     </td>
 
                     {/* Target Roles Badge Chips */}
-                    <td className="py-4 px-4">
+                    <td className="data-td">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {ent.targetRole.map((role) => (
                           <span
@@ -578,7 +578,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                     </td>
 
                     {/* Status indicator pill with colored bullet code */}
-                    <td className="py-4 px-4 text-center">
+                    <td className="data-td text-center">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${getStatusBadgeStyles(ent.status)}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${getStatusBulletColor(ent.status)}`} />
                         <span>{ent.status}</span>
@@ -586,7 +586,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                     </td>
 
                     {/* Manage row edit handler link */}
-                    <td className="py-4 px-4 text-right">
+                    <td className="data-td text-right">
                       <div className="flex items-center justify-end gap-2.5">
                         <button
                           onClick={() => handleOpenEditModal(ent)}
@@ -621,20 +621,20 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         </h3>
 
         <div className="overflow-x-auto pt-1">
-          <table className="w-full text-left font-sans border-collapse text-xs">
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-slate-200 text-[9px] font-black text-slate-400 bg-slate-50/20 uppercase tracking-widest select-none">
-                <th className="py-2 px-4 text-left">USER</th>
-                <th className="py-2 px-4 text-left">DATE</th>
-                <th className="py-2 px-4 text-left">ACTION</th>
-                <th className="py-2 px-4 text-left">DETAILS</th>
+              <tr className="data-thead select-none">
+                <th className="data-th text-left">USER</th>
+                <th className="data-th text-left">DATE</th>
+                <th className="data-th text-left">ACTION</th>
+                <th className="data-th text-left">DETAILS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {updateLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/20">
+                <tr key={log.id} className="data-row">
                   {/* User identity cell with photo avatar */}
-                  <td className="py-4 px-4 flex items-center gap-3">
+                  <td className="data-td flex items-center gap-3">
                     <img
                       src={log.avatar}
                       alt={log.user}
@@ -645,19 +645,19 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                   </td>
 
                   {/* Operation date log */}
-                  <td className="py-4 px-4 text-slate-500 font-semibold">
+                  <td className="data-td">
                     {log.date}
                   </td>
 
                   {/* Operational tag action color mapping */}
-                  <td className="py-4 px-4 font-extrabold">
+                  <td className="data-td font-extrabold">
                     <span className={log.actionColor}>
                       {log.action}
                     </span>
                   </td>
 
                   {/* Details summary */}
-                  <td className="py-4 px-4 text-slate-600 font-medium">
+                  <td className="data-td">
                     {log.details}
                   </td>
                 </tr>
@@ -691,39 +691,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         onClose={() => setUploadDrawerOpen(false)} 
         onImportSuccess={handleImportSuccess} 
       />
-
-      {/* Footer layout */}
-      <footer id="timeline-portal-footer" className="pt-10 border-t border-[#e2e8f0] flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
-        <div className="text-left font-sans text-slate-400">
-          © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
-        </div>
-        <div id="timeline-footer-actions-links" className="flex items-center flex-wrap gap-4 uppercase tracking-wider font-sans text-slate-400">
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Opening privacy policy conditions...')}
-            className="hover:text-slate-800 cursor-pointer text-slate-400"
-          >
-            Privacy Policy
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Downloading updated system admin manual...')}
-            className="hover:text-slate-800 cursor-pointer text-slate-400"
-          >
-            System Manual
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Opening support desk contact information...')}
-            className="hover:text-slate-800 cursor-pointer flex items-center gap-1 text-slate-400"
-          >
-            <HelpCircle className="w-3.5 h-3.5 inline text-slate-400" />
-            <span>Support Desk</span>
-          </button>
-        </div>
-      </footer>
 
     </div>
   );

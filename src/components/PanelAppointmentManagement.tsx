@@ -338,7 +338,7 @@ export const PanelAppointmentManagement: React.FC = () => {
           
           {/* Upper Title Section */}
           <div id="panel-header-desc" className="text-left">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+            <h1 className="page-title">
               Panel Appointment Management
             </h1>
             <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
@@ -687,16 +687,16 @@ export const PanelAppointmentManagement: React.FC = () => {
 
             {/* Inner responsive table view */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
+              <table className="data-table min-w-[850px] text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-4 px-6">Student ID / Name</th>
-                    <th className="py-4 px-6">Programme / Sem</th>
-                    <th className="py-4 px-6">Supervisor</th>
-                    <th className="py-4 px-6">Panel Member</th>
-                    <th className="py-4 px-6">Status</th>
-                    <th className="py-4 px-6">Updated</th>
-                    <th className="py-4 px-6 text-right">Action</th>
+                  <tr className="data-thead bg-slate-50">
+                    <th className="data-th px-6">Student ID / Name</th>
+                    <th className="data-th px-6">Programme / Sem</th>
+                    <th className="data-th px-6">Supervisor</th>
+                    <th className="data-th px-6">Panel Member</th>
+                    <th className="data-th px-6">Status</th>
+                    <th className="data-th px-6">Updated</th>
+                    <th className="data-th px-6 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
@@ -850,16 +850,6 @@ export const PanelAppointmentManagement: React.FC = () => {
 
             </div>
 
-          </div>
-
-          {/* Quick Footer for additional compliance */}
-          <div className="pt-2 border-t border-slate-200/45 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold font-sans tracking-wide">
-            <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-            <div className="flex items-center gap-4 mt-2 md:mt-0 uppercase">
-              <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Showing Privacy Policy details..."); }} className="hover:text-slate-600 transition">Privacy Policy</a>
-              <a href="#system" onClick={(e) => { e.preventDefault(); showToast("Contacting help system terminal..."); }} className="hover:text-slate-600 transition">System Manual</a>
-              <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Routing to support deck..."); }} className="hover:text-slate-600 transition">Support Desk</a>
-            </div>
           </div>
 
         </div>

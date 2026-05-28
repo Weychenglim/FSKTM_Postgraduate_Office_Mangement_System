@@ -254,10 +254,10 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
       {/* Header text layout */}
       <div className="text-left mb-6">
-        <h1 className="text-2xl font-black text-[#0c1424] tracking-tight">
+        <h1 className="page-title">
           Upload New Document
         </h1>
-        <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
+        <p className="page-subtitle leading-relaxed">
           Add files to the central repository with metadata and tags.
         </p>
       </div>
@@ -433,11 +433,11 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               <div className="border border-slate-150 rounded-xl overflow-hidden">
                 <table className="w-full text-[11px] font-sans text-left border-collapse">
                   <thead>
-                    <tr className="bg-[#f8fafc] border-b border-slate-150 text-slate-400 font-extrabold uppercase tracking-wider text-[9px]">
-                      <th className="px-5 py-3 font-black">Role</th>
-                      <th className="px-5 py-3 text-center font-black">View</th>
-                      <th className="px-5 py-3 text-center font-black">Download</th>
-                      <th className="px-5 py-3 text-center font-black">Archive</th>
+                    <tr className="data-thead bg-[#f8fafc]">
+                      <th className="data-th px-5">Role</th>
+                      <th className="data-th px-5 text-center">View</th>
+                      <th className="data-th px-5 text-center">Download</th>
+                      <th className="data-th px-5 text-center">Archive</th>
                     </tr>
                   </thead>
                   <tbody>

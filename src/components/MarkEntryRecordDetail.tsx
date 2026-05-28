@@ -124,10 +124,10 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             <span>Back to Mark Entry Records</span>
           </button>
 
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+          <h1 className="page-title">
             Mark Entry Record Detail
           </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
+          <p className="page-subtitle leading-relaxed">
             View submitted marks, rubric breakdown, panel member information, and related documents.
           </p>
         </div>
@@ -309,11 +309,11 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[650px] text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#f8fafc] text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-150">
-                    <th className="py-3.5 px-6">Component</th>
-                    <th className="py-3.5 px-6 text-center">Max Marks</th>
-                    <th className="py-3.5 px-6 text-center text-blue-600">Marks Awarded</th>
-                    <th className="py-3.5 px-6">Feedback</th>
+                  <tr className="data-thead bg-[#f8fafc]">
+                    <th className="data-th px-6">Component</th>
+                    <th className="data-th px-6 text-center">Max Marks</th>
+                    <th className="data-th px-6 text-center text-blue-600">Marks Awarded</th>
+                    <th className="data-th px-6">Feedback</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-sans">

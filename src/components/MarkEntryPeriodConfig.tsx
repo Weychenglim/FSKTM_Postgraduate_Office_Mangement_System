@@ -191,10 +191,10 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
           <span>Back to Marks & Evaluation Management</span>
         </button>
 
-        <h1 id="config-page-title" className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+        <h1 id="config-page-title" className="page-title">
           Mark Entry Period Configuration
         </h1>
-        <p id="config-page-subtext" className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
+        <p id="config-page-subtext" className="page-subtitle leading-relaxed">
           Set mark entry start dates, end dates, and submission deadlines for evaluation tasks.
         </p>
       </div>

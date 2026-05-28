@@ -440,10 +440,10 @@ export const FileRepository: React.FC = () => {
       {/* Title Header with action buttons */}
       <div id="file-page-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="text-left">
-          <h1 className="text-2xl font-black text-[#0c1424] tracking-tight">
+          <h1 className="page-title">
             File Repository
           </h1>
-          <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
+          <p className="page-subtitle leading-relaxed">
             Browse, preview and download documents
           </p>
         </div>
@@ -727,10 +727,10 @@ export const FileRepository: React.FC = () => {
               
               /* LIST TYPE TABLE VIEW */
               <div className="overflow-x-auto">
-                <table className="w-full font-sans text-left border-collapse">
+                <table className="data-table">
                   <thead>
-                    <tr className="bg-[#f8fafc] border-b border-slate-150 text-slate-500 font-extrabold text-[10px] uppercase tracking-wider">
-                      <th className="px-5 py-3.5 w-6 select-none">
+                    <tr className="data-thead bg-[#f8fafc]">
+                      <th className="data-th px-5 w-6 select-none">
                         <input
                           type="checkbox"
                           checked={checkedIds.length > 0 && checkedIds.length === filteredFiles.map(f => f.id).length}
@@ -738,15 +738,15 @@ export const FileRepository: React.FC = () => {
                           className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-slate-900 cursor-pointer"
                         />
                       </th>
-                      <th className="px-5 py-3.5">File Name</th>
-                      <th className="px-4 py-3.5">Student ID</th>
-                      <th className="px-4 py-3.5">Category</th>
-                      <th className="px-3 py-3.5">Sem</th>
-                      <th className="px-4 py-3.5">Uploaded By</th>
-                      <th className="px-4 py-3.5">Date</th>
-                      <th className="px-3 py-3.5">Size</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className="data-th px-5">File Name</th>
+                      <th className="data-th px-4">Student ID</th>
+                      <th className="data-th px-4">Category</th>
+                      <th className="data-th px-3">Sem</th>
+                      <th className="data-th px-4">Uploaded By</th>
+                      <th className="data-th px-4">Date</th>
+                      <th className="data-th px-3">Size</th>
+                      <th className="data-th px-4 text-center">Status</th>
+                      <th className="data-th px-5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>

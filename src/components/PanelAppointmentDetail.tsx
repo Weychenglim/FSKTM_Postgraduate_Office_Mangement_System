@@ -109,7 +109,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
             <span>Back to Panel Appointment Management</span>
           </button>
           
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight">
+          <h1 className="page-title">
             Panel Appointment Detail
           </h1>
           <p className="text-slate-500 text-xs md:text-sm mt-1 font-medium max-w-2xl">
@@ -407,11 +407,11 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[500px] border-collapse font-sans text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-black text-slate-400 uppercase tracking-widest select-none">
-                    <th className="py-3 px-6">File Name</th>
-                    <th className="py-3 px-6">Category</th>
-                    <th className="py-3 px-6">Uploaded Date</th>
-                    <th className="py-3 px-6 text-right">Action</th>
+                  <tr className="data-thead bg-slate-50 select-none">
+                    <th className="data-th px-6">File Name</th>
+                    <th className="data-th px-6">Category</th>
+                    <th className="data-th px-6">Uploaded Date</th>
+                    <th className="data-th px-6 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
@@ -494,16 +494,6 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
               This page provides a read-only administrative view of the student's panel appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* Aesthetic Footer block */}
-      <div className="pt-2 border-t border-slate-200/40 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold font-sans tracking-wide uppercase">
-        <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-        <div className="flex items-center gap-4 mt-2 md:mt-0">
-          <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Policy details loading..."); }} className="hover:text-slate-650 transition">Privacy Policy</a>
-          <a href="#system" onClick={(e) => { e.preventDefault(); showToast("System diagnostics manual accessed..."); }} className="hover:text-slate-650 transition">System Manual</a>
-          <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Support terminal routed..."); }} className="hover:text-slate-650 transition">Support Desk</a>
         </div>
       </div>
 

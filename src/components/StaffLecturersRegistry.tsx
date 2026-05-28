@@ -376,19 +376,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type
   );
 };
 
-export const Footer: React.FC = () => {
-  return (
-    <footer className="mt-16 text-center select-none pt-6 border-t border-slate-200/50 text-slate-400 font-semibold flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-wider font-sans">
-      <p>© 2026 FSKTM Postgraduate Center, University of Malaya. All rights reserved.</p>
-      <div className="flex gap-4">
-        <span className="hover:text-slate-650 cursor-help">Technical Support Secretariat</span>
-        <span className="text-slate-300">•</span>
-        <span className="hover:text-slate-655 cursor-help">Academic Guidelines Docs</span>
-      </div>
-    </footer>
-  );
-};
-
 export const StaffLecturersRegistry: React.FC = () => {
   // Master State for staff members
   const [staffList, setStaffList] = useState<StaffRecord[]>([
@@ -735,7 +722,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
               <span className="text-slate-600 font-black">Create New Account</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+            <h1 className="page-title">
               Create New Account
             </h1>
             <p className="text-xs text-slate-550 font-bold mt-1.5 leading-relaxed text-[#556987]">
@@ -970,7 +957,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                 <ChevronRight className="w-3 h-3 text-slate-455 stroke-[2.5]" />
                 <span className="text-slate-600">Staff and Lecturer Accounts</span>
               </div>
-              <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
+              <h1 className="page-title">
                 Staff and Lecturer Accounts
               </h1>
             </div>
@@ -1146,20 +1133,20 @@ export const StaffLecturersRegistry: React.FC = () => {
 
         {/* DATABLE ELEMENT */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="data-table min-w-[700px]">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/40 text-slate-400 font-extrabold select-none tracking-widest text-[9.5px] uppercase">
-                <th className="py-4.5 px-6 w-12 text-center">
+              <tr className="data-thead bg-slate-50/40 select-none">
+                <th className="data-th w-12 text-center">
                   <input type="checkbox" className="rounded border-slate-300 text-slate-900 focus:ring-slate-900" readOnly disabled />
                 </th>
-                <th className="py-4.5 px-6 font-black">Name & ID</th>
-                <th className="py-4.5 px-6 font-black">Department</th>
-                <th className="py-4.5 px-6 font-black">Email</th>
-                <th className="py-4.5 px-6 font-black">Status</th>
-                <th className="py-4.5 px-6 w-24 text-right font-black pr-10">Actions</th>
+                <th className="data-th">Name & ID</th>
+                <th className="data-th">Department</th>
+                <th className="data-th">Email</th>
+                <th className="data-th">Status</th>
+                <th className="data-th w-24 text-right pr-10">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {displayedStaff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400 italic bg-white font-semibold">
@@ -1180,17 +1167,17 @@ export const StaffLecturersRegistry: React.FC = () => {
                   }
 
                   return (
-                    <tr 
-                      key={staff.id} 
-                      className="hover:bg-slate-50/40 transition duration-150 group font-bold text-xs"
+                    <tr
+                      key={staff.id}
+                      className="data-row group font-bold text-xs"
                     >
                       {/* Checkbox */}
-                      <td className="py-4 px-6 text-center">
+                      <td className="data-td w-12 text-center">
                         <input type="checkbox" className="rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
                       </td>
 
                       {/* Name and ID */}
-                      <td className="py-4 px-6">
+                      <td className="data-td">
                         <div className="flex items-center gap-3">
                           {/* Avatar Initials */}
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-black tracking-wide border select-none ${staff.avatarBg}`}>
@@ -1208,17 +1195,17 @@ export const StaffLecturersRegistry: React.FC = () => {
                       </td>
 
                       {/* Department */}
-                      <td className="py-4 px-6 text-slate-700 font-bold max-w-[150px] truncate">
+                      <td className="data-td max-w-[150px] truncate">
                         {staff.department}
                       </td>
 
                       {/* Email address */}
-                      <td className="py-4 px-6 text-slate-500 font-medium select-all hover:text-blue-600 transition-colors">
+                      <td className="data-td select-all hover:text-blue-600 transition-colors">
                         {staff.email}
                       </td>
 
                       {/* Status chip */}
-                      <td className="py-4 px-6">
+                      <td className="data-td">
                         <span className={`inline-flex items-center px-3.5 py-1 text-[10.5px] font-black rounded-full border tracking-wide select-none ${statusChipStyle}`}>
                           <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
                             staff.status === 'Active' 
@@ -1232,7 +1219,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                       </td>
 
                       {/* Actions Buttons Column */}
-                      <td className="py-4 px-6 text-right pr-10">
+                      <td className="data-td text-right pr-10">
                         <div className="flex items-center justify-end">
                           <button
                             type="button"

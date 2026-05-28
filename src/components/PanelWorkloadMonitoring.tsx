@@ -298,7 +298,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           <span>Back to Panel Appointment Management</span>
         </button>
         
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight">
+        <h1 className="page-title">
           Panel Workload Monitoring
         </h1>
         <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 leading-relaxed max-w-3xl">
@@ -560,14 +560,14 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         <div id="table-scroll-ledger" className="overflow-x-auto">
           <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                <th className="py-4 px-6 md:px-8">Lecturer ID</th>
-                <th className="py-4 px-6">Lecturer Name</th>
-                <th className="py-4 px-6">Department</th>
-                <th className="py-4 px-6 text-center">Current Panel Assignments</th>
-                <th className="py-4 px-6 text-center">Workload Limit</th>
-                <th className="py-4 px-6 text-center">Availability</th>
-                <th className="py-4 px-6 text-right md:px-8">Action</th>
+              <tr className="data-thead bg-slate-50 select-none">
+                <th className="data-th px-6 md:px-8">Lecturer ID</th>
+                <th className="data-th px-6">Lecturer Name</th>
+                <th className="data-th px-6">Department</th>
+                <th className="data-th px-6 text-center">Current Panel Assignments</th>
+                <th className="data-th px-6 text-center">Workload Limit</th>
+                <th className="data-th px-6 text-center">Availability</th>
+                <th className="data-th px-6 text-right md:px-8">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
@@ -705,16 +705,6 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
         </div>
 
-      </div>
-
-      {/* Footer layout matching layout rules */}
-      <div className="pt-2 border-t border-slate-200/40 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold font-sans tracking-wide uppercase">
-        <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-        <div className="flex items-center gap-4 mt-2 md:mt-0">
-          <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Policy details loading..."); }} className="hover:text-slate-650 transition">Privacy Policy</a>
-          <a href="#system" onClick={(e) => { e.preventDefault(); showToast("System diagnostics manual accessed..."); }} className="hover:text-slate-650 transition">System Manual</a>
-          <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Support terminal routed..."); }} className="hover:text-slate-650 transition">Support Desk</a>
-        </div>
       </div>
 
       {/* Lecturer Workload Detail Right Sliding Drawer */}
@@ -877,9 +867,9 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left font-sans text-[11px]">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-bold text-slate-450 uppercase">
-                            <th className="py-2.5 px-4 w-5/12">Student & ID</th>
-                            <th className="py-2.5 px-4 w-7/12">Research Topic</th>
+                          <tr className="data-thead bg-slate-50">
+                            <th className="data-th px-4 w-5/12">Student & ID</th>
+                            <th className="data-th px-4 w-7/12">Research Topic</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">

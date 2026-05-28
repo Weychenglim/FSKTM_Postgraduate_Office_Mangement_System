@@ -29,9 +29,9 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
       <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
         <table className="w-full text-xs font-sans border-collapse">
           <thead>
-            <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[9px] font-extrabold text-[#64748b] uppercase tracking-wider">
-              <th className="py-3 px-4 text-left w-[140px] shrink-0">Student & ID</th>
-              <th className="py-3 px-4 text-left">Research Topic</th>
+            <tr className="data-thead bg-[#f8fafc]">
+              <th className="data-th px-4 text-left w-[140px] shrink-0">Student & ID</th>
+              <th className="data-th px-4 text-left">Research Topic</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#efecf6]/10 divide-slate-100">
