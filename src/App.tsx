@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
+import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
 import { AppLayout } from './components/AppLayout';
 import { SummaryCard } from './components/SummaryCard';
 import { ChecklistCard, ChecklistItem } from './components/ChecklistCard';
@@ -21,6 +22,12 @@ import { PanelAppointmentManagement } from './components/PanelAppointmentManagem
 import { SupervisorAppointmentManagement } from './components/SupervisorAppointmentManagement';
 import { AdministrationDashboard } from './components/AdministrationDashboard';
 import { TimelineManagement } from './components/TimelineManagement';
+import { FileRepository } from './components/FileRepository';
+import { NotificationsAnnouncements } from './components/NotificationsAnnouncements';
+import { AnnouncementManagement } from './components/AnnouncementManagement';
+import { AcademicFAQEditor } from './components/AcademicFAQEditor';
+import { LetterTemplateManagement } from './components/LetterTemplateManagement';
+import { StudentRegistry } from './components/StudentRegistry';
 import { 
   Calendar, 
   Sliders, 
@@ -142,6 +149,9 @@ export default function App() {
   // Authentication session tracking
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(DEFAULT_SECRETARY_ADMIN);
 
+  // Unauthenticated view routing state
+  const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
+
   // Sidebar navigation active state
   const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard Overview');
 
@@ -196,6 +206,9 @@ export default function App() {
             setDashboardSubView('overview');
           }}
           onLogout={handleLogout}
+          onNotificationsTrigger={() => {
+            setActiveSidebarItem('Notifications & Announcements');
+          }}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
@@ -319,11 +332,13 @@ export default function App() {
             <PanelAppointmentManagement />
           ) : activeSidebarItem === 'Supervisor Appointments' ? (
             <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem('Panel Appointments')} />
-          ) : activeSidebarItem === 'Dashboard Overview' ? (
+          ) : activeSidebarItem === 'Registry Management' ? (
+            <StudentRegistry />
+          ) : activeSidebarItem === 'Dashboard Overview' || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
             dashboardSubView === 'timeline' ? (
               <TimelineManagement onBack={() => setDashboardSubView('overview')} />
             ) : (
-              <AdministrationDashboard
+              <AdministrationDashboard 
                 onNavigateToTab={(tab) => {
                   setActiveSidebarItem(tab);
                   setCurrentSubView('dashboard');
@@ -332,6 +347,16 @@ export default function App() {
                 onNavigateToTimeline={() => setDashboardSubView('timeline')}
               />
             )
+          ) : activeSidebarItem === 'File Management' ? (
+            <FileRepository />
+          ) : activeSidebarItem === 'FAQ Chatbot' ? (
+            <AcademicFAQEditor />
+          ) : activeSidebarItem === 'Letter Generation' ? (
+            <LetterTemplateManagement />
+          ) : activeSidebarItem === 'Announcements' ? (
+            <AnnouncementManagement />
+          ) : activeSidebarItem === 'Notifications & Announcements' ? (
+            <NotificationsAnnouncements onBack={() => setActiveSidebarItem('Dashboard Overview')} />
           ) : (
             /* Placeholder message for other sidebar routes */
             <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
@@ -353,6 +378,9 @@ export default function App() {
             </div>
           )}
         </AppLayout>
+      ) : authView === 'forgot' ? (
+        /* ==================== FRONTEND: STANDALONE FORGOT PASSWORD SCREEN ==================== */
+        <ForgotPasswordFlow onBackToLogin={() => setAuthView('login')} />
       ) : (
         /* ==================== FRONTEND: STANDALONE LOGIN SCREEN ==================== */
         <AuthLayout>
@@ -369,7 +397,7 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setCurrentUser(DEFAULT_SECRETARY_ADMIN)}
+                  onClick={() => handleSuccessfulLogin(DEFAULT_SECRETARY_ADMIN)}
                   className="px-3 py-1.5 bg-[#1f305c] hover:bg-blue-800 text-white font-extrabold text-[10px] uppercase rounded-lg transition-colors cursor-pointer"
                 >
                   Enter Portal Direct
@@ -377,10 +405,13 @@ export default function App() {
               </div>
 
               {/* Real LoginCard */}
-              <LoginCard />
+              <LoginCard 
+                onForgotPasswordClick={() => setAuthView('forgot')}
+                onLoginSuccess={handleSuccessfulLogin}
+              />
 
               {/* Visual guidance indicator */}
-              <div className="mt-4 text-[11px] text-slate-400 font-medium">
+              <div className="mt-4 text-[11px] text-slate-400 font-medium font-sans">
                 Tip: Enter valid credentials or click any character role from the Console to log in.
               </div>
             </div>
