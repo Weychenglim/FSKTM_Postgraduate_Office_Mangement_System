@@ -244,12 +244,12 @@ export const AcademicFAQEditor: React.FC = () => {
       {/* Top Section Header Row */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left">
         <div>
-          <span className="text-blue-600 font-extrabold uppercase tracking-widest text-[9px] block">
-            Knowledge Management
-          </span>
-          <h1 className="page-title mt-0.5">
+          <h1 className="page-title">
             Academic FAQ Editor
           </h1>
+          <p className="page-subtitle">
+            Knowledge Management
+          </p>
         </div>
 
         {/* Global actions row */}
@@ -614,19 +614,6 @@ export const AcademicFAQEditor: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Clean Administrative Secretariat Footer Row */}
-      <div className="border-t border-slate-250/70 pt-5 mt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 select-none">
-        <div className="flex items-center gap-1.5">
-          <MessageSquareCode className="w-4 h-4 text-slate-350" />
-          <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
-            Knowledge Agent Engine v2.4a
-          </span>
-        </div>
-        <div className="text-[10px] font-semibold">
-          FSKTM Postgraduate Administrative Center &bull; Universiti Malaya
-        </div>
       </div>
 
     </div>

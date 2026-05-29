@@ -28,8 +28,7 @@ import {
   SlidersHorizontal,
   RefreshCcw,
   Sparkles,
-  ChevronDown,
-  Info
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -736,19 +735,6 @@ export const LetterTemplateManagement: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Reusable Section notes & assurance footer */}
-      <div className="border-t border-slate-200 pt-6 mt-12 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 select-none text-left">
-        <div className="flex items-center gap-1.5">
-          <Info className="w-4 h-4 text-indigo-400" />
-          <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400">
-            FSKTM Document Generator Core Engine v4.12
-          </span>
-        </div>
-        <p className="text-[10px] font-semibold">
-          Templates are compiled on client confirmation and signed using FSKTM Registrar credentials.
-        </p>
       </div>
 
     </div>

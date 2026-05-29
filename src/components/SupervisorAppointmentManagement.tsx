@@ -364,9 +364,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               setViewState('list');
               showToast("Returned to Supervisor Appointment Management");
             }} 
-            className="group flex items-center gap-2 text-xs font-extrabold text-[#0c1424] hover:text-[#3b82f6] transition-colors uppercase tracking-wider mb-2 cursor-pointer border border-slate-205 rounded-xl px-4 py-2.5 bg-white shadow-3xs"
+            className="back-link group mb-3"
           >
-            <ChevronLeft className="w-4.5 h-4.5 transition-transform group-hover:-translate-x-0.5 text-slate-500" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Supervisor Appointment Management</span>
           </button>
         </div>
@@ -652,26 +652,26 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <table className="data-table min-w-[650px]">
               <thead>
                 <tr className="data-thead bg-slate-50 select-none">
-                  <th className="data-th px-6">File Name</th>
-                  <th className="data-th px-6">Category</th>
-                  <th className="data-th px-6">Uploaded Date</th>
-                  <th className="data-th px-6 text-center">Action</th>
+                  <th className="data-th">File Name</th>
+                  <th className="data-th">Category</th>
+                  <th className="data-th">Uploaded Date</th>
+                  <th className="data-th text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {/* File 1 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Proposal.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Research Proposal
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     10 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Proposal.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -684,17 +684,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                 {/* File 2 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Supervisor Appointment Letter.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Official Letter
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     14 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Supervisor Appointment Letter.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -707,17 +707,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                 {/* File 3 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Student Profile.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Student Record
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     10 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Student Profile.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -1008,13 +1008,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <table className="data-table min-w-[700px] text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th px-6">Student ID</th>
-                    <th className="data-th px-6">Student Name</th>
-                    <th className="data-th px-6">Programme</th>
-                    <th className="data-th px-6">Supervisor</th>
-                    <th className="data-th px-6 text-center">Status</th>
-                    <th className="data-th px-6">Updated Date</th>
-                    <th className="data-th px-6 text-center">Action</th>
+                    <th className="data-th">Student ID</th>
+                    <th className="data-th">Student Name</th>
+                    <th className="data-th">Programme</th>
+                    <th className="data-th">Supervisor</th>
+                    <th className="data-th text-center">Status</th>
+                    <th className="data-th">Updated Date</th>
+                    <th className="data-th text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1023,29 +1023,29 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                       <tr key={r.studentId} className="hover:bg-slate-50/50 transition-colors">
                         
                         {/* Student ID */}
-                        <td className="py-4 px-6 font-semibold text-slate-500 font-mono text-[11px]">
+                        <td className="data-td font-mono">
                           {r.studentId}
                         </td>
 
                         {/* Student Name */}
-                        <td className="py-4 px-6 font-extrabold text-[#0c1424] text-xs">
+                        <td className="data-td-strong">
                           {r.studentName}
                         </td>
 
                         {/* Programme */}
-                        <td className="py-4 px-6 font-bold text-slate-500">
+                        <td className="data-td">
                           {r.programme}
                         </td>
 
                         {/* Supervisor */}
-                        <td className={`py-4 px-6 font-black ${
-                          r.supervisor === 'Not Assigned' ? 'text-red-500 font-extrabold' : 'text-[#0c1424]'
+                        <td className={`data-td-strong ${
+                          r.supervisor === 'Not Assigned' ? 'text-red-500' : ''
                         }`}>
                           {r.supervisor}
                         </td>
 
                         {/* Status chip */}
-                        <td className="py-4 px-6 text-center">
+                        <td className="data-td text-center">
                           <div className="flex items-center justify-center">
                             {r.status === 'Approved' ? (
                               <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-emerald-100">
@@ -1072,12 +1072,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                         </td>
 
                         {/* Updated Date */}
-                        <td className="py-4 px-6 font-bold text-slate-500">
+                        <td className="data-td">
                           {r.updatedDate}
                         </td>
 
                         {/* Action - View Button */}
-                        <td className="py-4 px-6 text-center">
+                        <td className="data-td text-center">
                           <button
                             onClick={() => {
                               setSelectedRecord(r);

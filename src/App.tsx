@@ -31,8 +31,7 @@ import { StudentRegistry } from './components/StudentRegistry';
 import { 
   Calendar, 
   Sliders, 
-  CheckCircle, 
-  ArrowUpRight,
+  CheckCircle,
   Database,
   Briefcase,
   Layers,
@@ -237,24 +236,13 @@ export default function App() {
               <div id="marks-entry-workspace" className="space-y-8 animate-fade-in">
                 
                 {/* Header Title section */}
-                <div id="page-metadata-block" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="text-left">
-                    <h1 id="main-view-title" className="page-title">
-                      Marks & Evaluation Management
-                    </h1>
-                    <p id="main-view-subtitle" className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium">
-                      Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
-                    </p>
-                  </div>
-
-                  {/* Return button indicator to let user easily toggle back manually and check Login UI */}
-                  <button
-                    onClick={handleLogout}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#0c1424] border border-slate-200/80 rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition-all cursor-pointer shadow-xs"
-                  >
-                    <ArrowUpRight className="w-4 h-4 text-slate-500" />
-                    <span>Switch to Login Screen</span>
-                  </button>
+                <div id="page-metadata-block" className="text-left">
+                  <h1 id="main-view-title" className="page-title">
+                    Marks & Evaluation Management
+                  </h1>
+                  <p id="main-view-subtitle" className="page-subtitle">
+                    Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
+                  </p>
                 </div>
 
                 {/* 4 Summary Cards Grid */}

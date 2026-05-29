@@ -42,9 +42,13 @@
   --animate-fade-in: fade-in 0.4s ease-out both;
 }
 
+/* Opacity-only — intentionally no transform. A lingering transform (from
+   `both` fill) would make any element with .animate-fade-in the containing
+   block for its position:fixed descendants, clipping modal/drawer backdrops
+   to the content area instead of covering the full viewport. */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ============================================================
@@ -64,6 +68,10 @@
 
   /* Standard white content card */
   .app-card { @apply bg-white rounded-2xl border border-slate-200/80; }
+
+  /* "Back to ..." navigation link (pair with `group mb-3` on the button
+     and a ChevronLeft icon: w-4 h-4 group-hover:-translate-x-0.5 transition-transform) */
+  .back-link { @apply inline-flex items-center gap-1 font-bold text-xs text-blue-600 hover:text-blue-800 transition cursor-pointer; }
 
   /* Tables */
   .data-table    { @apply w-full text-left border-collapse font-sans; }

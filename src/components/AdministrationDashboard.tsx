@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Users, 
   FileText, 
@@ -345,8 +346,8 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       </div>
 
       {/* Create New Timeline Event / Entry Modal Dialog overlay */}
-      {newEntryModalOpen && (
-        <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      {newEntryModalOpen && createPortal(
+        <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="absolute inset-0" onClick={() => setNewEntryModalOpen(false)} />
           <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 shadow-2xl relative z-10 border border-slate-100 text-left font-sans">
             <div className="flex items-center gap-2 mb-4">
@@ -443,7 +444,8 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

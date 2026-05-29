@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   Upload, 
@@ -730,7 +731,7 @@ export const FileRepository: React.FC = () => {
                 <table className="data-table">
                   <thead>
                     <tr className="data-thead bg-[#f8fafc]">
-                      <th className="data-th px-5 w-6 select-none">
+                      <th className="data-th w-6 select-none">
                         <input
                           type="checkbox"
                           checked={checkedIds.length > 0 && checkedIds.length === filteredFiles.map(f => f.id).length}
@@ -738,15 +739,15 @@ export const FileRepository: React.FC = () => {
                           className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-slate-900 cursor-pointer"
                         />
                       </th>
-                      <th className="data-th px-5">File Name</th>
-                      <th className="data-th px-4">Student ID</th>
-                      <th className="data-th px-4">Category</th>
-                      <th className="data-th px-3">Sem</th>
-                      <th className="data-th px-4">Uploaded By</th>
-                      <th className="data-th px-4">Date</th>
-                      <th className="data-th px-3">Size</th>
-                      <th className="data-th px-4 text-center">Status</th>
-                      <th className="data-th px-5 text-right">Actions</th>
+                      <th className="data-th">File Name</th>
+                      <th className="data-th">Student ID</th>
+                      <th className="data-th">Category</th>
+                      <th className="data-th">Sem</th>
+                      <th className="data-th">Uploaded By</th>
+                      <th className="data-th">Date</th>
+                      <th className="data-th">Size</th>
+                      <th className="data-th text-center">Status</th>
+                      <th className="data-th text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -762,7 +763,7 @@ export const FileRepository: React.FC = () => {
                           }`}
                         >
                           {/* Checked Checkbox selection */}
-                          <td className="px-5 py-4 w-6 select-none" onClick={(e) => e.stopPropagation()}>
+                          <td className="data-td w-6 select-none" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -778,7 +779,7 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* File logo & styling name */}
-                          <td className="px-5 py-4">
+                          <td className="data-td">
                             <div className="flex items-center gap-3">
                               {getFileIcon(f.fileType)}
                               <div className="flex flex-col">
@@ -798,12 +799,12 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Student ID */}
-                          <td className="px-4 py-4 font-bold text-slate-500 whitespace-nowrap">
+                          <td className="data-td font-bold text-slate-500 whitespace-nowrap">
                             {f.studentId}
                           </td>
 
                           {/* Category pill column with beautiful custom layouts */}
-                          <td className="px-4 py-4">
+                          <td className="data-td">
                             {f.category === 'Coursework' ? (
                               <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-100 text-[10px]">Coursework</span>
                             ) : f.category === 'Research' ? (
@@ -816,12 +817,12 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Semester text */}
-                          <td className="px-3 py-4 font-bold text-slate-500 whitespace-nowrap">
+                          <td className="data-td font-bold text-slate-500 whitespace-nowrap">
                             {f.sem}
                           </td>
 
                           {/* Uploaded By */}
-                          <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
+                          <td className="data-td text-slate-600 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <div className="w-4 h-4 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-[8px] border border-slate-200">
                                 {f.uploadedBy[0]}
@@ -831,17 +832,17 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Upload Date */}
-                          <td className="px-4 py-4 text-slate-500 font-medium whitespace-nowrap">
+                          <td className="data-td text-slate-500 font-medium whitespace-nowrap">
                             {f.date}
                           </td>
 
                           {/* File size size */}
-                          <td className="px-3 py-4 text-slate-500 font-bold whitespace-nowrap">
+                          <td className="data-td text-slate-500 font-bold whitespace-nowrap">
                             {f.size}
                           </td>
 
                           {/* Status option */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                          <td className="data-td text-center whitespace-nowrap">
                             {f.status === 'Active' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-150 rounded-full text-[9px] font-black uppercase tracking-wider">
                                 <span className="w-1 h-1 rounded-full bg-emerald-500" />
@@ -856,7 +857,7 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Actions button */}
-                          <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="data-td text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1.5">
                               <button
                                 type="button"
@@ -1151,9 +1152,10 @@ export const FileRepository: React.FC = () => {
       </div>
 
       {/* Manual upload simulation dialog modal overlay */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isUploadOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsUploadOpen(false)} />
 
@@ -1301,7 +1303,9 @@ export const FileRepository: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

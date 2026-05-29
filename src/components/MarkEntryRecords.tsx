@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { 
-  ArrowLeft,
+import { createPortal } from 'react-dom';
+import {
   Search,
   SlidersHorizontal,
   Download,
@@ -296,9 +296,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       <div id="records-header-block" className="flex flex-col text-left">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3 cursor-pointer select-none"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Marks & Evaluation Management</span>
         </button>
 
@@ -548,17 +548,17 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                     </td>
 
                     {/* Thesis title */}
-                    <td className="py-4 px-5 text-xs text-slate-500 font-medium max-w-[200px] truncate" title={rec.researchTitle}>
+                    <td className="data-td max-w-[200px] truncate" title={rec.researchTitle}>
                       {rec.researchTitle}
                     </td>
 
                     {/* Panel member examiner */}
-                    <td className="py-4 px-5 text-xs text-[#0c1424] font-bold">
+                    <td className="data-td">
                       {rec.panelMember}
                     </td>
 
                     {/* Academic semester */}
-                    <td className="py-4 px-5 text-xs text-slate-500 font-medium">
+                    <td className="data-td">
                       {rec.semester}
                     </td>
 
@@ -608,7 +608,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                     </td>
 
                     {/* Submitted Date */}
-                    <td className="py-4 px-5 text-xs text-slate-500 font-medium text-center">
+                    <td className="data-td text-center">
                       {rec.submittedDate}
                     </td>
 
@@ -688,9 +688,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       </div>
 
       {/* Interactive Modal to drill into evaluation details (View records details rule) */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {selectedInspectRecord && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="absolute inset-0" onClick={() => setSelectedInspectRecord(null)} />
             
             <motion.div
@@ -822,7 +823,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

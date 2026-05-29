@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { 
-  ArrowLeft, 
+  ChevronLeft,
   Upload, 
   X, 
   CheckCircle, 
@@ -245,9 +245,9 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
       <div className="mb-4 text-left">
         <button 
           onClick={onBack}
-          className="group hover:opacity-80 transition duration-150 inline-flex items-center gap-1.5 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider cursor-pointer"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-3.5 h-3.5 stroke-[3] transition-transform group-hover:-translate-x-0.5" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to File Repository</span>
         </button>
       </div>
@@ -434,17 +434,17 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 <table className="w-full text-[11px] font-sans text-left border-collapse">
                   <thead>
                     <tr className="data-thead bg-[#f8fafc]">
-                      <th className="data-th px-5">Role</th>
-                      <th className="data-th px-5 text-center">View</th>
-                      <th className="data-th px-5 text-center">Download</th>
-                      <th className="data-th px-5 text-center">Archive</th>
+                      <th className="data-th">Role</th>
+                      <th className="data-th text-center">View</th>
+                      <th className="data-th text-center">Download</th>
+                      <th className="data-th text-center">Archive</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* Office Staff Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Office Staff</td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td-strong">Office Staff</td>
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'view')}
@@ -453,7 +453,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'download')}
@@ -462,7 +462,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'archive')}
@@ -475,8 +475,8 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
                     {/* Coordinator Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Coordinator</td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td-strong">Coordinator</td>
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'view')}
@@ -485,7 +485,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'download')}
@@ -494,7 +494,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'archive')}
@@ -507,8 +507,8 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
                     {/* Lecturer Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Lecturer</td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td-strong">Lecturer</td>
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'view')}
@@ -517,7 +517,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'download')}
@@ -526,7 +526,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'archive')}
@@ -539,8 +539,8 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
                     {/* Student Row */}
                     <tr className="hover:bg-slate-50/55 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Student</td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td-strong">Student</td>
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'view')}
@@ -549,7 +549,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'download')}
@@ -558,7 +558,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="data-td text-center">
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'archive')}

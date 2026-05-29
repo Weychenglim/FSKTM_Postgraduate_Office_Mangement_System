@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Printer,
   FileDown,
   Lock,
@@ -118,9 +118,9 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         <div className="text-left">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3 cursor-pointer select-none"
+            className="back-link group mb-3"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Mark Entry Records</span>
           </button>
 
@@ -310,10 +310,10 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
               <table className="w-full min-w-[650px] text-left border-collapse">
                 <thead>
                   <tr className="data-thead bg-[#f8fafc]">
-                    <th className="data-th px-6">Component</th>
-                    <th className="data-th px-6 text-center">Max Marks</th>
-                    <th className="data-th px-6 text-center text-blue-600">Marks Awarded</th>
-                    <th className="data-th px-6">Feedback</th>
+                    <th className="data-th">Component</th>
+                    <th className="data-th text-center">Max Marks</th>
+                    <th className="data-th text-center">Marks Awarded</th>
+                    <th className="data-th">Feedback</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-sans">
@@ -321,22 +321,22 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                     <tr key={idx} className="hover:bg-slate-50/40 transition">
                       
                       {/* Component label */}
-                      <td className="py-4.5 px-6 font-bold text-[#0c1424]">
+                      <td className="data-td-strong">
                         {row.component}
                       </td>
 
                       {/* Weight marks */}
-                      <td className="py-4.5 px-6 text-center text-slate-500 font-bold">
+                      <td className="data-td text-center">
                         {row.maxMarks}
                       </td>
 
-                      {/* Marks awarded styled with exact blue font size matches */}
-                      <td className="py-4.5 px-6 text-center text-blue-600 font-black text-sm">
+                      {/* Marks awarded */}
+                      <td className="data-td-strong text-center">
                         {row.marksAwarded}
                       </td>
 
                       {/* Qualitative Comments / Feedback */}
-                      <td className="py-4.5 px-6 text-slate-550 font-medium italic">
+                      <td className="data-td italic">
                         "{row.feedback}"
                       </td>
 

@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { SummaryCard } from './SummaryCard';
 import { FilterCard } from './FilterCard';
 import { ValidationCard } from './ValidationCard';
@@ -16,7 +17,7 @@ import { ToggleSwitch } from './ToggleSwitch';
 import { RightDrawer } from './RightDrawer';
 import { RequirementChecklist } from './RequirementChecklist';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Sliders, 
   Plus, 
   Eye, 
@@ -239,9 +240,9 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
         <div className="flex flex-col text-left">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
+            className="back-link group mb-3"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Marks & Evaluation Management</span>
           </button>
 
@@ -353,12 +354,12 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
               <table className="w-full min-w-[620px] text-left border-collapse">
                 <thead>
                   <tr className="data-thead">
-                    <th className="data-th px-3">Component</th>
-                    <th className="data-th px-3">Description</th>
-                    <th className="data-th px-3 text-center">Max Marks</th>
-                    <th className="data-th px-3 text-center">Required</th>
-                    <th className="data-th px-3 text-center">Status</th>
-                    <th className="data-th px-3 text-right">Action</th>
+                    <th className="data-th">Component</th>
+                    <th className="data-th">Description</th>
+                    <th className="data-th text-center">Max Marks</th>
+                    <th className="data-th text-center">Required</th>
+                    <th className="data-th text-center">Status</th>
+                    <th className="data-th text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -367,24 +368,24 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                       key={rub.id} 
                       className="hover:bg-slate-50/40 transition-colors group"
                     >
-                      <td className="py-5 px-3 text-xs text-blue-900 font-extrabold tracking-tight">
+                      <td className="data-td-strong">
                         {rub.name}
                       </td>
-                      <td className="py-5 px-3 text-xs text-slate-500 font-medium max-w-[200px] leading-relaxed">
+                      <td className="data-td max-w-[200px] leading-relaxed">
                         {rub.description}
                       </td>
-                      <td className="py-5 px-3 text-center text-xs text-slate-800 font-bold font-mono">
+                      <td className="data-td text-center font-mono">
                         {rub.maxMarks}
                       </td>
-                      <td className="py-5 px-3 text-center text-xs text-slate-500 font-semibold font-sans">
+                      <td className="data-td text-center">
                         {rub.required ? 'Yes' : 'No'}
                       </td>
-                      <td className="py-5 px-3 text-center">
+                      <td className="data-td text-center">
                         <span className="inline-flex px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-extrabold tracking-wide uppercase">
                           {rub.status}
                         </span>
                       </td>
-                      <td className="py-5 px-3 text-right">
+                      <td className="data-td text-right">
                         <div className="flex items-center justify-end gap-3">
                           <button
                             onClick={() => handleOpenEdit(rub)}
@@ -406,16 +407,16 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
                   {/* Dynamic Weights Sum block */}
                   <tr className="bg-slate-50/70 border-t border-slate-200">
-                    <td className="py-4.5 px-4 font-extrabold text-xs text-[#0c1424]">
+                    <td className="py-4 px-5 font-extrabold text-xs text-[#0c1424]">
                       Total:
                     </td>
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4 text-center font-extrabold text-sm text-blue-700 font-mono">
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5 text-center font-extrabold text-sm text-blue-700 font-mono">
                       {totalMaxMarks} marks
                     </td>
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4" />
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5" />
                   </tr>
                 </tbody>
               </table>
@@ -468,9 +469,10 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
       </div>
 
       {/* Global Interactive Overlays (Preview / Add / Edit Dialogs) */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             
             {/* Blur close context backdrop */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
@@ -634,7 +636,9 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* RIGHT SIDE DRAWER FOR EDIT OPERATION (Sparsely customized for edit rubric component drawer) */}
       <RightDrawer

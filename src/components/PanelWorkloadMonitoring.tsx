@@ -292,9 +292,9 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       <div id="workload-nav-header" className="space-y-1.5 text-left">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-[#0c1424] transition-colors focus:outline-none cursor-pointer"
+          className="back-link group mb-3"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Panel Appointment Management</span>
         </button>
         
@@ -561,13 +561,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
             <thead>
               <tr className="data-thead bg-slate-50 select-none">
-                <th className="data-th px-6 md:px-8">Lecturer ID</th>
-                <th className="data-th px-6">Lecturer Name</th>
-                <th className="data-th px-6">Department</th>
-                <th className="data-th px-6 text-center">Current Panel Assignments</th>
-                <th className="data-th px-6 text-center">Workload Limit</th>
-                <th className="data-th px-6 text-center">Availability</th>
-                <th className="data-th px-6 text-right md:px-8">Action</th>
+                <th className="data-th">Lecturer ID</th>
+                <th className="data-th">Lecturer Name</th>
+                <th className="data-th">Department</th>
+                <th className="data-th text-center">Current Panel Assignments</th>
+                <th className="data-th text-center">Workload Limit</th>
+                <th className="data-th text-center">Availability</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
@@ -577,12 +577,12 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
                     
                     {/* ID */}
-                    <td className="py-4.5 px-6 md:px-8 font-semibold text-slate-500 font-mono text-[11px]">
+                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">
                       {rec.id}
                     </td>
 
                     {/* Name block nested initials circle avatar */}
-                    <td className="py-4.5 px-6">
+                    <td className="data-td">
                       <div className="flex items-center gap-3 text-left">
                         <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-extrabold tracking-wider text-[11px]">
                           {rec.initials}
@@ -594,22 +594,22 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </td>
 
                     {/* Department */}
-                    <td className="py-4.5 px-6 font-bold text-slate-600">
+                    <td className="data-td font-bold text-slate-600">
                       {rec.department}
                     </td>
 
                     {/* Current Students load */}
-                    <td className="py-4.5 px-6 text-center font-black text-[#0c1424] text-sm">
+                    <td className="data-td text-center font-black text-[#0c1424] text-sm">
                       {rec.currentStudents}
                     </td>
 
                     {/* Limit */}
-                    <td className="py-4.5 px-6 text-center font-bold text-slate-400 text-xs">
+                    <td className="data-td text-center font-bold text-slate-400 text-xs">
                       {rec.workloadLimit}
                     </td>
 
                     {/* Availability status color chips */}
-                    <td className="py-4.5 px-6">
+                    <td className="data-td">
                       <div className="flex items-center justify-center">
                         {rec.availability === 'Available' ? (
                           <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-emerald-100">
@@ -628,7 +628,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </td>
 
                     {/* Action Column view detail button */}
-                    <td className="py-4.5 px-6 md:px-8 text-right">
+                    <td className="data-td text-right">
                       <button
                         onClick={() => {
                           setSelectedLecturer(rec);
@@ -717,7 +717,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-slate-900/60 z-40 backdrop-blur-xs cursor-pointer"
+              className="fixed inset-0 bg-[#0c1424]/60 z-40 backdrop-blur-sm cursor-pointer"
             />
 
             {/* Right Drawer Layout */}
@@ -868,15 +868,15 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                       <table className="w-full text-left font-sans text-[11px]">
                         <thead>
                           <tr className="data-thead bg-slate-50">
-                            <th className="data-th px-4 w-5/12">Student & ID</th>
-                            <th className="data-th px-4 w-7/12">Research Topic</th>
+                            <th className="data-th w-5/12">Student & ID</th>
+                            <th className="data-th w-7/12">Research Topic</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {(academicStudentsMap[selectedLecturer.id] || []).length > 0 ? (
                             (academicStudentsMap[selectedLecturer.id] || []).map((student) => (
                               <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="py-3 px-4">
+                                <td className="data-td">
                                   <div className="font-extrabold text-[#0c1424] break-words">
                                     {student.name}
                                   </div>
@@ -884,7 +884,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                                     {student.id}
                                   </div>
                                 </td>
-                                <td className="py-3 px-4 text-slate-600 font-medium leading-relaxed break-words py-2.5">
+                                <td className="data-td text-slate-600 font-medium leading-relaxed break-words py-2.5">
                                   {student.topic}
                                 </td>
                               </tr>

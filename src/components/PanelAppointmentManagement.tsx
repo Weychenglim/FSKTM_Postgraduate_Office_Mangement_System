@@ -690,13 +690,13 @@ export const PanelAppointmentManagement: React.FC = () => {
               <table className="data-table min-w-[850px] text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50">
-                    <th className="data-th px-6">Student ID / Name</th>
-                    <th className="data-th px-6">Programme / Sem</th>
-                    <th className="data-th px-6">Supervisor</th>
-                    <th className="data-th px-6">Panel Member</th>
-                    <th className="data-th px-6">Status</th>
-                    <th className="data-th px-6">Updated</th>
-                    <th className="data-th px-6 text-right">Action</th>
+                    <th className="data-th">Student ID / Name</th>
+                    <th className="data-th">Programme / Sem</th>
+                    <th className="data-th">Supervisor</th>
+                    <th className="data-th">Panel Member</th>
+                    <th className="data-th">Status</th>
+                    <th className="data-th">Updated</th>
+                    <th className="data-th text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
@@ -706,7 +706,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                       <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
                         
                         {/* ID & Name matched block with exact bold elements */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td">
                           <button
                             onClick={() => handleViewDetail(rec)}
                             className="font-bold text-[#0c1424] tracking-tight text-xs block hover:underline cursor-pointer text-left focus:outline-none"
@@ -719,18 +719,18 @@ export const PanelAppointmentManagement: React.FC = () => {
                         </td>
 
                         {/* Program & Semester info */}
-                        <td className="py-4.5 px-6 leading-relaxed">
+                        <td className="data-td leading-relaxed">
                           <span className="font-bold text-slate-700 block">{rec.programme}</span>
                           <span className="text-[10px] text-slate-450 font-medium mt-0.5 block">{rec.semester}</span>
                         </td>
 
                         {/* Supervisor */}
-                        <td className="py-4.5 px-6 font-bold text-slate-700">
+                        <td className="data-td font-bold text-slate-700">
                           {rec.supervisor}
                         </td>
 
                         {/* Panel Member Status Vetted color styles */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td">
                           {rec.panelMember === 'Not Assigned' ? (
                             <span className="text-red-600 font-extrabold tracking-wide uppercase text-[10px]">
                               Not Assigned
@@ -747,7 +747,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         </td>
 
                         {/* Vetting Status Chips matched strictly with mockup colors */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td">
                           {rec.status === 'Approved' ? (
                             <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-full uppercase border border-emerald-100">
                               Approved
@@ -772,12 +772,12 @@ export const PanelAppointmentManagement: React.FC = () => {
                         </td>
 
                         {/* Action date */}
-                        <td className="py-4.5 px-6 font-bold text-slate-500 font-mono text-[11px]">
+                        <td className="data-td font-bold text-slate-500 font-mono text-[11px]">
                           {rec.updatedDate}
                         </td>
 
                         {/* Action button trigger View detail */}
-                        <td className="py-4.5 px-6 text-right">
+                        <td className="data-td text-right">
                           <button
                             onClick={() => handleViewDetail(rec)}
                             className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
