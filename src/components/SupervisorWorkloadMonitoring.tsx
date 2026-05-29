@@ -274,9 +274,9 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       <div className="flex">
         <button 
           onClick={onBack} 
-          className="group flex items-center gap-2 text-xs font-extrabold text-[#0c1424] hover:text-[#3b82f6] transition-colors uppercase tracking-wider mb-2 cursor-pointer border border-slate-205 rounded-xl px-4 py-2.5 bg-white shadow-3xs"
+          className="back-link group mb-3"
         >
-          <ChevronLeft className="w-4.5 h-4.5 transition-transform group-hover:-translate-x-0.5 text-slate-500" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Supervisor Appointment Management</span>
         </button>
       </div>
@@ -530,13 +530,13 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           <table className="w-full text-left min-w-[700px] border-collapse font-sans">
             <thead>
               <tr className="data-thead bg-slate-50 select-none">
-                <th className="data-th px-6">Lecturer ID</th>
-                <th className="data-th px-6">Lecturer Name</th>
-                <th className="data-th px-6">Department</th>
-                <th className="data-th px-6 text-center">Current Students</th>
-                <th className="data-th px-6 text-center">Workload Limit</th>
-                <th className="data-th px-6 text-center">Availability</th>
-                <th className="data-th px-6 text-center">Action</th>
+                <th className="data-th">Lecturer ID</th>
+                <th className="data-th">Lecturer Name</th>
+                <th className="data-th">Department</th>
+                <th className="data-th text-center">Current Students</th>
+                <th className="data-th text-center">Workload Limit</th>
+                <th className="data-th text-center">Availability</th>
+                <th className="data-th text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -548,12 +548,12 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                   return (
                     <tr key={r.lecturerId} className="hover:bg-slate-50/50 transition-colors">
                       {/* ID */}
-                      <td className="py-4 px-6 font-mono font-bold text-slate-500 whitespace-nowrap">
+                      <td className="data-td font-mono font-bold text-slate-500 whitespace-nowrap">
                         {r.lecturerId}
                       </td>
 
                       {/* Name with initials avatar */}
-                      <td className="py-4 px-6 font-semibold text-slate-800 whitespace-nowrap">
+                      <td className="data-td font-semibold text-slate-800 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-indigo-50/70 border border-indigo-100 text-indigo-600 font-extrabold text-[10px] rounded-lg flex items-center justify-center shrink-0">
                             {initials || 'SN'}
@@ -563,22 +563,22 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                       </td>
 
                       {/* Department */}
-                      <td className="py-4 px-6 font-bold text-slate-500">
+                      <td className="data-td font-bold text-slate-500">
                         {r.department}
                       </td>
 
                       {/* Current supervison students */}
-                      <td className="py-4 px-6 text-center font-black text-slate-800 text-sm">
+                      <td className="data-td text-center font-black text-slate-800 text-sm">
                         {r.currentStudents}
                       </td>
 
                       {/* Workload limit */}
-                      <td className="py-4 px-6 text-center font-extrabold text-slate-500">
+                      <td className="data-td text-center font-extrabold text-slate-500">
                         {r.workloadLimit}
                       </td>
 
                       {/* Availability status chips */}
-                      <td className="py-4 px-6 text-center select-none whitespace-nowrap">
+                      <td className="data-td text-center select-none whitespace-nowrap">
                         {r.availability === 'Available' ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[9px] font-black uppercase tracking-wider">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -598,7 +598,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                       </td>
 
                       {/* Action */}
-                      <td className="py-4 px-6 text-center">
+                      <td className="data-td text-center">
                         <button
                           onClick={() => {
                             setSelectedLecturer(r);

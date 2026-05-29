@@ -538,8 +538,8 @@ export const AnnouncementManagement: React.FC = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="data-thead bg-[#f8fafc]">
-                    <th className="data-th px-5">Title & Content</th>
-                    <th className="data-th px-5 text-right">Target</th>
+                    <th className="data-th">Title & Content</th>
+                    <th className="data-th text-right">Target</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -554,7 +554,7 @@ export const AnnouncementManagement: React.FC = () => {
                       <tr key={item.id} className="hover:bg-slate-50/50 transition">
                         
                         {/* Title & summary block */}
-                        <td className="px-5 py-4 text-left max-w-sm space-y-1">
+                        <td className="data-td text-left max-w-sm space-y-1">
                           <div className="flex items-center gap-2">
                             {item.status === 'Draft' && (
                               <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider">
@@ -590,7 +590,7 @@ export const AnnouncementManagement: React.FC = () => {
                         </td>
 
                         {/* Target tag */}
-                        <td className="px-5 py-4 text-right vertical-align-middle">
+                        <td className="data-td text-right vertical-align-middle">
                           <span className="inline-block px-2.5 py-1 text-[9px] font-black uppercase bg-slate-50 border border-slate-200 text-slate-500 rounded-lg select-none">
                             {item.target}
                           </span>

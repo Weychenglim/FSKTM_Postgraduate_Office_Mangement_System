@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Download, 
   UserPlus, 
@@ -276,7 +277,7 @@ export const StudentRegistry: React.FC = () => {
 
   // Current Screen and View Controls Mode
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
-  const [currentView, setCurrentView] = useState<'list' | 'register'>('register');
+  const [currentView, setCurrentView] = useState<'list' | 'register'>('list');
   const [registerActiveTab, setRegisterActiveTab] = useState<'bulk' | 'single'>('single');
   const [registryModuleTab, setRegistryModuleTab] = useState<'students' | 'staff_lecturers'>('students');
 
@@ -692,12 +693,12 @@ export const StudentRegistry: React.FC = () => {
           {/* HEADER HEADING FRAME */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none border-b border-slate-200/50 pb-5">
             <div>
-              <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
-                University Postgraduate Secretariat
-              </span>
               <h1 className="page-title">
                 Student Registry
               </h1>
+              <p className="page-subtitle">
+                University Postgraduate Secretariat
+              </p>
             </div>
 
             {/* Action buttons list */}
@@ -1076,9 +1077,9 @@ export const StudentRegistry: React.FC = () => {
           <button 
             type="button" 
             onClick={() => setCurrentView('list')}
-            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 font-bold text-xs mb-3 transition group cursor-pointer"
+            className="back-link group mb-3"
           >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> 
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Student Registry</span>
           </button>
 
@@ -1302,11 +1303,11 @@ export const StudentRegistry: React.FC = () => {
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="data-thead bg-slate-50 select-none">
-                            <th className="data-th px-4">Student ID</th>
-                            <th className="data-th px-4">Candidate Name</th>
-                            <th className="data-th px-4">Programme Mapped</th>
-                            <th className="data-th px-4 text-center">Validation Status</th>
-                            <th className="data-th px-4 text-center">Edit</th>
+                            <th className="data-th">Student ID</th>
+                            <th className="data-th">Candidate Name</th>
+                            <th className="data-th">Programme Mapped</th>
+                            <th className="data-th text-center">Validation Status</th>
+                            <th className="data-th text-center">Edit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-xs">
@@ -1316,7 +1317,7 @@ export const StudentRegistry: React.FC = () => {
                             if (isBeingEdited) {
                               return (
                                 <tr key={item.id} className="bg-amber-50/60 font-medium">
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.id}
@@ -1324,7 +1325,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.name}
@@ -1332,7 +1333,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.programme}
@@ -1340,7 +1341,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3 text-center">
+                                  <td className="data-td text-center">
                                     <input 
                                       type="text" 
                                       placeholder="Email field (Empty = Warning)"
@@ -1349,7 +1350,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-32 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3 text-center">
+                                  <td className="data-td text-center">
                                     <div className="flex items-center justify-center gap-1.5">
                                       <button 
                                         type="button" 
@@ -1375,12 +1376,12 @@ export const StudentRegistry: React.FC = () => {
 
                             return (
                               <tr key={item.id} className="hover:bg-slate-50/50 transition">
-                                <td className="py-3 px-4 font-bold font-mono text-slate-600">{item.id}</td>
-                                <td className="py-3 px-4 font-extrabold text-slate-850">{item.name}</td>
-                                <td className="py-3 px-4 font-bold text-slate-500">{item.programme}</td>
+                                <td className="data-td font-bold font-mono text-slate-600">{item.id}</td>
+                                <td className="data-td font-extrabold text-slate-850">{item.name}</td>
+                                <td className="data-td font-bold text-slate-500">{item.programme}</td>
                                 
                                 {/* Status Outcome render badge */}
-                                <td className="py-3 px-4 text-center">
+                                <td className="data-td text-center">
                                   {item.status === 'Ready' && (
                                     <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
                                       <Check className="w-3 h-3 stroke-[2.5]" />
@@ -1402,7 +1403,7 @@ export const StudentRegistry: React.FC = () => {
                                 </td>
 
                                 {/* Actions pencil trigger */}
-                                <td className="py-3 px-4 text-center">
+                                <td className="data-td text-center">
                                   <button
                                     type="button"
                                     onClick={() => handleStartEditingRow(item)}
@@ -1919,9 +1920,10 @@ export const StudentRegistry: React.FC = () => {
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {viewingStudent && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             <div className="absolute inset-0" onClick={() => setViewingStudent(null)} />
             
             <motion.div
@@ -2112,7 +2114,9 @@ export const StudentRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

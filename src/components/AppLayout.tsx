@@ -30,6 +30,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   activeModal,
   setActiveModal
 }) => {
+  // Responsive sidebar drawer — open on desktop (lg+), closed on mobile by default
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  );
+
   // Modal configurations states
   const [periodStart, setPeriodStart] = useState('2025-12-01');
   const [periodEnd, setPeriodEnd] = useState('2025-12-10');
@@ -69,29 +74,43 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
       
-      {/* 1. Left sticky navigation sidebar */}
-      <Sidebar activeItem={activeItem} onNavigate={onNavigate} />
+      {/* 1. Left navigation sidebar (collapsible drawer) */}
+      <Sidebar
+        activeItem={activeItem}
+        onNavigate={onNavigate}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Mobile drawer backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-[#0c1424]/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* 2. Main workflow workspace content viewport */}
       <div id="portal-workspace" className="flex-grow flex flex-col min-w-0 min-h-screen">
         
         {/* Top Header Navigation panel */}
-        <TopHeader 
-          userName="Wey Cheng" 
-          userRole="Office Staff / Admin" 
+        <TopHeader
+          userName="Wey Cheng"
+          userRole="Office Staff / Admin"
           onLogout={onLogout}
           onHelpdeskTrigger={() => setActiveModal('help')}
           onNotificationsTrigger={onNotificationsTrigger}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
         />
 
         {/* Actionable page frame details scrollable box */}
-        <main id="portal-inner-content" className="flex-1 overflow-y-auto p-8 max-w-7xl w-full mx-auto">
+        <main id="portal-inner-content" className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
 
         {/* Portal Footer — single global footer, transparent so it blends with the page background */}
         <footer id="portal-footer" className="shrink-0 border-t border-[#e2e8f0] font-sans">
-          <div className="max-w-7xl w-full mx-auto px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
             <div className="text-left font-sans text-slate-400">
               © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
             </div>
@@ -126,7 +145,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Interactive Global admin Modal Overlays */}
       <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
 

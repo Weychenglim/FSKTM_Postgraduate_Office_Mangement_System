@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Bell, 
-  ArrowLeft, 
+  ChevronLeft,
   Search, 
   Mail, 
   MailOpen, 
@@ -221,14 +222,6 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
-  // Default popup modal of "New Supervisor Request Submitted" on load for immediate screenshot visual fidelity!
-  useEffect(() => {
-    const target = items.find(i => i.id === 'notif-1');
-    if (target) {
-      setSelectedNotification(target);
-    }
-  }, []);
-
   const triggerToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -281,9 +274,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
         <div>
           <button 
             onClick={onBack}
-            className="group hover:opacity-85 transition inline-flex items-center gap-1 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider mb-2.5 cursor-pointer bg-transparent border-none p-0"
+            className="back-link group mb-3"
           >
-            <ArrowLeft className="w-3.5 h-3.5 stroke-[3] transition-transform group-hover:-translate-x-0.5" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Dashboard</span>
           </button>
           
@@ -302,8 +295,8 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
         </button>
       </div>
 
-      {/* FILTER SEARCH WRAPPER CARD (Becomes dimmed/blurred when modal overlay is active) */}
-      <div className={`transition-all duration-300 ${selectedNotification ? 'blur-[1.5px] opacity-40 pointer-events-none' : ''}`}>
+      {/* FILTER SEARCH WRAPPER CARD */}
+      <div>
         
         {/* Dynamic Search row */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6 select-none">
@@ -383,11 +376,12 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      <AnimatePresence>
-        {selectedNotification && (
-          <div 
+      {createPortal(
+        <AnimatePresence>
+          {selectedNotification && (
+          <div
             id="notification-modal-overlay"
-            className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[90] p-4 animate-fade-in"
+            className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
           >
             {/* Backdrop Dimmer dismiss area */}
             <div 
@@ -521,7 +515,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Calendar,
   Sliders,
   Users,
@@ -162,9 +163,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       <div id="eval-header-block" className="flex flex-col text-left">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Marks & Evaluation Management</span>
         </button>
 
@@ -353,39 +354,39 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           <table className="w-full min-w-[750px] text-left border-collapse">
             <thead>
               <tr className="data-thead">
-                <th className="data-th px-3">Student ID</th>
-                <th className="data-th px-3">Student Name</th>
-                <th className="data-th px-3">Research Title</th>
-                <th className="data-th px-3">Panel Member</th>
-                <th className="data-th px-3">Semester</th>
-                <th className="data-th px-3 text-center">Task Status</th>
-                <th className="data-th px-3 text-right">Action</th>
+                <th className="data-th">Student ID</th>
+                <th className="data-th">Student Name</th>
+                <th className="data-th">Research Title</th>
+                <th className="data-th">Panel Member</th>
+                <th className="data-th">Semester</th>
+                <th className="data-th text-center">Task Status</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
               {tasks.map((task) => (
                 <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-5 px-3 text-xs font-bold text-[#0c1424] font-mono">
+                  <td className="data-td-strong font-mono">
                     {task.studentId}
                   </td>
-                  <td className="py-5 px-3 text-xs font-extrabold text-blue-900">
+                  <td className="data-td">
                     {task.studentName}
                   </td>
-                  <td className="py-5 px-3 text-xs text-slate-550 font-medium max-w-[220px] truncate" title={task.researchTitle}>
+                  <td className="data-td max-w-[220px] truncate" title={task.researchTitle}>
                     {task.researchTitle}
                   </td>
-                  <td className="py-5 px-3 text-xs text-[#0c1424] font-bold">
+                  <td className="data-td">
                     {task.panelMember}
                   </td>
-                  <td className="py-5 px-3 text-xs text-slate-500 font-medium">
+                  <td className="data-td">
                     {task.semester}
                   </td>
-                  <td className="py-5 px-3 text-center">
+                  <td className="data-td text-center">
                     <span className="inline-flex px-3 py-1 rounded-full bg-blue-50 text-[9px] font-extrabold tracking-wider text-blue-600 uppercase border border-blue-105">
                       {task.status}
                     </span>
                   </td>
-                  <td className="py-5 px-3 text-right">
+                  <td className="data-td text-right">
                     <button
                       onClick={() => setSelectedTask(task)}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors pointer-events-auto cursor-pointer"
@@ -451,19 +452,19 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           <table className="w-full min-w-[650px] text-left border-collapse">
             <thead>
               <tr className="data-thead bg-slate-50/50">
-                <th className="data-th px-6">Date</th>
-                <th className="data-th px-6">Action</th>
-                <th className="data-th px-6">Details</th>
-                <th className="data-th px-6">Performed By</th>
+                <th className="data-th">Date</th>
+                <th className="data-th">Action</th>
+                <th className="data-th">Details</th>
+                <th className="data-th">Performed By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
               {activities.map((act) => (
                 <tr key={act.id} className="hover:bg-slate-50/20 transition-colors">
-                  <td className="py-4.5 px-6 text-xs text-slate-500 font-medium">
+                  <td className="data-td">
                     {act.date}
                   </td>
-                  <td className="py-4.5 px-6">
+                  <td className="data-td">
                     <button
                       onClick={() => showToast(`Opening activity detail logs for event: ${act.action}`)}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline text-left cursor-pointer"
@@ -471,10 +472,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       {act.action}
                     </button>
                   </td>
-                  <td className="py-4.5 px-6 text-xs text-slate-650 font-medium font-sans">
+                  <td className="data-td">
                     {act.details}
                   </td>
-                  <td className="py-4.5 px-6 text-xs text-[#0c1424] font-bold">
+                  <td className="data-td">
                     {act.performedBy}
                   </td>
                 </tr>
@@ -485,9 +486,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       </div>
 
       {/* Beautiful Modal overlay explaining particular task details dynamically */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="absolute inset-0" onClick={() => setSelectedTask(null)} />
             
             <motion.div
@@ -553,7 +555,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

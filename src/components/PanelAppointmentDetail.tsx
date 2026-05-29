@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Calendar,
   GraduationCap,
   Clock,
@@ -103,9 +103,9 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
         <div className="space-y-2.5">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-[#0c1424] transition-colors focus:outline-none cursor-pointer"
+            className="back-link group mb-3"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Panel Appointment Management</span>
           </button>
           
@@ -408,23 +408,23 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
               <table className="w-full text-left min-w-[500px] border-collapse font-sans text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th px-6">File Name</th>
-                    <th className="data-th px-6">Category</th>
-                    <th className="data-th px-6">Uploaded Date</th>
-                    <th className="data-th px-6 text-right">Action</th>
+                    <th className="data-th">File Name</th>
+                    <th className="data-th">Category</th>
+                    <th className="data-th">Uploaded Date</th>
+                    <th className="data-th text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
                   
                   {/* File 1 */}
                   <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="py-4 px-6 flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
+                    <td className="data-td flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
                       <FileText className="w-4 h-4 text-red-500" />
                       <span>Proposal.pdf</span>
                     </td>
-                    <td className="py-4 px-6 font-medium text-slate-600">Research Proposal</td>
-                    <td className="py-4 px-6 font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="data-td font-medium text-slate-600">Research Proposal</td>
+                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
+                    <td className="data-td text-right">
                       <button
                         onClick={() => showToast("Opening document: Proposal.pdf in secure administrative preview")}
                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
@@ -437,13 +437,13 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
                   {/* File 2 */}
                   <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="py-4 px-6 flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
+                    <td className="data-td flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
                       <FileText className="w-4 h-4 text-red-500" />
                       <span>Supervisor Appointment Letter.pdf</span>
                     </td>
-                    <td className="py-4 px-6 font-medium text-slate-600">Official Letter</td>
-                    <td className="py-4 px-6 font-semibold text-slate-500 font-mono text-[11px]">14 Oct 2025</td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="data-td font-medium text-slate-600">Official Letter</td>
+                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">14 Oct 2025</td>
+                    <td className="data-td text-right">
                       <button
                         onClick={() => showToast("Opening document: Supervisor Appointment Letter.pdf in secure administrative preview")}
                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
@@ -456,13 +456,13 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
                   {/* File 3 */}
                   <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="py-4 px-6 flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
+                    <td className="data-td flex items-center gap-2.5 font-bold text-[#0c1424] leading-normal">
                       <FileText className="w-4 h-4 text-red-500" />
                       <span>Student Profile.pdf</span>
                     </td>
-                    <td className="py-4 px-6 font-medium text-slate-600">Student Record</td>
-                    <td className="py-4 px-6 font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="data-td font-medium text-slate-600">Student Record</td>
+                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
+                    <td className="data-td text-right">
                       <button
                         onClick={() => showToast("Opening document: Student Profile.pdf in secure administrative preview")}
                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"

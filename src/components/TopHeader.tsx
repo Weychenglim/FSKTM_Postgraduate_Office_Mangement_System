@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Bell, HelpCircle, LogOut, User, Settings, ShieldAlert, Search } from 'lucide-react';
+import { Bell, HelpCircle, LogOut, User, Settings, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface TopHeaderProps {
@@ -13,6 +13,7 @@ interface TopHeaderProps {
   onLogout: () => void;
   onHelpdeskTrigger: () => void;
   onNotificationsTrigger: () => void;
+  onToggleSidebar: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -20,32 +21,32 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   userRole,
   onLogout,
   onHelpdeskTrigger,
-  onNotificationsTrigger
+  onNotificationsTrigger,
+  onToggleSidebar
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   return (
-    <header 
-      id="portal-topheader" 
-      className="h-16 w-full bg-white border-b border-[#e2e8f0] px-8 flex items-center justify-between sticky top-0 z-40 font-sans"
+    <header
+      id="portal-topheader"
+      className="h-16 w-full bg-white border-b border-[#e2e8f0] px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 font-sans"
     >
-      {/* Title & Greeting Block */}
-      <div id="header-greeting-block" className="flex flex-col text-left">
-        <h4 id="header-greeting" className="text-slate-900 font-extrabold text-xs md:text-sm tracking-tight select-none">
-          Good Morning, {userName}
-        </h4>
-      </div>
-
-      {/* Top Header Search Input (From Reference Screenshot) */}
-      <div className="hidden md:flex items-center relative max-w-sm w-full mx-auto px-4">
-        <span className="absolute inset-y-0 left-7 flex items-center pointer-events-none text-slate-400">
-          <Search className="w-4 h-4" />
-        </span>
-        <input 
-          type="text" 
-          placeholder="Search..." 
-          className="w-full bg-slate-50 border border-slate-200 pl-9 pr-4 py-1.5 rounded-full text-xs font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all shadow-3xs"
-        />
+      {/* Left: sidebar toggle + greeting */}
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer shrink-0"
+          title="Toggle sidebar"
+          aria-label="Toggle sidebar"
+        >
+          <Menu className="w-4.5 h-4.5" />
+        </button>
+        <div id="header-greeting-block" className="flex flex-col text-left min-w-0">
+          <h4 id="header-greeting" className="text-slate-900 font-extrabold text-xs md:text-sm tracking-tight select-none truncate">
+            Good Morning, {userName}
+          </h4>
+        </div>
       </div>
 
       {/* Utilities Column */}

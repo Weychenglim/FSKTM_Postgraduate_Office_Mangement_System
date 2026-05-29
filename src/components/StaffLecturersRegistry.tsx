@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   ChevronDown, 
@@ -715,6 +716,14 @@ export const StaffLecturersRegistry: React.FC = () => {
           
           {/* Breadcrumb line from screenshot */}
           <div className="font-sans text-left">
+            <button
+              type="button"
+              onClick={() => setInnerView('list')}
+              className="back-link group mb-3"
+            >
+              <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span>Back to Staff &amp; Lecturer Accounts</span>
+            </button>
             <div className="flex items-center gap-1.5 text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5 select-none hover:text-slate-600">
               <span>Dashboard</span>
               <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
@@ -1292,9 +1301,10 @@ export const StaffLecturersRegistry: React.FC = () => {
       )}
 
       {/* ==================== ADD NEW ACCOUNT MODAL OVERLAY ==================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isAddAccountOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsAddAccountOpen(false)} />
 
@@ -1468,12 +1478,15 @@ export const StaffLecturersRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ==================== VIEW ACCOUNT DETAILS MODAL OVERLAY ==================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {viewingStaff && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setViewingStaff(null)} />
 
@@ -1602,7 +1615,9 @@ export const StaffLecturersRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

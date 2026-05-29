@@ -13,7 +13,7 @@ import { AuditLogCard } from './AuditLogCard';
 import { DataTable, TableRow } from './DataTable';
 import { SummaryCard } from './SummaryCard';
 import { ActionButton } from './ActionButton';
-import { ArrowLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
+import { ChevronLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface MarkEntryPeriodConfigProps {
@@ -185,9 +185,9 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
       <div id="config-breadcrumb-header" className="flex flex-col text-left">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Marks & Evaluation Management</span>
         </button>
 

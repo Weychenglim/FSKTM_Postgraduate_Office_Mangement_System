@@ -20,6 +20,8 @@ import {
 interface SidebarProps {
   activeItem: string;
   onNavigate: (item: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const mapActiveItem = (item: string): string => {
@@ -70,7 +72,15 @@ const mapActiveItem = (item: string): string => {
   return map[item] || item;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose }) => {
+  // On mobile the sidebar is an overlay drawer; dismiss it after navigating.
+  const handleNavigate = (item: string) => {
+    onNavigate(item);
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      onClose();
+    }
+  };
+
   const menuItems = [
     { id: 'Dashboard Overview', label: 'Dashboard Overview', icon: LayoutDashboard },
     { id: 'Registry Management', label: 'Registry Management', icon: GraduationCap },
@@ -87,9 +97,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
   const mappedActiveItem = mapActiveItem(activeItem);
 
   return (
-    <div 
-      id="portal-sidebar" 
-      className="w-72 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between shrink-0 h-screen sticky top-0 font-sans"
+    <div
+      id="portal-sidebar"
+      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-screen w-72 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between font-sans overflow-hidden transition-[width,transform] duration-300 ease-in-out ${
+        isOpen ? 'translate-x-0 lg:w-72' : '-translate-x-full lg:w-0 lg:border-r-0'
+      }`}
     >
       {/* Top Brand Block */}
       <div id="sidebar-brand-block" className="p-6 flex flex-col">
@@ -120,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNavigate(item.id)}
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer group ${
                 isActive 
                   ? 'bg-[#0c1424] text-white shadow-sm' 
@@ -139,16 +151,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
             </button>
           );
         })}
-      </div>
-
-      {/* Small Admin Indicator footer */}
-      <div id="sidebar-footer-indicator" className="p-4 mx-4 mb-4 bg-slate-100 rounded-2xl border border-slate-200/50 text-left">
-        <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider block">Office Division</span>
-        <span className="text-[11px] font-bold text-slate-700 block mt-0.5">Academic Secretariat</span>
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span className="text-[10px] font-semibold text-emerald-700">Counter Online</span>
-        </div>
       </div>
     </div>
   );

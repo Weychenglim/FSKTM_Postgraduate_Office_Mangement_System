@@ -137,7 +137,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c1424] cursor-pointer"
+            className="fixed inset-0 bg-[#0c1424] backdrop-blur-sm cursor-pointer"
             onClick={onClose}
           />
 

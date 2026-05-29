@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Download, 
   Plus, 
   Upload, 
@@ -327,9 +327,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       {/* Back to previous screen dashboard anchor */}
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer bg-transparent border-0"
+        className="back-link group mb-3"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
         <span>Back to Office Dashboard</span>
       </button>
 
