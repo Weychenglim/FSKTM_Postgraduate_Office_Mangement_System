@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -137,7 +137,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c1424] backdrop-blur-sm cursor-pointer"
+            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
             onClick={onClose}
           />
 
@@ -148,7 +148,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-205"
+            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-205"
           >
             {/* Header section with closing element */}
             <div 
@@ -157,7 +157,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
             >
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-black text-[#0c1424] text-[15px] tracking-tight">
+                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
                   Edit Timeline Entry
                 </h3>
               </div>
@@ -186,7 +186,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
                     Target Context Info
                   </span>
-                  <p className="text-[#0c1424] font-semibold text-[11px] leading-relaxed">
+                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
                     You are updating a postgraduate calendar milestone event for <strong className="font-extrabold text-indigo-650">Sem 1 2025/2026</strong>. Changes reflect instantly to all system modules.
                   </p>
                 </div>
@@ -349,7 +349,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 <button
                   type="submit"
                   disabled={!eventName.trim() || targetRole.length === 0}
-                  className="px-5.5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-5.5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Save Changes</span>

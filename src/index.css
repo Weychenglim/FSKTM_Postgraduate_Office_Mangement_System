@@ -35,8 +35,63 @@
   --color-slate-905: #0e1628;
   --color-slate-955: #020515;
 
+  /* FSKTM portal brand colors. Prefer these utilities over arbitrary hex
+     values so role modules stay visually aligned. */
+  --color-brand-navy: #0c1424;
+  --color-brand-navy-hover: #172033;
+
+  /* Intermediate semantic accents used by generated module screens. */
+  --color-blue-55:  #eff8ff;
+  --color-blue-105: #dcecff;
+  --color-blue-150: #cfe2ff;
+  --color-blue-605: #245bdb;
+  --color-blue-650: #1f4fd0;
+  --color-blue-750: #163ba6;
+  --color-blue-850: #102e82;
+
+  --color-indigo-105: #e6e9ff;
+  --color-indigo-150: #d7ddff;
+  --color-indigo-505: #5c6df5;
+  --color-indigo-550: #5263e6;
+  --color-indigo-650: #3f4fc8;
+  --color-indigo-750: #303b9f;
+  --color-indigo-805: #26317f;
+  --color-indigo-850: #1d2666;
+
+  --color-purple-105: #f0e8ff;
+  --color-purple-150: #e5d5ff;
+  --color-purple-850: #4a1d78;
+
+  --color-violet-105: #ede9fe;
+  --color-teal-105: #d9f8f1;
+  --color-sky-850: #075985;
+
+  --color-emerald-55: #ecfdf5;
+  --color-emerald-105: #d9fae9;
+  --color-emerald-110: #d7fae8;
+  --color-emerald-150: #c7f4dd;
+  --color-emerald-605: #049764;
+  --color-emerald-850: #065f46;
+
+  --color-amber-55: #fffbeb;
+  --color-amber-105: #fef2c7;
+  --color-amber-150: #fde8aa;
+  --color-amber-550: #c68104;
+  --color-amber-850: #78350f;
+
+  --color-orange-650: #c2410c;
+  --color-red-350: #fca5a5;
+  --color-red-650: #dc2626;
+  --color-rose-105: #ffe1e8;
+  --color-rose-150: #fecdd3;
+  --color-rose-250: #fda4af;
+  --color-rose-605: #d91f59;
+
   /* Extra-subtle shadow referenced widely (subtler than shadow-2xs). */
   --shadow-3xs: 0 1px 1px 0 rgb(0 0 0 / 0.03);
+
+  /* Extra-light backdrop blur referenced by drawer/modal backdrops. */
+  --blur-3xs: 1px;
 
   /* Fade-in entrance animation referenced by page views via `animate-fade-in`. */
   --animate-fade-in: fade-in 0.4s ease-out both;
@@ -59,12 +114,12 @@
    ============================================================ */
 @layer components {
   /* Page heading block */
-  .page-title    { @apply text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight; }
+  .page-title    { @apply text-2xl md:text-3xl font-extrabold text-brand-navy tracking-tight; }
   .page-subtitle { @apply text-slate-500 text-xs md:text-sm mt-1.5 font-medium; }
 
   /* In-page / card section headings */
-  .section-heading { @apply text-lg font-extrabold text-[#0c1424] tracking-tight; }
-  .section-label   { @apply text-sm font-extrabold text-[#0c1424]; }
+  .section-heading { @apply text-lg font-extrabold text-brand-navy tracking-tight; }
+  .section-label   { @apply text-sm font-extrabold text-brand-navy; }
 
   /* Standard white content card */
   .app-card { @apply bg-white rounded-2xl border border-slate-200/80; }
@@ -80,6 +135,13 @@
   .data-row      { @apply border-b border-slate-100 hover:bg-slate-50/50 transition-colors; }
   .data-td       { @apply py-4 px-5 text-xs text-slate-500 font-semibold; }
   .data-td-strong{ @apply py-4 px-5 text-xs text-slate-800 font-bold; }
+
+  /* Form and filter controls */
+  .filter-toolbar { @apply bg-slate-50 p-4 rounded-2xl border border-slate-100; }
+  .form-label     { @apply text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-1.5; }
+  .form-control   { @apply w-full bg-white border border-slate-200 text-xs font-bold text-slate-800 rounded-xl outline-none transition-all focus:ring-1 focus:ring-brand-navy focus:border-brand-navy placeholder:text-slate-400; }
+  .form-control-sm{ @apply py-2.5 px-3; }
+  .form-control-md{ @apply py-3 px-3.5; }
 }
 
 @layer base {

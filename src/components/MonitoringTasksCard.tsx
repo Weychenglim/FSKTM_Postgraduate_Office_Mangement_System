@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -75,7 +75,7 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
       id="monitoring-tasks-sidebar-card"
       className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm space-y-4 text-left font-sans"
     >
-      <h4 className="text-[14px] font-black text-[#0c1424] tracking-tight">
+      <h4 className="text-[14px] font-black text-brand-navy tracking-tight">
         Office Monitoring Tasks
       </h4>
 
@@ -88,11 +88,11 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
               onClick={() => onTaskClick?.(task.id)}
               className="py-4 flex items-start gap-4 transition-all hover:bg-slate-50/50 px-2 rounded-xl cursor-pointer"
             >
-              <div className="p-2 sm:p-2.5 bg-[#f1f5f9] rounded-xl text-[#0c1424] shrink-0">
+              <div className="p-2 sm:p-2.5 bg-[#f1f5f9] rounded-xl text-brand-navy shrink-0">
                 <IconComponent className="w-4 h-4 text-slate-600" />
               </div>
               <div className="space-y-0.5 text-left min-w-0">
-                <span className="text-xs font-bold text-[#0c1424] block leading-snug">
+                <span className="text-xs font-bold text-brand-navy block leading-snug">
                   {task.name}
                 </span>
                 <span className={`text-[10px] block ${getStatusColor(task.status)}`}>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -53,8 +53,8 @@ export const AlertListCard: React.FC = () => {
   };
 
   return (
-    <div id="attention-needed-card" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
-      <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight mb-6">
+    <div id="attention-needed-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
+      <h3 className="text-lg font-extrabold text-brand-navy tracking-tight mb-6">
         Records Needing Attention
       </h3>
 

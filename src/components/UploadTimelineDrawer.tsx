@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -243,13 +243,13 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c1424] backdrop-blur-sm cursor-pointer"
+            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
             onClick={onClose}
           />
 
           {/* Toast Notification internally nested to remain inside drawer context */}
           {toastMessage && (
-            <div className="fixed top-5 right-5 z-55 bg-[#0c1424] text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-2xl flex items-center gap-2 max-w-xs transition-transform">
+            <div className="fixed top-5 right-5 z-55 bg-brand-navy text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-sm flex items-center gap-2 max-w-xs transition-transform">
               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping shrink-0" />
               <span className="leading-snug">{toastMessage}</span>
             </div>
@@ -262,7 +262,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-200"
+            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-200"
           >
             {/* Drawer Header Layout */}
             <div 
@@ -271,7 +271,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <UploadCloud className="w-5 h-5 text-slate-800" />
-                <h3 className="font-black text-[#0c1424] text-[15px] tracking-tight">
+                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
                   Upload Timeline
                 </h3>
               </div>
@@ -301,7 +301,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
                     Target semester
                   </div>
-                  <div className="col-span-7 text-[#0c1424] font-black text-right text-xs">
+                  <div className="col-span-7 text-brand-navy font-black text-right text-xs">
                     Sem 1 2025/2026
                   </div>
                 </div>
@@ -310,7 +310,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
                     Upload type
                   </div>
-                  <div className="col-span-7 text-[#0c1424] font-black text-right text-xs">
+                  <div className="col-span-7 text-brand-navy font-black text-right text-xs">
                     Semester Timeline
                   </div>
                 </div>
@@ -380,7 +380,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
 
                 {uploadedFile ? (
                   <div className="space-y-1">
-                    <span className="text-xs font-black text-[#0c1424] block max-w-xs truncate px-4">
+                    <span className="text-xs font-black text-brand-navy block max-w-xs truncate px-4">
                       {uploadedFile.name}
                     </span>
                     <span className="text-[10px] text-slate-400 block font-bold">
@@ -389,7 +389,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-1 select-none">
-                    <span className="text-xs font-black text-[#0c1424] block">
+                    <span className="text-xs font-black text-brand-navy block">
                       Drag and drop timeline file here
                     </span>
                     <span className="text-[10px] text-slate-400 block font-medium">
@@ -413,7 +413,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                       e.stopPropagation();
                       handleBrowseClick();
                     }}
-                    className="mt-3.5 px-4.5 py-1.5 bg-white border border-slate-355 border-slate-300 hover:bg-slate-50 text-[#0c1424] font-extrabold uppercase text-[9.5px] tracking-wider rounded-xl shadow-3xs transition cursor-pointer"
+                    className="mt-3.5 px-4.5 py-1.5 bg-white border border-slate-355 border-slate-300 hover:bg-slate-50 text-brand-navy font-extrabold uppercase text-[9.5px] tracking-wider rounded-xl shadow-3xs transition cursor-pointer"
                   >
                     Browse File
                   </button>
@@ -431,7 +431,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   {/* Parameter 1: Required columns */}
                   <div className="flex items-center gap-3">
                     {renderChecklistBullet(checklist.columns)}
-                    <span className={`font-semibold ${checklist.columns === 'success' ? 'text-[#0c1424] font-bold' : 'text-slate-500'}`}>
+                    <span className={`font-semibold ${checklist.columns === 'success' ? 'text-brand-navy font-bold' : 'text-slate-500'}`}>
                       Required columns present
                     </span>
                   </div>
@@ -439,7 +439,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   {/* Parameter 2: Date formats */}
                   <div className="flex items-center gap-3">
                     {renderChecklistBullet(checklist.format)}
-                    <span className={`font-semibold ${checklist.format === 'success' ? 'text-[#0c1424] font-bold' : 'text-slate-500'}`}>
+                    <span className={`font-semibold ${checklist.format === 'success' ? 'text-brand-navy font-bold' : 'text-slate-500'}`}>
                       Date format valid
                     </span>
                   </div>
@@ -447,7 +447,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   {/* Parameter 3: Duplicate records */}
                   <div className="flex items-center gap-3">
                     {renderChecklistBullet(checklist.duplicates)}
-                    <span className={`font-semibold ${checklist.duplicates === 'success' ? 'text-[#0c1424] font-bold' : 'text-slate-500'}`}>
+                    <span className={`font-semibold ${checklist.duplicates === 'success' ? 'text-brand-navy font-bold' : 'text-slate-500'}`}>
                       No duplicate timeline events
                     </span>
                   </div>
@@ -455,7 +455,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   {/* Parameter 4: Conflicting dates */}
                   <div className="flex items-center gap-3">
                     {renderChecklistBullet(checklist.conflicts)}
-                    <span className={`font-semibold ${checklist.conflicts === 'success' ? 'text-[#0c1424] font-bold' : 'text-slate-500'}`}>
+                    <span className={`font-semibold ${checklist.conflicts === 'success' ? 'text-brand-navy font-bold' : 'text-slate-500'}`}>
                       No conflicting date ranges
                     </span>
                   </div>
@@ -463,7 +463,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   {/* Parameter 5: Roles mapping */}
                   <div className="flex items-center gap-3">
                     {renderChecklistBullet(checklist.roles)}
-                    <span className={`font-semibold ${checklist.roles === 'success' ? 'text-[#0c1424] font-bold' : 'text-slate-500'}`}>
+                    <span className={`font-semibold ${checklist.roles === 'success' ? 'text-brand-navy font-bold' : 'text-slate-500'}`}>
                       Target roles recognized
                     </span>
                   </div>
@@ -481,7 +481,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                       exit={{ opacity: 0 }}
                       className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-4.5 space-y-2.5 text-emerald-900"
                     >
-                      <h4 className="font-extrabold text-[#0c1424] text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="font-extrabold text-brand-navy text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>Ready for import commit</span>
                       </h4>
@@ -542,7 +542,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   type="button"
                   onClick={handleValidateAndUpload}
                   disabled={isValidating || !uploadedFile}
-                  className="px-5.5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-5.5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span>{isValidating ? 'Validating...' : 'Validate and Upload'}</span>
                   {!isValidating && <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />}

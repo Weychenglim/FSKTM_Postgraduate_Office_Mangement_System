@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -309,7 +309,7 @@ export const PanelAppointmentManagement: React.FC = () => {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
+            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
           >
             <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
             <span>{toastMessage}</span>
@@ -356,7 +356,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Students Without Panel
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     12
                   </span>
                 </div>
@@ -377,7 +377,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Pending Recommendations
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     8
                   </span>
                 </div>
@@ -398,7 +398,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Approved Panels
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     126
                   </span>
                 </div>
@@ -419,7 +419,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Workload Alerts
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     3
                   </span>
                 </div>
@@ -520,7 +520,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   {/* Apply click handler */}
                   <button
                     onClick={handleApplyFilters}
-                    className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
+                    className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
                   >
                     Apply Filters
                   </button>
@@ -567,7 +567,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                  <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                     Records Needing Attention
                   </h4>
                 </div>
@@ -600,7 +600,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               {/* Box B: Panel Workload Snapshot */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs text-xs font-sans">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                     Panel Workload Snapshot
                   </span>
                   <TrendingUp className="w-4 h-4 text-slate-450" />
@@ -634,7 +634,7 @@ export const PanelAppointmentManagement: React.FC = () => {
 
                   <button
                     onClick={() => setPanelView('workload')}
-                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-[#0c1424] font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-brand-navy font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
                   >
                     View All Workload
                   </button>
@@ -642,7 +642,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               </div>
 
               {/* Box C: Quick Tip dark panel */}
-              <div className="bg-[#0c1424] text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
+              <div className="bg-brand-navy text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
                 <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 block mb-2">
                   System Tip
                 </span>
@@ -661,11 +661,11 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
           {/* 3. Panel Appointment Records Table Container */}
-          <div className="lg:col-span-8 lg:col-start-1 lg:row-start-2 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs text-left">
+          <div className="lg:col-span-8 lg:col-start-1 lg:row-start-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
-                <h3 className="font-extrabold text-[#0c1424] text-sm uppercase tracking-wider">
+                <h3 className="font-extrabold text-brand-navy text-sm uppercase tracking-wider">
                   Panel Appointment Records
                 </h3>
                 <span className="text-slate-450 text-xs font-medium block mt-0.5">
@@ -675,7 +675,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               
               <button
                 onClick={handleExportCSV}
-                className="py-2 px-4 bg-white hover:bg-slate-50 text-[#0c1424] border border-slate-205 rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="py-2 px-4 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 <Download className="w-4 h-4 text-slate-550" />
                 <span>Export CSV</span>
@@ -706,7 +706,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         <td className="data-td">
                           <button
                             onClick={() => handleViewDetail(rec)}
-                            className="font-bold text-[#0c1424] tracking-tight text-xs block hover:underline cursor-pointer text-left focus:outline-none"
+                            className="font-bold text-brand-navy tracking-tight text-xs block hover:underline cursor-pointer text-left focus:outline-none"
                           >
                             {rec.id}
                           </button>
@@ -825,7 +825,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                       onClick={() => setCurrentPage(pgNum)}
                       className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
                         isCurrent 
-                          ? 'bg-[#0c1424] text-white border border-[#0c1424]' 
+                          ? 'bg-brand-navy text-white border border-brand-navy' 
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                       }`}
                     >

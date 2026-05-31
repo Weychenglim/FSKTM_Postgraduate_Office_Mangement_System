@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -60,15 +60,12 @@ interface StaffSummaryCardProps {
 
 const StaffSummaryCard: React.FC<StaffSummaryCardProps> = ({ title, value, icon: Icon, colorClass }) => {
   return (
-    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 flex items-center justify-between relative overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 group">
-      {/* Accent hover glow */}
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full filter blur-2xl opacity-5 transition-all group-hover:scale-125 ${colorClass}`} />
-      
+    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 flex items-center justify-between relative overflow-hidden shadow-xs hover:shadow-sm transition-all duration-300 group">
       <div className="text-left space-y-1.5 z-15">
         <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block">
           {title}
         </span>
-        <h2 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-brand-navy tracking-tight font-sans">
           {value}
         </h2>
       </div>
@@ -128,7 +125,7 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
         onClick={() => onChange('Office Staff')}
         className={`p-6 rounded-2xl border-2 text-left flex items-start gap-4 transition-all duration-200 shadow-3xs cursor-pointer ${
           selectedType === 'Office Staff'
-            ? 'bg-[#0c1424] border-[#0c1424] text-white'
+            ? 'bg-brand-navy border-brand-navy text-white'
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
@@ -152,7 +149,7 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
         onClick={() => onChange('Lecturer')}
         className={`p-6 rounded-2xl border-2 text-left flex items-start gap-4 transition-all duration-200 shadow-3xs cursor-pointer ${
           selectedType === 'Lecturer'
-            ? 'bg-[#0c1424] border-[#0c1424] text-white'
+            ? 'bg-brand-navy border-brand-navy text-white'
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
@@ -182,15 +179,15 @@ interface FormCardProps {
   children: React.ReactNode;
 }
 
-export const FormCard: React.FC<FormCardProps> = ({ title, subtitle, icon: Icon, iconColorClass = "text-[#0c1424]", children }) => {
+export const FormCard: React.FC<FormCardProps> = ({ title, subtitle, icon: Icon, iconColorClass = "text-brand-navy", children }) => {
   return (
-    <div className="bg-white border border-[#e2e8f0] rounded-3xl overflow-hidden shadow-2xs text-left p-6 md:p-8 space-y-6">
+    <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-2xs text-left p-6 md:p-8 space-y-6">
       <div className="flex items-center gap-3.5 pb-4.5 border-b border-slate-100 font-sans">
         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500">
           <Icon className={`w-5 h-5 ${iconColorClass}`} />
         </div>
         <div>
-          <h2 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+          <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
             {title}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold mt-0.5 leading-tight font-sans">
@@ -255,7 +252,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({ label, required = false,
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none text-xs font-bold text-slate-850 bg-white border border-slate-205 pl-4 pr-10 py-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0c1424]"
+          className="w-full appearance-none text-xs font-bold text-slate-850 bg-white border border-slate-205 pl-4 pr-10 py-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-navy"
         >
           {placeholder && (
             <option value="" disabled>{placeholder}</option>
@@ -296,7 +293,7 @@ export const RoleAssignmentCard: React.FC<RoleAssignmentCardProps> = ({ title, d
         <Icon className="w-5 h-5 stroke-[2]" />
       </div>
       <div className="space-y-1.5 pr-12 text-left">
-        <h4 className="font-extrabold text-[12.5px] text-[#0c1424] flex items-center gap-2 font-sans">
+        <h4 className="font-extrabold text-[12.5px] text-brand-navy flex items-center gap-2 font-sans">
           <span>{title}</span>
           {isLocked && (
             <span className="font-black text-[8px] uppercase tracking-wider text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md font-sans">
@@ -361,7 +358,7 @@ interface ActionButtonProps {
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type = 'button', variant = 'primary', iconLeft: IconLeft, iconRight: IconRight }) => {
   const styles = {
-    primary: 'bg-[#0c1424] hover:bg-slate-800 text-white shadow-sm border border-transparent',
+    primary: 'bg-brand-navy hover:bg-slate-800 text-white shadow-sm border border-transparent',
     secondary: 'bg-white hover:bg-slate-50 border border-slate-205 text-slate-705',
   };
   return (
@@ -702,7 +699,7 @@ export const StaffLecturersRegistry: React.FC = () => {
             initial={{ opacity: 0, y: -25, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
+            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
           >
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[11px] tracking-wide font-sans">{toastMessage}</span>
@@ -758,7 +755,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               ? "Enter the staff's personal and departmental information." 
               : "Enter the lecturer's personal and departmental information."}
             icon={newAccountFormData.role === 'Office Staff' ? Briefcase : GraduationCap}
-            iconColorClass={newAccountFormData.role === 'Office Staff' ? "text-[#0c1424]" : "text-emerald-500"}
+            iconColorClass={newAccountFormData.role === 'Office Staff' ? "text-brand-navy" : "text-emerald-500"}
           >
             <form onSubmit={handleAddAccountSubmit} className="space-y-6">
               
@@ -894,7 +891,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                     <Lock className="w-5 h-5 stroke-[2.5]" />
                   </div>
                   <div className="space-y-1">
-                    <h5 className="text-[11px] font-extrabold text-[#0c1424] tracking-wide font-sans leading-none pb-0.5">
+                    <h5 className="text-[11px] font-extrabold text-brand-navy tracking-wide font-sans leading-none pb-0.5">
                       Auto-generated Password
                     </h5>
                     <p className="text-[10px] text-slate-500 font-bold leading-relaxed font-sans">
@@ -906,7 +903,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                 {/* Send credentials immediate switcher */}
                 <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-150 rounded-2xl select-none">
                   <div className="text-left space-y-0.5 pr-4 font-sans">
-                    <h6 className="text-[11.5px] font-black text-[#0c1424] leading-snug">
+                    <h6 className="text-[11.5px] font-black text-brand-navy leading-snug">
                       Send credentials immediately via email
                     </h6>
                     <p className="text-[10px] text-slate-450 font-bold leading-normal">
@@ -987,7 +984,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                 });
                 setInnerView('create');
               }}
-              className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
+              className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
             >
               <UserPlus className="w-4 h-4 text-indigo-300 animate-bounce" />
               <span>Add New Account</span>
@@ -1046,21 +1043,21 @@ export const StaffLecturersRegistry: React.FC = () => {
                 }}
                 className={`pb-3 transition-all relative cursor-pointer font-black tracking-wide text-xs uppercase flex items-center gap-2 ${
                   isTabActive 
-                    ? 'text-[#0c1424]' 
+                    ? 'text-brand-navy' 
                     : 'text-slate-400 hover:text-slate-655'
                 }`}
               >
                 <span>{subtab.label}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all ${
                   isTabActive 
-                    ? 'bg-[#0c1424] text-white' 
+                    ? 'bg-brand-navy text-white' 
                     : 'bg-slate-150 text-slate-500'
                 }`}>
                   {getSubTabCount(subtab.key as any)}
                 </span>
                 
                 {isTabActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-[#0c1424] rounded-full animate-fade-in" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-brand-navy rounded-full animate-fade-in" />
                 )}
               </button>
             );
@@ -1193,7 +1190,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                             {staff.avatarText}
                           </div>
                           <div className="text-left flex flex-col justify-center">
-                            <span className="text-[#0c1424] font-black text-xs block group-hover:text-blue-900 transition-colors">
+                            <span className="text-brand-navy font-black text-xs block group-hover:text-blue-900 transition-colors">
                               {staff.name}
                             </span>
                             <span className="text-slate-400 font-mono text-[9px] font-black mt-0.5 tracking-wide uppercase">
@@ -1234,7 +1231,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                             type="button"
                             onClick={() => setViewingStaff(staff)}
                             title="View Account Details"
-                            className="p-2 text-slate-400 hover:text-[#0c1424] hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
+                            className="p-2 text-slate-400 hover:text-brand-navy hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -1251,7 +1248,7 @@ export const StaffLecturersRegistry: React.FC = () => {
         {/* BOTTOM RANGE & PAGINATION */}
         <div className="p-4 px-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none font-bold text-slate-500 text-[11px]">
           <div>
-            Showing <span className="text-[#0c1424]">{startEntryIndex}</span> to <span className="text-[#0c1424]">{endEntryIndex}</span> of <span className="text-[#0c1424]">{totalEntriesMatching}</span> entries
+            Showing <span className="text-brand-navy">{startEntryIndex}</span> to <span className="text-brand-navy">{endEntryIndex}</span> of <span className="text-brand-navy">{totalEntriesMatching}</span> entries
           </div>
 
           <div className="flex items-center gap-1">
@@ -1304,7 +1301,7 @@ export const StaffLecturersRegistry: React.FC = () => {
       {createPortal(
         <AnimatePresence>
         {isAddAccountOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsAddAccountOpen(false)} />
 
@@ -1313,7 +1310,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header */}
               <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none">
@@ -1449,7 +1446,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                             value={st}
                             checked={newAccountFormData.status === st}
                             onChange={() => setNewAccountFormData(prev => ({ ...prev, status: st }))}
-                            className="rounded-full border-slate-350 text-[#0c1424] focus:ring-[#0c1424]"
+                            className="rounded-full border-slate-350 text-brand-navy focus:ring-brand-navy"
                           />
                           <span>{st}</span>
                         </label>
@@ -1469,7 +1466,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-[#0c1424] text-white rounded-xl shadow-xs hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                    className="px-5 py-2 bg-brand-navy text-white rounded-xl shadow-xs hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
                   >
                     Save & Create Account
                   </button>
@@ -1486,7 +1483,7 @@ export const StaffLecturersRegistry: React.FC = () => {
       {createPortal(
         <AnimatePresence>
         {viewingStaff && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setViewingStaff(null)} />
 
@@ -1495,7 +1492,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header */}
               <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none font-sans">

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,9 +10,14 @@ import { Calendar, ChevronDown, Sliders, Info, ListTodo } from 'lucide-react';
 interface DashboardTimelineProps {
   onTimelineUpdate?: (message: string) => void;
   onManageTimeline?: () => void;
+  showManageTimeline?: boolean;
 }
 
-export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimelineUpdate, onManageTimeline }) => {
+export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
+  onTimelineUpdate,
+  onManageTimeline,
+  showManageTimeline = true
+}) => {
   const [activeTab, setActiveTab] = useState<'MONTH' | 'QUARTER' | 'YEAR'>('QUARTER');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState('Sem 1 2025/2026');
@@ -35,7 +40,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
           <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest leading-none">
             Semester Timeline
           </h3>
-          <span className="text-lg font-black text-[#0c1424] block mt-1 tracking-tight">
+          <span className="text-lg font-black text-brand-navy block mt-1 tracking-tight">
             {selectedSemester}
           </span>
           <span className="text-[10px] text-slate-400 font-bold block">
@@ -57,7 +62,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
                 }}
                 className={`px-4 py-1.5 rounded-lg text-[10px] font-extrabold tracking-wider transition-all cursor-pointer ${
                   activeTab === tab
-                    ? 'bg-[#0c1424] text-white shadow-xs'
+                    ? 'bg-brand-navy text-white shadow-xs'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-250/30'
                 }`}
               >
@@ -67,58 +72,59 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             ))}
           </div>
 
-          {/* Manage Timeline Button with Menu Popup dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                if (onManageTimeline) {
-                  onManageTimeline();
-                } else {
-                  setIsDropdownOpen(!isDropdownOpen);
-                }
-              }}
-              className="py-2.5 px-4 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-[10px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span>Manage Timeline</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
-            </button>
+          {showManageTimeline && (
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (onManageTimeline) {
+                    onManageTimeline();
+                  } else {
+                    setIsDropdownOpen(!isDropdownOpen);
+                  }
+                }}
+                className="py-2.5 px-4 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span>Manage Timeline</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+              </button>
 
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-205 rounded-2xl shadow-xl p-2 z-30 font-sans text-xs">
-                <button
-                  onClick={() => {
-                    setSelectedSemester('Sem 1 2025/2026');
-                    setIsDropdownOpen(false);
-                    triggerToast('Configured Active Semester: Sem 1 2025/2026');
-                  }}
-                  className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-slate-805"
-                >
-                  Sem 1 2025/2026
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedSemester('Sem 2 2025/2026');
-                    setIsDropdownOpen(false);
-                    triggerToast('Configured Active Semester: Sem 2 2025/2026');
-                  }}
-                  className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-slate-505"
-                >
-                  Sem 2 2025/2026
-                </button>
-                <div className="h-px bg-slate-100 my-1" />
-                <button
-                  onClick={() => {
-                    setIsDropdownOpen(false);
-                    triggerToast('Opening Advanced Timeline Settings...');
-                  }}
-                  className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-indigo-600 flex items-center gap-2"
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>Advanced Layout Editor</span>
-                </button>
-              </div>
-            )}
-          </div>
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-205 rounded-2xl shadow-sm p-2 z-30 font-sans text-xs">
+                  <button
+                    onClick={() => {
+                      setSelectedSemester('Sem 1 2025/2026');
+                      setIsDropdownOpen(false);
+                      triggerToast('Configured Active Semester: Sem 1 2025/2026');
+                    }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-slate-805"
+                  >
+                    Sem 1 2025/2026
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedSemester('Sem 2 2025/2026');
+                      setIsDropdownOpen(false);
+                      triggerToast('Configured Active Semester: Sem 2 2025/2026');
+                    }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-slate-505"
+                  >
+                    Sem 2 2025/2026
+                  </button>
+                  <div className="h-px bg-slate-100 my-1" />
+                  <button
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      triggerToast('Opening Advanced Timeline Settings...');
+                    }}
+                    className="w-full text-left p-2.5 hover:bg-slate-50 rounded-lg font-bold text-indigo-600 flex items-center gap-2"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Advanced Layout Editor</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -151,7 +157,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             <div className="grid grid-cols-12 items-center gap-2 pt-4">
               <div className="col-span-3 flex items-center gap-2 text-left pl-2">
                 <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
-                <span className="text-[11px] font-black text-[#0c1424] tracking-wide">
+                <span className="text-[11px] font-black text-brand-navy tracking-wide">
                   Supervisor Appointment
                 </span>
               </div>
@@ -170,7 +176,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             <div className="grid grid-cols-12 items-center gap-2 pt-4">
               <div className="col-span-3 flex items-center gap-2 text-left pl-2">
                 <Calendar className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span className="text-[11px] font-black text-[#0c1424] tracking-wide">
+                <span className="text-[11px] font-black text-brand-navy tracking-wide">
                   Panel Appointment
                 </span>
               </div>
@@ -189,7 +195,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             <div className="grid grid-cols-12 items-center gap-2 pt-4">
               <div className="col-span-3 flex items-center gap-2 text-left pl-2">
                 <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="text-[11px] font-black text-[#0c1424] tracking-wide">
+                <span className="text-[11px] font-black text-brand-navy tracking-wide">
                   Marks & Evaluation
                 </span>
               </div>
@@ -217,7 +223,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             <div className="grid grid-cols-12 items-center gap-2 pt-4">
               <div className="col-span-3 flex items-center gap-2 text-left pl-2">
                 <Calendar className="w-4 h-4 text-purple-500 shrink-0" />
-                <span className="text-[11px] font-black text-[#0c1424] tracking-wide">
+                <span className="text-[11px] font-black text-brand-navy tracking-wide">
                   Document Submission
                 </span>
               </div>
@@ -243,7 +249,7 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({ onTimeline
             <div className="grid grid-cols-12 items-center gap-2 pt-4">
               <div className="col-span-3 flex items-center gap-2 text-left pl-2">
                 <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
-                <span className="text-[11px] font-black text-[#0c1424] tracking-wide">
+                <span className="text-[11px] font-black text-brand-navy tracking-wide">
                   Announcements / Release
                 </span>
               </div>

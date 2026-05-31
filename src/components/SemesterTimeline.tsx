@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,7 +26,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
     >
       {/* Top row with Title and Month/Quarter/Year switch Toggles */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 id="semester-master-schedule-header" className="text-sm font-black text-[#0c1424]">
+        <h3 id="semester-master-schedule-header" className="text-sm font-black text-brand-navy">
           Semester Master Schedule
         </h3>
 
@@ -42,7 +42,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
               }}
               className={`px-4 py-1.5 rounded-lg text-[10px] font-extrabold tracking-wider transition-all cursor-pointer ${
                 activeTab === tab
-                  ? 'bg-[#0c1424] text-white shadow-3xs'
+                  ? 'bg-brand-navy text-white shadow-3xs'
                   : 'text-slate-500 hover:text-slate-900 hover:bg-slate-250/30'
               }`}
             >
@@ -80,7 +80,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
           <div className="grid grid-cols-12 items-center min-h-[66px] border-b border-[#e2e8f0] hover:bg-slate-50/20 transition-all">
             <div className="col-span-3 py-3 px-4 flex items-center gap-2.5 text-left">
               <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-[11px] font-bold text-[#0c1424] tracking-wide">
+              <span className="text-[11px] font-bold text-brand-navy tracking-wide">
                 Supervisor Appointment
               </span>
             </div>
@@ -105,14 +105,14 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
           <div className="grid grid-cols-12 items-center min-h-[66px] border-b border-[#e2e8f0] hover:bg-slate-50/20 transition-all">
             <div className="col-span-3 py-3 px-4 flex items-center gap-2.5 text-left">
               <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-[11px] font-bold text-[#0c1424] tracking-wide">
+              <span className="text-[11px] font-bold text-brand-navy tracking-wide">
                 Panel Appointment
               </span>
             </div>
             <div className="col-span-9 h-full grid grid-cols-9 items-center gap-3 px-4">
               {/* Panel active bar */}
               <div 
-                className="col-start-4 col-span-3 bg-[#0c1424] text-white rounded-lg text-[9px] font-black tracking-wider uppercase py-2 px-4 text-center transition-all hover:bg-slate-800 shadow-3xs cursor-pointer select-none"
+                className="col-start-4 col-span-3 bg-brand-navy text-white rounded-lg text-[9px] font-black tracking-wider uppercase py-2 px-4 text-center transition-all hover:bg-slate-800 shadow-3xs cursor-pointer select-none"
                 onClick={() => triggerToast('Panel Recommendation Period: 16 Oct - 30 Oct (Active)')}
               >
                 <span>ACTIVE: RECOMMENDATION PERIOD</span>
@@ -131,7 +131,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
           <div className="grid grid-cols-12 items-center min-h-[66px] border-b border-[#e2e8f0] hover:bg-slate-50/20 transition-all">
             <div className="col-span-3 py-3 px-4 flex items-center gap-2.5 text-left">
               <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-[11px] font-bold text-[#0c1424] tracking-wide">
+              <span className="text-[11px] font-bold text-brand-navy tracking-wide">
                 Marks & Evaluation
               </span>
             </div>
@@ -162,7 +162,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
           <div className="grid grid-cols-12 items-center min-h-[66px] border-b border-[#e2e8f0] hover:bg-slate-50/20 transition-all">
             <div className="col-span-3 py-3 px-4 flex items-center gap-2.5 text-left">
               <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-[11px] font-bold text-[#0c1424] tracking-wide">
+              <span className="text-[11px] font-bold text-brand-navy tracking-wide">
                 Document Submission
               </span>
             </div>
@@ -181,7 +181,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ onTimelineUp
           <div className="grid grid-cols-12 items-center min-h-[66px] hover:bg-slate-50/20 transition-all">
             <div className="col-span-3 py-3 px-4 flex items-center gap-2.5 text-left">
               <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-[11px] font-bold text-[#0c1424] tracking-wide">
+              <span className="text-[11px] font-bold text-brand-navy tracking-wide">
                 Announcements
               </span>
             </div>

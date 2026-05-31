@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -122,45 +123,34 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       
-      {/* Toast notifications */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#0c1424] text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-2xl flex items-center gap-2 max-w-sm">
-          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      <PortalToast message={toastMessage} />
 
       {/* Header Title & Actions section */}
-      <div id="admin-dashboard-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="text-left">
-          <h1 id="admin-dashboard-main-title" className="page-title">
-            Administration Dashboard
-          </h1>
-          <p className="page-subtitle">
-            Overview administrative status, timeline intervals, and records requiring office review.
-          </p>
-        </div>
-
-        {/* Global actions: Export Report & New Entry */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExportReport}
-            disabled={exporting}
-            className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 text-slate-800 font-extrabold uppercase text-[10px] tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>{exporting ? 'Exporting...' : 'Export Report'}</span>
-          </button>
-
-          <button
-            onClick={() => setNewEntryModalOpen(true)}
-            className="px-5 py-2.5 bg-[#0c1424] text-white hover:bg-slate-800 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5 text-indigo-300" />
-            <span>New Entry</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Administration Dashboard"
+        subtitle="Overview administrative status, timeline intervals, and records requiring office review."
+        actions={(
+          <>
+            <PortalButton
+              variant="secondary"
+              size="md"
+              icon={Download}
+              onClick={handleExportReport}
+              isLoading={exporting}
+            >
+              {exporting ? 'Exporting' : 'Export Report'}
+            </PortalButton>
+            <PortalButton
+              variant="primary"
+              size="md"
+              icon={Plus}
+              onClick={() => setNewEntryModalOpen(true)}
+            >
+              New Entry
+            </PortalButton>
+          </>
+        )}
+      />
 
       {/* 1. Semester Timeline Section */}
       <DashboardTimeline onTimelineUpdate={triggerToast} onManageTimeline={onNavigateToTimeline} />
@@ -174,13 +164,11 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
               Students Without Supervisor
             </span>
-            <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded text-[9px] font-extrabold uppercase tracking-widest leading-none shrink-0 select-none">
-              CRITICAL
-            </span>
+            <StatusBadge tone="danger" className="rounded-md px-2 py-0.5 text-[9px]">Critical</StatusBadge>
           </div>
 
           <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-[#0c1424] font-black text-3xl md:text-4xl tracking-tight leading-none">
+            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
               12
             </span>
           </div>
@@ -201,7 +189,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
           </span>
 
           <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-[#0c1424] font-black text-3xl md:text-4xl tracking-tight leading-none">
+            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
               8
             </span>
           </div>
@@ -222,7 +210,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
           </span>
 
           <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-[#0c1424] font-black text-3xl md:text-4xl tracking-tight leading-none">
+            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
               5
             </span>
           </div>
@@ -265,7 +253,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         {/* Left (65% approx): Records Needing Attention Table */}
         <div className="lg:col-span-8 bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
           <div className="space-y-1 block text-left">
-            <h3 className="text-sm font-black text-[#0c1424] tracking-tight">
+            <h3 className="text-sm font-black text-brand-navy tracking-tight">
               Records Needing Attention
             </h3>
             <p className="text-slate-500 font-bold text-[10.5px]">
@@ -347,12 +335,12 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
 
       {/* Create New Timeline Event / Entry Modal Dialog overlay */}
       {newEntryModalOpen && createPortal(
-        <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="absolute inset-0" onClick={() => setNewEntryModalOpen(false)} />
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 shadow-2xl relative z-10 border border-slate-100 text-left font-sans">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left font-sans">
             <div className="flex items-center gap-2 mb-4">
               <FolderSync className="w-5 h-5 text-indigo-500" />
-              <h3 className="text-lg font-black text-[#0c1424] tracking-tight">Create Timeline Activity</h3>
+              <h3 className="text-lg font-black text-brand-navy tracking-tight">Create Timeline Activity</h3>
             </div>
             
             <form onSubmit={handleCreateNewEntry} className="space-y-4">
@@ -437,7 +425,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
+                  className="flex-1 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
                 >
                   SAVE ENTRY
                 </button>

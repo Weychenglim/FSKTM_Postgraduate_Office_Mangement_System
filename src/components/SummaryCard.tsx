@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -61,8 +61,8 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
     <motion.div
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
       onClick={onClick}
-      className={`bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-[0_4px_20px_rgba(241,245,249,0.5)] cursor-pointer select-none transition-all duration-300 relative ${
-        onClick ? 'hover:shadow-md hover:border-slate-300' : ''
+      className={`bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-3xs cursor-pointer select-none transition-all duration-300 relative ${
+        onClick ? 'hover:shadow-sm hover:border-slate-300' : ''
       }`}
     >
       <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2.5">
@@ -72,7 +72,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
       <div className="flex items-center gap-2 mb-2">
         {/* Colorful visual status bullet sign */}
         <span className={`w-2 h-2 rounded-full ${badgeStyles.dot}`} />
-        <span className="text-[#0c1424] font-extrabold text-[19px] tracking-tight">
+        <span className="text-brand-navy font-extrabold text-[19px] tracking-tight">
           {badgeText}
         </span>
       </div>

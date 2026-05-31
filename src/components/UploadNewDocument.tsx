@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -224,7 +224,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   };
 
   return (
-    <div id="upload-document-workspace" className="font-sans text-[#0c1424] text-xs pb-12">
+    <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
       
       {/* Toast Notification */}
       <AnimatePresence>
@@ -233,7 +233,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
+            className="fixed top-20 right-8 z-[100] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
           >
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-[11px] font-sans tracking-wide">{toast}</span>
@@ -386,7 +386,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 {tags.map(tag => (
                   <span 
                     key={tag} 
-                    className="inline-flex items-center gap-1 bg-[#0c1424] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg select-none"
+                    className="inline-flex items-center gap-1 bg-brand-navy text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg select-none"
                   >
                     <span>{tag}</span>
                     <button
@@ -448,7 +448,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.view ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -457,7 +457,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.download ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -466,7 +466,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('officeStaff', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.archive ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -480,7 +480,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.view ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -489,7 +489,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.download ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -498,7 +498,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('coordinator', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.archive ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -512,7 +512,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.view ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -521,7 +521,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.download ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -530,7 +530,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('lecturer', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.archive ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -544,7 +544,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.view ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -553,7 +553,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.download ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -562,7 +562,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         <button
                           type="button"
                           onClick={() => togglePermission('student', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
+                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.archive ? 'bg-brand-navy' : 'bg-slate-200'}`}
                         >
                           <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
                         </button>
@@ -586,7 +586,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
               <button
                 type="submit"
-                className="w-full md:w-auto px-6 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-[10px]"
+                className="w-full md:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-[10px]"
               >
                 <Upload className="w-4 h-4 text-white stroke-[2.5]" />
                 <span>Confirm and Upload</span>
@@ -624,7 +624,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               />
 
               {/* Upload Cloud SVG Icon bundle layout */}
-              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#0c1424] transition-colors">
+              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-brand-navy transition-colors">
                 <Upload className="w-5 h-5 text-slate-650" />
               </div>
 

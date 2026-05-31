@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -80,14 +80,11 @@ interface SummaryCardProps {
 export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext, colorClass, icon: Icon }) => {
   return (
     <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 flex items-start justify-between relative overflow-hidden transition-all duration-300 hover:shadow-sm group">
-      {/* Background Accent glow */}
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full filter blur-2xl opacity-[0.03] transition-all group-hover:scale-125 ${colorClass}`} />
-      
       <div className="space-y-1.5 text-left select-none">
         <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block">
           {title}
         </span>
-        <h2 className="text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+        <h2 className="text-2xl font-black text-brand-navy tracking-tight font-sans">
           {value}
         </h2>
         <span className="text-[10px] font-bold text-slate-500 block">
@@ -179,7 +176,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
       type="button"
       onClick={onClick}
       title={title}
-      className="p-2 text-slate-400 hover:text-[#0c1424] hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
+      className="p-2 text-slate-400 hover:text-brand-navy hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
     >
       <Icon className="w-4 h-4" />
     </button>
@@ -420,7 +417,7 @@ export const StudentRegistry: React.FC = () => {
       id: manualFormData.id,
       name: manualFormData.name,
       avatarText: initials || 'ST',
-      avatarBg: 'bg-emerald-100 text-[#0c1424] border-slate-200',
+      avatarBg: 'bg-emerald-100 text-brand-navy border-slate-200',
       programme: displayProg,
       academicStatus: 'Active',
       accountStatus: 'Verified',
@@ -639,7 +636,7 @@ export const StudentRegistry: React.FC = () => {
   const duplicateCsvCount = csvPreviewRecords.filter(r => r.status === 'ID Exists').length;
 
   return (
-    <div id="student-registry-workspace" className="font-sans text-[#0c1424] text-xs pb-16 animate-fade-in relative">
+    <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
       {/* Dynamic Slide-in Toast Notification */}
       <AnimatePresence>
@@ -648,7 +645,7 @@ export const StudentRegistry: React.FC = () => {
             initial={{ opacity: 0, y: -25, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold font-sans"
+            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold font-sans"
           >
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[11px] tracking-wide">{toastMessage}</span>
@@ -718,7 +715,7 @@ export const StudentRegistry: React.FC = () => {
                   setCurrentView('register');
                   setRegisterActiveTab('bulk');
                 }}
-                className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
+                className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
               >
                 <UserPlus className="w-4 h-4 text-indigo-300" />
                 <span>Register New Students</span>
@@ -879,7 +876,7 @@ export const StudentRegistry: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleBatchVerify}
-                    className="px-4 py-2 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
                   >
                     Bulk Authorize Verify
                   </button>
@@ -937,7 +934,7 @@ export const StudentRegistry: React.FC = () => {
                       return (
                         <tr
                           key={student.id}
-                          className={`data-row ${isChecked ? 'bg-[#0c1424]/[0.01]' : ''}`}
+                          className={`data-row ${isChecked ? 'bg-brand-navy/[0.01]' : ''}`}
                         >
                           {/* Selector column */}
                           <td className="data-td w-12 text-center">
@@ -956,7 +953,7 @@ export const StudentRegistry: React.FC = () => {
                                 {student.avatarText}
                               </div>
                               <div>
-                                <h4 className="text-[12.5px] font-black text-[#0c1424] leading-snug">
+                                <h4 className="text-[12.5px] font-black text-brand-navy leading-snug">
                                   {student.name}
                                 </h4>
                                 <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
@@ -1133,7 +1130,7 @@ export const StudentRegistry: React.FC = () => {
                   <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-[#0c1424]">CSV Upload</h3>
+                        <h3 className="text-sm font-black text-brand-navy">CSV Upload</h3>
                         <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
                           Drag and drop your formatted student registry CSV file below.
                         </p>
@@ -1260,7 +1257,7 @@ export const StudentRegistry: React.FC = () => {
                     {/* Upper title and verification counters */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-[#0c1424]">Import Preview & Validation</h3>
+                        <h3 className="text-sm font-black text-brand-navy">Import Preview & Validation</h3>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                           Verification outcome mapping for staged candidate accounts row matrices.
                         </p>
@@ -1450,7 +1447,7 @@ export const StudentRegistry: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleCommitVerifiedCsv}
-                          className="px-5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
+                          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
                         >
                           <UserCheck className="w-4 h-4 text-indigo-300" />
                           <span>Create Accounts for Ready Records</span>
@@ -1467,14 +1464,14 @@ export const StudentRegistry: React.FC = () => {
 
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
-                <div id="single-candidate-register-container" className="bg-white border border-[#e2e8f0] rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(241,245,249,0.4)]">
+                <div id="single-candidate-register-container" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 md:p-8 shadow-3xs">
                   
                   {/* Form card header with UserPlus Icon */}
                   <div className="flex items-center gap-3 border-b border-slate-100 pb-5 mb-6">
                     <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-700">
                       <UserPlus className="w-5 h-5 text-indigo-600" />
                     </div>
-                    <h2 className="text-base font-extrabold text-[#0c1424] tracking-tight animate-fade-in">
+                    <h2 className="text-base font-extrabold text-brand-navy tracking-tight animate-fade-in">
                       New Student Registration
                     </h2>
                   </div>
@@ -1503,7 +1500,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Enter student's legal full name"
                           value={manualFormData.name}
                           onChange={(e) => setManualFormData({ ...manualFormData, name: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
 
@@ -1521,7 +1518,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="e.g. WAA21001"
                             value={manualFormData.id}
                             onChange={(e) => setManualFormData({ ...manualFormData, id: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-mono font-bold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-mono font-bold"
                           />
                         </div>
 
@@ -1537,7 +1534,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="student@siswa.um.edu.my"
                             value={manualFormData.email}
                             onChange={(e) => setManualFormData({ ...manualFormData, email: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                           />
                         </div>
                       </div>
@@ -1553,7 +1550,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="+60 1X-XXXXXXX"
                           value={manualFormData.phone}
                           onChange={(e) => setManualFormData({ ...manualFormData, phone: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
                     </div>
@@ -1577,7 +1574,7 @@ export const StudentRegistry: React.FC = () => {
                             id="programme-selection"
                             value={manualFormData.programme}
                             onChange={(e) => setManualFormData({ ...manualFormData, programme: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                            className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
                           >
                             <option value="Select registered programme" disabled>Select registered programme</option>
                             <option value="PhD (CS)">PhD (Computer Science)</option>
@@ -1603,7 +1600,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="e.g. 2023/2024"
                             value={manualFormData.intakeBatch}
                             onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                           />
                         </div>
 
@@ -1617,7 +1614,7 @@ export const StudentRegistry: React.FC = () => {
                               id="current-semester"
                               value={manualFormData.semester}
                               onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
                             >
                               <option value="Semester 1">Semester 1</option>
                               <option value="Semester 2">Semester 2</option>
@@ -1641,7 +1638,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Tentative research title..."
                           value={manualFormData.researchTitle}
                           onChange={(e) => setManualFormData({ ...manualFormData, researchTitle: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
 
@@ -1656,7 +1653,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Search and assign supervisor"
                           value={manualFormData.supervisor}
                           onChange={(e) => setManualFormData({ ...manualFormData, supervisor: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-[#0c1424] placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
                     </div>
@@ -1716,7 +1713,7 @@ export const StudentRegistry: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCurrentView('list')}
-                        className="px-5 py-3 text-slate-550 hover:text-[#0c1424] font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
+                        className="px-5 py-3 text-slate-550 hover:text-brand-navy font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
                       >
                         Cancel
                       </button>
@@ -1724,7 +1721,7 @@ export const StudentRegistry: React.FC = () => {
                       {/* Register Submit btn */}
                       <button
                         type="submit"
-                        className="px-6 py-3.5 bg-[#0c1424] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans"
+                        className="px-6 py-3.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans"
                       >
                         <UserPlus className="w-4.5 h-4.5 text-indigo-300" />
                         <span>Register Student and Create Account</span>
@@ -1748,7 +1745,7 @@ export const StudentRegistry: React.FC = () => {
                   <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
                     <Info className="w-4.5 h-4.5" />
                   </div>
-                  <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                  <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                     Import Guidelines
                   </h3>
                 </div>
@@ -1805,7 +1802,7 @@ export const StudentRegistry: React.FC = () => {
                     <div className="p-1.5 rounded-lg bg-pink-50 text-pink-600 border border-pink-100">
                       <Layers className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                       Current Semester Overview
                     </h3>
                   </div>
@@ -1843,7 +1840,7 @@ export const StudentRegistry: React.FC = () => {
                     <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
                       <FileText className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                       Recent Imports
                     </h3>
                   </div>
@@ -1865,7 +1862,7 @@ export const StudentRegistry: React.FC = () => {
                         <FileSpreadsheet className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <span className="font-extrabold text-[#0c1424] text-[11px] block max-w-[120px] truncate select-all">Intake_Sem1_2023.csv</span>
+                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all">Intake_Sem1_2023.csv</span>
                         <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 24, 2023 • 142 records</span>
                       </div>
                     </div>
@@ -1873,7 +1870,7 @@ export const StudentRegistry: React.FC = () => {
                     <button 
                       type="button"
                       onClick={() => triggerToast('Downloaded backup log for intake semester 1_23.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-[#0c1424] transition cursor-pointer"
+                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
                       title="Download Log backup"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1887,7 +1884,7 @@ export const StudentRegistry: React.FC = () => {
                         <FileSpreadsheet className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <span className="font-extrabold text-[#0c1424] text-[11px] block max-w-[120px] truncate select-all font-sans">Late_Registrations_Oct.csv</span>
+                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all font-sans">Late_Registrations_Oct.csv</span>
                         <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 28, 2023 • 12 records</span>
                       </div>
                     </div>
@@ -1895,7 +1892,7 @@ export const StudentRegistry: React.FC = () => {
                     <button 
                       type="button"
                       onClick={() => triggerToast('Downloaded backup log for late registrations.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-[#0c1424] transition cursor-pointer"
+                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
                       title="Download Log backup"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1923,14 +1920,14 @@ export const StudentRegistry: React.FC = () => {
       {createPortal(
         <AnimatePresence>
         {viewingStudent && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             <div className="absolute inset-0" onClick={() => setViewingStudent(null)} />
             
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header block */}
               <div className="bg-[#121c2e] p-6 text-white flex items-center justify-between select-none">

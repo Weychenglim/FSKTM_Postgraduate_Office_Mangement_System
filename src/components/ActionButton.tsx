@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     <button
       onClick={onClick}
       disabled={isLoading || props.disabled}
-      className={`w-full py-4 px-6 bg-[#0c1424] text-white font-extrabold text-xs tracking-widest uppercase rounded-xl flex items-center justify-center gap-2 hover:bg-[#1a2b4b] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0c1424]/30 disabled:opacity-75 disabled:cursor-not-allowed select-none transition-all duration-200 cursor-pointer shadow-md ${className}`}
+      className={`w-full py-4 px-6 bg-brand-navy text-white font-extrabold text-xs tracking-widest uppercase rounded-xl flex items-center justify-center gap-2 hover:bg-[#1a2b4b] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-brand-navy/30 disabled:opacity-75 disabled:cursor-not-allowed select-none transition-all duration-200 cursor-pointer shadow-sm ${className}`}
       {...props}
     >
       {isLoading ? (
