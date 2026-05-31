@@ -12,6 +12,7 @@
 - Merged generated office-staff UI modules from `fsktm-postgraduate-administrative-portalofficestaffcompleted`.
 - Added routes for Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, and Forgot Password.
 - Updated the sidebar and top header to expose the expanded office-staff navigation.
+- Fixed the Panel Appointment Management desktop layout so the records table appears directly below the search/filter card instead of being pushed below the right-side widgets.
 
 ## Current Testing Status
 
@@ -19,6 +20,8 @@
 - `npm run build` passes after the dashboard integration.
 - `npm run lint` passes after the expanded office-staff module merge.
 - `npm run build` passes after the expanded office-staff module merge.
+- `npm run lint` passes after the Panel Appointment Management layout fix.
+- `npm run build` passes after the Panel Appointment Management layout fix.
 - Vite foreground server check returns HTTP 200 for the app root.
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, and Notifications & Announcements routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.
