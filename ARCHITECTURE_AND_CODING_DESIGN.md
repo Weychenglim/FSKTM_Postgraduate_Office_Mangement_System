@@ -24,6 +24,7 @@
 - `src/components/NotificationsAnnouncements.tsx` implements notification review from the top header.
 - `src/components/ForgotPasswordFlow.tsx` implements the unauthenticated password recovery view.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
+- `src/components/PanelAppointmentManagement.tsx` uses a desktop two-column grid where the search/filter card and records table stay in the left column while attention and workload widgets span the right column.
 
 ## Navigation Pattern
 

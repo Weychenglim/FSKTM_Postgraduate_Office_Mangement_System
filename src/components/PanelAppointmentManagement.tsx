@@ -561,7 +561,7 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
             {/* Records Needing Attention Widgets Column (Right Col) */}
-            <div className="lg:col-span-4 space-y-6 text-left">
+            <div className="lg:col-span-4 lg:row-start-1 lg:row-span-2 space-y-6 text-left">
               
               {/* Box A: Attention list card */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
@@ -660,11 +660,8 @@ export const PanelAppointmentManagement: React.FC = () => {
 
             </div>
 
-          </div>
-
-
           {/* 3. Panel Appointment Records Table Container */}
-          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs text-left">
+          <div className="lg:col-span-8 lg:col-start-1 lg:row-start-2 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs text-left">
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
@@ -849,6 +846,8 @@ export const PanelAppointmentManagement: React.FC = () => {
               </div>
 
             </div>
+
+          </div>
 
           </div>
 

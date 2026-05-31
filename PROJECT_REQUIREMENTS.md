@@ -24,6 +24,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Forgot-password UI for unauthenticated account recovery guidance.
 - Marks and evaluation management UI for mark entry period configuration, rubric management, evaluation task assignment, submission monitoring, and mark records.
 - Supervisor and panel appointment management UI for appointment status and workload monitoring.
+- Panel appointment records must appear directly below the search/filter controls on desktop layouts, with attention and workload widgets remaining in the right-side column.
 
 ## Dashboard Requirements
 
