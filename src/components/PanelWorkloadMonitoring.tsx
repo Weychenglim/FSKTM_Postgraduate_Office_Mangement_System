@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 export interface LecturerWorkloadRecord {
   id: string; // LEC-XXX
@@ -273,20 +274,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
   return (
     <div id="panel-workload-viewport" className="space-y-8 animate-fade-in text-left font-sans">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Breadcrumb & Navigation Heading */}
       <div id="workload-nav-header" className="space-y-1.5 text-left">
@@ -368,13 +356,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             </span>
           </div>
 
-          <div className="space-y-4">
+          <div className="filter-toolbar space-y-4">
             
             {/* Row A: Search box and Department Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
               <div>
-                <label htmlFor="search-input" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="search-input" className="form-label block">
                   SEARCH
                 </label>
                 <div id="search-container" className="relative">
@@ -385,13 +373,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search lecturer name or department"
-                    className="w-full pl-10 pr-4 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-400 focus:outline-none transition font-semibold text-xs text-slate-800"
+                    className="form-control form-control-sm pl-10 pr-4"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="dept-selection" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="dept-selection" className="form-label block">
                   DEPARTMENT
                 </label>
                 <div className="relative">
@@ -399,7 +387,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     id="dept-selection"
                     value={departmentFilter}
                     onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-extrabold text-slate-700"
+                    className="form-control form-control-sm appearance-none pr-9"
                   >
                     <option>All Departments</option>
                     <option>Faculty of Computing</option>
@@ -417,7 +405,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               <div>
-                <label htmlFor="semester-selection" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="semester-selection" className="form-label block">
                   SEMESTER
                 </label>
                 <div className="relative">
@@ -425,7 +413,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     id="semester-selection"
                     value={semesterFilter}
                     onChange={(e) => setSemesterFilter(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-extrabold text-slate-700"
+                    className="form-control form-control-sm appearance-none pr-9"
                   >
                     <option>Semester 1, 2024/2025</option>
                     <option>Semester 2, 2024/2025</option>
@@ -435,7 +423,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               </div>
 
               <div>
-                <label htmlFor="status-selection" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="status-selection" className="form-label block">
                   WORKLOAD STATUS
                 </label>
                 <div className="relative">
@@ -443,7 +431,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     id="status-selection"
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-extrabold text-slate-700"
+                    className="form-control form-control-sm appearance-none pr-9"
                   >
                     <option>All Statuses</option>
                     <option>Available</option>
@@ -458,20 +446,22 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
             {/* Apply filters action buttons row */}
             <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
+              <PortalButton
+                variant="secondary"
+                size="md"
                 onClick={handleResetFilters}
-                className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-250 font-extrabold text-[11px] rounded-xl uppercase tracking-wider transition cursor-pointer"
               >
                 Reset
-              </button>
+              </PortalButton>
               
-              <button
+              <PortalButton
+                variant="primary"
+                size="md"
+                icon={CheckSquare}
                 onClick={handleApplyFilters}
-                className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-black text-[11px] rounded-xl uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
               >
-                <CheckSquare className="w-4 h-4" />
-                <span>Apply Filters</span>
-              </button>
+                Apply Filters
+              </PortalButton>
             </div>
 
           </div>
@@ -558,7 +548,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
         {/* Scrollable table ledger matching screenshot exact visual styling */}
         <div id="table-scroll-ledger" className="overflow-x-auto">
-          <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
+          <table className="data-table min-w-[850px] text-xs">
             <thead>
               <tr className="data-thead bg-slate-50 select-none">
                 <th className="data-th">Lecturer ID</th>
@@ -865,7 +855,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                   <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-3xs">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left font-sans text-[11px]">
+                    <table className="data-table text-[11px]">
                         <thead>
                           <tr className="data-thead bg-slate-50">
                             <th className="data-th w-5/12">Student & ID</th>

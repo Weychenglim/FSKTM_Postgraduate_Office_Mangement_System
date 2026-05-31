@@ -14,6 +14,7 @@ import {
   Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton } from './PortalPrimitives';
 
 interface TimelineEntry {
   id: string;
@@ -119,12 +120,12 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-205"
+            className="drawer-panel"
           >
             {/* Header section with closing element */}
             <div 
               id="add-drawer-header" 
-              className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 select-none"
+              className="drawer-header"
             >
               <div className="flex items-center gap-2.5">
                 <Plus className="w-5 h-5 text-indigo-500 stroke-[2.5]" />
@@ -136,7 +137,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               <button
                 id="add-drawer-close-button"
                 onClick={onClose}
-                className="w-9 h-9 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center transition text-slate-400 hover:text-slate-800"
+                className="icon-button w-9 h-9"
                 aria-label="Close add drawer"
               >
                 <X className="w-4 h-4" />
@@ -150,7 +151,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             >
               <div 
                 id="add-drawer-body" 
-                className="flex-1 overflow-y-auto px-6 py-5 space-y-4 bg-white"
+                className="drawer-body"
               >
                 {/* Context Indicator Alert banner */}
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
@@ -164,7 +165,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
 
                 {/* Field 1: Event Name */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  <label className="form-label block">
                     Event Name
                   </label>
                   <input
@@ -173,20 +174,20 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                     placeholder="e.g. Panel Recommendation Period"
-                    className="w-full text-xs font-bold text-slate-800 border border-slate-200 px-3.5 py-2.5 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none transition-all placeholder:text-slate-300"
+                    className="form-control form-control-sm"
                   />
                 </div>
 
                 {/* Field 2: Category Classification Selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  <label className="form-label block">
                     Category classification
                   </label>
                   <div className="relative">
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as any)}
-                      className="w-full text-xs font-bold text-slate-800 bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer appearance-none"
+                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option value="Supervisor Appointment">Supervisor Appointment</option>
                       <option value="Panel Appointment">Panel Appointment</option>
@@ -201,7 +202,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 {/* Field 3: Date Inputs grid */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                    <label className="form-label block">
                       Start Date
                     </label>
                     <input
@@ -209,11 +210,11 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                       required
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full text-xs font-bold text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 text-left cursor-text"
+                      className="form-control form-control-sm cursor-text"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                    <label className="form-label block">
                       End Date
                     </label>
                     <input
@@ -221,14 +222,14 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                       required
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full text-xs font-bold text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 text-left cursor-text"
+                      className="form-control form-control-sm cursor-text"
                     />
                   </div>
                 </div>
 
                 {/* Field 4: Target Roles multi checkboxes */}
                 <div className="space-y-2 pt-1">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  <label className="form-label block">
                     Target Roles
                   </label>
                   <div className="flex items-center gap-4 flex-wrap">
@@ -270,14 +271,14 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
 
                 {/* Field 5: Status State Radio dropdown option */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  <label className="form-label block">
                     Status State
                   </label>
                   <div className="relative">
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as any)}
-                      className="w-full text-xs font-bold text-slate-800 bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer appearance-none"
+                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option value="Completed">Completed (Inactive grey theme)</option>
                       <option value="Active">Active (Navy blue theme)</option>
@@ -290,7 +291,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
 
                 {/* Field 6: Description or notes field */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                  <label className="form-label block">
                     Description or Notes
                   </label>
                   <textarea
@@ -298,7 +299,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Enter specific event instruction notes..."
-                    className="w-full text-xs font-medium text-slate-800 border border-slate-200 px-3.5 py-2.5 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none transition-all placeholder:text-slate-300 resize-none leading-relaxed"
+                    className="form-control form-control-sm resize-none leading-relaxed"
                   />
                 </div>
 
@@ -307,24 +308,26 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               {/* Action Buttons Footer section */}
               <div 
                 id="add-drawer-footer"
-                className="px-6 py-5.5 border-t border-slate-100 bg-white flex items-center justify-end gap-3 shrink-0"
+                className="drawer-footer"
               >
-                <button
+                <PortalButton
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer shadow-3xs"
+                  variant="secondary"
+                  size="md"
                 >
                   Cancel
-                </button>
+                </PortalButton>
                 
-                <button
+                <PortalButton
                   type="submit"
                   disabled={!eventName.trim() || targetRole.length === 0}
-                  className="px-5.5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  variant="primary"
+                  size="md"
+                  icon={Plus}
                 >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Add Entry</span>
-                </button>
+                  Add Entry
+                </PortalButton>
               </div>
             </form>
 

@@ -27,7 +27,7 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
 
       {/* Styled Table Container */}
       <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
-        <table className="w-full text-xs font-sans border-collapse">
+        <table className="data-table text-xs">
           <thead>
             <tr className="data-thead bg-[#f8fafc]">
               <th className="data-th text-left w-[140px] shrink-0">Student & ID</th>

@@ -22,7 +22,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -357,7 +357,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
           {/* Search field */}
           <div className="md:col-span-6 flex flex-col">
-            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
+            <label className="form-label">
               Search
             </label>
             <div className="relative">
@@ -367,20 +367,20 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by student name, ID, panel member, or research title"
-                className="w-full text-xs font-medium text-slate-700 bg-slate-50/50 border border-slate-200 pl-10 pr-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 bg-white"
+                className="form-control form-control-md pl-10 pr-4"
               />
             </div>
           </div>
 
           {/* Programme dropdown selector */}
           <div className="md:col-span-3 flex flex-col">
-            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
+            <label className="form-label">
               Programme
             </label>
             <select
               value={programmeFilter}
               onChange={(e) => setProgrammeFilter(e.target.value)}
-              className="w-full text-xs font-bold text-slate-700 bg-slate-50/50 border border-slate-200 p-3 rounded-lg focus:outline-none cursor-pointer bg-white"
+              className="form-control form-control-md cursor-pointer"
             >
               <option value="All Programmes">All Programmes</option>
               <option value="Master of Software Engineering">Master of Software Engineering</option>
@@ -391,13 +391,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
 
           {/* Semester dropdown selector */}
           <div className="md:col-span-3 flex flex-col">
-            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
+            <label className="form-label">
               Semester
             </label>
             <select
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
-              className="w-full text-xs font-bold text-slate-700 bg-slate-50/50 border border-slate-200 p-3 rounded-lg focus:outline-none cursor-pointer bg-white"
+              className="form-control form-control-md cursor-pointer"
             >
               <option value="Sem 1 2025/2026">Sem 1 2025/2026</option>
               <option value="Sem 2 2024/2025">Sem 2 2024/2025</option>
@@ -408,13 +408,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pt-2">
           {/* Status Select dropdown */}
           <div className="md:col-span-4 flex flex-col">
-            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
+            <label className="form-label">
               Status
             </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full text-xs font-bold text-slate-700 bg-slate-50/50 border border-slate-200 p-3 rounded-lg focus:outline-none cursor-pointer bg-white"
+              className="form-control form-control-md cursor-pointer"
             >
               <option value="All Statuses">All Statuses</option>
               <option value="Submitted">Submitted</option>
@@ -427,13 +427,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
 
           {/* Panel Member select */}
           <div className="md:col-span-4 flex flex-col">
-            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
+            <label className="form-label">
               Panel Member
             </label>
             <select
               value={panelFilter}
               onChange={(e) => setPanelFilter(e.target.value)}
-              className="w-full text-xs font-bold text-slate-700 bg-slate-50/50 border border-slate-200 p-3 rounded-lg focus:outline-none cursor-pointer bg-white"
+              className="form-control form-control-md cursor-pointer"
             >
               <option value="All Members">All Members</option>
               <option value="Dr. Sarah Lim">Dr. Sarah Lim</option>
@@ -444,12 +444,14 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
 
           {/* Core Apply Filters Action Trigger */}
           <div className="md:col-span-4">
-            <button
+            <PortalButton
+              variant="primary"
+              size="lg"
+              fullWidth
               onClick={handleApplyFilters}
-              className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg transition-all shadow-sm cursor-pointer select-none"
             >
               Apply Filters
-            </button>
+            </PortalButton>
           </div>
         </div>
 

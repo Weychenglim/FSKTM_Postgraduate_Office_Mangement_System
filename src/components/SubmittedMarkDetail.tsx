@@ -238,7 +238,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
             <div className="p-6 space-y-6">
               
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[500px] border-collapse text-xs">
+              <table className="data-table min-w-[500px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
                       <th className="pb-3.5 w-1/3">Component</th>

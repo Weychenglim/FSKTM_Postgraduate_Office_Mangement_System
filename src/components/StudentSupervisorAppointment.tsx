@@ -264,7 +264,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
         {/* Data Table implementation */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[700px] border-collapse text-xs">
+              <table className="data-table min-w-[700px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none bg-slate-50/20">
                 <th className="py-4 px-6 w-32">Application ID</th>

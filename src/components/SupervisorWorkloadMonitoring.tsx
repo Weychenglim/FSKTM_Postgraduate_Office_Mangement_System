@@ -23,6 +23,7 @@ import {
   Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 import { RightDrawer } from './RightDrawer';
 
 interface WorkloadRecord {
@@ -255,20 +256,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
   return (
     <div id="workload-monitoring-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-[100] bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-705"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Back Link */}
       <div className="flex">
@@ -354,11 +342,11 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left font-sans">
+          <div className="filter-toolbar grid grid-cols-1 md:grid-cols-2 gap-4 text-left font-sans">
             
             {/* SEARCH PANEL */}
             <div className="space-y-1.5 col-span-1 md:col-span-1">
-              <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              <label className="form-label block">
                 Search
               </label>
               <div className="relative">
@@ -368,20 +356,20 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search lecturer name or department..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-100 focus:bg-white transition"
+                  className="form-control form-control-sm pl-10 pr-4"
                 />
               </div>
             </div>
 
             {/* DEPARTMENT FILTER */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              <label className="form-label block">
                 Department
               </label>
               <select
                 value={selectedDept}
                 onChange={(e) => setSelectedDept(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-indigo-105 focus:bg-white transition cursor-pointer"
+                className="form-control form-control-sm cursor-pointer"
               >
                 <option value="All Departments">All Departments</option>
                 <option value="Faculty of Computing">Faculty of Computing</option>
@@ -392,13 +380,13 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
             {/* SEMESTER FILTER */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              <label className="form-label block">
                 Semester
               </label>
               <select
                 value={selectedSemester}
                 onChange={(e) => setSelectedSemester(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-indigo-105 focus:bg-white transition cursor-pointer"
+                className="form-control form-control-sm cursor-pointer"
               >
                 <option value="Semester 1, 2024/2025">Semester 1, 2024/2025</option>
                 <option value="Semester 2, 2023/2024">Semester 2, 2023/2024</option>
@@ -407,13 +395,13 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
             {/* WORKLOAD STATUS FILTER */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              <label className="form-label block">
                 Workload Status
               </label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-indigo-105 focus:bg-white transition cursor-pointer"
+                className="form-control form-control-sm cursor-pointer"
               >
                 <option value="All Statuses">All Statuses</option>
                 <option value="Available">Available Only</option>
@@ -425,13 +413,14 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           </div>
 
           <div className="flex justify-end pt-2">
-            <button
+            <PortalButton
+              variant="primary"
+              size="lg"
+              icon={SlidersHorizontal}
               onClick={handleApplyFilters}
-              className="flex items-center gap-2 px-6 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer"
             >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Apply Filters</span>
-            </button>
+              Apply Filters
+            </PortalButton>
           </div>
         </div>
 
@@ -527,7 +516,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
         {/* Workload Table */}
         <div className="overflow-x-auto text-xs">
-          <table className="w-full text-left min-w-[700px] border-collapse font-sans">
+          <table className="data-table min-w-[700px]">
             <thead>
               <tr className="data-thead bg-slate-50 select-none">
                 <th className="data-th">Lecturer ID</th>

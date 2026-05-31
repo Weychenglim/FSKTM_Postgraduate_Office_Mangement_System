@@ -15,6 +15,7 @@ import { SummaryCard } from './SummaryCard';
 import { ActionButton } from './ActionButton';
 import { ChevronLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -173,13 +174,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
   return (
     <div id="mark-entry-configuration-master" className="space-y-8 animate-fade-in relative">
       
-      {/* Toast Alert Banner */}
-      {toastMessage && (
-        <div id="toast-notif-banner" className="fixed top-6 right-6 z-50 max-w-md bg-brand-navy text-white py-3.5 px-5 rounded-2xl shadow-sm flex items-center gap-3 border border-white/10 text-xs font-bold font-sans">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      <PortalToast message={toastMessage} />
 
       {/* Top Breadcrumb Header panel */}
       <div id="config-breadcrumb-header" className="flex flex-col text-left">

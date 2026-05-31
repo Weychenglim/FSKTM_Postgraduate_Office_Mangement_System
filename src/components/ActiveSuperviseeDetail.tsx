@@ -337,7 +337,7 @@ export const RelatedFilesTable: React.FC<RelatedFilesTableProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left min-w-[750px] border-collapse font-sans text-xs">
+        <table className="data-table min-w-[750px] text-xs">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
               <th className="py-4.5 px-6">FILE NAME</th>

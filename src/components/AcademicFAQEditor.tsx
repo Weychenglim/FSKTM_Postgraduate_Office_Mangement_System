@@ -26,7 +26,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 // Definitions for tag items
 interface KeywordTag {
@@ -277,7 +277,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 <select
                   value={intentCategory}
                   onChange={(e) => setIntentCategory(e.target.value)}
-                  className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 pl-4 pr-10 py-3.5 rounded-xl appearance-none outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 cursor-pointer"
+                  className="form-control form-control-md appearance-none pr-10 cursor-pointer"
                 >
                   <option value="Supervisor Appointment">Supervisor Appointment</option>
                   <option value="Marks Submission">Marks Submission</option>
@@ -302,7 +302,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 placeholder="Type the main FAQ query..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-4 py-3.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                className="form-control form-control-md"
               />
             </div>
 
@@ -425,7 +425,7 @@ export const AcademicFAQEditor: React.FC = () => {
                   rows={9}
                   value={answerBody}
                   onChange={(e) => setAnswerBody(e.target.value)}
-                  className={`w-full p-4 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none bg-[#f8fafc]/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
+                  className={`form-control form-control-md rounded-none border-0 bg-slate-50/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
                   placeholder="Enter the official automated response answer details here..."
                 />
               </div>
@@ -433,22 +433,24 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Bottom Actions of Form Card: Clear & Save to Knowledge Base */}
             <div className="border-t border-slate-100 pt-5 flex items-center justify-between">
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleClearForm}
-                className="px-4 py-2 hover:bg-slate-100 text-slate-500 hover:text-slate-800 font-extrabold tracking-wide rounded-xl uppercase text-[10px] transition cursor-pointer"
+                variant="ghost"
+                size="md"
               >
                 Clear Form
-              </button>
+              </PortalButton>
 
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleSaveToKB}
-                className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
+                variant="primary"
+                size="md"
+                icon={Database}
               >
-                <Database className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Save to Knowledge Base</span>
-              </button>
+                Save to Knowledge Base
+              </PortalButton>
             </div>
 
           </div>

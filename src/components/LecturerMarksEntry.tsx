@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
-import { PortalToast } from './PortalPrimitives';
+import { PortalToast, StatusBadge } from './PortalPrimitives';
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -293,23 +293,11 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
   const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
     switch (type) {
       case 'NOT STARTED':
-        return (
-          <span className="bg-[#f1f5f9] text-[#64748b] border border-slate-200/80 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none">
-            Not Started
-          </span>
-        );
+        return <StatusBadge tone="neutral" className="text-[9px] px-2.5 py-0.5">Not Started</StatusBadge>;
       case 'DRAFT SAVED':
-        return (
-          <span className="bg-[#eff6ff] text-[#1d4ed8] border border-blue-105 border-blue-100 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none">
-            Draft Saved
-          </span>
-        );
+        return <StatusBadge tone="info" className="text-[9px] px-2.5 py-0.5">Draft Saved</StatusBadge>;
       case 'SUBMITTED':
-        return (
-          <span className="bg-[#e6fbf2] text-[#00a15c] border border-[#bef5db] text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none">
-            Submitted
-          </span>
-        );
+        return <StatusBadge tone="success" className="text-[9px] px-2.5 py-0.5">Submitted</StatusBadge>;
       default:
         return null;
     }
@@ -481,7 +469,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
 
               {/* Data Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[800px] border-collapse text-xs">
+                    <table className="data-table min-w-[800px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-150 border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
                       <th className="py-2.5 pb-4">Student ID</th>

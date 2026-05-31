@@ -19,6 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { EvaluationTask, EvaluationStatus } from './LecturerMarksEntry';
 
 // Extended status to include 'CLOSED'
@@ -433,29 +434,13 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
   const renderHistoryStatusChip = (status: HistoryStatus) => {
     switch (status) {
       case 'SUBMITTED':
-        return (
-          <span className="bg-[#e6fbf2] text-[#00a15c] border border-[#bef5db] text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none inline-block">
-            Submitted
-          </span>
-        );
+        return <StatusBadge tone="success" className="text-[9px] px-2.5 py-0.5">Submitted</StatusBadge>;
       case 'DRAFT SAVED':
-        return (
-          <span className="bg-[#fffbeb] text-[#d97706] border border-[#fef3c7] text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none inline-block">
-            Draft Saved
-          </span>
-        );
+        return <StatusBadge tone="warning" className="text-[9px] px-2.5 py-0.5">Draft Saved</StatusBadge>;
       case 'NOT STARTED':
-        return (
-          <span className="bg-[#f1f5f9] text-[#64748b] border border-slate-200 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none inline-block">
-            Not Started
-          </span>
-        );
+        return <StatusBadge tone="neutral" className="text-[9px] px-2.5 py-0.5">Not Started</StatusBadge>;
       case 'CLOSED':
-        return (
-          <span className="bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none inline-block">
-            Closed
-          </span>
-        );
+        return <StatusBadge tone="neutral" className="text-[9px] px-2.5 py-0.5">Closed</StatusBadge>;
       default:
         return null;
     }
@@ -464,20 +449,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
   return (
     <div id="marks-entry-history-page" className="space-y-6 text-left relative font-sans">
       
-      {/* Toast notifications portal */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="fixed top-20 right-8 z-[100] bg-slate-900 border border-slate-800 text-slate-100 py-3.5 px-5 rounded-2xl text-xs font-bold shadow-sm flex items-center gap-3"
-          >
-            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* 1. Header Navigation Row */}
       <div className="flex flex-col gap-1">
@@ -599,17 +571,17 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
       </div>
 
       {/* 4. Filters Section Box */}
-      <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs text-left grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+      <div className="filter-toolbar grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
         
         {/* Semester select dropdown */}
         <div className="col-span-1 md:col-span-4 space-y-1.5">
-          <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
+          <label className="form-label block">
             Semester
           </label>
           <select
             value={semesterFilter}
             onChange={(e) => setSemesterFilter(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
+            className="form-control form-control-sm"
           >
             <option>All Semesters</option>
             <option>Sem 1 2025/2026</option>
@@ -620,13 +592,13 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
 
         {/* Status dropdown */}
         <div className="col-span-1 md:col-span-3 space-y-1.5">
-          <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
+          <label className="form-label block">
             Status
           </label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
+            className="form-control form-control-sm"
           >
             <option>All Statuses</option>
             <option>Submitted</option>
@@ -638,7 +610,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
 
         {/* Date Range picker simulate text input */}
         <div className="col-span-1 md:col-span-3 space-y-1.5">
-          <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
+          <label className="form-label block">
             Date Range
           </label>
           <div className="relative">
@@ -650,20 +622,22 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
               placeholder="mm/dd/yyyy"
-              className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9.5 pr-4 py-2.5 text-xs font-semibold text-slate-850 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition"
+              className="form-control form-control-sm pl-9.5 pr-4"
             />
           </div>
         </div>
 
         {/* Apply Filters solid blue-dark clickable button */}
         <div className="col-span-1 md:col-span-2">
-          <button
+          <PortalButton
             type="button"
+            variant="primary"
+            size="md"
+            fullWidth
             onClick={handleApplyFilters}
-            className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white border border-brand-navy rounded-xl text-xs font-extrabold tracking-wider uppercase transition cursor-pointer"
           >
             Apply Filters
-          </button>
+          </PortalButton>
         </div>
 
       </div>
@@ -681,7 +655,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[900px] border-collapse text-xs">
+          <table className="data-table min-w-[900px] text-xs">
             <thead>
               <tr className="border-b border-slate-150 border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
                 <th className="py-2.5 pb-4 w-[110px]">Student ID</th>

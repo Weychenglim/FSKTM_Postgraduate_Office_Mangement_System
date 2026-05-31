@@ -32,6 +32,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 interface RubricComponent {
   id: string;
@@ -220,20 +221,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
   return (
     <div id="rubrics-root-frame" className="space-y-8 animate-fade-in relative text-left">
       
-      {/* Absolute floating toast notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-brand-navy text-white border border-white/10 p-4 rounded-xl shadow-sm flex items-center gap-3.5 text-xs font-bold font-sans"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
       {/* Heading Title Segment */}
       <div id="rubrics-banner-section" className="flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -351,7 +339,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
             {/* Rubrics table representation */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left border-collapse">
+              <table className="data-table min-w-[620px]">
                 <thead>
                   <tr className="data-thead">
                     <th className="data-th">Component</th>

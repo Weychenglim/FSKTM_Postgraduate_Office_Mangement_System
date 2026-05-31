@@ -21,6 +21,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 export interface PanelDetailRecord {
   id: string;
@@ -83,20 +84,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
   return (
     <div id="panel-appointment-detail-root" className="space-y-8 animate-fade-in text-left font-sans">
       
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Back Link Nav & Title Row */}
       <div id="detail-nav-header" className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -405,7 +393,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
             {/* Scrollable table view */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[500px] border-collapse font-sans text-xs">
+            <table className="data-table min-w-[500px] text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
                     <th className="data-th">File Name</th>

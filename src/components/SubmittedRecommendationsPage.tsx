@@ -473,7 +473,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
       <div id="submitted-recs-table-card" className="space-y-4">
         <div className="bg-white rounded-2xl border border-[#e2e8f0]/80 overflow-hidden shadow-3xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
+                    <table className="data-table min-w-[850px] text-xs">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
                   <th className="py-4 px-6 md:w-[130px]">ID</th>

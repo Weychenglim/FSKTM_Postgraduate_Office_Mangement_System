@@ -373,7 +373,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
             {/* Clean, readable Table representation */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-sans border-collapse text-xs">
+              <table className="data-table text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 select-none bg-slate-50/20">
                     <th className="p-4 w-[180px]">Component</th>

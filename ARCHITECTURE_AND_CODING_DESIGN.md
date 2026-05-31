@@ -38,7 +38,7 @@
 - `src/components/PanelAppointmentManagement.tsx` uses a desktop two-column grid where the search/filter card and records table stay in the left column while attention and workload widgets span the right column.
 - `src/index.css` contains shared Tailwind theme extensions for generated module color utilities, subtle shadows, backdrop blur, page headings, cards, links, and data-table primitives.
 - `src/index.css` also defines `brand-navy` and related brand tokens so authenticated modules avoid repeated arbitrary hex color utilities.
-- `src/index.css` defines shared table, card, form-control, and filter-toolbar classes for repeated generated UI patterns that need custom layouts.
+- `src/index.css` defines shared table, card, form-control, filter-toolbar, icon-button, and drawer layout classes for repeated generated UI patterns that need custom layouts.
 
 ## Navigation Pattern
 
@@ -69,7 +69,8 @@ The app currently uses local React state rather than a route library.
 - Auth screens intentionally keep their larger standalone card treatment and stronger sign-in/recovery visual hierarchy.
 - Module page titles should use `.page-title` and `.page-subtitle` from `src/index.css`.
 - Shared module widgets such as `DashboardTimeline` should expose small configuration props for role-specific behavior instead of duplicating near-identical UI for each role.
-- New authenticated module UI should prefer `PortalPrimitives` and shared CSS classes before introducing bespoke buttons, badges, cards, toasts, filters, or table styling.
+- New authenticated module UI should prefer `PortalPrimitives` and shared CSS classes before introducing bespoke buttons, badges, cards, toasts, filters, forms, drawer footers, modal controls, or table styling.
+- Shared form components (`FormInput`, `FormSelect`, `FormTextarea`) and legacy local action/status helpers should delegate to portal primitives or shared CSS classes so backend validation, loading, disabled, and status states remain visually consistent across roles.
 
 ## Testing Strategy
 

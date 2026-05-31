@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StatusChip } from './LecturerSupervisorAppointments';
+import { PortalButton } from './PortalPrimitives';
 
 // ==================== COMPONENT SPECIFICATION ====================
 
@@ -393,19 +394,19 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
       </div>
 
       {/* FILTER SECTION CARD */}
-      <div id="history-filter-card" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs">
+      <div id="history-filter-card" className="filter-toolbar">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
           
           {/* Search box input */}
           <div className="md:col-span-4 space-y-1.5 text-left font-sans">
-            <label className="text-[10px] font-black text-slate-450 uppercase tracking-wider block text-slate-400">
+            <label className="form-label block">
               Search
             </label>
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 text-slate-400" />
               <input
                 type="text"
-                className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-800 font-bold placeholder:text-slate-400 focus:outline-none transition-all duration-200"
+                className="form-control form-control-sm pl-10 pr-4"
                 placeholder="Search by student name, ID, or research title"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -415,12 +416,12 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
           {/* Decision search options */}
           <div className="md:col-span-2.5 space-y-1.5 text-left font-sans col-span-2">
-            <label className="text-[10px] font-black text-slate-450 uppercase tracking-wider block text-slate-400">
+            <label className="form-label block">
               Decision
             </label>
             <div className="relative">
               <select
-                className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold focus:outline-none appearance-none cursor-pointer"
+                className="form-control form-control-sm appearance-none cursor-pointer"
                 value={decisionFilter}
                 onChange={(e) => setDecisionFilter(e.target.value)}
               >
@@ -434,12 +435,12 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
           {/* Semester dropdown option list */}
           <div className="md:col-span-2.5 space-y-1.5 text-left font-sans col-span-2">
-            <label className="text-[10px] font-black text-slate-450 uppercase tracking-wider block text-slate-400">
+            <label className="form-label block">
               Semester
             </label>
             <div className="relative">
               <select
-                className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold focus:outline-none appearance-none cursor-pointer"
+                className="form-control form-control-sm appearance-none cursor-pointer"
                 value={semesterFilter}
                 onChange={(e) => setSemesterFilter(e.target.value)}
               >
@@ -454,13 +455,13 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
           {/* Date Picker Range Box */}
           <div className="md:col-span-1.5 space-y-1.5 text-left font-sans col-span-2">
-            <label className="text-[10px] font-black text-slate-450 uppercase tracking-wider block text-slate-400">
+            <label className="form-label block">
               Date Range
             </label>
             <div className="relative">
               <input
                 type="date"
-                className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-bold focus:outline-none cursor-pointer"
+                className="form-control form-control-sm cursor-pointer"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
               />
@@ -469,13 +470,15 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
           {/* Apply Filters Button */}
           <div className="md:col-span-1.5 w-full col-span-2">
-            <button
+            <PortalButton
+              variant="primary"
+              size="md"
+              fullWidth
+              icon={ChevronRight}
               onClick={handleApplyFilters}
-              className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
-              <span>Apply Filters</span>
-            </button>
+              Apply Filters
+            </PortalButton>
           </div>
 
         </div>
@@ -485,7 +488,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
       <div id="history-table-container" className="space-y-4">
         <div className="bg-white rounded-2xl border border-[#e2e8f0]/80 overflow-hidden shadow-3xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
+            <table className="data-table min-w-[850px] text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
                   <th className="py-4.5 px-6">REQUEST ID</th>

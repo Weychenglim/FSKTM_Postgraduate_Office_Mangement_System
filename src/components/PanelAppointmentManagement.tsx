@@ -37,9 +37,9 @@ import {
   Lock,
   ExternalLink
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 // Interfaces for our Dataset
 export interface PanelRecord {
@@ -302,20 +302,7 @@ export const PanelAppointmentManagement: React.FC = () => {
   return (
     <div id="panel-module-root" className="space-y-8 animate-fade-in text-left">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
       {panelView === 'detail' && selectedRecord && (
@@ -462,7 +449,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search by student name, ID, supervisor, panel member or research title"
-                      className="w-full pl-10 pr-4 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-400 focus:outline-none transition font-sans text-xs"
+                      className="form-control form-control-sm pl-10 pr-4"
                     />
                   </div>
                 </div>
@@ -480,7 +467,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         id="programme-selection-field"
                         value={programmeFilter}
                         onChange={(e) => setProgrammeFilter(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700"
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
                         <option>All Programmes</option>
                         <option>MSc. Computer Science</option>
@@ -502,7 +489,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         id="semester-selection-field"
                         value={semesterFilter}
                         onChange={(e) => setSemesterFilter(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700"
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
                         <option>All Semesters</option>
                         <option>Sem 1 2025/2026</option>
@@ -518,19 +505,21 @@ export const PanelAppointmentManagement: React.FC = () => {
                 <div className="pt-3 flex flex-wrap items-center gap-3 border-t border-slate-100">
                   
                   {/* Apply click handler */}
-                  <button
+                  <PortalButton
                     onClick={handleApplyFilters}
-                    className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
+                    variant="primary"
+                    size="md"
                   >
                     Apply Filters
-                  </button>
+                  </PortalButton>
 
-                  <button
+                  <PortalButton
                     onClick={handleResetFilters}
-                    className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80 font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
+                    variant="secondary"
+                    size="md"
                   >
                     Reset Grid
-                  </button>
+                  </PortalButton>
 
                 </div>
 
