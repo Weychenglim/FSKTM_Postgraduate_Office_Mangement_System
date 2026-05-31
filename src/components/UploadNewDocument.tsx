@@ -19,6 +19,7 @@ import {
   Building
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 // Define Props for parent-level control
 interface UploadNewDocumentProps {
@@ -226,20 +227,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   return (
     <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
       
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] font-sans tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
       {/* Back to File Repository Link */}
       <div className="mb-4 text-left">
@@ -431,7 +419,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               </span>
               
               <div className="border border-slate-150 rounded-xl overflow-hidden">
-                <table className="w-full text-[11px] font-sans text-left border-collapse">
+                <table className="data-table text-[11px]">
                   <thead>
                     <tr className="data-thead bg-[#f8fafc]">
                       <th className="data-th">Role</th>

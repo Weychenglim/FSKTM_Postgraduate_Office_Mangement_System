@@ -27,6 +27,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 // ==================== STYLES & TYPES ====================
 
@@ -213,7 +214,7 @@ interface FormInputProps {
 export const FormInput: React.FC<FormInputProps> = ({ label, type = "text", required = false, placeholder, value, helperText, onChange }) => {
   return (
     <div>
-      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 font-sans font-extrabold">
+      <label className="form-label block">
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <input
@@ -222,7 +223,7 @@ export const FormInput: React.FC<FormInputProps> = ({ label, type = "text", requ
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs font-bold text-slate-800 bg-white border border-slate-205 px-4 py-3 rounded-xl placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all font-sans"
+        className="form-control form-control-md"
       />
       {helperText && (
         <span className="text-[9.5px] text-slate-400 font-semibold block mt-1.5 font-sans">
@@ -245,14 +246,14 @@ interface FormSelectProps {
 export const FormSelect: React.FC<FormSelectProps> = ({ label, required = false, value, options, placeholder, onChange }) => {
   return (
     <div>
-      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 font-sans font-extrabold">
+      <label className="form-label block">
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none text-xs font-bold text-slate-850 bg-white border border-slate-205 pl-4 pr-10 py-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-navy"
+          className="form-control form-control-md appearance-none pr-10 cursor-pointer"
         >
           {placeholder && (
             <option value="" disabled>{placeholder}</option>
@@ -357,20 +358,17 @@ interface ActionButtonProps {
 }
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type = 'button', variant = 'primary', iconLeft: IconLeft, iconRight: IconRight }) => {
-  const styles = {
-    primary: 'bg-brand-navy hover:bg-slate-800 text-white shadow-sm border border-transparent',
-    secondary: 'bg-white hover:bg-slate-50 border border-slate-205 text-slate-705',
-  };
   return (
-    <button
+    <PortalButton
       type={type}
       onClick={onClick}
-      className={`px-5 py-2.5 rounded-xl font-extrabold uppercase tracking-widest transition cursor-pointer flex items-center justify-center gap-2 font-sans text-[10px] ${styles[variant]}`}
+      variant={variant}
+      size="md"
+      icon={IconLeft}
     >
-      {IconLeft && <IconLeft className="w-3.5 h-3.5 stroke-[3]" />}
-      <span>{label}</span>
+      {label}
       {IconRight && <IconRight className="w-3.5 h-3.5 stroke-[3]" />}
-    </button>
+    </PortalButton>
   );
 };
 
@@ -692,20 +690,7 @@ export const StaffLecturersRegistry: React.FC = () => {
   return (
     <div id="staff-lecturer-registry" className="space-y-8 select-none animate-fade-in font-sans text-xs">
       
-      {/* Toast slide notifier */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -25, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide font-sans">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {innerView === 'create' ? (
         /* ==================== CREATE NEW ACCOUNT VIEW ==================== */

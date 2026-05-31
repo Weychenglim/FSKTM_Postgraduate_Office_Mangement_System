@@ -19,6 +19,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
@@ -98,20 +99,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   return (
     <div id="mark-entry-record-detail" className="space-y-8 animate-fade-in text-left relative font-sans">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Breadcrumb line & Action controls */}
       <div id="record-detail-header-block" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -307,7 +295,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
             {/* Rubric metrics list */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[650px] text-left border-collapse">
+              <table className="data-table min-w-[650px]">
                 <thead>
                   <tr className="data-thead bg-[#f8fafc]">
                     <th className="data-th">Component</th>

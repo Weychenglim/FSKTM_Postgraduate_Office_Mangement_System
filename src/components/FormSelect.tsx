@@ -27,21 +27,13 @@ export const FormSelect: React.FC<FormSelectProps> = ({
 }) => {
   return (
     <div id={`select-wrapper-${id}`} className="w-full flex flex-col text-left mb-5">
-      <label
-        id={`select-label-${id}`}
-        htmlFor={id}
-        className="text-[11px] font-extrabold text-slate-700 tracking-wider mb-2 uppercase"
-      >
+      <label id={`select-label-${id}`} htmlFor={id} className="form-label block">
         {label}
       </label>
       <div className="relative">
         <select
           id={id}
-          className={`w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border appearance-none ${
-            error
-              ? 'border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-              : 'border-slate-200 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy'
-          } pl-4 pr-10 py-3.5 outline-none transition-all duration-200 font-sans font-medium cursor-pointer ${className}`}
+          className={`form-control form-control-md appearance-none pr-10 cursor-pointer ${error ? 'form-control-error' : ''} ${className}`}
           {...props}
         >
           {options.map((opt) => (

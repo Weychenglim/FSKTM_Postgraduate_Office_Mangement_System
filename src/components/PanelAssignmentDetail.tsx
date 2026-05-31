@@ -375,7 +375,7 @@ export const RelatedDocumentsTable: React.FC = () => {
 
       {/* Desktop Responsive Table Layout */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left min-w-[500px] border-collapse text-xs">
+            <table className="data-table min-w-[500px] text-xs">
           <thead>
             <tr className="border-b border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
               <th className="py-2 pb-3 text-left">File Name</th>

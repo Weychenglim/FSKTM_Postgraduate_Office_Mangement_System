@@ -30,6 +30,9 @@
 - Added shared portal primitives for page headers, cards, buttons, status badges, and toast notifications.
 - Added shared form-control and filter-toolbar CSS classes for repeated search/filter layouts.
 - Migrated the administration dashboard, student dashboard, timeline management, quick actions, mark monitoring, mark records, FAQ editor, announcement management, file repository, lecturer role modules, and student support/file/letter modules toward shared primitives for more consistent formatting.
+- Extended the consistency cleanup across the remaining repeated portal surfaces by centralizing role/module toast overlays, replacing raw generated table class strings with the shared `data-table` styling, applying shared filter/form controls to major search panels, and normalizing leftover portal-side custom shadows.
+- Tightened backend-readiness UI consistency by updating shared form components, legacy action buttons, local status chips, FAQ/announcement/template editor controls, and timeline drawer controls to use shared portal primitives and CSS classes.
+- Fixed the shared sign-in action button so the right-arrow icon stays inline with the button label.
 
 ## Current Testing Status
 
@@ -54,6 +57,12 @@
 - `npm run lint` passes after the shared portal primitive and consistency refactor.
 - `npm run build` passes after the shared portal primitive and consistency refactor.
 - Vite dev server smoke probe returns HTTP 200 after the shared portal primitive and consistency refactor.
+- `npm run lint` passes after the expanded shared table, toast, filter, and shadow consistency cleanup.
+- `npm run build` passes after the expanded shared table, toast, filter, and shadow consistency cleanup.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the expanded consistency cleanup.
+- `npm run lint` passes after the backend-readiness form, button, status badge, and drawer-control cleanup.
+- `npm run build` passes after the backend-readiness form, button, status badge, and drawer-control cleanup.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the backend-readiness UI cleanup.
 - Vite foreground server check returns HTTP 200 for the app root.
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, lecturer routes, and student routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.

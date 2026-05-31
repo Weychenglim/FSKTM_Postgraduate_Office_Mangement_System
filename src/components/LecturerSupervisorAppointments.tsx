@@ -34,7 +34,7 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 
@@ -139,24 +139,24 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseClasses = "px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 select-none transition-all duration-200 cursor-pointer active:scale-[0.98]";
-  
-  const variantClasses = {
-    primary: "bg-brand-navy text-white hover:bg-slate-800 shadow-sm disabled:opacity-50",
-    secondary: "bg-[#f1f5f9] text-slate-700 hover:bg-slate-200/80 disabled:opacity-50",
-    outline: "bg-white text-slate-705 border border-slate-200 hover:bg-slate-50 text-slate-700 hover:border-slate-300 shadow-3xs disabled:opacity-50",
-    danger: "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100/50 disabled:opacity-50"
-  };
+  const variantMap = {
+    primary: 'primary',
+    secondary: 'secondary',
+    outline: 'secondary',
+    danger: 'danger'
+  } as const;
 
   return (
-    <button
+    <PortalButton
+      variant={variantMap[variant]}
+      size="md"
+      icon={Icon}
       disabled={disabled}
-      className={`${baseClasses} ${variantClasses[variant]} ${className}`}
+      className={className}
       {...props}
     >
-      {Icon && <Icon className="w-4 h-4 stroke-[2]" />}
-      <span>{children}</span>
-    </button>
+      {children}
+    </PortalButton>
   );
 };
 
@@ -168,58 +168,15 @@ interface StatusChipProps {
  * Highlights status records with professional rounded badges.
  */
 export const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
-  const configs: Record<string, { bg: string; text: string; dot: string; border: string }> = {
-    'Active': {
-      bg: 'bg-[#eff6ff]',
-      text: 'text-blue-600',
-      dot: 'bg-blue-500',
-      border: 'border-blue-100'
-    },
-    'Approved': {
-      bg: 'bg-[#e6fbf2]',
-      text: 'text-[#00a15c]',
-      dot: 'bg-[#00a15c]',
-      border: 'border-[#bef5db]'
-    },
-    'Pending': {
-      bg: 'bg-amber-50',
-      text: 'text-amber-600',
-      dot: 'bg-amber-500',
-      border: 'border-amber-100'
-    },
-    'Pending Review': {
-      bg: 'bg-amber-50',
-      text: 'text-amber-600',
-      dot: 'bg-amber-500',
-      border: 'border-amber-100'
-    },
-    'Rejected': {
-      bg: 'bg-rose-50',
-      text: 'text-rose-600',
-      dot: 'bg-rose-500',
-      border: 'border-rose-100'
-    },
-    'No Supervisor': {
-      bg: 'bg-slate-100',
-      text: 'text-slate-600',
-      dot: 'bg-slate-400',
-      border: 'border-slate-200'
-    }
-  };
+  const normalized = status.toLowerCase();
+  const tone =
+    normalized.includes('approved') ? 'success' :
+    normalized.includes('active') ? 'info' :
+    normalized.includes('rejected') ? 'danger' :
+    normalized.includes('no ') ? 'neutral' :
+    'warning';
 
-  const current = configs[status] || {
-    bg: 'bg-slate-50',
-    text: 'text-slate-600',
-    dot: 'bg-slate-400',
-    border: 'border-slate-200'
-  };
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${current.bg} ${current.text} ${current.border} select-none`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} />
-      {status}
-    </span>
-  );
+  return <StatusBadge tone={tone} dot pulse={normalized.includes('pending') || normalized.includes('active')}>{status}</StatusBadge>;
 };
 
 // ==================== SPECIFIC DRAWER REUSABLE COMPONENT PATTERNS ====================
@@ -381,12 +338,12 @@ export const FormTextarea: React.FC<FormTextareaProps> = ({
 }) => {
   return (
     <div className="space-y-1.5 text-left w-full">
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+      <span className="form-label block">
         {label}
       </span>
       <textarea
         id={id}
-        className={`w-full bg-white border border-slate-200 hover:border-slate-300 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy rounded-xl p-3.5 text-xs text-slate-850 font-semibold placeholder:text-slate-350 focus:outline-none transition-all duration-200 ${className}`}
+        className={`form-control form-control-md ${className}`}
         style={{ minHeight: '100px' }}
         {...props}
       />
@@ -713,7 +670,7 @@ export const DataTable: React.FC<DataTableProps> = ({
       {/* Main database layout listing */}
       <div className="bg-white rounded-2xl border border-[#e2e8f0]/80 overflow-hidden shadow-3xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[750px] border-collapse font-sans text-xs">
+          <table className="data-table min-w-[750px] text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
                 <th className="py-4.5 px-6">STUDENT ID</th>
@@ -998,7 +955,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           </button>
 
           {/* Profile overview box layout */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-[0_20px_50px_rgba(15,23,42,0.03)] grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
+          <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-3xs grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
             
             {/* Left panel metrics context */}
             <div className="lg:col-span-4 space-y-6 border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-8">

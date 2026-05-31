@@ -40,6 +40,7 @@ import {
   Sparkle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { StaffLecturersRegistry } from './StaffLecturersRegistry';
 
 // ==================== COMPONENT PATTERNS TYPES ====================
@@ -105,18 +106,8 @@ interface StatusChipProps {
 }
 
 export const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
-  const styles = {
-    Active: 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]',
-    Pending: 'bg-[#fff7ed] text-[#ea580c] border-[#ffedd5]',
-    Graduated: 'bg-[#eff6ff] text-[#1d4ed8] border-[#dbeafe]',
-    Suspended: 'bg-rose-50 text-rose-600 border-rose-100',
-  };
-
-  return (
-    <span className={`inline-flex items-center px-3.5 py-1 text-[10.5px] font-black rounded-full border tracking-wide select-none ${styles[status]}`}>
-      {status}
-    </span>
-  );
+  const tone = status === 'Active' ? 'success' : status === 'Graduated' ? 'info' : status === 'Suspended' ? 'danger' : 'warning';
+  return <StatusBadge tone={tone} dot pulse={status === 'Active'}>{status}</StatusBadge>;
 };
 
 // Reusable Programme Chip
@@ -172,14 +163,14 @@ interface ActionButtonProps {
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon, title }) => {
   return (
-    <button
-      type="button"
+    <PortalButton
       onClick={onClick}
+      icon={Icon}
+      size="icon"
+      variant="ghost"
       title={title}
-      className="p-2 text-slate-400 hover:text-brand-navy hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
-    >
-      <Icon className="w-4 h-4" />
-    </button>
+      aria-label={title}
+    />
   );
 };
 
@@ -638,20 +629,7 @@ export const StudentRegistry: React.FC = () => {
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
-      {/* Dynamic Slide-in Toast Notification */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -25, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold font-sans"
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Registry Management Primary Section Switching Tabs */}
       <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3 select-none">
@@ -1297,7 +1275,7 @@ export const StudentRegistry: React.FC = () => {
 
                     {/* PREVIEW DATATABLE MAP */}
                     <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
-                      <table className="w-full text-left border-collapse">
+                      <table className="data-table">
                         <thead>
                           <tr className="data-thead bg-slate-50 select-none">
                             <th className="data-th">Student ID</th>

@@ -22,6 +22,7 @@ import {
   FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -254,20 +255,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   return (
     <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
       
-      {/* Toast notifications */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
       {/* HEADER CONTROLS (Always Visible) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none">
@@ -309,7 +297,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               placeholder="Search notifications, announcements..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+              className="form-control form-control-sm pl-10 pr-4"
             />
           </div>
           

@@ -18,6 +18,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 interface UploadTimelineDrawerProps {
   isOpen: boolean;
@@ -247,13 +248,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             onClick={onClose}
           />
 
-          {/* Toast Notification internally nested to remain inside drawer context */}
-          {toastMessage && (
-            <div className="fixed top-5 right-5 z-55 bg-brand-navy text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-sm flex items-center gap-2 max-w-xs transition-transform">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping shrink-0" />
-              <span className="leading-snug">{toastMessage}</span>
-            </div>
-          )}
+          <PortalToast message={toastMessage} />
 
           {/* Slide-In Side Panel Container */}
           <motion.div
@@ -262,12 +257,12 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-200"
+            className="drawer-panel"
           >
             {/* Drawer Header Layout */}
             <div 
               id="upload-drawer-header-content" 
-              className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 select-none"
+              className="drawer-header"
             >
               <div className="flex items-center gap-2.5">
                 <UploadCloud className="w-5 h-5 text-slate-800" />
@@ -279,7 +274,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
               <button
                 id="upload-drawer-close-btn"
                 onClick={onClose}
-                className="w-9 h-9 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center transition text-slate-400 hover:text-slate-800"
+                className="icon-button w-9 h-9"
                 aria-label="Close upload details"
               >
                 <X className="w-4 h-4" />
@@ -289,7 +284,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             {/* Scrollable Drawer Body with No Extra Blank Verticals */}
             <div 
               id="upload-drawer-scrollable-body" 
-              className="flex-1 overflow-y-auto px-6 py-5 space-y-4 bg-white"
+              className="drawer-body"
             >
               
               {/* Target Semester Parameter List Stats Card */}
@@ -335,14 +330,16 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   <p className="font-semibold text-sky-950">
                     Use the official Excel template to avoid validation errors and ensure data integrity.
                   </p>
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={handleDownloadTemplate}
-                    className="flex items-center gap-1.5 text-[#2563eb] hover:text-blue-800 font-extrabold uppercase text-[9.5px] tracking-wider transition bg-transparent border-0 p-0 cursor-pointer"
+                    variant="ghost"
+                    size="sm"
+                    icon={Download}
+                    className="px-0 py-0 h-auto"
                   >
-                    <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Download Template</span>
-                  </button>
+                    Download Template
+                  </PortalButton>
                 </div>
               </div>
 
@@ -399,24 +396,28 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                 )}
 
                 {uploadedFile ? (
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={handleClearFile}
-                    className="mt-3 px-3 py-1 bg-rose-50 text-rose-600 border border-rose-100 font-extrabold uppercase text-[9px] tracking-wider rounded-lg hover:bg-rose-100/50 transition cursor-pointer"
+                    variant="danger"
+                    size="sm"
+                    className="mt-3"
                   >
                     Clear Selected File
-                  </button>
+                  </PortalButton>
                 ) : (
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleBrowseClick();
                     }}
-                    className="mt-3.5 px-4.5 py-1.5 bg-white border border-slate-355 border-slate-300 hover:bg-slate-50 text-brand-navy font-extrabold uppercase text-[9.5px] tracking-wider rounded-xl shadow-3xs transition cursor-pointer"
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3.5"
                   >
                     Browse File
-                  </button>
+                  </PortalButton>
                 )}
               </div>
 
@@ -518,35 +519,41 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             {/* Bottom Actions Drawer Footer (Keeps compact close spacer) */}
             <div 
               id="upload-drawer-submit-footer"
-              className="px-6 py-5.5 border-t border-slate-100 bg-white flex items-center justify-end gap-3 shrink-0"
+              className="drawer-footer"
             >
-              <button
+              <PortalButton
                 type="button"
                 onClick={onClose}
-                className="px-5 py-3 border border-slate-300 hover:bg-slate-50 text-slate-705 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer shadow-3xs"
+                variant="secondary"
+                size="md"
               >
                 Cancel
-              </button>
+              </PortalButton>
 
               {validationCompleted ? (
-                <button
+                <PortalButton
                   type="button"
                   onClick={handleFinalImport}
-                  className="px-5.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm"
+                  variant="success"
+                  size="md"
+                  icon={ArrowRight}
+                  iconPosition="right"
                 >
-                  <span>Commit Import</span>
-                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                </button>
+                  Commit Import
+                </PortalButton>
               ) : (
-                <button
+                <PortalButton
                   type="button"
                   onClick={handleValidateAndUpload}
                   disabled={isValidating || !uploadedFile}
-                  className="px-5.5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  variant="primary"
+                  size="md"
+                  icon={ArrowRight}
+                  iconPosition="right"
+                  isLoading={isValidating}
                 >
-                  <span>{isValidating ? 'Validating...' : 'Validate and Upload'}</span>
-                  {!isValidating && <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />}
-                </button>
+                  {isValidating ? 'Validating...' : 'Validate and Upload'}
+                </PortalButton>
               )}
             </div>
 

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Upload, CheckCircle2 } from 'lucide-react';
+import { PortalButton, StatusBadge } from './PortalPrimitives';
 
 interface FilterCardProps {
   semester: string;
@@ -40,14 +41,14 @@ export const FilterCard: React.FC<FilterCardProps> = ({
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Semester Filter */}
         <div className="flex flex-col">
-          <label className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-1.5 label-semester">
+          <label className="form-label block label-semester">
             Semester
           </label>
           <div className="relative">
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
-              className="w-full text-xs font-bold text-slate-800 bg-[#f8fafc] border border-slate-200/90 py-3 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer appearance-none"
+              className="form-control form-control-md appearance-none pr-10 cursor-pointer"
             >
               {semesters.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -65,14 +66,14 @@ export const FilterCard: React.FC<FilterCardProps> = ({
 
         {/* Evaluation Stage Filter */}
         <div className="flex flex-col">
-          <label className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-1.5 label-evaluation-stage">
+          <label className="form-label block label-evaluation-stage">
             Evaluation Stage
           </label>
           <div className="relative">
             <select
               value={stage}
               onChange={(e) => setStage(e.target.value)}
-              className="w-full text-xs font-bold text-slate-800 bg-[#f8fafc] border border-slate-200/90 py-3 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer appearance-none"
+              className="form-control form-control-md appearance-none pr-10 cursor-pointer"
             >
               {stages.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -91,18 +92,15 @@ export const FilterCard: React.FC<FilterCardProps> = ({
 
       {/* Right side: Status ready chip + Upload indicator */}
       <div className="flex items-center gap-4 shrink-0 justify-end pt-2 md:pt-4">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-extrabold tracking-widest uppercase">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>{statusText}</span>
-        </span>
+        <StatusBadge tone="success" icon={CheckCircle2}>{statusText}</StatusBadge>
 
-        <button
+        <PortalButton
           onClick={onExportAction}
-          className="w-10 h-10 bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-xs"
+          variant="secondary"
+          size="icon"
+          icon={Upload}
           title="Share/Upload configuration"
-        >
-          <Upload className="w-4.5 h-4.5" />
-        </button>
+        />
       </div>
     </div>
   );

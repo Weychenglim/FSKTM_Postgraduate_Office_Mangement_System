@@ -24,7 +24,7 @@ import {
   Eye,
   FileText
 } from 'lucide-react';
-import { PortalToast } from './PortalPrimitives';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 // Structure for the stored Announcement item
 interface AnnouncementItem {
@@ -269,7 +269,7 @@ export const AnnouncementManagement: React.FC = () => {
                 placeholder="Enter a descriptive title..."
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
-                className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                className="form-control form-control-md"
               />
             </div>
 
@@ -377,7 +377,7 @@ export const AnnouncementManagement: React.FC = () => {
                   placeholder="Write your announcement content here..."
                   value={contentBody}
                   onChange={(e) => setContentBody(e.target.value)}
-                  className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-semibold text-slate-800 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all resize-none"
+                  className="form-control form-control-md resize-none"
                 />
 
                 {attachedFile && (
@@ -409,7 +409,7 @@ export const AnnouncementManagement: React.FC = () => {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-850 px-3.5 py-3 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                    className="form-control form-control-md"
                   />
                 </div>
               </div>
@@ -423,7 +423,7 @@ export const AnnouncementManagement: React.FC = () => {
                     type="date"
                     value={expiryDate}
                     onChange={(e) => setExpiryDate(e.target.value)}
-                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] text-xs font-bold text-slate-850 px-3.5 py-3 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                    className="form-control form-control-md"
                   />
                 </div>
               </div>
@@ -431,22 +431,28 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Action Buttons Row */}
             <div className="pt-4 flex flex-col md:flex-row gap-4 items-center">
-              <button
+              <PortalButton
                 type="button"
                 onClick={handlePublishNow}
-                className="w-full md:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-850 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                variant="primary"
+                size="lg"
+                icon={Send}
+                fullWidth
+                className="md:w-auto"
               >
-                <Send className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Publish Now</span>
-              </button>
+                Publish Now
+              </PortalButton>
 
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleSaveDraft}
-                className="w-full md:w-auto px-5 py-3 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                className="md:w-auto"
               >
                 Save Draft
-              </button>
+              </PortalButton>
             </div>
 
           </form>
@@ -522,7 +528,7 @@ export const AnnouncementManagement: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden">
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="data-table text-xs">
                 <thead>
                   <tr className="data-thead bg-[#f8fafc]">
                     <th className="data-th">Title & Content</th>

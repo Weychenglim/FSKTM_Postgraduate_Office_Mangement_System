@@ -513,7 +513,7 @@ export const FileRepository: React.FC = () => {
           <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
             
             {/* Filter controls section */}
-            <div className="p-5 border-b border-slate-150 space-y-4">
+            <div className="filter-toolbar m-5 space-y-4">
               
               {/* Row 1: Search block */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -526,7 +526,7 @@ export const FileRepository: React.FC = () => {
                     placeholder="Search by file name, student ID, or tags..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-brand-navy focus:outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 outline-none"
+                    className="form-control form-control-sm pl-10 pr-4"
                   />
                 </div>
 
@@ -559,7 +559,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Category: All</option>
                     <option value="Coursework">Coursework</option>
@@ -575,7 +575,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={moduleFilter}
                     onChange={(e) => setModuleFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Module: All</option>
                     {allAvailableModules.map(m => (
@@ -590,7 +590,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={semesterFilter}
                     onChange={(e) => setSemesterFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Semester: All</option>
                     {allAvailableSemesters.map(s => (
@@ -605,7 +605,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={fileTypeFilter}
                     onChange={(e) => setFileTypeFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">File Type: All</option>
                     <option value="pdf">PDF files</option>
@@ -620,7 +620,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Status: All</option>
                     <option value="Active">Active</option>

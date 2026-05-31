@@ -550,7 +550,7 @@ export const LecturerPanelAppointments: React.FC = () => {
             {/* Table data shell */}
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs text-left font-sans">
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[850px] border-collapse text-xs">
+                  <table className="data-table min-w-[850px] text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
                       <th className="py-4 px-6">STUDENT ID</th>
