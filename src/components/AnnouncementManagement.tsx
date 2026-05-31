@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,7 +24,7 @@ import {
   Eye,
   FileText
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 // Structure for the stored Announcement item
 interface AnnouncementItem {
@@ -238,22 +238,9 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   return (
-    <div id="announcement-dashboard-view" className="font-sans text-[#0c1424] text-xs pb-12 animate-fade-in">
+    <div id="announcement-dashboard-view" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
       
-      {/* Dynamic Administrative Toast Toaster */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
       {/* Grid containing two main panes of layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -301,7 +288,7 @@ export const AnnouncementManagement: React.FC = () => {
                       onClick={() => handleAudienceClick(aud)}
                       className={`px-4 py-2 rounded-full text-[11px] font-extrabold tracking-wide transition duration-150 cursor-pointer ${
                         isSelected 
-                          ? 'bg-[#0c1424] text-white shadow-xs' 
+                          ? 'bg-brand-navy text-white shadow-xs' 
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -447,7 +434,7 @@ export const AnnouncementManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePublishNow}
-                className="w-full md:w-auto px-6 py-3 bg-[#0c1424] hover:bg-slate-850 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                className="w-full md:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-850 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
               >
                 <Send className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Publish Now</span>
@@ -489,7 +476,7 @@ export const AnnouncementManagement: React.FC = () => {
                 placeholder="Search announcements..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-[#0c1424] focus:border-[#0c1424] transition-all shadow-3xs"
+                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
               />
             </div>
           </div>
@@ -630,7 +617,7 @@ export const AnnouncementManagement: React.FC = () => {
                         onClick={() => setCurrentPage(pageNum)}
                         className={`w-7 h-7 rounded text-[11px] font-black transition cursor-pointer ${
                           isCurrent
-                            ? 'bg-[#0c1424] text-white'
+                            ? 'bg-brand-navy text-white'
                             : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       >

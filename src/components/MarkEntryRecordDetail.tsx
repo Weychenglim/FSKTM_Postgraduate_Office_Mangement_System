@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -105,7 +105,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
+            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
           >
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>{toastMessage}</span>
@@ -144,7 +144,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           <button
             onClick={handleExportPDF}
-            className="px-4 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition shadow-xs cursor-pointer"
+            className="px-4 py-2.5 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition shadow-xs cursor-pointer"
           >
             <FileDown className="w-4 h-4 text-blue-300" />
             <span>Export PDF</span>
@@ -159,11 +159,11 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         <div id="record-detail-primary-desk" className="lg:col-span-8 space-y-6">
           
           {/* Card 1: Student & Submission Summary */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(241,245,249,0.3)] overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden">
             <div className="bg-slate-50 px-6 py-4.5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                <h3 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                <h3 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Student & Submission Summary
                 </h3>
               </div>
@@ -179,7 +179,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
                   Student Name & ID
                 </span>
-                <span className="font-extrabold text-[#0c1424] text-base font-sans block leading-snug">
+                <span className="font-extrabold text-brand-navy text-base font-sans block leading-snug">
                   {studentName} 
                 </span>
                 <span className="font-mono text-xs text-blue-600 font-bold block mt-0.5">
@@ -218,7 +218,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
                   Panel Member
                 </span>
-                <span className="font-extrabold text-[#0c1424]">
+                <span className="font-extrabold text-brand-navy">
                   {panelMember}
                 </span>
               </div>
@@ -236,7 +236,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
                   Submitted By
                 </span>
-                <span className="font-extrabold text-[#0c1424]">
+                <span className="font-extrabold text-brand-navy">
                   {panelMember}
                 </span>
               </div>
@@ -248,7 +248,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <div id="scores-metrics-cards-row" className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             
             {/* Total Marks */}
-            <div className="bg-[#0c1424] text-white rounded-2xl p-5 shadow-xs relative overflow-hidden flex flex-col justify-between h-[105px]">
+            <div className="bg-brand-navy text-white rounded-2xl p-5 shadow-xs relative overflow-hidden flex flex-col justify-between h-[105px]">
               <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
                 Total Marks
               </span>
@@ -276,7 +276,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                 Last Updated
               </span>
               <div className="flex flex-col text-left leading-tight py-1">
-                <span className="text-xs font-black text-[#0c1424]">
+                <span className="text-xs font-black text-brand-navy">
                   {submittedDate}
                 </span>
                 <span className="text-[9px] text-slate-400 font-mono mt-1 font-bold">
@@ -288,12 +288,12 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           </div>
 
           {/* Card 3: Rubric Breakdown Table */}
-          <div className="bg-white rounded-3xl border border-slate-200/95 shadow-[0_8px_30px_rgb(241,245,249,0.5)] overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/95 shadow-3xs overflow-hidden">
             
             <div className="bg-slate-50 px-6 py-4.5 border-b border-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-slate-500" />
-                <h3 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                <h3 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Rubric Breakdown
                 </h3>
               </div>
@@ -368,7 +368,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           {/* 1. Related Documents Card */}
           <div className="bg-white rounded-2xl border border-slate-205 p-5 text-left shadow-2xs">
-            <h4 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-400" />
               <span>Related Documents</span>
             </h4>
@@ -426,7 +426,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           {/* 2. Record Status Diagnosis Tracking */}
           <div className="bg-white rounded-2xl border border-slate-205 p-5 text-left shadow-2xs text-xs font-sans">
-            <h4 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-slate-400" />
               <span>Record Status</span>
             </h4>

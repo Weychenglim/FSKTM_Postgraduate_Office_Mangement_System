@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +22,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalToast } from './PortalPrimitives';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -277,20 +278,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
   return (
     <div id="mark-entry-records-dashboard" className="space-y-8 animate-fade-in text-left relative">
       
-      {/* Dynamic Slide Toast Alerts */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3.5 px-5 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
       {/* Breadcrumb back link & Title header */}
       <div id="records-header-block" className="flex flex-col text-left">
@@ -318,7 +306,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
             Total Records
           </span>
-          <span className="text-[#0c1424] font-black text-3xl font-sans tracking-tight block">
+          <span className="text-brand-navy font-black text-3xl font-sans tracking-tight block">
             {totalRecordCount}
           </span>
           {/* Bottom solid indicator bar */}
@@ -364,7 +352,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       </div>
 
       {/* Advanced search and filters container box */}
-      <div id="records-filters-card" className="bg-white rounded-2xl border border-slate-200/90 p-5 md:p-6 text-left shadow-[0_4px_20px_rgba(241,245,249,0.3)] space-y-5">
+      <div id="records-filters-card" className="bg-white rounded-2xl border border-slate-200/90 p-5 md:p-6 text-left shadow-3xs space-y-5">
         
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
           {/* Search field */}
@@ -458,7 +446,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           <div className="md:col-span-4">
             <button
               onClick={handleApplyFilters}
-              className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg transition-all shadow-sm cursor-pointer select-none"
+              className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg transition-all shadow-sm cursor-pointer select-none"
             >
               Apply Filters
             </button>
@@ -498,7 +486,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       </div>
 
       {/* Main Records Data Table Container */}
-      <div id="mark-records-table-container" className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_rgb(241,245,249,0.5)] overflow-hidden">
+      <div id="mark-records-table-container" className="bg-white rounded-2xl border border-slate-200/80 shadow-3xs overflow-hidden">
         
         <div className="overflow-x-auto">
           <table className="data-table min-w-[950px]">
@@ -570,7 +558,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                         </span>
                       ) : rec.totalMark !== null ? (
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-xs font-black text-[#0c1424]">
+                          <span className="text-xs font-black text-brand-navy">
                             {rec.totalMark}
                           </span>
                           <span className="text-[10px] text-slate-400 font-bold">
@@ -616,7 +604,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                     <td className="py-4 px-5 text-right">
                       <button
                         onClick={() => onViewRecordDetail ? onViewRecordDetail(rec.id) : setSelectedInspectRecord(rec)}
-                        className="py-1.5 px-3 bg-white hover:bg-slate-50 text-[#0c1424] border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
+                        className="py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
                       >
                         View
                       </button>
@@ -680,7 +668,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       <div id="global-bulk-export-bar" className="flex justify-end">
         <button
           onClick={handleExport}
-          className="px-5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer shadow-md flex items-center gap-2.5 select-none"
+          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer shadow-sm flex items-center gap-2.5 select-none"
         >
           <Download className="w-4 h-4 text-indigo-300" />
           <span>Export Records (PDF/CSV)</span>
@@ -691,20 +679,20 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       {createPortal(
         <AnimatePresence>
         {selectedInspectRecord && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="absolute inset-0" onClick={() => setSelectedInspectRecord(null)} />
             
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-xl w-full p-6 md:p-8 shadow-2xl border border-slate-100 text-left relative z-10 font-sans"
+              className="bg-white rounded-2xl max-w-xl w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10 font-sans"
             >
               
               <div className="flex items-center justify-between border-b border-slate-100 pb-4.5 mb-5">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-indigo-500" />
-                  <h4 className="font-extrabold text-[#0c1424] text-sm tracking-tight">
+                  <h4 className="font-extrabold text-brand-navy text-sm tracking-tight">
                     Evaluation Record Detail — {selectedInspectRecord.id}
                   </h4>
                 </div>
@@ -737,7 +725,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                     <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">
                       Assigned Panel
                     </span>
-                    <span className="font-extrabold text-[#0c1424]">
+                    <span className="font-extrabold text-brand-navy">
                       {selectedInspectRecord.panelMember}
                     </span>
                   </div>
@@ -814,7 +802,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
                 <button
                   type="button"
                   onClick={() => setSelectedInspectRecord(null)}
-                  className="flex-1 py-3 bg-[#0c1424] hover:bg-slate-850 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-md"
+                  className="flex-1 py-3 bg-brand-navy hover:bg-slate-850 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-sm"
                 >
                   Done
                 </button>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,9 +23,9 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
   onItemAction
 }) => {
   return (
-    <div id="checklist-card-section" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+    <div id="checklist-card-section" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
       <div className="flex justify-between items-start mb-1">
-        <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+        <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
           Evaluation Setup Checklist
         </h3>
         <button 

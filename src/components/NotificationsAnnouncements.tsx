@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -252,7 +252,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   );
 
   return (
-    <div id="notifications-announcements-root" className="font-sans text-[#0c1424] text-xs pb-16 animate-fade-in relative min-h-[750px]">
+    <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
       
       {/* Toast notifications */}
       <AnimatePresence>
@@ -261,7 +261,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
+            className="fixed top-20 right-8 z-[120] bg-brand-navy text-white p-4 rounded-xl shadow-sm flex items-center gap-2.5 border border-white/10 font-bold"
           >
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-[11px] tracking-wide">{toast}</span>
@@ -342,7 +342,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                     {it.isUnread && (
                       <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0" />
                     )}
-                    <h3 className="text-xs md:text-sm font-black text-[#0c1424] tracking-tight hover:text-blue-600 transition-colors">
+                    <h3 className="text-xs md:text-sm font-black text-brand-navy tracking-tight hover:text-blue-600 transition-colors">
                       {it.title}
                     </h3>
                   </div>
@@ -381,7 +381,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
           {selectedNotification && (
           <div
             id="notification-modal-overlay"
-            className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
+            className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
           >
             {/* Backdrop Dimmer dismiss area */}
             <div 
@@ -396,7 +396,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               initial={{ scale: 0.96, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.96, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative z-[100] border border-slate-100 flex flex-col text-left"
+              className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
             >
               
               {/* Modal Header Panel - Deep Midnight Theme */}
@@ -505,7 +505,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                     setSelectedNotification(null);
                     triggerToast('Logged notification read and archived successfully.');
                   }}
-                  className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <CheckCircle className="w-3.5 h-3.5 text-indigo-300" />
                   <span>Mark Resolved</span>

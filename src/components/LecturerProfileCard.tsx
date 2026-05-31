@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -80,7 +80,7 @@ export const LecturerProfileCard: React.FC<LecturerProfileCardProps> = ({
       <div className="flex-1 space-y-3">
         {/* Top line with Name and Badge */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-transparent pb-1">
-          <h4 className="text-[14px] font-bold text-[#0c1424] leading-tight">
+          <h4 className="text-[14px] font-bold text-brand-navy leading-tight">
             {lecturerName}
           </h4>
           <span

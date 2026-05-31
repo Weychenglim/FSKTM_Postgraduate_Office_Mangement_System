@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,12 +28,12 @@ export const ValidationRulesCard: React.FC<ValidationRulesCardProps> = ({
   return (
     <div
       id={id}
-      className="bg-[#f0f4fa]/60 rounded-3xl border border-[#d3dfef]/70 p-6 md:p-7 text-left"
+      className="bg-[#f0f4fa]/60 rounded-2xl border border-[#d3dfef]/70 p-6 md:p-7 text-left"
     >
       <div className="flex items-center gap-2 mb-5">
         {/* Decorative layout icons */}
         <svg
-          className="w-4.5 h-4.5 text-[#0c1424]"
+          className="w-4.5 h-4.5 text-brand-navy"
           fill="none"
           stroke="currentColor"
           strokeWidth="2.2"
@@ -45,7 +45,7 @@ export const ValidationRulesCard: React.FC<ValidationRulesCardProps> = ({
             d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m11.25-3l3 3m0 0l-3 3m3-3H12"
           />
         </svg>
-        <span className="font-extrabold text-[15px] text-[#0c1424] tracking-tight">
+        <span className="font-extrabold text-[15px] text-brand-navy tracking-tight">
           Validation Rules
         </span>
       </div>

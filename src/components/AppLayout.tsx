@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,6 +15,8 @@ interface AppLayoutProps {
   onNavigate: (item: string) => void;
   onLogout: () => void;
   onNotificationsTrigger: () => void;
+  userName: string;
+  userRole: string;
   
   // Handlers for modal interactions
   activeModal: 'period' | 'rubric' | 'generate' | 'help' | null;
@@ -27,6 +29,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNavigate,
   onLogout,
   onNotificationsTrigger,
+  userName,
+  userRole,
   activeModal,
   setActiveModal
 }) => {
@@ -80,12 +84,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onNavigate={onNavigate}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        userRole={userRole}
       />
 
       {/* Mobile drawer backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#0c1424]/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-brand-navy/60 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -95,8 +100,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         
         {/* Top Header Navigation panel */}
         <TopHeader
-          userName="Wey Cheng"
-          userRole="Office Staff / Admin"
+          userName={userName}
+          userRole={userRole}
           onLogout={onLogout}
           onHelpdeskTrigger={() => setActiveModal('help')}
           onNotificationsTrigger={onNotificationsTrigger}
@@ -145,7 +150,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Interactive Global admin Modal Overlays */}
       <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
 
@@ -155,7 +160,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -15 }}
               transition={{ duration: 0.25 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl relative z-10 border border-slate-100 text-left"
+              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left"
             >
               {/* Close Button top right */}
               <button
@@ -227,7 +232,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       alert(`Administrative configuration saved: Mark entry window defined as ${periodStart} to ${periodEnd}.`);
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-[#0c1424] text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 transition shadow-sm cursor-pointer text-center"
+                    className="w-full py-3 bg-brand-navy text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 transition shadow-sm cursor-pointer text-center"
                   >
                     Apply Parameters
                   </button>
@@ -250,7 +255,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       <div key={rub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-3 text-xs">
                         <div className="flex-1">
                           <span className="text-[10px] font-extrabold text-indigo-500 block">RUBRIC 0{rub.id}</span>
-                          <span className="font-bold text-[#0c1424] block mt-0.5">{rub.name}</span>
+                          <span className="font-bold text-brand-navy block mt-0.5">{rub.name}</span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <input 
@@ -281,7 +286,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       alert("Rubric weight distribution metrics deployed to grading schemas.");
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-[#0c1424] text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm cursor-pointer text-center"
+                    className="w-full py-3 bg-brand-navy text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm cursor-pointer text-center"
                   >
                     Save & Distribute Rubrics
                   </button>
@@ -332,7 +337,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               {/* D. FAQ RESOURCE HELPDESK */}
               {activeModal === 'help' && (
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2.5 mb-4 text-[#0c1424]">
+                  <div className="flex items-center gap-2.5 mb-4 text-brand-navy">
                     <Users className="w-6 h-6 text-indigo-500" />
                     <h3 className="text-xl font-extrabold tracking-tight">FSKTM Office Contacts</h3>
                   </div>
@@ -353,7 +358,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
                       <span className="text-slate-400 font-semibold">Database Center System Ops</span>
-                      <span className="text-slate-900 font-bold">Prof. Wey Cheng Lim</span>
+                      <span className="text-slate-900 font-bold">{userName}</span>
                     </div>
 
                     <div className="flex justify-between py-1.5">

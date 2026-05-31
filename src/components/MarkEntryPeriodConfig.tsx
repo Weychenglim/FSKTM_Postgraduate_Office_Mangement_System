@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -175,7 +175,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
       
       {/* Toast Alert Banner */}
       {toastMessage && (
-        <div id="toast-notif-banner" className="fixed top-6 right-6 z-50 max-w-md bg-[#0c1424] text-white py-3.5 px-5 rounded-2xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-bold font-sans">
+        <div id="toast-notif-banner" className="fixed top-6 right-6 z-50 max-w-md bg-brand-navy text-white py-3.5 px-5 rounded-2xl shadow-sm flex items-center gap-3 border border-white/10 text-xs font-bold font-sans">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           <span>{toastMessage}</span>
         </div>
@@ -348,11 +348,11 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
       </div>
 
       {/* Existing Mark Entry Periods Table view (Bottom panel) */}
-      <div id="table-existing-periods-card" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+      <div id="table-existing-periods-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
         
         {/* Table header bar */}
         <div id="table-header-toolbar" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 id="table-heading" className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+          <h3 id="table-heading" className="text-lg font-extrabold text-brand-navy tracking-tight">
             Existing Mark Entry Periods
           </h3>
 

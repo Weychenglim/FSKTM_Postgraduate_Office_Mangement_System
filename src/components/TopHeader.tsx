@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,6 +25,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleSidebar
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const displayInitials = userName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase())
+    .join('') || 'FS';
 
   return (
     <header
@@ -88,11 +94,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           >
             {/* Custom high-contrast profile picture avatar as specified in reference */}
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#091124] to-[#1e2c54] flex items-center justify-center text-indigo-200 font-extrabold text-[13px] border border-slate-200 group-hover:scale-105 transition-transform duration-200">
-              WC
+              {displayInitials}
             </div>
             
             <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-extrabold text-slate-800 tracking-tight leading-none">Wey Cheng</span>
+              <span className="text-xs font-extrabold text-slate-800 tracking-tight leading-none">{userName}</span>
               <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mt-1 leading-none">{userRole}</span>
             </div>
           </button>
@@ -109,16 +115,16 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 p-2 text-left"
+                  className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-sm z-50 p-2 text-left"
                 >
                   <div className="px-3 py-2 border-b border-slate-150 mb-1.5">
-                    <span className="text-xs font-extrabold text-slate-800 block">Wey Cheng Lim</span>
-                    <span className="text-[10px] text-slate-400 block font-mono">ID: SEC-49192</span>
+                    <span className="text-xs font-extrabold text-slate-800 block">{userName}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">{userRole}</span>
                   </div>
 
                   <button
                     onClick={() => { setDropdownOpen(false); onHelpdeskTrigger(); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-[#0c1424] hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <User className="w-4 h-4 text-slate-400" />
                     <span>My Profile details</span>
@@ -126,7 +132,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
                   <button
                     onClick={() => { setDropdownOpen(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-[#0c1424] hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <Settings className="w-4 h-4 text-slate-400" />
                     <span>System Settings</span>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,6 +28,7 @@ import { SemesterTimeline } from './SemesterTimeline';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 
 interface TimelineEntry {
   id: string;
@@ -288,101 +289,47 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     triggerToast('Advanced schedule audit logs compiled. Exporting system telemetry...');
   };
 
-  const getStatusBadgeStyles = (status: TimelineEntry['status']) => {
+  const getStatusTone = (status: TimelineEntry['status']) => {
     switch (status) {
       case 'Completed':
-        return 'bg-slate-50 text-slate-500 border border-slate-200/60';
+        return 'neutral';
       case 'Active':
-        return 'bg-blue-50 text-blue-600 border border-blue-150';
+        return 'info';
       case 'Deadline':
-        return 'bg-rose-50 text-rose-600 border border-rose-150 font-extrabold';
+        return 'danger';
       case 'Upcoming':
-        return 'bg-amber-50 text-amber-700 border border-amber-150';
+        return 'warning';
       default:
-        return 'bg-slate-50 text-slate-500 border border-slate-200';
-    }
-  };
-
-  const getStatusBulletColor = (status: TimelineEntry['status']) => {
-    switch (status) {
-      case 'Completed': return 'bg-slate-400';
-      case 'Active': return 'bg-blue-500';
-      case 'Deadline': return 'bg-rose-500 animate-ping';
-      case 'Upcoming': return 'bg-amber-500';
-      default: return 'bg-slate-400';
+        return 'neutral';
     }
   };
 
   return (
     <div id="timeline-management-universe" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       
-      {/* Toast notifications overlay popup */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#0c1424] text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-2xl flex items-center gap-2 max-w-sm">
-          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Back to previous screen dashboard anchor */}
-      <button
-        onClick={onBack}
-        className="back-link group mb-3"
-      >
-        <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        <span>Back to Office Dashboard</span>
-      </button>
+      <PortalToast message={toastMessage} />
 
       {/* Head section title with actions buttons Row */}
-      <div id="timeline-page-intro" className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-        <div className="text-left">
-          <h1 className="page-title">
-            Timeline Management
-          </h1>
-          <p className="page-subtitle">
-            View, upload, and manage semester timeline entries.
-          </p>
-        </div>
-
-        {/* Global master actions button toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 1. Download Template */}
-          <button
-            onClick={handleDownloadTemplate}
-            className="px-4.5 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-3xs"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Download Template</span>
-          </button>
-
-          {/* 2. Add Timeline Entry */}
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4.5 py-2.5 bg-white border border-indigo-200 hover:bg-slate-50 text-indigo-650 text-indigo-700 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-3xs"
-          >
-            <Plus className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Add Timeline Entry</span>
-          </button>
-
-          {/* 3. Upload Timeline */}
-          <button
-            onClick={handleUploadTimeline}
-            className="px-4.5 py-2.5 bg-[#0c1424] text-white hover:bg-slate-800 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5 text-indigo-300" />
-            <span>Upload Timeline</span>
-          </button>
-
-          {/* 4. More toggle options */}
-          <button
-            onClick={handleMoreOptions}
-            className="p-2.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
-            title="More Options"
-          >
-            <MoreVertical className="w-4 h-4 text-slate-600" />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Timeline Management"
+        subtitle="View, upload, and manage semester timeline entries."
+        backLabel="Back to Office Dashboard"
+        onBack={onBack}
+        actions={(
+          <>
+            <PortalButton variant="secondary" size="md" icon={Download} onClick={handleDownloadTemplate}>
+              Download Template
+            </PortalButton>
+            <PortalButton variant="soft" size="md" icon={Plus} onClick={handleOpenAddModal}>
+              Add Timeline Entry
+            </PortalButton>
+            <PortalButton variant="primary" size="md" icon={Upload} onClick={handleUploadTimeline}>
+              Upload Timeline
+            </PortalButton>
+            <PortalButton variant="secondary" size="icon" icon={MoreVertical} onClick={handleMoreOptions} title="More Options" />
+          </>
+        )}
+      />
 
       {/* Grid: Four Top Summary Cards matching mock parameters exactly */}
       <div id="timeline-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -392,7 +339,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             ACTIVE SEMESTER
           </span>
-          <span className="text-[17px] font-black text-[#0c1424] block mt-3 tracking-tight">
+          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
             Sem 1 2025/2026
           </span>
         </div>
@@ -415,7 +362,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             LAST UPDATED
           </span>
-          <span className="text-[17px] font-black text-[#0c1424] block mt-3 tracking-tight">
+          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
             20 Nov 2025
           </span>
         </div>
@@ -425,7 +372,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             TOTAL EVENTS
           </span>
-          <span className="text-2xl font-black text-[#0c1424] block mt-2.5 tracking-tight">
+          <span className="text-2xl font-black text-brand-navy block mt-2.5 tracking-tight">
             {entries.length}
           </span>
         </div>
@@ -439,13 +386,13 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
         
         <div className="space-y-1 block text-left">
-          <h2 className="text-sm font-black text-[#0c1424] tracking-tight">
+          <h2 className="text-sm font-black text-brand-navy tracking-tight">
             Timeline Entries
           </h2>
         </div>
 
         {/* Query filter controls bar block */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-[#f8fafc] p-4.5 rounded-2xl border border-slate-100">
+        <div className="filter-toolbar grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           
           {/* Search bar input text input column */}
           <div className="md:col-span-4 relative">
@@ -454,7 +401,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               placeholder="Search event name"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold font-sans text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0c1424]"
+              className="form-control form-control-sm pl-10 pr-4"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 shrink-0" />
           </div>
@@ -464,7 +411,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Category: All</option>
               <option value="Supervisor Appointment">Supervisor Appointment</option>
@@ -480,7 +427,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Status: All</option>
               <option value="Completed">Completed</option>
@@ -495,7 +442,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Target Role: All</option>
               <option value="STUDENT">Student</option>
@@ -505,12 +452,14 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
           {/* Action Trigger Filter criteria */}
           <div className="md:col-span-2">
-            <button
+            <PortalButton
+              variant="soft"
+              size="sm"
+              fullWidth
               onClick={handleApplyFilters}
-              className="w-full text-center py-2.5 bg-[#2563eb] hover:bg-blue-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer"
             >
               Apply Filters
-            </button>
+            </PortalButton>
           </div>
 
         </div>
@@ -579,10 +528,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
                     {/* Status indicator pill with colored bullet code */}
                     <td className="data-td text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${getStatusBadgeStyles(ent.status)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusBulletColor(ent.status)}`} />
-                        <span>{ent.status}</span>
-                      </span>
+                      <StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status === 'Deadline'}>
+                        {ent.status}
+                      </StatusBadge>
                     </td>
 
                     {/* Manage row edit handler link */}
@@ -616,7 +564,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
       {/* 3. Recent Updates Track Section */}
       <div id="recent-timeline-updates-card" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4 text-left">
-        <h3 className="text-sm font-black text-[#0c1424] tracking-tight">
+        <h3 className="text-sm font-black text-brand-navy tracking-tight">
           Recent Timeline Updates
         </h3>
 
@@ -641,7 +589,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                       className="w-7 h-7 rounded-full object-cover border border-slate-200 text-[9px]"
                       referrerPolicy="no-referrer"
                     />
-                    <span className="font-bold text-[#0c1424]">{log.user}</span>
+                    <span className="font-bold text-brand-navy">{log.user}</span>
                   </td>
 
                   {/* Operation date log */}

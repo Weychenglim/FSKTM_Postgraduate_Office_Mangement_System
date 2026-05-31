@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -262,7 +262,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-[100] bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-705"
+            className="fixed top-6 right-6 z-[100] bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-705"
           >
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>{toastMessage}</span>
@@ -291,7 +291,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             Monitor lecturer supervision loads by semester, department, and availability.
           </p>
         </div>
-        <div className="bg-[#0c1424] text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-md shrink-0">
+        <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
           SESSION 2024/2025
         </div>
       </div>
@@ -304,7 +304,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
             Total Supervisors
           </span>
-          <h2 className="text-3xl font-black text-[#0c1424] mt-3">
+          <h2 className="text-3xl font-black text-brand-navy mt-3">
             {totalSupervisorsCount}
           </h2>
         </div>
@@ -348,8 +348,8 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         {/* Filter Card (8 cols) */}
         <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs space-y-5">
           <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-            <Filter className="w-4 h-4 text-[#0c1424]" />
-            <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+            <Filter className="w-4 h-4 text-brand-navy" />
+            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
               Filter Supervisors
             </span>
           </div>
@@ -427,7 +427,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           <div className="flex justify-end pt-2">
             <button
               onClick={handleApplyFilters}
-              className="flex items-center gap-2 px-6 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer"
+              className="flex items-center gap-2 px-6 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer"
             >
               <SlidersHorizontal className="w-4 h-4" />
               <span>Apply Filters</span>
@@ -439,8 +439,8 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
         <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs flex flex-col justify-between gap-5 h-full">
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-              <Users className="w-4.5 h-4.5 text-[#0c1424]" />
-              <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+              <Users className="w-4.5 h-4.5 text-brand-navy" />
+              <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                 Workload Distribution
               </span>
             </div>
@@ -503,12 +503,12 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       </div>
 
       {/* Main Table Block */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-3xs text-left">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
         
         {/* Table Header and Export */}
         <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider block">
+            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
               Supervisor Workload Records
             </span>
             <span className="text-[10px] font-bold text-slate-400 block mt-1">
@@ -647,7 +647,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                 onClick={() => setCurrentPage(idx + 1)}
                 className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center ${
                   currentPage === idx + 1
-                    ? 'bg-[#0c1424] text-white'
+                    ? 'bg-brand-navy text-white'
                     : 'bg-white border border-slate-160 text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -672,7 +672,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs">
         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider block">
+          <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
             Confidential Administrative View
           </span>
           <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500 text-slate-500">
@@ -691,11 +691,11 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           <div className="space-y-6 font-sans text-left text-xs">
             {/* Lecturer quick metadata */}
             <div className="flex items-center gap-4 bg-slate-50 p-4 border border-slate-105 rounded-2xl">
-              <div className="w-12 h-12 bg-[#0c1424] text-white font-black text-sm rounded-xl flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 bg-brand-navy text-white font-black text-sm rounded-xl flex items-center justify-center shrink-0">
                 {selectedLecturer.lecturerName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase()}
               </div>
               <div className="space-y-1">
-                <h4 className="text-sm font-extrabold text-[#0c1424]">
+                <h4 className="text-sm font-extrabold text-brand-navy">
                   {selectedLecturer.lecturerName}
                 </h4>
                 <p className="text-[10px] text-slate-400 font-bold">{selectedLecturer.department}</p>
@@ -706,7 +706,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider">Email Address</span>
-                <span className="text-xs font-bold text-[#0c1424] block mt-1 truncate">{selectedLecturer.email}</span>
+                <span className="text-xs font-bold text-brand-navy block mt-1 truncate">{selectedLecturer.email}</span>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider">Availability</span>
@@ -735,7 +735,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             <div className="space-y-2 border-t border-slate-100 pt-4">
               <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                 <span>Active Supervisee Allocation Slots</span>
-                <span className="text-[#0c1424] font-black text-xs">
+                <span className="text-brand-navy font-black text-xs">
                   {selectedLecturer.currentStudents} / {selectedLecturer.workloadLimit}
                 </span>
               </div>
@@ -791,7 +791,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                 onClick={() => {
                   showToast(`Drafting notification email to ${selectedLecturer.lecturerName}...`);
                 }} 
-                className="w-full py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-2"
               >
                 <Mail className="w-3.5 h-3.5" />
                 <span>Email Official Workload Inquiry</span>
@@ -801,7 +801,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                 onClick={() => {
                   showToast("Please use the Marks Entry Period Configuration module to audit evaluation quotas.");
                 }} 
-                className="w-full py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-[#0c1424] font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center block"
+                className="w-full py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-brand-navy font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center block"
               >
                 View Connected Panel Records
               </button>

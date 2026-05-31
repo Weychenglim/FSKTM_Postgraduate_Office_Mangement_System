@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UploadNewDocument } from './UploadNewDocument';
+import { PortalToast } from './PortalPrimitives';
 
 // Custom typescript types
 export interface FileItem {
@@ -418,25 +419,9 @@ export const FileRepository: React.FC = () => {
   }
 
   return (
-    <div id="file-repository-workspace" className="font-sans text-[#0c1424] text-xs">
+    <div id="file-repository-workspace" className="font-sans text-brand-navy text-xs">
       
-      {/* Dynamic Toast warning block */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-3.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            <span className="text-[11px] font-sans tracking-wide">{toastMessage}</span>
-            <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white transition">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* Title Header with action buttons */}
       <div id="file-page-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -470,7 +455,7 @@ export const FileRepository: React.FC = () => {
           <button
             type="button"
             onClick={() => setCurrentSubView('upload')}
-            className="px-4 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-xs font-black font-sans transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            className="px-4 py-2.5 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-black font-sans transition-all flex items-center gap-2 cursor-pointer shadow-sm"
           >
             <Upload className="w-4 h-4 stroke-[2]" />
             <span>Upload New File</span>
@@ -483,14 +468,14 @@ export const FileRepository: React.FC = () => {
         {/* TOTAL FILES */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Files</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">12,458</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">12,458</span>
           <span className="text-[10px] text-slate-500 font-medium pt-1">Active + archived documents</span>
         </div>
 
         {/* ACTIVE DOCUMENTS */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Active Documents</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">11,204</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">11,204</span>
           <span className="text-[10px] text-emerald-600 font-bold pt-1 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
             90% of overall database files
@@ -500,7 +485,7 @@ export const FileRepository: React.FC = () => {
         {/* ARCHIVED */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Archived</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">1,254</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">1,254</span>
           <span className="text-[10px] text-slate-500 font-medium pt-1">Historical files storage</span>
         </div>
 
@@ -508,7 +493,7 @@ export const FileRepository: React.FC = () => {
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Storage Used</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-[#0c1424] tracking-tight">45.2 GB</span>
+            <span className="text-2xl font-black text-brand-navy tracking-tight">45.2 GB</span>
             <span className="text-[10px] text-slate-400 font-bold">/ 100 GB</span>
           </div>
           {/* Progress slider bar illustration */}
@@ -541,7 +526,7 @@ export const FileRepository: React.FC = () => {
                     placeholder="Search by file name, student ID, or tags..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#0c1424] focus:outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-brand-navy focus:outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 outline-none"
                   />
                 </div>
 
@@ -703,7 +688,7 @@ export const FileRepository: React.FC = () => {
                       }}
                       className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer ${
                         isSelected 
-                          ? 'bg-[#0c1424] text-white border border-[#0c1424]'
+                          ? 'bg-brand-navy text-white border border-brand-navy'
                           : 'bg-slate-100 text-slate-600 border border-transparent hover:bg-slate-200'
                       }`}
                     >
@@ -721,7 +706,7 @@ export const FileRepository: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 mx-auto flex items-center justify-center mb-3">
                   <Database className="w-5 h-5 text-slate-400" />
                 </div>
-                <p className="font-extrabold text-[#0c1424]">No matching templates or records</p>
+                <p className="font-extrabold text-brand-navy">No matching templates or records</p>
                 <p className="text-[10px] mt-1 text-slate-400">Please relax search strings or clear quick active filter badges.</p>
               </div>
             ) : viewMode === 'list' ? (
@@ -987,7 +972,7 @@ export const FileRepository: React.FC = () => {
               
               {/* Header Title section */}
               <div className="p-4 border-b border-slate-150 flex items-center justify-between">
-                <span className="font-black text-[#0c1424] text-[13px] tracking-tight">
+                <span className="font-black text-brand-navy text-[13px] tracking-tight">
                   File Preview
                 </span>
 
@@ -1024,7 +1009,7 @@ export const FileRepository: React.FC = () => {
               {/* 1. PDF Page visual mockup layout (Exact representation of the screenshot mockup) */}
               <div className="p-4.5 bg-[#f8fafc] border-b border-slate-100">
                 <div 
-                  className="bg-white rounded-xl shadow-md border border-slate-200 p-6 mx-auto relative overflow-hidden transition-all duration-200 ease-in-out"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mx-auto relative overflow-hidden transition-all duration-200 ease-in-out"
                   style={{ 
                     aspectRatio: '1 / 1.414',
                     width: '100%',
@@ -1115,7 +1100,7 @@ export const FileRepository: React.FC = () => {
                 <div className="space-y-1 pt-2 border-t border-slate-100">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider block">Uploaded By</span>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 text-[#0c1424] font-black text-[9px] flex items-center justify-center border border-slate-200 capitalize">
+                    <div className="w-5 h-5 rounded-full bg-slate-100 text-brand-navy font-black text-[9px] flex items-center justify-center border border-slate-200 capitalize">
                       {selectedFileItem.uploadedBy[0]}
                     </div>
                     <span className="font-extrabold text-slate-700">{selectedFileItem.uploadedBy} (Admin Office Staff)</span>
@@ -1127,7 +1112,7 @@ export const FileRepository: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleDownloadFile(selectedFileItem.name)}
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
                     <Download className="w-3.5 h-3.5 stroke-[2.5]" />
                     <span>Download File</span>
@@ -1155,7 +1140,7 @@ export const FileRepository: React.FC = () => {
       {createPortal(
         <AnimatePresence>
         {isUploadOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsUploadOpen(false)} />
 
@@ -1164,12 +1149,12 @@ export const FileRepository: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative z-10 border border-slate-100 text-left font-sans"
+              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-sm relative z-10 border border-slate-100 text-left font-sans"
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 select-none">
                 <div className="flex items-center gap-2">
                   <Upload className="w-5 h-5 text-indigo-500" />
-                  <h3 className="font-black text-[#0c1424] text-[14px] tracking-tight">
+                  <h3 className="font-black text-brand-navy text-[14px] tracking-tight">
                     Upload New File
                   </h3>
                 </div>
@@ -1278,7 +1263,7 @@ export const FileRepository: React.FC = () => {
                 {/* Drag-and-drop simulated indicator area */}
                 <div className="border border-dashed border-slate-250 p-4 rounded-2xl bg-slate-50/50 hover:bg-slate-100/40 text-center space-y-1 transition-colors cursor-pointer select-none">
                   <Upload className="w-5 h-5 mx-auto text-slate-400 stroke-[2.5]" />
-                  <span className="font-bold text-[#0c1424] block">Select document sheet / drag & drop</span>
+                  <span className="font-bold text-brand-navy block">Select document sheet / drag & drop</span>
                   <span className="text-[9px] text-slate-400 block font-medium">Accept pdf, docx, xlsx, pptx files up to 25MB</span>
                 </div>
 
@@ -1293,7 +1278,7 @@ export const FileRepository: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
+                    className="flex-1 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
                   >
                     Upload Document
                   </button>

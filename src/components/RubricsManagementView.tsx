@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -227,7 +227,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white border border-white/10 p-4 rounded-xl shadow-2xl flex items-center gap-3.5 text-xs font-bold font-sans"
+            className="fixed top-6 right-6 z-50 bg-brand-navy text-white border border-white/10 p-4 rounded-xl shadow-sm flex items-center gap-3.5 text-xs font-bold font-sans"
           >
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <span>{toast}</span>
@@ -258,7 +258,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
         <div id="header-action-panel" className="flex items-center gap-3.5">
           <button
             onClick={() => setActiveModal('preview')}
-            className="px-4 py-3 bg-white hover:bg-slate-50 text-[#0c1424] border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
+            className="px-4 py-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
           >
             <Eye className="w-4.5 h-4.5 text-slate-500" />
             <span>Preview Mark Entry Form</span>
@@ -266,7 +266,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
           <button
             onClick={handleOpenAdd}
-            className="px-4.5 py-3 bg-[#0c1424] text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer shadow-md select-none"
+            className="px-4.5 py-3 bg-brand-navy text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer shadow-sm select-none"
           >
             <Plus className="w-4.5 h-4.5 text-blue-400" />
             <span>Add Component</span>
@@ -297,7 +297,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
           subtext="Assessment Categories"
           onClick={() => {}}
         />
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-[0_4px_20px_rgba(241,245,249,0.5)] relative overflow-hidden flex flex-col justify-between min-h-[110px]">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-3xs relative overflow-hidden flex flex-col justify-between min-h-[110px]">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
               Total Marks
@@ -307,7 +307,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             </span>
           </div>
           <div className="flex items-center gap-2.5 mt-2.5">
-            <span className="text-[#0c1424] font-extrabold text-[22px] tracking-tight">
+            <span className="text-brand-navy font-extrabold text-[22px] tracking-tight">
               {totalMaxMarks} <span className="text-slate-400 text-sm font-medium">/ 100</span>
             </span>
           </div>
@@ -330,11 +330,11 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
         
         {/* Left Span (8 out of 12 columns): Components Table list */}
         <div id="components-panel-container" className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
             
             {/* Components table header info */}
             <div className="flex items-center justify-between pb-5 border-b border-slate-100 mb-5">
-              <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+              <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
                 Rubric Components
               </h3>
 
@@ -407,7 +407,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
                   {/* Dynamic Weights Sum block */}
                   <tr className="bg-slate-50/70 border-t border-slate-200">
-                    <td className="py-4 px-5 font-extrabold text-xs text-[#0c1424]">
+                    <td className="py-4 px-5 font-extrabold text-xs text-brand-navy">
                       Total:
                     </td>
                     <td className="py-4 px-5" />
@@ -472,7 +472,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
       {createPortal(
         <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             
             {/* Blur close context backdrop */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
@@ -482,7 +482,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-100 text-left relative z-10"
+              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
             >
               
               {/* Top dismissal X */}
@@ -512,7 +512,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                       return (
                         <div key={rub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="font-extrabold text-[#0c1424]">
+                            <span className="font-extrabold text-brand-navy">
                               {rub.name} <span className="text-slate-400">({rub.maxMarks} max)</span>
                             </span>
                             <span className="font-mono font-extrabold text-blue-650">
@@ -539,14 +539,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                   {/* Calculated metrics */}
                   <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold font-sans">
                     <span className="text-slate-500">Combined Preview Score:</span>
-                    <span className="text-sm font-mono text-[#0c1424]">
+                    <span className="text-sm font-mono text-brand-navy">
                       {previewScoreSum} / {totalMaxMarks} marks
                     </span>
                   </div>
 
                   <button
                     onClick={() => setActiveModal(null)}
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center"
+                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center"
                   >
                     Close Preview Desk
                   </button>
@@ -626,7 +626,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
                   <button
                     type="submit"
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer"
+                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer"
                   >
                     Confirm Component Addition
                   </button>
@@ -739,7 +739,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             <button
               type="button"
               onClick={() => handleSaveEdit()}
-              className="flex-1 py-3 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-md"
+              className="flex-1 py-3 bg-brand-navy hover:bg-slate-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-sm"
             >
               Save Changes
             </button>

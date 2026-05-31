@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -35,7 +35,7 @@ export const RecentSupervisorAppointmentsCard: React.FC<RecentSupervisorAppointm
             >
               {/* Left Details */}
               <div className="space-y-1 text-left">
-                <span className="font-bold text-[#0c1424] text-xs block">
+                <span className="font-bold text-brand-navy text-xs block">
                   {apt.studentName}
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold block">

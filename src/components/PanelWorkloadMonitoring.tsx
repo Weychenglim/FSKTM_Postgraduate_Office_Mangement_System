@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -280,7 +280,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
+            className="fixed top-6 right-6 z-50 bg-brand-navy text-white py-3 px-5 rounded-xl shadow-sm flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
           >
             <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
             <span>{toastMessage}</span>
@@ -314,7 +314,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
             TOTAL PANELS
           </span>
-          <span className="text-3xl font-black text-[#0c1424] block mt-3">
+          <span className="text-3xl font-black text-brand-navy block mt-3">
             {totalPanelsCount}
           </span>
         </div>
@@ -363,7 +363,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         <div className="lg:col-span-8 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs space-y-5">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5">
             <SlidersHorizontal className="w-4 h-4 text-slate-400" />
-            <span className="font-extrabold text-[#0c1424] uppercase tracking-wider text-xs">
+            <span className="font-extrabold text-brand-navy uppercase tracking-wider text-xs">
               Filter Panels
             </span>
           </div>
@@ -467,7 +467,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               
               <button
                 onClick={handleApplyFilters}
-                className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-black text-[11px] rounded-xl uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
+                className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-black text-[11px] rounded-xl uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-3xs"
               >
                 <CheckSquare className="w-4 h-4" />
                 <span>Apply Filters</span>
@@ -480,7 +480,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         {/* Workload Distribution Summary Graph Card (Span 4) */}
         <div className="lg:col-span-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs flex flex-col justify-between h-full">
           <div className="space-y-4">
-            <span className="text-[10px] font-black text-[#0c1424] uppercase tracking-widest block border-b border-slate-100 pb-3">
+            <span className="text-[10px] font-black text-brand-navy uppercase tracking-widest block border-b border-slate-100 pb-3">
               WORKLOAD DISTRIBUTION
             </span>
 
@@ -540,16 +540,16 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       </div>
 
       {/* Panel Workload Records Table View */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs text-left">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
         
         <div id="table-head-section" className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+          <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
             PANEL WORKLOAD RECORDS
           </span>
 
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#0c1424] transition-colors focus:outline-none cursor-pointer uppercase tracking-wider text-[11px]"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-brand-navy transition-colors focus:outline-none cursor-pointer uppercase tracking-wider text-[11px]"
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
@@ -587,7 +587,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                         <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-extrabold tracking-wider text-[11px]">
                           {rec.initials}
                         </div>
-                        <span className="font-extrabold text-[#0c1424] text-xs">
+                        <span className="font-extrabold text-brand-navy text-xs">
                           {rec.name}
                         </span>
                       </div>
@@ -599,7 +599,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </td>
 
                     {/* Current Students load */}
-                    <td className="data-td text-center font-black text-[#0c1424] text-sm">
+                    <td className="data-td text-center font-black text-brand-navy text-sm">
                       {rec.currentStudents}
                     </td>
 
@@ -683,7 +683,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   onClick={() => setCurrentPage(pNum)}
                   className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
                     isCurrent 
-                      ? 'bg-[#0c1424] text-white border border-[#0c1424]' 
+                      ? 'bg-brand-navy text-white border border-brand-navy' 
                       : 'bg-white border border-slate-205 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
@@ -717,7 +717,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-[#0c1424]/60 z-40 backdrop-blur-sm cursor-pointer"
+              className="fixed inset-0 bg-brand-navy/60 z-40 backdrop-blur-sm cursor-pointer"
             />
 
             {/* Right Drawer Layout */}
@@ -726,17 +726,17 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0.9 }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 bottom-0 h-full w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl bg-slate-50 shadow-2xl z-50 overflow-hidden flex flex-col justify-between border-l border-slate-200 text-left font-sans"
+              className="fixed right-0 top-0 bottom-0 h-full w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl bg-slate-50 shadow-sm z-50 overflow-hidden flex flex-col justify-between border-l border-slate-200 text-left font-sans"
             >
               
               {/* Drawer Header */}
               <div className="bg-white p-5 border-b border-slate-200 flex items-center justify-between shadow-3xs">
-                <h3 className="text-base font-extrabold text-[#0c1424] tracking-tight">
+                <h3 className="text-base font-extrabold text-brand-navy tracking-tight">
                   Lecturer Workload Detail
                 </h3>
                 <button
                   onClick={() => setIsDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-[#0c1424] hover:bg-slate-100 transition focus:outline-none cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-brand-navy hover:bg-slate-100 transition focus:outline-none cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -763,7 +763,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h4 className="font-extrabold text-[#0c1424] text-xs sm:text-sm truncate leading-tight">
+                        <h4 className="font-extrabold text-brand-navy text-xs sm:text-sm truncate leading-tight">
                           {selectedLecturer.name}
                         </h4>
                         
@@ -785,11 +785,11 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                       <div className="mt-2.5 space-y-1.5 text-[11px] font-semibold text-slate-500">
                         <div className="flex justify-between">
                           <span className="text-slate-400">ID</span>
-                          <span className="font-mono text-[#0c1424] font-bold">{selectedLecturer.id}</span>
+                          <span className="font-mono text-brand-navy font-bold">{selectedLecturer.id}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Dept.</span>
-                          <span className="text-[#0c1424] truncate max-w-[200px] text-right">{selectedLecturer.department}</span>
+                          <span className="text-brand-navy truncate max-w-[200px] text-right">{selectedLecturer.department}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Email</span>
@@ -803,7 +803,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                 {/* 2. Workload Summary Card */}
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
                   <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
-                    <span className="font-extrabold text-[#0c1424] text-[10px] uppercase tracking-wider">
+                    <span className="font-extrabold text-brand-navy text-[10px] uppercase tracking-wider">
                       Workload Summary
                     </span>
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">
@@ -813,7 +813,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                   <div className="grid grid-cols-3 gap-2.5 text-center">
                     <div className="p-2 border-r border-slate-100">
-                      <span className="text-xl sm:text-2xl font-black text-[#0c1424] block leading-none">
+                      <span className="text-xl sm:text-2xl font-black text-brand-navy block leading-none">
                         {selectedLecturer.currentStudents}
                       </span>
                       <span className="text-[8.5px] font-bold text-slate-450 uppercase block mt-1.5 leading-tight">
@@ -843,7 +843,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   <div className="space-y-1.5 pt-1.5">
                     <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500">
                       <span>Capacity Utilization</span>
-                      <span className="text-[#0c1424] font-bold">{Math.round((selectedLecturer.currentStudents / selectedLecturer.workloadLimit) * 100)}%</span>
+                      <span className="text-brand-navy font-bold">{Math.round((selectedLecturer.currentStudents / selectedLecturer.workloadLimit) * 100)}%</span>
                     </div>
                     <div className="w-full h-2 bg-slate-110 rounded-full overflow-hidden">
                       <div 
@@ -859,7 +859,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                 {/* 3. Assigned Panel Students Table */}
                 <div className="space-y-2">
-                  <span className="font-extrabold text-[#0c1424] text-[10px] uppercase tracking-wider block text-left">
+                  <span className="font-extrabold text-brand-navy text-[10px] uppercase tracking-wider block text-left">
                     Active Assigned Panel Students
                   </span>
 
@@ -877,7 +877,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                             (academicStudentsMap[selectedLecturer.id] || []).map((student) => (
                               <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                                 <td className="data-td">
-                                  <div className="font-extrabold text-[#0c1424] break-words">
+                                  <div className="font-extrabold text-brand-navy break-words">
                                     {student.name}
                                   </div>
                                   <div className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">
@@ -904,7 +904,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                 {/* 4. Recent Panel Appointments List */}
                 <div className="space-y-2">
-                  <span className="font-extrabold text-[#0c1424] text-[10px] uppercase tracking-wider block text-left">
+                  <span className="font-extrabold text-brand-navy text-[10px] uppercase tracking-wider block text-left">
                     Recent Panel Appointments
                   </span>
 
@@ -915,7 +915,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                         className="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs flex items-center justify-between"
                       >
                         <div className="min-w-0">
-                          <h5 className="font-extrabold text-[#0c1424] text-xs truncate">
+                          <h5 className="font-extrabold text-brand-navy text-xs truncate">
                             {student.name}
                           </h5>
                           <span className="text-[10px] font-semibold text-slate-400 mt-1 block">
@@ -939,10 +939,10 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               </div>
 
               {/* Drawer Bottom Actions Footer */}
-              <div className="bg-white p-5 border-t border-slate-200 flex items-center justify-between gap-3 shadow-lg">
+              <div className="bg-white p-5 border-t border-slate-200 flex items-center justify-between gap-3 shadow-sm">
                 <button
                   onClick={() => setIsDrawerOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-250 text-[#0c1424] hover:bg-slate-50 transition text-xs font-black uppercase tracking-wider cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-slate-250 text-brand-navy hover:bg-slate-50 transition text-xs font-black uppercase tracking-wider cursor-pointer"
                 >
                   Close
                 </button>

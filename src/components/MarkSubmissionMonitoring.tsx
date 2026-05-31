@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,8 +16,13 @@ import {
   Search 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 
-export const MarkSubmissionMonitoring: React.FC = () => {
+interface MarkSubmissionMonitoringProps {
+  onViewRecords?: () => void;
+}
+
+export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> = ({ onViewRecords }) => {
   // Clickable state to inspect sub-item details for increased utility
   const [selectedStatusGroup, setSelectedStatusGroup] = useState<'submitted' | 'draft' | 'pending' | 'overdue' | null>(null);
 
@@ -50,15 +55,12 @@ export const MarkSubmissionMonitoring: React.FC = () => {
   };
 
   return (
-    <div id="monitoring-card" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+    <PortalCard id="monitoring-card" padding="lg">
       <div className="flex justify-between items-center mb-1">
-        <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+        <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
           Mark Submission Monitoring
         </h3>
-        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-[#0c1424] rounded-lg text-[10px] font-extrabold tracking-widest uppercase">
-          <Activity className="w-3.5 h-3.5 text-indigo-500" />
-          Live Pulse
-        </span>
+        <StatusBadge tone="brand" icon={Activity}>Live Pulse</StatusBadge>
       </div>
       <p className="text-slate-500 text-xs font-medium mb-6">
         Real-time status of mark entry completion for the active semester.
@@ -69,12 +71,12 @@ export const MarkSubmissionMonitoring: React.FC = () => {
         <div className="flex justify-between items-start mb-3">
           <div className="flex flex-col">
             <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Active Semester</span>
-            <span className="text-sm font-extrabold text-[#0c1424] mt-0.5">Sem 1 2025/2026</span>
+            <span className="text-sm font-extrabold text-brand-navy mt-0.5">Sem 1 2025/2026</span>
           </div>
 
           <div className="flex flex-col text-right">
             <div className="flex items-baseline justify-end gap-1">
-              <span className="text-2xl font-extrabold text-[#0c1424]">32</span>
+              <span className="text-2xl font-extrabold text-brand-navy">32</span>
               <span className="text-xs text-slate-400 font-bold">/ 48 submitted</span>
             </div>
             <span className="text-[9px] font-extrabold text-red-600 tracking-wider mt-1 block uppercase">
@@ -86,7 +88,7 @@ export const MarkSubmissionMonitoring: React.FC = () => {
         {/* Outer progress bar */}
         <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
           <div 
-            className="bg-[#0c1424] h-full rounded-full transition-all duration-1000 ease-out" 
+            className="bg-brand-navy h-full rounded-full transition-all duration-1000 ease-out" 
             style={{ width: `${(32 / 48) * 100}%` }}
           />
         </div>
@@ -223,7 +225,7 @@ export const MarkSubmissionMonitoring: React.FC = () => {
         
         {/* Left Column: Needs Follow-up */}
         <div id="column-followup" className="flex flex-col text-left">
-          <span className="text-[11px] font-extrabold text-[#0c1424] tracking-wider uppercase mb-4 block">
+          <span className="text-[11px] font-extrabold text-brand-navy tracking-wider uppercase mb-4 block">
             Needs Follow-up
           </span>
           <ul className="space-y-3.5 text-xs text-slate-600 font-medium">
@@ -250,7 +252,7 @@ export const MarkSubmissionMonitoring: React.FC = () => {
 
         {/* Right Column: Recent Activity */}
         <div id="column-recent-activity" className="flex flex-col text-left">
-          <span className="text-[11px] font-extrabold text-[#0c1424] tracking-wider uppercase mb-4 block">
+          <span className="text-[11px] font-extrabold text-brand-navy tracking-wider uppercase mb-4 block">
             Recent Activity
           </span>
           <div className="space-y-4">
@@ -261,7 +263,7 @@ export const MarkSubmissionMonitoring: React.FC = () => {
               </div>
               <div className="flex flex-col">
                 <p className="text-xs font-semibold text-slate-700 leading-normal">
-                  <strong>Dr. Sarah Lim</strong> submitted marks for <span className="text-[#0c1424] font-bold">Nurul Huda</span>
+                  <strong>Dr. Sarah Lim</strong> submitted marks for <span className="text-brand-navy font-bold">Nurul Huda</span>
                 </p>
                 <span className="text-[10px] text-slate-400 font-medium mt-0.5">2 mins ago</span>
               </div>
@@ -274,7 +276,7 @@ export const MarkSubmissionMonitoring: React.FC = () => {
               </div>
               <div className="flex flex-col">
                 <p className="text-xs font-semibold text-slate-700 leading-normal">
-                  <strong>Dr. Ibrahim Ali</strong> saved draft marks for <span className="text-[#0c1424] font-bold">Marcus Thorne</span>
+                  <strong>Dr. Ibrahim Ali</strong> saved draft marks for <span className="text-brand-navy font-bold">Marcus Thorne</span>
                 </p>
                 <span className="text-[10px] text-slate-400 font-medium mt-0.5">1 hour ago</span>
               </div>
@@ -298,15 +300,18 @@ export const MarkSubmissionMonitoring: React.FC = () => {
 
       {/* Primary Action Button to request evaluation list excel spreadsheets */}
       <div className="mt-8 pt-4 border-t border-slate-100 flex justify-center">
-        <button
-          onClick={() => alert("Mark Submission detail dossier compiled. Ready for download (CSV/XLSX).")}
-          className="px-6 py-3.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition-all shadow-sm select-none cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto"
+        <PortalButton
+          variant="primary"
+          size="lg"
+          icon={Search}
+          onClick={onViewRecords}
+          fullWidth
+          className="sm:w-auto"
         >
-          <Search className="w-4 h-4 text-indigo-300" />
           View All Mark Records
-        </button>
+        </PortalButton>
       </div>
 
-    </div>
+    </PortalCard>
   );
 };

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -108,7 +108,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c1424] backdrop-blur-sm cursor-pointer"
+            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
             onClick={onClose}
           />
 
@@ -119,7 +119,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-205"
+            className="relative w-full max-w-md sm:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-205"
           >
             {/* Header section with closing element */}
             <div 
@@ -128,7 +128,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Plus className="w-5 h-5 text-indigo-500 stroke-[2.5]" />
-                <h3 className="font-black text-[#0c1424] text-[15px] tracking-tight">
+                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
                   Add Timeline Entry
                 </h3>
               </div>
@@ -157,7 +157,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
                     Postgraduate Milestone Info
                   </span>
-                  <p className="text-[#0c1424] font-semibold text-[11px] leading-relaxed">
+                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
                     Create a new calendar session milestone for <strong className="font-extrabold text-indigo-650">Sem 1 2025/2026</strong>. Please confirm start & end ranges.
                   </p>
                 </div>
@@ -320,7 +320,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 <button
                   type="submit"
                   disabled={!eventName.trim() || targetRole.length === 0}
-                  className="px-5.5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-5.5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Add Entry</span>

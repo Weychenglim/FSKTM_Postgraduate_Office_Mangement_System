@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,9 +39,9 @@ export const RecentUpdatesCard: React.FC<RecentUpdatesCardProps> = ({ onViewHist
   ];
 
   return (
-    <div id="recent-updates-panel" className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden text-left shadow-[0_4px_20px_rgba(241,245,249,0.3)]">
+    <div id="recent-updates-panel" className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden text-left shadow-3xs">
       <div className="p-5 pb-3">
-        <span className="font-extrabold text-[13px] text-[#0c1424] tracking-tight">
+        <span className="font-extrabold text-[13px] text-brand-navy tracking-tight">
           Recent Updates
         </span>
       </div>

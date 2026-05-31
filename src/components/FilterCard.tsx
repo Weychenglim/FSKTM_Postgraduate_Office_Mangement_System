@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,7 +36,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
   ];
 
   return (
-    <div id="rubrics-filter-panel" className="bg-white rounded-3xl border border-slate-200/80 p-5 md:px-6 md:py-5 flex flex-col md:flex-row md:items-center justify-between gap-5 text-left shadow-[0_4px_20px_rgba(241,245,249,0.3)]">
+    <div id="rubrics-filter-panel" className="bg-white rounded-2xl border border-slate-200/80 p-5 md:px-6 md:py-5 flex flex-col md:flex-row md:items-center justify-between gap-5 text-left shadow-3xs">
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Semester Filter */}
         <div className="flex flex-col">

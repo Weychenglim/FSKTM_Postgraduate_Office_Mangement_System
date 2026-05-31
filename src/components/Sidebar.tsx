@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +22,7 @@ interface SidebarProps {
   onNavigate: (item: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  userRole?: string;
 }
 
 const mapActiveItem = (item: string): string => {
@@ -58,21 +59,30 @@ const mapActiveItem = (item: string): string => {
     'Supervisor Appointment Management': 'Supervisor Appointments',
     'Supervisor Appointment Detail': 'Supervisor Appointments',
     'Supervisor Workload Monitoring': 'Supervisor Appointments',
+    'Lecturer Supervisor Appointments': 'Supervisor Appointments',
+    'Supervisor Request History': 'Supervisor Appointments',
+    'Pending Supervisor Request Detail': 'Supervisor Appointments',
+    'Active Supervisee Detail': 'Supervisor Appointments',
     'Panel Appointment Management': 'Panel Appointments',
     'Panel Appointment Detail': 'Panel Appointments',
     'Panel Workload Monitoring': 'Panel Appointments',
+    'Lecturer Panel Appointments': 'Panel Appointments',
+    'Panel Assignment Detail': 'Panel Appointments',
     'Marks & Evaluation Management': 'Marks Entry',
     'Mark Entry Period Configuration': 'Marks Entry',
     'Rubric Components Management': 'Marks Entry',
     'Evaluation Task Assignment': 'Marks Entry',
     'Mark Entry Records': 'Marks Entry',
     'Mark Entry Record Detail': 'Marks Entry',
+    'Lecturer Marks Entry': 'Marks Entry',
+    'Mark Entry Tasks': 'Marks Entry',
+    'Mark Entry Form': 'Marks Entry',
     'Notifications & Announcements': 'None'
   };
   return map[item] || item;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose, userRole }) => {
   // On mobile the sidebar is an overlay drawer; dismiss it after navigating.
   const handleNavigate = (item: string) => {
     onNavigate(item);
@@ -94,6 +104,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
     { id: 'Settings', label: 'Settings', icon: SettingsIcon },
   ];
 
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (userRole === 'Student') {
+      return [
+        'Dashboard Overview',
+        'FAQ Chatbot',
+        'Supervisor Appointments',
+        'Panel Appointments',
+        'File Management',
+        'Letter Generation',
+        'Settings'
+      ].includes(item.id);
+    }
+
+    if (userRole === 'Lecturer') {
+      return [
+        'Dashboard Overview',
+        'FAQ Chatbot',
+        'Marks Entry',
+        'Panel Appointments',
+        'Supervisor Appointments',
+        'Settings'
+      ].includes(item.id);
+    }
+
+    return true;
+  });
+
   const mappedActiveItem = mapActiveItem(activeItem);
 
   return (
@@ -108,12 +145,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
         <div id="sidebar-logo-row" className="flex items-center gap-3">
           <div 
             id="sidebar-logo-container" 
-            className="w-10 h-10 bg-[#0c1424] rounded-xl flex items-center justify-center shadow-md shadow-indigo-950/20"
+            className="w-10 h-10 bg-brand-navy rounded-xl flex items-center justify-center shadow-sm shadow-indigo-950/20"
           >
             <GraduationCap className="w-5.5 h-5.5 text-indigo-300" />
           </div>
           <div id="sidebar-logo-text" className="flex flex-col text-left">
-            <span className="text-[#0c1424] font-extrabold text-sm tracking-widest font-sans">FSKTM</span>
+            <span className="text-brand-navy font-extrabold text-sm tracking-widest font-sans">FSKTM</span>
             <span className="text-slate-500 text-[9px] font-bold tracking-[0.15em] uppercase leading-none mt-0.5">
               Postgraduate
             </span>
@@ -126,16 +163,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
 
       {/* Navigation List items */}
       <div id="sidebar-nav-list" className="flex-1 px-4 py-2 overflow-y-auto space-y-1">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = mappedActiveItem === item.id;
+          const displayLabel = item.id === 'File Management' && userRole === 'Student'
+            ? 'File Submission'
+            : item.label;
           return (
             <button
               key={item.id}
               onClick={() => handleNavigate(item.id)}
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer group ${
                 isActive 
-                  ? 'bg-[#0c1424] text-white shadow-sm' 
+                  ? 'bg-brand-navy text-white shadow-sm' 
                   : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900'
               }`}
             >
@@ -144,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
                   isActive ? 'text-indigo-300' : 'text-slate-400 group-hover:text-slate-600'
                 }`} 
               />
-              <span className="tracking-wide">{item.label}</span>
+              <span className="tracking-wide">{displayLabel}</span>
               {isActive && (
                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300" />
               )}

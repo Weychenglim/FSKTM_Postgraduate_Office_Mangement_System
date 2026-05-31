@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -40,7 +40,7 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
                 <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
                   {/* Student profile and ID */}
                   <td className="data-td font-sans text-left align-top">
-                    <div className="font-extrabold text-[#0c1424]">{student.name}</div>
+                    <div className="font-extrabold text-brand-navy">{student.name}</div>
                     <div className="font-mono text-[9px] font-black text-slate-400 mt-1 uppercase">
                       {student.id}
                     </div>

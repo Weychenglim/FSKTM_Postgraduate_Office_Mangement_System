@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -40,7 +40,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
           className={`w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border appearance-none ${
             error
               ? 'border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-              : 'border-slate-200 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424]'
+              : 'border-slate-200 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy'
           } pl-4 pr-10 py-3.5 outline-none transition-all duration-200 font-sans font-medium cursor-pointer ${className}`}
           {...props}
         >
