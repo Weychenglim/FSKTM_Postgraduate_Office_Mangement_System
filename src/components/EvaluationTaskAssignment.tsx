@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   ChevronLeft,
@@ -20,20 +20,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { SummaryCard } from './SummaryCard';
+import { EvaluationPreviewTask as PreviewTask } from '../types';
+import { getEvaluationPreviewTasks } from '../services';
 
 interface EvaluationTaskAssignmentProps {
   onBack: () => void;
-}
-
-interface PreviewTask {
-  id: string;
-  studentId: string;
-  studentName: string;
-  researchTitle: string;
-  panelMember: string;
-  semester: string;
-  status: 'GENERATED' | 'PENDING' | 'NOTIFIED';
 }
 
 interface ActivityItem {
@@ -45,54 +38,23 @@ interface ActivityItem {
 }
 
 export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = ({ onBack }) => {
-  // Demonstration State
-  const [tasks, setTasks] = useState<PreviewTask[]>([
-    {
-      id: 't1',
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't2',
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't3',
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      researchTitle: 'Blockchain-Based Academic Record Verification System',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't4',
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      researchTitle: 'Cloud-Based Research Document Management',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't5',
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      researchTitle: 'Mobile Learning Adoption in Higher Education',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    }
-  ]);
+  // Evaluation preview tasks loaded from marksApi (mock-backed today).
+  const [tasks, setTasks] = useState<PreviewTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTasks = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getEvaluationPreviewTasks()
+      .then(setTasks)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   const [activities, setActivities] = useState<ActivityItem[]>([
     {
@@ -352,7 +314,19 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
-              {tasks.map((task) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <LoadingState message="Loading evaluation tasks…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <ErrorState message={error} onRetry={loadTasks} />
+                  </td>
+                </tr>
+              ) : tasks.map((task) => (
                 <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="data-td-strong font-mono">
                     {task.studentId}

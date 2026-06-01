@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// Authentication & role identity models.
+
 export type UserRole = 'Office Staff/Admin' | 'Programme Coordinator' | 'Lecturer' | 'Student';
 
 export interface DemoUser {

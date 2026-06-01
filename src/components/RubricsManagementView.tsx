@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { SummaryCard } from './SummaryCard';
 import { FilterCard } from './FilterCard';
@@ -33,70 +33,34 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { RubricComponent } from '../types';
+import { getRubricComponents } from '../services';
 
-interface RubricComponent {
-  id: string;
-  name: string;
-  description: string;
-  maxMarks: number;
-  required: boolean;
-  status: 'ACTIVE' | 'INACTIVE';
-  displayOrder?: number;
-}
+// RubricComponent now lives in src/types.
 
 interface RubricsManagementViewProps {
   onBack: () => void;
 }
 
 export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ onBack }) => {
-  // Form list state
-  const [rubrics, setRubrics] = useState<RubricComponent[]>([
-    {
-      id: '1',
-      name: 'Problem Definition',
-      description: 'Clarity of problem statement and research objectives',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 1
-    },
-    {
-      id: '2',
-      name: 'Literature Review',
-      description: 'Relevance and depth of reviewed work',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 2
-    },
-    {
-      id: '3',
-      name: 'Methodology',
-      description: 'Suitability and completeness of proposed approach',
-      maxMarks: 25,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 3
-    },
-    {
-      id: '4',
-      name: 'Technical Understanding',
-      description: 'Understanding of system, tools, algorithms, or framework',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 4
-    },
-    {
-      id: '5',
-      name: 'Presentation and Q&A',
-      description: 'Communication, structure, and response to questions',
-      maxMarks: 15,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 5
-    }
-  ]);
+  // Rubric components loaded from marksApi (mock-backed today).
+  const [rubrics, setRubrics] = useState<RubricComponent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRubrics = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getRubricComponents()
+      .then(setRubrics)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load rubric components.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRubrics();
+  }, [loadRubrics]);
 
   // Selected filters
   const [semester, setSemester] = useState('Sem 1 2025/2026');
@@ -351,9 +315,21 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rubrics.map((rub) => (
-                    <tr 
-                      key={rub.id} 
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <LoadingState message="Loading rubric components…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <ErrorState message={error} onRetry={loadRubrics} />
+                      </td>
+                    </tr>
+                  ) : rubrics.map((rub) => (
+                    <tr
+                      key={rub.id}
                       className="hover:bg-slate-50/40 transition-colors group"
                     >
                       <td className="data-td-strong">

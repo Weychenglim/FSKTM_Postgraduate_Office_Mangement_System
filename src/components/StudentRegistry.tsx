@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Download, 
@@ -41,24 +41,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry } from './StaffLecturersRegistry';
+import { StudentRecord } from '../types';
+import { getStudents } from '../services';
 
 // ==================== COMPONENT PATTERNS TYPES ====================
-
-interface StudentRecord {
-  id: string; // e.g. "WGA210045"
-  name: string;
-  avatarText: string;
-  avatarBg: string;
-  programme: string;
-  academicStatus: 'Active' | 'Pending' | 'Graduated' | 'Suspended';
-  accountStatus: 'Verified' | 'Unverified' | 'Archived';
-  semester: string;
-  email: string;
-  phone: string;
-  supervisor: string;
-  intakeDate: string;
-}
 
 interface ImportPreviewRecord {
   id: string;
@@ -175,93 +163,23 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 };
 
 export const StudentRegistry: React.FC = () => {
-  // Master Student Registry State
-  const [students, setStudents] = useState<StudentRecord[]>([
-    {
-      id: 'WGA210045',
-      name: 'Mohd Syazwan bin Ahmad',
-      avatarText: 'MS',
-      avatarBg: 'bg-blue-100 text-blue-850 border-blue-200',
-      programme: 'PhD (CS)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'syazwan.ahmad@mail.um.edu.my',
-      phone: '+60 17-293-1184',
-      supervisor: 'Prof. Dr. Sarah Chen',
-      intakeDate: '12 Sep 2023',
-    },
-    {
-      id: 'WQA220112',
-      name: 'Siti Aminah binti Yusof',
-      avatarText: 'SA',
-      avatarBg: 'bg-indigo-100 text-indigo-850 border-indigo-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Pending',
-      accountStatus: 'Unverified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'siti.aminah@mail.um.edu.my',
-      phone: '+60 19-384-9021',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      intakeDate: '18 Sep 2024',
-    },
-    {
-      id: 'WGA200088',
-      name: 'Tan Wei Meng',
-      avatarText: 'TW',
-      avatarBg: 'bg-slate-100 text-[#334155] border-slate-250',
-      programme: 'PhD (IS)',
-      academicStatus: 'Graduated',
-      accountStatus: 'Archived',
-      semester: 'Semester 2, 2024/2025',
-      email: 'tan.weimeng@mail.um.edu.my',
-      phone: '+60 12-234-9881',
-      supervisor: 'Dr. Robert Chen',
-      intakeDate: '06 Mar 2021',
-    },
-    {
-      id: 'WGA240182',
-      name: 'Divya d/o Rajakrishnan',
-      avatarText: 'DR',
-      avatarBg: 'bg-emerald-100 text-emerald-850 border-emerald-200',
-      programme: 'PhD (CS)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'divya.raj@mail.um.edu.my',
-      phone: '+60 14-884-3011',
-      supervisor: 'Prof. Dr. Sarah Chen',
-      intakeDate: '15 Sep 2024',
-    },
-    {
-      id: 'WQA240092',
-      name: 'Chong Wei Han',
-      avatarText: 'CW',
-      avatarBg: 'bg-purple-100 text-purple-850 border-purple-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'chong.weihan@mail.um.edu.my',
-      phone: '+60 11-2384-9210',
-      supervisor: 'Dr. Robert Chen',
-      intakeDate: '10 Sep 2025',
-    },
-    {
-      id: 'WQA230056',
-      name: 'Fatimah Al-Zahrah',
-      avatarText: 'FA',
-      avatarBg: 'bg-rose-100 text-[#a01c3e] border-rose-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Suspended',
-      accountStatus: 'Unverified',
-      semester: 'Semester 2, 2024/2025',
-      email: 'fatimah.az@mail.um.edu.my',
-      phone: '+60 18-992-3021',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      intakeDate: '01 Mar 2024',
-    }
-  ]);
+  // Master Student Registry State — loaded from studentsApi (mock-backed today).
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStudents = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getStudents()
+      .then(setStudents)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load students.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   // Current Screen and View Controls Mode
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
@@ -900,7 +818,19 @@ export const StudentRegistry: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedStudents.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <LoadingState message="Loading students…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <ErrorState message={error} onRetry={loadStudents} />
+                      </td>
+                    </tr>
+                  ) : displayedStudents.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400 font-extrabold select-none">
                         No registry rows matching the current query. Try redefining your search filters.

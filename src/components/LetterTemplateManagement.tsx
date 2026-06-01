@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  FileText, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  FileText,
   Search, 
   Plus, 
   Trash2, 
@@ -32,18 +32,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { LetterTemplate } from '../types';
+import { getLetterTemplates } from '../services';
 
-// Definitions for template structure
-interface LetterTemplate {
-  id: string;
-  name: string;
-  type: string;
-  status: 'Active' | 'Draft';
-  lastModified: string;
-  modifiedBy: string;
-  description: string;
-  content: string;
-}
+// LetterTemplate now lives in src/types.
 
 export const LetterTemplateManagement: React.FC = () => {
   // Toast notifications state
@@ -53,66 +46,44 @@ export const LetterTemplateManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // 1. Core Templates Seed Data (Exactly matching screenshot records)
-  const [templates, setTemplates] = useState<LetterTemplate[]>([
-    {
-      id: 'tpl-1',
-      name: 'Official Confirmation Letter',
-      type: 'Academic Certification',
-      status: 'Active',
-      lastModified: 'Oct 12, 2023',
-      modifiedBy: 'Dr. Azwan',
-      description: 'Standard letter for enrollment verification and status.',
-      content: `CONFIRMATION OF STUDENT STATUS\n\nThis is to certify that {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) is a registered full-time postgraduate student at the Faculty of Computer Science and Information Technology, University of Malaya.\n\nThe student is currently pursuing the {{PROGRAMME_NAME}} and has completed {{CREDITS_EARNED}} credits to date. Their current CGPA is {{GPA}}.\n\nShould you require further clarification, please do not hesitate to contact the Postgraduate Office at +603-7967 6300.`
-    },
-    {
-      id: 'tpl-2',
-      name: 'Visa Support Document',
-      type: 'Academic Certification', // Group as per type filter
-      status: 'Draft',
-      lastModified: 'Sep 28, 2023',
-      modifiedBy: 'Admin',
-      description: 'Required for international student visa renewals.',
-      content: `STUDENT VISA EXTENSION SUPPORT\n\nThis is to confirm that {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) is a full-time candidate of {{PROGRAMME_NAME}} at Faculty of Computer Science and Information Technology, UM.\n\nTheir current academic performance is satisfactory with a CGPA score of {{GPA}}. The faculty fully supports their student visa renewal application to complete the remaining credits.`
-    },
-    {
-      id: 'tpl-3',
-      name: 'Thesis Submission Notice',
-      type: 'Academic Certification',
-      status: 'Active',
-      lastModified: 'Aug 05, 2023',
-      modifiedBy: 'Prof. Lim',
-      description: 'Formal notification for viva-voce and submission.',
-      content: `NOTICE OF INTENT FOR THESIS SUBMISSION\n\nThis is to acknowledge receipt of notice for thesis submission submitted by {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) enrolled in the {{PROGRAMME_NAME}} program.\n\nThe candidate maintains a solid score with {{CREDITS_EARNED}} credits completed, qualifying for academic committee evaluation step.`
-    },
-    {
-      id: 'tpl-4',
-      name: 'Bursary Clearance Form',
-      type: 'Academic Certification',
-      status: 'Draft',
-      lastModified: 'Jul 19, 2023',
-      modifiedBy: 'Admin',
-      description: 'Internal financial clearance letter for graduates.',
-      content: `FINANCIAL BURSARY CLEARANCE ASSURANCE\n\nTo Whom It May Concern, this letter serves to confirm that FSKTM candidate {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) has settled all outstanding dues for the current academic session.`
-    }
-  ]);
+  // 1. Templates loaded from lettersApi (mock-backed today).
+  const [templates, setTemplates] = useState<LetterTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Selected state
-  const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate>(templates[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Editable Form Inputs matching the current selection
-  const [editorName, setEditorName] = useState(selectedTemplate.name);
-  const [editorType, setEditorType] = useState(selectedTemplate.type);
-  const [editorContent, setEditorContent] = useState(selectedTemplate.content);
-  const [editorStatus, setEditorStatus] = useState(selectedTemplate.status);
+  const [editorName, setEditorName] = useState('');
+  const [editorType, setEditorType] = useState('');
+  const [editorContent, setEditorContent] = useState('');
+  const [editorStatus, setEditorStatus] = useState<'Active' | 'Draft'>('Active');
 
   // File Upload Letterhead Sim State
   const [letterheadImage, setLetterheadImage] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  const loadTemplates = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getLetterTemplates()
+      .then((data) => {
+        setTemplates(data);
+        setSelectedTemplate((current) => current ?? data[0] ?? null);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load letter templates.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
   // Sync editor fields when selected template changes
   useEffect(() => {
+    if (!selectedTemplate) return;
     setEditorName(selectedTemplate.name);
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
@@ -146,6 +117,7 @@ export const LetterTemplateManagement: React.FC = () => {
 
   // Actions
   const handleSaveTemplate = () => {
+    if (!selectedTemplate) return;
     if (!editorName.trim()) {
       triggerToast('Error: Please enter a template name.');
       return;
@@ -173,6 +145,7 @@ export const LetterTemplateManagement: React.FC = () => {
   };
 
   const handleDiscardChanges = () => {
+    if (!selectedTemplate) return;
     setEditorName(selectedTemplate.name);
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
@@ -257,13 +230,17 @@ export const LetterTemplateManagement: React.FC = () => {
 
             {/* Template Card Buttons list */}
             <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
-              {filteredTemplates.length === 0 ? (
+              {loading ? (
+                <LoadingState message="Loading templates…" />
+              ) : error ? (
+                <ErrorState message={error} onRetry={loadTemplates} />
+              ) : filteredTemplates.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 font-bold">
                   No matching templates found.
                 </div>
               ) : (
                 filteredTemplates.map((tpl) => {
-                  const isSelected = selectedTemplate.id === tpl.id;
+                  const isSelected = selectedTemplate?.id === tpl.id;
                   const isActive = tpl.status === 'Active';
                   return (
                     <button

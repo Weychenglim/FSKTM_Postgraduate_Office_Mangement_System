@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Search, 
@@ -28,19 +28,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { StaffRecord } from '../types';
+import { getStaff } from '../services';
 
 // ==================== STYLES & TYPES ====================
-
-export interface StaffRecord {
-  id: string;
-  name: string;
-  avatarText: string;
-  avatarBg: string;
-  department: string;
-  email: string;
-  status: 'Active' | 'Inactive' | 'Suspended';
-  role: 'Office Staff' | 'Lecturer' | 'Programme Coordinator';
-}
+// StaffRecord now lives in src/types.
 
 const DEPARTMENTS = [
   'Academic Affairs',
@@ -373,144 +366,24 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type
 };
 
 export const StaffLecturersRegistry: React.FC = () => {
-  // Master State for staff members
-  const [staffList, setStaffList] = useState<StaffRecord[]>([
-    // Office Staff (Default Mockup Rows + Extra)
-    {
-      id: 'STF-2023-081',
-      name: 'Sarah Ahmad',
-      avatarText: 'SA',
-      avatarBg: 'bg-blue-50 text-blue-600 border-blue-105',
-      department: 'Academic Affairs',
-      email: 'sarah.a@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2021-042',
-      name: 'Michael Lee',
-      avatarText: 'ML',
-      avatarBg: 'bg-slate-50 text-slate-600 border-slate-105',
-      department: 'IT Support',
-      email: 'm.lee@fsktm.edu.my',
-      status: 'Inactive',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2019-112',
-      name: 'Karthik Rajan',
-      avatarText: 'KR',
-      avatarBg: 'bg-rose-50 text-rose-600 border-rose-105',
-      department: 'Administration',
-      email: 'krajan@fsktm.edu.my',
-      status: 'Suspended',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2022-015',
-      name: 'Norhaliza Binti Idris',
-      avatarText: 'NI',
-      avatarBg: 'bg-indigo-50 text-indigo-600 border-indigo-105',
-      department: 'Academic Affairs',
-      email: 'norhaliza@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2024-009',
-      name: 'Steven Choong',
-      avatarText: 'SC',
-      avatarBg: 'bg-emerald-50 text-emerald-600 border-emerald-105',
-      department: 'IT Support',
-      email: 's.choong@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    
-    // Lecturers
-    {
-      id: 'LEC-2015-092',
-      name: 'Prof. Dr. Sarah Chen',
-      avatarText: 'SC',
-      avatarBg: 'bg-emerald-50 text-emerald-600 border-emerald-105',
-      department: 'Software Engineering',
-      email: 'sarah.chen@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2018-104',
-      name: 'Assoc. Prof. Dr. Amina Malik',
-      avatarText: 'AM',
-      avatarBg: 'bg-purple-50 text-purple-600 border-purple-105',
-      department: 'Computer Science',
-      email: 'amina.malik@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2020-058',
-      name: 'Dr. Robert Chen',
-      avatarText: 'RC',
-      avatarBg: 'bg-blue-50 text-blue-600 border-blue-105',
-      department: 'Information Systems',
-      email: 'robert.chen@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2021-073',
-      name: 'Dr. Lim Jin Ho',
-      avatarText: 'JH',
-      avatarBg: 'bg-rose-50 text-rose-600 border-rose-105',
-      department: 'Computer Science',
-      email: 'jinho.lim@fsktm.edu.my',
-      status: 'Inactive',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2016-041',
-      name: 'Prof. Dr. Jamaluddin',
-      avatarText: 'JD',
-      avatarBg: 'bg-amber-50 text-amber-600 border-amber-105',
-      department: 'Information Systems',
-      email: 'jamal.m@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
+  // Staff/lecturer accounts loaded from lecturersApi (mock-backed today).
+  // setStaffList is retained for local account-creation mutations.
+  const [staffList, setStaffList] = useState<StaffRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Programme Coordinators
-    {
-      id: 'CRD-2017-005',
-      name: 'Dr. Muhammad Fauzi',
-      avatarText: 'MF',
-      avatarBg: 'bg-teal-50 text-teal-600 border-teal-105',
-      department: 'Academic Affairs',
-      email: 'm.fauzi@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    },
-    {
-      id: 'CRD-2019-014',
-      name: 'Dr. Evelyn Wong',
-      avatarText: 'EW',
-      avatarBg: 'bg-amber-50 text-amber-600 border-amber-105',
-      department: 'Information Systems',
-      email: 'evelyn.wong@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    },
-    {
-      id: 'CRD-2020-022',
-      name: 'Prof. Madya Dr. Zulkifli',
-      avatarText: 'ZK',
-      avatarBg: 'bg-violet-50 text-violet-600 border-violet-105',
-      department: 'Software Engineering',
-      email: 'zulkifli.m@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    }
-  ]);
+  const loadStaff = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getStaff()
+      .then(setStaffList)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load staff accounts.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   // Tab state (sub-tabs)
   const [activeSubTab, setActiveSubTab] = useState<'Office Staff' | 'Lecturer' | 'Programme Coordinator'>('Office Staff');
@@ -1138,7 +1011,19 @@ export const StaffLecturersRegistry: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {displayedStaff.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <LoadingState message="Loading staff accounts…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <ErrorState message={error} onRetry={loadStaff} />
+                  </td>
+                </tr>
+              ) : displayedStaff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400 italic bg-white font-semibold">
                     No registry ledger matches found matching requirements.
