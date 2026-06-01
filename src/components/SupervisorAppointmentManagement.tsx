@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
-  Users, 
-  UserX, 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  Users,
+  UserX,
   FileText, 
   AlertTriangle, 
   CheckCircle, 
@@ -26,27 +26,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
+import { SupervisorRecord } from '../types';
+import { getSupervisorAppointments } from '../services';
 
-export interface SupervisorRecord {
-  studentId: string;
-  studentName: string;
-  programme: string;
-  supervisor: string;
-  status: 'Approved' | 'Pending' | 'No Supervisor' | 'Workload Alert' | 'Rejected';
-  updatedDate: string;
-  email?: string;
-  semester?: string;
-  researchTopic?: string;
-  researchArea?: string;
-  abstract?: string;
-  appointmentId?: string;
-  workloadLimit?: string;
-  approvedDate?: string;
-  releasedDate?: string;
-  panelMemberName?: string;
-  panelAssignedDate?: string;
-}
+// SupervisorRecord now lives in src/types.
 
 interface SupervisorAppointmentManagementProps {
   onNavigateToWorkload?: () => void;
@@ -67,199 +52,23 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [viewState, setViewState] = useState<'list' | 'detail' | 'workload'>('list');
   const [selectedRecord, setSelectedRecord] = useState<SupervisorRecord | null>(null);
 
-  // Base list of supervisor appointment records (corrected the corrupted text with extra high-fidelity fields)
-  const [records, setRecords] = useState<SupervisorRecord[]>([
-    {
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Siti Noor',
-      status: 'Approved',
-      updatedDate: '14 Oct 2025',
-      email: 'sarah.natasha@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Blockchain-Based Verification Framework for Academic Credentials"',
-      researchArea: 'Blockchain / Academic Credential Verification',
-      abstract: 'This research explores how blockchain can be used to verify academic credentials securely, reduce document fraud, and improve trust in postgraduate academic records. By leveraging decentralized ledgers and smart contracts, the study aims to create a tamper-proof system for real-time validation of degrees and transcripts across international institutional boundaries.',
-      appointmentId: 'SV-APT-2025-014',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: '13 Oct 2025',
-      releasedDate: '14 Oct 2025',
-      panelMemberName: 'Assoc. Prof. Dr. Amina Malik',
-      panelAssignedDate: '22 Nov 2025'
-    },
-    {
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Pending',
-      status: 'Pending',
-      updatedDate: '12 Oct 2025',
-      email: 'nuraina@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Machine Learning Approaches for Dynamic Malware Classification"',
-      researchArea: 'Cybersecurity / Applied Machine Learning',
-      abstract: 'This study investigates deep neural networks for classify malware signatures in heterogeneous cloud workloads. The dynamic taxonomy will yield higher precision and faster execution over static hashes, defending container instances.',
-      appointmentId: 'SV-APT-2025-089',
-      workloadLimit: '1/5 Supervisees',
-      approvedDate: 'Pending Review',
-      releasedDate: 'Pending Release',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '15 Nov 2025'
-    },
-    {
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Not Assigned',
-      status: 'No Supervisor',
-      updatedDate: '10 Oct 2025',
-      email: 'kumar.raj@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Privacy-Preserving Federated Learning on Edge Devices"',
-      researchArea: 'Distributed Systems & Mobile Security',
-      abstract: 'Abstract pending supervisor assignment. The proposed research focuses on decentralized optimization of deep models without exposing local user records to centralized entities.',
-      appointmentId: 'SV-APT-2025-102',
-      workloadLimit: 'N/A',
-      approvedDate: 'N/A',
-      releasedDate: 'N/A',
-      panelMemberName: 'Not Assigned',
-      panelAssignedDate: 'N/A'
-    },
-    {
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      programme: 'MSc. Data Science',
-      supervisor: 'Dr. Aris Ghaffar',
-      status: 'Workload Alert',
-      updatedDate: '13 Oct 2025',
-      email: 'farah.nabila@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Graph Neural Networks for Financial Fraud Identification"',
-      researchArea: 'Graph Analytics / Deep Learning',
-      abstract: 'This research plans to model transactions as complex multi-layer graphs. Graph Neural Networks will track pattern shifts, identifying anomalies before transaction propagation.',
-      appointmentId: 'SV-APT-2025-045',
-      workloadLimit: '5/5 Supervisees',
-      approvedDate: '11 Oct 2025',
-      releasedDate: '13 Oct 2025',
-      panelMemberName: 'Dr. Robert Chen',
-      panelAssignedDate: '28 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401301',
-      studentName: 'Lim Wei',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      status: 'Rejected',
-      updatedDate: '11 Oct 2025',
-      email: 'limwei@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Heuristic Routing Protocols in Software-Defined Aerial Networks"',
-      researchArea: 'Network Architecture / Network Virtualization',
-      abstract: 'Investigating high-altitude aerial routing algorithms. Rejected due to alignment overlaps with standard department hardware tracks.',
-      appointmentId: 'SV-APT-2025-003',
-      workloadLimit: '3/5 Supervisees',
-      approvedDate: 'Rejected',
-      releasedDate: 'Rejected',
-      panelMemberName: 'Dr. Jane Doe',
-      panelAssignedDate: '10 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401415',
-      studentName: 'Azizul Ibrahim',
-      programme: 'MSc. Software Engineering',
-      supervisor: 'Dr. Sarah Lim',
-      status: 'Approved',
-      updatedDate: '15 Oct 2025',
-      email: 'azizul.i@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Automated Security Patch Verification via Static Code Logic"',
-      researchArea: 'Software Security / Code Automation',
-      abstract: 'Analyzing continuous delivery pipelines to detect vulnerabilities immediately during branch builds. Automated testing will generate proof-of-correctness theorems for common CVEs.',
-      appointmentId: 'SV-APT-2025-031',
-      workloadLimit: '3/5 Supervisees',
-      approvedDate: '14 Oct 2025',
-      releasedDate: '15 Oct 2025',
-      panelMemberName: 'Assoc. Prof. Dr. Amina Malik',
-      panelAssignedDate: '12 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401590',
-      studentName: 'Chloe Ding',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Robert Chen',
-      status: 'Approved',
-      updatedDate: '16 Oct 2025',
-      email: 'chloe.ding@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Visual Question Answering Models for Low-Resource Languages"',
-      researchArea: 'Computer Vision / NLP',
-      abstract: 'Exploring cross-lingual zero-shot visual reasoning frameworks. The project leverages visual attention mechanisms and tiny language model decoders adapted for Southeast Asian speech.',
-      appointmentId: 'SV-APT-2025-067',
-      workloadLimit: '2/5 Supervisees',
-      approvedDate: '15 Oct 2025',
-      releasedDate: '16 Oct 2025',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '19 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401612',
-      studentName: 'Siddharth Sen',
-      programme: 'MSc. Data Science',
-      supervisor: 'Dr. Jane Doe',
-      status: 'Pending',
-      updatedDate: '12 Oct 2025',
-      email: 'siddharth@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Clustering Approaches for High-Dimensional Genomic Datasets"',
-      researchArea: 'Bioinformatics / Unsupervised Learning',
-      abstract: 'Formulating robust proximity metrics to tackle sparsity in genetic sequences. Project targets identification of latent markers for metabolic anomalies.',
-      appointmentId: 'SV-APT-2025-059',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: 'Pending Review',
-      releasedDate: 'Pending Release',
-      panelMemberName: 'Dr. Robert Chen',
-      panelAssignedDate: '11 Nov 25'
-    },
-    {
-      studentId: 'MEA2401788',
-      studentName: 'Farhan Hanif',
-      programme: 'MSc. Information Technology',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'No Supervisor',
-      updatedDate: '10 Oct 2025',
-      email: 'farhan.h@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Cloud Resource Orchestration for IoT Event Processing"',
-      researchArea: 'Edge Computing / IT Management',
-      abstract: 'Analyzing edge gateway layouts for micro-event delivery. Currently seeking supervisor expert in real-time embedded communication protocols.',
-      appointmentId: 'SV-APT-2025-099',
-      workloadLimit: 'N/A',
-      approvedDate: 'N/A',
-      releasedDate: 'N/A',
-      panelMemberName: 'Not Assigned',
-      panelAssignedDate: 'N/A'
-    },
-    {
-      studentId: 'MEA2401920',
-      studentName: 'Zahra Al-Habshi',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Siti Noor',
-      status: 'Workload Alert',
-      updatedDate: '14 Oct 2025',
-      email: 'zahra.ah@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Self-Supervised Contrastive Learning in Remote Sensing"',
-      researchArea: 'Computer Vision / Geotechnical Data',
-      abstract: 'Analyzing multi-spectral satellite tiles using vision transformer backbones. This study reduces label-dataset dependency, detecting physical layout shifts.',
-      appointmentId: 'SV-APT-2025-048',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: '12 Oct 2025',
-      releasedDate: '14 Oct 2025',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '25 Nov 2025'
-    }
-  ]);
+  // Supervisor appointment records loaded from appointmentsApi (mock-backed today).
+  const [records, setRecords] = useState<SupervisorRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSupervisorAppointments()
+      .then(setRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -994,7 +803,19 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {paginatedRecords.length > 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <LoadingState message="Loading supervisor appointments…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <ErrorState message={error} onRetry={loadRecords} />
+                      </td>
+                    </tr>
+                  ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((r) => (
                       <tr key={r.studentId} className="hover:bg-slate-50/50 transition-colors">
                         

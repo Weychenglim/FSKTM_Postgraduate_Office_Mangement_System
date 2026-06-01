@@ -1,0 +1,18 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+// Barrel for the API service layer. Components should import data access from
+// here, e.g. `import { getStudents } from '../services'`.
+
+export * from './apiClient';
+export * from './studentsApi';
+export * from './lecturersApi';
+export * from './appointmentsApi';
+export * from './marksApi';
+export * from './filesApi';
+export * from './announcementsApi';
+export * from './notificationsApi';
+export * from './timelineApi';
+export * from './lettersApi';

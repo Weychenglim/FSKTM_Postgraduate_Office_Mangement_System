@@ -4,18 +4,21 @@
  */
 
 import React from 'react';
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  MessageSquareCode, 
-  FolderMinus, 
-  Users, 
-  MailOpen, 
-  Megaphone, 
-  CheckSquare, 
-  Award, 
-  Settings as SettingsIcon 
+import {
+  GraduationCap,
+  LayoutDashboard,
+  MessageSquareCode,
+  FolderMinus,
+  Users,
+  MailOpen,
+  Megaphone,
+  CheckSquare,
+  Award,
+  Settings as SettingsIcon,
+  LucideIcon
 } from 'lucide-react';
+import { SIDEBAR_ITEMS, SIDEBAR_MENU_ORDER, resolveSidebarItem } from '../constants/navigation';
+import { allowedModulesFor } from '../auth/permissions';
 
 interface SidebarProps {
   activeItem: string;
@@ -25,61 +28,18 @@ interface SidebarProps {
   userRole?: string;
 }
 
-const mapActiveItem = (item: string): string => {
-  const map: Record<string, string> = {
-    'Office Dashboard': 'Dashboard Overview',
-    'Administration Dashboard': 'Dashboard Overview',
-    'Timeline Management': 'Dashboard Overview',
-    'Upload Timeline Drawer': 'Dashboard Overview',
-    'Add Timeline Entry Drawer': 'Dashboard Overview',
-    'Edit Timeline Entry Drawer': 'Dashboard Overview',
-    'Registry Management': 'Registry Management',
-    'Student Registry': 'Registry Management',
-    'Register New Students': 'Registry Management',
-    'Bulk Student Import': 'Registry Management',
-    'Single Student Registration': 'Registry Management',
-    'Staff and Lecturer Accounts': 'Registry Management',
-    'Office Staff Accounts': 'Registry Management',
-    'Lecturer Accounts': 'Registry Management',
-    'Programme Coordinator Accounts': 'Registry Management',
-    'Create New Account': 'Registry Management',
-    'Add New Account': 'Registry Management',
-    'Create Office Staff Account': 'Registry Management',
-    'Create Lecturer Account': 'Registry Management',
-    'Account Detail': 'Registry Management',
-    'FAQ Chatbot': 'FAQ Chatbot',
-    'Academic FAQ Editor': 'FAQ Chatbot',
-    'File Repository': 'File Management',
-    'File Repository with File Preview Drawer': 'File Management',
-    'Upload New Document': 'File Management',
-    'Announcement Management': 'Announcements',
-    'Letter Template Management': 'Letter Generation',
-    'Template Editor': 'Letter Generation',
-    'Letter Generation': 'Letter Generation',
-    'Supervisor Appointment Management': 'Supervisor Appointments',
-    'Supervisor Appointment Detail': 'Supervisor Appointments',
-    'Supervisor Workload Monitoring': 'Supervisor Appointments',
-    'Lecturer Supervisor Appointments': 'Supervisor Appointments',
-    'Supervisor Request History': 'Supervisor Appointments',
-    'Pending Supervisor Request Detail': 'Supervisor Appointments',
-    'Active Supervisee Detail': 'Supervisor Appointments',
-    'Panel Appointment Management': 'Panel Appointments',
-    'Panel Appointment Detail': 'Panel Appointments',
-    'Panel Workload Monitoring': 'Panel Appointments',
-    'Lecturer Panel Appointments': 'Panel Appointments',
-    'Panel Assignment Detail': 'Panel Appointments',
-    'Marks & Evaluation Management': 'Marks Entry',
-    'Mark Entry Period Configuration': 'Marks Entry',
-    'Rubric Components Management': 'Marks Entry',
-    'Evaluation Task Assignment': 'Marks Entry',
-    'Mark Entry Records': 'Marks Entry',
-    'Mark Entry Record Detail': 'Marks Entry',
-    'Lecturer Marks Entry': 'Marks Entry',
-    'Mark Entry Tasks': 'Marks Entry',
-    'Mark Entry Form': 'Marks Entry',
-    'Notifications & Announcements': 'None'
-  };
-  return map[item] || item;
+// Icon + label lookup for each sidebar entry (identities live in navigation.ts).
+const ITEM_META: Record<string, { label: string; icon: LucideIcon }> = {
+  [SIDEBAR_ITEMS.DASHBOARD]: { label: 'Dashboard Overview', icon: LayoutDashboard },
+  [SIDEBAR_ITEMS.REGISTRY]: { label: 'Registry Management', icon: GraduationCap },
+  [SIDEBAR_ITEMS.FAQ_CHATBOT]: { label: 'FAQ Chatbot', icon: MessageSquareCode },
+  [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { label: 'File Management', icon: FolderMinus },
+  [SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS]: { label: 'Supervisor Appointments', icon: Users },
+  [SIDEBAR_ITEMS.LETTER_GENERATION]: { label: 'Letter Generation', icon: MailOpen },
+  [SIDEBAR_ITEMS.ANNOUNCEMENTS]: { label: 'Announcements', icon: Megaphone },
+  [SIDEBAR_ITEMS.MARKS_ENTRY]: { label: 'Marks Entry', icon: CheckSquare },
+  [SIDEBAR_ITEMS.PANEL_APPOINTMENTS]: { label: 'Panel Appointments', icon: Award },
+  [SIDEBAR_ITEMS.SETTINGS]: { label: 'Settings', icon: SettingsIcon },
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose, userRole }) => {
@@ -91,47 +51,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
     }
   };
 
-  const menuItems = [
-    { id: 'Dashboard Overview', label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'Registry Management', label: 'Registry Management', icon: GraduationCap },
-    { id: 'FAQ Chatbot', label: 'FAQ Chatbot', icon: MessageSquareCode },
-    { id: 'File Management', label: 'File Management', icon: FolderMinus },
-    { id: 'Supervisor Appointments', label: 'Supervisor Appointments', icon: Users },
-    { id: 'Letter Generation', label: 'Letter Generation', icon: MailOpen },
-    { id: 'Announcements', label: 'Announcements', icon: Megaphone },
-    { id: 'Marks Entry', label: 'Marks Entry', icon: CheckSquare },
-    { id: 'Panel Appointments', label: 'Panel Appointments', icon: Award },
-    { id: 'Settings', label: 'Settings', icon: SettingsIcon },
-  ];
+  // Build the menu from the canonical order, scoped to the role's permissions.
+  const filteredMenuItems = allowedModulesFor(userRole, SIDEBAR_MENU_ORDER).map((id) => ({
+    id,
+    label: ITEM_META[id].label,
+    icon: ITEM_META[id].icon,
+  }));
 
-  const filteredMenuItems = menuItems.filter((item) => {
-    if (userRole === 'Student') {
-      return [
-        'Dashboard Overview',
-        'FAQ Chatbot',
-        'Supervisor Appointments',
-        'Panel Appointments',
-        'File Management',
-        'Letter Generation',
-        'Settings'
-      ].includes(item.id);
-    }
-
-    if (userRole === 'Lecturer') {
-      return [
-        'Dashboard Overview',
-        'FAQ Chatbot',
-        'Marks Entry',
-        'Panel Appointments',
-        'Supervisor Appointments',
-        'Settings'
-      ].includes(item.id);
-    }
-
-    return true;
-  });
-
-  const mappedActiveItem = mapActiveItem(activeItem);
+  const mappedActiveItem = resolveSidebarItem(activeItem);
 
   return (
     <div
@@ -166,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
         {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = mappedActiveItem === item.id;
-          const displayLabel = item.id === 'File Management' && userRole === 'Student'
+          const displayLabel = item.id === SIDEBAR_ITEMS.FILE_MANAGEMENT && userRole === 'Student'
             ? 'File Submission'
             : item.label;
           return (

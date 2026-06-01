@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
   Users,
   Search,
   SlidersHorizontal,
@@ -40,19 +40,11 @@ import {
 import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { PanelRecord } from '../types';
+import { getPanelAppointments } from '../services';
 
-// Interfaces for our Dataset
-export interface PanelRecord {
-  id: string; // MEAXXXXXXX
-  studentName: string;
-  programme: string;
-  semester: string;
-  supervisor: string;
-  panelMember: string; // "Assoc. Prof. Dr. Amina Malik", "Pending", "Not Assigned", "Dr. Robert Chen", "Dr. Sarah Lim"
-  status: 'Approved' | 'No Panel' | 'Pending' | 'Recommendation' | 'Workload Alert' | 'Rejected';
-  updatedDate: string; // "23 Nov 2025" or "-"
-}
-
+// Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface WorkloadStat {
   lecturerName: string;
   assigned: number;
@@ -72,110 +64,23 @@ export const PanelAppointmentManagement: React.FC = () => {
   const [panelView, setPanelView] = useState<'list' | 'detail' | 'workload'>('list');
   const [selectedRecord, setSelectedRecord] = useState<PanelRecord | null>(null);
 
-  // Core records mimicking screenshot details perfectly + extra realistic rows
-  const [records] = useState<PanelRecord[]>([
-    {
-      id: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Siti Noor',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'Approved',
-      updatedDate: '23 Nov 2025'
-    },
-    {
-      id: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Wey Cheng',
-      panelMember: 'Pending',
-      status: 'Recommendation',
-      updatedDate: '20 Nov 2025'
-    },
-    {
-      id: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Aris Ghaffar',
-      panelMember: 'Not Assigned',
-      status: 'No Panel',
-      updatedDate: '-'
-    },
-    {
-      id: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      programme: 'MSc. Data Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Siti Noor',
-      panelMember: 'Dr. Robert Chen',
-      status: 'Workload Alert',
-      updatedDate: '22 Nov 2025'
-    },
-    {
-      id: 'MEA2401301',
-      studentName: 'Lim Wei',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      panelMember: 'Dr. Sarah Lim',
-      status: 'Rejected',
-      updatedDate: '24 Nov 2025'
-    },
-    // Extra records to fill the page 2/3 for genuine pagination demonstration
-    {
-      id: 'MEA2400299',
-      studentName: 'Johnathan Tan',
-      programme: 'MSc. Data Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Robert Chen',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'Approved',
-      updatedDate: '21 Nov 2025'
-    },
-    {
-      id: 'MEA2304910',
-      studentName: 'Clara Wong',
-      programme: 'MSc. Software Engineering',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Sarah Lim',
-      panelMember: 'Pending',
-      status: 'Recommendation',
-      updatedDate: '18 Nov 2025'
-    },
-    {
-      id: 'MEA2401123',
-      studentName: 'Zainab Qureshi',
-      programme: 'MSc. Information Technology',
-      semester: 'Sem 2 2024/2025',
-      supervisor: 'Dr. Robert Chen',
-      panelMember: 'Dr. Siti Noor',
-      status: 'Approved',
-      updatedDate: '15 Jun 2025'
-    },
-    {
-      id: 'MEA2401944',
-      studentName: 'Vikram Nair',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 2 2024/2025',
-      supervisor: 'Dr. Aris Ghaffar',
-      panelMember: 'Not Assigned',
-      status: 'No Panel',
-      updatedDate: '-'
-    },
-    {
-      id: 'MEA2301980',
-      studentName: 'Amirah Ismail',
-      programme: 'MSc. Information Technology',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      panelMember: 'Dr. Aris Ghaffar',
-      status: 'Workload Alert',
-      updatedDate: '22 Nov 2025'
-    }
-  ]);
+  // Panel records loaded from appointmentsApi (mock-backed today).
+  const [records, setRecords] = useState<PanelRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getPanelAppointments()
+      .then(setRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   // Main input filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -686,8 +591,20 @@ export const PanelAppointmentManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
-                  
-                  {paginatedRecords.length > 0 ? (
+
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <LoadingState message="Loading panel appointments…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <ErrorState message={error} onRetry={loadRecords} />
+                      </td>
+                    </tr>
+                  ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((rec) => (
                       <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
                         

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
-import { 
-  FileText, 
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  FileText,
   UploadCloud, 
   Trash2, 
   Download, 
@@ -20,16 +20,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { SubmissionRecord } from '../types';
+import { getStudentSubmissions } from '../services';
 
-interface SubmissionRecord {
-  id: string;
-  name: string;
-  category: string;
-  uploaded: string;
-  size: string;
-  sizeBytes: number;
-  status: 'Approved' | 'Pending Review' | 'Draft';
-}
+// SubmissionRecord now lives in src/types.
 
 export const StudentFileSubmission: React.FC = () => {
   // Available Submission Categories
@@ -42,36 +37,23 @@ export const StudentFileSubmission: React.FC = () => {
     'Sponsorship Clearance Form'
   ];
 
-  // Preserved Sample Records from instructions
-  const [submissions, setSubmissions] = useState<SubmissionRecord[]>([
-    {
-      id: 'sub-1',
-      name: 'thesis_v2_final_revision.pdf',
-      category: 'Final Thesis Draft',
-      uploaded: 'Oct 24, 2023 • 10:45 AM',
-      size: '4.2 MB',
-      sizeBytes: 4404019,
-      status: 'Approved'
-    },
-    {
-      id: 'sub-2',
-      name: 'midterm_progress_2023.docx',
-      category: 'Midterm Progress Report',
-      uploaded: 'Nov 12, 2023 • 02:15 PM',
-      size: '1.8 MB',
-      sizeBytes: 1887436,
-      status: 'Pending Review'
-    },
-    {
-      id: 'sub-3',
-      name: 'proposal_v1_notes.docx',
-      category: 'Thesis Proposal',
-      uploaded: 'Dec 01, 2023 • 09:30 AM',
-      size: '2.4 MB',
-      sizeBytes: 2516582,
-      status: 'Draft'
-    }
-  ]);
+  // Student submissions loaded from filesApi (mock-backed today).
+  const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadSubmissions = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getStudentSubmissions()
+      .then(setSubmissions)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load submissions.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadSubmissions();
+  }, [loadSubmissions]);
 
   // UI state
   const [selectedCategory, setSelectedCategory] = useState<string>('Thesis Proposal');
@@ -333,7 +315,19 @@ export const StudentFileSubmission: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {submissions.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <LoadingState message="Loading submissions…" />
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <ErrorState message={error} onRetry={loadSubmissions} />
+                    </td>
+                  </tr>
+                ) : submissions.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-400 font-bold select-none">
                       No recent submissions recorded under your index. Select a category and upload to begin.

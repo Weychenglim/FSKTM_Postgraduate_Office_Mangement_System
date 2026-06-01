@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -23,140 +23,34 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { MarkRecord } from '../types';
+import { getMarkRecords } from '../services';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
   onViewRecordDetail?: (recordId: string) => void;
 }
 
-interface MarkRecord {
-  id: string; // Record ID e.g. MRK-2025-021
-  studentId: string;
-  studentName: string;
-  studentInitials: string;
-  researchTitle: string;
-  panelMember: string;
-  semester: string;
-  programme: string;
-  totalMark: number | null | 'Draft'; // numeric, 'Draft' if draft, or null
-  status: 'Submitted' | 'Draft' | 'Not Started' | 'Overdue' | 'Closed';
-  submittedDate: string; // "12 Dec 2025" or "-"
-  rubricScores?: Record<string, number>;
-}
-
 export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onViewRecordDetail }) => {
-  // Mock dataset matching screenshot's exact records + rich dataset for search/filter and pagination demos
-  const [records, setRecords] = useState<MarkRecord[]>([
-    {
-      id: 'MRK-2025-021',
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      studentInitials: 'NR',
-      researchTitle: 'Blockchain-Based Academic Record Verification System',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Software Engineering',
-      totalMark: 84,
-      status: 'Submitted',
-      submittedDate: '12 Dec 2025',
-      rubricScores: { 'Proposal': 18, 'Literature Review': 17, 'Methodology': 21, 'System Build': 16, 'Viva': 12 }
-    },
-    {
-      id: 'MRK-2025-018',
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      studentInitials: 'FN',
-      researchTitle: 'Mobile Learning Adoption in Higher Education: A Malaysian Case Study',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 79,
-      status: 'Submitted',
-      submittedDate: '13 Dec 2025',
-      rubricScores: { 'Proposal': 16, 'Literature Review': 16, 'Methodology': 20, 'System Build': 15, 'Viva': 12 }
-    },
-    {
-      id: 'MRK-2025-014',
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      studentInitials: 'JL',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: 'Draft',
-      status: 'Draft',
-      submittedDate: '-',
-      rubricScores: { 'Proposal': 14, 'Literature Review': 15, 'Methodology': 18 }
-    },
-    {
-      id: 'MRK-2025-011',
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      studentInitials: 'SN',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      status: 'Not Started',
-      submittedDate: '-'
-    },
-    {
-      id: 'MRK-2025-009',
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      studentInitials: 'KR',
-      researchTitle: 'Cloud-Based Research Document Management for Multi-University Collaboration',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      status: 'Overdue',
-      submittedDate: '-'
-    },
-    // Extra demonstration records to paginate up to 10 and show query strength
-    {
-      id: 'MRK-2025-008',
-      studentId: 'MEA2400211',
-      studentName: 'Abdul Rahman Malik',
-      studentInitials: 'AM',
-      researchTitle: 'Internet of Things (IoT) Based Flood Defense Alert Mechanisms',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 91,
-      status: 'Submitted',
-      submittedDate: '10 Dec 2025',
-      rubricScores: { 'Proposal': 19, 'Literature Review': 19, 'Methodology': 23, 'System Build': 18, 'Viva': 12 }
-    },
-    {
-      id: 'MRK-2025-007',
-      studentId: 'MEA2304910',
-      studentName: 'Clara Wong',
-      studentInitials: 'CW',
-      researchTitle: 'Predictive Medical Diagnostics Using Deep Convoluted Neural Networks',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Software Engineering',
-      totalMark: 'Draft',
-      status: 'Draft',
-      submittedDate: '-'
-    },
-    {
-      id: 'MRK-2025-006',
-      studentId: 'MEA2401123',
-      studentName: 'Zainab Qureshi',
-      studentInitials: 'ZQ',
-      researchTitle: 'Interactive Arabic Sign Language Translation Engine with Haptic Feedback',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 2 2024/2025',
-      programme: 'Master of Information Technology',
-      totalMark: 88,
-      status: 'Closed',
-      submittedDate: '15 Jun 2025'
-    }
-  ]);
+  // Records are loaded from marksApi (mock-backed today). Loading / error states
+  // mirror what the real backend call will surface.
+  const [records, setRecords] = useState<MarkRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getMarkRecords()
+      .then(setRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load mark records.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   // Form Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -489,7 +383,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
 
       {/* Main Records Data Table Container */}
       <div id="mark-records-table-container" className="bg-white rounded-2xl border border-slate-200/80 shadow-3xs overflow-hidden">
-        
+
+        {loading ? (
+          <LoadingState message="Loading mark records…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadRecords} />
+        ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="data-table min-w-[950px]">
             <thead>
@@ -663,6 +563,8 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
             </button>
           </div>
         </div>
+        </>
+        )}
 
       </div>
 

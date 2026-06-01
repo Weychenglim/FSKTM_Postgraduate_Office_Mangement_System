@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
   ChevronLeft,
   Download, 
   Plus, 
@@ -29,16 +29,11 @@ import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { TimelineEntry } from '../types';
+import { getTimelineEntries } from '../services';
 
-interface TimelineEntry {
-  id: string;
-  event: string;
-  category: 'Supervisor Appointment' | 'Panel Appointment' | 'Document Submission' | 'Announcements' | 'Marks & Evaluation';
-  startDate: string;
-  endDate: string;
-  targetRole: ('STUDENT' | 'LECTURER')[];
-  status: 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
-}
+// TimelineEntry now lives in src/types.
 
 interface UpdateLog {
   id: string;
@@ -68,54 +63,23 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     }, 4000);
   };
 
-  // Initial Data rows
-  const [entries, setEntries] = useState<TimelineEntry[]>([
-    {
-      id: 'ent_1',
-      event: 'Supervisor Request Period',
-      category: 'Supervisor Appointment',
-      startDate: '01 Oct 2025',
-      endDate: '15 Oct 2025',
-      targetRole: ['STUDENT'],
-      status: 'Completed'
-    },
-    {
-      id: 'ent_2',
-      event: 'Panel Recommendation Period',
-      category: 'Panel Appointment',
-      startDate: '16 Oct 2025',
-      endDate: '30 Oct 2025',
-      targetRole: ['LECTURER'],
-      status: 'Active'
-    },
-    {
-      id: 'ent_3',
-      event: 'Proposal Upload Deadline',
-      category: 'Document Submission',
-      startDate: '25 Oct 2025',
-      endDate: '25 Oct 2025',
-      targetRole: ['STUDENT'],
-      status: 'Deadline'
-    },
-    {
-      id: 'ent_4',
-      event: 'Evaluation Schedule Release',
-      category: 'Announcements',
-      startDate: '20 Nov 2025',
-      endDate: '20 Nov 2025',
-      targetRole: ['STUDENT', 'LECTURER'],
-      status: 'Upcoming'
-    },
-    {
-      id: 'ent_5',
-      event: 'Mark Entry Period',
-      category: 'Marks & Evaluation',
-      startDate: '01 Dec 2025',
-      endDate: '10 Dec 2025',
-      targetRole: ['LECTURER'],
-      status: 'Upcoming'
-    }
-  ]);
+  // Timeline rows loaded from timelineApi (mock-backed today).
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEntries = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getTimelineEntries()
+      .then(setEntries)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load timeline entries.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
 
   // Recent Update Track Log data
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([
@@ -479,7 +443,19 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <LoadingState message="Loading timeline…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <ErrorState message={error} onRetry={loadEntries} />
+                  </td>
+                </tr>
+              ) : filteredEntries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400 italic">
                     No timeline schedule events found matching your filter scope criteria.

@@ -46,6 +46,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { DemoUser } from './types';
+import { SIDEBAR_ITEMS } from './constants/navigation';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
@@ -160,7 +161,7 @@ export default function App() {
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
 
   // Sidebar navigation active state
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard Overview');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(SIDEBAR_ITEMS.DASHBOARD);
 
   // Sub-view transition state under Dashboard Overview
   const [dashboardSubView, setDashboardSubView] = useState<'overview' | 'timeline'>('overview');
@@ -197,7 +198,7 @@ export default function App() {
 
   const handleSuccessfulLogin = (user: DemoUser) => {
     setCurrentUser(user);
-    setActiveSidebarItem(user.role === 'Lecturer' ? 'Marks Entry' : 'Dashboard Overview');
+    setActiveSidebarItem(user.role === 'Lecturer' ? SIDEBAR_ITEMS.MARKS_ENTRY : SIDEBAR_ITEMS.DASHBOARD);
     setCurrentSubView('dashboard');
     setDashboardSubView('overview');
   };
@@ -219,16 +220,16 @@ export default function App() {
           }}
           onLogout={handleLogout}
           onNotificationsTrigger={() => {
-            setActiveSidebarItem('Notifications & Announcements');
+            setActiveSidebarItem(SIDEBAR_ITEMS.NOTIFICATIONS);
           }}
           userName={currentUser.fullName}
           userRole={currentUser.role}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
-          {activeSidebarItem === 'Marks Entry' ? (
+          {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
             isLecturerWorkspace ? (
-              <LecturerMarksEntry onBackToDashboard={() => setActiveSidebarItem('Dashboard Overview')} />
+              <LecturerMarksEntry onBackToDashboard={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
             ) : currentSubView === 'config' ? (
               <MarkEntryPeriodConfig onBack={() => setCurrentSubView('dashboard')} />
             ) : currentSubView === 'rubric' ? (
@@ -333,25 +334,25 @@ export default function App() {
 
               </div>
             )
-          ) : activeSidebarItem === 'Panel Appointments' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
             isStudentWorkspace ? (
-              <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem('FAQ Chatbot')} />
+              <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
             ) : isLecturerWorkspace ? (
               <LecturerPanelAppointments />
             ) : (
               <PanelAppointmentManagement />
             )
-          ) : activeSidebarItem === 'Supervisor Appointments' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
             isStudentWorkspace ? (
-              <StudentSupervisorAppointment onShowFAQChatbot={() => setActiveSidebarItem('FAQ Chatbot')} />
+              <StudentSupervisorAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
             ) : isLecturerWorkspace ? (
               <LecturerSupervisorAppointments />
             ) : (
-              <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem('Panel Appointments')} />
+              <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem(SIDEBAR_ITEMS.PANEL_APPOINTMENTS)} />
             )
-          ) : activeSidebarItem === 'Registry Management' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
             <StudentRegistry />
-          ) : activeSidebarItem === 'Dashboard Overview' || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
             isStudentWorkspace ? (
               <StudentDashboard
                 studentName={currentUser.fullName}
@@ -371,28 +372,28 @@ export default function App() {
                 onNavigateToTimeline={() => setDashboardSubView('timeline')}
               />
             )
-          ) : activeSidebarItem === 'File Management' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
             isStudentWorkspace ? (
               <StudentFileSubmission />
             ) : (
               <FileRepository />
             )
-          ) : activeSidebarItem === 'FAQ Chatbot' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
             isStudentWorkspace ? (
               <StudentFAQChatbot />
             ) : (
               <AcademicFAQEditor />
             )
-          ) : activeSidebarItem === 'Letter Generation' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
             isStudentWorkspace ? (
               <StudentLetterGeneration />
             ) : (
               <LetterTemplateManagement />
             )
-          ) : activeSidebarItem === 'Announcements' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
             <AnnouncementManagement />
-          ) : activeSidebarItem === 'Notifications & Announcements' ? (
-            <NotificationsAnnouncements onBack={() => setActiveSidebarItem('Dashboard Overview')} />
+          ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
+            <NotificationsAnnouncements onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
           ) : (
             /* Placeholder message for other sidebar routes */
             <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
@@ -406,7 +407,7 @@ export default function App() {
                 You have routed to the <strong>{activeSidebarItem}</strong> workflow module inside the FSKTM administrative center. To fulfill layout reference checks, please toggle back to the <strong>Marks Entry</strong> tab.
               </p>
               <button
-                onClick={() => setActiveSidebarItem('Marks Entry')}
+                onClick={() => setActiveSidebarItem(SIDEBAR_ITEMS.MARKS_ENTRY)}
                 className="mt-6 px-5 py-2.5 bg-brand-navy text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
               >
                 Return to Marks Entry

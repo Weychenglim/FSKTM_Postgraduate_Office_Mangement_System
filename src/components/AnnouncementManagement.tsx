@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  Megaphone, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Megaphone,
   Search, 
   Paperclip, 
   Calendar, 
@@ -25,17 +25,11 @@ import {
   FileText
 } from 'lucide-react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { AnnouncementItem } from '../types';
+import { getAnnouncements } from '../services';
 
-// Structure for the stored Announcement item
-interface AnnouncementItem {
-  id: string;
-  title: string;
-  summary: string;
-  target: 'All Students' | 'Lecturers' | 'Staff' | 'Coordinators' | 'All';
-  priority: 'Urgent' | 'Info' | 'General';
-  dateCreated: string;
-  status: 'Active' | 'Draft' | 'Scheduled' | 'Expired';
-}
+// AnnouncementItem now lives in src/types.
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -45,63 +39,23 @@ export const AnnouncementManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- 2. Live Broadcast History Data store ---
-  const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([
-    {
-      id: 'ann-1',
-      title: 'Semester 1 Exam Schedule Released',
-      summary: 'Please check the portal for updated venue details and checklist guidelines for all master courses...',
-      target: 'All Students',
-      priority: 'Urgent',
-      dateCreated: '28 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-2',
-      title: 'New Research Grant Opportunity',
-      summary: 'Internal funding call for CS faculty members with collaborative partners in South East Asia...',
-      target: 'Lecturers',
-      priority: 'Info',
-      dateCreated: '27 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-3',
-      title: 'System Maintenance Notice',
-      summary: 'E-learning platform will be offline for 2 hours for security assertions renewal and backup setup...',
-      target: 'Staff',
-      priority: 'General',
-      dateCreated: '25 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-4',
-      title: "Dean's Special Address",
-      summary: 'Invitation to the annual faculty gathering and postgraduate feedback review assembly...',
-      target: 'Coordinators',
-      priority: 'Info',
-      dateCreated: '24 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-5',
-      title: 'Postgraduate Defense Committee Rubrics',
-      summary: 'Baseline weights adjusted from 20% to 30% for dissertation oral assessment metrics.',
-      target: 'Coordinators',
-      priority: 'Urgent',
-      dateCreated: '22 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-6',
-      title: 'Interactive Sign Language Class Opening',
-      summary: 'New experimental software engine available for postgraduate feedback and research testing.',
-      target: 'Lecturers',
-      priority: 'General',
-      dateCreated: '15 May 2026',
-      status: 'Expired'
-    }
-  ]);
+  // --- 2. Live Broadcast History Data store (loaded from announcementsApi) ---
+  const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAnnouncements = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getAnnouncements()
+      .then(setHistoryItems)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load announcements.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
 
   // --- 3. Draft Form States ---
   const [headline, setHeadline] = useState('');
@@ -536,7 +490,19 @@ export const AnnouncementManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {displayedAnnouncements.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={2} className="p-0">
+                        <LoadingState message="Loading announcements…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={2} className="p-0">
+                        <ErrorState message={error} onRetry={loadAnnouncements} />
+                      </td>
+                    </tr>
+                  ) : displayedAnnouncements.length === 0 ? (
                     <tr>
                       <td colSpan={2} className="px-5 py-12 text-center text-slate-400 font-medium">
                         No stored broadcasts found matching &quot;{searchQuery}&quot;.
