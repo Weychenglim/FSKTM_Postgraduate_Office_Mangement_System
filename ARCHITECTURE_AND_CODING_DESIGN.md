@@ -36,7 +36,7 @@
 - `src/components/StudentLetterGeneration.tsx` implements student letter request, preview, and print workflows.
 - `src/components/StudentDashboard.tsx` implements the student Dashboard Overview, including the read-only semester timeline, student status cards, next-action guidance, semester progress, support shortcut, and profile status.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
-- `src/components/PanelAppointmentManagement.tsx` uses a desktop two-column grid where the search/filter card and records table stay in the left column while attention and workload widgets span the right column.
+- `src/components/PanelAppointmentManagement.tsx` uses a responsive records-first grid where the search/filter card and records table get a wider desktop column while attention and workload widgets sit in a narrower side column on wide screens and move below the table on narrower desktops.
 - `src/index.css` contains shared Tailwind theme extensions for generated module color utilities, subtle shadows, backdrop blur, page headings, cards, links, and data-table primitives.
 - `src/index.css` also defines `brand-navy` and related brand tokens so authenticated modules avoid repeated arbitrary hex color utilities.
 - `src/index.css` defines shared table, card, form-control, filter-toolbar, icon-button, and drawer layout classes for repeated generated UI patterns that need custom layouts.

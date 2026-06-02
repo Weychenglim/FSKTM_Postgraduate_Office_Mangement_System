@@ -39,6 +39,7 @@
 - Standardized the next layer of shared UI consistency by routing reusable status badges through a shared tone helper, aligning common table actions/pagination with `PortalButton`, and normalizing drawer/modal/upload action controls across high-traffic office-staff, lecturer, and student surfaces.
 - Replaced additional local page headers and specialized controls with shared primitives, including student and lecturer module `PageHeader` usage, dashboard/announcement segmented controls, upload permission switches, removable tag chips, summary/status dots, and progress bars.
 - Finished the remaining authenticated module header cleanup so local `page-title`, `page-subtitle`, and `back-link` usage now lives inside `PortalPrimitives`, and converted more reusable summary/status/progress indicators to `StatusBadge`, `StatusDot`, and `ProgressBar`.
+- Adjusted Panel Appointment Management so the records table no longer depends on a horizontal scrollbar on desktop: the records area now uses a wider column, fixed table layout, compact cell spacing, and wrapped text.
 
 ## Current Testing Status
 
@@ -79,6 +80,9 @@
 - `npm run lint` passes after the remaining authenticated module header/status/progress primitive cleanup.
 - `npm run build` passes after the remaining authenticated module header/status/progress primitive cleanup.
 - Vite dev server smoke probe returns HTTP 200 with the root element present after the remaining authenticated module header/status/progress primitive cleanup.
+- `npm run lint` passes after the Panel Appointment Management no-horizontal-scroll table layout fix.
+- `npm run build` passes after the Panel Appointment Management no-horizontal-scroll table layout fix.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the Panel Appointment Management table layout fix.
 - Vite foreground server check returns HTTP 200 for the app root.
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, lecturer routes, and student routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.
