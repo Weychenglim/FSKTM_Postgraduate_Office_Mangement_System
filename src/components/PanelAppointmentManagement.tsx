@@ -325,10 +325,10 @@ export const PanelAppointmentManagement: React.FC = () => {
 
 
           {/* Mid Section Layout: Search filter box left, attention widgets right */}
-          <div id="filters-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans text-xs">
+          <div id="filters-layout-grid" className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start font-sans text-xs">
             
             {/* Filter Section (Left Col) */}
-            <div className="lg:col-span-8 bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
+            <div className="xl:col-span-9 bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
               <h3 className="font-extrabold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <span>Search Records</span>
@@ -451,7 +451,7 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
             {/* Records Needing Attention Widgets Column (Right Col) */}
-            <div className="lg:col-span-4 lg:row-start-1 lg:row-span-2 space-y-6 text-left">
+            <div className="order-3 xl:order-none xl:col-span-3 xl:row-start-1 xl:row-span-2 space-y-6 text-left">
               
               {/* Box A: Attention list card */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
@@ -551,7 +551,7 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
           {/* 3. Panel Appointment Records Table Container */}
-          <div className="lg:col-span-8 lg:col-start-1 lg:row-start-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
+          <div className="order-2 xl:order-none xl:col-span-9 xl:col-start-1 xl:row-start-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
@@ -573,17 +573,17 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
             {/* Inner responsive table view */}
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[850px] text-xs">
+            <div className="overflow-hidden">
+              <table className="data-table table-fixed text-[11px]">
                 <thead>
                   <tr className="data-thead bg-slate-50">
-                    <th className="data-th">Student ID / Name</th>
-                    <th className="data-th">Programme / Sem</th>
-                    <th className="data-th">Supervisor</th>
-                    <th className="data-th">Panel Member</th>
-                    <th className="data-th">Status</th>
-                    <th className="data-th">Updated</th>
-                    <th className="data-th text-right">Action</th>
+                    <th className="data-th px-3 w-[17%]">Student ID / Name</th>
+                    <th className="data-th px-3 w-[18%]">Programme / Sem</th>
+                    <th className="data-th px-3 w-[14%]">Supervisor</th>
+                    <th className="data-th px-3 w-[18%]">Panel Member</th>
+                    <th className="data-th px-3 w-[14%]">Status</th>
+                    <th className="data-th px-3 w-[10%]">Updated</th>
+                    <th className="data-th px-3 w-[9%] text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
@@ -605,31 +605,31 @@ export const PanelAppointmentManagement: React.FC = () => {
                       <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
                         
                         {/* ID & Name matched block with exact bold elements */}
-                        <td className="data-td">
+                        <td className="data-td px-3 align-top">
                           <button
                             onClick={() => handleViewDetail(rec)}
-                            className="font-bold text-brand-navy tracking-tight text-xs block hover:underline cursor-pointer text-left focus:outline-none"
+                            className="font-bold text-brand-navy tracking-tight text-[11px] block hover:underline cursor-pointer text-left focus:outline-none break-words"
                           >
                             {rec.id}
                           </button>
-                          <span className="text-slate-500 font-medium block mt-0.5">
+                          <span className="text-slate-500 font-medium block mt-0.5 break-words">
                             {rec.studentName}
                           </span>
                         </td>
 
                         {/* Program & Semester info */}
-                        <td className="data-td leading-relaxed">
-                          <span className="font-bold text-slate-700 block">{rec.programme}</span>
+                        <td className="data-td px-3 align-top leading-relaxed">
+                          <span className="font-bold text-slate-700 block break-words">{rec.programme}</span>
                           <span className="text-[10px] text-slate-450 font-medium mt-0.5 block">{rec.semester}</span>
                         </td>
 
                         {/* Supervisor */}
-                        <td className="data-td font-bold text-slate-700">
+                        <td className="data-td px-3 align-top font-bold text-slate-700 break-words">
                           {rec.supervisor}
                         </td>
 
                         {/* Panel Member Status Vetted color styles */}
-                        <td className="data-td">
+                        <td className="data-td px-3 align-top">
                           {rec.panelMember === 'Not Assigned' ? (
                             <span className="text-red-600 font-extrabold tracking-wide uppercase text-[10px]">
                               Not Assigned
@@ -639,14 +639,14 @@ export const PanelAppointmentManagement: React.FC = () => {
                               Pending
                             </span>
                           ) : (
-                            <span className="font-extrabold text-slate-800 text-xs">
+                            <span className="font-extrabold text-slate-800 text-[11px] break-words">
                               {rec.panelMember}
                             </span>
                           )}
                         </td>
 
                         {/* Vetting Status Chips matched strictly with mockup colors */}
-                        <td className="data-td">
+                        <td className="data-td px-3 align-top">
                           {rec.status === 'Approved' ? (
                             <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-full uppercase border border-emerald-100">
                               Approved
@@ -671,12 +671,12 @@ export const PanelAppointmentManagement: React.FC = () => {
                         </td>
 
                         {/* Action date */}
-                        <td className="data-td font-bold text-slate-500 font-mono text-[11px]">
+                        <td className="data-td px-3 align-top font-bold text-slate-500 font-mono text-[10px] whitespace-normal">
                           {rec.updatedDate}
                         </td>
 
                         {/* Action button trigger View detail */}
-                        <td className="data-td text-right">
+                        <td className="data-td px-3 align-top text-right">
                           <button
                             onClick={() => handleViewDetail(rec)}
                             className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
