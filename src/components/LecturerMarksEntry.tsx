@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   CheckSquare, 
   Clock, 
@@ -27,33 +27,14 @@ import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
 import { PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { EvaluationTask, EvaluationStatus } from '../types';
+import { getEvaluationTasks } from '../services';
 
 // ==================== TYPE DEFINITIONS ====================
 
-export type EvaluationStatus = 'NOT STARTED' | 'DRAFT SAVED' | 'SUBMITTED';
-
-export interface EvaluationTask {
-  studentId: string;
-  studentName: string;
-  initials: string;
-  researchTitle: string;
-  semester: string;
-  deadline: string;
-  status: EvaluationStatus;
-  // Interactive 5 Specific components from screenshot
-  problemDefinitionScore?: number;       // max 20
-  problemDefinitionFeedback?: string;
-  literatureReviewScore?: number;        // max 20
-  literatureReviewFeedback?: string;
-  methodologyScore?: number;            // max 25
-  methodologyFeedback?: string;
-  technicalUnderstandingScore?: number;  // max 20
-  technicalUnderstandingFeedback?: string;
-  presentationScore?: number;           // max 15
-  presentationFeedback?: string;
-  comments?: string;
-  submittedDate?: string;
-}
+// EvaluationStatus and EvaluationTask now live in src/types/marks.ts; the tasks
+// are served by marksApi (getEvaluationTasks).
 
 interface LecturerMarksEntryProps {
   onBackToDashboard?: () => void;
@@ -121,111 +102,23 @@ export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({
 // ==================== MAIN COMPONENT ====================
 
 export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackToDashboard }) => {
-  // 1. Core State
-  const [tasks, setTasks] = useState<EvaluationTask[]>([
-    {
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      initials: 'SN',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      semester: 'Sem 1 2025/2026',
-      deadline: '10 Dec 2025',
-      status: 'NOT STARTED',
-      problemDefinitionScore: 0,
-      problemDefinitionFeedback: '',
-      literatureReviewScore: 0,
-      literatureReviewFeedback: '',
-      methodologyScore: 0,
-      methodologyFeedback: '',
-      technicalUnderstandingScore: 0,
-      technicalUnderstandingFeedback: '',
-      presentationScore: 0,
-      presentationFeedback: '',
-      comments: ''
-    },
-    {
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      initials: 'JL',
-      researchTitle: 'Quantum Computing Algorithms in Cryptographic Key Distribution',
-      semester: 'Sem 1 2025/2026',
-      deadline: '10 Dec 2025',
-      status: 'DRAFT SAVED',
-      problemDefinitionScore: 14,
-      problemDefinitionFeedback: 'Clear definition of quantum threat metrics.',
-      literatureReviewScore: 16,
-      literatureReviewFeedback: 'Comprehensive coverage of commercial systems.',
-      methodologyScore: 18,
-      methodologyFeedback: 'Well-structured simulation benchmarks.',
-      technicalUnderstandingScore: 15,
-      technicalUnderstandingFeedback: 'Good understanding of baseline cryptographic limitations.',
-      presentationScore: 11,
-      presentationFeedback: 'Needs minor rehearsal on the transition slides.',
-      comments: 'Preliminary methodology is well defined. Presentation skills are adequate, but needs more focus.'
-    },
-    {
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      initials: 'NA',
-      researchTitle: 'Blockchain-Based Academic Record Verification System matching Security Guidelines',
-      semester: 'Sem 1 2025/2026',
-      deadline: '12 Dec 2025',
-      status: 'SUBMITTED',
-      problemDefinitionScore: 18,
-      problemDefinitionFeedback: 'Outstanding analysis of record-lookup vulnerabilities.',
-      literatureReviewScore: 19,
-      literatureReviewFeedback: 'Thorough coverage of recent academic smart agreement schemes.',
-      methodologyScore: 23,
-      methodologyFeedback: 'Excellent experimental design and flow diagrams.',
-      technicalUnderstandingScore: 17,
-      technicalUnderstandingFeedback: 'Strong grasping of smart contract security patterns.',
-      presentationScore: 12,
-      presentationFeedback: 'Engaging oral slides and proactive FAQ answering.',
-      comments: 'Excellent demonstration. Highly robust prototype with an impressive end-to-end framework.',
-      submittedDate: '15 Nov 2025'
-    },
-    {
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      initials: 'KR',
-      researchTitle: 'Cloud-Based Research Document Management with Distributed Encryption',
-      semester: 'Sem 1 2025/2026',
-      deadline: '15 Dec 25',
-      status: 'NOT STARTED',
-      problemDefinitionScore: 0,
-      problemDefinitionFeedback: '',
-      literatureReviewScore: 0,
-      literatureReviewFeedback: '',
-      methodologyScore: 0,
-      methodologyFeedback: '',
-      technicalUnderstandingScore: 0,
-      technicalUnderstandingFeedback: '',
-      presentationScore: 0,
-      presentationFeedback: '',
-      comments: ''
-    },
-    {
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      initials: 'FN',
-      researchTitle: 'Mobile Learning Adoption in Higher Education: A Case Study of FSKTM',
-      semester: 'Sem 1 2025/2026',
-      deadline: '15 Dec 2025',
-      status: 'SUBMITTED',
-      problemDefinitionScore: 15,
-      problemDefinitionFeedback: 'Defined general adoption problems clearly.',
-      literatureReviewScore: 15,
-      literatureReviewFeedback: 'Adequate coverage of classic TAM references.',
-      methodologyScore: 20,
-      methodologyFeedback: 'Solid user survey based validation design.',
-      technicalUnderstandingScore: 16,
-      technicalUnderstandingFeedback: 'Demonstrated clear flow of app features.',
-      presentationScore: 11,
-      presentationFeedback: 'Satisfying slides flow and answers.',
-      comments: 'Solid work based on user survey validations. Satisfactory presentation.',
-      submittedDate: '18 Nov 2025'
-    }
-  ]);
+  // 1. Core State — evaluation tasks loaded from marksApi (mock-backed today).
+  const [tasks, setTasks] = useState<EvaluationTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTasks = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getEvaluationTasks()
+      .then(setTasks)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   // 2. Filters & Searches State
   const [searchTerm, setSearchTerm] = useState('');
@@ -482,7 +375,19 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/60 font-sans text-brand-navy/90">
-                    {filteredTasks.length > 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <LoadingState message="Loading evaluation tasks…" />
+                        </td>
+                      </tr>
+                    ) : error ? (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <ErrorState message={error} onRetry={loadTasks} />
+                        </td>
+                      </tr>
+                    ) : filteredTasks.length > 0 ? (
                       filteredTasks.map((task) => {
                         const isOverdue = task.status !== 'SUBMITTED' && task.deadline === '10 Dec 2025';
                         

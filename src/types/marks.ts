@@ -45,3 +45,30 @@ export interface EvaluationPreviewTask {
   semester: string;
   status: EvaluationPreviewStatus;
 }
+
+// Lecturer marks-entry task (UC24). Owned by LecturerMarksEntry and re-used by
+// MarkEntryDetail, MarksEntryHistory, and SubmittedMarkDetail.
+export type EvaluationStatus = 'NOT STARTED' | 'DRAFT SAVED' | 'SUBMITTED';
+
+export interface EvaluationTask {
+  studentId: string;
+  studentName: string;
+  initials: string;
+  researchTitle: string;
+  semester: string;
+  deadline: string;
+  status: EvaluationStatus;
+  // Interactive rubric components from the evaluation form.
+  problemDefinitionScore?: number;       // max 20
+  problemDefinitionFeedback?: string;
+  literatureReviewScore?: number;        // max 20
+  literatureReviewFeedback?: string;
+  methodologyScore?: number;            // max 25
+  methodologyFeedback?: string;
+  technicalUnderstandingScore?: number;  // max 20
+  technicalUnderstandingFeedback?: string;
+  presentationScore?: number;           // max 15
+  presentationFeedback?: string;
+  comments?: string;
+  submittedDate?: string;
+}

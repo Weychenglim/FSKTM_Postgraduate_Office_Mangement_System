@@ -87,12 +87,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       {/* Page Title & Header row */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          {/* Breadcrumb navigator path */}
-          <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider mb-1">
-            <span>Dashboard</span>
-            <span>/</span>
-            <span className="text-brand-navy">Supervisor Appointment</span>
-          </div>
           <h1 className="page-title">
             Supervisor Appointment
           </h1>

@@ -437,7 +437,7 @@ export const ActiveSuperviseeDetail: React.FC<ActiveSuperviseeDetailProps> = ({
       {/* Back button container link */}
       <button
         onClick={onBack}
-        className="group inline-flex items-center gap-2 text-slate-500 hover:text-brand-navy font-extrabold text-xs uppercase tracking-widest transition cursor-pointer select-none"
+        className="back-link group mb-3"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
         <span>Back to Supervisor Appointments</span>

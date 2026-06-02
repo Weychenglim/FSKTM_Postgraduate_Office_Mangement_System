@@ -18,21 +18,11 @@ import {
   FileDown
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PanelAssignment } from '../types';
 
 // ==================== COMPONENT PROPS & INTERFACES ====================
 
-interface PanelAssignment {
-  studentId: string;
-  studentName: string;
-  researchTitle: string;
-  supervisor: string;
-  appointmentDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
-  programme?: string;
-  intake?: string;
-  abstract?: string;
-  initials?: string;
-}
+// PanelAssignment now lives in src/types.
 
 interface PanelAssignmentDetailProps {
   assignment: PanelAssignment;
@@ -431,7 +421,7 @@ export const PanelAssignmentDetail: React.FC<PanelAssignmentDetailProps> = ({
       <div className="text-left select-none">
         <button
           onClick={onBack}
-          className="group inline-flex items-center gap-2 text-slate-500 hover:text-brand-navy font-extrabold text-xs uppercase tracking-widest transition cursor-pointer select-none"
+          className="back-link group mb-3"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Panel Appointments</span>

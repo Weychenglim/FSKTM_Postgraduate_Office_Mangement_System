@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Clock, 
@@ -40,35 +40,17 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
+import { PanelAssignment, PanelRecommendationDraft, SubmittedRecommendation } from '../types';
+import { getPanelAssignments, getPanelRecommendationDrafts, getPanelRecommendations } from '../services';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
-interface PanelAssignment {
-  studentId: string;
-  studentName: string;
-  researchTitle: string;
-  supervisor: string;
-  appointmentDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
-  programme?: string;
-  intake?: string;
-  abstract?: string;
-  initials?: string;
-}
-
-interface SubmittedRecommendation {
-  studentId: string;
-  studentName: string;
-  programme: string;
-  proposedTopic: string;
-  recommendedMember: string;
-  recommendedMemberId: string;
-  submittedDate: string;
-  status: 'SUBMITTED' | 'APPROVED' | 'UNDER REVIEW';
-}
+// PanelAssignment, PanelRecommendationDraft and SubmittedRecommendation now
+// live in src/types.
 
 export const LecturerPanelAppointments: React.FC = () => {
   // Navigation states: 'list' | 'submitted' | 'detail'
@@ -96,195 +78,34 @@ export const LecturerPanelAppointments: React.FC = () => {
     }, 4500);
   };
 
-  // Static Data
-  const [assignments, setAssignments] = useState<PanelAssignment[]>([
-    {
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      supervisor: 'Dr. Siti Noor',
-      appointmentDate: '05 Jan 2024',
-      status: 'ACTIVE',
-      initials: 'SN',
-      programme: 'MSc. Computer Science (Research)',
-      intake: 'Sem 2 2023/2024',
-      abstract: 'This dissertation investigates decentralized systems for verifying diploma validity. It models gas-efficiency across distributed networks and deploys off-chain cryptographic commitments to prove validity without exposing candidate personal records.'
-    },
-    {
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-      supervisor: 'Dr. Aris Ghaffar',
-      appointmentDate: '14 Mar 2024',
-      status: 'ACTIVE',
-      initials: 'JL',
-      programme: 'MSc. Computer Science (Research)',
-      intake: 'Sem 1 2023/2024',
-      abstract: 'Examines threat vectors on modern elliptic curve cryptography from Shor’s and Grover’s algorithms, and implements post-quantum replacement protocols securely in Java-based simulation environments.'
-    }
-  ]);
+  // Panel assignments, recommendation drafts, and the submitted-recommendation
+  // history loaded from appointmentsApi (mock-backed today).
+  const [assignments, setAssignments] = useState<PanelAssignment[]>([]);
+  const [submittedRecs, setSubmittedRecs] = useState<PanelRecommendationDraft[]>([]);
+  const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [submittedRecs, setSubmittedRecs] = useState<SubmittedRecommendation[]>([
-    {
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      programme: 'MSc. Computer Science',
-      proposedTopic: 'Blockchain-Based Decentralized Identity Management',
-      recommendedMember: 'Assoc. Prof. Dr. Amina Malik',
-      recommendedMemberId: 'A004812',
-      submittedDate: '20 May 2026',
-      status: 'APPROVED'
-    }
-  ]);
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    Promise.all([getPanelAssignments(), getPanelRecommendationDrafts(), getPanelRecommendations()])
+      .then(([asg, drafts, recs]) => {
+        setAssignments(asg);
+        setSubmittedRecs(drafts);
+        setPanelRecommendations(recs);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  // Combine custom submissions with default mock recommendations list so newly recommended items pop up immediately in the table!
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Merge the lecturer's own drafts with the submitted-recommendation history so
+  // newly recommended items appear immediately at the top of the table.
   const combinedRecommendations = useMemo(() => {
-    const baseList = [
-      {
-        id: 'REC-2025-021',
-        studentName: 'Nur Aina Rahman',
-        studentId: '17204561',
-        researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-        recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-        date: '10 Oct 2025',
-        status: 'Approved' as const,
-        semester: 'Sem 1 2025/2026',
-        programme: 'MSc. Computer Science',
-        abstract: 'This research outlines the implementation of a decentralized identity (DID) platform for public service registration. Utilizing custom smart contracts alongside cryptographic zero-knowledge proof components, it provides security against identification tampering.',
-        justification: 'The lecturer possesses 6+ years of expertise in Big Data and decentralized ledgers, with multiple published journals in international indexing circles.'
-      },
-      {
-        id: 'REC-2025-018',
-        studentName: 'Jason Lee',
-        studentId: '17208832',
-        researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-        recommendedPanel: 'Dr. Robert Chen',
-        date: '01 Sep 2025',
-        status: 'Approved' as const,
-        semester: 'Sem 1 2025/2026',
-        programme: 'MSc. Computer Science',
-        abstract: 'Examines threat vectors on modern elliptic curve cryptography from Shor’s and Grover’s algorithms, and implements post-quantum replacement protocols securely in Java-based simulation environments.',
-        justification: 'Dr. Robert Chen focuses on practical post-quantum security schemes and is highly suitable for validating cryptographic proof aspects of this topic.'
-      },
-      {
-        id: 'REC-2025-014',
-        studentName: 'Farhan Tariq',
-        studentId: '17200021',
-        researchTitle: 'Federated Learning Models for Privacy-Preserving Applications',
-        recommendedPanel: 'Dr. Sarah Lim',
-        date: '14 May 2025',
-        status: 'Pending Approval' as const,
-        semester: 'Sem 2 2024/2025',
-        programme: 'MSc. Computer Science',
-        abstract: 'Investigates decentralized server training mechanics across dynamic device groups while preserving private structural feature layers using additive secret sharing policies.',
-        justification: 'Dr. Sarah Lim has a rich background in adversarial learning models and federated systems evaluation pipelines.'
-      },
-      {
-        id: 'REC-2024-032',
-        studentName: 'Tan Jia Min',
-        studentId: '17199923',
-        researchTitle: 'Privacy-Aware Student Data Analytics & Systems',
-        recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-        date: '20 Nov 2024',
-        status: 'Approved' as const,
-        semester: 'Sem 2 2024/2025',
-        programme: 'MSc. Computer Science',
-        abstract: 'Evaluates predictive courses recommendation algorithms in higher learning without harvesting individual tracking datasets.',
-        justification: 'She has spearheaded several institutional privacy audits and research contracts regarding Student Information System governance.'
-      },
-      {
-        id: 'REC-2024-019',
-        studentName: 'Kumar Raj',
-        studentId: '17188842',
-        researchTitle: 'Cloud-Based Research Document Management Workflow Platform',
-        recommendedPanel: 'Dr. Robert Chen',
-        date: '03 Aug 2024',
-        status: 'Rejected' as const,
-        semester: 'Sem 1 2024/2025',
-        programme: 'MSc. Software Engineering',
-        abstract: 'A software framework implementing dynamic document version control pipelines securely over decentralized server node storage files.',
-        justification: 'The candidate theme falls into conventional database patterns which do not fully align with the active research cluster focuses.'
-      },
-      {
-        id: 'REC-2024-008',
-        studentName: 'Siti Sarah',
-        studentId: '17208852',
-        researchTitle: 'Reinforcement Learning in Drone Pathfinding Routines',
-        recommendedPanel: 'Dr. Siti Noor',
-        date: '10 Apr 2024',
-        status: 'Approved' as const,
-        semester: 'Sem 2 2023/2024',
-        programme: 'MSc. Computer Science',
-        abstract: 'Applies neural feedback reward policies to determine shortest collision-free routes under wind fluctuation constraints.',
-        justification: 'Dr. Siti Noor is active in cellular automation paradigms and mobile robotics steering validation.'
-      },
-      {
-        id: 'REC-2024-005',
-        studentName: 'Chong Wei',
-        studentId: '17193202',
-        researchTitle: 'LLM Prompt Engineering for Automated API Code Generation',
-        recommendedPanel: 'Dr. Robert Chen',
-        date: '18 Jan 2024',
-        status: 'Approved' as const,
-        semester: 'Sem 2 2023/2024',
-        programme: 'MSc. Software Engineering',
-        abstract: 'Provides structured prompt matrices to synthesize verified gRPC route files from YAML endpoints specification.',
-        justification: 'He has worked closely on software pattern generators and has direct experience evaluating automated code systems.'
-      },
-      {
-        id: 'REC-2023-045',
-        studentName: 'Devi Nair',
-        studentId: '17193321',
-        researchTitle: 'Containerized Broker Infrastructure for Smart Home Gateway Devices',
-        recommendedPanel: 'Dr. Siti Noor',
-        date: '22 Nov 2023',
-        status: 'Approved' as const,
-        semester: 'Sem 1 2023/2024',
-        programme: 'MSc. Computer Science',
-        abstract: 'Deploys lightweight message parsing agents onto limited computing environments to balance active event triggers.',
-        justification: 'Suitable candidate based on local network virtualization research projects launched.'
-      },
-      {
-        id: 'REC-2023-033',
-        studentName: 'Lim Chin Hock',
-        studentId: '17201931',
-        researchTitle: 'Neural Threat Detection Plugin over Software Defined Networks',
-        recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-        date: '15 Sep 2023',
-        status: 'Approved' as const,
-        semester: 'Sem 1 2023/2024',
-        programme: 'MSc. Computer Science',
-        abstract: 'Monitors open flow protocol exchanges using light convolutional filters to log DDoS triggers before they affect router states.',
-        justification: 'Outstanding record in system protection frameworks and distributed databases.'
-      },
-      {
-        id: 'REC-2023-021',
-        studentName: 'Fatima Zahra',
-        studentId: '17150567',
-        researchTitle: 'Automating UI Test Script Refactoring with Abstract Syntax Trees',
-        recommendedPanel: 'Dr. Robert Chen',
-        date: '12 Jun 2023',
-        status: 'Approved' as const,
-        semester: 'Sem 2 2022/2023',
-        programme: 'MSc. Software Engineering',
-        abstract: 'Decodes outdated test files and automatically maps them to updated elements trees via grammar translation frameworks.',
-        justification: 'Expertise in validation tooling and automated parsing models fits this topic.'
-      },
-      {
-        id: 'REC-2023-009',
-        studentName: 'Samuel Tan',
-        studentId: '17140924',
-        researchTitle: 'Ensemble Learning applied to Real-Time Sentiment Index Tracking',
-        recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-        date: '02 May 2022',
-        status: 'Approved' as const,
-        semester: 'Sem 1 2022/2023',
-        programme: 'MSc. Computer Science',
-        abstract: 'Extracts real-time trading sentiment from financial publications using transformer embeddings and weights outputs proportionately.',
-        justification: 'Matches her active focus on big-data analytics and advanced natural processing architectures.'
-      }
-    ];
-
     const customList = submittedRecs
       .filter(r => r.studentId !== 'MEA2400712' && r.studentId !== '17204561')
       .map((r, i) => ({
@@ -300,8 +121,8 @@ export const LecturerPanelAppointments: React.FC = () => {
         abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources, aiming to enhance machine translation and speech recognition accuracy in indigenous contexts.'
       }));
 
-    return [...customList, ...baseList];
-  }, [submittedRecs]);
+    return [...customList, ...panelRecommendations];
+  }, [submittedRecs, panelRecommendations]);
 
   // Handle recommendation form submit
   const submitPanelRecommendation = (e: React.FormEvent) => {
@@ -311,7 +132,7 @@ export const LecturerPanelAppointments: React.FC = () => {
       return;
     }
 
-    const newRec: SubmittedRecommendation = {
+    const newRec: PanelRecommendationDraft = {
       studentId: selectedStudentId,
       studentName: selectedStudentName,
       programme: 'MSc. Computer Science',
@@ -347,11 +168,7 @@ export const LecturerPanelAppointments: React.FC = () => {
       {panelView === 'list' && (
         <div id="main-panel-listing-view" className="space-y-8">
           
-          {/* Section Breadcrumbs Title */}
           <div id="section-meta-heading text-left" className="select-none">
-            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest block leading-none mb-2">
-              Lecturer Portal
-            </span>
             <h1 className="page-title">
               Panel Appointments
             </h1>
@@ -563,7 +380,26 @@ export const LecturerPanelAppointments: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-brand-navy">
-                    {assignments.map((asg) => (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <LoadingState message="Loading panel assignments…" />
+                        </td>
+                      </tr>
+                    ) : error ? (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <ErrorState message={error} onRetry={loadData} />
+                        </td>
+                      </tr>
+                    ) : assignments.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                          No panel assignments yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      assignments.map((asg) => (
                       <tr key={asg.studentId} className="hover:bg-slate-50/40 transition-colors">
                         <td className="py-5 px-6 font-mono font-black text-slate-550 select-all shrink-0">
                           {asg.studentId}
@@ -604,7 +440,8 @@ export const LecturerPanelAppointments: React.FC = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -658,7 +495,7 @@ export const LecturerPanelAppointments: React.FC = () => {
             ? 'A002931'
             : 'A003328';
 
-          const newRec: SubmittedRecommendation = {
+          const newRec: PanelRecommendationDraft = {
             studentId: selectedStudentId,
             studentName: selectedStudentName,
             programme: 'MSc. Computer Science',

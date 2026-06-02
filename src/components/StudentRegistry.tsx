@@ -42,7 +42,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { StaffLecturersRegistry } from './StaffLecturersRegistry';
+import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import { StudentRecord } from '../types';
 import { getStudents } from '../services';
 
@@ -549,32 +549,6 @@ export const StudentRegistry: React.FC = () => {
       
       <PortalToast message={toastMessage} />
 
-      {/* Registry Management Primary Section Switching Tabs */}
-      <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3 select-none">
-        <button
-          type="button"
-          onClick={() => setRegistryModuleTab('students')}
-          className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-            registryModuleTab === 'students' 
-              ? 'bg-[#121c2e] text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          Students
-        </button>
-        <button
-          type="button"
-          onClick={() => setRegistryModuleTab('staff_lecturers')}
-          className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-            registryModuleTab === 'staff_lecturers' 
-              ? 'bg-[#121c2e] text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          Staff & Lecturers
-        </button>
-      </div>
-
       {registryModuleTab === 'students' ? (
         <>
           {/* ========================================================== */}
@@ -584,7 +558,7 @@ export const StudentRegistry: React.FC = () => {
         <div id="student-registry-directory-list">
           
           {/* HEADER HEADING FRAME */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none border-b border-slate-200/50 pb-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left select-none">
             <div>
               <h1 className="page-title">
                 Student Registry
@@ -617,6 +591,11 @@ export const StudentRegistry: React.FC = () => {
                 <span>Register New Students</span>
               </button>
             </div>
+          </div>
+
+          {/* Module switcher below the heading */}
+          <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
+            <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />
           </div>
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
@@ -990,12 +969,12 @@ export const StudentRegistry: React.FC = () => {
 
           {/* LARGE PAGE HEADING */}
           <div className="mb-6">
-            <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
-              Secretariat Onboarding Utility
-            </span>
             <h1 className="page-title">
               Register New Students
             </h1>
+            <p className="page-subtitle">
+              Secretariat Onboarding Utility
+            </p>
           </div>
 
           {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
@@ -1819,7 +1798,10 @@ export const StudentRegistry: React.FC = () => {
       )}
         </>
       ) : (
-        <StaffLecturersRegistry />
+        <StaffLecturersRegistry
+          registryTab={registryModuleTab}
+          onRegistryTabChange={setRegistryModuleTab}
+        />
       )}
 
       {/* ========================================================== */}

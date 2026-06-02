@@ -39,6 +39,9 @@ export const AnnouncementManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // --- View state: 'create' (draft form) vs 'history' (broadcast records) ---
+  const [view, setView] = useState<'create' | 'history'>('create');
+
   // --- 2. Live Broadcast History Data store (loaded from announcementsApi) ---
   const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,26 +195,38 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   return (
-    <div id="announcement-dashboard-view" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
-      
+    <div id="announcement-module" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+
       <PortalToast message={toast} />
 
-      {/* Grid containing two main panes of layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* LEFT COLUMN: DRAFT NEW ANNOUNCEMENT FORM (lg:col-span-6) */}
-        <div className="lg:col-span-6 space-y-6">
-          <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
-            
-            {/* Header Title inside form box */}
-            <div>
-              <h2 className="section-heading">
-                Draft New Announcement
-              </h2>
-              <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
-                Craft your message for the FSKTM community.
-              </p>
-            </div>
+      {view === 'create' ? (
+      /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
+      <div className="space-y-6">
+
+        {/* Page Header + View History action */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+          <div>
+            <h1 className="page-title">
+              Draft New Announcement
+            </h1>
+            <p className="page-subtitle">
+              Craft your message for the FSKTM community.
+            </p>
+          </div>
+          <PortalButton
+            type="button"
+            variant="secondary"
+            size="md"
+            icon={Eye}
+            onClick={() => setView('history')}
+            className="shrink-0"
+          >
+            View Announcement History
+          </PortalButton>
+        </div>
+
+        {/* Draft form */}
+        <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
 
             {/* Field A: Headline */}
             <div className="space-y-1.5">
@@ -409,22 +424,33 @@ export const AnnouncementManagement: React.FC = () => {
               </PortalButton>
             </div>
 
-          </form>
-        </div>
+        </form>
 
-        {/* RIGHT COLUMN: ANNOUNCEMENT HISTORY (lg:col-span-6) */}
-        <div id="announcements-history-column" className="lg:col-span-6 space-y-6">
-          
-          {/* Header Title inside history pane block */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
-            <div>
-              <h2 className="section-heading">
-                Announcement History
-              </h2>
-              <p className="text-slate-500 text-[11px] font-semibold leading-relaxed mt-1">
-                Monitoring {historyItems.length} active broadcasts across the faculty.
-              </p>
-            </div>
+      </div>
+      ) : (
+      /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
+      <div id="announcements-history-view" className="space-y-6">
+
+        {/* Back to draft announcement */}
+        <button
+          type="button"
+          onClick={() => setView('create')}
+          className="back-link group"
+        >
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Back to Draft Announcement</span>
+        </button>
+
+        {/* Page Header + Search */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
+          <div>
+            <h1 className="page-title">
+              Announcement History
+            </h1>
+            <p className="page-subtitle">
+              Review and manage past announcements broadcast to the FSKTM community.
+            </p>
+          </div>
 
             {/* Real Search Input matching mockup placement */}
             <div className="relative max-w-xs w-full">
@@ -614,7 +640,7 @@ export const AnnouncementManagement: React.FC = () => {
 
         </div>
 
-      </div>
+      )}
 
     </div>
   );

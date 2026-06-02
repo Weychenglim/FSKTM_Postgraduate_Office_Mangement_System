@@ -18,7 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { EvaluationTask } from './LecturerMarksEntry';
+import { EvaluationTask } from '../types';
 
 interface MarkEntryDetailProps {
   task: EvaluationTask;
@@ -228,9 +228,9 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
           id="back-list-link-button"
           type="button"
           onClick={onBack}
-          className="group inline-flex items-center gap-2 text-sky-600 hover:text-sky-800 font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform stroke-[2.5]" />
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Marks Entry</span>
         </button>
       </div>

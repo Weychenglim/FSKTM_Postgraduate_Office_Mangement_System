@@ -167,12 +167,6 @@ export const StudentFAQChatbot: React.FC = () => {
 
       {/* Page Header Area */}
       <div className="border-b border-slate-100 pb-5">
-        <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider mb-1 select-none">
-          <span>Student Support Desk</span>
-          <span>/</span>
-          <span className="text-brand-navy">FAQ Chatbot</span>
-        </div>
-        
         <h1 className="page-title">
           FAQ Chatbot
         </h1>

@@ -38,13 +38,6 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
       {/* 1. Page Header Block & Live State Simulator Toggle */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-5 select-none">
         <div>
-          {/* Breadcrumb Context path */}
-          <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider mb-1 select-none">
-            <span>Dashboard</span>
-            <span>/</span>
-            <span className="text-brand-navy">Panel Appointment</span>
-          </div>
-          
           <h1 className="page-title">
             Panel Appointment
           </h1>

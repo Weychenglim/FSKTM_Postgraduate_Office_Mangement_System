@@ -193,8 +193,18 @@ export const LetterTemplateManagement: React.FC = () => {
 
   return (
     <div id="letter-template-management" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
-      
+
       <PortalToast message={toast} />
+
+      {/* Page Header */}
+      <div className="text-left mb-6">
+        <h1 className="page-title">
+          Letter Generation
+        </h1>
+        <p className="page-subtitle">
+          Create and manage official letter templates for the postgraduate office.
+        </p>
+      </div>
 
       {/* Main Grid containing left and right pane cards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

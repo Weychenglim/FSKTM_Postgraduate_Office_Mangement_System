@@ -158,18 +158,11 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         <button
           type="button"
           onClick={onBack}
-          className="group inline-flex items-center gap-2 text-sky-600 hover:text-sky-800 font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer mb-3"
+          className="back-link group mb-3"
         >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform stroke-[2.5]" />
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Supervisor Appointments</span>
         </button>
-
-        {/* Dynamic Context Path and Title */}
-        <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider mb-1">
-          <span>Supervisor Appointment</span>
-          <span>/</span>
-          <span className="text-brand-navy">Submit Application</span>
-        </div>
 
         <h1 className="page-title">
           Supervisor Appointment Application

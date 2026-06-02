@@ -44,6 +44,36 @@ const DEPARTMENTS = [
   'Information Systems'
 ];
 
+export type RegistryModuleTab = 'students' | 'staff_lecturers';
+
+// Shared Students / Staff & Lecturers switcher. Rendered directly beneath each
+// registry list heading so the page header stays in the same position as every
+// other page in the portal.
+export const RegistryModuleTabs: React.FC<{
+  active: RegistryModuleTab;
+  onChange: (tab: RegistryModuleTab) => void;
+}> = ({ active, onChange }) => (
+  <div className="flex items-center gap-3 select-none">
+    {([
+      { key: 'students', label: 'Students' },
+      { key: 'staff_lecturers', label: 'Staff & Lecturers' },
+    ] as const).map(({ key, label }) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => onChange(key)}
+        className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+          active === key
+            ? 'bg-[#121c2e] text-white shadow-xs'
+            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+        }`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+);
+
 interface StaffSummaryCardProps {
   title: string;
   value: number;
@@ -365,7 +395,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type
   );
 };
 
-export const StaffLecturersRegistry: React.FC = () => {
+export const StaffLecturersRegistry: React.FC<{
+  registryTab?: RegistryModuleTab;
+  onRegistryTabChange?: (tab: RegistryModuleTab) => void;
+}> = ({ registryTab = 'staff_lecturers', onRegistryTabChange }) => {
   // Staff/lecturer accounts loaded from lecturersApi (mock-backed today).
   // setStaffList is retained for local account-creation mutations.
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
@@ -569,7 +602,7 @@ export const StaffLecturersRegistry: React.FC = () => {
         /* ==================== CREATE NEW ACCOUNT VIEW ==================== */
         <RegistryLayout>
           
-          {/* Breadcrumb line from screenshot */}
+          {/* Back link to the staff & lecturer accounts list */}
           <div className="font-sans text-left">
             <button
               type="button"
@@ -579,17 +612,10 @@ export const StaffLecturersRegistry: React.FC = () => {
               <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
               <span>Back to Staff &amp; Lecturer Accounts</span>
             </button>
-            <div className="flex items-center gap-1.5 text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5 select-none hover:text-slate-600">
-              <span>Dashboard</span>
-              <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
-              <span>Staff and Lecturer Accounts</span>
-              <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
-              <span className="text-slate-600 font-black">Create New Account</span>
-            </div>
             <h1 className="page-title">
               Create New Account
             </h1>
-            <p className="text-xs text-slate-550 font-bold mt-1.5 leading-relaxed text-[#556987]">
+            <p className="page-subtitle">
               Register a new office staff or lecturer account for the system.
             </p>
           </div>
@@ -813,17 +839,14 @@ export const StaffLecturersRegistry: React.FC = () => {
         /* ==================== NORMAL REGISTRY LISTING DESKTOP VIEW ==================== */
         <>
           {/* HEADER ACTION ROADMAP MOCKUP */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/50 pb-5 text-left">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
             <div>
-              {/* Breadcrumb line from screenshot */}
-              <div className="flex items-center gap-1.5 text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5 font-sans">
-                <span>Registry Management</span>
-                <ChevronRight className="w-3 h-3 text-slate-455 stroke-[2.5]" />
-                <span className="text-slate-600">Staff and Lecturer Accounts</span>
-              </div>
               <h1 className="page-title">
                 Staff and Lecturer Accounts
               </h1>
+              <p className="page-subtitle">
+                University Postgraduate Secretariat
+              </p>
             </div>
 
             {/* Add New Account Action Top Right */}
@@ -848,6 +871,13 @@ export const StaffLecturersRegistry: React.FC = () => {
               <span>Add New Account</span>
             </button>
           </div>
+
+          {/* Module switcher below the heading */}
+          {onRegistryTabChange && (
+            <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
+              <RegistryModuleTabs active={registryTab} onChange={onRegistryTabChange} />
+            </div>
+          )}
 
           {/* SUMMARY STATS GRID */}
           <div id="staff-summary-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
