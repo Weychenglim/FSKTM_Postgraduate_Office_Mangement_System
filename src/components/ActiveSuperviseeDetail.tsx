@@ -18,6 +18,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader } from './PortalPrimitives';
 import { StatusChip } from './LecturerSupervisorAppointments';
 
 // ==================== REUSABLE PATTERNS ====================
@@ -434,31 +435,19 @@ export const ActiveSuperviseeDetail: React.FC<ActiveSuperviseeDetailProps> = ({
   return (
     <div id="active-supervisee-detail-page" className="space-y-8 animate-fade-in text-left">
       
-      {/* Back button container link */}
-      <button
-        onClick={onBack}
-        className="back-link group mb-3"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        <span>Back to Supervisor Appointments</span>
-      </button>
-
-      {/* Main Row layout header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div id="detail-page-title-text" className="text-left select-none">
-          <h1 className="page-title">
-            Active Supervisee Detail
-          </h1>
-          <p className="page-subtitle leading-relaxed max-w-4xl">
-            View supervisee information, appointment details, related documents, and academic progress.
-          </p>
-        </div>
-
-        {/* Dynamic Sessions Indicator Badge matches visual layout exactly */}
-        <span className="bg-brand-navy text-white py-1.5 px-4 rounded-xl text-xs font-black uppercase tracking-widest select-none shadow-sm">
-          Session 2024/2025
-        </span>
-      </div>
+      <PageHeader
+        title="Active Supervisee Detail"
+        subtitle="View supervisee information, appointment details, related documents, and academic progress."
+        backLabel="Back to Supervisor Appointments"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed max-w-4xl"
+        className="select-none"
+        actions={(
+          <span className="bg-brand-navy text-white py-1.5 px-4 rounded-xl text-xs font-black uppercase tracking-widest select-none shadow-sm">
+            Session 2024/2025
+          </span>
+        )}
+      />
 
       {/* TOP SECTION: Left student cards summary, Right Research details info */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">

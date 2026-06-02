@@ -31,7 +31,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
 import { getLetterTemplates } from '../services';
@@ -196,15 +196,11 @@ export const LetterTemplateManagement: React.FC = () => {
 
       <PortalToast message={toast} />
 
-      {/* Page Header */}
-      <div className="text-left mb-6">
-        <h1 className="page-title">
-          Letter Generation
-        </h1>
-        <p className="page-subtitle">
-          Create and manage official letter templates for the postgraduate office.
-        </p>
-      </div>
+      <PageHeader
+        title="Letter Generation"
+        subtitle="Create and manage official letter templates for the postgraduate office."
+        className="mb-6"
+      />
 
       {/* Main Grid containing left and right pane cards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

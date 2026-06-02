@@ -33,6 +33,19 @@ export interface RubricComponent {
   displayOrder?: number;
 }
 
+export interface EditableRubricWeight {
+  id: number;
+  name: string;
+  weight: number;
+}
+
+export interface MarkRubricBreakdownRow {
+  component: string;
+  maxMarks: number;
+  marksAwarded: number;
+  feedback: string;
+}
+
 // Evaluation task assignment preview rows (UC25).
 export type EvaluationPreviewStatus = 'GENERATED' | 'PENDING' | 'NOTIFIED';
 

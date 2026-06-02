@@ -26,7 +26,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, RemovableTag, StatusBadge } from './PortalPrimitives';
 
 // Definitions for tag items
 interface KeywordTag {
@@ -229,37 +229,21 @@ export const AcademicFAQEditor: React.FC = () => {
       
       <PortalToast message={toast} />
 
-      {/* Top Section Header Row */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left">
-        <div>
-          <h1 className="page-title">
-            Academic FAQ Editor
-          </h1>
-          <p className="page-subtitle">
-            Knowledge Management
-          </p>
-        </div>
-
-        {/* Global actions row */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleDiscardChanges}
-            className="px-4 py-2.5 bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-extrabold tracking-wide rounded-xl transition text-[11px] uppercase cursor-pointer"
-          >
-            Discard Changes
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDeployToLive}
-            className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold tracking-wide uppercase text-[11px] rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Deploy to Live</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Academic FAQ Editor"
+        subtitle="Knowledge Management"
+        className="mb-8"
+        actions={(
+          <>
+            <PortalButton type="button" onClick={handleDiscardChanges} variant="ghost" size="md">
+              Discard Changes
+            </PortalButton>
+            <PortalButton type="button" onClick={handleDeployToLive} variant="primary" size="md" icon={RefreshCw}>
+              Deploy to Live
+            </PortalButton>
+          </>
+        )}
+      />
 
       {/* Two Column Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-8">
@@ -314,19 +298,13 @@ export const AcademicFAQEditor: React.FC = () => {
               
               <div className="bg-[#f8fafc] border border-slate-205 rounded-xl p-3 flex flex-wrap gap-2 items-center">
                 {keywordTags.map(tag => (
-                  <span
+                  <RemovableTag
                     key={tag.id}
-                    className="inline-flex items-center gap-1 bg-brand-navy text-white font-extrabold text-[10px] pl-3 pr-2 py-1.5 rounded-lg select-none"
+                    onRemove={() => handleRemoveTag(tag.id, tag.text)}
+                    removeLabel={`Remove ${tag.text}`}
                   >
-                    <span>{tag.text}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag.id, tag.text)}
-                      className="hover:bg-white/20 p-0.5 rounded transition text-indigo-200 hover:text-white"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
+                    {tag.text}
+                  </RemovableTag>
                 ))}
 
                 {/* Mini input to add on the fly */}
@@ -470,11 +448,9 @@ export const AcademicFAQEditor: React.FC = () => {
               </div>
 
               {/* LIVE SIMULATOR green badge */}
-              <div className="flex items-center gap-1.5 bg-[#2563eb]/20 border border-blue-500/30 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-wider text-blue-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>LIVE SIMULATOR</span>
-              </div>
+              <StatusBadge tone="success" dot pulse className="text-[9px]">
+                LIVE SIMULATOR
+              </StatusBadge>
             </div>
 
             {/* Simulated Chat Feed Area */}

@@ -47,100 +47,22 @@ import {
 } from 'lucide-react';
 import { DemoUser } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
+import { MOCK_MARK_RECORDS } from './mocks/marks';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
-  const records = [
-    {
-      recordId: 'MRK-2025-021',
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      researchTitle: 'Blockchain-Based Academic Record Verification System',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'MSc. Computer Science',
-      totalMark: 84,
-      submittedDate: '12 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-018',
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      researchTitle: 'Mobile Learning Adoption in Malaysian Higher Education',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 79,
-      submittedDate: '13 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-014',
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: 'Draft',
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-011',
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-009',
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      researchTitle: 'Cloud-Based Research Document Management for Multi-University Collaboration',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-008',
-      studentId: 'MEA2400211',
-      studentName: 'Abdul Rahman Malik',
-      researchTitle: 'Internet of Things (IoT) Based Flood Defense Alert Mechanisms',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 91,
-      submittedDate: '10 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-007',
-      studentId: 'MEA2304910',
-      studentName: 'Clara Wong',
-      researchTitle: 'Predictive Medical Diagnostics Using Deep Convoluted Neural Networks',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Software Engineering',
-      totalMark: 'Draft',
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-006',
-      studentId: 'MEA2401123',
-      studentName: 'Zainab Qureshi',
-      researchTitle: 'Interactive Arabic Sign Language Translation Engine with Haptic Feedback',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 2 2024/2025',
-      programme: 'Master of Information Technology',
-      totalMark: 88,
-      submittedDate: '15 Jun 2025'
-    }
-  ];
-  return records.find(r => r.recordId === id) || records[0];
+  const record = MOCK_MARK_RECORDS.find((r) => r.id === id) || MOCK_MARK_RECORDS[0];
+  return {
+    recordId: record.id,
+    studentId: record.studentId,
+    studentName: record.studentName,
+    researchTitle: record.researchTitle,
+    panelMember: record.panelMember,
+    semester: record.semester,
+    programme: record.programme,
+    totalMark: record.totalMark,
+    submittedDate: record.submittedDate,
+  };
 };
 
 // Default logged-in state of Wey Cheng (as seen in the mockup)

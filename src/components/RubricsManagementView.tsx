@@ -32,7 +32,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { RubricComponent } from '../types';
 import { getRubricComponents } from '../services';
@@ -187,27 +187,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
       
       <PortalToast message={toast} />
 
-      {/* Heading Title Segment */}
-      <div id="rubrics-banner-section" className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-        <div className="flex flex-col text-left">
-          <button
-            onClick={onBack}
-            className="back-link group mb-3"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Marks & Evaluation Management</span>
-          </button>
-
-          <h1 className="page-title">
-            Rubric Components Management
-          </h1>
-          <p className="page-subtitle leading-relaxed">
-            Define rubric components, maximum marks, and validation rules for mark entry.
-          </p>
-        </div>
-
-        {/* Action Header block buttons (Preview Mark Entry & Add Component) */}
-        <div id="header-action-panel" className="flex items-center gap-3.5">
+      <PageHeader
+        title="Rubric Components Management"
+        subtitle="Define rubric components, maximum marks, and validation rules for mark entry."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+        actions={(
+          <>
           <button
             onClick={() => setActiveModal('preview')}
             className="px-4 py-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
@@ -223,8 +210,9 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             <Plus className="w-4.5 h-4.5 text-blue-400" />
             <span>Add Component</span>
           </button>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {/* 4 Top Summary Card Statistics info */}
       <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

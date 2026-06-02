@@ -17,6 +17,8 @@ import {
   PanelRecommendationDraft,
   SubmittedRecommendation,
   SupervisorRequestHistoryRow,
+  StudentSupervisorApplication,
+  SupervisorCandidate,
 } from '../types';
 
 export const MOCK_SUPERVISOR_APPOINTMENTS: SupervisorRecord[] = [
@@ -209,6 +211,57 @@ export const MOCK_SUPERVISOR_APPOINTMENTS: SupervisorRecord[] = [
     releasedDate: '14 Oct 2025',
     panelMemberName: 'Dr. Sarah Lim',
     panelAssignedDate: '25 Nov 2025',
+  },
+];
+
+export const MOCK_STUDENT_SUPERVISOR_APPLICATIONS: StudentSupervisorApplication[] = [
+  {
+    id: 'SV-APP-2026-001',
+    title: 'AI-Based Academic Workflow Monitoring',
+    supervisor: 'Dr. Siti Noor',
+    date: '15 Nov 2025',
+    status: 'PENDING REVIEW',
+  },
+  {
+    id: 'SV-APP-2026-002',
+    title: 'Postgraduate Evaluation Management Sys',
+    supervisor: 'Assoc. Prof. Henry Lim',
+    date: '10 Oct 2025',
+    status: 'RETURNED',
+  },
+  {
+    id: 'SV-APP-2025-014',
+    title: 'Student Portal Usability Study',
+    supervisor: 'Prof. Dr. Ahmad Kamil',
+    date: '01 Aug 2024',
+    status: 'APPROVED',
+  },
+];
+
+export const MOCK_SUPERVISOR_CANDIDATES: SupervisorCandidate[] = [
+  {
+    id: 'sv-1',
+    name: 'Dr. Siti Noor',
+    initials: 'SN',
+    filled: 4,
+    total: 5,
+    domain: 'Cybersecurity',
+  },
+  {
+    id: 'sv-2',
+    name: 'Assoc. Prof. Henry Lim',
+    initials: 'HL',
+    filled: 2,
+    total: 5,
+    domain: 'Software Engineering',
+  },
+  {
+    id: 'sv-3',
+    name: 'Prof. Dr. Ahmad Kamil',
+    initials: 'AK',
+    filled: 0,
+    total: 5,
+    domain: 'Artificial Intelligence',
   },
 ];
 

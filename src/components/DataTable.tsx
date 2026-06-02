@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { StatusChip } from './StatusChip';
+import { PortalButton } from './PortalPrimitives';
 
 export interface TableRow {
   id: string;
@@ -63,19 +64,21 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onEdit, onView }) =>
               </td>
               <td className="data-td last:pr-6 text-right">
                 {row.status.toLowerCase() === 'active' ? (
-                  <button
+                  <PortalButton
                     onClick={() => onEdit(row)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer select-none"
+                    variant="soft"
+                    size="sm"
                   >
                     Edit
-                  </button>
+                  </PortalButton>
                 ) : (
-                  <button
+                  <PortalButton
                     onClick={() => onView(row)}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer select-none"
+                    variant="secondary"
+                    size="sm"
                   >
                     View
-                  </button>
+                  </PortalButton>
                 )}
               </td>
             </tr>

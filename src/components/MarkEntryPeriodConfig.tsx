@@ -15,7 +15,7 @@ import { SummaryCard } from './SummaryCard';
 import { ActionButton } from './ActionButton';
 import { ChevronLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -176,23 +176,13 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
       
       <PortalToast message={toastMessage} />
 
-      {/* Top Breadcrumb Header panel */}
-      <div id="config-breadcrumb-header" className="flex flex-col text-left">
-        <button
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks & Evaluation Management</span>
-        </button>
-
-        <h1 id="config-page-title" className="page-title">
-          Mark Entry Period Configuration
-        </h1>
-        <p id="config-page-subtext" className="page-subtitle leading-relaxed">
-          Set mark entry start dates, end dates, and submission deadlines for evaluation tasks.
-        </p>
-      </div>
+      <PageHeader
+        title="Mark Entry Period Configuration"
+        subtitle="Set mark entry start dates, end dates, and submission deadlines for evaluation tasks."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+      />
 
       {/* Summary Cards Row */}
       <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

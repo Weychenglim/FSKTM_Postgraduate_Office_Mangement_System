@@ -27,66 +27,15 @@ import {
   FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
-
-interface LetterTemplate {
-  id: string;
-  name: string;
-  description: string;
-  badge: 'Standard' | 'Priority';
-  refNo: string;
-  date: string;
-  body: string;
-  notes: string;
-}
+import { PageHeader, PortalToast } from './PortalPrimitives';
+import { MOCK_STUDENT_LETTER_TEMPLATES } from '../mocks/letters';
+import { StudentLetterTemplate } from '../types';
 
 export const StudentLetterGeneration: React.FC = () => {
-  // Available templates matching instructions
-  const templates: LetterTemplate[] = [
-    {
-      id: 'enrollment',
-      name: 'Confirmation of Enrollment',
-      description: 'Official status verification for current students.',
-      badge: 'Standard',
-      refNo: 'UMF/PG/2024/0822',
-      date: 'October 24, 2023',
-      body: 'This is to confirm that the following student is currently registered at the Faculty of Computer Science and Information Technology, University of Malaya:',
-      notes: 'The student is expected to complete their studies by March 2025, subject to fulfillment of academic requirements.'
-    },
-    {
-      id: 'visa',
-      name: 'Visa Support Letter',
-      description: 'Embassy-ready documentation for travel or extension.',
-      badge: 'Priority',
-      refNo: 'UMF/PG/25/V-0918',
-      date: 'November 12, 2025',
-      body: 'This official document is issued to support the student visa renewal application with the Immigration Department of Malaysia for the following candidate:',
-      notes: 'The Faculty fully supports this progress review endorsement to allow completion of the candidate\'s thesis viva obligations.'
-    },
-    {
-      id: 'completion',
-      name: 'Completion Letter',
-      description: 'Proof of degree fulfillment post-viva.',
-      badge: 'Standard',
-      refNo: 'UMF/PG/25/C-3294',
-      date: 'December 05, 2025',
-      body: 'We are pleased to verify that the following postgraduate scholar has satisfactorily fulfilled all coursework and research publication criteria for degree conferral:',
-      notes: 'The final Senate approval is pending formal degree presentation at the upcoming university graduation ceremony.'
-    },
-    {
-      id: 'sponsorship',
-      name: 'Sponsorship Claim',
-      description: 'Financial clearance and fee structure details.',
-      badge: 'Standard',
-      refNo: 'UMF/PG/25/S-7731',
-      date: 'January 14, 2026',
-      body: 'This statement is generated to verify candidate standing and fee ledger invoice details for external scholarship disbursement authorities:',
-      notes: 'All academic performance standards are met. The student remains in good regular registration standing.'
-    }
-  ];
+  const templates = MOCK_STUDENT_LETTER_TEMPLATES;
 
   // State management
-  const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate>(templates[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState<StudentLetterTemplate>(templates[0]);
   const [zoomScale, setZoomScale] = useState<number>(100); // Zoom level in percent
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
@@ -125,15 +74,11 @@ export const StudentLetterGeneration: React.FC = () => {
       
       <PortalToast message={toastMessage} />
 
-      {/* Page Header */}
-      <div className="border-b border-slate-100 pb-5">
-        <h1 className="page-title">
-          Letter Generation
-        </h1>
-        <p className="page-subtitle">
-          Select an available letter template, preview the generated letter, and generate or print your official PDF document.
-        </p>
-      </div>
+      <PageHeader
+        title="Letter Generation"
+        subtitle="Select an available letter template, preview the generated letter, and generate or print your official PDF document."
+        className="border-b border-slate-100 pb-5"
+      />
 
       {/* Main Responsive Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

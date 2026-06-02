@@ -22,7 +22,7 @@ import {
   FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
 import { getNotifications } from '../services';
@@ -205,31 +205,21 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
       
       <PortalToast message={toast} />
 
-      {/* HEADER CONTROLS (Always Visible) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none">
-        <div>
-          <button 
-            onClick={onBack}
-            className="back-link group mb-3"
+      <PageHeader
+        title="My Notifications & Announcements"
+        backLabel="Back to Dashboard"
+        onBack={onBack}
+        className="mb-8 select-none"
+        actions={(
+          <button
+            type="button"
+            onClick={handleMarkAllRead}
+            className="px-5 py-2.5 bg-[#001f3f] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer self-start md:self-auto"
           >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Dashboard</span>
+            Mark All as Read
           </button>
-          
-          <h1 className="page-title">
-            My Notifications & Announcements
-          </h1>
-        </div>
-
-        {/* Global check mark read button */}
-        <button
-          type="button"
-          onClick={handleMarkAllRead}
-          className="px-5 py-2.5 bg-[#001f3f] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer self-start md:self-auto"
-        >
-          Mark All as Read
-        </button>
-      </div>
+        )}
+      />
 
       {/* FILTER SEARCH WRAPPER CARD */}
       <div>
@@ -280,7 +270,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 <div className="space-y-1 pl-2">
                   <div className="flex items-center gap-2">
                     {it.isUnread && (
-                      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0" />
+                      <StatusDot tone="info" className="w-2 h-2" />
                     )}
                     <h3 className="text-xs md:text-sm font-black text-brand-navy tracking-tight hover:text-blue-600 transition-colors">
                       {it.title}

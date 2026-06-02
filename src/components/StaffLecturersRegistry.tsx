@@ -27,22 +27,16 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffRecord } from '../types';
 import { getStaff } from '../services';
+import { MOCK_DEPARTMENTS } from '../mocks/lecturers';
 
 // ==================== STYLES & TYPES ====================
 // StaffRecord now lives in src/types.
 
-const DEPARTMENTS = [
-  'Academic Affairs',
-  'IT Support',
-  'Administration',
-  'Software Engineering',
-  'Computer Science',
-  'Information Systems'
-];
+const DEPARTMENTS = MOCK_DEPARTMENTS;
 
 export type RegistryModuleTab = 'students' | 'staff_lecturers';
 
@@ -602,23 +596,12 @@ export const StaffLecturersRegistry: React.FC<{
         /* ==================== CREATE NEW ACCOUNT VIEW ==================== */
         <RegistryLayout>
           
-          {/* Back link to the staff & lecturer accounts list */}
-          <div className="font-sans text-left">
-            <button
-              type="button"
-              onClick={() => setInnerView('list')}
-              className="back-link group mb-3"
-            >
-              <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-              <span>Back to Staff &amp; Lecturer Accounts</span>
-            </button>
-            <h1 className="page-title">
-              Create New Account
-            </h1>
-            <p className="page-subtitle">
-              Register a new office staff or lecturer account for the system.
-            </p>
-          </div>
+          <PageHeader
+            title="Create New Account"
+            subtitle="Register a new office staff or lecturer account for the system."
+            backLabel="Back to Staff & Lecturer Accounts"
+            onBack={() => setInnerView('list')}
+          />
 
           {/* Account Type Selector twin block cards */}
           <AccountTypeSelector 
@@ -838,39 +821,32 @@ export const StaffLecturersRegistry: React.FC<{
       ) : (
         /* ==================== NORMAL REGISTRY LISTING DESKTOP VIEW ==================== */
         <>
-          {/* HEADER ACTION ROADMAP MOCKUP */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
-            <div>
-              <h1 className="page-title">
-                Staff and Lecturer Accounts
-              </h1>
-              <p className="page-subtitle">
-                University Postgraduate Secretariat
-              </p>
-            </div>
-
-            {/* Add New Account Action Top Right */}
-            <button
-              type="button"
-              onClick={() => {
-                setNewAccountFormData({
-                  name: '',
-                  id: '',
-                  email: '',
-                  phone: '',
-                  department: 'Academic Affairs',
-                  role: 'Office Staff',
-                  status: 'Active',
-                  sendEmailImmediate: true
-                });
-                setInnerView('create');
-              }}
-              className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4 text-indigo-300 animate-bounce" />
-              <span>Add New Account</span>
-            </button>
-          </div>
+          <PageHeader
+            title="Staff and Lecturer Accounts"
+            subtitle="University Postgraduate Secretariat"
+            actions={
+              <PortalButton
+                onClick={() => {
+                  setNewAccountFormData({
+                    name: '',
+                    id: '',
+                    email: '',
+                    phone: '',
+                    department: 'Academic Affairs',
+                    role: 'Office Staff',
+                    status: 'Active',
+                    sendEmailImmediate: true
+                  });
+                  setInnerView('create');
+                }}
+                variant="primary"
+                size="md"
+                icon={UserPlus}
+              >
+                Add New Account
+              </PortalButton>
+            }
+          />
 
           {/* Module switcher below the heading */}
           {onRegistryTabChange && (

@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { PanelRecord } from '../types';
 import { getPanelAppointments } from '../services';
@@ -228,15 +228,11 @@ export const PanelAppointmentManagement: React.FC = () => {
       {panelView === 'list' && (
         <div id="panel-dashboard-container" className="space-y-8 animate-fade-in text-left">
           
-          {/* Upper Title Section */}
-          <div id="panel-header-desc" className="text-left">
-            <h1 className="page-title">
-              Panel Appointment Management
-            </h1>
-            <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
-              Monitor panel appointment records, panel member workload, and records needing attention.
-            </p>
-          </div>
+          <PageHeader
+            title="Panel Appointment Management"
+            subtitle="Monitor panel appointment records, panel member workload, and records needing attention."
+            subtitleClassName="leading-relaxed"
+          />
 
           {/* Core Summary Cards Grid row matching screenshots exactly */}
           <div id="panel-summary-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 font-sans">
@@ -257,7 +253,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-[#e11d48] text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping shrink-0" />
+                <StatusDot tone="danger" pulse />
                 <span>No approved panel record.</span>
               </div>
             </div>
@@ -278,7 +274,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <StatusDot tone="warning" />
                 <span>Panel recommendations still in workflow.</span>
               </div>
             </div>
@@ -299,7 +295,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-emerald-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <StatusDot tone="success" />
                 <span>Confirmed panel appointments.</span>
               </div>
             </div>
@@ -320,7 +316,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <StatusDot tone="warning" />
                 <span>Lecturers near panel limit.</span>
               </div>
             </div>

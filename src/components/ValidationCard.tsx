@@ -5,14 +5,10 @@
 
 import React from 'react';
 import { CheckCircle2, Info } from 'lucide-react';
+import { MOCK_RUBRIC_VALIDATION_REQUIREMENTS } from '../mocks/rubrics';
 
 export const ValidationCard: React.FC = () => {
-  const requirements = [
-    { id: '1', text: 'Total weight must be exactly 100%', type: 'check' },
-    { id: '2', text: 'Required components must have > 0 max marks', type: 'check' },
-    { id: '3', text: 'All component names must be unique', type: 'check' },
-    { id: '4', text: 'Changes affect new tasks only', type: 'info' }
-  ];
+  const requirements = MOCK_RUBRIC_VALIDATION_REQUIREMENTS;
 
   return (
     <div id="rubrics-validation-panel" className="bg-[#f0f4fa]/60 rounded-2xl border border-[#d3dfef]/70 p-6 text-left">

@@ -23,7 +23,7 @@ import {
   Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 import { RightDrawer } from './RightDrawer';
 
 interface WorkloadRecord {
@@ -258,31 +258,18 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       
       <PortalToast message={toastMessage} />
 
-      {/* Back Link */}
-      <div className="flex">
-        <button 
-          onClick={onBack} 
-          className="back-link group mb-3"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Supervisor Appointment Management</span>
-        </button>
-      </div>
-
-      {/* Title & Subtitle with Session Badge */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-1">
-        <div>
-          <h1 className="page-title">
-            Supervisor Workload Monitoring
-          </h1>
-          <p className="text-slate-505 text-xs md:text-sm font-semibold mt-1 leading-relaxed text-slate-500">
-            Monitor lecturer supervision loads by semester, department, and availability.
-          </p>
-        </div>
+      <PageHeader
+        title="Supervisor Workload Monitoring"
+        subtitle="Monitor lecturer supervision loads by semester, department, and availability."
+        backLabel="Back to Supervisor Appointment Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+        actions={(
         <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
           SESSION 2024/2025
         </div>
-      </div>
+        )}
+      />
 
       {/* Summary Cards Grid layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -441,42 +428,36 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
                   <span className="flex items-center gap-1.5 text-emerald-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <StatusDot tone="success" />
                     Available
                   </span>
                   <span>{countAvailable}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(countAvailable / totalSupervisorsCount) * 100}%` }} />
-                </div>
+                <ProgressBar value={countAvailable} max={totalSupervisorsCount} tone="success" trackClassName="h-2 bg-slate-100" />
               </div>
 
               {/* Near Limit */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
                   <span className="flex items-center gap-1.5 text-amber-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <StatusDot tone="warning" />
                     Near Limit
                   </span>
                   <span>{countNearLimit}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(countNearLimit / totalSupervisorsCount) * 100}%` }} />
-                </div>
+                <ProgressBar value={countNearLimit} max={totalSupervisorsCount} tone="warning" trackClassName="h-2 bg-slate-100" />
               </div>
 
               {/* Full Load */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
                   <span className="flex items-center gap-1.5 text-rose-500">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <StatusDot tone="danger" />
                     Full Load
                   </span>
                   <span>{countFullLoad}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-rose-500 rounded-full" style={{ width: `${(countFullLoad / totalSupervisorsCount) * 100}%` }} />
-                </div>
+                <ProgressBar value={countFullLoad} max={totalSupervisorsCount} tone="danger" trackClassName="h-2 bg-slate-100" />
               </div>
 
             </div>
@@ -505,13 +486,15 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
             </span>
           </div>
 
-          <button
+          <PortalButton
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-205 bg-white text-slate-700 hover:bg-slate-50 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition cursor-pointer shrink-0"
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            className="shrink-0"
           >
-            <Download className="w-3.5 h-3.5 text-slate-505" />
-            <span>Export CSV</span>
-          </button>
+            Export CSV
+          </PortalButton>
         </div>
 
         {/* Workload Table */}
@@ -568,36 +551,29 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
                       {/* Availability status chips */}
                       <td className="data-td text-center select-none whitespace-nowrap">
-                        {r.availability === 'Available' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[9px] font-black uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Available
-                          </span>
-                        ) : r.availability === 'Near Limit' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full border border-amber-100 text-[9px] font-black uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            Near Limit
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-500 rounded-full border border-rose-100 text-[9px] font-black uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            Full Load
-                          </span>
-                        )}
+                        <StatusBadge
+                          tone={getStatusBadgeTone(r.availability)}
+                          dot
+                          className="text-[9px] px-2.5 py-0.5"
+                        >
+                          {r.availability}
+                        </StatusBadge>
                       </td>
 
                       {/* Action */}
                       <td className="data-td text-center">
-                        <button
+                        <PortalButton
                           onClick={() => {
                             setSelectedLecturer(r);
                             setIsDrawerOpen(true);
                             showToast(`Loaded supervisee ledger for ${r.lecturerName}`);
                           }}
-                          className="px-3.5 py-1.5 text-blue-600 bg-blue-50/50 hover:bg-blue-50 border border-blue-105 font-black text-[10px] uppercase tracking-wider rounded-lg transition shrink-0 cursor-pointer text-[#3b82f6]"
+                          variant="soft"
+                          size="sm"
+                          icon={Eye}
                         >
                           View
-                        </button>
+                        </PortalButton>
                       </td>
                     </tr>
                   )
@@ -621,37 +597,37 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           </span>
 
           <div className="flex items-center gap-1">
-            <button
+            <PortalButton
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-205 bg-white text-slate-655 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              variant="secondary"
+              size="icon"
+              className="w-8 h-8"
+              icon={ChevronLeft}
               aria-label="Previous page"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+            />
 
             {Array.from({ length: totalPages }).map((_, idx) => (
-              <button
+              <PortalButton
                 key={idx}
                 onClick={() => setCurrentPage(idx + 1)}
-                className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center ${
-                  currentPage === idx + 1
-                    ? 'bg-brand-navy text-white'
-                    : 'bg-white border border-slate-160 text-slate-600 hover:bg-slate-50'
-                }`}
+                variant={currentPage === idx + 1 ? 'primary' : 'secondary'}
+                size="sm"
+                className="w-8 h-8 p-0 text-xs"
               >
                 {idx + 1}
-              </button>
+              </PortalButton>
             ))}
 
-            <button
+            <PortalButton
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-205 bg-white text-slate-6bb hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              variant="secondary"
+              size="icon"
+              className="w-8 h-8"
+              icon={ChevronRight}
               aria-label="Next page"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            />
           </div>
         </div>
 
@@ -700,22 +676,13 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider">Availability</span>
                 <div className="mt-1">
-                  {selectedLecturer.availability === 'Available' ? (
-                    <span className="inline-flex items-center gap-1 text-emerald-600 text-[9px] font-black uppercase tracking-wider">
-                      <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                      Available
-                    </span>
-                  ) : selectedLecturer.availability === 'Near Limit' ? (
-                    <span className="inline-flex items-center gap-1 text-amber-600 text-[9px] font-black uppercase tracking-wider">
-                      <span className="w-1 h-1 rounded-full bg-amber-500" />
-                      Near Limit
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-rose-500 text-[9px] font-black uppercase tracking-wider">
-                      <span className="w-1 h-1 rounded-full bg-rose-500" />
-                      Full Load
-                    </span>
-                  )}
+                  <StatusBadge
+                    tone={getStatusBadgeTone(selectedLecturer.availability)}
+                    dot
+                    className="text-[9px] px-2 py-0.5"
+                  >
+                    {selectedLecturer.availability}
+                  </StatusBadge>
                 </div>
               </div>
             </div>
@@ -728,15 +695,12 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
                   {selectedLecturer.currentStudents} / {selectedLecturer.workloadLimit}
                 </span>
               </div>
-              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all ${
-                    selectedLecturer.availability === 'Available' ? 'bg-emerald-500' : 
-                    selectedLecturer.availability === 'Near Limit' ? 'bg-amber-500' : 'bg-rose-500'
-                  }`} 
-                  style={{ width: `${(selectedLecturer.currentStudents / selectedLecturer.workloadLimit) * 100}%` }} 
-                />
-              </div>
+              <ProgressBar
+                value={selectedLecturer.currentStudents}
+                max={selectedLecturer.workloadLimit}
+                tone={selectedLecturer.availability === 'Available' ? 'success' : selectedLecturer.availability === 'Near Limit' ? 'warning' : 'danger'}
+                trackClassName="h-2.5 bg-slate-100"
+              />
             </div>
 
             {/* Supervisees list table */}
@@ -776,24 +740,28 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
 
             {/* Admin trigger actions */}
             <div className="space-y-2 border-t border-slate-100 pt-5">
-              <button 
+              <PortalButton
                 onClick={() => {
                   showToast(`Drafting notification email to ${selectedLecturer.lecturerName}...`);
                 }} 
-                className="w-full py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-2"
+                variant="primary"
+                size="md"
+                icon={Mail}
+                fullWidth
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Email Official Workload Inquiry</span>
-              </button>
+                Email Official Workload Inquiry
+              </PortalButton>
 
-              <button 
+              <PortalButton
                 onClick={() => {
                   showToast("Please use the Marks Entry Period Configuration module to audit evaluation quotas.");
                 }} 
-                className="w-full py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-brand-navy font-extrabold uppercase text-[10px] rounded-xl tracking-wider transition cursor-pointer text-center block"
+                variant="secondary"
+                size="md"
+                fullWidth
               >
                 View Connected Panel Records
-              </button>
+              </PortalButton>
             </div>
 
           </div>

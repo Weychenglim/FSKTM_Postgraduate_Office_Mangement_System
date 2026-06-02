@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { EvaluationTask } from '../types';
+import { PageHeader } from './PortalPrimitives';
 
 interface MarkEntryDetailProps {
   task: EvaluationTask;
@@ -222,28 +223,13 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   return (
     <div id="mark-entry-detail-page" className="space-y-6 text-left">
       
-      {/* 1. Back link */}
-      <div>
-        <button
-          id="back-list-link-button"
-          type="button"
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks Entry</span>
-        </button>
-      </div>
-
-      {/* 2. Main Title */}
-      <div id="detail-page-title-header" className="select-none">
-        <h1 className="page-title">
-          Mark Entry Detail
-        </h1>
-        <p className="page-subtitle">
-          Enter rubric marks and submit evaluation for the assigned student.
-        </p>
-      </div>
+      <PageHeader
+        title="Mark Entry Detail"
+        subtitle="Enter rubric marks and submit evaluation for the assigned student."
+        backLabel="Back to Marks Entry"
+        onBack={onBack}
+        className="select-none"
+      />
 
       {/* 3. Outer Responsive Layout splits Left/Right Columns (65% vs 35%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

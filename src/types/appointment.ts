@@ -143,3 +143,26 @@ export interface RecentAppointment {
   date: string;
   status: string;
 }
+
+// Student-facing supervisor appointment application workflow.
+export type StudentSupervisorApplicationStatus =
+  | 'PENDING REVIEW'
+  | 'RETURNED'
+  | 'APPROVED';
+
+export interface StudentSupervisorApplication {
+  id: string;
+  title: string;
+  supervisor: string;
+  date: string;
+  status: StudentSupervisorApplicationStatus;
+}
+
+export interface SupervisorCandidate {
+  id: string;
+  name: string;
+  initials: string;
+  filled: number;
+  total: number;
+  domain: string;
+}

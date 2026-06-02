@@ -53,6 +53,9 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.
 - Authenticated role workspaces must use consistent `rounded-2xl` card surfaces, subdued shadows, and shared brand color tokens.
 - Repeated portal UI patterns such as page headers, action buttons, cards, status badges, toast notifications, tables, forms, and filter controls should use shared primitives or shared CSS classes where practical.
+- Frontend API configuration must be driven by Vite environment variables so mock mode and backend base URL can change without code edits.
+- Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
+- Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
 
 ## Student Module Requirements
 
@@ -66,3 +69,4 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Student Dashboard Overview must provide useful student status/action cards below the timeline, including supervisor status, panel appointment status, file submission reminders, letter readiness, next student actions, semester progress, FAQ support, and profile status.
 - Student screens must reuse the current portal shell, global footer, typography scale, card surfaces, and shared Tailwind theme tokens.
 - Student-facing toasts, status labels, action cards, and dashboard cards must follow the same shared portal primitives used by office staff and lecturer screens.
+- Cross-role table actions, pagination controls, drawer close controls, modal actions, upload actions, page headers, sub-view back headers, segmented selectors, removable tag chips, progress bars, status dots, and reusable status badges should use shared portal primitives unless the control is a highly layout-specific visual element.

@@ -33,6 +33,12 @@
 - Extended the consistency cleanup across the remaining repeated portal surfaces by centralizing role/module toast overlays, replacing raw generated table class strings with the shared `data-table` styling, applying shared filter/form controls to major search panels, and normalizing leftover portal-side custom shadows.
 - Tightened backend-readiness UI consistency by updating shared form components, legacy action buttons, local status chips, FAQ/announcement/template editor controls, and timeline drawer controls to use shared portal primitives and CSS classes.
 - Fixed the shared sign-in action button so the right-arrow icon stays inline with the button label.
+- Added env-driven frontend API configuration for `VITE_API_BASE_URL`, `VITE_USE_MOCKS`, and `VITE_MOCK_LATENCY_MS`.
+- Removed generated Gemini/AI Studio leftovers from env examples, metadata, dependency files, and stale generated project context.
+- Moved key component-local backend-shaped demo data into shared mocks/types, including dashboard attention rows, student next actions, student letter templates, student supervisor applications, supervisor candidates, mark detail mappings, rubric rows, timeline import preview entries, panel related documents, departments, and announcement attachment options.
+- Standardized the next layer of shared UI consistency by routing reusable status badges through a shared tone helper, aligning common table actions/pagination with `PortalButton`, and normalizing drawer/modal/upload action controls across high-traffic office-staff, lecturer, and student surfaces.
+- Replaced additional local page headers and specialized controls with shared primitives, including student and lecturer module `PageHeader` usage, dashboard/announcement segmented controls, upload permission switches, removable tag chips, summary/status dots, and progress bars.
+- Finished the remaining authenticated module header cleanup so local `page-title`, `page-subtitle`, and `back-link` usage now lives inside `PortalPrimitives`, and converted more reusable summary/status/progress indicators to `StatusBadge`, `StatusDot`, and `ProgressBar`.
 
 ## Current Testing Status
 
@@ -63,6 +69,16 @@
 - `npm run lint` passes after the backend-readiness form, button, status badge, and drawer-control cleanup.
 - `npm run build` passes after the backend-readiness form, button, status badge, and drawer-control cleanup.
 - Vite dev server smoke probe returns HTTP 200 with the root element present after the backend-readiness UI cleanup.
+- `npm run lint` passes after adding env-driven API config and moving backend-shaped demo data into shared mocks/types.
+- `npm run lint` passes after the status badge, table action, drawer/modal control, and upload action consistency cleanup.
+- `npm run build` passes after the status badge, table action, drawer/modal control, and upload action consistency cleanup.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the status badge, table action, drawer/modal control, and upload action consistency cleanup.
+- `npm run lint` passes after the page-header and specialized-control primitive cleanup.
+- `npm run build` passes after the page-header and specialized-control primitive cleanup.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the page-header and specialized-control primitive cleanup.
+- `npm run lint` passes after the remaining authenticated module header/status/progress primitive cleanup.
+- `npm run build` passes after the remaining authenticated module header/status/progress primitive cleanup.
+- Vite dev server smoke probe returns HTTP 200 with the root element present after the remaining authenticated module header/status/progress primitive cleanup.
 - Vite foreground server check returns HTTP 200 for the app root.
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, lecturer routes, and student routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.
@@ -71,8 +87,9 @@
 
 ## Known Issues and Notes
 
-- The current frontend uses demo/static data.
-- There is no backend API integration yet for dashboard metrics, timeline records, appointment records, lecturer workflows, student workflows, mark records, registry records, file records, FAQ entries, letters, announcements, or notifications.
+- The current frontend uses mock-backed demo data by default through `VITE_USE_MOCKS=true`.
+- Real backend API integration still needs endpoint mapping for dashboard metrics, timeline records, appointment records, lecturer workflows, student workflows, mark records, registry records, file records, FAQ entries, letters, announcements, and notifications.
+- Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
 

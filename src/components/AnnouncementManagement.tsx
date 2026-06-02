@@ -24,10 +24,11 @@ import {
   Eye,
   FileText
 } from 'lucide-react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementItem } from '../types';
 import { getAnnouncements } from '../services';
+import { MOCK_ANNOUNCEMENT_ATTACHMENTS } from '../mocks/announcements';
 
 // AnnouncementItem now lives in src/types.
 
@@ -85,7 +86,7 @@ export const AnnouncementManagement: React.FC = () => {
 
   // Attach simulated files
   const handleAttachFile = () => {
-    const fileOptions = ['exam_schedule_2026_draft.pdf', 'research_grant_circular_v2.docx', 'it_system_backup_notes.txt'];
+    const fileOptions = MOCK_ANNOUNCEMENT_ATTACHMENTS;
     const randomFile = fileOptions[Math.floor(Math.random() * fileOptions.length)];
     setAttachedFile(randomFile);
     showToast(`Attached file: ${randomFile}`);
@@ -182,18 +183,6 @@ export const AnnouncementManagement: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const displayedAnnouncements = filteredAnnouncements.slice(startIndex, startIndex + itemsPerPage);
 
-  // CSS Priority badges helpers
-  const getPriorityBadgeStyles = (pri: 'Urgent' | 'Info' | 'General') => {
-    switch (pri) {
-      case 'Urgent':
-        return 'text-red-700 bg-red-100 border border-red-200';
-      case 'Info':
-        return 'text-[#1d4ed8] bg-blue-50 border border-blue-200';
-      default:
-        return 'text-[#475569] bg-slate-100 border border-slate-200';
-    }
-  };
-
   return (
     <div id="announcement-module" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
 
@@ -203,27 +192,22 @@ export const AnnouncementManagement: React.FC = () => {
       /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
       <div className="space-y-6">
 
-        {/* Page Header + View History action */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
-          <div>
-            <h1 className="page-title">
-              Draft New Announcement
-            </h1>
-            <p className="page-subtitle">
-              Craft your message for the FSKTM community.
-            </p>
-          </div>
-          <PortalButton
-            type="button"
-            variant="secondary"
-            size="md"
-            icon={Eye}
-            onClick={() => setView('history')}
-            className="shrink-0"
-          >
-            View Announcement History
-          </PortalButton>
-        </div>
+        <PageHeader
+          title="Draft New Announcement"
+          subtitle="Craft your message for the FSKTM community."
+          actions={(
+            <PortalButton
+              type="button"
+              variant="secondary"
+              size="md"
+              icon={Eye}
+              onClick={() => setView('history')}
+              className="shrink-0"
+            >
+              View Announcement History
+            </PortalButton>
+          )}
+        />
 
         {/* Draft form */}
         <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
@@ -247,25 +231,12 @@ export const AnnouncementManagement: React.FC = () => {
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Target Audience
               </label>
-              <div className="flex flex-wrap gap-2">
-                {(['All', 'Lecturers', 'Staff', 'Coordinators'] as const).map((aud) => {
-                  const isSelected = targetAudience === aud;
-                  return (
-                    <button
-                      key={aud}
-                      type="button"
-                      onClick={() => handleAudienceClick(aud)}
-                      className={`px-4 py-2 rounded-full text-[11px] font-extrabold tracking-wide transition duration-150 cursor-pointer ${
-                        isSelected 
-                          ? 'bg-brand-navy text-white shadow-xs' 
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {aud}
-                    </button>
-                  );
-                })}
-              </div>
+              <SegmentedControl
+                options={['All', 'Lecturers', 'Staff', 'Coordinators'] as const}
+                value={targetAudience}
+                onChange={handleAudienceClick}
+                className="inline-flex"
+              />
             </div>
 
             {/* Field C: Priority Selector boxes */}
@@ -431,28 +402,12 @@ export const AnnouncementManagement: React.FC = () => {
       /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
       <div id="announcements-history-view" className="space-y-6">
 
-        {/* Back to draft announcement */}
-        <button
-          type="button"
-          onClick={() => setView('create')}
-          className="back-link group"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Draft Announcement</span>
-        </button>
-
-        {/* Page Header + Search */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
-          <div>
-            <h1 className="page-title">
-              Announcement History
-            </h1>
-            <p className="page-subtitle">
-              Review and manage past announcements broadcast to the FSKTM community.
-            </p>
-          </div>
-
-            {/* Real Search Input matching mockup placement */}
+        <PageHeader
+          title="Announcement History"
+          subtitle="Review and manage past announcements broadcast to the FSKTM community."
+          backLabel="Back to Draft Announcement"
+          onBack={() => setView('create')}
+          actions={(
             <div className="relative max-w-xs w-full">
               <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -465,7 +420,8 @@ export const AnnouncementManagement: React.FC = () => {
                 className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
               />
             </div>
-          </div>
+          )}
+        />
 
           {/* 4 Summary Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -542,18 +498,21 @@ export const AnnouncementManagement: React.FC = () => {
                         <td className="data-td text-left max-w-sm space-y-1">
                           <div className="flex items-center gap-2">
                             {item.status === 'Draft' && (
-                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider">
+                              <StatusBadge tone="warning" className="rounded-md px-1.5 py-0.5 text-[8px]">
                                 Draft
-                              </span>
+                              </StatusBadge>
                             )}
                             <span className="font-extrabold text-slate-800 text-[12px] leading-snug tracking-tight">
                               {item.title}
                             </span>
                             
                             {/* Priority visual mini circle tag */}
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityBadgeStyles(item.priority)}`}>
+                            <StatusBadge
+                              tone={getStatusBadgeTone(item.priority)}
+                              className="rounded-md px-1.5 py-0.5 text-[8px]"
+                            >
                               {item.priority}
-                            </span>
+                            </StatusBadge>
                           </div>
                           
                           <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -563,22 +522,24 @@ export const AnnouncementManagement: React.FC = () => {
                           <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
                             <span>Broadcasted {item.dateCreated}</span>
                             <span>•</span>
-                            <button
+                            <PortalButton
                               type="button"
                               onClick={() => handleDeleteHistoryItem(item.id, item.title)}
-                              className="text-red-500 hover:text-red-700 transition inline-flex items-center gap-1 cursor-pointer"
+                              variant="ghost"
+                              size="sm"
+                              icon={Trash2}
+                              className="px-1 py-0 h-auto text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                             >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Remove</span>
-                            </button>
+                              Remove
+                            </PortalButton>
                           </div>
                         </td>
 
                         {/* Target tag */}
                         <td className="data-td text-right vertical-align-middle">
-                          <span className="inline-block px-2.5 py-1 text-[9px] font-black uppercase bg-slate-50 border border-slate-200 text-slate-500 rounded-lg select-none">
+                          <StatusBadge tone="neutral" className="rounded-lg px-2.5 py-1 text-[9px]">
                             {item.target}
-                          </span>
+                          </StatusBadge>
                         </td>
 
                       </tr>
@@ -596,42 +557,44 @@ export const AnnouncementManagement: React.FC = () => {
                 </span>
 
                 <div className="flex items-center gap-1.5">
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-slate-800 disabled:opacity-40 transition cursor-pointer"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronLeft}
+                    className="w-8 h-8"
+                    aria-label="Previous page"
+                  />
 
                   {Array.from({ length: totalPages }).map((_, i) => {
                     const pageNum = i + 1;
                     const isCurrent = currentPage === pageNum;
                     return (
-                      <button
+                      <PortalButton
                         key={pageNum}
                         type="button"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded text-[11px] font-black transition cursor-pointer ${
-                          isCurrent
-                            ? 'bg-brand-navy text-white'
-                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                        variant={isCurrent ? 'primary' : 'secondary'}
+                        size="sm"
+                        className="w-7 h-7 p-0 text-[11px]"
                       >
                         {pageNum}
-                      </button>
+                      </PortalButton>
                     );
                   })}
 
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-slate-800 disabled:opacity-40 transition cursor-pointer"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronRight}
+                    className="w-8 h-8"
+                    aria-label="Next page"
+                  />
                 </div>
               </div>
             )}

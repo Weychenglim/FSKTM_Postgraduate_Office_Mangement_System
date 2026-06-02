@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { EvaluationTask, EvaluationStatus } from '../types';
 
 // Extended status to include 'CLOSED'
@@ -451,39 +451,22 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
       
       <PortalToast message={toastMessage} />
 
-      {/* 1. Header Navigation Row */}
-      <div className="flex flex-col gap-1">
-        <button
-          id="back-to-marks-entry-btn"
-          type="button"
-          onClick={onBack}
-          className="back-link group mb-3 self-start"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks Entry</span>
-        </button>
-      </div>
-
-      {/* 2. Main Page Header Aligning with Reference block */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 select-none">
-        <div>
-          <h1 className="page-title">
-            Marks Entry History
-          </h1>
-          <p className="page-subtitle">
-            View mark entry tasks and submissions assigned to you across semesters.
-          </p>
-        </div>
-
-        {/* Top-right aligned export PDF action */}
-        <button
+      <PageHeader
+        title="Marks Entry History"
+        subtitle="View mark entry tasks and submissions assigned to you across semesters."
+        backLabel="Back to Marks Entry"
+        onBack={onBack}
+        className="select-none"
+        actions={(
+          <button
           onClick={handleExportPDF}
           className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2.5 px-4 rounded-xl text-xs font-bold transition shadow-3xs"
-        >
+          >
           <FileDown className="w-4 h-4 text-rose-500 shrink-0 stroke-[2.3]" />
           <span>Export PDF</span>
-        </button>
-      </div>
+          </button>
+        )}
+      />
 
       {/* 3. 4 Summary Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

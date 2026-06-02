@@ -22,7 +22,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
 import { getMarkRecords } from '../services';
@@ -175,22 +175,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       <PortalToast message={toast} />
 
       {/* Breadcrumb back link & Title header */}
-      <div id="records-header-block" className="flex flex-col text-left">
-        <button
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks & Evaluation Management</span>
-        </button>
-
-        <h1 className="page-title">
-          Mark Entry Records
-        </h1>
-        <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
-          Search and monitor mark entry records by student, panel member, semester, and status.
-        </p>
-      </div>
+      <PageHeader
+        title="Mark Entry Records"
+        subtitle="Search and monitor mark entry records by student, panel member, semester, and status."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+      />
 
       {/* 4 Summary Cards Row with exact look (number text + solid bottom line) */}
       <div id="records-metrics-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -19,7 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SummaryCard } from './SummaryCard';
 import { EvaluationPreviewTask as PreviewTask } from '../types';
@@ -109,23 +109,13 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       
       <PortalToast message={toastMessage} />
 
-      {/* Top breadcrumb heading title section */}
-      <div id="eval-header-block" className="flex flex-col text-left">
-        <button
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks & Evaluation Management</span>
-        </button>
-
-        <h1 className="page-title">
-          Evaluation Task Assignment
-        </h1>
-        <p className="page-subtitle leading-relaxed">
-          Generate mark entry tasks for approved panel appointments using the configured period and rubric.
-        </p>
-      </div>
+      <PageHeader
+        title="Evaluation Task Assignment"
+        subtitle="Generate mark entry tasks for approved panel appointments using the configured period and rubric."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+      />
 
       {/* Summary grid row representing 4 diagnostic components directly in line with screenshot */}
       <div id="summary-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

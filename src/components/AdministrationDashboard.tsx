@@ -21,6 +21,7 @@ import {
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { MOCK_DASHBOARD_ATTENTION_ROWS } from '../mocks/dashboard';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -77,48 +78,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
     });
   };
 
-  const attentionRows = [
-    {
-      id: 'attn_1',
-      type: 'Students without approved supervisor',
-      count: '12 records',
-      status: 'OPEN',
-      targetTab: 'Supervisor Appointments',
-      detail: 'Redirecting to Supervisor Appointment allocation boards...'
-    },
-    {
-      id: 'attn_2',
-      type: 'Approved supervisor but no panel assigned',
-      count: '5 records',
-      status: 'OPEN',
-      targetTab: 'Panel Appointments',
-      detail: 'Redirecting to Panel Appointment scheduling and assignment portal...'
-    },
-    {
-      id: 'attn_3',
-      type: 'Lecturers near supervisor workload limit',
-      count: '3 lecturers',
-      status: 'OPEN',
-      targetTab: 'Supervisor Appointments',
-      detail: 'Opening lecturer workload monitor and limit audits...'
-    },
-    {
-      id: 'attn_4',
-      type: 'Lecturers near panel workload limit',
-      count: '2 lecturers',
-      status: 'OPEN',
-      targetTab: 'Panel Appointments',
-      detail: 'Opening panel workload list to resolve appointment gaps...'
-    },
-    {
-      id: 'attn_5',
-      type: 'Mark entry tasks not generated',
-      count: '1 semester',
-      status: 'OPEN',
-      targetTab: 'Marks Entry',
-      detail: 'Launching Marks & Evaluation generation engine...'
-    }
-  ];
+  const attentionRows = MOCK_DASHBOARD_ATTENTION_ROWS;
 
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
@@ -286,10 +246,9 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
 
                     {/* Status Badge */}
                     <td className="data-td text-center">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-full text-[9px] font-extrabold uppercase tracking-wider">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        <span>{row.status}</span>
-                      </span>
+                      <StatusBadge tone="info" dot pulse className="text-[9px]">
+                        {row.status}
+                      </StatusBadge>
                     </td>
 
                     {/* Trigger Navigation callback action */}

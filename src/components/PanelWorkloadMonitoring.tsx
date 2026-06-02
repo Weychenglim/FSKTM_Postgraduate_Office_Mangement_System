@@ -22,7 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 
 export interface LecturerWorkloadRecord {
   id: string; // LEC-XXX
@@ -276,23 +276,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       
       <PortalToast message={toastMessage} />
 
-      {/* Breadcrumb & Navigation Heading */}
-      <div id="workload-nav-header" className="space-y-1.5 text-left">
-        <button
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Panel Appointment Management</span>
-        </button>
-        
-        <h1 className="page-title">
-          Panel Workload Monitoring
-        </h1>
-        <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 leading-relaxed max-w-3xl">
-          Monitor lecturer panel assignment loads by semester, department, and availability.
-        </p>
-      </div>
+      <PageHeader
+        title="Panel Workload Monitoring"
+        subtitle="Monitor lecturer panel assignment loads by semester, department, and availability."
+        backLabel="Back to Panel Appointment Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed max-w-3xl"
+      />
 
       {/* Summary Cards Grid Row */}
       <div id="workload-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -481,42 +471,36 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <StatusDot tone="success" />
                     <span className="text-slate-700 font-semibold">Available</span>
                   </div>
                   <span className="text-slate-850 font-extrabold">{availableCount}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${totalPanelsCount > 0 ? (availableCount / totalPanelsCount) * 100 : 0}%` }} />
-                </div>
+                <ProgressBar value={availableCount} max={totalPanelsCount} tone="success" trackClassName="h-2 bg-slate-105" />
               </div>
 
               {/* Near Limit */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <StatusDot tone="warning" />
                     <span className="text-slate-700 font-semibold">Near Limit</span>
                   </div>
                   <span className="text-slate-850 font-extrabold">{nearLimitCount}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: `${totalPanelsCount > 0 ? (nearLimitCount / totalPanelsCount) * 100 : 0}%` }} />
-                </div>
+                <ProgressBar value={nearLimitCount} max={totalPanelsCount} tone="warning" trackClassName="h-2 bg-slate-105" />
               </div>
 
               {/* Full Load */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    <StatusDot tone="danger" />
                     <span className="text-slate-700 font-semibold">Full Load</span>
                   </div>
                   <span className="text-slate-850 font-extrabold">{fullLoadCount}</span>
                 </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-red-650 rounded-full" style={{ width: `${totalPanelsCount > 0 ? (fullLoadCount / totalPanelsCount) * 100 : 0}%` }} />
-                </div>
+                <ProgressBar value={fullLoadCount} max={totalPanelsCount} tone="danger" trackClassName="h-2 bg-slate-105" />
               </div>
 
             </div>
@@ -537,13 +521,14 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             PANEL WORKLOAD RECORDS
           </span>
 
-          <button
+          <PortalButton
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-brand-navy transition-colors focus:outline-none cursor-pointer uppercase tracking-wider text-[11px]"
+            variant="secondary"
+            size="sm"
+            icon={Download}
           >
-            <Download className="w-4 h-4" />
-            <span>Export CSV</span>
-          </button>
+            Export CSV
+          </PortalButton>
         </div>
 
         {/* Scrollable table ledger matching screenshot exact visual styling */}
@@ -601,34 +586,30 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     {/* Availability status color chips */}
                     <td className="data-td">
                       <div className="flex items-center justify-center">
-                        {rec.availability === 'Available' ? (
-                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-emerald-100">
-                            Available
-                          </span>
-                        ) : rec.availability === 'Near Limit' ? (
-                          <span className="px-2.5 py-1 bg-amber-50 text-amber-700 tracking-wide font-black text-[9px] uppercase rounded-full border border-amber-100">
-                            Near Limit
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 bg-red-50 text-red-650 tracking-wide font-black text-[9px] uppercase rounded-full border border-red-100">
-                            Full Load
-                          </span>
-                        )}
+                        <StatusBadge
+                          tone={getStatusBadgeTone(rec.availability)}
+                          dot
+                          className="text-[9px] px-2.5 py-0.5"
+                        >
+                          {rec.availability}
+                        </StatusBadge>
                       </div>
                     </td>
 
                     {/* Action Column view detail button */}
                     <td className="data-td text-right">
-                      <button
+                      <PortalButton
                         onClick={() => {
                           setSelectedLecturer(rec);
                           setIsDrawerOpen(true);
                           showToast(`Opening workload detail drawer for ${rec.name}`);
                         }}
-                        className="text-blue-600 hover:text-blue-800 font-extrabold uppercase text-[10px] tracking-widest hover:underline cursor-pointer focus:outline-none"
+                        variant="soft"
+                        size="sm"
+                        icon={Eye}
                       >
                         View
-                      </button>
+                      </PortalButton>
                     </td>
 
                   </tr>
@@ -655,41 +636,43 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           <div className="flex items-center gap-1.5 select-none">
             
             {/* Prev button */}
-            <button
+            <PortalButton
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 disabled:opacity-45 hover:bg-slate-50 transition cursor-pointer"
-            >
-              <ChevronLeft className="w-4.5 h-4.5" />
-            </button>
+              variant="secondary"
+              size="icon"
+              icon={ChevronLeft}
+              className="w-8 h-8"
+              aria-label="Previous page"
+            />
 
             {/* Numeric buttons */}
             {Array.from({ length: totalPages }).map((_, inx) => {
               const pNum = inx + 1;
               const isCurrent = currentPage === pNum;
               return (
-                <button
+                <PortalButton
                   key={pNum}
                   onClick={() => setCurrentPage(pNum)}
-                  className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
-                    isCurrent 
-                      ? 'bg-brand-navy text-white border border-brand-navy' 
-                      : 'bg-white border border-slate-205 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  variant={isCurrent ? 'primary' : 'secondary'}
+                  size="sm"
+                  className="w-8 h-8 p-0 text-xs"
                 >
                   {pNum}
-                </button>
+                </PortalButton>
               );
             })}
 
             {/* Next button */}
-            <button
+            <PortalButton
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 disabled:opacity-45 hover:bg-slate-50 transition cursor-pointer"
-            >
-              <ChevronRight className="w-4.5 h-4.5" />
-            </button>
+              variant="secondary"
+              size="icon"
+              icon={ChevronRight}
+              className="w-8 h-8"
+              aria-label="Next page"
+            />
 
           </div>
 
@@ -757,19 +740,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                           {selectedLecturer.name}
                         </h4>
                         
-                        {selectedLecturer.availability === 'Available' ? (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 font-extrabold text-[8px] uppercase rounded-full border border-emerald-100">
-                            Available
-                          </span>
-                        ) : selectedLecturer.availability === 'Near Limit' ? (
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-700 font-extrabold text-[8px] uppercase rounded-full border border-amber-100">
-                            Near Limit
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-red-50 text-red-650 font-extrabold text-[8px] uppercase rounded-full border border-red-100">
-                            Full Load
-                          </span>
-                        )}
+                        <StatusBadge
+                          tone={getStatusBadgeTone(selectedLecturer.availability)}
+                          dot
+                          className="text-[8px] px-2 py-0.5"
+                        >
+                          {selectedLecturer.availability}
+                        </StatusBadge>
                       </div>
 
                       <div className="mt-2.5 space-y-1.5 text-[11px] font-semibold text-slate-500">
@@ -913,9 +890,9 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                           </span>
                         </div>
                         
-                        <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold text-[8px] uppercase tracking-wide rounded-full border border-emerald-100 flex-shrink-0">
+                        <StatusBadge tone="success" className="text-[8px] px-2.5 py-0.5 flex-shrink-0">
                           Approved
-                        </span>
+                        </StatusBadge>
                       </div>
                     ))}
                     {(academicStudentsMap[selectedLecturer.id] || []).length === 0 && (
@@ -930,21 +907,23 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
               {/* Drawer Bottom Actions Footer */}
               <div className="bg-white p-5 border-t border-slate-200 flex items-center justify-between gap-3 shadow-sm">
-                <button
+                <PortalButton
                   onClick={() => setIsDrawerOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-250 text-brand-navy hover:bg-slate-50 transition text-xs font-black uppercase tracking-wider cursor-pointer"
+                  variant="secondary"
+                  size="md"
                 >
                   Close
-                </button>
+                </PortalButton>
                 
-                <button
+                <PortalButton
                   onClick={() => {
                     showToast(`Redirecting to panel assignments registry for ${selectedLecturer.name}...`);
                   }}
-                  className="px-5 py-2.5 text-blue-600 hover:text-blue-800 transition text-[11px] font-black uppercase tracking-wider cursor-pointer font-sans"
+                  variant="soft"
+                  size="md"
                 >
                   View Related Records
-                </button>
+                </PortalButton>
               </div>
 
             </motion.div>

@@ -7,6 +7,15 @@
 
 import { StaffRecord } from '../types';
 
+export const MOCK_DEPARTMENTS = [
+  'Academic Affairs',
+  'IT Support',
+  'Administration',
+  'Software Engineering',
+  'Computer Science',
+  'Information Systems',
+];
+
 export const MOCK_STAFF: StaffRecord[] = [
   // Office Staff
   {

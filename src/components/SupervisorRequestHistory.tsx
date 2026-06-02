@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StatusChip } from './LecturerSupervisorAppointments';
-import { PortalButton } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistoryRow } from '../types';
 import { getSupervisorRequestHistory } from '../services';
@@ -132,24 +132,14 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
   return (
     <div id="supervisor-request-history-page" className="space-y-8 animate-fade-in text-left">
       
-      {/* Back to Supervisor Appointments */}
-      <button
-        onClick={onBack}
-        className="back-link group mb-3"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        <span>Back to Supervisor Appointments</span>
-      </button>
-
-      {/* Main Title Block */}
-      <div id="history-page-title-block" className="text-left select-none">
-        <h1 className="page-title">
-          Supervisor Request History
-        </h1>
-        <p className="page-subtitle max-w-4xl leading-relaxed">
-          View supervisor appointment requests you have approved or rejected.
-        </p>
-      </div>
+      <PageHeader
+        title="Supervisor Request History"
+        subtitle="View supervisor appointment requests you have approved or rejected."
+        backLabel="Back to Supervisor Appointments"
+        onBack={onBack}
+        subtitleClassName="max-w-4xl leading-relaxed"
+        className="select-none"
+      />
 
       {/* THREE SUMMARY CARDS GRID */}
       <div id="history-summary-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6 select-none font-sans">
@@ -361,14 +351,9 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                           {row.submittedDate}
                         </td>
                         <td className="py-4 px-6">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border select-none ${
-                            row.decision === 'Approved'
-                              ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]'
-                              : 'bg-rose-50 text-rose-600 border-rose-100'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${row.decision === 'Approved' ? 'bg-[#00a15c]' : 'bg-rose-500'}`} />
+                          <StatusBadge tone={row.decision === 'Approved' ? 'success' : 'danger'} dot>
                             {row.decision}
-                          </span>
+                          </StatusBadge>
                         </td>
                         <td className="py-4 px-6 font-bold text-slate-500">
                           {row.semester}
@@ -505,13 +490,9 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                     <span className="font-mono text-xs font-black text-brand-navy">
                       {selectedRecord.requestId}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
-                      selectedRecord.decision === 'Approved'
-                        ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]'
-                        : 'bg-rose-50 text-rose-600 border-rose-100'
-                    }`}>
+                    <StatusBadge tone={selectedRecord.decision === 'Approved' ? 'success' : 'danger'} className="py-0.5 text-[9px]">
                       {selectedRecord.decision}
-                    </span>
+                    </StatusBadge>
                   </div>
                 </div>
 

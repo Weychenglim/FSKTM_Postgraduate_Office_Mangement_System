@@ -34,7 +34,7 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
@@ -841,15 +841,12 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       {detailView === 'list' && (
         <div id="overview-listing-screen" className="space-y-8">
           
-          {/* Main Title Metadata Block */}
-          <div id="page-nav-meta-block" className="text-left select-none">
-            <h1 className="page-title">
-              Supervisor Appointments
-            </h1>
-            <p className="page-subtitle leading-relaxed max-w-4xl">
-              Manage your active supervisees and review incoming supervisor appointment requests.
-            </p>
-          </div>
+          <PageHeader
+            title="Supervisor Appointments"
+            subtitle="Manage your active supervisees and review incoming supervisor appointment requests."
+            subtitleClassName="leading-relaxed max-w-4xl"
+            className="select-none"
+          />
 
           {loading ? (
             <LoadingState message="Loading supervisor appointments…" />
@@ -943,14 +940,15 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           animate={{ opacity: 1, y: 0 }} 
           className="space-y-6 text-left"
         >
-          {/* Back link bar */}
-          <button
+          <PortalButton
             onClick={() => setDetailView('list')}
-            className="back-link group mb-3"
+            variant="ghost"
+            size="sm"
+            icon={ArrowLeft}
+            className="mb-3 px-0 hover:bg-transparent"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Appointments List</span>
-          </button>
+            Back to Appointments List
+          </PortalButton>
 
           {/* Profile overview box layout */}
           <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-3xs grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
