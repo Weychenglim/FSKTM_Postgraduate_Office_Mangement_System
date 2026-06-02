@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { TimelineBar } from './TimelineBar';
 import { Calendar, ChevronDown, Sliders, Info, ListTodo } from 'lucide-react';
+import { PortalButton, SegmentedControl, StatusDot } from './PortalPrimitives';
 
 interface DashboardTimelineProps {
   onTimelineUpdate?: (message: string) => void;
@@ -50,31 +51,18 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
 
         {/* Action Toggle buttons */}
         <div className="flex items-center flex-wrap gap-3">
-          {/* Month/Quarter/Year Switcher Tab Selector */}
-          <div className="bg-[#f1f5f9] p-1 rounded-xl flex items-center border border-slate-100">
-            {(['MONTH', 'QUARTER', 'YEAR'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab);
-                  triggerToast(`Switched view timeline perspective to ${tab}`);
-                }}
-                className={`px-4 py-1.5 rounded-lg text-[10px] font-extrabold tracking-wider transition-all cursor-pointer ${
-                  activeTab === tab
-                    ? 'bg-brand-navy text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-250/30'
-                }`}
-              >
-                {/* Clean, uppercase representation matching original screenshot */}
-                {tab === 'QUARTER' ? 'QUARTER' : tab === 'MONTH' ? 'MONTH' : 'YEAR'}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={['MONTH', 'QUARTER', 'YEAR'] as const}
+            value={activeTab}
+            onChange={(tab) => {
+              setActiveTab(tab);
+              triggerToast(`Switched view timeline perspective to ${tab}`);
+            }}
+          />
 
           {showManageTimeline && (
             <div className="relative">
-              <button
+              <PortalButton
                 onClick={() => {
                   if (onManageTimeline) {
                     onManageTimeline();
@@ -82,11 +70,13 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
                     setIsDropdownOpen(!isDropdownOpen);
                   }
                 }}
-                className="py-2.5 px-4 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer"
+                variant="primary"
+                size="md"
+                icon={ChevronDown}
+                iconPosition="right"
               >
-                <span>Manage Timeline</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-80" />
-              </button>
+                Manage Timeline
+              </PortalButton>
 
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-205 rounded-2xl shadow-sm p-2 z-30 font-sans text-xs">
@@ -272,33 +262,35 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
         {/* Color representation bullets */}
         <div className="flex items-center flex-wrap gap-5">
           <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-350 bg-slate-200 border border-slate-300/40" />
+            <StatusDot tone="neutral" className="w-2.5 h-2.5 bg-slate-200 border border-slate-300/40" />
             <span>Completed</span>
           </div>
 
           <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0f2957]" />
+            <StatusDot tone="brand" className="w-2.5 h-2.5 bg-brand-navy" />
             <span>Active</span>
           </div>
 
           <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-100 border border-slate-200" />
+            <StatusDot tone="neutral" className="w-2.5 h-2.5 bg-slate-100 border border-slate-200" />
             <span>Upcoming</span>
           </div>
 
           <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ffedd5] border border-[#fed7aa]" />
+            <StatusDot tone="warning" className="w-2.5 h-2.5 bg-orange-100 border border-orange-200" />
             <span className="text-[#c2410c] font-black">Deadline</span>
           </div>
         </div>
 
         {/* View Full Timeline Link */}
-        <button
+        <PortalButton
           onClick={() => triggerToast('Navigating to standard PDF semester calendar release...')}
-          className="text-[#2563eb] hover:text-[#1d4ed8] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+          variant="ghost"
+          size="sm"
+          className="text-blue-600 hover:text-blue-700"
         >
           View Full Timeline &gt;
-        </button>
+        </PortalButton>
       </div>
     </div>
   );

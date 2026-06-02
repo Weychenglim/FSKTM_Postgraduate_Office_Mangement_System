@@ -19,11 +19,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { MOCK_IMPORTED_TIMELINE_ENTRIES } from '../mocks/timeline';
+import { TimelineEntry } from '../types';
 
 interface UploadTimelineDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportSuccess?: (events: any[]) => void;
+  onImportSuccess?: (events: TimelineEntry[]) => void;
 }
 
 export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
@@ -173,39 +175,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
       return;
     }
 
-    // Pass custom mock data back representing the newly updated elements
-    const mockImported = [
-      {
-        id: 'ent_1_new',
-        event: 'Supervisor Request Period (Reloaded)',
-        category: 'Supervisor Appointment',
-        startDate: '02 Oct 2025',
-        endDate: '16 Oct 2025',
-        targetRole: ['STUDENT'],
-        status: 'Completed'
-      },
-      {
-        id: 'ent_2_new',
-        event: 'Panel Recommendation Period (Reloaded)',
-        category: 'Panel Appointment',
-        startDate: '17 Oct 2025',
-        endDate: '01 Nov 2025',
-        targetRole: ['LECTURER'],
-        status: 'Active'
-      },
-      {
-        id: 'ent_3_new',
-        event: 'Proposal Upload Deadline (Reloaded)',
-        category: 'Document Submission',
-        startDate: '27 Oct 2025',
-        endDate: '27 Oct 2025',
-        targetRole: ['STUDENT'],
-        status: 'Deadline'
-      }
-    ];
-
     if (onImportSuccess) {
-      onImportSuccess(mockImported);
+      onImportSuccess(MOCK_IMPORTED_TIMELINE_ENTRIES);
     }
     
     onClose();

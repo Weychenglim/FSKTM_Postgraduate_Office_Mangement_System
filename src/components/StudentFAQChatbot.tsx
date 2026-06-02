@@ -18,7 +18,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 
 interface ChatMessage {
   id: string;
@@ -165,15 +165,11 @@ export const StudentFAQChatbot: React.FC = () => {
       
       <PortalToast message={toastMessage} />
 
-      {/* Page Header Area */}
-      <div className="border-b border-slate-100 pb-5">
-        <h1 className="page-title">
-          FAQ Chatbot
-        </h1>
-        <p className="page-subtitle">
-          Query automated academic advice, download procedural handouts, and check administrative protocols immediately.
-        </p>
-      </div>
+      <PageHeader
+        title="FAQ Chatbot"
+        subtitle="Query automated academic advice, download procedural handouts, and check administrative protocols immediately."
+        className="border-b border-slate-100 pb-5"
+      />
 
       {/* Main chat center interface panel */}
       <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-5 shadow-3xs flex flex-col h-[650px] justify-between overflow-hidden">

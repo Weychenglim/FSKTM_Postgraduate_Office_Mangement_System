@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Calendar, Sliders, CheckSquare, BarChart3, UploadCloud } from 'lucide-react';
+import { StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 
 interface MonitoringTask {
   id: string;
@@ -57,19 +58,6 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
     },
   ];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'critical':
-        return 'text-red-600 font-extrabold';
-      case 'completed':
-        return 'text-slate-400 font-medium';
-      case 'active':
-        return 'text-[#1e3a8a] font-bold';
-      default:
-        return 'text-slate-500 font-bold';
-    }
-  };
-
   return (
     <div
       id="monitoring-tasks-sidebar-card"
@@ -95,9 +83,9 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
                 <span className="text-xs font-bold text-brand-navy block leading-snug">
                   {task.name}
                 </span>
-                <span className={`text-[10px] block ${getStatusColor(task.status)}`}>
+                <StatusBadge tone={getStatusBadgeTone(task.status)} className="px-2 py-0.5 text-[8px] rounded-md">
                   {task.statusText}
-                </span>
+                </StatusBadge>
               </div>
             </div>
           );

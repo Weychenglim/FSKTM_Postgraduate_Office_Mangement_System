@@ -54,3 +54,33 @@ export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
     status: 'Upcoming',
   },
 ];
+
+export const MOCK_IMPORTED_TIMELINE_ENTRIES: TimelineEntry[] = [
+  {
+    id: 'ent_1_new',
+    event: 'Supervisor Request Period (Reloaded)',
+    category: 'Supervisor Appointment',
+    startDate: '02 Oct 2025',
+    endDate: '16 Oct 2025',
+    targetRole: ['STUDENT'],
+    status: 'Completed',
+  },
+  {
+    id: 'ent_2_new',
+    event: 'Panel Recommendation Period (Reloaded)',
+    category: 'Panel Appointment',
+    startDate: '17 Oct 2025',
+    endDate: '01 Nov 2025',
+    targetRole: ['LECTURER'],
+    status: 'Active',
+  },
+  {
+    id: 'ent_3_new',
+    event: 'Proposal Upload Deadline (Reloaded)',
+    category: 'Document Submission',
+    startDate: '27 Oct 2025',
+    endDate: '27 Oct 2025',
+    targetRole: ['STUDENT'],
+    status: 'Deadline',
+  },
+];

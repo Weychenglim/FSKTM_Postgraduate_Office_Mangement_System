@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { RecommendationDetailsDrawer } from './RecommendationDetailsDrawer';
 import { LoadingState, ErrorState } from './StateViews';
+import { PageHeader } from './PortalPrimitives';
 import { SubmittedRecommendation } from '../types';
 import { getPanelRecommendations } from '../services';
 
@@ -148,25 +149,14 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
   return (
     <div id="submitted-recommendations-page-main" className="space-y-8 animate-fade-in text-left">
       
-      {/* 1. Back Link */}
-      <button
-        id="submitted-recs-back-btn"
-        onClick={onBack}
-        className="back-link group mb-3"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        <span>Back to Panel Appointments</span>
-      </button>
-
-      {/* 2. Page Header */}
-      <div id="submitted-recs-header-content" className="select-none text-left">
-        <h1 id="submitted-recs-title" className="page-title leading-tight">
-          Submitted Recommendations
-        </h1>
-        <p id="submitted-recs-subtitle" className="page-subtitle leading-relaxed max-w-3xl">
-          View panel member recommendations you have submitted for your supervisees.
-        </p>
-      </div>
+      <PageHeader
+        title="Submitted Recommendations"
+        subtitle="View panel member recommendations you have submitted for your supervisees."
+        backLabel="Back to Panel Appointments"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed max-w-3xl"
+        className="select-none"
+      />
 
       {/* 3. Summary Statistic Cards Section (4 cards matches UI mockup) */}
       <div id="submitted-recs-stats-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 select-none font-sans">

@@ -5,7 +5,6 @@
 
 import React, { useState } from 'react';
 import { 
-  ChevronLeft,
   Calendar,
   GraduationCap,
   Clock,
@@ -21,7 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 
 export interface PanelDetailRecord {
   id: string;
@@ -86,32 +85,18 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
       
       <PortalToast message={toastMessage} />
 
-      {/* Back Link Nav & Title Row */}
-      <div id="detail-nav-header" className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="space-y-2.5">
-          <button
-            onClick={onBack}
-            className="back-link group mb-3"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Panel Appointment Management</span>
-          </button>
-          
-          <h1 className="page-title">
-            Panel Appointment Detail
-          </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-1 font-medium max-w-2xl">
-            View student panel appointment details, appointment status, related records, and supporting documents.
-          </p>
-        </div>
-
-        {/* Top-Right Badge Pattern */}
-        <div className="self-start md:self-center">
+      <PageHeader
+        title="Panel Appointment Detail"
+        subtitle="View student panel appointment details, appointment status, related records, and supporting documents."
+        backLabel="Back to Panel Appointment Management"
+        onBack={onBack}
+        subtitleClassName="max-w-2xl"
+        actions={
           <span className="inline-flex items-center px-4 py-2 bg-brand-navy text-white text-[11px] font-black tracking-widest rounded-lg uppercase">
             SESSION 2024/2025
           </span>
-        </div>
-      </div>
+        }
+      />
 
       {/* Main Core Responsive Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
@@ -131,10 +116,9 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                   {defaultRecord.studentName}
                 </h3>
                 {/* Status Indicator */}
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black tracking-wide uppercase rounded-full border border-emerald-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span>Approved</span>
-                </div>
+                <StatusBadge tone="success" dot className="px-2 py-0.5 text-[9px]">
+                  Approved
+                </StatusBadge>
               </div>
             </div>
 

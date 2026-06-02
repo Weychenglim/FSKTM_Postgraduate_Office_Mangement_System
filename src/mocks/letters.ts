@@ -5,7 +5,7 @@
 
 // Demo data for letter templates (UC40). Swap for real API responses later.
 
-import { LetterTemplate } from '../types';
+import { LetterTemplate, StudentLetterTemplate } from '../types';
 
 export const MOCK_LETTER_TEMPLATES: LetterTemplate[] = [
   {
@@ -47,5 +47,48 @@ export const MOCK_LETTER_TEMPLATES: LetterTemplate[] = [
     modifiedBy: 'Admin',
     description: 'Internal financial clearance letter for graduates.',
     content: `FINANCIAL BURSARY CLEARANCE ASSURANCE\n\nTo Whom It May Concern, this letter serves to confirm that FSKTM candidate {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) has settled all outstanding dues for the current academic session.`,
+  },
+];
+
+export const MOCK_STUDENT_LETTER_TEMPLATES: StudentLetterTemplate[] = [
+  {
+    id: 'enrollment',
+    name: 'Confirmation of Enrollment',
+    description: 'Official status verification for current students.',
+    badge: 'Standard',
+    refNo: 'UMF/PG/2024/0822',
+    date: 'October 24, 2023',
+    body: 'This is to confirm that the following student is currently registered at the Faculty of Computer Science and Information Technology, University of Malaya:',
+    notes: 'The student is expected to complete their studies by March 2025, subject to fulfillment of academic requirements.',
+  },
+  {
+    id: 'visa',
+    name: 'Visa Support Letter',
+    description: 'Embassy-ready documentation for travel or extension.',
+    badge: 'Priority',
+    refNo: 'UMF/PG/25/V-0918',
+    date: 'November 12, 2025',
+    body: 'This official document is issued to support the student visa renewal application with the Immigration Department of Malaysia for the following candidate:',
+    notes: "The Faculty fully supports this progress review endorsement to allow completion of the candidate's thesis viva obligations.",
+  },
+  {
+    id: 'completion',
+    name: 'Completion Letter',
+    description: 'Proof of degree fulfillment post-viva.',
+    badge: 'Standard',
+    refNo: 'UMF/PG/25/C-3294',
+    date: 'December 05, 2025',
+    body: 'We are pleased to verify that the following postgraduate scholar has satisfactorily fulfilled all coursework and research publication criteria for degree conferral:',
+    notes: 'The final Senate approval is pending formal degree presentation at the upcoming university graduation ceremony.',
+  },
+  {
+    id: 'sponsorship',
+    name: 'Sponsorship Claim',
+    description: 'Financial clearance and fee structure details.',
+    badge: 'Standard',
+    refNo: 'UMF/PG/25/S-7731',
+    date: 'January 14, 2026',
+    body: 'This statement is generated to verify candidate standing and fee ledger invoice details for external scholarship disbursement authorities:',
+    notes: 'All academic performance standards are met. The student remains in good regular registration standing.',
   },
 ];

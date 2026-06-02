@@ -6,6 +6,7 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { StatusDot, type BadgeTone } from './PortalPrimitives';
 
 interface SummaryCardProps {
   title: string;
@@ -24,38 +25,19 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   icon: Icon,
   onClick
 }) => {
-  // Map styles
-  const getBadgeStyles = () => {
+  const getBadgeTone = (): BadgeTone => {
     switch (badgeType) {
       case 'active':
-        return {
-          wrapper: 'bg-emerald-50 text-emerald-800 border-emerald-100/60',
-          dot: 'bg-emerald-500'
-        };
       case 'ready':
-        return {
-          wrapper: 'bg-emerald-50 text-emerald-800 border-emerald-100/60',
-          dot: 'bg-emerald-500'
-        };
+        return 'success';
       case 'generated':
-        return {
-          wrapper: 'bg-blue-50 text-blue-850 border-blue-100/65',
-          dot: 'bg-blue-600'
-        };
+        return 'info';
       case 'ratio':
-        return {
-          wrapper: 'bg-amber-50 text-amber-850 border-amber-150',
-          dot: 'bg-amber-500'
-        };
+        return 'warning';
       default:
-        return {
-          wrapper: 'bg-slate-50 text-slate-700 border-slate-100',
-          dot: 'bg-slate-400'
-        };
+        return 'neutral';
     }
   };
-
-  const badgeStyles = getBadgeStyles();
 
   return (
     <motion.div
@@ -70,8 +52,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
       </span>
 
       <div className="flex items-center gap-2 mb-2">
-        {/* Colorful visual status bullet sign */}
-        <span className={`w-2 h-2 rounded-full ${badgeStyles.dot}`} />
+        <StatusDot tone={getBadgeTone()} className="w-2 h-2" />
         <span className="text-brand-navy font-extrabold text-[19px] tracking-tight">
           {badgeText}
         </span>

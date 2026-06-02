@@ -63,3 +63,9 @@ export const MOCK_ANNOUNCEMENTS: AnnouncementItem[] = [
     status: 'Expired',
   },
 ];
+
+export const MOCK_ANNOUNCEMENT_ATTACHMENTS = [
+  'exam_schedule_2026_draft.pdf',
+  'research_grant_circular_v2.docx',
+  'it_system_backup_notes.txt',
+];

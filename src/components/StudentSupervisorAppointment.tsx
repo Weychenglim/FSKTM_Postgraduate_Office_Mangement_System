@@ -24,42 +24,34 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApplicationPage';
+import { MOCK_STUDENT_SUPERVISOR_APPLICATIONS } from '../mocks/appointments';
+import { StudentSupervisorApplication } from '../types';
+import { PageHeader, PortalButton, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
 }
+
+type SupervisorApplicationDetail = StudentSupervisorApplication & {
+  email?: string;
+  dept?: string;
+  reg?: string;
+  refId?: string;
+  submittedDate?: string;
+  step1Date?: string;
+  history?: { step: string; date: string; status: string }[];
+};
 
 export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = ({
   onShowFAQChatbot
 }) => {
   const [subview, setSubview] = useState<'overview' | 'new-application'>('overview');
 
-  // Mock data for the submitted applications
-  const [applications, setApplications] = useState([
-    {
-      id: 'SV-APP-2026-001',
-      title: 'AI-Based Academic Workflow Monitoring',
-      supervisor: 'Dr. Siti Noor',
-      date: '15 Nov 2025',
-      status: 'PENDING REVIEW'
-    },
-    {
-      id: 'SV-APP-2026-002',
-      title: 'Postgraduate Evaluation Management Sys',
-      supervisor: 'Assoc. Prof. Henry Lim',
-      date: '10 Oct 2025',
-      status: 'RETURNED'
-    },
-    {
-      id: 'SV-APP-2025-014',
-      title: 'Student Portal Usability Study',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      date: '01 Aug 2024',
-      status: 'APPROVED'
-    }
-  ]);
+  const [applications, setApplications] = useState<StudentSupervisorApplication[]>(
+    () => [...MOCK_STUDENT_SUPERVISOR_APPLICATIONS]
+  );
 
-  const [activeDetailAp, setActiveDetailAp] = useState<any | null>(null);
+  const [activeDetailAp, setActiveDetailAp] = useState<SupervisorApplicationDetail | null>(null);
 
   const handleDownloadLetter = (docName: string) => {
     alert(`Downloading Official Confirmation Letter: ${docName}`);
@@ -84,17 +76,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   return (
     <div id="student-supervisor-app-workspace" className="space-y-6 text-left font-sans pb-12">
       
-      {/* Page Title & Header row */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="page-title">
-            Supervisor Appointment
-          </h1>
-          <p className="page-subtitle">
-            View your current supervisor details and track submitted supervisor appointment applications.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Supervisor Appointment"
+        subtitle="View your current supervisor details and track submitted supervisor appointment applications."
+      />
 
       {/* ========================================================================= */}
       {/* 1. HERO SECTION: CURRENT APPROVED SUPERVISOR CARD                        */}
@@ -128,10 +113,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight block">
                 Dr. Siti Noor
               </h2>
-              <span className="bg-[#e6fbf2] text-[#00a15c] border border-[#bef5db] text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex items-center gap-1 select-none">
-                <CheckCircle className="w-3 h-3" />
-                <span>Approved</span>
-              </span>
+              <StatusBadge tone="success" icon={CheckCircle}>Approved</StatusBadge>
             </div>
 
             <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
@@ -191,16 +173,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
         {/* Right pane: Action buttons stack */}
         <div className="flex flex-col gap-2 shrink-0 md:w-56">
-          <button
+          <PortalButton
             type="button"
             onClick={() => handleDownloadLetter('Supervisor_Appointment_Letter_SitiNoor.pdf')}
-            className="w-full inline-flex items-center justify-center gap-2 bg-brand-navy hover:bg-slate-850 text-white py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-3xs cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
+            variant="primary"
+            size="md"
+            icon={Download}
+            fullWidth
           >
-            <Download className="w-4 h-4 stroke-[2.2]" />
-            <span>Download Letter</span>
-          </button>
+            Download Letter
+          </PortalButton>
           
-          <button
+          <PortalButton
             type="button"
             onClick={() => {
               setActiveDetailAp({
@@ -221,11 +205,13 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                 ]
               });
             }}
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#f8fafc] hover:bg-slate-100 text-slate-700 border border-slate-205 border-slate-200 py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-3xs cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
+            variant="secondary"
+            size="md"
+            icon={Eye}
+            fullWidth
           >
-            <Eye className="w-4 h-4 stroke-[2.2]" />
-            <span>View Details</span>
-          </button>
+            View Details
+          </PortalButton>
         </div>
 
       </div>
@@ -246,14 +232,15 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             </p>
           </div>
 
-          <button
+          <PortalButton
             type="button"
             onClick={handleCreateNewApplication}
-            className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-850 text-white py-2 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-3xs cursor-pointer"
+            variant="primary"
+            size="md"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>New Application</span>
-          </button>
+            New Application
+          </PortalButton>
         </div>
 
         {/* Data Table implementation */}
@@ -290,22 +277,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   </td>
                   {/* Status chip badge */}
                   <td className="py-4.5 px-4 text-center">
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
-                      app.status === 'APPROVED' ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]' :
-                      app.status === 'RETURNED' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                      'bg-indigo-50 text-indigo-600 border-[#cbd5e1]'
-                    }`}>
-                      <span className={`w-1 h-1 rounded-full ${
-                        app.status === 'APPROVED' ? 'bg-[#00a15c]' :
-                        app.status === 'RETURNED' ? 'bg-orange-500' :
-                        'bg-indigo-500 animate-pulse'
-                      }`} />
+                    <StatusBadge
+                      tone={getStatusBadgeTone(app.status)}
+                      dot
+                      pulse={app.status === 'PENDING REVIEW'}
+                      className="text-[9px] px-2.5 py-0.5"
+                    >
                       {app.status}
-                    </span>
+                    </StatusBadge>
                   </td>
                   {/* Action Link Icon */}
                   <td className="py-4.5 px-6 text-center">
-                    <button
+                    <PortalButton
                       type="button"
                       onClick={() => {
                         setActiveDetailAp({
@@ -330,11 +313,11 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                           ]
                         });
                       }}
-                      className="p-1.5 bg-slate-50 hover:bg-slate-200/50 rounded-lg text-slate-500 hover:text-brand-navy transition cursor-pointer inline-flex items-center justify-center"
+                      variant="ghost"
+                      size="icon"
+                      icon={Eye}
                       title="View application metadata"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    />
                   </td>
                 </tr>
               ))}
@@ -521,7 +504,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                       ) : (
                         /* Pending review (Active Highlighted Step) */
                         <div className="absolute -left-[29px] top bg-white -mt-0.5 w-6 h-6 rounded-full border-4 border-brand-navy flex items-center justify-center shadow-xs z-10">
-                          <span className="w-2 h-2 rounded-full bg-brand-navy" />
+                          <StatusDot tone="brand" className="w-2 h-2 bg-brand-navy" />
                         </div>
                       )}
 
@@ -559,7 +542,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                       ) : activeDetailAp.status === 'RETURNED' ? (
                         /* Current point of friction: Returned with feedback comments */
                         <div className="absolute -left-[29px] top bg-white -mt-0.5 w-6 h-6 rounded-full border-4 border-orange-500 flex items-center justify-center shadow-xs z-10">
-                          <span className="w-2 h-2 rounded-full bg-orange-500" />
+                          <StatusDot tone="warning" className="w-2 h-2 bg-orange-500" />
                         </div>
                       ) : (
                         /* Muted future Pending indicator */
@@ -631,16 +614,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
               {/* Drawer Sticky Footer Actions Block */}
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-2 shrink-0 select-none">
-                <button
+                <PortalButton
                   type="button"
                   onClick={() => alert(`Downloading documents package for: ${activeDetailAp.id}`)}
-                  className="w-full inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                  variant="secondary"
+                  size="md"
+                  icon={Download}
+                  fullWidth
                 >
-                  <Download className="w-4 h-4 stroke-[2]" />
-                  <span>Download Submitted Documents</span>
-                </button>
+                  Download Submitted Documents
+                </PortalButton>
 
-                <button
+                <PortalButton
                   type="button"
                   onClick={() => {
                     if (activeDetailAp.status === 'RETURNED') {
@@ -649,13 +634,13 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                       alert('Feedback comments:\n"No active system discrepancies found. Approved automatically upon coordinator review."');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-brand-navy py-2.5 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-3xs z-50Close"
+                  variant="secondary"
+                  size="md"
+                  icon={Mail}
+                  fullWidth
                 >
-                  <svg className="w-4 h-4 text-brand-navy stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  <span>View Comments</span>
-                </button>
+                  View Comments
+                </PortalButton>
               </div>
 
             </motion.div>

@@ -21,10 +21,13 @@ import {
   Info
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { MOCK_SUPERVISOR_CANDIDATES } from '../mocks/appointments';
+import { StudentSupervisorApplication } from '../types';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 
 interface SupervisorAppointmentApplicationPageProps {
   onBack: () => void;
-  onSuccess: (newApplication: any) => void;
+  onSuccess: (newApplication: StudentSupervisorApplication) => void;
 }
 
 export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmentApplicationPageProps> = ({
@@ -49,12 +52,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Supervisors static mock with match scoring / slots
-  const supervisors = [
-    { id: 'sv-1', name: 'Dr. Siti Noor', initials: 'SN', filled: 4, total: 5, domain: 'Cybersecurity' },
-    { id: 'sv-2', name: 'Assoc. Prof. Henry Lim', initials: 'HL', filled: 2, total: 5, domain: 'Software Engineering' },
-    { id: 'sv-3', name: 'Prof. Dr. Ahmad Kamil', initials: 'AK', filled: 0, total: 5, domain: 'Artificial Intelligence' }
-  ];
+  const supervisors = MOCK_SUPERVISOR_CANDIDATES;
 
   // Filtering based on search query
   const filteredSupervisors = supervisors.filter(sv => 
@@ -139,7 +137,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     const selectedSv = supervisors.find(sv => sv.id === selectedSupervisorId);
 
     // Assembly of new tracking item
-    const newAppPayload = {
+    const newAppPayload: StudentSupervisorApplication = {
       id: `SV-APP-${new Date().getFullYear()}-${Math.floor(Math.random() * 900) + 100}`,
       title: researchTitle,
       supervisor: selectedSv ? selectedSv.name : 'Unspecified Supervisor',
@@ -153,24 +151,13 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   return (
     <form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
       
-      {/* 1. Header/Navigator Navigation row */}
-      <div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Supervisor Appointments</span>
-        </button>
-
-        <h1 className="page-title">
-          Supervisor Appointment Application
-        </h1>
-        <p className="page-subtitle max-w-4xl leading-relaxed">
-          Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty's research pillars.
-        </p>
-      </div>
+      <PageHeader
+        title="Supervisor Appointment Application"
+        subtitle="Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty's research pillars."
+        backLabel="Back to Supervisor Appointments"
+        onBack={onBack}
+        subtitleClassName="max-w-4xl leading-relaxed"
+      />
 
       {/* ========================================================================= */}
       {/* 2. THREE-STEPPER HEADER CAROUSEL                                          */}
@@ -313,16 +300,13 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                       </div>
 
                       {/* Right capacity indicator slots chip */}
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
-                        isFull 
-                          ? 'bg-rose-50 text-rose-600 border-rose-200' 
-                          : isSelected 
-                            ? 'bg-indigo-100 text-indigo-700 border-indigo-200' 
-                            : 'bg-slate-100 text-slate-600 border-slate-200/70'
-                      }`}>
-                        <span className={`w-1 h-1 rounded-full ${isFull ? 'bg-rose-500' : 'bg-slate-500'}`} />
+                      <StatusBadge
+                        tone={isFull ? 'danger' : isSelected ? 'brand' : 'neutral'}
+                        dot
+                        className="py-1.5 text-[9px]"
+                      >
                         <span>{sv.filled}/{sv.total} Slots Filled</span>
-                      </span>
+                      </StatusBadge>
 
                     </div>
                   );
@@ -399,13 +383,18 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             </p>
           </div>
 
-          <button
+          <PortalButton
             type="button"
-            className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-[10px] tracking-wider uppercase px-4 py-2.5 rounded-xl transition cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              triggerFileInput();
+            }}
+            variant="primary"
+            size="md"
+            icon={FileText}
           >
-            <FileText className="w-3.5 h-3.5 stroke-[2.3]" />
-            <span>Browse Files</span>
-          </button>
+            Browse Files
+          </PortalButton>
         </div>
 
         {/* List of successfully uploaded proposal files */}
@@ -423,16 +412,18 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                     <span className="text-[10px] text-slate-400 font-mono">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                   </div>
                   
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setUploadedFiles(prev => prev.filter((_, i) => i !== idx));
                     }}
-                    className="text-xs font-bold text-rose-500 hover:text-rose-700 px-1 py-0.5 rounded cursor-pointer uppercase tracking-wider text-[10px]"
+                    variant="ghost"
+                    size="sm"
+                    className="px-1 py-0.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                   >
                     Remove
-                  </button>
+                  </PortalButton>
                 </div>
               ))}
             </div>
@@ -449,22 +440,26 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         </div>
 
         <div className="flex gap-2.5 w-full sm:w-auto">
-          <button
+          <PortalButton
             type="button"
             onClick={handleSaveAsDraft}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-brand-navy font-black text-xs uppercase tracking-wider px-5 py-3 rounded-xl transition cursor-pointer"
+            variant="secondary"
+            size="lg"
+            icon={Save}
+            className="flex-1 sm:flex-initial"
           >
-            <Save className="w-4 h-4 stroke-[2.3]" />
-            <span>Save as Draft</span>
-          </button>
+            Save as Draft
+          </PortalButton>
           
-          <button
+          <PortalButton
             type="submit"
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 bg-brand-navy hover:bg-slate-850 text-white font-black text-xs uppercase tracking-wider px-5 py-3 rounded-xl transition shadow-3xs cursor-pointer"
+            variant="primary"
+            size="lg"
+            icon={Send}
+            className="flex-1 sm:flex-initial"
           >
-            <Send className="w-4 h-4 stroke-[2.3]" />
-            <span>Submit SV Request</span>
-          </button>
+            Submit SV Request
+          </PortalButton>
         </div>
       </div>
 

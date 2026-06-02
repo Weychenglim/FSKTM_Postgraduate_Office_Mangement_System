@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SubmissionRecord } from '../types';
 import { getStudentSubmissions } from '../services';
@@ -177,19 +177,13 @@ export const StudentFileSubmission: React.FC = () => {
       
       <PortalToast message={toast?.text ?? null} tone={toast?.type === 'error' ? 'danger' : toast?.type === 'success' ? 'success' : 'info'} />
 
-      {/* Structured Clean Grid Layout Header Block */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-slate-100 pb-5 gap-4">
-        <div className="space-y-1">
-          <h1 className="page-title">
-            Submission Portal
-          </h1>
-          <p className="page-subtitle max-w-2xl leading-relaxed">
-            Upload your research documents for faculty review. Ensure your submission aligns with the FSKTM academic standards.
-          </p>
-        </div>
-
-        {/* Categories pulldown menu strictly aligned */}
-        <div className="w-full lg:w-72 space-y-1.5 self-start lg:self-end">
+      <PageHeader
+        title="Submission Portal"
+        subtitle="Upload your research documents for faculty review. Ensure your submission aligns with the FSKTM academic standards."
+        subtitleClassName="max-w-2xl leading-relaxed"
+        className="border-b border-slate-100 pb-5"
+        actions={(
+          <div className="w-full lg:w-72 space-y-1.5 self-start lg:self-end">
           <label htmlFor="submission-category-select" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
             Submission Category
           </label>
@@ -209,8 +203,9 @@ export const StudentFileSubmission: React.FC = () => {
             </select>
             <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {/* Main Drag-And-Drop High Fidelity Area */}
       <div 

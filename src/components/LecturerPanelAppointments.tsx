@@ -39,7 +39,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
@@ -168,14 +168,12 @@ export const LecturerPanelAppointments: React.FC = () => {
       {panelView === 'list' && (
         <div id="main-panel-listing-view" className="space-y-8">
           
-          <div id="section-meta-heading text-left" className="select-none">
-            <h1 className="page-title">
-              Panel Appointments
-            </h1>
-            <p className="page-subtitle leading-relaxed max-w-4xl">
-              Recommend panel members for your supervisees and view students assigned to you as panel member.
-            </p>
-          </div>
+          <PageHeader
+            title="Panel Appointments"
+            subtitle="Recommend panel members for your supervisees and view students assigned to you as panel member."
+            subtitleClassName="leading-relaxed max-w-4xl"
+            className="select-none"
+          />
 
           {/* TWO DYNAMIC WORKLOAD CARDS */}
           <div id="panel-metrics-summary-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
@@ -191,20 +189,16 @@ export const LecturerPanelAppointments: React.FC = () => {
                     Academic Year 2025/2026
                   </span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-[#bef5db] bg-[#e6fbf2] text-[#00a15c]">
-                  <span className="w-1 h-1 rounded-full bg-[#00a15c] animate-pulse" />
+                <StatusBadge tone="success" dot pulse className="px-3 py-1 text-[9px]">
                   AVAILABLE
-                </span>
+                </StatusBadge>
               </div>
 
               <div className="mt-5">
                 <div className="text-3xl font-black text-brand-navy tracking-tight">
                   2 <span className="text-slate-300 font-medium">/ 5 Assignments</span>
                 </div>
-                {/* Custom fluid workload tracking progress bar */}
-                <div className="w-full bg-slate-100 h-2.5 rounded-full mt-4 overflow-hidden relative border border-slate-200/40">
-                  <div className="bg-blue-600 h-full rounded-full w-[40%] transition-all duration-500" />
-                </div>
+                <ProgressBar value={2} max={5} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
               </div>
             </div>
 

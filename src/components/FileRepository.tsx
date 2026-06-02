@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UploadNewDocument } from './UploadNewDocument';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { FileItem } from '../types';
 import { getFiles } from '../services';
@@ -336,45 +336,37 @@ export const FileRepository: React.FC = () => {
       
       <PortalToast message={toastMessage} />
 
-      {/* Title Header with action buttons */}
-      <div id="file-page-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="text-left">
-          <h1 className="page-title">
-            File Repository
-          </h1>
-          <p className="page-subtitle leading-relaxed">
-            Browse, preview and download documents
-          </p>
-        </div>
-
-        {/* Action Controls for uploading & toggling archived archives */}
-        <div className="flex items-center gap-3.5">
-          <button
+      <PageHeader
+        title="File Repository"
+        subtitle="Browse, preview and download documents"
+        className="mb-6"
+        actions={(
+          <>
+          <PortalButton
             type="button"
             onClick={() => {
               setShowArchivedOnly(!showArchivedOnly);
               triggerToast(showArchivedOnly ? 'Viewing active files.' : 'Filtered dataset to Archived files only.');
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-2 border shadow-xs cursor-pointer ${
-              showArchivedOnly 
-                ? 'bg-amber-50 border-amber-300 text-amber-800 font-extrabold' 
-                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-            }`}
+            variant={showArchivedOnly ? 'soft' : 'secondary'}
+            size="md"
+            icon={FolderLock}
           >
-            <FolderLock className="w-4 h-4 stroke-[2]" />
-            <span>Archived Files</span>
-          </button>
+            Archived Files
+          </PortalButton>
 
-          <button
+          <PortalButton
             type="button"
             onClick={() => setCurrentSubView('upload')}
-            className="px-4 py-2.5 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-black font-sans transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            variant="primary"
+            size="md"
+            icon={Upload}
           >
-            <Upload className="w-4 h-4 stroke-[2]" />
-            <span>Upload New File</span>
-          </button>
-        </div>
-      </div>
+            Upload New File
+          </PortalButton>
+          </>
+        )}
+      />
 
       {/* 4 Summary Cards Row */}
       <div id="file-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 text-left">
@@ -390,7 +382,7 @@ export const FileRepository: React.FC = () => {
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Active Documents</span>
           <span className="text-2xl font-black text-brand-navy tracking-tight">11,204</span>
           <span className="text-[10px] text-emerald-600 font-bold pt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            <StatusDot tone="success" />
             90% of overall database files
           </span>
         </div>
@@ -410,9 +402,7 @@ export const FileRepository: React.FC = () => {
             <span className="text-[10px] text-slate-400 font-bold">/ 100 GB</span>
           </div>
           {/* Progress slider bar illustration */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2.5 overflow-hidden">
-            <div className="bg-indigo-600 h-full rounded-full" style={{ width: '45.2%' }} />
-          </div>
+          <ProgressBar value={45.2} tone="brand" trackClassName="mt-2.5 bg-slate-100" />
         </div>
       </div>
 
@@ -543,13 +533,15 @@ export const FileRepository: React.FC = () => {
                 </div>
 
                 {/* Clear Actions link button */}
-                <button
+                <PortalButton
                   type="button"
                   onClick={handleClearAllFilters}
-                  className="text-indigo-600 hover:text-indigo-800 font-extrabold text-[11px] px-2 py-1 hover:underline transition select-none cursor-pointer"
+                  variant="ghost"
+                  size="sm"
+                  className="px-2 py-1"
                 >
                   Clear All Filters
-                </button>
+                </PortalButton>
               </div>
 
               {/* Row 3: Multiselect bulk actions */}
@@ -560,22 +552,24 @@ export const FileRepository: React.FC = () => {
                     <span><strong>{checkedIds.length}</strong> document(s) checked.</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button
+                    <PortalButton
                       type="button"
                       onClick={() => handleDownloadFile(`${checkedIds.length} selected zip package`)}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 transition text-[10px] uppercase font-extrabold tracking-wide"
+                      variant="primary"
+                      size="sm"
+                      icon={Download}
                     >
-                      <Download className="w-3 h-3" />
-                      <span>Download Bundle</span>
-                    </button>
-                    <button
+                      Download Bundle
+                    </PortalButton>
+                    <PortalButton
                       type="button"
                       onClick={handleBulkArchive}
-                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-slate-50 rounded-lg text-slate-700 flex items-center gap-1.5 transition text-[10px] uppercase font-extrabold tracking-wide"
+                      variant="secondary"
+                      size="sm"
+                      icon={Archive}
                     >
-                      <Archive className="w-3 h-3 text-indigo-600" />
-                      <span>Archive Selected</span>
-                    </button>
+                      Archive Selected
+                    </PortalButton>
                   </div>
                 </div>
               )}
@@ -745,38 +739,36 @@ export const FileRepository: React.FC = () => {
 
                           {/* Status option */}
                           <td className="data-td text-center whitespace-nowrap">
-                            {f.status === 'Active' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-150 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                                <span>Active</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-50 text-slate-500 border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                <span className="w-1 h-1 rounded-full bg-slate-400" />
-                                <span>Archived</span>
-                              </span>
-                            )}
+                            <StatusBadge
+                              tone={getStatusBadgeTone(f.status)}
+                              dot
+                              className="text-[9px] px-2.5 py-0.5"
+                            >
+                              {f.status}
+                            </StatusBadge>
                           </td>
 
                           {/* Actions button */}
                           <td className="data-td text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1.5">
-                              <button
+                              <PortalButton
                                 type="button"
                                 onClick={() => handleDownloadFile(f.name)}
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-800 transition"
+                                variant="ghost"
+                                size="icon"
+                                icon={Download}
+                                className="w-8 h-8"
                                 title="Download"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button
+                              />
+                              <PortalButton
                                 type="button"
                                 onClick={() => handleToggleArchiveSingle(f.id)}
-                                className="p-1 rounded-md text-slate-400 hover:text-amber-700 transition"
+                                variant="ghost"
+                                size="icon"
+                                icon={Archive}
+                                className="w-8 h-8"
                                 title={f.status === 'Active' ? 'Archive file' : 'Activate file'}
-                              >
-                                <Archive className="w-4 h-4" />
-                              </button>
+                              />
                             </div>
                           </td>
                         </tr>
@@ -817,11 +809,9 @@ export const FileRepository: React.FC = () => {
                           />
                         </div>
 
-                        {f.status === 'Active' ? (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[8px] font-black uppercase">Active</span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-full text-[8px] font-black uppercase">Archived</span>
-                        )}
+                        <StatusBadge tone={getStatusBadgeTone(f.status)} className="text-[8px] px-2 py-0.5">
+                          {f.status}
+                        </StatusBadge>
                       </div>
 
                       {/* File main identifiers */}
@@ -1026,23 +1016,27 @@ export const FileRepository: React.FC = () => {
 
                 {/* Action parameters buttons */}
                 <div className="space-y-2.5 pt-4 border-t border-slate-150">
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => handleDownloadFile(selectedFileItem.name)}
-                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    variant="primary"
+                    size="md"
+                    icon={Download}
+                    fullWidth
                   >
-                    <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Download File</span>
-                  </button>
+                    Download File
+                  </PortalButton>
 
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => handleToggleArchiveSingle(selectedFileItem.id)}
-                    className="w-full py-3 border border-slate-200 hover:bg-[#fff5f5] text-rose-700 hover:text-rose-900 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                    variant={selectedFileItem.status === 'Active' ? 'danger' : 'secondary'}
+                    size="md"
+                    icon={Archive}
+                    fullWidth
                   >
-                    <Archive className="w-3.5 h-3.5 text-rose-600" />
-                    <span>{selectedFileItem.status === 'Active' ? 'Archive File' : 'Activate Document'}</span>
-                  </button>
+                    {selectedFileItem.status === 'Active' ? 'Archive File' : 'Activate Document'}
+                  </PortalButton>
                 </div>
 
               </div>

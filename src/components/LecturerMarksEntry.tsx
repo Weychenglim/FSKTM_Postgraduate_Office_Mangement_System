@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
-import { PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks } from '../services';
@@ -218,15 +218,11 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
             exit={{ opacity: 0 }}
             className="space-y-6"
           >
-            {/* Header Content titles */}
-            <div className="text-left select-none">
-              <h1 className="page-title">
-                Marks Entry
-              </h1>
-              <p className="page-subtitle">
-                Enter and submit marks for your assigned evaluation tasks.
-              </p>
-            </div>
+            <PageHeader
+              title="Marks Entry"
+              subtitle="Enter and submit marks for your assigned evaluation tasks."
+              className="select-none"
+            />
 
             {/* 4 Summary Cards Grid matching reference */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

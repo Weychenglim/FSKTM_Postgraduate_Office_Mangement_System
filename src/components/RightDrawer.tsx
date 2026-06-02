@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton } from './PortalPrimitives';
 
 interface RightDrawerProps {
   id?: string;
@@ -62,14 +63,15 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
               <h3 className="font-extrabold text-brand-navy text-[15px] tracking-tight font-sans">
                 {title}
               </h3>
-              <button
+              <PortalButton
                 id="drawer-close-btn"
                 onClick={onClose}
-                className="w-10 h-10 hover:bg-slate-50 border border-slate-205 rounded-xl flex items-center justify-center transition-colors text-slate-400 hover:text-brand-navy"
+                variant="ghost"
+                size="icon"
+                icon={X}
+                className="w-10 h-10 border-slate-200 text-slate-400 hover:text-brand-navy"
                 aria-label="Close drawer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              />
             </div>
 
             {/* Scrollable Content Container */}

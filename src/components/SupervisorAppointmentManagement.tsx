@@ -25,7 +25,7 @@ import {
   Eye,
   AlertCircle
 } from 'lucide-react';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorRecord } from '../types';
@@ -153,34 +153,21 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
         <PortalToast message={toastMessage} />
 
-        {/* Back Link */}
-        <div className="flex">
-          <button 
-            onClick={() => {
-              setViewState('list');
-              showToast("Returned to Supervisor Appointment Management");
-            }} 
-            className="back-link group mb-3"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Supervisor Appointment Management</span>
-          </button>
-        </div>
-
-        {/* Page Header with Session Badge */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-1">
-          <div>
-            <h1 className="page-title">
-              Supervisor Appointment Detail
-            </h1>
-            <p className="text-slate-505 text-xs md:text-sm font-semibold mt-1 leading-relaxed text-slate-500">
-              View student supervision details, appointment status, related records, and supporting documents.
-            </p>
-          </div>
-          <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-            SESSION 2024/2025
-          </div>
-        </div>
+        <PageHeader
+          title="Supervisor Appointment Detail"
+          subtitle="View student supervision details, appointment status, related records, and supporting documents."
+          backLabel="Back to Supervisor Appointment Management"
+          onBack={() => {
+            setViewState('list');
+            showToast("Returned to Supervisor Appointment Management");
+          }}
+          subtitleClassName="leading-relaxed"
+          actions={(
+            <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+              SESSION 2024/2025
+            </div>
+          )}
+        />
 
         {/* Grid Layout of Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-4">
@@ -197,10 +184,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div>
                   <h3 className="text-base font-extrabold text-brand-navy">{r.studentName}</h3>
                   <div className="mt-1.5 flex items-center">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[9px] font-black uppercase tracking-wider select-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <StatusBadge tone="success" dot pulse className="text-[9px]">
                       {r.status === 'No Supervisor' ? 'APPROVED' : r.status.toUpperCase()}
-                    </span>
+                    </StatusBadge>
                   </div>
                 </div>
               </div>
@@ -551,15 +537,11 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       
       <PortalToast message={toastMessage} />
 
-      {/* Page Header */}
-      <div id="sup-page-header" className="text-left">
-        <h1 className="page-title">
-          Supervisor Appointment Management
-        </h1>
-        <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 leading-relaxed max-w-3xl">
-          Monitor supervisor appointment records, workload distribution, and records needing attention.
-        </p>
-      </div>
+      <PageHeader
+        title="Supervisor Appointment Management"
+        subtitle="Monitor supervisor appointment records, workload distribution, and records needing attention."
+        subtitleClassName="leading-relaxed max-w-3xl"
+      />
 
       {/* 4 Vitals Summary Cards matching wireframe exactly */}
       <div id="sup-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -574,7 +556,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               12
             </span>
             <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+              <StatusDot tone="danger" pulse />
               No approved supervisor record.
             </span>
           </div>
@@ -593,7 +575,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               8
             </span>
             <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <StatusDot tone="info" />
               Supervisor records still in workflow.
             </span>
           </div>
@@ -612,7 +594,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               126
             </span>
             <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <StatusDot tone="success" />
               Active approved appointments.
             </span>
           </div>
@@ -631,7 +613,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               3
             </span>
             <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <StatusDot tone="warning" pulse />
               Lecturers near supervision limit.
             </span>
           </div>
@@ -1049,7 +1031,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider block">
                 Supervisor Workload Snapshot
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <StatusDot tone="success" className="w-2 h-2" />
             </div>
 
             <div className="p-5 space-y-4 font-sans text-xs">

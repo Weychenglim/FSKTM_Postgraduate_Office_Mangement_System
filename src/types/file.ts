@@ -37,3 +37,9 @@ export interface SubmissionRecord {
   sizeBytes: number;
   status: SubmissionStatus;
 }
+
+export interface RelatedDocument {
+  name: string;
+  category: string;
+  date: string;
+}

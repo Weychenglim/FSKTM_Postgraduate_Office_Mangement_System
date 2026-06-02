@@ -16,7 +16,8 @@
 - `src/components/Sidebar.tsx` defines the office staff sidebar navigation labels.
 - `src/components/AdministrationDashboard.tsx` implements the Dashboard Overview module.
 - `src/components/DashboardTimeline.tsx` implements the shared semester timeline and accepts `showManageTimeline` so office staff can manage timelines while students see a read-only dashboard timeline.
-- `src/components/PortalPrimitives.tsx` provides shared portal primitives for page headers, cards, buttons, status badges, and toast notifications.
+- `src/components/PortalPrimitives.tsx` provides shared portal primitives for page headers, cards, buttons, status badges, segmented controls, removable tags, progress bars, status dots, and toast notifications.
+- `src/components/PortalPrimitives.tsx` also centralizes common status-to-badge tone mapping through `getStatusBadgeTone`, so tables, workload views, upload panels, lecturer cards, and shared status chips avoid duplicated color logic.
 - `src/components/TimelineManagement.tsx` implements the dashboard timeline management sub-view.
 - `src/components/StudentRegistry.tsx` implements registry management and composes staff/lecturer registry screens.
 - `src/components/FileRepository.tsx` implements file management and composes the upload document drawer.
@@ -39,6 +40,10 @@
 - `src/index.css` contains shared Tailwind theme extensions for generated module color utilities, subtle shadows, backdrop blur, page headings, cards, links, and data-table primitives.
 - `src/index.css` also defines `brand-navy` and related brand tokens so authenticated modules avoid repeated arbitrary hex color utilities.
 - `src/index.css` defines shared table, card, form-control, filter-toolbar, icon-button, and drawer layout classes for repeated generated UI patterns that need custom layouts.
+- `src/services/apiClient.ts` centralizes HTTP configuration. It reads `VITE_API_BASE_URL`, `VITE_USE_MOCKS`, and `VITE_MOCK_LATENCY_MS` from Vite env and defaults to mock mode until backend endpoints are ready.
+- `src/vite-env.d.ts` defines the Vite env variables used by the frontend.
+- `src/mocks` contains shared demo fixtures for dashboard attention rows, student next actions, appointments, mark records, rubric rows, file documents, announcements, letters, lecturers, and timeline imports.
+- `src/types` contains shared domain models so role modules can move from demo data to service/API responses without changing component contracts.
 
 ## Navigation Pattern
 
@@ -67,10 +72,13 @@ The app currently uses local React state rather than a route library.
 - Authenticated modules rely on the single global footer in `AppLayout`; individual module footers are avoided to keep institution text, links, and spacing consistent.
 - Office-staff, lecturer, and student module card surfaces use the shared rounded-2xl / `shadow-3xs` visual language instead of generated arbitrary radius and shadow values.
 - Auth screens intentionally keep their larger standalone card treatment and stronger sign-in/recovery visual hierarchy.
-- Module page titles should use `.page-title` and `.page-subtitle` from `src/index.css`.
+- Module and sub-view page titles should use the shared `PageHeader` primitive, which owns `.page-title`, `.page-subtitle`, back-link layout, and header action alignment.
 - Shared module widgets such as `DashboardTimeline` should expose small configuration props for role-specific behavior instead of duplicating near-identical UI for each role.
 - New authenticated module UI should prefer `PortalPrimitives` and shared CSS classes before introducing bespoke buttons, badges, cards, toasts, filters, forms, drawer footers, modal controls, or table styling.
+- Shared action controls should use `PortalButton` for primary, secondary, soft, danger, ghost, icon, drawer, modal, pagination, and row-level actions. Segmented controls, removable tags, permission switches, progress bars, status dots, and reusable status badges should use the shared primitives or the shared `ToggleSwitch`; only highly layout-specific timeline, carousel, navigation, avatar, or flow markers should remain local.
 - Shared form components (`FormInput`, `FormSelect`, `FormTextarea`) and legacy local action/status helpers should delegate to portal primitives or shared CSS classes so backend validation, loading, disabled, and status states remain visually consistent across roles.
+- Components should import backend-shaped records from `src/mocks` or `src/services`; component-local arrays should be limited to UI-only controls such as month labels, filter options, decorative step labels, or icon/style mappings.
+- Do not add Gemini-specific dependencies, metadata capabilities, or env variables unless a future requirement explicitly adds AI functionality.
 
 ## Testing Strategy
 

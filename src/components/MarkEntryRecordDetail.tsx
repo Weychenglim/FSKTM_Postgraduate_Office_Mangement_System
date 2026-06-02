@@ -19,7 +19,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { MOCK_MARK_RUBRIC_BREAKDOWN } from '../mocks/rubrics';
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
@@ -62,66 +63,21 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
     showToast(`Downloading certified administrative mark transcript for student ${studentName}`);
   };
 
-  // Rubric scores mapping matching high-fidelity details from screenshot
-  const [rubricRows] = useState([
-    {
-      component: 'Problem Definition',
-      maxMarks: 20,
-      marksAwarded: 18,
-      feedback: 'Clear problem statement and objectives.'
-    },
-    {
-      component: 'Literature Review',
-      maxMarks: 20,
-      marksAwarded: 16,
-      feedback: 'Relevant sources with good coverage.'
-    },
-    {
-      component: 'Methodology',
-      maxMarks: 25,
-      marksAwarded: 21,
-      feedback: 'Methodology is suitable and well explained.'
-    },
-    {
-      component: 'Technical Understanding',
-      maxMarks: 20,
-      marksAwarded: 17,
-      feedback: 'Strong technical understanding.'
-    },
-    {
-      component: 'Presentation and Q&A',
-      maxMarks: 15,
-      marksAwarded: 12,
-      feedback: 'Good presentation with minor clarity issues.'
-    }
-  ]);
+  const [rubricRows] = useState(() => [...MOCK_MARK_RUBRIC_BREAKDOWN]);
 
   return (
     <div id="mark-entry-record-detail" className="space-y-8 animate-fade-in text-left relative font-sans">
       
       <PortalToast message={toastMessage} />
 
-      {/* Breadcrumb line & Action controls */}
-      <div id="record-detail-header-block" className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="text-left">
-          <button
-            onClick={onBack}
-            className="back-link group mb-3"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Mark Entry Records</span>
-          </button>
-
-          <h1 className="page-title">
-            Mark Entry Record Detail
-          </h1>
-          <p className="page-subtitle leading-relaxed">
-            View submitted marks, rubric breakdown, panel member information, and related documents.
-          </p>
-        </div>
-
-        {/* Print / Export buttons matching upper right of screenshot */}
-        <div className="flex items-center gap-3.5 self-start lg:self-auto font-sans select-none">
+      <PageHeader
+        title="Mark Entry Record Detail"
+        subtitle="View submitted marks, rubric breakdown, panel member information, and related documents."
+        backLabel="Back to Mark Entry Records"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+        actions={(
+          <div className="flex items-center gap-3.5 self-start lg:self-auto font-sans select-none">
           <button
             onClick={handlePrint}
             className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition shadow-3xs cursor-pointer"
@@ -137,8 +93,9 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             <FileDown className="w-4 h-4 text-blue-300" />
             <span>Export PDF</span>
           </button>
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {/* Main Core Columns Desk Grid */}
       <div id="record-detail-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -150,15 +107,14 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden">
             <div className="bg-slate-50 px-6 py-4.5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <StatusDot tone="info" className="w-2.5 h-2.5" />
                 <h3 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Student & Submission Summary
                 </h3>
               </div>
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-extrabold tracking-wide rounded-full uppercase flex items-center gap-1.5 border border-emerald-100">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Submitted</span>
-              </span>
+              <StatusBadge tone="success" dot>
+                Submitted
+              </StatusBadge>
             </div>
 
             <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 text-left font-sans text-xs">
@@ -444,7 +400,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                   Verification Status
                 </span>
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-600 font-sans">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  <StatusDot tone="warning" pulse className="w-2.5 h-2.5" />
                   <span>Pending Office Verification</span>
                 </div>
               </div>

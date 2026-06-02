@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { EvaluationTask } from '../types';
+import { PageHeader, StatusBadge } from './PortalPrimitives';
 
 interface SubmittedMarkDetailProps {
   task: EvaluationTask;
@@ -62,36 +63,13 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
   return (
     <div id="submitted-mark-detail-page" className="space-y-6 text-left relative font-sans">
       
-      {/* 1. Back To Marks Entry Nav Link */}
-      <div className="flex flex-col gap-1">
-        <button
-          id="back-to-list-link"
-          type="button"
-          onClick={onBack}
-          className="back-link group mb-3 self-start"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Marks Entry</span>
-        </button>
-      </div>
-
-      {/* 2. Page Title Header Row */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="page-title">
-            Submitted Mark Detail
-          </h1>
-          <p className="page-subtitle">
-            View submitted rubric marks and evaluation feedback for this student.
-          </p>
-        </div>
-
-        {/* Green Submitted Status Chip Badge */}
-        <div className="flex items-center gap-2 bg-[#e6fbf2] text-[#00a15c] border border-[#bef5db] text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full select-none">
-          <span className="w-1.5 h-1.5 bg-[#00a15c] rounded-full animate-pulse" />
-          <span>Submitted</span>
-        </div>
-      </div>
+      <PageHeader
+        title="Submitted Mark Detail"
+        subtitle="View submitted rubric marks and evaluation feedback for this student."
+        backLabel="Back to Marks Entry"
+        onBack={onBack}
+        actions={<StatusBadge tone="success" dot pulse>Submitted</StatusBadge>}
+      />
 
       {/* 3. Main Split Structure layout: Grid containing left content and right info widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

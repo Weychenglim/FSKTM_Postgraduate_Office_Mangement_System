@@ -18,3 +18,4 @@ export * from './announcement';
 export * from './notification';
 export * from './timeline';
 export * from './letter';
+export * from './dashboard';

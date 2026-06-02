@@ -8,6 +8,9 @@ import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart, HelpCircle } from 'lucide-react';
+import { MOCK_MARK_ENTRY_MODAL_RUBRICS } from '../mocks/rubrics';
+import { EditableRubricWeight } from '../types';
+import { PortalButton } from './PortalPrimitives';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -43,12 +46,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const [periodStart, setPeriodStart] = useState('2025-12-01');
   const [periodEnd, setPeriodEnd] = useState('2025-12-10');
   
-  const [rubrics, setRubrics] = useState([
-    { id: 1, name: 'Research Methodology Proposal', weight: 20 },
-    { id: 2, name: 'Oral Defense Presentation', weight: 30 },
-    { id: 3, name: 'Written Thesis Dissertation Progress', weight: 40 },
-    { id: 4, name: 'Technical Demo & Artifacts', weight: 10 }
-  ]);
+  const [rubrics, setRubrics] = useState<EditableRubricWeight[]>(
+    () => [...MOCK_MARK_ENTRY_MODAL_RUBRICS]
+  );
 
   const [generating, setGenerating] = useState(false);
   const [generateLogs, setGenerateLogs] = useState<string[]>([]);
@@ -163,14 +163,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left"
             >
               {/* Close Button top right */}
-              <button
+              <PortalButton
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"
+                variant="ghost"
+                size="icon"
+                icon={X}
+                className="absolute top-6 right-6 w-9 h-9 text-slate-400 hover:text-brand-navy"
                 title="Dismiss Dialog"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              />
 
               {/* A. CONFIGURE MARK ENTRY PERIOD */}
               {activeModal === 'period' && (
@@ -227,15 +228,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     <span className="font-semibold">Modifying dates notifies all 48 coordinator modules with immediate broadcast logs.</span>
                   </div>
 
-                  <button
+                  <PortalButton
                     onClick={() => {
                       alert(`Administrative configuration saved: Mark entry window defined as ${periodStart} to ${periodEnd}.`);
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-brand-navy text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 transition shadow-sm cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    icon={Save}
+                    fullWidth
                   >
                     Apply Parameters
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
@@ -280,16 +284,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </span>
                   </div>
 
-                  <button
+                  <PortalButton
                     disabled={rubricSum !== 100}
                     onClick={() => {
                       alert("Rubric weight distribution metrics deployed to grading schemas.");
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-brand-navy text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    icon={Save}
+                    fullWidth
                   >
                     Save & Distribute Rubrics
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
@@ -324,13 +331,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </div>
                   </div>
 
-                  <button
+                  <PortalButton
                     disabled={generating}
                     onClick={runTaskGenerator}
-                    className="w-full py-3.5 bg-blue-600 font-extrabold text-xs tracking-wider uppercase text-white hover:bg-blue-700 rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    variant="primary"
+                    size="lg"
+                    icon={ListRestart}
+                    isLoading={generating}
+                    fullWidth
                   >
                     {generating ? 'Processing Engine...' : 'Run Generation Protocol'}
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
@@ -367,12 +378,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </div>
                   </div>
 
-                  <button
+                  <PortalButton
                     onClick={() => setActiveModal(null)}
-                    className="w-full py-3 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase transition hover:bg-slate-800 cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   >
                     Done
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 

@@ -17,3 +17,14 @@ export interface LetterTemplate {
   description: string;
   content: string;
 }
+
+export interface StudentLetterTemplate {
+  id: string;
+  name: string;
+  description: string;
+  badge: 'Standard' | 'Priority';
+  refNo: string;
+  date: string;
+  body: string;
+  notes: string;
+}

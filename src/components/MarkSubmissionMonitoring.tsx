@@ -16,7 +16,7 @@ import {
   Search 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalCard, ProgressBar, StatusBadge, StatusDot } from './PortalPrimitives';
 
 interface MarkSubmissionMonitoringProps {
   onViewRecords?: () => void;
@@ -86,12 +86,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
         </div>
 
         {/* Outer progress bar */}
-        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-          <div 
-            className="bg-brand-navy h-full rounded-full transition-all duration-1000 ease-out" 
-            style={{ width: `${(32 / 48) * 100}%` }}
-          />
-        </div>
+        <ProgressBar value={32} max={48} tone="brand" trackClassName="h-2.5" />
       </div>
 
       {/* Grid count matrix dashboard boxes (Interactive status selectors) */}
@@ -109,9 +104,9 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
         >
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Submitted</span>
           <span className="text-xl font-black text-slate-800 tracking-tight block my-1">32</span>
-          <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+          <StatusBadge tone="success" className="rounded-md px-2 py-0.5 text-[9px]">
             DONE
-          </span>
+          </StatusBadge>
         </button>
 
         {/* Draft Saved Box */}
@@ -126,9 +121,9 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
         >
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Draft Saved</span>
           <span className="text-xl font-black text-slate-800 tracking-tight block my-1">6</span>
-          <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+          <StatusBadge tone="info" className="rounded-md px-2 py-0.5 text-[9px]">
             IN PROGRESS
-          </span>
+          </StatusBadge>
         </button>
 
         {/* Not Started Box */}
@@ -143,9 +138,9 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
         >
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Not Started</span>
           <span className="text-xl font-black text-slate-800 tracking-tight block my-1">8</span>
-          <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-slate-200 text-slate-600 border border-slate-350">
+          <StatusBadge tone="neutral" className="rounded-md px-2 py-0.5 text-[9px]">
             PENDING
-          </span>
+          </StatusBadge>
         </button>
 
         {/* Overdue Box */}
@@ -160,9 +155,9 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
         >
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Overdue</span>
           <span className="text-xl font-black text-[#dc2626] tracking-tight block my-1">2</span>
-          <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
+          <StatusBadge tone="danger" className="rounded-md px-2 py-0.5 text-[9px]">
             URGENT
-          </span>
+          </StatusBadge>
         </button>
 
       </div>
@@ -230,15 +225,15 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
           </span>
           <ul className="space-y-3.5 text-xs text-slate-600 font-medium">
             <li className="flex items-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+              <StatusDot tone="danger" />
               <span><strong>2 overdue</strong> mark entries</span>
             </li>
             <li className="flex items-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+              <StatusDot tone="neutral" />
               <span><strong>8 tasks</strong> not started</span>
             </li>
             <li className="flex items-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+              <StatusDot tone="info" />
               <span><strong>6 drafts</strong> not submitted</span>
             </li>
             <li className="flex items-center gap-2.5 p-3.5 bg-rose-50/60 border border-rose-100 text-rose-800 rounded-xl mt-3">

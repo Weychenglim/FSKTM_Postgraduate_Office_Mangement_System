@@ -314,10 +314,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             TIMELINE STATUS
           </span>
           <div className="flex items-center gap-2 mt-3.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[16px] font-extrabold text-emerald-700 uppercase tracking-wide leading-none">
+            <StatusBadge tone="success" dot pulse className="text-[11px]">
               Active
-            </span>
+            </StatusBadge>
           </div>
         </div>
 

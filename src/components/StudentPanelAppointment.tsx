@@ -21,6 +21,7 @@ import {
   Check
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PageHeader, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
 
 interface StudentPanelAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -35,43 +36,18 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
   return (
     <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
       
-      {/* 1. Page Header Block & Live State Simulator Toggle */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-5 select-none">
-        <div>
-          <h1 className="page-title">
-            Panel Appointment
-          </h1>
-          <p className="page-subtitle">
-            View your approved panel appointment details once they are released.
-          </p>
-        </div>
-
-        {/* State Toggle Pills for interactive evaluation */}
-        <div className="flex items-center gap-2 self-start md:self-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            type="button"
-            onClick={() => setIsConfirmedState(false)}
-            className={`px-3.5 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-extrabold transition-all cursor-pointer ${
-              !isConfirmedState 
-                ? 'bg-amber-600 text-white shadow-xs' 
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            Pending View
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsConfirmedState(true)}
-            className={`px-3.5 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-extrabold transition-all cursor-pointer ${
-              isConfirmedState 
-                ? 'bg-brand-navy text-white shadow-xs' 
-                : 'text-slate-600 hover:text-slate-800'
-            }`}
-          >
-            Confirmed View
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Panel Appointment"
+        subtitle="View your approved panel appointment details once they are released."
+        className="border-b border-slate-100 pb-5 select-none"
+        actions={(
+          <SegmentedControl
+            options={['Pending View', 'Confirmed View'] as const}
+            value={isConfirmedState ? 'Confirmed View' : 'Pending View'}
+            onChange={(value) => setIsConfirmedState(value === 'Confirmed View')}
+          />
+        )}
+      />
 
       {/* ========================================================================= */}
       {/* 2. DYNAMIC WORKSPACE SWITCH BASED ON RELEASE STATUS STATE                 */}
@@ -88,10 +64,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
             <div className="space-y-4 flex-1">
               {/* Status Badge */}
               <div>
-                <span className="bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full inline-flex items-center gap-1 select-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Pending</span>
-                </span>
+                <StatusBadge tone="warning" dot pulse>Pending</StatusBadge>
               </div>
 
               <div className="space-y-2 text-left">
@@ -265,10 +238,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
             <div className="space-y-4 flex-1">
               {/* Status Badge: Approved */}
               <div>
-                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 select-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span>Approved</span>
-                </span>
+                <StatusBadge tone="success" dot>Approved</StatusBadge>
               </div>
 
               {/* Verified Title Heading */}
@@ -386,7 +356,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
                     Expertise
                   </span>
                   <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 mt-1 select-none">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                    <StatusDot tone="brand" />
                     <span>Big Data Analytics</span>
                   </div>
                 </div>

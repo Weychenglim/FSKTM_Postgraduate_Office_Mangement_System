@@ -5,7 +5,7 @@
 
 // Demo data for the file repository. Swap for real API responses later.
 
-import { FileItem } from '../types';
+import { FileItem, RelatedDocument } from '../types';
 
 export const MOCK_FILES: FileItem[] = [
   {
@@ -98,4 +98,10 @@ export const MOCK_FILES: FileItem[] = [
     fileType: 'pdf',
     description: 'Signed agreements allocating final supervisor quotas.',
   },
+];
+
+export const MOCK_PANEL_ASSIGNMENT_DOCUMENTS: RelatedDocument[] = [
+  { name: 'Proposal.pdf', category: 'Proposal', date: '05 Jan 2024' },
+  { name: 'Panel Appointment Notice.pdf', category: 'Notice', date: '06 Jan 2024' },
+  { name: 'Evaluation Rubric.pdf', category: 'Rubric', date: '06 Jan 2024' },
 ];

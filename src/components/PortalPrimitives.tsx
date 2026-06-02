@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { CheckCircle2, ChevronLeft, Loader2, LucideIcon, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -118,6 +118,7 @@ interface PageHeaderProps {
   backLabel?: string;
   onBack?: () => void;
   className?: string;
+  subtitleClassName?: string;
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -126,7 +127,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   actions,
   backLabel,
   onBack,
-  className = ''
+  className = '',
+  subtitleClassName = ''
 }) => (
   <div className={joinClasses('flex flex-col md:flex-row md:items-start md:justify-between gap-4 text-left', className)}>
     <div>
@@ -137,13 +139,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </button>
       )}
       <h1 className="page-title">{title}</h1>
-      {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      {subtitle && <p className={joinClasses('page-subtitle', subtitleClassName)}>{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div>}
   </div>
 );
 
-type BadgeTone = 'brand' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+export type BadgeTone = 'brand' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
 interface StatusBadgeProps {
   children: React.ReactNode;
@@ -180,6 +182,158 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
       {dot && <span className={joinClasses('w-1.5 h-1.5 rounded-full shrink-0', toneClass[tone].dot, pulse && 'animate-pulse')} />}
       <span>{children}</span>
+    </span>
+  );
+};
+
+export const getStatusBadgeTone = (status: string): BadgeTone => {
+  const normalized = status.trim().toLowerCase();
+  if (['approved', 'active', 'available', 'submitted', 'completed', 'done', 'ready'].includes(normalized)) {
+    return 'success';
+  }
+  if (['pending', 'pending review', 'pending approval', 'draft', 'draft saved', 'near limit', 'returned'].includes(normalized)) {
+    return 'warning';
+  }
+  if (['no supervisor', 'no panel', 'rejected', 'overdue', 'urgent', 'critical', 'full load', 'full', 'suspended'].includes(normalized)) {
+    return 'danger';
+  }
+  if (['info', 'generated', 'scheduled', 'recommendation', 'workload alert', 'in progress'].includes(normalized)) {
+    return 'info';
+  }
+  return 'neutral';
+};
+
+interface StatusDotProps {
+  tone?: BadgeTone;
+  pulse?: boolean;
+  className?: string;
+}
+
+export const StatusDot: React.FC<StatusDotProps> = ({ tone = 'neutral', pulse = false, className = '' }) => {
+  const dotClass: Record<BadgeTone, string> = {
+    brand: 'bg-indigo-500',
+    info: 'bg-blue-500',
+    success: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    danger: 'bg-rose-500',
+    neutral: 'bg-slate-400'
+  };
+
+  return (
+    <span
+      className={joinClasses('inline-block w-1.5 h-1.5 rounded-full shrink-0', dotClass[tone], pulse && 'animate-pulse', className)}
+      aria-hidden="true"
+    />
+  );
+};
+
+interface ProgressBarProps {
+  value: number;
+  max?: number;
+  tone?: BadgeTone;
+  className?: string;
+  trackClassName?: string;
+}
+
+export const ProgressBar: React.FC<ProgressBarProps> = ({
+  value,
+  max = 100,
+  tone = 'brand',
+  className = '',
+  trackClassName = ''
+}) => {
+  const fillClass: Record<BadgeTone, string> = {
+    brand: 'bg-brand-navy',
+    info: 'bg-blue-600',
+    success: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    danger: 'bg-rose-500',
+    neutral: 'bg-slate-500'
+  };
+  const percentage = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
+
+  return (
+    <div className={joinClasses('w-full h-1.5 rounded-full overflow-hidden bg-slate-200', trackClassName)}>
+      <div
+        className={joinClasses('h-full rounded-full transition-all duration-300', fillClass[tone], className)}
+        style={{ width: `${percentage}%` }}
+      />
+    </div>
+  );
+};
+
+interface SegmentedControlProps<T extends string> {
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+  labels?: Partial<Record<T, string>>;
+  className?: string;
+}
+
+export const SegmentedControl = <T extends string>({
+  options,
+  value,
+  onChange,
+  labels = {},
+  className = ''
+}: SegmentedControlProps<T>) => (
+  <div className={joinClasses('bg-slate-100 p-1 rounded-xl flex items-center border border-slate-100', className)} role="tablist">
+    {options.map((option) => {
+      const selected = value === option;
+      return (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={joinClasses(
+            'px-4 py-1.5 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition-all cursor-pointer',
+            selected ? 'bg-brand-navy text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/60'
+          )}
+          role="tab"
+          aria-selected={selected}
+        >
+          {labels[option] ?? option}
+        </button>
+      );
+    })}
+  </div>
+);
+
+interface RemovableTagProps {
+  children: React.ReactNode;
+  onRemove: () => void;
+  tone?: BadgeTone;
+  className?: string;
+  removeLabel?: string;
+}
+
+export const RemovableTag: React.FC<RemovableTagProps> = ({
+  children,
+  onRemove,
+  tone = 'brand',
+  className = '',
+  removeLabel = 'Remove tag'
+}) => {
+  const toneClass: Record<BadgeTone, string> = {
+    brand: 'bg-brand-navy text-white border-brand-navy',
+    info: 'bg-blue-50 text-blue-700 border-blue-150',
+    success: 'bg-emerald-50 text-emerald-700 border-emerald-150',
+    warning: 'bg-amber-50 text-amber-800 border-amber-150',
+    danger: 'bg-rose-50 text-rose-700 border-rose-150',
+    neutral: 'bg-slate-50 text-slate-600 border-slate-200'
+  };
+
+  return (
+    <span className={joinClasses('inline-flex items-center gap-1.5 border text-[10px] font-bold px-2.5 py-1.5 rounded-lg select-none', toneClass[tone], className)}>
+      <span>{children}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded p-0.5 text-current opacity-75 transition hover:bg-white/20 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/30"
+        aria-label={removeLabel}
+      >
+        <X className="w-3 h-3" />
+      </button>
     </span>
   );
 };

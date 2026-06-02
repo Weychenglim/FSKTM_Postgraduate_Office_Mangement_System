@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { PageHeader, PortalCard, PortalToast, StatusBadge } from './PortalPrimitives';
+import { MOCK_STUDENT_NEXT_ACTIONS } from '../mocks/dashboard';
 
 interface StudentDashboardProps {
   studentName: string;
@@ -91,29 +92,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     window.setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const nextActions = [
-    {
-      title: 'Submit proposal document',
-      meta: 'Document Submission - Proposal Due',
-      due: '18 Oct 2025',
-      target: 'File Management',
-      icon: UploadCloud
-    },
-    {
-      title: 'Check panel appointment release',
-      meta: 'Panel Appointment - Recommendation Period',
-      due: '28 Nov 2025',
-      target: 'Panel Appointments',
-      icon: Award
-    },
-    {
-      title: 'Generate confirmation letter',
-      meta: 'Official Documents',
-      due: 'Available anytime',
-      target: 'Letter Generation',
-      icon: MailOpen
-    }
-  ];
+  const actionIcons = {
+    upload: UploadCloud,
+    award: Award,
+    mail: MailOpen,
+  };
+  const nextActions = MOCK_STUDENT_NEXT_ACTIONS;
 
   return (
     <div id="student-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
@@ -191,14 +175,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <h2 className="section-heading">
               Next Student Actions
             </h2>
-            <p className="page-subtitle">
+            <p className="text-xs md:text-sm text-slate-500 font-medium mt-1.5">
               Tasks based on your appointment and submission timeline.
             </p>
           </div>
 
           <div className="divide-y divide-slate-100">
             {nextActions.map((action) => {
-              const Icon = action.icon;
+              const Icon = actionIcons[action.iconKey];
               return (
                 <button
                   key={action.title}

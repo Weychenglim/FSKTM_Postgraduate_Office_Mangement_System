@@ -18,7 +18,9 @@ import {
   FileDown
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PageHeader } from './PortalPrimitives';
 import { PanelAssignment } from '../types';
+import { MOCK_PANEL_ASSIGNMENT_DOCUMENTS } from '../mocks/files';
 
 // ==================== COMPONENT PROPS & INTERFACES ====================
 
@@ -348,11 +350,7 @@ export const EvaluationStageCard: React.FC<{
 
 // 6. Related Documents Table Card
 export const RelatedDocumentsTable: React.FC = () => {
-  const documents = [
-    { name: 'Proposal.pdf', category: 'Proposal', date: '05 Jan 2024' },
-    { name: 'Panel Appointment Notice.pdf', category: 'Notice', date: '06 Jan 2024' },
-    { name: 'Evaluation Rubric.pdf', category: 'Rubric', date: '06 Jan 2024' }
-  ];
+  const documents = MOCK_PANEL_ASSIGNMENT_DOCUMENTS;
 
   return (
     <div id="related-documents-section" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left space-y-4">
@@ -417,34 +415,18 @@ export const PanelAssignmentDetail: React.FC<PanelAssignmentDetailProps> = ({
   return (
     <div id="panel-assignment-detail-main" className="space-y-6">
       
-      {/* Back to Panel Appointments link flow top row */}
-      <div className="text-left select-none">
-        <button
-          onClick={onBack}
-          className="back-link group mb-3"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Back to Panel Appointments</span>
-        </button>
-      </div>
-
-      {/* Main Title Metadata panel bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-left select-none">
-        <div>
-          <h1 className="page-title">
-            Panel Assignment Detail
-          </h1>
-          <p className="page-subtitle">
-            View student details, research information, supervisor details, and related evaluation records.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title="Panel Assignment Detail"
+        subtitle="View student details, research information, supervisor details, and related evaluation records."
+        backLabel="Back to Panel Appointments"
+        onBack={onBack}
+        className="select-none"
+        actions={(
           <span className="bg-[#eff6ff] text-blue-605 text-blue-600 border border-blue-100 rounded-xl px-4 py-1.5 text-xs font-black uppercase tracking-wider leading-none">
             Session 2024/2025
           </span>
-        </div>
-      </div>
+        )}
+      />
 
       {/* Main Grid Content Area Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">

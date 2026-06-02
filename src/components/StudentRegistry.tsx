@@ -40,7 +40,7 @@ import {
   Sparkle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import { StudentRecord } from '../types';
@@ -126,15 +126,15 @@ interface AccountStatusIndicatorProps {
 }
 
 export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ status }) => {
-  const dotColor = {
-    Verified: 'bg-emerald-500',
-    Unverified: 'bg-amber-500',
-    Archived: 'bg-slate-400',
-  };
+  const dotTone = {
+    Verified: 'success',
+    Unverified: 'warning',
+    Archived: 'neutral',
+  } as const;
 
   return (
     <div className="flex items-center gap-2 select-none">
-      <span className={`w-2 h-2 rounded-full ${dotColor[status]} animate-pulse`} />
+      <StatusDot tone={dotTone[status]} pulse className="w-2 h-2" />
       <span className="text-slate-700 font-extrabold text-[11.5px]">
         {status}
       </span>
@@ -557,41 +557,28 @@ export const StudentRegistry: React.FC = () => {
           {currentView === 'list' && (
         <div id="student-registry-directory-list">
           
-          {/* HEADER HEADING FRAME */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-left select-none">
-            <div>
-              <h1 className="page-title">
-                Student Registry
-              </h1>
-              <p className="page-subtitle">
-                University Postgraduate Secretariat
-              </p>
-            </div>
-
-            {/* Action buttons list */}
-            <div className="flex items-center gap-3 select-none">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-2xs transition-all cursor-pointer flex items-center gap-2"
-              >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Export CSV</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentView('register');
-                  setRegisterActiveTab('bulk');
-                }}
-                className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4 text-indigo-300" />
-                <span>Register New Students</span>
-              </button>
-            </div>
-          </div>
+          <PageHeader
+            title="Student Registry"
+            subtitle="University Postgraduate Secretariat"
+            actions={
+              <div className="flex items-center gap-3 select-none">
+                <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
+                  Export CSV
+                </PortalButton>
+                <PortalButton
+                  onClick={() => {
+                    setCurrentView('register');
+                    setRegisterActiveTab('bulk');
+                  }}
+                  variant="primary"
+                  size="md"
+                  icon={UserPlus}
+                >
+                  Register New Students
+                </PortalButton>
+              </div>
+            }
+          />
 
           {/* Module switcher below the heading */}
           <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
@@ -741,7 +728,7 @@ export const StudentRegistry: React.FC = () => {
             {Object.values(selectedRowIds).some(v => v) && (
               <div className="bg-indigo-50/70 border-b border-indigo-100 p-3.5 flex items-center justify-between text-left select-none animate-fade-in px-6">
                 <div className="flex items-center gap-2.5 text-slate-900">
-                  <div className="w-2 h-2 rounded-full bg-blue-650 animate-ping shrink-0" />
+                  <StatusDot tone="info" pulse className="w-2 h-2" />
                   <span className="font-extrabold text-xs">
                     {Object.values(selectedRowIds).filter(v => v).length} student records selected
                   </span>
@@ -957,25 +944,13 @@ export const StudentRegistry: React.FC = () => {
       {currentView === 'register' && (
         <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
           
-          {/* PARENT LINK BACK TO STUDENT REGISTRY */}
-          <button 
-            type="button" 
-            onClick={() => setCurrentView('list')}
-            className="back-link group mb-3"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Student Registry</span>
-          </button>
-
-          {/* LARGE PAGE HEADING */}
-          <div className="mb-6">
-            <h1 className="page-title">
-              Register New Students
-            </h1>
-            <p className="page-subtitle">
-              Secretariat Onboarding Utility
-            </p>
-          </div>
+          <PageHeader
+            title="Register New Students"
+            subtitle="Secretariat Onboarding Utility"
+            backLabel="Back to Student Registry"
+            onBack={() => setCurrentView('list')}
+            className="mb-6"
+          />
 
           {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
           <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3">
