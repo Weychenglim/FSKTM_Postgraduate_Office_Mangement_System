@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Clock, 
@@ -35,8 +35,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
+import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
+import { getSupervisorRequests, getActiveSupervisees } from '../services';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -629,13 +632,7 @@ export const EmptyStateCard: React.FC = () => {
   );
 };
 
-interface ActiveSuperviseeRow {
-  studentId: string;
-  studentName: string;
-  researchTitle: string;
-  appointmentDate: string;
-  status: string;
-}
+// ActiveSuperviseeRow now lives in src/types.
 
 interface DataTableProps {
   data: ActiveSuperviseeRow[];
@@ -682,6 +679,13 @@ export const DataTable: React.FC<DataTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-brand-navy">
+              {data.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
+                    No active supervisees assigned yet.
+                  </td>
+                </tr>
+              )}
               {data.map((row) => {
                 const initials = row.studentName
                   .split(' ')
@@ -738,44 +742,31 @@ interface LecturerSupervisorAppointmentsProps {
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({ onBack }) => {
-  // Main data items mirroring the active screenshots
+  // Supervisory load counter (workload widget). Stays local UI state: it tracks
+  // remaining slots and is nudged as the lecturer approves/rejects requests.
   const [summaryLoad, setSummaryLoad] = useState({ current: 3, max: 5 });
-  const [requestsList, setRequestsList] = useState([
-    {
-      studentId: 'WQB230055',
-      studentName: 'Farhan Tariq',
-      programme: 'MSc. Computer Science',
-      proposedTopic: 'Federated Learning Models for Privacy-Preserving Healthcare Analytics',
-      submittedDate: '14 May 2024',
-      receivedTime: '2 DAYS AGO',
-      status: 'Pending Review',
-      abstract: 'Abstract summary: Modern healthcare systems face data silos due to privacy compliance laws (e.g. GDPR, HIPAA). This research details a federated optimization model to train deep convolutional neural networks directly on distributed clinical datasets. By using differential privacy parameters and homomorphic encryption blocks, parameters are aggregated securely inside counter-attack architectures.'
-    }
-  ]);
 
-  const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([
-    {
-      studentId: 'WEA200041',
-      studentName: 'Ahmad Luqman',
-      researchTitle: 'Optimizing Generative Adversarial Networks for Synthetic Clinical Images',
-      appointmentDate: '12 Oct 2023',
-      status: 'Active'
-    },
-    {
-      studentId: 'WQA210012',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      appointmentDate: '05 Jan 2024',
-      status: 'Active'
-    },
-    {
-      studentId: 'WEA220199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptographic Key Distribution Protocols',
-      appointmentDate: '14 Mar 2024',
-      status: 'Active'
-    }
-  ]);
+  // Pending requests + active supervisees loaded from appointmentsApi (mock-backed today).
+  const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
+  const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    Promise.all([getSupervisorRequests(), getActiveSupervisees()])
+      .then(([requests, active]) => {
+        setRequestsList(requests);
+        setSupervisees(active);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Routing screen details status
   const [detailView, setDetailView] = useState<'list' | 'requestDetail' | 'superviseeDetail' | 'history'>('list');
@@ -852,9 +843,6 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           
           {/* Main Title Metadata Block */}
           <div id="page-nav-meta-block" className="text-left select-none">
-            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block leading-none mb-2">
-              Lecturer Portal
-            </span>
             <h1 className="page-title">
               Supervisor Appointments
             </h1>
@@ -862,6 +850,13 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               Manage your active supervisees and review incoming supervisor appointment requests.
             </p>
           </div>
+
+          {loading ? (
+            <LoadingState message="Loading supervisor appointments…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={loadData} />
+          ) : (
+          <>
 
           {/* TWO SUMMARY CARDS GRID */}
           <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
@@ -929,11 +924,14 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           </div>
 
           {/* ACTIVE SUPERVISEES DETAILS LIST TABLE */}
-          <DataTable 
-            data={supervisees} 
-            onOpenRow={handleOpenSupervisee} 
+          <DataTable
+            data={supervisees}
+            onOpenRow={handleOpenSupervisee}
             onFilterClick={() => showToast("Filters initialized. Click on candidate rows to begin edit updates.")}
           />
+
+          </>
+          )}
 
         </div>
       )}
@@ -948,9 +946,9 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           {/* Back link bar */}
           <button
             onClick={() => setDetailView('list')}
-            className="group inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-xs font-black text-brand-navy uppercase tracking-wider border border-slate-200 rounded-xl transition shadow-3xs cursor-pointer select-none"
+            className="back-link group mb-3"
           >
-            <ArrowLeft className="w-4 h-4 text-slate-500 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to Appointments List</span>
           </button>
 

@@ -51,6 +51,84 @@ export interface PanelRecord {
   updatedDate: string; // "23 Nov 2025" or "-"
 }
 
+// ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
+// A pending supervisor appointment request shown to a lecturer to review.
+export interface SupervisorRequest {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  proposedTopic: string;
+  submittedDate: string;
+  receivedTime: string;
+  status: string;
+  abstract?: string;
+}
+
+// A row in the lecturer's active supervisee roster.
+export interface ActiveSuperviseeRow {
+  studentId: string;
+  studentName: string;
+  researchTitle: string;
+  appointmentDate: string;
+  status: string;
+}
+
+// ── Lecturer-facing panel appointment views (UC20–UC23) ──
+// A student assigned to a lecturer acting as panel member.
+export interface PanelAssignment {
+  studentId: string;
+  studentName: string;
+  researchTitle: string;
+  supervisor: string;
+  appointmentDate: string;
+  status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
+  programme?: string;
+  intake?: string;
+  abstract?: string;
+  initials?: string;
+}
+
+// A panel-member recommendation a lecturer drafts/submits for a supervisee.
+export interface PanelRecommendationDraft {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  proposedTopic: string;
+  recommendedMember: string;
+  recommendedMemberId: string;
+  submittedDate: string;
+  status: 'SUBMITTED' | 'APPROVED' | 'UNDER REVIEW';
+}
+
+// A submitted panel recommendation record shown in the history list.
+export interface SubmittedRecommendation {
+  id: string;
+  studentName: string;
+  studentId: string;
+  researchTitle: string;
+  recommendedPanel: string;
+  date: string;
+  status: 'Approved' | 'Pending Approval' | 'Rejected';
+  semester: string;
+  programme?: string;
+  abstract?: string;
+  justification?: string;
+}
+
+// A past supervisor appointment request the lecturer already approved/rejected.
+export interface SupervisorRequestHistoryRow {
+  requestId: string;
+  studentName: string;
+  studentId: string;
+  programme: string;
+  researchTitle: string;
+  submittedDate: string;
+  decision: 'Approved' | 'Rejected';
+  semester: string;
+  abstract: string;
+  decisionReason?: string;
+}
+
 // Lecturer workload tracking (UC16, UC21).
 export interface WorkloadStat {
   lecturerName: string;

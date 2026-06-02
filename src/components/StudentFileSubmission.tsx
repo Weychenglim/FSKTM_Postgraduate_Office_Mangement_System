@@ -180,11 +180,6 @@ export const StudentFileSubmission: React.FC = () => {
       {/* Structured Clean Grid Layout Header Block */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-slate-100 pb-5 gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider select-none">
-            <span>Research Repository</span>
-            <span>/</span>
-            <span className="text-brand-navy">File Submission</span>
-          </div>
           <h1 className="page-title">
             Submission Portal
           </h1>

@@ -17,7 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SubmittedRecommendation } from './SubmittedRecommendationsPage';
+import { SubmittedRecommendation } from '../types';
 
 interface RecommendationDetailsDrawerProps {
   isOpen: boolean;

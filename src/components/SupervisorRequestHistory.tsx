@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft, 
   Search, 
@@ -22,231 +22,37 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { StatusChip } from './LecturerSupervisorAppointments';
 import { PortalButton } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { SupervisorRequestHistoryRow } from '../types';
+import { getSupervisorRequestHistory } from '../services';
 
 // ==================== COMPONENT SPECIFICATION ====================
 
-interface HistoryRow {
-  requestId: string;
-  studentName: string;
-  studentId: string;
-  programme: string;
-  researchTitle: string;
-  submittedDate: string;
-  decision: 'Approved' | 'Rejected';
-  semester: string;
-  abstract: string;
-  decisionReason?: string;
-}
+// SupervisorRequestHistoryRow now lives in src/types; the records are served by
+// appointmentsApi (getSupervisorRequestHistory).
 
 interface SupervisorRequestHistoryProps {
   onBack: () => void;
 }
 
 export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack }) => {
-  // Mock data of 18 items mirroring the screenshot and requested records
-  const allHistoryRecords: HistoryRow[] = [
-    {
-      requestId: 'SV-REQ-2025-021',
-      studentName: 'Nur Aina Rahman',
-      studentId: 'S2145678',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Blockchain-Based Decentralized Identity Management in Public Services',
-      submittedDate: '10 Oct 2025',
-      decision: 'Approved',
-      semester: 'Sem 1 2025/2026',
-      abstract: 'This research outlines the implementation of a decentralized identity (DID) platform for public service registration. Utilizing custom smart contracts alongside cryptographic zero-knowledge proof components, it provides security against identification tampering.'
-    },
-    {
-      requestId: 'SV-REQ-2025-018',
-      studentName: 'Jason Lee',
-      studentId: 'S2109876',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Quantum Computing Algorithms in Cryptographic Key Distribution Protocols',
-      submittedDate: '01 Sep 2025',
-      decision: 'Approved',
-      semester: 'Sem 1 2025/2026',
-      abstract: 'Explores security models and performance of post-quantum cryptographic algorithms in software. Tested across simulated clusters in Universiti Malaya’s computing infrastructure.'
-    },
-    {
-      requestId: 'SV-REQ-2025-011',
-      studentName: 'Farah Nabila',
-      studentId: 'S2088321',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'Mobile Learning Adoption in Higher Education: A Systematic Framework',
-      submittedDate: '15 Aug 2025',
-      decision: 'Rejected',
-      semester: 'Sem 3 2024/2025',
-      decisionReason: 'The proposed research is highly qualitative and falls outside my primary supervision focus of systems and practical architectures.',
-      abstract: 'A qualitative survey analyzing student usage and behavioral intention when interacting with micro-learning content delivered via enterprise software systems.'
-    },
-    {
-      requestId: 'SV-REQ-2024-032',
-      studentName: 'Tan Ua Min',
-      studentId: 'S2123546',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Privacy-Aware Student Data Mining and Predictive Institutional Analytics',
-      submittedDate: '20 Nov 2024',
-      decision: 'Approved',
-      semester: 'Sem 2 2024/2025',
-      abstract: 'Develops privacy-preserving machine learning algorithms to audit course attendance and grades trends, using federated learning frameworks.'
-    },
-    {
-      requestId: 'SV-REQ-2024-019',
-      studentName: 'Kumar Raj',
-      studentId: 'S2104593',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'Cloud-Based Research Collaboration Environment over Microservices',
-      submittedDate: '03 Aug 2024',
-      decision: 'Approved',
-      semester: 'Sem 1 2024/2025',
-      abstract: 'A robust cloud-native architecture enabling real-time containerized code compilation and collaboration tools.'
-    },
-    {
-      requestId: 'SV-REQ-2024-008',
-      studentName: 'Ahmad Luqman',
-      studentId: 'S2032481',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Optimizing Generative Adversarial Networks for Synthetic Clinical Images',
-      submittedDate: '12 May 2024',
-      decision: 'Approved',
-      semester: 'Sem 1 2024/2025',
-      abstract: 'Optimizes training stability for GANs in medicine. Synthesizes dense chest X-ray models with low noise ratios.'
-    },
-    {
-      requestId: 'SV-REQ-2024-005',
-      studentName: 'Siti Sarah',
-      studentId: 'S2055611',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Deep Reinforcement Learning in Robotic Process Automation Pipelines',
-      submittedDate: '30 Apr 2024',
-      decision: 'Approved',
-      semester: 'Sem 1 2024/2025',
-      abstract: 'Evaluates adaptive software bots operating over dynamic browser UI trees, modeling execution logs via neural networks.'
-    },
-    {
-      requestId: 'SV-REQ-2024-001',
-      studentName: 'Chong Wei',
-      studentId: 'S2119024',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'Refinement of Software Vulnerability Discovery via Heuristic LLM Prompts',
-      submittedDate: '10 Jan 2024',
-      decision: 'Approved',
-      semester: 'Sem 1 2024/2025',
-      abstract: 'Investigates prompt template techniques in LLM interfaces to locate syntax and logic buffer overflow vulnerabilities.'
-    },
-    {
-      requestId: 'SV-REQ-2023-045',
-      studentName: 'Devi Nair',
-      studentId: 'S1993425',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Edge Computing Architectures for Real-Time IoT Traffic Management',
-      submittedDate: '15 Nov 2023',
-      decision: 'Approved',
-      semester: 'Sem 2 2023/2024',
-      abstract: 'Builds lightweight broker instances implementing container-isolated scheduling for traffic network cameras.'
-    },
-    {
-      requestId: 'SV-REQ-2023-033',
-      studentName: 'Lim Chin Hock',
-      studentId: 'S2023412',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'An Adaptive Threat Detection Mechanism using SVMs in Software-Defined Networks',
-      submittedDate: '18 Sep 2023',
-      decision: 'Approved',
-      semester: 'Sem 1 2023/2024',
-      abstract: 'Presents a network control plane plugin that detects distributed denial of service triggers utilizing support vector machine classifiers.'
-    },
-    {
-      requestId: 'SV-REQ-2023-020',
-      studentName: 'Fatima Zahra',
-      studentId: 'S1987541',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'Automating Acceptance Testing For Single Page Web Applications',
-      submittedDate: '14 Jun 2023',
-      decision: 'Rejected',
-      semester: 'Sem 3 2022/2023',
-      decisionReason: 'Lack of clear technical novelty or theoretical software architecture contribution.',
-      abstract: 'Develops a Selenium-wrapper framework designed specifically to read JSON schema assertions and map tests to dynamic UI nodes.'
-    },
-    {
-      requestId: 'SV-REQ-2023-011',
-      studentName: 'Ganesh Pillay',
-      studentId: 'S2103456',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Energy Efficient Resource Scheduling Algorithms for High Performance Clouds',
-      submittedDate: '15 Mar 2023',
-      decision: 'Approved',
-      semester: 'Sem 2 2022/2023',
-      abstract: 'An optimization thesis detailing server sleep-on-idle parameters, saving server rack overhead during low telemetry peaks.'
-    },
-    {
-      requestId: 'SV-REQ-2023-002',
-      studentName: 'Wong Ka Wai',
-      studentId: 'S1923055',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'A Deep Learning System for Automated Lung Nodule Tracking in CT Images',
-      submittedDate: '02 Feb 2023',
-      decision: 'Approved',
-      semester: 'Sem 1 2022/2023',
-      abstract: 'Applies convolutional autoencoders followed by localized region growing algorithms to tag nodules over interval datasets.'
-    },
-    {
-      requestId: 'SV-REQ-2022-040',
-      studentName: 'Norhalim bin Hussin',
-      studentId: 'S1893452',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Distributed Ledger Framework for Secure Patient Health Record Exchange',
-      submittedDate: '25 Nov 2022',
-      decision: 'Approved',
-      semester: 'Sem 2 2022/2023',
-      abstract: 'Leverages Hyperledger Fabric nodes to validate consensus signatures when medical clinics request raw diagnostic profiles.'
-    },
-    {
-      requestId: 'SV-REQ-2022-022',
-      studentName: 'Lee Meow Kee',
-      studentId: 'S1904124',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'A Comparative Empirical Study on Hybrid Agile and DevOps Adoption',
-      submittedDate: '11 Aug 2022',
-      decision: 'Rejected',
-      semester: 'Sem 1 2022/2023',
-      decisionReason: 'The systematic literature review is not deep enough and overlaps with several existing software industry studies.',
-      abstract: 'An analytical survey checking release frequency and sprint velocity among fifteen local startup environments.'
-    },
-    {
-      requestId: 'SV-REQ-2022-012',
-      studentName: 'Samuel Tan',
-      studentId: 'S2019445',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'An Ensemble Model for Predicting Stock Volatility from Social Posts',
-      submittedDate: '08 May 2022',
-      decision: 'Approved',
-      semester: 'Sem 1 2022/2023',
-      abstract: 'Extracts transformer embeddings from community posts to build real-time pricing indices alongside historical volatility metrics.'
-    },
-    {
-      requestId: 'SV-REQ-2021-030',
-      studentName: 'Tariq Al-Fayed',
-      studentId: 'S1805561',
-      programme: 'MSc. Computer Science',
-      researchTitle: 'Intelligent Intrusion Detection in Cellular Base Station Routers',
-      submittedDate: '12 Nov 2021',
-      decision: 'Approved',
-      semester: 'Sem 2 2021/2022',
-      abstract: 'Applies autoencoder networks to analyze cellular routing protocol irregularities, flagging packets with sub-optimal payload structures.'
-    },
-    {
-      requestId: 'SV-REQ-2021-015',
-      studentName: 'Nurul Huda',
-      studentId: 'S1745239',
-      programme: 'MSc. Software Engineering',
-      researchTitle: 'Re-engineering Legacy Enterprise Monoliths to Event-Driven Microservices',
-      submittedDate: '14 Mar 2021',
-      decision: 'Approved',
-      semester: 'Sem 2 2020/2021',
-      abstract: 'Formulates microservices refactoring patterns by extracting bounded context classes directly from legacy database foreign keys.'
-    }
-  ];
+  // Decided supervisor requests loaded from appointmentsApi (mock-backed today).
+  const [allHistoryRecords, setAllHistoryRecords] = useState<SupervisorRequestHistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSupervisorRequestHistory()
+      .then(setAllHistoryRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor request history.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,7 +71,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
   const itemsPerPage = 5;
 
   // Selected Row Details Popup Modal Custom State
-  const [selectedRecord, setSelectedRecord] = useState<HistoryRow | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<SupervisorRequestHistoryRow | null>(null);
 
   // Computed summary metrics
   const totalReviewedCount = allHistoryRecords.length;
@@ -276,7 +82,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
   const semesterOptions = useMemo(() => {
     const list = new Set(allHistoryRecords.map(r => r.semester));
     return ['All', ...Array.from(list)];
-  }, []);
+  }, [allHistoryRecords]);
 
   // Filter implementation
   const filteredRecords = useMemo(() => {
@@ -305,7 +111,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
       return matchesSearch && matchesDecision && matchesSemester && matchesDate;
     });
-  }, [appliedSearch, appliedDecision, appliedSemester, appliedDate]);
+  }, [allHistoryRecords, appliedSearch, appliedDecision, appliedSemester, appliedDate]);
 
   // Paginated partition
   const paginatedRecords = useMemo(() => {
@@ -329,7 +135,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
       {/* Back to Supervisor Appointments */}
       <button
         onClick={onBack}
-        className="group inline-flex items-center gap-2 text-slate-500 hover:text-brand-navy font-extrabold text-xs uppercase tracking-widest transition cursor-pointer select-none"
+        className="back-link group mb-3"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
         <span>Back to Supervisor Appointments</span>
@@ -501,7 +307,19 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-brand-navy">
-                {paginatedRecords.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <LoadingState message="Loading supervisor request history…" />
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <ErrorState message={error} onRetry={loadHistory} />
+                    </td>
+                  </tr>
+                ) : paginatedRecords.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-10 font-bold text-slate-400 uppercase tracking-wider">
                       No request history matches the selected filters.

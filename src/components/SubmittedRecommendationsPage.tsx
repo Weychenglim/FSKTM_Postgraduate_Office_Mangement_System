@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
-  ArrowLeft, 
-  Search, 
-  ChevronDown, 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  ArrowLeft,
+  Search,
+  ChevronDown,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
@@ -25,22 +25,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RecommendationDetailsDrawer } from './RecommendationDetailsDrawer';
+import { LoadingState, ErrorState } from './StateViews';
+import { SubmittedRecommendation } from '../types';
+import { getPanelRecommendations } from '../services';
 
 // ==================== DATA DEFINITIONS & INTERFACES ====================
 
-export interface SubmittedRecommendation {
-  id: string;
-  studentName: string;
-  studentId: string;
-  researchTitle: string;
-  recommendedPanel: string;
-  date: string;
-  status: 'Approved' | 'Pending Approval' | 'Rejected';
-  semester: string;
-  programme?: string;
-  abstract?: string;
-  justification?: string;
-}
+// SubmittedRecommendation now lives in src/types; the default history list is
+// served by appointmentsApi (getPanelRecommendations).
 
 interface SubmittedRecommendationsPageProps {
   onBack: () => void;
@@ -48,172 +40,32 @@ interface SubmittedRecommendationsPageProps {
   onViewRecommendation?: (recId: string) => void;
 }
 
-// 12 records corresponding precisely to the statistics (Total: 12, Approved: 9, Pending: 2, Rejected: 1)
-const DEFAULT_RECOMMENDATIONS: SubmittedRecommendation[] = [
-  {
-    id: 'REC-2025-021',
-    studentName: 'Nur Aina Rahman',
-    studentId: '17204561',
-    researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-    recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-    date: '10 Oct 2025',
-    status: 'Approved',
-    semester: 'Sem 1 2025/2026',
-    programme: 'MSc. Computer Science',
-    abstract: 'This research outlines the implementation of a decentralized identity (DID) platform for public service registration. Utilizing custom smart contracts alongside cryptographic zero-knowledge proof components, it provides security against identification tampering.',
-    justification: 'The lecturer possesses 6+ years of expertise in Big Data and decentralized ledgers, with multiple published journals in international indexing circles.'
-  },
-  {
-    id: 'REC-2025-018',
-    studentName: 'Jason Lee',
-    studentId: '17208832',
-    researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-    recommendedPanel: 'Dr. Robert Chen',
-    date: '01 Sep 2025',
-    status: 'Approved',
-    semester: 'Sem 1 2025/2026',
-    programme: 'MSc. Computer Science',
-    abstract: 'Examines threat vectors on modern elliptic curve cryptography from Shor’s and Grover’s algorithms, and implements post-quantum replacement protocols securely in Java-based simulation environments.',
-    justification: 'Dr. Robert Chen focuses on practical post-quantum security schemes and is highly suitable for validating cryptographic proof aspects of this topic.'
-  },
-  {
-    id: 'REC-2025-014',
-    studentName: 'Farhan Tariq',
-    studentId: '17200021',
-    researchTitle: 'Federated Learning Models for Privacy-Preserving Applications',
-    recommendedPanel: 'Dr. Sarah Lim',
-    date: '14 May 2025',
-    status: 'Pending Approval',
-    semester: 'Sem 2 2024/2025',
-    programme: 'MSc. Computer Science',
-    abstract: 'Investigates decentralized server training mechanics across dynamic device groups while preserving private structural feature layers using additive secret sharing policies.',
-    justification: 'Dr. Sarah Lim has a rich background in adversarial learning models and federated systems evaluation pipelines.'
-  },
-  {
-    id: 'REC-2024-032',
-    studentName: 'Tan Jia Min',
-    studentId: '17199923',
-    researchTitle: 'Privacy-Aware Student Data Analytics & Systems',
-    recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-    date: '20 Nov 2024',
-    status: 'Approved',
-    semester: 'Sem 2 2024/2025',
-    programme: 'MSc. Computer Science',
-    abstract: 'Evaluates predictive courses recommendation algorithms in higher learning without harvesting individual tracking datasets.',
-    justification: 'She has spearheaded several institutional privacy audits and research contracts regarding Student Information System governance.'
-  },
-  {
-    id: 'REC-2024-019',
-    studentName: 'Kumar Raj',
-    studentId: '17188842',
-    researchTitle: 'Cloud-Based Research Document Management Workflow Platform',
-    recommendedPanel: 'Dr. Robert Chen',
-    date: '03 Aug 2024',
-    status: 'Rejected',
-    semester: 'Sem 1 2024/2025',
-    programme: 'MSc. Software Engineering',
-    abstract: 'A software framework implementing dynamic document version control pipelines securely over decentralized server node storage files.',
-    justification: 'The candidate theme falls into conventional database patterns which do not fully align with the active research cluster focuses.'
-  },
-  // Extra 7 entries to complete the count of 12 for pagination and filtering tests
-  {
-    id: 'REC-2024-011',
-    studentName: 'Ahmad Luqman',
-    studentId: '17201119',
-    researchTitle: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
-    recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-    date: '29 May 2026',
-    status: 'Pending Approval',
-    semester: 'Sem 1 2025/2026',
-    programme: 'MSc. Computer Science',
-    abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources.',
-    justification: 'As one of the leading regional experts in generative deep neural architectures, Assoc. Prof. Malik is uniquely qualified.'
-  },
-  {
-    id: 'REC-2024-008',
-    studentName: 'Siti Sarah',
-    studentId: '17208852',
-    researchTitle: 'Reinforcement Learning in Drone Pathfinding Routines',
-    recommendedPanel: 'Dr. Siti Noor',
-    date: '10 Apr 2024',
-    status: 'Approved',
-    semester: 'Sem 2 2023/2024',
-    programme: 'MSc. Computer Science',
-    abstract: 'Applies neural feedback reward policies to determine shortest collision-free routes under wind fluctuation constraints.',
-    justification: 'Dr. Siti Noor is active in cellular automation paradigms and mobile robotics steering validation.'
-  },
-  {
-    id: 'REC-2024-005',
-    studentName: 'Chong Wei',
-    studentId: '17193202',
-    researchTitle: 'LLM Prompt Engineering for Automated API Code Generation',
-    recommendedPanel: 'Dr. Robert Chen',
-    date: '18 Jan 2024',
-    status: 'Approved',
-    semester: 'Sem 2 2023/2024',
-    programme: 'MSc. Software Engineering',
-    abstract: 'Provides structured prompt matrices to synthesize verified gRPC route files from YAML endpoints specification.',
-    justification: 'He has worked closely on software pattern generators and has direct experience evaluating automated code systems.'
-  },
-  {
-    id: 'REC-2023-045',
-    studentName: 'Devi Nair',
-    studentId: '17193321',
-    researchTitle: 'Containerized Broker Infrastructure for Smart Home Gateway Devices',
-    recommendedPanel: 'Dr. Siti Noor',
-    date: '22 Nov 2023',
-    status: 'Approved',
-    semester: 'Sem 1 2023/2024',
-    programme: 'MSc. Computer Science',
-    abstract: 'Deploys lightweight message parsing agents onto limited computing environments to balance active event triggers.',
-    justification: 'Suitable candidate based on local network virtualization research projects launched.'
-  },
-  {
-    id: 'REC-2023-033',
-    studentName: 'Lim Chin Hock',
-    studentId: '17201931',
-    researchTitle: 'Neural Threat Detection Plugin over Software Defined Networks',
-    recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-    date: '15 Sep 2023',
-    status: 'Approved',
-    semester: 'Sem 1 2023/2024',
-    programme: 'MSc. Computer Science',
-    abstract: 'Monitors open flow protocol exchanges using light convolutional filters to log DDoS triggers before they affect router states.',
-    justification: 'Outstanding record in system protection frameworks and distributed databases.'
-  },
-  {
-    id: 'REC-2023-021',
-    studentName: 'Fatima Zahra',
-    studentId: '17150567',
-    researchTitle: 'Automating UI Test Script Refactoring with Abstract Syntax Trees',
-    recommendedPanel: 'Dr. Robert Chen',
-    date: '12 Jun 2023',
-    status: 'Approved',
-    semester: 'Sem 2 2022/2023',
-    programme: 'MSc. Software Engineering',
-    abstract: 'Decodes outdated test files and automatically maps them to updated elements trees via grammar translation frameworks.',
-    justification: 'Expertise in validation tooling and automated parsing models fits this topic.'
-  },
-  {
-    id: 'REC-2023-009',
-    studentName: 'Samuel Tan',
-    studentId: '17140924',
-    researchTitle: 'Ensemble Learning applied to Real-Time Sentiment Index Tracking',
-    recommendedPanel: 'Assoc. Prof. Dr. Amina Malik',
-    date: '02 May 2022',
-    status: 'Approved',
-    semester: 'Sem 1 2022/2023',
-    programme: 'MSc. Computer Science',
-    abstract: 'Extracts real-time trading sentiment from financial publications using transformer embeddings and weights outputs proportionately.',
-    justification: 'Matches her active focus on big-data analytics and advanced natural processing architectures.'
-  }
-];
-
 export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPageProps> = ({
   onBack,
-  recommendations = DEFAULT_RECOMMENDATIONS,
+  recommendations: recommendationsProp,
   onViewRecommendation
 }) => {
+  // Controlled vs. self-fetching: when the parent supplies `recommendations`
+  // (e.g. LecturerPanelAppointments) use those; otherwise fetch the history
+  // from appointmentsApi (mock-backed today) with loading/error handling.
+  const [fetched, setFetched] = useState<SubmittedRecommendation[]>([]);
+  const [loading, setLoading] = useState(!recommendationsProp);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecommendations = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getPanelRecommendations()
+      .then(setFetched)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load submitted recommendations.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!recommendationsProp) loadRecommendations();
+  }, [recommendationsProp, loadRecommendations]);
+
+  const recommendations = recommendationsProp ?? fetched;
   // --- Local Search & Filtering State ---
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
@@ -300,9 +152,9 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
       <button
         id="submitted-recs-back-btn"
         onClick={onBack}
-        className="group inline-flex items-center gap-2 text-slate-500 hover:text-brand-navy font-black text-xs uppercase tracking-widest transition cursor-pointer select-none"
+        className="back-link group mb-3"
       >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform stroke-[2.5]" />
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
         <span>Back to Panel Appointments</span>
       </button>
 
@@ -486,7 +338,19 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-brand-navy">
-                {paginatedRecs.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <LoadingState message="Loading submitted recommendations…" />
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <ErrorState message={error} onRetry={loadRecommendations} />
+                    </td>
+                  </tr>
+                ) : paginatedRecs.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-12 font-bold text-slate-400 uppercase tracking-widest bg-slate-50/30">
                       No recommendations matched your criteria.

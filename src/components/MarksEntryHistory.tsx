@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { EvaluationTask, EvaluationStatus } from './LecturerMarksEntry';
+import { EvaluationTask, EvaluationStatus } from '../types';
 
 // Extended status to include 'CLOSED'
 export type HistoryStatus = EvaluationStatus | 'CLOSED';
@@ -457,9 +457,9 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
           id="back-to-marks-entry-btn"
           type="button"
           onClick={onBack}
-          className="group inline-flex items-center gap-2 text-sky-600 hover:text-sky-800 font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer self-start"
+          className="back-link group mb-3 self-start"
         >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform stroke-[2.5]" />
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Marks Entry</span>
         </button>
       </div>
