@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -35,7 +35,7 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
       <div className="grid grid-cols-3 divide-x divide-[#f1f5f9] text-center py-1">
         {/* Supervisees */}
         <div className="flex flex-col items-center justify-center space-y-1">
-          <span className="text-2xl font-extrabold text-[#0c1424]">
+          <span className="text-2xl font-extrabold text-brand-navy">
             {currentStudents}
           </span>
           <span className="text-[9px] font-extrabold text-[#64748b] tracking-wider uppercase">
@@ -45,7 +45,7 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
 
         {/* Workload Limit */}
         <div className="flex flex-col items-center justify-center space-y-1">
-          <span className="text-2xl font-extrabold text-[#0c1424]">
+          <span className="text-2xl font-extrabold text-brand-navy">
             {workloadLimit}
           </span>
           <span className="text-[9px] font-extrabold text-[#64748b] tracking-wider uppercase">
@@ -68,7 +68,7 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
       <div className="space-y-2 pt-2 border-t border-[#f1f5f9]">
         <div className="flex justify-between items-center text-xs">
           <span className="font-bold text-[#475569]">Capacity Utilization</span>
-          <span className="font-extrabold text-[#0c1424]">{utilizationPercent}%</span>
+          <span className="font-extrabold text-brand-navy">{utilizationPercent}%</span>
         </div>
         <div className="w-full h-2.5 bg-[#f1f5f9] rounded-full overflow-hidden">
           <div

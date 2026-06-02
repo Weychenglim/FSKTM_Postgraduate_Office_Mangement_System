@@ -1,11 +1,11 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  FileText, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  FileText,
   Search, 
   Plus, 
   Trash2, 
@@ -28,22 +28,15 @@ import {
   SlidersHorizontal,
   RefreshCcw,
   Sparkles,
-  ChevronDown,
-  Info
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { LetterTemplate } from '../types';
+import { getLetterTemplates } from '../services';
 
-// Definitions for template structure
-interface LetterTemplate {
-  id: string;
-  name: string;
-  type: string;
-  status: 'Active' | 'Draft';
-  lastModified: string;
-  modifiedBy: string;
-  description: string;
-  content: string;
-}
+// LetterTemplate now lives in src/types.
 
 export const LetterTemplateManagement: React.FC = () => {
   // Toast notifications state
@@ -53,66 +46,44 @@ export const LetterTemplateManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // 1. Core Templates Seed Data (Exactly matching screenshot records)
-  const [templates, setTemplates] = useState<LetterTemplate[]>([
-    {
-      id: 'tpl-1',
-      name: 'Official Confirmation Letter',
-      type: 'Academic Certification',
-      status: 'Active',
-      lastModified: 'Oct 12, 2023',
-      modifiedBy: 'Dr. Azwan',
-      description: 'Standard letter for enrollment verification and status.',
-      content: `CONFIRMATION OF STUDENT STATUS\n\nThis is to certify that {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) is a registered full-time postgraduate student at the Faculty of Computer Science and Information Technology, University of Malaya.\n\nThe student is currently pursuing the {{PROGRAMME_NAME}} and has completed {{CREDITS_EARNED}} credits to date. Their current CGPA is {{GPA}}.\n\nShould you require further clarification, please do not hesitate to contact the Postgraduate Office at +603-7967 6300.`
-    },
-    {
-      id: 'tpl-2',
-      name: 'Visa Support Document',
-      type: 'Academic Certification', // Group as per type filter
-      status: 'Draft',
-      lastModified: 'Sep 28, 2023',
-      modifiedBy: 'Admin',
-      description: 'Required for international student visa renewals.',
-      content: `STUDENT VISA EXTENSION SUPPORT\n\nThis is to confirm that {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) is a full-time candidate of {{PROGRAMME_NAME}} at Faculty of Computer Science and Information Technology, UM.\n\nTheir current academic performance is satisfactory with a CGPA score of {{GPA}}. The faculty fully supports their student visa renewal application to complete the remaining credits.`
-    },
-    {
-      id: 'tpl-3',
-      name: 'Thesis Submission Notice',
-      type: 'Academic Certification',
-      status: 'Active',
-      lastModified: 'Aug 05, 2023',
-      modifiedBy: 'Prof. Lim',
-      description: 'Formal notification for viva-voce and submission.',
-      content: `NOTICE OF INTENT FOR THESIS SUBMISSION\n\nThis is to acknowledge receipt of notice for thesis submission submitted by {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) enrolled in the {{PROGRAMME_NAME}} program.\n\nThe candidate maintains a solid score with {{CREDITS_EARNED}} credits completed, qualifying for academic committee evaluation step.`
-    },
-    {
-      id: 'tpl-4',
-      name: 'Bursary Clearance Form',
-      type: 'Academic Certification',
-      status: 'Draft',
-      lastModified: 'Jul 19, 2023',
-      modifiedBy: 'Admin',
-      description: 'Internal financial clearance letter for graduates.',
-      content: `FINANCIAL BURSARY CLEARANCE ASSURANCE\n\nTo Whom It May Concern, this letter serves to confirm that FSKTM candidate {{STUDENT_NAME}} (ID: {{STUDENT_ID}}) has settled all outstanding dues for the current academic session.`
-    }
-  ]);
+  // 1. Templates loaded from lettersApi (mock-backed today).
+  const [templates, setTemplates] = useState<LetterTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Selected state
-  const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate>(templates[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Editable Form Inputs matching the current selection
-  const [editorName, setEditorName] = useState(selectedTemplate.name);
-  const [editorType, setEditorType] = useState(selectedTemplate.type);
-  const [editorContent, setEditorContent] = useState(selectedTemplate.content);
-  const [editorStatus, setEditorStatus] = useState(selectedTemplate.status);
+  const [editorName, setEditorName] = useState('');
+  const [editorType, setEditorType] = useState('');
+  const [editorContent, setEditorContent] = useState('');
+  const [editorStatus, setEditorStatus] = useState<'Active' | 'Draft'>('Active');
 
   // File Upload Letterhead Sim State
   const [letterheadImage, setLetterheadImage] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  const loadTemplates = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getLetterTemplates()
+      .then((data) => {
+        setTemplates(data);
+        setSelectedTemplate((current) => current ?? data[0] ?? null);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load letter templates.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
   // Sync editor fields when selected template changes
   useEffect(() => {
+    if (!selectedTemplate) return;
     setEditorName(selectedTemplate.name);
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
@@ -146,6 +117,7 @@ export const LetterTemplateManagement: React.FC = () => {
 
   // Actions
   const handleSaveTemplate = () => {
+    if (!selectedTemplate) return;
     if (!editorName.trim()) {
       triggerToast('Error: Please enter a template name.');
       return;
@@ -173,6 +145,7 @@ export const LetterTemplateManagement: React.FC = () => {
   };
 
   const handleDiscardChanges = () => {
+    if (!selectedTemplate) return;
     setEditorName(selectedTemplate.name);
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
@@ -195,7 +168,7 @@ export const LetterTemplateManagement: React.FC = () => {
         return (
           <span 
             key={i} 
-            className="inline-block bg-[#0c1424] text-[#a5b4fc] text-[10px] font-mono font-black px-1.5 py-0.5 rounded mx-0.5 select-all hover:bg-slate-800 transition"
+            className="inline-block bg-brand-navy text-[#a5b4fc] text-[10px] font-mono font-black px-1.5 py-0.5 rounded mx-0.5 select-all hover:bg-slate-800 transition"
           >
             {part}
           </span>
@@ -219,22 +192,15 @@ export const LetterTemplateManagement: React.FC = () => {
   );
 
   return (
-    <div id="letter-template-management" className="font-sans text-[#0c1424] text-xs pb-12 animate-fade-in">
-      
-      {/* Toast alert system banner notifications */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div id="letter-template-management" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+
+      <PortalToast message={toast} />
+
+      <PageHeader
+        title="Letter Generation"
+        subtitle="Create and manage official letter templates for the postgraduate office."
+        className="mb-6"
+      />
 
       {/* Main Grid containing left and right pane cards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -245,7 +211,7 @@ export const LetterTemplateManagement: React.FC = () => {
             
             {/* Library Panel Header */}
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black text-[#0c1424] uppercase tracking-wider">
+              <h2 className="section-label uppercase tracking-wider">
                 Templates Library
               </h2>
               <span className="text-[10px] font-black text-slate-400">
@@ -264,19 +230,23 @@ export const LetterTemplateManagement: React.FC = () => {
                 value={searchQuery}
                 aria-label="Filter templates"
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-700 pl-9 pr-3 py-2.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition"
+                className="form-control form-control-sm pl-9 pr-3"
               />
             </div>
 
             {/* Template Card Buttons list */}
             <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
-              {filteredTemplates.length === 0 ? (
+              {loading ? (
+                <LoadingState message="Loading templates…" />
+              ) : error ? (
+                <ErrorState message={error} onRetry={loadTemplates} />
+              ) : filteredTemplates.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 font-bold">
                   No matching templates found.
                 </div>
               ) : (
                 filteredTemplates.map((tpl) => {
-                  const isSelected = selectedTemplate.id === tpl.id;
+                  const isSelected = selectedTemplate?.id === tpl.id;
                   const isActive = tpl.status === 'Active';
                   return (
                     <button
@@ -295,13 +265,7 @@ export const LetterTemplateManagement: React.FC = () => {
                         </span>
                         
                         {/* Status chip */}
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                          isActive 
-                            ? 'bg-[#0c1424] text-white' 
-                            : 'bg-slate-200 text-slate-600'
-                        }`}>
-                          {tpl.status}
-                        </span>
+                        <StatusBadge tone={isActive ? 'brand' : 'neutral'} className="px-2 py-0.5 text-[8px] rounded-md">{tpl.status}</StatusBadge>
                       </div>
 
                       {/* Description blurb */}
@@ -328,7 +292,7 @@ export const LetterTemplateManagement: React.FC = () => {
             </div>
 
             {/* Add template placeholder */}
-            <button
+            <PortalButton
               type="button"
               onClick={() => {
                 const newTpl: LetterTemplate = {
@@ -345,11 +309,13 @@ export const LetterTemplateManagement: React.FC = () => {
                 setSelectedTemplate(newTpl);
                 triggerToast('Created a new blank letter template.');
               }}
-              className="w-full py-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-extrabold uppercase rounded-xl transition inline-flex items-center justify-center gap-1.5 cursor-pointer"
+              variant="secondary"
+              size="md"
+              icon={Plus}
+              fullWidth
             >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Create New Template</span>
-            </button>
+              Create New Template
+            </PortalButton>
 
           </div>
         </div>
@@ -359,7 +325,7 @@ export const LetterTemplateManagement: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs text-left">
             
             {/* Theme Editor header bar containing main buttons */}
-            <div className="bg-[#0c1424] px-5 py-4 flex items-center justify-between text-white select-none">
+            <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-indigo-300" />
                 <span className="text-[11px] font-black uppercase tracking-wider">
@@ -380,7 +346,7 @@ export const LetterTemplateManagement: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSaveTemplate}
-                  className="px-4 py-1.5 bg-white text-[#0c1424] hover:bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer flex items-center gap-1"
+                  className="px-4 py-1.5 bg-white text-brand-navy hover:bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer flex items-center gap-1"
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
                   <span>Save Template</span>
@@ -403,7 +369,7 @@ export const LetterTemplateManagement: React.FC = () => {
                     type="text"
                     value={editorName}
                     onChange={(e) => setEditorName(e.target.value)}
-                    className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition"
+                    className="form-control form-control-sm"
                     placeholder="Enter descriptive template title..."
                   />
                 </div>
@@ -417,7 +383,7 @@ export const LetterTemplateManagement: React.FC = () => {
                     <select
                       value={editorType}
                       onChange={(e) => setEditorType(e.target.value)}
-                      className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-3.5 py-2.5 rounded-xl appearance-none outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 cursor-pointer"
+                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option value="Academic Certification">Academic Certification</option>
                       <option value="Visa & Immigration">Visa & Letters support</option>
@@ -600,7 +566,7 @@ export const LetterTemplateManagement: React.FC = () => {
                         onDragLeave={() => setIsDraggingOver(false)}
                         onDrop={(e) => { e.preventDefault(); setIsDraggingOver(false); handleFileUploadSim(); }}
                         className={`border border-dashed rounded-xl p-4 transition-colors flex flex-col items-center justify-center cursor-pointer ${
-                          isDraggingOver ? 'border-[#0c1424] bg-slate-50' : 'border-slate-300 hover:bg-slate-50/50'
+                          isDraggingOver ? 'border-brand-navy bg-slate-50' : 'border-slate-300 hover:bg-slate-50/50'
                         }`}
                         onClick={handleFileUploadSim}
                       >
@@ -619,13 +585,13 @@ export const LetterTemplateManagement: React.FC = () => {
                   <div className="text-right space-y-0.5 font-semibold text-slate-600 mb-4">
                     <div>
                       Reference:{' '}
-                      <span className="bg-[#0c1424] text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
+                      <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
                         {"{{REFERENCE_NUMBER}}"}
                       </span>
                     </div>
                     <div>
                       Date:{' '}
-                      <span className="bg-[#0c1424] text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
+                      <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
                         {"{{CURRENT_DATE}}"}
                       </span>
                     </div>
@@ -685,7 +651,7 @@ export const LetterTemplateManagement: React.FC = () => {
                         aria-label="Template Status Option"
                         value={editorStatus}
                         onChange={(e) => setEditorStatus(e.target.value as 'Active' | 'Draft')}
-                        className="bg-transparent border-none text-xs font-black text-[#0c1424] hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
+                        className="bg-transparent border-none text-xs font-black text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
                       >
                         <option value="Active">● Active / Live</option>
                         <option value="Draft">● Draft / Sandbox</option>
@@ -723,7 +689,7 @@ export const LetterTemplateManagement: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSaveTemplate}
-                    className="w-full md:w-auto px-6 py-2.5 bg-[#0c1424] hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                    className="w-full md:w-auto px-6 py-2.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
                   >
                     <span>Save Template</span>
                   </button>
@@ -736,19 +702,6 @@ export const LetterTemplateManagement: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Reusable Section notes & assurance footer */}
-      <div className="border-t border-slate-200 pt-6 mt-12 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 select-none text-left">
-        <div className="flex items-center gap-1.5">
-          <Info className="w-4 h-4 text-indigo-400" />
-          <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400">
-            FSKTM Document Generator Core Engine v4.12
-          </span>
-        </div>
-        <p className="text-[10px] font-semibold">
-          Templates are compiled on client confirmation and signed using FSKTM Registrar credentials.
-        </p>
       </div>
 
     </div>

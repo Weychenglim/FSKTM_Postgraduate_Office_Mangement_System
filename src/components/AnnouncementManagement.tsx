@@ -1,11 +1,11 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  Megaphone, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Megaphone,
   Search, 
   Paperclip, 
   Calendar, 
@@ -24,18 +24,13 @@ import {
   Eye,
   FileText
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { AnnouncementItem } from '../types';
+import { getAnnouncements } from '../services';
+import { MOCK_ANNOUNCEMENT_ATTACHMENTS } from '../mocks/announcements';
 
-// Structure for the stored Announcement item
-interface AnnouncementItem {
-  id: string;
-  title: string;
-  summary: string;
-  target: 'All Students' | 'Lecturers' | 'Staff' | 'Coordinators' | 'All';
-  priority: 'Urgent' | 'Info' | 'General';
-  dateCreated: string;
-  status: 'Active' | 'Draft' | 'Scheduled' | 'Expired';
-}
+// AnnouncementItem now lives in src/types.
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -45,63 +40,26 @@ export const AnnouncementManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- 2. Live Broadcast History Data store ---
-  const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([
-    {
-      id: 'ann-1',
-      title: 'Semester 1 Exam Schedule Released',
-      summary: 'Please check the portal for updated venue details and checklist guidelines for all master courses...',
-      target: 'All Students',
-      priority: 'Urgent',
-      dateCreated: '28 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-2',
-      title: 'New Research Grant Opportunity',
-      summary: 'Internal funding call for CS faculty members with collaborative partners in South East Asia...',
-      target: 'Lecturers',
-      priority: 'Info',
-      dateCreated: '27 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-3',
-      title: 'System Maintenance Notice',
-      summary: 'E-learning platform will be offline for 2 hours for security assertions renewal and backup setup...',
-      target: 'Staff',
-      priority: 'General',
-      dateCreated: '25 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-4',
-      title: "Dean's Special Address",
-      summary: 'Invitation to the annual faculty gathering and postgraduate feedback review assembly...',
-      target: 'Coordinators',
-      priority: 'Info',
-      dateCreated: '24 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-5',
-      title: 'Postgraduate Defense Committee Rubrics',
-      summary: 'Baseline weights adjusted from 20% to 30% for dissertation oral assessment metrics.',
-      target: 'Coordinators',
-      priority: 'Urgent',
-      dateCreated: '22 May 2026',
-      status: 'Active'
-    },
-    {
-      id: 'ann-6',
-      title: 'Interactive Sign Language Class Opening',
-      summary: 'New experimental software engine available for postgraduate feedback and research testing.',
-      target: 'Lecturers',
-      priority: 'General',
-      dateCreated: '15 May 2026',
-      status: 'Expired'
-    }
-  ]);
+  // --- View state: 'create' (draft form) vs 'history' (broadcast records) ---
+  const [view, setView] = useState<'create' | 'history'>('create');
+
+  // --- 2. Live Broadcast History Data store (loaded from announcementsApi) ---
+  const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAnnouncements = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getAnnouncements()
+      .then(setHistoryItems)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load announcements.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
 
   // --- 3. Draft Form States ---
   const [headline, setHeadline] = useState('');
@@ -128,7 +86,7 @@ export const AnnouncementManagement: React.FC = () => {
 
   // Attach simulated files
   const handleAttachFile = () => {
-    const fileOptions = ['exam_schedule_2026_draft.pdf', 'research_grant_circular_v2.docx', 'it_system_backup_notes.txt'];
+    const fileOptions = MOCK_ANNOUNCEMENT_ATTACHMENTS;
     const randomFile = fileOptions[Math.floor(Math.random() * fileOptions.length)];
     setAttachedFile(randomFile);
     showToast(`Attached file: ${randomFile}`);
@@ -225,52 +183,34 @@ export const AnnouncementManagement: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const displayedAnnouncements = filteredAnnouncements.slice(startIndex, startIndex + itemsPerPage);
 
-  // CSS Priority badges helpers
-  const getPriorityBadgeStyles = (pri: 'Urgent' | 'Info' | 'General') => {
-    switch (pri) {
-      case 'Urgent':
-        return 'text-red-700 bg-red-100 border border-red-200';
-      case 'Info':
-        return 'text-[#1d4ed8] bg-blue-50 border border-blue-200';
-      default:
-        return 'text-[#475569] bg-slate-100 border border-slate-200';
-    }
-  };
-
   return (
-    <div id="announcement-dashboard-view" className="font-sans text-[#0c1424] text-xs pb-12 animate-fade-in">
-      
-      {/* Dynamic Administrative Toast Toaster */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div id="announcement-module" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
 
-      {/* Grid containing two main panes of layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* LEFT COLUMN: DRAFT NEW ANNOUNCEMENT FORM (lg:col-span-6) */}
-        <div className="lg:col-span-6 space-y-6">
-          <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
-            
-            {/* Header Title inside form box */}
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Draft New Announcement
-              </h2>
-              <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
-                Craft your message for the FSKTM community.
-              </p>
-            </div>
+      <PortalToast message={toast} />
+
+      {view === 'create' ? (
+      /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
+      <div className="space-y-6">
+
+        <PageHeader
+          title="Draft New Announcement"
+          subtitle="Craft your message for the FSKTM community."
+          actions={(
+            <PortalButton
+              type="button"
+              variant="secondary"
+              size="md"
+              icon={Eye}
+              onClick={() => setView('history')}
+              className="shrink-0"
+            >
+              View Announcement History
+            </PortalButton>
+          )}
+        />
+
+        {/* Draft form */}
+        <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
 
             {/* Field A: Headline */}
             <div className="space-y-1.5">
@@ -282,7 +222,7 @@ export const AnnouncementManagement: React.FC = () => {
                 placeholder="Enter a descriptive title..."
                 value={headline}
                 onChange={(e) => setHeadline(e.target.value)}
-                className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                className="form-control form-control-md"
               />
             </div>
 
@@ -291,25 +231,12 @@ export const AnnouncementManagement: React.FC = () => {
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Target Audience
               </label>
-              <div className="flex flex-wrap gap-2">
-                {(['All', 'Lecturers', 'Staff', 'Coordinators'] as const).map((aud) => {
-                  const isSelected = targetAudience === aud;
-                  return (
-                    <button
-                      key={aud}
-                      type="button"
-                      onClick={() => handleAudienceClick(aud)}
-                      className={`px-4 py-2 rounded-full text-[11px] font-extrabold tracking-wide transition duration-150 cursor-pointer ${
-                        isSelected 
-                          ? 'bg-[#0c1424] text-white shadow-xs' 
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {aud}
-                    </button>
-                  );
-                })}
-              </div>
+              <SegmentedControl
+                options={['All', 'Lecturers', 'Staff', 'Coordinators'] as const}
+                value={targetAudience}
+                onChange={handleAudienceClick}
+                className="inline-flex"
+              />
             </div>
 
             {/* Field C: Priority Selector boxes */}
@@ -390,7 +317,7 @@ export const AnnouncementManagement: React.FC = () => {
                   placeholder="Write your announcement content here..."
                   value={contentBody}
                   onChange={(e) => setContentBody(e.target.value)}
-                  className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-semibold text-slate-800 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all resize-none"
+                  className="form-control form-control-md resize-none"
                 />
 
                 {attachedFile && (
@@ -422,7 +349,7 @@ export const AnnouncementManagement: React.FC = () => {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-850 px-3.5 py-3 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                    className="form-control form-control-md"
                   />
                 </div>
               </div>
@@ -436,7 +363,7 @@ export const AnnouncementManagement: React.FC = () => {
                     type="date"
                     value={expiryDate}
                     onChange={(e) => setExpiryDate(e.target.value)}
-                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] text-xs font-bold text-slate-850 px-3.5 py-3 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                    className="form-control form-control-md"
                   />
                 </div>
               </div>
@@ -444,42 +371,43 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Action Buttons Row */}
             <div className="pt-4 flex flex-col md:flex-row gap-4 items-center">
-              <button
+              <PortalButton
                 type="button"
                 onClick={handlePublishNow}
-                className="w-full md:w-auto px-6 py-3 bg-[#0c1424] hover:bg-slate-850 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                variant="primary"
+                size="lg"
+                icon={Send}
+                fullWidth
+                className="md:w-auto"
               >
-                <Send className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Publish Now</span>
-              </button>
+                Publish Now
+              </PortalButton>
 
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleSaveDraft}
-                className="w-full md:w-auto px-5 py-3 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                className="md:w-auto"
               >
                 Save Draft
-              </button>
+              </PortalButton>
             </div>
 
-          </form>
-        </div>
+        </form>
 
-        {/* RIGHT COLUMN: ANNOUNCEMENT HISTORY (lg:col-span-6) */}
-        <div id="announcements-history-column" className="lg:col-span-6 space-y-6">
-          
-          {/* Header Title inside history pane block */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
-            <div>
-              <h2 className="text-2xl font-black text-[#0c1424] tracking-tight">
-                Announcement History
-              </h2>
-              <p className="text-slate-500 text-[11px] font-semibold leading-relaxed mt-1">
-                Monitoring {historyItems.length} active broadcasts across the faculty.
-              </p>
-            </div>
+      </div>
+      ) : (
+      /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
+      <div id="announcements-history-view" className="space-y-6">
 
-            {/* Real Search Input matching mockup placement */}
+        <PageHeader
+          title="Announcement History"
+          subtitle="Review and manage past announcements broadcast to the FSKTM community."
+          backLabel="Back to Draft Announcement"
+          onBack={() => setView('create')}
+          actions={(
             <div className="relative max-w-xs w-full">
               <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -489,10 +417,11 @@ export const AnnouncementManagement: React.FC = () => {
                 placeholder="Search announcements..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-[#0c1424] focus:border-[#0c1424] transition-all shadow-3xs"
+                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
               />
             </div>
-          </div>
+          )}
+        />
 
           {/* 4 Summary Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -535,15 +464,27 @@ export const AnnouncementManagement: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden">
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="data-table text-xs">
                 <thead>
-                  <tr className="bg-[#f8fafc] text-slate-400 text-[9px] font-black uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-5 py-3">Title & Content</th>
-                    <th className="px-5 py-3 text-right">Target</th>
+                  <tr className="data-thead bg-[#f8fafc]">
+                    <th className="data-th">Title & Content</th>
+                    <th className="data-th text-right">Target</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {displayedAnnouncements.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={2} className="p-0">
+                        <LoadingState message="Loading announcements…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={2} className="p-0">
+                        <ErrorState message={error} onRetry={loadAnnouncements} />
+                      </td>
+                    </tr>
+                  ) : displayedAnnouncements.length === 0 ? (
                     <tr>
                       <td colSpan={2} className="px-5 py-12 text-center text-slate-400 font-medium">
                         No stored broadcasts found matching &quot;{searchQuery}&quot;.
@@ -554,21 +495,24 @@ export const AnnouncementManagement: React.FC = () => {
                       <tr key={item.id} className="hover:bg-slate-50/50 transition">
                         
                         {/* Title & summary block */}
-                        <td className="px-5 py-4 text-left max-w-sm space-y-1">
+                        <td className="data-td text-left max-w-sm space-y-1">
                           <div className="flex items-center gap-2">
                             {item.status === 'Draft' && (
-                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[8px] font-black uppercase tracking-wider">
+                              <StatusBadge tone="warning" className="rounded-md px-1.5 py-0.5 text-[8px]">
                                 Draft
-                              </span>
+                              </StatusBadge>
                             )}
                             <span className="font-extrabold text-slate-800 text-[12px] leading-snug tracking-tight">
                               {item.title}
                             </span>
                             
                             {/* Priority visual mini circle tag */}
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${getPriorityBadgeStyles(item.priority)}`}>
+                            <StatusBadge
+                              tone={getStatusBadgeTone(item.priority)}
+                              className="rounded-md px-1.5 py-0.5 text-[8px]"
+                            >
                               {item.priority}
-                            </span>
+                            </StatusBadge>
                           </div>
                           
                           <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
@@ -578,22 +522,24 @@ export const AnnouncementManagement: React.FC = () => {
                           <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
                             <span>Broadcasted {item.dateCreated}</span>
                             <span>•</span>
-                            <button
+                            <PortalButton
                               type="button"
                               onClick={() => handleDeleteHistoryItem(item.id, item.title)}
-                              className="text-red-500 hover:text-red-700 transition inline-flex items-center gap-1 cursor-pointer"
+                              variant="ghost"
+                              size="sm"
+                              icon={Trash2}
+                              className="px-1 py-0 h-auto text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                             >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Remove</span>
-                            </button>
+                              Remove
+                            </PortalButton>
                           </div>
                         </td>
 
                         {/* Target tag */}
-                        <td className="px-5 py-4 text-right vertical-align-middle">
-                          <span className="inline-block px-2.5 py-1 text-[9px] font-black uppercase bg-slate-50 border border-slate-200 text-slate-500 rounded-lg select-none">
+                        <td className="data-td text-right vertical-align-middle">
+                          <StatusBadge tone="neutral" className="rounded-lg px-2.5 py-1 text-[9px]">
                             {item.target}
-                          </span>
+                          </StatusBadge>
                         </td>
 
                       </tr>
@@ -611,42 +557,44 @@ export const AnnouncementManagement: React.FC = () => {
                 </span>
 
                 <div className="flex items-center gap-1.5">
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-slate-800 disabled:opacity-40 transition cursor-pointer"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronLeft}
+                    className="w-8 h-8"
+                    aria-label="Previous page"
+                  />
 
                   {Array.from({ length: totalPages }).map((_, i) => {
                     const pageNum = i + 1;
                     const isCurrent = currentPage === pageNum;
                     return (
-                      <button
+                      <PortalButton
                         key={pageNum}
                         type="button"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded text-[11px] font-black transition cursor-pointer ${
-                          isCurrent
-                            ? 'bg-[#0c1424] text-white'
-                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
+                        variant={isCurrent ? 'primary' : 'secondary'}
+                        size="sm"
+                        className="w-7 h-7 p-0 text-[11px]"
                       >
                         {pageNum}
-                      </button>
+                      </PortalButton>
                     );
                   })}
 
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-slate-800 disabled:opacity-40 transition cursor-pointer"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronRight}
+                    className="w-8 h-8"
+                    aria-label="Next page"
+                  />
                 </div>
               </div>
             )}
@@ -655,7 +603,7 @@ export const AnnouncementManagement: React.FC = () => {
 
         </div>
 
-      </div>
+      )}
 
     </div>
   );

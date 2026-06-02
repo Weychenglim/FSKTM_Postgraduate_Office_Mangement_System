@@ -1,0 +1,107 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+// Demo data for the file repository. Swap for real API responses later.
+
+import { FileItem, RelatedDocument } from '../types';
+
+export const MOCK_FILES: FileItem[] = [
+  {
+    id: 'file_1',
+    name: 'WIE2003_Assignment1_Final.pdf',
+    studentId: 'U2001234',
+    category: 'Coursework',
+    sem: '2023/24 S1',
+    uploadedBy: 'Ahmad S.',
+    date: '24 Oct 2023',
+    size: '2.4 MB',
+    status: 'Active',
+    tags: ['Assignment', 'Final'],
+    moduleName: 'Research Methodology',
+    fileType: 'pdf',
+    description: 'First assignment submission addressing core research planning methodologies.',
+  },
+  {
+    id: 'file_2',
+    name: 'Research_Proposal_Draft_v2.docx',
+    studentId: 'S2109988',
+    category: 'Research',
+    sem: '2023/24 S1',
+    uploadedBy: 'Dr. Lee M.',
+    date: '22 Oct 2023',
+    size: '1.1 MB',
+    status: 'Active',
+    tags: ['Proposal'],
+    moduleName: 'Thesis Preparation',
+    fileType: 'docx',
+    description: 'Second draft framework for dissertation panel feedback.',
+  },
+  {
+    id: 'file_3',
+    name: 'Old_Syllabus_2021.pdf',
+    studentId: 'Admin',
+    category: 'Administrative',
+    sem: '2021/22 S2',
+    uploadedBy: 'System',
+    date: '15 Jan 2022',
+    size: '4.8 MB',
+    status: 'Archived',
+    tags: ['Deprecated', 'Confidential'],
+    moduleName: 'Curriculum Master',
+    fileType: 'pdf',
+    description: 'Legacy Master Syllabus references. Retained for retrospective audit purposes.',
+  },
+  {
+    id: 'file_4',
+    name: 'Student_Grades_Draft.xlsx',
+    studentId: 'Admin',
+    category: 'Evaluation',
+    sem: '2023/24 S1',
+    uploadedBy: 'Sarah J.',
+    date: '20 Oct 2023',
+    size: '520 KB',
+    status: 'Active',
+    tags: ['Confidential'],
+    moduleName: 'Marks Entry Audit',
+    fileType: 'xlsx',
+    description: 'Intermediate raw grades consolidation before faculty submission lock.',
+  },
+  {
+    id: 'file_5',
+    name: 'Panel_Exemption_List.xlsx',
+    studentId: 'Admin',
+    category: 'Administrative',
+    sem: '2023/24 S1',
+    uploadedBy: 'Ahmad S.',
+    date: '10 Nov 2023',
+    size: '1.2 MB',
+    status: 'Active',
+    tags: ['Confidential'],
+    moduleName: 'Panel Appointment',
+    fileType: 'xlsx',
+    description: 'Listing of student exceptions approved by the postgraduate panel.',
+  },
+  {
+    id: 'file_6',
+    name: 'Supervisor_Agreement_Forms.pdf',
+    studentId: 'U2005882',
+    category: 'Coursework',
+    sem: '2023/24 S1',
+    uploadedBy: 'Dr. Sarah Lim',
+    date: '18 Nov 2023',
+    size: '3.1 MB',
+    status: 'Active',
+    tags: ['Agreement'],
+    moduleName: 'Supervisor Selection',
+    fileType: 'pdf',
+    description: 'Signed agreements allocating final supervisor quotas.',
+  },
+];
+
+export const MOCK_PANEL_ASSIGNMENT_DOCUMENTS: RelatedDocument[] = [
+  { name: 'Proposal.pdf', category: 'Proposal', date: '05 Jan 2024' },
+  { name: 'Panel Appointment Notice.pdf', category: 'Notice', date: '06 Jan 2024' },
+  { name: 'Evaluation Rubric.pdf', category: 'Rubric', date: '06 Jan 2024' },
+];

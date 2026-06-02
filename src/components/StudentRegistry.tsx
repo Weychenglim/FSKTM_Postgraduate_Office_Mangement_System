@@ -1,9 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Download, 
   UserPlus, 
@@ -39,24 +40,13 @@ import {
   Sparkle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { StaffLecturersRegistry } from './StaffLecturersRegistry';
+import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
+import { StudentRecord } from '../types';
+import { getStudents } from '../services';
 
 // ==================== COMPONENT PATTERNS TYPES ====================
-
-interface StudentRecord {
-  id: string; // e.g. "WGA210045"
-  name: string;
-  avatarText: string;
-  avatarBg: string;
-  programme: string;
-  academicStatus: 'Active' | 'Pending' | 'Graduated' | 'Suspended';
-  accountStatus: 'Verified' | 'Unverified' | 'Archived';
-  semester: string;
-  email: string;
-  phone: string;
-  supervisor: string;
-  intakeDate: string;
-}
 
 interface ImportPreviewRecord {
   id: string;
@@ -79,14 +69,11 @@ interface SummaryCardProps {
 export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext, colorClass, icon: Icon }) => {
   return (
     <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 flex items-start justify-between relative overflow-hidden transition-all duration-300 hover:shadow-sm group">
-      {/* Background Accent glow */}
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full filter blur-2xl opacity-[0.03] transition-all group-hover:scale-125 ${colorClass}`} />
-      
       <div className="space-y-1.5 text-left select-none">
         <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block">
           {title}
         </span>
-        <h2 className="text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+        <h2 className="text-2xl font-black text-brand-navy tracking-tight font-sans">
           {value}
         </h2>
         <span className="text-[10px] font-bold text-slate-500 block">
@@ -107,18 +94,8 @@ interface StatusChipProps {
 }
 
 export const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
-  const styles = {
-    Active: 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]',
-    Pending: 'bg-[#fff7ed] text-[#ea580c] border-[#ffedd5]',
-    Graduated: 'bg-[#eff6ff] text-[#1d4ed8] border-[#dbeafe]',
-    Suspended: 'bg-rose-50 text-rose-600 border-rose-100',
-  };
-
-  return (
-    <span className={`inline-flex items-center px-3.5 py-1 text-[10.5px] font-black rounded-full border tracking-wide select-none ${styles[status]}`}>
-      {status}
-    </span>
-  );
+  const tone = status === 'Active' ? 'success' : status === 'Graduated' ? 'info' : status === 'Suspended' ? 'danger' : 'warning';
+  return <StatusBadge tone={tone} dot pulse={status === 'Active'}>{status}</StatusBadge>;
 };
 
 // Reusable Programme Chip
@@ -149,15 +126,15 @@ interface AccountStatusIndicatorProps {
 }
 
 export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ status }) => {
-  const dotColor = {
-    Verified: 'bg-emerald-500',
-    Unverified: 'bg-amber-500',
-    Archived: 'bg-slate-400',
-  };
+  const dotTone = {
+    Verified: 'success',
+    Unverified: 'warning',
+    Archived: 'neutral',
+  } as const;
 
   return (
     <div className="flex items-center gap-2 select-none">
-      <span className={`w-2 h-2 rounded-full ${dotColor[status]} animate-pulse`} />
+      <StatusDot tone={dotTone[status]} pulse className="w-2 h-2" />
       <span className="text-slate-700 font-extrabold text-[11.5px]">
         {status}
       </span>
@@ -174,109 +151,39 @@ interface ActionButtonProps {
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon, title }) => {
   return (
-    <button
-      type="button"
+    <PortalButton
       onClick={onClick}
+      icon={Icon}
+      size="icon"
+      variant="ghost"
       title={title}
-      className="p-2 text-slate-400 hover:text-[#0c1424] hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
-    >
-      <Icon className="w-4 h-4" />
-    </button>
+      aria-label={title}
+    />
   );
 };
 
 export const StudentRegistry: React.FC = () => {
-  // Master Student Registry State
-  const [students, setStudents] = useState<StudentRecord[]>([
-    {
-      id: 'WGA210045',
-      name: 'Mohd Syazwan bin Ahmad',
-      avatarText: 'MS',
-      avatarBg: 'bg-blue-100 text-blue-850 border-blue-200',
-      programme: 'PhD (CS)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'syazwan.ahmad@mail.um.edu.my',
-      phone: '+60 17-293-1184',
-      supervisor: 'Prof. Dr. Sarah Chen',
-      intakeDate: '12 Sep 2023',
-    },
-    {
-      id: 'WQA220112',
-      name: 'Siti Aminah binti Yusof',
-      avatarText: 'SA',
-      avatarBg: 'bg-indigo-100 text-indigo-850 border-indigo-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Pending',
-      accountStatus: 'Unverified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'siti.aminah@mail.um.edu.my',
-      phone: '+60 19-384-9021',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      intakeDate: '18 Sep 2024',
-    },
-    {
-      id: 'WGA200088',
-      name: 'Tan Wei Meng',
-      avatarText: 'TW',
-      avatarBg: 'bg-slate-100 text-[#334155] border-slate-250',
-      programme: 'PhD (IS)',
-      academicStatus: 'Graduated',
-      accountStatus: 'Archived',
-      semester: 'Semester 2, 2024/2025',
-      email: 'tan.weimeng@mail.um.edu.my',
-      phone: '+60 12-234-9881',
-      supervisor: 'Dr. Robert Chen',
-      intakeDate: '06 Mar 2021',
-    },
-    {
-      id: 'WGA240182',
-      name: 'Divya d/o Rajakrishnan',
-      avatarText: 'DR',
-      avatarBg: 'bg-emerald-100 text-emerald-850 border-emerald-200',
-      programme: 'PhD (CS)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'divya.raj@mail.um.edu.my',
-      phone: '+60 14-884-3011',
-      supervisor: 'Prof. Dr. Sarah Chen',
-      intakeDate: '15 Sep 2024',
-    },
-    {
-      id: 'WQA240092',
-      name: 'Chong Wei Han',
-      avatarText: 'CW',
-      avatarBg: 'bg-purple-100 text-purple-850 border-purple-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: 'Semester 1, 2025/2026',
-      email: 'chong.weihan@mail.um.edu.my',
-      phone: '+60 11-2384-9210',
-      supervisor: 'Dr. Robert Chen',
-      intakeDate: '10 Sep 2025',
-    },
-    {
-      id: 'WQA230056',
-      name: 'Fatimah Al-Zahrah',
-      avatarText: 'FA',
-      avatarBg: 'bg-rose-100 text-[#a01c3e] border-rose-200',
-      programme: 'Master (SE)',
-      academicStatus: 'Suspended',
-      accountStatus: 'Unverified',
-      semester: 'Semester 2, 2024/2025',
-      email: 'fatimah.az@mail.um.edu.my',
-      phone: '+60 18-992-3021',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      intakeDate: '01 Mar 2024',
-    }
-  ]);
+  // Master Student Registry State — loaded from studentsApi (mock-backed today).
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStudents = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getStudents()
+      .then(setStudents)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load students.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   // Current Screen and View Controls Mode
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
-  const [currentView, setCurrentView] = useState<'list' | 'register'>('register');
+  const [currentView, setCurrentView] = useState<'list' | 'register'>('list');
   const [registerActiveTab, setRegisterActiveTab] = useState<'bulk' | 'single'>('single');
   const [registryModuleTab, setRegistryModuleTab] = useState<'students' | 'staff_lecturers'>('students');
 
@@ -419,7 +326,7 @@ export const StudentRegistry: React.FC = () => {
       id: manualFormData.id,
       name: manualFormData.name,
       avatarText: initials || 'ST',
-      avatarBg: 'bg-emerald-100 text-[#0c1424] border-slate-200',
+      avatarBg: 'bg-emerald-100 text-brand-navy border-slate-200',
       programme: displayProg,
       academicStatus: 'Active',
       accountStatus: 'Verified',
@@ -638,48 +545,9 @@ export const StudentRegistry: React.FC = () => {
   const duplicateCsvCount = csvPreviewRecords.filter(r => r.status === 'ID Exists').length;
 
   return (
-    <div id="student-registry-workspace" className="font-sans text-[#0c1424] text-xs pb-16 animate-fade-in relative">
+    <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
-      {/* Dynamic Slide-in Toast Notification */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -25, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold font-sans"
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Registry Management Primary Section Switching Tabs */}
-      <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3 select-none">
-        <button
-          type="button"
-          onClick={() => setRegistryModuleTab('students')}
-          className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-            registryModuleTab === 'students' 
-              ? 'bg-[#121c2e] text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          Students
-        </button>
-        <button
-          type="button"
-          onClick={() => setRegistryModuleTab('staff_lecturers')}
-          className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-            registryModuleTab === 'staff_lecturers' 
-              ? 'bg-[#121c2e] text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          Staff & Lecturers
-        </button>
-      </div>
+      <PortalToast message={toastMessage} />
 
       {registryModuleTab === 'students' ? (
         <>
@@ -689,40 +557,32 @@ export const StudentRegistry: React.FC = () => {
           {currentView === 'list' && (
         <div id="student-registry-directory-list">
           
-          {/* HEADER HEADING FRAME */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none border-b border-slate-200/50 pb-5">
-            <div>
-              <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
-                University Postgraduate Secretariat
-              </span>
-              <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-                Student Registry
-              </h1>
-            </div>
+          <PageHeader
+            title="Student Registry"
+            subtitle="University Postgraduate Secretariat"
+            actions={
+              <div className="flex items-center gap-3 select-none">
+                <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
+                  Export CSV
+                </PortalButton>
+                <PortalButton
+                  onClick={() => {
+                    setCurrentView('register');
+                    setRegisterActiveTab('bulk');
+                  }}
+                  variant="primary"
+                  size="md"
+                  icon={UserPlus}
+                >
+                  Register New Students
+                </PortalButton>
+              </div>
+            }
+          />
 
-            {/* Action buttons list */}
-            <div className="flex items-center gap-3 select-none">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-2xs transition-all cursor-pointer flex items-center gap-2"
-              >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Export CSV</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentView('register');
-                  setRegisterActiveTab('bulk');
-                }}
-                className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4 text-indigo-300" />
-                <span>Register New Students</span>
-              </button>
-            </div>
+          {/* Module switcher below the heading */}
+          <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
+            <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />
           </div>
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
@@ -868,7 +728,7 @@ export const StudentRegistry: React.FC = () => {
             {Object.values(selectedRowIds).some(v => v) && (
               <div className="bg-indigo-50/70 border-b border-indigo-100 p-3.5 flex items-center justify-between text-left select-none animate-fade-in px-6">
                 <div className="flex items-center gap-2.5 text-slate-900">
-                  <div className="w-2 h-2 rounded-full bg-blue-650 animate-ping shrink-0" />
+                  <StatusDot tone="info" pulse className="w-2 h-2" />
                   <span className="font-extrabold text-xs">
                     {Object.values(selectedRowIds).filter(v => v).length} student records selected
                   </span>
@@ -878,7 +738,7 @@ export const StudentRegistry: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleBatchVerify}
-                    className="px-4 py-2 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
                   >
                     Bulk Authorize Verify
                   </button>
@@ -895,10 +755,10 @@ export const StudentRegistry: React.FC = () => {
 
             {/* DATATABLE LIST VIEW */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="data-table">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 select-none">
-                    <th className="py-4 px-6 w-12 text-center">
+                  <tr className="data-thead bg-slate-50 select-none">
+                    <th className="data-th w-12 text-center">
                       <input
                         type="checkbox"
                         onChange={handleToggleAll}
@@ -906,25 +766,37 @@ export const StudentRegistry: React.FC = () => {
                         className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
                       />
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Student Candidate
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Programme
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider text-center">
+                    <th className="data-th text-center">
                       Academic Status
                     </th>
-                    <th className="py-4 px-4 font-black uppercase text-slate-450 text-[10px] tracking-wider">
+                    <th className="data-th">
                       Account Status
                     </th>
-                    <th className="py-4 px-6 font-black uppercase text-slate-450 text-[10px] tracking-wider text-center">
+                    <th className="data-th text-center">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#e2e8f0]/60">
-                  {displayedStudents.length === 0 ? (
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <LoadingState message="Loading students…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <ErrorState message={error} onRetry={loadStudents} />
+                      </td>
+                    </tr>
+                  ) : displayedStudents.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400 font-extrabold select-none">
                         No registry rows matching the current query. Try redefining your search filters.
@@ -934,12 +806,12 @@ export const StudentRegistry: React.FC = () => {
                     displayedStudents.map((student) => {
                       const isChecked = !!selectedRowIds[student.id];
                       return (
-                        <tr 
-                          key={student.id} 
-                          className={`hover:bg-slate-50/50 transition duration-150 ${isChecked ? 'bg-[#0c1424]/[0.01]' : ''}`}
+                        <tr
+                          key={student.id}
+                          className={`data-row ${isChecked ? 'bg-brand-navy/[0.01]' : ''}`}
                         >
                           {/* Selector column */}
-                          <td className="py-4 px-6 text-center">
+                          <td className="data-td w-12 text-center">
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -949,13 +821,13 @@ export const StudentRegistry: React.FC = () => {
                           </td>
 
                           {/* Student identity details */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <div className="flex items-center gap-3 text-left">
                               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
                                 {student.avatarText}
                               </div>
                               <div>
-                                <h4 className="text-[12.5px] font-black text-[#0c1424] leading-snug">
+                                <h4 className="text-[12.5px] font-black text-brand-navy leading-snug">
                                   {student.name}
                                 </h4>
                                 <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
@@ -966,22 +838,22 @@ export const StudentRegistry: React.FC = () => {
                           </td>
 
                           {/* Programme column */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <ProgrammeChip label={student.programme} />
                           </td>
 
                           {/* Academic status column */}
-                          <td className="py-4 px-4 text-center">
+                          <td className="data-td text-center">
                             <StatusChip status={student.academicStatus} />
                           </td>
 
                           {/* Account status column */}
-                          <td className="py-4 px-4">
+                          <td className="data-td">
                             <AccountStatusIndicator status={student.accountStatus} />
                           </td>
 
                           {/* Action column */}
-                          <td className="py-4 px-6 text-center">
+                          <td className="data-td text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
@@ -1072,25 +944,13 @@ export const StudentRegistry: React.FC = () => {
       {currentView === 'register' && (
         <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
           
-          {/* PARENT LINK BACK TO STUDENT REGISTRY */}
-          <button 
-            type="button" 
-            onClick={() => setCurrentView('list')}
-            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 font-bold text-xs mb-3 transition group cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> 
-            <span>Back to Student Registry</span>
-          </button>
-
-          {/* LARGE PAGE HEADING */}
-          <div className="mb-6">
-            <span className="text-slate-450 font-black text-[9.5px] uppercase tracking-wider block mb-1">
-              Secretariat Onboarding Utility
-            </span>
-            <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-              Register New Students
-            </h1>
-          </div>
+          <PageHeader
+            title="Register New Students"
+            subtitle="Secretariat Onboarding Utility"
+            backLabel="Back to Student Registry"
+            onBack={() => setCurrentView('list')}
+            className="mb-6"
+          />
 
           {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
           <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3">
@@ -1132,7 +992,7 @@ export const StudentRegistry: React.FC = () => {
                   <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-[#0c1424]">CSV Upload</h3>
+                        <h3 className="text-sm font-black text-brand-navy">CSV Upload</h3>
                         <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
                           Drag and drop your formatted student registry CSV file below.
                         </p>
@@ -1259,7 +1119,7 @@ export const StudentRegistry: React.FC = () => {
                     {/* Upper title and verification counters */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-[#0c1424]">Import Preview & Validation</h3>
+                        <h3 className="text-sm font-black text-brand-navy">Import Preview & Validation</h3>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                           Verification outcome mapping for staged candidate accounts row matrices.
                         </p>
@@ -1299,14 +1159,14 @@ export const StudentRegistry: React.FC = () => {
 
                     {/* PREVIEW DATATABLE MAP */}
                     <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
-                      <table className="w-full text-left border-collapse">
+                      <table className="data-table">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-150 select-none">
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Student ID</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Candidate Name</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider">Programme Mapped</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider text-center">Validation Status</th>
-                            <th className="py-3 px-4 font-black uppercase text-slate-450 text-[9.5px] tracking-wider text-center">Edit</th>
+                          <tr className="data-thead bg-slate-50 select-none">
+                            <th className="data-th">Student ID</th>
+                            <th className="data-th">Candidate Name</th>
+                            <th className="data-th">Programme Mapped</th>
+                            <th className="data-th text-center">Validation Status</th>
+                            <th className="data-th text-center">Edit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-xs">
@@ -1316,7 +1176,7 @@ export const StudentRegistry: React.FC = () => {
                             if (isBeingEdited) {
                               return (
                                 <tr key={item.id} className="bg-amber-50/60 font-medium">
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.id}
@@ -1324,7 +1184,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.name}
@@ -1332,7 +1192,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3">
+                                  <td className="data-td">
                                     <input 
                                       type="text" 
                                       value={editRowFields.programme}
@@ -1340,7 +1200,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3 text-center">
+                                  <td className="data-td text-center">
                                     <input 
                                       type="text" 
                                       placeholder="Email field (Empty = Warning)"
@@ -1349,7 +1209,7 @@ export const StudentRegistry: React.FC = () => {
                                       className="w-32 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
                                     />
                                   </td>
-                                  <td className="p-2 py-3 px-3 text-center">
+                                  <td className="data-td text-center">
                                     <div className="flex items-center justify-center gap-1.5">
                                       <button 
                                         type="button" 
@@ -1375,12 +1235,12 @@ export const StudentRegistry: React.FC = () => {
 
                             return (
                               <tr key={item.id} className="hover:bg-slate-50/50 transition">
-                                <td className="py-3 px-4 font-bold font-mono text-slate-600">{item.id}</td>
-                                <td className="py-3 px-4 font-extrabold text-slate-850">{item.name}</td>
-                                <td className="py-3 px-4 font-bold text-slate-500">{item.programme}</td>
+                                <td className="data-td font-bold font-mono text-slate-600">{item.id}</td>
+                                <td className="data-td font-extrabold text-slate-850">{item.name}</td>
+                                <td className="data-td font-bold text-slate-500">{item.programme}</td>
                                 
                                 {/* Status Outcome render badge */}
-                                <td className="py-3 px-4 text-center">
+                                <td className="data-td text-center">
                                   {item.status === 'Ready' && (
                                     <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
                                       <Check className="w-3 h-3 stroke-[2.5]" />
@@ -1402,7 +1262,7 @@ export const StudentRegistry: React.FC = () => {
                                 </td>
 
                                 {/* Actions pencil trigger */}
-                                <td className="py-3 px-4 text-center">
+                                <td className="data-td text-center">
                                   <button
                                     type="button"
                                     onClick={() => handleStartEditingRow(item)}
@@ -1449,7 +1309,7 @@ export const StudentRegistry: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleCommitVerifiedCsv}
-                          className="px-5 py-3 bg-[#0c1424] hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
+                          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
                         >
                           <UserCheck className="w-4 h-4 text-indigo-300" />
                           <span>Create Accounts for Ready Records</span>
@@ -1466,14 +1326,14 @@ export const StudentRegistry: React.FC = () => {
 
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
-                <div id="single-candidate-register-container" className="bg-white border border-[#e2e8f0] rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(241,245,249,0.4)]">
+                <div id="single-candidate-register-container" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 md:p-8 shadow-3xs">
                   
                   {/* Form card header with UserPlus Icon */}
                   <div className="flex items-center gap-3 border-b border-slate-100 pb-5 mb-6">
                     <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-700">
                       <UserPlus className="w-5 h-5 text-indigo-600" />
                     </div>
-                    <h2 className="text-base font-extrabold text-[#0c1424] tracking-tight animate-fade-in">
+                    <h2 className="text-base font-extrabold text-brand-navy tracking-tight animate-fade-in">
                       New Student Registration
                     </h2>
                   </div>
@@ -1502,7 +1362,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Enter student's legal full name"
                           value={manualFormData.name}
                           onChange={(e) => setManualFormData({ ...manualFormData, name: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
 
@@ -1520,7 +1380,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="e.g. WAA21001"
                             value={manualFormData.id}
                             onChange={(e) => setManualFormData({ ...manualFormData, id: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-mono font-bold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-mono font-bold"
                           />
                         </div>
 
@@ -1536,7 +1396,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="student@siswa.um.edu.my"
                             value={manualFormData.email}
                             onChange={(e) => setManualFormData({ ...manualFormData, email: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                           />
                         </div>
                       </div>
@@ -1552,7 +1412,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="+60 1X-XXXXXXX"
                           value={manualFormData.phone}
                           onChange={(e) => setManualFormData({ ...manualFormData, phone: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
                     </div>
@@ -1576,7 +1436,7 @@ export const StudentRegistry: React.FC = () => {
                             id="programme-selection"
                             value={manualFormData.programme}
                             onChange={(e) => setManualFormData({ ...manualFormData, programme: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                            className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
                           >
                             <option value="Select registered programme" disabled>Select registered programme</option>
                             <option value="PhD (CS)">PhD (Computer Science)</option>
@@ -1602,7 +1462,7 @@ export const StudentRegistry: React.FC = () => {
                             placeholder="e.g. 2023/2024"
                             value={manualFormData.intakeBatch}
                             onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                           />
                         </div>
 
@@ -1616,7 +1476,7 @@ export const StudentRegistry: React.FC = () => {
                               id="current-semester"
                               value={manualFormData.semester}
                               onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
                             >
                               <option value="Semester 1">Semester 1</option>
                               <option value="Semester 2">Semester 2</option>
@@ -1640,7 +1500,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Tentative research title..."
                           value={manualFormData.researchTitle}
                           onChange={(e) => setManualFormData({ ...manualFormData, researchTitle: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
 
@@ -1655,7 +1515,7 @@ export const StudentRegistry: React.FC = () => {
                           placeholder="Search and assign supervisor"
                           value={manualFormData.supervisor}
                           onChange={(e) => setManualFormData({ ...manualFormData, supervisor: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-[#0c1424] placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424] px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
                         />
                       </div>
                     </div>
@@ -1715,7 +1575,7 @@ export const StudentRegistry: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCurrentView('list')}
-                        className="px-5 py-3 text-slate-550 hover:text-[#0c1424] font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
+                        className="px-5 py-3 text-slate-550 hover:text-brand-navy font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
                       >
                         Cancel
                       </button>
@@ -1723,7 +1583,7 @@ export const StudentRegistry: React.FC = () => {
                       {/* Register Submit btn */}
                       <button
                         type="submit"
-                        className="px-6 py-3.5 bg-[#0c1424] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans"
+                        className="px-6 py-3.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans"
                       >
                         <UserPlus className="w-4.5 h-4.5 text-indigo-300" />
                         <span>Register Student and Create Account</span>
@@ -1747,7 +1607,7 @@ export const StudentRegistry: React.FC = () => {
                   <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
                     <Info className="w-4.5 h-4.5" />
                   </div>
-                  <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                  <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                     Import Guidelines
                   </h3>
                 </div>
@@ -1804,7 +1664,7 @@ export const StudentRegistry: React.FC = () => {
                     <div className="p-1.5 rounded-lg bg-pink-50 text-pink-600 border border-pink-100">
                       <Layers className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                       Current Semester Overview
                     </h3>
                   </div>
@@ -1842,7 +1702,7 @@ export const StudentRegistry: React.FC = () => {
                     <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
                       <FileText className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
                       Recent Imports
                     </h3>
                   </div>
@@ -1864,7 +1724,7 @@ export const StudentRegistry: React.FC = () => {
                         <FileSpreadsheet className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <span className="font-extrabold text-[#0c1424] text-[11px] block max-w-[120px] truncate select-all">Intake_Sem1_2023.csv</span>
+                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all">Intake_Sem1_2023.csv</span>
                         <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 24, 2023 • 142 records</span>
                       </div>
                     </div>
@@ -1872,7 +1732,7 @@ export const StudentRegistry: React.FC = () => {
                     <button 
                       type="button"
                       onClick={() => triggerToast('Downloaded backup log for intake semester 1_23.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-[#0c1424] transition cursor-pointer"
+                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
                       title="Download Log backup"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1886,7 +1746,7 @@ export const StudentRegistry: React.FC = () => {
                         <FileSpreadsheet className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <span className="font-extrabold text-[#0c1424] text-[11px] block max-w-[120px] truncate select-all font-sans">Late_Registrations_Oct.csv</span>
+                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all font-sans">Late_Registrations_Oct.csv</span>
                         <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 28, 2023 • 12 records</span>
                       </div>
                     </div>
@@ -1894,7 +1754,7 @@ export const StudentRegistry: React.FC = () => {
                     <button 
                       type="button"
                       onClick={() => triggerToast('Downloaded backup log for late registrations.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-[#0c1424] transition cursor-pointer"
+                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
                       title="Download Log backup"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1913,22 +1773,26 @@ export const StudentRegistry: React.FC = () => {
       )}
         </>
       ) : (
-        <StaffLecturersRegistry />
+        <StaffLecturersRegistry
+          registryTab={registryModuleTab}
+          onRegistryTabChange={setRegistryModuleTab}
+        />
       )}
 
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {viewingStudent && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             <div className="absolute inset-0" onClick={() => setViewingStudent(null)} />
             
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header block */}
               <div className="bg-[#121c2e] p-6 text-white flex items-center justify-between select-none">
@@ -2112,17 +1976,9 @@ export const StudentRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
-
-      {/* ==================== FOOTER ==================== */}
-      <footer className="mt-16 text-center select-none pt-6 border-t border-slate-200/50 text-slate-400 font-semibold flex flex-col sm:flex-row items-center justify-between gap-4 text-[10.5px]">
-        <p>© 2026 FSKTM Postgraduate Center, University of Malaya. All rights reserved.</p>
-        <div className="flex gap-4">
-          <span className="hover:text-slate-600 cursor-help">Technical Support Secretariat</span>
-          <span className="text-slate-300">•</span>
-          <span className="hover:text-slate-600 cursor-help">Academic Guidelines Docs</span>
-        </div>
-      </footer>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

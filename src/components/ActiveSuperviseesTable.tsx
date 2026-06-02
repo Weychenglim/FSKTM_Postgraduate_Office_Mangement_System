@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -27,11 +27,11 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
 
       {/* Styled Table Container */}
       <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
-        <table className="w-full text-xs font-sans border-collapse">
+        <table className="data-table text-xs">
           <thead>
-            <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[9px] font-extrabold text-[#64748b] uppercase tracking-wider">
-              <th className="py-3 px-4 text-left w-[140px] shrink-0">Student & ID</th>
-              <th className="py-3 px-4 text-left">Research Topic</th>
+            <tr className="data-thead bg-[#f8fafc]">
+              <th className="data-th text-left w-[140px] shrink-0">Student & ID</th>
+              <th className="data-th text-left">Research Topic</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#efecf6]/10 divide-slate-100">
@@ -39,15 +39,15 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
               supervisees.map((student) => (
                 <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
                   {/* Student profile and ID */}
-                  <td className="py-3.5 px-4 font-sans text-left align-top">
-                    <div className="font-extrabold text-[#0c1424]">{student.name}</div>
+                  <td className="data-td font-sans text-left align-top">
+                    <div className="font-extrabold text-brand-navy">{student.name}</div>
                     <div className="font-mono text-[9px] font-black text-slate-400 mt-1 uppercase">
                       {student.id}
                     </div>
                   </td>
 
                   {/* Research Topic details */}
-                  <td className="py-3.5 px-4 text-left align-top leading-relaxed text-[#334155] font-medium text-slate-600">
+                  <td className="data-td text-left align-top leading-relaxed text-[#334155] font-medium text-slate-600">
                     {student.topic}
                   </td>
                 </tr>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,6 +26,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast, RemovableTag, StatusBadge } from './PortalPrimitives';
 
 // Definitions for tag items
 interface KeywordTag {
@@ -224,54 +225,25 @@ export const AcademicFAQEditor: React.FC = () => {
   };
 
   return (
-    <div id="faq-editor-dashboard" className="font-sans text-[#0c1424] text-xs pb-12 animate-fade-in">
+    <div id="faq-editor-dashboard" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
       
-      {/* Toast Alert Toaster Notification bar */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
+      <PortalToast message={toast} />
+
+      <PageHeader
+        title="Academic FAQ Editor"
+        subtitle="Knowledge Management"
+        className="mb-8"
+        actions={(
+          <>
+            <PortalButton type="button" onClick={handleDiscardChanges} variant="ghost" size="md">
+              Discard Changes
+            </PortalButton>
+            <PortalButton type="button" onClick={handleDeployToLive} variant="primary" size="md" icon={RefreshCw}>
+              Deploy to Live
+            </PortalButton>
+          </>
         )}
-      </AnimatePresence>
-
-      {/* Top Section Header Row */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left">
-        <div>
-          <span className="text-blue-600 font-extrabold uppercase tracking-widest text-[9px] block">
-            Knowledge Management
-          </span>
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight mt-0.5">
-            Academic FAQ Editor
-          </h1>
-        </div>
-
-        {/* Global actions row */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleDiscardChanges}
-            className="px-4 py-2.5 bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-extrabold tracking-wide rounded-xl transition text-[11px] uppercase cursor-pointer"
-          >
-            Discard Changes
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDeployToLive}
-            className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold tracking-wide uppercase text-[11px] rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Deploy to Live</span>
-          </button>
-        </div>
-      </div>
+      />
 
       {/* Two Column Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-8">
@@ -289,7 +261,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 <select
                   value={intentCategory}
                   onChange={(e) => setIntentCategory(e.target.value)}
-                  className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 pl-4 pr-10 py-3.5 rounded-xl appearance-none outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 cursor-pointer"
+                  className="form-control form-control-md appearance-none pr-10 cursor-pointer"
                 >
                   <option value="Supervisor Appointment">Supervisor Appointment</option>
                   <option value="Marks Submission">Marks Submission</option>
@@ -314,7 +286,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 placeholder="Type the main FAQ query..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-800 px-4 py-3.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+                className="form-control form-control-md"
               />
             </div>
 
@@ -326,19 +298,13 @@ export const AcademicFAQEditor: React.FC = () => {
               
               <div className="bg-[#f8fafc] border border-slate-205 rounded-xl p-3 flex flex-wrap gap-2 items-center">
                 {keywordTags.map(tag => (
-                  <span
+                  <RemovableTag
                     key={tag.id}
-                    className="inline-flex items-center gap-1 bg-[#0c1424] text-white font-extrabold text-[10px] pl-3 pr-2 py-1.5 rounded-lg select-none"
+                    onRemove={() => handleRemoveTag(tag.id, tag.text)}
+                    removeLabel={`Remove ${tag.text}`}
                   >
-                    <span>{tag.text}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag.id, tag.text)}
-                      className="hover:bg-white/20 p-0.5 rounded transition text-indigo-200 hover:text-white"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
+                    {tag.text}
+                  </RemovableTag>
                 ))}
 
                 {/* Mini input to add on the fly */}
@@ -360,7 +326,7 @@ export const AcademicFAQEditor: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleAddTag}
-                      className="p-1 bg-slate-200 text-slate-700 hover:bg-[#0c1424] hover:text-white rounded-lg transition"
+                      className="p-1 bg-slate-200 text-slate-700 hover:bg-brand-navy hover:text-white rounded-lg transition"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -437,7 +403,7 @@ export const AcademicFAQEditor: React.FC = () => {
                   rows={9}
                   value={answerBody}
                   onChange={(e) => setAnswerBody(e.target.value)}
-                  className={`w-full p-4 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none bg-[#f8fafc]/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
+                  className={`form-control form-control-md rounded-none border-0 bg-slate-50/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
                   placeholder="Enter the official automated response answer details here..."
                 />
               </div>
@@ -445,22 +411,24 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Bottom Actions of Form Card: Clear & Save to Knowledge Base */}
             <div className="border-t border-slate-100 pt-5 flex items-center justify-between">
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleClearForm}
-                className="px-4 py-2 hover:bg-slate-100 text-slate-500 hover:text-slate-800 font-extrabold tracking-wide rounded-xl uppercase text-[10px] transition cursor-pointer"
+                variant="ghost"
+                size="md"
               >
                 Clear Form
-              </button>
+              </PortalButton>
 
-              <button
+              <PortalButton
                 type="button"
                 onClick={handleSaveToKB}
-                className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer"
+                variant="primary"
+                size="md"
+                icon={Database}
               >
-                <Database className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Save to Knowledge Base</span>
-              </button>
+                Save to Knowledge Base
+              </PortalButton>
             </div>
 
           </div>
@@ -471,7 +439,7 @@ export const AcademicFAQEditor: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs flex flex-col h-[550px]">
             
             {/* Header with LIVE SIMULATOR indicator in header card */}
-            <div className="bg-[#0c1424] px-5 py-4 flex items-center justify-between text-white select-none">
+            <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
               <div className="flex items-center gap-2">
                 <MessageSquareCode className="w-4.5 h-4.5 text-indigo-300" />
                 <span className="text-[11px] font-black tracking-wide uppercase">
@@ -480,11 +448,9 @@ export const AcademicFAQEditor: React.FC = () => {
               </div>
 
               {/* LIVE SIMULATOR green badge */}
-              <div className="flex items-center gap-1.5 bg-[#2563eb]/20 border border-blue-500/30 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-wider text-blue-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>LIVE SIMULATOR</span>
-              </div>
+              <StatusBadge tone="success" dot pulse className="text-[9px]">
+                LIVE SIMULATOR
+              </StatusBadge>
             </div>
 
             {/* Simulated Chat Feed Area */}
@@ -503,8 +469,8 @@ export const AcademicFAQEditor: React.FC = () => {
                       {/* Bubble Text */}
                       <div className={`p-4 rounded-2xl text-[11px] font-semibold leading-relaxed ${
                         isStudent 
-                          ? 'bg-slate-200 text-[#0c1424] rounded-br-none' 
-                          : 'bg-[#0f172a] text-white rounded-bl-none shadow-md'
+                          ? 'bg-slate-200 text-brand-navy rounded-br-none' 
+                          : 'bg-brand-navy text-white rounded-bl-none shadow-sm'
                       }`}>
                         {msg.text}
                       </div>
@@ -537,7 +503,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 {/* Animated Typing state */}
                 {isTyping && (
                   <div className="flex flex-col items-start mr-auto max-w-[80%]">
-                    <div className="bg-[#0f172a] text-white p-3.5 rounded-2xl rounded-bl-none flex items-center gap-1 shadow-md">
+                    <div className="bg-brand-navy text-white p-3.5 rounded-2xl rounded-bl-none flex items-center gap-1 shadow-sm">
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -555,12 +521,12 @@ export const AcademicFAQEditor: React.FC = () => {
                 placeholder="Type a test question..."
                 value={testQuestion}
                 onChange={(e) => setTestQuestion(e.target.value)}
-                className="flex-1 bg-slate-100 border border-transparent hover:border-slate-200 focus:border-[#0c1424] text-xs font-bold text-slate-800 px-4 py-2.5 rounded-full outline-none transition"
+                className="flex-1 bg-slate-100 border border-transparent hover:border-slate-200 focus:border-brand-navy text-xs font-bold text-slate-800 px-4 py-2.5 rounded-full outline-none transition"
               />
               <button
                 type="submit"
                 disabled={!testQuestion.trim()}
-                className="w-9 h-9 rounded-full bg-[#0c1424] hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-[#0c1424] text-white flex items-center justify-center shrink-0 transition cursor-pointer"
+                className="w-9 h-9 rounded-full bg-brand-navy hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-brand-navy text-white flex items-center justify-center shrink-0 transition cursor-pointer"
               >
                 <Send className="w-4 h-4 ml-0.5" />
               </button>
@@ -614,19 +580,6 @@ export const AcademicFAQEditor: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Clean Administrative Secretariat Footer Row */}
-      <div className="border-t border-slate-250/70 pt-5 mt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 select-none">
-        <div className="flex items-center gap-1.5">
-          <MessageSquareCode className="w-4 h-4 text-slate-350" />
-          <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
-            Knowledge Agent Engine v2.4a
-          </span>
-        </div>
-        <div className="text-[10px] font-semibold">
-          FSKTM Postgraduate Administrative Center &bull; Universiti Malaya
-        </div>
       </div>
 
     </div>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { CalendarRange, Sliders, ListRestart, FileSearch, Database, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PortalButton, PortalCard } from './PortalPrimitives';
 
 interface QuickActionsProps {
   onConfigurePeriod: () => void;
@@ -34,54 +35,66 @@ export const QuickActionsCard: React.FC<QuickActionsProps> = ({
   return (
     <div className="space-y-6 w-full text-left">
       {/* Quick Actions Panel */}
-      <div id="quick-actions-card bg" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
-        <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight mb-6">
+      <PortalCard id="quick-actions-card bg" padding="lg">
+        <h3 className="text-lg font-extrabold text-brand-navy tracking-tight mb-6">
           Quick Actions
         </h3>
 
         <div className="space-y-3.5">
-          {/* Solid Black primary calendar button */}
-          <button
+          <PortalButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            icon={CalendarRange}
+            iconPosition="right"
             onClick={onConfigurePeriod}
-            className="w-full py-3.5 px-4.5 bg-[#0c1424] text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-between transition-all duration-200 cursor-pointer shadow-xs select-none"
+            className="justify-between"
           >
-            <span>Configure Mark Entry Period</span>
-            <CalendarRange className="w-4 h-4 text-indigo-300" />
-          </button>
+            Configure Mark Entry Period
+          </PortalButton>
 
-          {/* Manage Rubric Components Button */}
-          <button
+          <PortalButton
+            variant="soft"
+            size="lg"
+            fullWidth
+            icon={Sliders}
+            iconPosition="right"
             onClick={onManageRubrics}
-            className="w-full py-3.5 px-4.5 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#1e40af] border border-[#bfdbfe] rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-between transition-all duration-200 cursor-pointer select-none"
+            className="justify-between"
           >
-            <span>Manage Rubric Components</span>
-            <Sliders className="w-4 h-4 text-blue-600" />
-          </button>
+            Manage Rubric Components
+          </PortalButton>
 
-          {/* Generate Tasks Button */}
-          <button
+          <PortalButton
+            variant="soft"
+            size="lg"
+            fullWidth
+            icon={ListRestart}
+            iconPosition="right"
             onClick={onGenerateTasks}
-            className="w-full py-3.5 px-4.5 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#1e40af] border border-[#bfdbfe] rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-between transition-all duration-200 cursor-pointer select-none"
+            className="justify-between"
           >
-            <span>Generate Evaluation Tasks</span>
-            <ListRestart className="w-4 h-4 text-blue-600" />
-          </button>
+            Generate Evaluation Tasks
+          </PortalButton>
 
-          {/* View Records Button */}
-          <button
+          <PortalButton
+            variant="secondary"
+            size="lg"
+            fullWidth
+            icon={FileSearch}
+            iconPosition="right"
             onClick={onViewRecords}
-            className="w-full py-3.5 px-4.5 bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0] rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-between transition-all duration-200 cursor-pointer select-none"
+            className="justify-between"
           >
-            <span>View Mark Records</span>
-            <FileSearch className="w-4 h-4 text-slate-500" />
-          </button>
+            View Mark Records
+          </PortalButton>
         </div>
-      </div>
+      </PortalCard>
 
       {/* SYSTEM STATUS CARD (Dark Cosmic theme as shown on mockup) */}
       <div 
         id="sys-status-badge" 
-        className="bg-[#080f21] rounded-3xl p-6 border border-white/[0.04] text-left relative overflow-hidden shadow-lg"
+        className="bg-[#080f21] rounded-2xl p-6 border border-white/[0.04] text-left relative overflow-hidden shadow-sm"
       >
         <span className="text-[9px] uppercase font-extrabold text-slate-500 tracking-[0.2em] block mb-4">
           Evaluation System Status
@@ -123,8 +136,6 @@ export const QuickActionsCard: React.FC<QuickActionsProps> = ({
           </div>
         </div>
         
-        {/* Dynamic decorative backdrop circles */}
-        <div className="absolute -right-16 -bottom-16 w-32 h-32 bg-blue-900/10 rounded-full blur-2xl pointer-events-none" />
       </div>
 
     </div>

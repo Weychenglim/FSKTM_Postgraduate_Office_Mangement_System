@@ -1,11 +1,12 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Calendar,
   Sliders,
   Users,
@@ -18,20 +19,14 @@ import {
   Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { SummaryCard } from './SummaryCard';
+import { EvaluationPreviewTask as PreviewTask } from '../types';
+import { getEvaluationPreviewTasks } from '../services';
 
 interface EvaluationTaskAssignmentProps {
   onBack: () => void;
-}
-
-interface PreviewTask {
-  id: string;
-  studentId: string;
-  studentName: string;
-  researchTitle: string;
-  panelMember: string;
-  semester: string;
-  status: 'GENERATED' | 'PENDING' | 'NOTIFIED';
 }
 
 interface ActivityItem {
@@ -43,54 +38,23 @@ interface ActivityItem {
 }
 
 export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = ({ onBack }) => {
-  // Demonstration State
-  const [tasks, setTasks] = useState<PreviewTask[]>([
-    {
-      id: 't1',
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't2',
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't3',
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      researchTitle: 'Blockchain-Based Academic Record Verification System',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't4',
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      researchTitle: 'Cloud-Based Research Document Management',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    },
-    {
-      id: 't5',
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      researchTitle: 'Mobile Learning Adoption in Higher Education',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      status: 'GENERATED'
-    }
-  ]);
+  // Evaluation preview tasks loaded from marksApi (mock-backed today).
+  const [tasks, setTasks] = useState<PreviewTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTasks = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getEvaluationPreviewTasks()
+      .then(setTasks)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   const [activities, setActivities] = useState<ActivityItem[]>([
     {
@@ -143,38 +107,15 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
   return (
     <div id="eval-assignment-workspace" className="space-y-8 animate-fade-in relative text-left">
       
-      {/* Absolute floating toast notification */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white border border-white/10 p-4 rounded-xl shadow-2xl flex items-center gap-3.5 text-xs font-bold font-sans"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
-      {/* Top breadcrumb heading title section */}
-      <div id="eval-header-block" className="flex flex-col text-left">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Marks & Evaluation Management</span>
-        </button>
-
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
-          Evaluation Task Assignment
-        </h1>
-        <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
-          Generate mark entry tasks for approved panel appointments using the configured period and rubric.
-        </p>
-      </div>
+      <PageHeader
+        title="Evaluation Task Assignment"
+        subtitle="Generate mark entry tasks for approved panel appointments using the configured period and rubric."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+      />
 
       {/* Summary grid row representing 4 diagnostic components directly in line with screenshot */}
       <div id="summary-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -217,10 +158,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         
         {/* Left Column: Assignment Context card */}
         <div id="assignment-context-wrapper" className="lg:col-span-7 flex">
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_4px_25px_rgba(241,245,249,0.3)] w-full flex flex-col justify-between relative overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs w-full flex flex-col justify-between relative overflow-hidden">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <span className="font-extrabold text-[#0c1424] text-sm tracking-tight font-sans">
+              <span className="font-extrabold text-brand-navy text-sm tracking-tight font-sans">
                 Assignment Context
               </span>
               <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-[9px] font-extrabold tracking-wider rounded-lg uppercase">
@@ -233,7 +174,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
                   Semester
                 </span>
-                <span className="font-extrabold text-[#0c1424] text-sm font-sans block">
+                <span className="font-extrabold text-brand-navy text-sm font-sans block">
                   Sem 1 2025/2026
                 </span>
               </div>
@@ -242,7 +183,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
                   Evaluation Stage
                 </span>
-                <span className="font-extrabold text-[#0c1424] text-sm font-sans block">
+                <span className="font-extrabold text-brand-navy text-sm font-sans block">
                   EE Evaluation
                 </span>
               </div>
@@ -275,8 +216,8 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
         {/* Right Column: Readiness checks card */}
         <div id="readiness-checks-wrapper" className="lg:col-span-5 flex">
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_4px_25px_rgba(241,245,249,0.3)] w-full flex flex-col justify-between">
-            <span className="font-extrabold text-[#0c1424] text-sm tracking-tight font-sans block pb-4 border-b border-slate-100">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs w-full flex flex-col justify-between">
+            <span className="font-extrabold text-brand-navy text-sm tracking-tight font-sans block pb-4 border-b border-slate-100">
               Readiness Checks
             </span>
 
@@ -327,11 +268,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       </div>
 
       {/* Main Preview Table for Tasks Assignment */}
-      <div id="evaluation-preview-card" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+      <div id="evaluation-preview-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
         
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 mb-5">
           <div className="text-left">
-            <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+            <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
               Evaluation Task Preview
             </h3>
             <p className="text-slate-400 text-xs font-semibold mt-1 font-sans">
@@ -350,42 +291,54 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
         {/* Data Table block representing students evaluation tasks */}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[750px] text-left border-collapse">
+          <table className="data-table min-w-[750px]">
             <thead>
-              <tr className="border-b border-slate-200/80 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                <th className="py-4 px-3">Student ID</th>
-                <th className="py-4 px-3">Student Name</th>
-                <th className="py-4 px-3">Research Title</th>
-                <th className="py-4 px-3">Panel Member</th>
-                <th className="py-4 px-3">Semester</th>
-                <th className="py-4 px-3 text-center">Task Status</th>
-                <th className="py-4 px-3 text-right">Action</th>
+              <tr className="data-thead">
+                <th className="data-th">Student ID</th>
+                <th className="data-th">Student Name</th>
+                <th className="data-th">Research Title</th>
+                <th className="data-th">Panel Member</th>
+                <th className="data-th">Semester</th>
+                <th className="data-th text-center">Task Status</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
-              {tasks.map((task) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <LoadingState message="Loading evaluation tasks…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <ErrorState message={error} onRetry={loadTasks} />
+                  </td>
+                </tr>
+              ) : tasks.map((task) => (
                 <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-5 px-3 text-xs font-bold text-[#0c1424] font-mono">
+                  <td className="data-td-strong font-mono">
                     {task.studentId}
                   </td>
-                  <td className="py-5 px-3 text-xs font-extrabold text-blue-900">
+                  <td className="data-td">
                     {task.studentName}
                   </td>
-                  <td className="py-5 px-3 text-xs text-slate-550 font-medium max-w-[220px] truncate" title={task.researchTitle}>
+                  <td className="data-td max-w-[220px] truncate" title={task.researchTitle}>
                     {task.researchTitle}
                   </td>
-                  <td className="py-5 px-3 text-xs text-[#0c1424] font-bold">
+                  <td className="data-td">
                     {task.panelMember}
                   </td>
-                  <td className="py-5 px-3 text-xs text-slate-500 font-medium">
+                  <td className="data-td">
                     {task.semester}
                   </td>
-                  <td className="py-5 px-3 text-center">
+                  <td className="data-td text-center">
                     <span className="inline-flex px-3 py-1 rounded-full bg-blue-50 text-[9px] font-extrabold tracking-wider text-blue-600 uppercase border border-blue-105">
                       {task.status}
                     </span>
                   </td>
-                  <td className="py-5 px-3 text-right">
+                  <td className="data-td text-right">
                     <button
                       onClick={() => setSelectedTask(task)}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors pointer-events-auto cursor-pointer"
@@ -416,7 +369,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           {/* Active Notify Panel button */}
           <button
             onClick={handleNotifyPanel}
-            className="px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all cursor-pointer shadow-md select-none"
+            className="px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all cursor-pointer shadow-sm select-none"
           >
             <Mail className="w-4.5 h-4.5 text-blue-200" />
             <span>Notify Panel Members</span>
@@ -439,31 +392,31 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       </div>
 
       {/* Recent Assignment Activity table log listing */}
-      <div id="recent-assignment-activity-panel" className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden text-left shadow-[0_4px_25px_rgba(241,245,249,0.3)]">
+      <div id="recent-assignment-activity-panel" className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden text-left shadow-3xs">
         
         <div className="p-6 pb-4 border-b border-slate-100">
-          <h3 className="text-sm font-extrabold text-[#0c1424] tracking-tight">
+          <h3 className="text-sm font-extrabold text-brand-navy tracking-tight">
             Recent Assignment Activity
           </h3>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[650px] text-left border-collapse">
+          <table className="data-table min-w-[650px]">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-205">
-                <th className="py-3 px-6">Date</th>
-                <th className="py-3 px-6">Action</th>
-                <th className="py-3 px-6">Details</th>
-                <th className="py-3 px-6">Performed By</th>
+              <tr className="data-thead bg-slate-50/50">
+                <th className="data-th">Date</th>
+                <th className="data-th">Action</th>
+                <th className="data-th">Details</th>
+                <th className="data-th">Performed By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
               {activities.map((act) => (
                 <tr key={act.id} className="hover:bg-slate-50/20 transition-colors">
-                  <td className="py-4.5 px-6 text-xs text-slate-500 font-medium">
+                  <td className="data-td">
                     {act.date}
                   </td>
-                  <td className="py-4.5 px-6">
+                  <td className="data-td">
                     <button
                       onClick={() => showToast(`Opening activity detail logs for event: ${act.action}`)}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 underline hover:no-underline text-left cursor-pointer"
@@ -471,10 +424,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       {act.action}
                     </button>
                   </td>
-                  <td className="py-4.5 px-6 text-xs text-slate-650 font-medium font-sans">
+                  <td className="data-td">
                     {act.details}
                   </td>
-                  <td className="py-4.5 px-6 text-xs text-[#0c1424] font-bold">
+                  <td className="data-td">
                     {act.performedBy}
                   </td>
                 </tr>
@@ -485,19 +438,20 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       </div>
 
       {/* Beautiful Modal overlay explaining particular task details dynamically */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="absolute inset-0" onClick={() => setSelectedTask(null)} />
             
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 shadow-2xl border border-slate-100 text-left relative z-10"
+              className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                <h4 className="font-extrabold text-[#0c1424] text-sm">
+                <h4 className="font-extrabold text-brand-navy text-sm">
                   Evaluation Task Sheet Info
                 </h4>
                 <button
@@ -521,7 +475,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                 <div>
                   <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Assigned Panel Examiner</span>
-                  <span className="font-extrabold text-[#0c1424] block">{selectedTask.panelMember}</span>
+                  <span className="font-extrabold text-brand-navy block">{selectedTask.panelMember}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
@@ -546,14 +500,16 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <button
                 type="button"
                 onClick={() => setSelectedTask(null)}
-                className="w-full py-3 bg-[#0c1424] hover:bg-slate-850 text-white rounded-xl text-xs font-extrabold uppercase tracking-widest mt-6 cursor-pointer"
+                className="w-full py-3 bg-brand-navy hover:bg-slate-850 text-white rounded-xl text-xs font-extrabold uppercase tracking-widest mt-6 cursor-pointer"
               >
                 Close Task Sheet
               </button>
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

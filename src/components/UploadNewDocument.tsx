@@ -1,13 +1,12 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useState, useRef } from 'react';
 import { 
-  ArrowLeft, 
   Upload, 
-  X, 
+  X,
   CheckCircle, 
   FileText, 
   FileSpreadsheet, 
@@ -19,6 +18,8 @@ import {
   Building
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, RemovableTag, StatusBadge } from './PortalPrimitives';
+import { ToggleSwitch } from './ToggleSwitch';
 
 // Define Props for parent-level control
 interface UploadNewDocumentProps {
@@ -41,6 +42,9 @@ interface RecentUpload {
   tag: string;
   type: 'pdf' | 'docx' | 'xlsx';
 }
+
+type AccessRole = 'officeStaff' | 'coordinator' | 'lecturer' | 'student';
+type AccessField = 'view' | 'download' | 'archive';
 
 export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({ 
   onBack, 
@@ -96,7 +100,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   };
 
   // Toggles Access state handler safely
-  const togglePermission = (role: 'officeStaff' | 'coordinator' | 'lecturer' | 'student', field: 'view' | 'download' | 'archive') => {
+  const togglePermission = (role: AccessRole, field: AccessField) => {
     setAccess(prev => ({
       ...prev,
       [role]: {
@@ -105,6 +109,15 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
       }
     }));
   };
+
+  const renderPermissionSwitch = (role: AccessRole, field: AccessField) => (
+    <ToggleSwitch
+      id={`upload-access-${role}-${field}`}
+      checked={access[role][field]}
+      onChange={() => togglePermission(role, field)}
+      className="justify-center py-0"
+    />
+  );
 
   // Tag list operators
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -224,43 +237,17 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   };
 
   return (
-    <div id="upload-document-workspace" className="font-sans text-[#0c1424] text-xs pb-12">
+    <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
       
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] font-sans tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
-      {/* Back to File Repository Link */}
-      <div className="mb-4 text-left">
-        <button 
-          onClick={onBack}
-          className="group hover:opacity-80 transition duration-150 inline-flex items-center gap-1.5 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 stroke-[3] transition-transform group-hover:-translate-x-0.5" />
-          <span>Back to File Repository</span>
-        </button>
-      </div>
-
-      {/* Header text layout */}
-      <div className="text-left mb-6">
-        <h1 className="text-2xl font-black text-[#0c1424] tracking-tight">
-          Upload New Document
-        </h1>
-        <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
-          Add files to the central repository with metadata and tags.
-        </p>
-      </div>
+      <PageHeader
+        title="Upload New Document"
+        subtitle="Add files to the central repository with metadata and tags."
+        backLabel="Back to File Repository"
+        onBack={onBack}
+        className="mb-6"
+      />
 
       {/* Responsive Grid layout for side column info */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -384,19 +371,13 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               {/* Box Containing list of chips + relative tag input */}
               <div className="bg-[#f8fafc]/60 border border-slate-200 rounded-xl p-3 flex flex-wrap gap-2 items-center focus-within:ring-1 focus-within:ring-slate-900 focus-within:border-slate-900 transition-all">
                 {tags.map(tag => (
-                  <span 
+                  <RemovableTag
                     key={tag} 
-                    className="inline-flex items-center gap-1 bg-[#0c1424] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg select-none"
+                    onRemove={() => handleRemoveTag(tag)}
+                    removeLabel={`Remove ${tag}`}
                   >
-                    <span>{tag}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:bg-white/20 p-0.5 rounded transition"
-                    >
-                      <X className="w-3 h-3 text-white" />
-                    </button>
-                  </span>
+                    {tag}
+                  </RemovableTag>
                 ))}
                 
                 <input
@@ -431,141 +412,69 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               </span>
               
               <div className="border border-slate-150 rounded-xl overflow-hidden">
-                <table className="w-full text-[11px] font-sans text-left border-collapse">
+                <table className="data-table text-[11px]">
                   <thead>
-                    <tr className="bg-[#f8fafc] border-b border-slate-150 text-slate-400 font-extrabold uppercase tracking-wider text-[9px]">
-                      <th className="px-5 py-3 font-black">Role</th>
-                      <th className="px-5 py-3 text-center font-black">View</th>
-                      <th className="px-5 py-3 text-center font-black">Download</th>
-                      <th className="px-5 py-3 text-center font-black">Archive</th>
+                    <tr className="data-thead bg-[#f8fafc]">
+                      <th className="data-th">Role</th>
+                      <th className="data-th text-center">View</th>
+                      <th className="data-th text-center">Download</th>
+                      <th className="data-th text-center">Archive</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* Office Staff Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Office Staff</td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('officeStaff', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td-strong">Office Staff</td>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('officeStaff', 'view')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('officeStaff', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('officeStaff', 'download')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('officeStaff', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.officeStaff.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.officeStaff.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('officeStaff', 'archive')}
                       </td>
                     </tr>
 
                     {/* Coordinator Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Coordinator</td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('coordinator', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td-strong">Coordinator</td>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('coordinator', 'view')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('coordinator', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('coordinator', 'download')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('coordinator', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.coordinator.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.coordinator.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('coordinator', 'archive')}
                       </td>
                     </tr>
 
                     {/* Lecturer Row */}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Lecturer</td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('lecturer', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td-strong">Lecturer</td>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('lecturer', 'view')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('lecturer', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('lecturer', 'download')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('lecturer', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.lecturer.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.lecturer.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('lecturer', 'archive')}
                       </td>
                     </tr>
 
                     {/* Student Row */}
                     <tr className="hover:bg-slate-50/55 transition">
-                      <td className="px-5 py-3.5 font-bold text-slate-800">Student</td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('student', 'view')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.view ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.view ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td-strong">Student</td>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('student', 'view')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('student', 'download')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.download ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.download ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('student', 'download')}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => togglePermission('student', 'archive')}
-                          className={`mx-auto w-10 h-5.5 rounded-full relative transition-colors cursor-pointer ${access.student.archive ? 'bg-[#0c1424]' : 'bg-slate-200'}`}
-                        >
-                          <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 shadow-xs transition-all ${access.student.archive ? 'right-0.5 translate-x-0' : 'left-0.5'}`} />
-                        </button>
+                      <td className="data-td text-center">
+                        {renderPermissionSwitch('student', 'archive')}
                       </td>
                     </tr>
 
@@ -576,21 +485,27 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
             {/* SEPARATOR BUTTON ACTIONS ROW */}
             <div className="flex md:items-center justify-between gap-4 pt-6 border-t border-slate-100 flex-col md:flex-row">
-              <button
+              <PortalButton
                 type="button"
                 onClick={onBack}
-                className="w-full md:w-auto px-5 py-3 border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold uppercase tracking-wider rounded-xl transition cursor-pointer text-center text-[10px]"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                className="md:w-auto"
               >
                 Cancel and Go Back
-              </button>
+              </PortalButton>
 
-              <button
+              <PortalButton
                 type="submit"
-                className="w-full md:w-auto px-6 py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-[10px]"
+                variant="primary"
+                size="lg"
+                icon={Upload}
+                fullWidth
+                className="md:w-auto"
               >
-                <Upload className="w-4 h-4 text-white stroke-[2.5]" />
-                <span>Confirm and Upload</span>
-              </button>
+                Confirm and Upload
+              </PortalButton>
             </div>
 
           </form>
@@ -624,7 +539,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               />
 
               {/* Upload Cloud SVG Icon bundle layout */}
-              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-[#0c1424] transition-colors">
+              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-brand-navy transition-colors">
                 <Upload className="w-5 h-5 text-slate-650" />
               </div>
 
@@ -662,22 +577,19 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                         {uploadedFile.size} • {uploadedFile.progress}%
                       </p>
                       {/* Interactive percentage progress bar indicator lines */}
-                      <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden mt-1 bg-neutral-200">
-                        <div 
-                          className="bg-blue-600 h-full rounded-full transition-all duration-300" 
-                          style={{ width: `${uploadedFile.progress}%` }} 
-                        />
-                      </div>
+                      <ProgressBar value={uploadedFile.progress} tone="info" trackClassName="h-1 mt-1" />
                     </div>
                   </div>
 
-                  <button 
+                  <PortalButton
                     type="button"
                     onClick={() => { setUploadedFile(null); triggerToast('Removed file queue.'); }}
-                    className="p-1 rounded bg-white hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                    variant="ghost"
+                    size="icon"
+                    icon={X}
+                    className="w-8 h-8 rounded-lg text-slate-400"
+                    aria-label="Remove queued file"
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -734,13 +646,15 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
                 Recent Uploads
               </span>
-              <button 
+              <PortalButton
                 type="button" 
                 onClick={onBack}
-                className="text-[10px] text-blue-600 hover:underline font-extrabold cursor-pointer"
+                variant="ghost"
+                size="sm"
+                className="px-2 py-1 text-blue-600 hover:text-blue-700"
               >
                 View All
-              </button>
+              </PortalButton>
             </div>
 
             {/* List with 4 lines matching recent mockups */}
@@ -759,9 +673,9 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                       <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1.5">
                         <span>{doc.timeAgo}</span>
                         <span>•</span>
-                        <span className="text-indigo-650 py-0.5 px-1.5 rounded bg-indigo-50 border border-indigo-100 uppercase tracking-widest text-[8px] font-black scale-95 origin-left">
+                        <StatusBadge tone="brand" className="px-1.5 py-0.5 text-[8px] scale-95 origin-left">
                           {doc.tag}
-                        </span>
+                        </StatusBadge>
                       </p>
                     </div>
                   </div>

@@ -1,9 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { SummaryCard } from './SummaryCard';
 import { FilterCard } from './FilterCard';
 import { ValidationCard } from './ValidationCard';
@@ -16,7 +17,7 @@ import { ToggleSwitch } from './ToggleSwitch';
 import { RightDrawer } from './RightDrawer';
 import { RequirementChecklist } from './RequirementChecklist';
 import { 
-  ArrowLeft,
+  ChevronLeft,
   Sliders, 
   Plus, 
   Eye, 
@@ -31,70 +32,35 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { RubricComponent } from '../types';
+import { getRubricComponents } from '../services';
 
-interface RubricComponent {
-  id: string;
-  name: string;
-  description: string;
-  maxMarks: number;
-  required: boolean;
-  status: 'ACTIVE' | 'INACTIVE';
-  displayOrder?: number;
-}
+// RubricComponent now lives in src/types.
 
 interface RubricsManagementViewProps {
   onBack: () => void;
 }
 
 export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ onBack }) => {
-  // Form list state
-  const [rubrics, setRubrics] = useState<RubricComponent[]>([
-    {
-      id: '1',
-      name: 'Problem Definition',
-      description: 'Clarity of problem statement and research objectives',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 1
-    },
-    {
-      id: '2',
-      name: 'Literature Review',
-      description: 'Relevance and depth of reviewed work',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 2
-    },
-    {
-      id: '3',
-      name: 'Methodology',
-      description: 'Suitability and completeness of proposed approach',
-      maxMarks: 25,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 3
-    },
-    {
-      id: '4',
-      name: 'Technical Understanding',
-      description: 'Understanding of system, tools, algorithms, or framework',
-      maxMarks: 20,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 4
-    },
-    {
-      id: '5',
-      name: 'Presentation and Q&A',
-      description: 'Communication, structure, and response to questions',
-      maxMarks: 15,
-      required: true,
-      status: 'ACTIVE',
-      displayOrder: 5
-    }
-  ]);
+  // Rubric components loaded from marksApi (mock-backed today).
+  const [rubrics, setRubrics] = useState<RubricComponent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRubrics = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getRubricComponents()
+      .then(setRubrics)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load rubric components.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRubrics();
+  }, [loadRubrics]);
 
   // Selected filters
   const [semester, setSemester] = useState('Sem 1 2025/2026');
@@ -219,45 +185,19 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
   return (
     <div id="rubrics-root-frame" className="space-y-8 animate-fade-in relative text-left">
       
-      {/* Absolute floating toast notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white border border-white/10 p-4 rounded-xl shadow-2xl flex items-center gap-3.5 text-xs font-bold font-sans"
-          >
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
-      {/* Heading Title Segment */}
-      <div id="rubrics-banner-section" className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-        <div className="flex flex-col text-left">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Marks & Evaluation Management</span>
-          </button>
-
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
-            Rubric Components Management
-          </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
-            Define rubric components, maximum marks, and validation rules for mark entry.
-          </p>
-        </div>
-
-        {/* Action Header block buttons (Preview Mark Entry & Add Component) */}
-        <div id="header-action-panel" className="flex items-center gap-3.5">
+      <PageHeader
+        title="Rubric Components Management"
+        subtitle="Define rubric components, maximum marks, and validation rules for mark entry."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+        actions={(
+          <>
           <button
             onClick={() => setActiveModal('preview')}
-            className="px-4 py-3 bg-white hover:bg-slate-50 text-[#0c1424] border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
+            className="px-4 py-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
           >
             <Eye className="w-4.5 h-4.5 text-slate-500" />
             <span>Preview Mark Entry Form</span>
@@ -265,13 +205,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
           <button
             onClick={handleOpenAdd}
-            className="px-4.5 py-3 bg-[#0c1424] text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer shadow-md select-none"
+            className="px-4.5 py-3 bg-brand-navy text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer shadow-sm select-none"
           >
             <Plus className="w-4.5 h-4.5 text-blue-400" />
             <span>Add Component</span>
           </button>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {/* 4 Top Summary Card Statistics info */}
       <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -296,7 +237,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
           subtext="Assessment Categories"
           onClick={() => {}}
         />
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-[0_4px_20px_rgba(241,245,249,0.5)] relative overflow-hidden flex flex-col justify-between min-h-[110px]">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-3xs relative overflow-hidden flex flex-col justify-between min-h-[110px]">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
               Total Marks
@@ -306,7 +247,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             </span>
           </div>
           <div className="flex items-center gap-2.5 mt-2.5">
-            <span className="text-[#0c1424] font-extrabold text-[22px] tracking-tight">
+            <span className="text-brand-navy font-extrabold text-[22px] tracking-tight">
               {totalMaxMarks} <span className="text-slate-400 text-sm font-medium">/ 100</span>
             </span>
           </div>
@@ -329,11 +270,11 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
         
         {/* Left Span (8 out of 12 columns): Components Table list */}
         <div id="components-panel-container" className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
             
             {/* Components table header info */}
             <div className="flex items-center justify-between pb-5 border-b border-slate-100 mb-5">
-              <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+              <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
                 Rubric Components
               </h3>
 
@@ -350,41 +291,53 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
             {/* Rubrics table representation */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left border-collapse">
+              <table className="data-table min-w-[620px]">
                 <thead>
-                  <tr className="border-b border-slate-205 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                    <th className="py-4.5 px-3">Component</th>
-                    <th className="py-4.5 px-3">Description</th>
-                    <th className="py-4.5 px-3 text-center">Max Marks</th>
-                    <th className="py-4.5 px-3 text-center">Required</th>
-                    <th className="py-4.5 px-3 text-center">Status</th>
-                    <th className="py-4.5 px-3 text-right">Action</th>
+                  <tr className="data-thead">
+                    <th className="data-th">Component</th>
+                    <th className="data-th">Description</th>
+                    <th className="data-th text-center">Max Marks</th>
+                    <th className="data-th text-center">Required</th>
+                    <th className="data-th text-center">Status</th>
+                    <th className="data-th text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rubrics.map((rub) => (
-                    <tr 
-                      key={rub.id} 
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <LoadingState message="Loading rubric components…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <ErrorState message={error} onRetry={loadRubrics} />
+                      </td>
+                    </tr>
+                  ) : rubrics.map((rub) => (
+                    <tr
+                      key={rub.id}
                       className="hover:bg-slate-50/40 transition-colors group"
                     >
-                      <td className="py-5 px-3 text-xs text-blue-900 font-extrabold tracking-tight">
+                      <td className="data-td-strong">
                         {rub.name}
                       </td>
-                      <td className="py-5 px-3 text-xs text-slate-500 font-medium max-w-[200px] leading-relaxed">
+                      <td className="data-td max-w-[200px] leading-relaxed">
                         {rub.description}
                       </td>
-                      <td className="py-5 px-3 text-center text-xs text-slate-800 font-bold font-mono">
+                      <td className="data-td text-center font-mono">
                         {rub.maxMarks}
                       </td>
-                      <td className="py-5 px-3 text-center text-xs text-slate-500 font-semibold font-sans">
+                      <td className="data-td text-center">
                         {rub.required ? 'Yes' : 'No'}
                       </td>
-                      <td className="py-5 px-3 text-center">
+                      <td className="data-td text-center">
                         <span className="inline-flex px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-extrabold tracking-wide uppercase">
                           {rub.status}
                         </span>
                       </td>
-                      <td className="py-5 px-3 text-right">
+                      <td className="data-td text-right">
                         <div className="flex items-center justify-end gap-3">
                           <button
                             onClick={() => handleOpenEdit(rub)}
@@ -406,16 +359,16 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
                   {/* Dynamic Weights Sum block */}
                   <tr className="bg-slate-50/70 border-t border-slate-200">
-                    <td className="py-4.5 px-4 font-extrabold text-xs text-[#0c1424]">
+                    <td className="py-4 px-5 font-extrabold text-xs text-brand-navy">
                       Total:
                     </td>
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4 text-center font-extrabold text-sm text-blue-700 font-mono">
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5 text-center font-extrabold text-sm text-blue-700 font-mono">
                       {totalMaxMarks} marks
                     </td>
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4" />
-                    <td className="py-4.5 px-4" />
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5" />
+                    <td className="py-4 px-5" />
                   </tr>
                 </tbody>
               </table>
@@ -468,9 +421,10 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
       </div>
 
       {/* Global Interactive Overlays (Preview / Add / Edit Dialogs) */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             
             {/* Blur close context backdrop */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
@@ -480,7 +434,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-100 text-left relative z-10"
+              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
             >
               
               {/* Top dismissal X */}
@@ -510,7 +464,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                       return (
                         <div key={rub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="font-extrabold text-[#0c1424]">
+                            <span className="font-extrabold text-brand-navy">
                               {rub.name} <span className="text-slate-400">({rub.maxMarks} max)</span>
                             </span>
                             <span className="font-mono font-extrabold text-blue-650">
@@ -537,14 +491,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
                   {/* Calculated metrics */}
                   <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold font-sans">
                     <span className="text-slate-500">Combined Preview Score:</span>
-                    <span className="text-sm font-mono text-[#0c1424]">
+                    <span className="text-sm font-mono text-brand-navy">
                       {previewScoreSum} / {totalMaxMarks} marks
                     </span>
                   </div>
 
                   <button
                     onClick={() => setActiveModal(null)}
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center"
+                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center"
                   >
                     Close Preview Desk
                   </button>
@@ -624,7 +578,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
                   <button
                     type="submit"
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer"
+                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer"
                   >
                     Confirm Component Addition
                   </button>
@@ -634,7 +588,9 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* RIGHT SIDE DRAWER FOR EDIT OPERATION (Sparsely customized for edit rubric component drawer) */}
       <RightDrawer
@@ -735,7 +691,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
             <button
               type="button"
               onClick={() => handleSaveEdit()}
-              className="flex-1 py-3 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-md"
+              className="flex-1 py-3 bg-brand-navy hover:bg-slate-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-sm"
             >
               Save Changes
             </button>

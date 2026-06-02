@@ -1,10 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
   Users,
   Search,
   SlidersHorizontal,
@@ -37,22 +37,14 @@ import {
   Lock,
   ExternalLink
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
+import { PageHeader, PortalButton, PortalToast, StatusDot } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { PanelRecord } from '../types';
+import { getPanelAppointments } from '../services';
 
-// Interfaces for our Dataset
-export interface PanelRecord {
-  id: string; // MEAXXXXXXX
-  studentName: string;
-  programme: string;
-  semester: string;
-  supervisor: string;
-  panelMember: string; // "Assoc. Prof. Dr. Amina Malik", "Pending", "Not Assigned", "Dr. Robert Chen", "Dr. Sarah Lim"
-  status: 'Approved' | 'No Panel' | 'Pending' | 'Recommendation' | 'Workload Alert' | 'Rejected';
-  updatedDate: string; // "23 Nov 2025" or "-"
-}
-
+// Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface WorkloadStat {
   lecturerName: string;
   assigned: number;
@@ -72,110 +64,23 @@ export const PanelAppointmentManagement: React.FC = () => {
   const [panelView, setPanelView] = useState<'list' | 'detail' | 'workload'>('list');
   const [selectedRecord, setSelectedRecord] = useState<PanelRecord | null>(null);
 
-  // Core records mimicking screenshot details perfectly + extra realistic rows
-  const [records] = useState<PanelRecord[]>([
-    {
-      id: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Siti Noor',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'Approved',
-      updatedDate: '23 Nov 2025'
-    },
-    {
-      id: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Wey Cheng',
-      panelMember: 'Pending',
-      status: 'Recommendation',
-      updatedDate: '20 Nov 2025'
-    },
-    {
-      id: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Aris Ghaffar',
-      panelMember: 'Not Assigned',
-      status: 'No Panel',
-      updatedDate: '-'
-    },
-    {
-      id: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      programme: 'MSc. Data Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Siti Noor',
-      panelMember: 'Dr. Robert Chen',
-      status: 'Workload Alert',
-      updatedDate: '22 Nov 2025'
-    },
-    {
-      id: 'MEA2401301',
-      studentName: 'Lim Wei',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      panelMember: 'Dr. Sarah Lim',
-      status: 'Rejected',
-      updatedDate: '24 Nov 2025'
-    },
-    // Extra records to fill the page 2/3 for genuine pagination demonstration
-    {
-      id: 'MEA2400299',
-      studentName: 'Johnathan Tan',
-      programme: 'MSc. Data Science',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Robert Chen',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'Approved',
-      updatedDate: '21 Nov 2025'
-    },
-    {
-      id: 'MEA2304910',
-      studentName: 'Clara Wong',
-      programme: 'MSc. Software Engineering',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Dr. Sarah Lim',
-      panelMember: 'Pending',
-      status: 'Recommendation',
-      updatedDate: '18 Nov 2025'
-    },
-    {
-      id: 'MEA2401123',
-      studentName: 'Zainab Qureshi',
-      programme: 'MSc. Information Technology',
-      semester: 'Sem 2 2024/2025',
-      supervisor: 'Dr. Robert Chen',
-      panelMember: 'Dr. Siti Noor',
-      status: 'Approved',
-      updatedDate: '15 Jun 2025'
-    },
-    {
-      id: 'MEA2401944',
-      studentName: 'Vikram Nair',
-      programme: 'MSc. Computer Science',
-      semester: 'Sem 2 2024/2025',
-      supervisor: 'Dr. Aris Ghaffar',
-      panelMember: 'Not Assigned',
-      status: 'No Panel',
-      updatedDate: '-'
-    },
-    {
-      id: 'MEA2301980',
-      studentName: 'Amirah Ismail',
-      programme: 'MSc. Information Technology',
-      semester: 'Sem 1 2025/2026',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      panelMember: 'Dr. Aris Ghaffar',
-      status: 'Workload Alert',
-      updatedDate: '22 Nov 2025'
-    }
-  ]);
+  // Panel records loaded from appointmentsApi (mock-backed today).
+  const [records, setRecords] = useState<PanelRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getPanelAppointments()
+      .then(setRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   // Main input filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -302,20 +207,7 @@ export const PanelAppointmentManagement: React.FC = () => {
   return (
     <div id="panel-module-root" className="space-y-8 animate-fade-in text-left">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
       {panelView === 'detail' && selectedRecord && (
@@ -336,15 +228,11 @@ export const PanelAppointmentManagement: React.FC = () => {
       {panelView === 'list' && (
         <div id="panel-dashboard-container" className="space-y-8 animate-fade-in text-left">
           
-          {/* Upper Title Section */}
-          <div id="panel-header-desc" className="text-left">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
-              Panel Appointment Management
-            </h1>
-            <p className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed font-sans">
-              Monitor panel appointment records, panel member workload, and records needing attention.
-            </p>
-          </div>
+          <PageHeader
+            title="Panel Appointment Management"
+            subtitle="Monitor panel appointment records, panel member workload, and records needing attention."
+            subtitleClassName="leading-relaxed"
+          />
 
           {/* Core Summary Cards Grid row matching screenshots exactly */}
           <div id="panel-summary-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 font-sans">
@@ -356,7 +244,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Students Without Panel
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     12
                   </span>
                 </div>
@@ -365,7 +253,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-[#e11d48] text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping shrink-0" />
+                <StatusDot tone="danger" pulse />
                 <span>No approved panel record.</span>
               </div>
             </div>
@@ -377,7 +265,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Pending Recommendations
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     8
                   </span>
                 </div>
@@ -386,7 +274,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <StatusDot tone="warning" />
                 <span>Panel recommendations still in workflow.</span>
               </div>
             </div>
@@ -398,7 +286,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Approved Panels
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     126
                   </span>
                 </div>
@@ -407,7 +295,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-emerald-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <StatusDot tone="success" />
                 <span>Confirmed panel appointments.</span>
               </div>
             </div>
@@ -419,7 +307,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                     Workload Alerts
                   </span>
-                  <span className="text-3xl font-black text-[#0c1424] block mt-2.5">
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
                     3
                   </span>
                 </div>
@@ -428,7 +316,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <StatusDot tone="warning" />
                 <span>Lecturers near panel limit.</span>
               </div>
             </div>
@@ -437,10 +325,10 @@ export const PanelAppointmentManagement: React.FC = () => {
 
 
           {/* Mid Section Layout: Search filter box left, attention widgets right */}
-          <div id="filters-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans text-xs">
+          <div id="filters-layout-grid" className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start font-sans text-xs">
             
             {/* Filter Section (Left Col) */}
-            <div className="lg:col-span-8 bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
+            <div className="xl:col-span-9 bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
               <h3 className="font-extrabold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <span>Search Records</span>
@@ -462,7 +350,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search by student name, ID, supervisor, panel member or research title"
-                      className="w-full pl-10 pr-4 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-400 focus:outline-none transition font-sans text-xs"
+                      className="form-control form-control-sm pl-10 pr-4"
                     />
                   </div>
                 </div>
@@ -480,7 +368,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         id="programme-selection-field"
                         value={programmeFilter}
                         onChange={(e) => setProgrammeFilter(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700"
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
                         <option>All Programmes</option>
                         <option>MSc. Computer Science</option>
@@ -502,7 +390,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                         id="semester-selection-field"
                         value={semesterFilter}
                         onChange={(e) => setSemesterFilter(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700"
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
                         <option>All Semesters</option>
                         <option>Sem 1 2025/2026</option>
@@ -518,19 +406,21 @@ export const PanelAppointmentManagement: React.FC = () => {
                 <div className="pt-3 flex flex-wrap items-center gap-3 border-t border-slate-100">
                   
                   {/* Apply click handler */}
-                  <button
+                  <PortalButton
                     onClick={handleApplyFilters}
-                    className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
+                    variant="primary"
+                    size="md"
                   >
                     Apply Filters
-                  </button>
+                  </PortalButton>
 
-                  <button
+                  <PortalButton
                     onClick={handleResetFilters}
-                    className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80 font-extrabold text-xs rounded-xl tracking-wider uppercase transition cursor-pointer"
+                    variant="secondary"
+                    size="md"
                   >
                     Reset Grid
-                  </button>
+                  </PortalButton>
 
                 </div>
 
@@ -561,13 +451,13 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
             {/* Records Needing Attention Widgets Column (Right Col) */}
-            <div className="lg:col-span-4 space-y-6 text-left">
+            <div className="order-3 xl:order-none xl:col-span-3 xl:row-start-1 xl:row-span-2 space-y-6 text-left">
               
               {/* Box A: Attention list card */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                  <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                     Records Needing Attention
                   </h4>
                 </div>
@@ -600,7 +490,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               {/* Box B: Panel Workload Snapshot */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs text-xs font-sans">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider">
+                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                     Panel Workload Snapshot
                   </span>
                   <TrendingUp className="w-4 h-4 text-slate-450" />
@@ -634,7 +524,7 @@ export const PanelAppointmentManagement: React.FC = () => {
 
                   <button
                     onClick={() => setPanelView('workload')}
-                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-[#0c1424] font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-brand-navy font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
                   >
                     View All Workload
                   </button>
@@ -642,7 +532,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               </div>
 
               {/* Box C: Quick Tip dark panel */}
-              <div className="bg-[#0c1424] text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
+              <div className="bg-brand-navy text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
                 <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 block mb-2">
                   System Tip
                 </span>
@@ -660,15 +550,12 @@ export const PanelAppointmentManagement: React.FC = () => {
 
             </div>
 
-          </div>
-
-
           {/* 3. Panel Appointment Records Table Container */}
-          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs text-left">
+          <div className="order-2 xl:order-none xl:col-span-9 xl:col-start-1 xl:row-start-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
-                <h3 className="font-extrabold text-[#0c1424] text-sm uppercase tracking-wider">
+                <h3 className="font-extrabold text-brand-navy text-sm uppercase tracking-wider">
                   Panel Appointment Records
                 </h3>
                 <span className="text-slate-450 text-xs font-medium block mt-0.5">
@@ -678,7 +565,7 @@ export const PanelAppointmentManagement: React.FC = () => {
               
               <button
                 onClick={handleExportCSV}
-                className="py-2 px-4 bg-white hover:bg-slate-50 text-[#0c1424] border border-slate-205 rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="py-2 px-4 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 <Download className="w-4 h-4 text-slate-550" />
                 <span>Export CSV</span>
@@ -686,51 +573,63 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
             {/* Inner responsive table view */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[850px] border-collapse font-sans text-xs">
+            <div className="overflow-hidden">
+              <table className="data-table table-fixed text-[11px]">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-4 px-6">Student ID / Name</th>
-                    <th className="py-4 px-6">Programme / Sem</th>
-                    <th className="py-4 px-6">Supervisor</th>
-                    <th className="py-4 px-6">Panel Member</th>
-                    <th className="py-4 px-6">Status</th>
-                    <th className="py-4 px-6">Updated</th>
-                    <th className="py-4 px-6 text-right">Action</th>
+                  <tr className="data-thead bg-slate-50">
+                    <th className="data-th px-3 w-[17%]">Student ID / Name</th>
+                    <th className="data-th px-3 w-[18%]">Programme / Sem</th>
+                    <th className="data-th px-3 w-[14%]">Supervisor</th>
+                    <th className="data-th px-3 w-[18%]">Panel Member</th>
+                    <th className="data-th px-3 w-[14%]">Status</th>
+                    <th className="data-th px-3 w-[10%]">Updated</th>
+                    <th className="data-th px-3 w-[9%] text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
-                  
-                  {paginatedRecords.length > 0 ? (
+
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <LoadingState message="Loading panel appointments…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <ErrorState message={error} onRetry={loadRecords} />
+                      </td>
+                    </tr>
+                  ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((rec) => (
                       <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
                         
                         {/* ID & Name matched block with exact bold elements */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td px-3 align-top">
                           <button
                             onClick={() => handleViewDetail(rec)}
-                            className="font-bold text-[#0c1424] tracking-tight text-xs block hover:underline cursor-pointer text-left focus:outline-none"
+                            className="font-bold text-brand-navy tracking-tight text-[11px] block hover:underline cursor-pointer text-left focus:outline-none break-words"
                           >
                             {rec.id}
                           </button>
-                          <span className="text-slate-500 font-medium block mt-0.5">
+                          <span className="text-slate-500 font-medium block mt-0.5 break-words">
                             {rec.studentName}
                           </span>
                         </td>
 
                         {/* Program & Semester info */}
-                        <td className="py-4.5 px-6 leading-relaxed">
-                          <span className="font-bold text-slate-700 block">{rec.programme}</span>
+                        <td className="data-td px-3 align-top leading-relaxed">
+                          <span className="font-bold text-slate-700 block break-words">{rec.programme}</span>
                           <span className="text-[10px] text-slate-450 font-medium mt-0.5 block">{rec.semester}</span>
                         </td>
 
                         {/* Supervisor */}
-                        <td className="py-4.5 px-6 font-bold text-slate-700">
+                        <td className="data-td px-3 align-top font-bold text-slate-700 break-words">
                           {rec.supervisor}
                         </td>
 
                         {/* Panel Member Status Vetted color styles */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td px-3 align-top">
                           {rec.panelMember === 'Not Assigned' ? (
                             <span className="text-red-600 font-extrabold tracking-wide uppercase text-[10px]">
                               Not Assigned
@@ -740,14 +639,14 @@ export const PanelAppointmentManagement: React.FC = () => {
                               Pending
                             </span>
                           ) : (
-                            <span className="font-extrabold text-slate-800 text-xs">
+                            <span className="font-extrabold text-slate-800 text-[11px] break-words">
                               {rec.panelMember}
                             </span>
                           )}
                         </td>
 
                         {/* Vetting Status Chips matched strictly with mockup colors */}
-                        <td className="py-4.5 px-6">
+                        <td className="data-td px-3 align-top">
                           {rec.status === 'Approved' ? (
                             <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-full uppercase border border-emerald-100">
                               Approved
@@ -772,12 +671,12 @@ export const PanelAppointmentManagement: React.FC = () => {
                         </td>
 
                         {/* Action date */}
-                        <td className="py-4.5 px-6 font-bold text-slate-500 font-mono text-[11px]">
+                        <td className="data-td px-3 align-top font-bold text-slate-500 font-mono text-[10px] whitespace-normal">
                           {rec.updatedDate}
                         </td>
 
                         {/* Action button trigger View detail */}
-                        <td className="py-4.5 px-6 text-right">
+                        <td className="data-td px-3 align-top text-right">
                           <button
                             onClick={() => handleViewDetail(rec)}
                             className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
@@ -828,7 +727,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                       onClick={() => setCurrentPage(pgNum)}
                       className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
                         isCurrent 
-                          ? 'bg-[#0c1424] text-white border border-[#0c1424]' 
+                          ? 'bg-brand-navy text-white border border-brand-navy' 
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -852,14 +751,6 @@ export const PanelAppointmentManagement: React.FC = () => {
 
           </div>
 
-          {/* Quick Footer for additional compliance */}
-          <div className="pt-2 border-t border-slate-200/45 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold font-sans tracking-wide">
-            <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-            <div className="flex items-center gap-4 mt-2 md:mt-0 uppercase">
-              <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Showing Privacy Policy details..."); }} className="hover:text-slate-600 transition">Privacy Policy</a>
-              <a href="#system" onClick={(e) => { e.preventDefault(); showToast("Contacting help system terminal..."); }} className="hover:text-slate-600 transition">System Manual</a>
-              <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Routing to support deck..."); }} className="hover:text-slate-600 transition">Support Desk</a>
-            </div>
           </div>
 
         </div>

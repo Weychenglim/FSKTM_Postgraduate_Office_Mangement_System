@@ -1,107 +1,83 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React from 'react';
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  MessageSquareCode, 
-  FolderMinus, 
-  Users, 
-  MailOpen, 
-  Megaphone, 
-  CheckSquare, 
-  Award, 
-  Settings as SettingsIcon 
+import {
+  GraduationCap,
+  LayoutDashboard,
+  MessageSquareCode,
+  FolderMinus,
+  Users,
+  MailOpen,
+  Megaphone,
+  CheckSquare,
+  Award,
+  Settings as SettingsIcon,
+  LucideIcon
 } from 'lucide-react';
+import { SIDEBAR_ITEMS, SIDEBAR_MENU_ORDER, resolveSidebarItem } from '../constants/navigation';
+import { allowedModulesFor } from '../auth/permissions';
 
 interface SidebarProps {
   activeItem: string;
   onNavigate: (item: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  userRole?: string;
 }
 
-const mapActiveItem = (item: string): string => {
-  const map: Record<string, string> = {
-    'Office Dashboard': 'Dashboard Overview',
-    'Administration Dashboard': 'Dashboard Overview',
-    'Timeline Management': 'Dashboard Overview',
-    'Upload Timeline Drawer': 'Dashboard Overview',
-    'Add Timeline Entry Drawer': 'Dashboard Overview',
-    'Edit Timeline Entry Drawer': 'Dashboard Overview',
-    'Registry Management': 'Registry Management',
-    'Student Registry': 'Registry Management',
-    'Register New Students': 'Registry Management',
-    'Bulk Student Import': 'Registry Management',
-    'Single Student Registration': 'Registry Management',
-    'Staff and Lecturer Accounts': 'Registry Management',
-    'Office Staff Accounts': 'Registry Management',
-    'Lecturer Accounts': 'Registry Management',
-    'Programme Coordinator Accounts': 'Registry Management',
-    'Create New Account': 'Registry Management',
-    'Add New Account': 'Registry Management',
-    'Create Office Staff Account': 'Registry Management',
-    'Create Lecturer Account': 'Registry Management',
-    'Account Detail': 'Registry Management',
-    'FAQ Chatbot': 'FAQ Chatbot',
-    'Academic FAQ Editor': 'FAQ Chatbot',
-    'File Repository': 'File Management',
-    'File Repository with File Preview Drawer': 'File Management',
-    'Upload New Document': 'File Management',
-    'Announcement Management': 'Announcements',
-    'Letter Template Management': 'Letter Generation',
-    'Template Editor': 'Letter Generation',
-    'Letter Generation': 'Letter Generation',
-    'Supervisor Appointment Management': 'Supervisor Appointments',
-    'Supervisor Appointment Detail': 'Supervisor Appointments',
-    'Supervisor Workload Monitoring': 'Supervisor Appointments',
-    'Panel Appointment Management': 'Panel Appointments',
-    'Panel Appointment Detail': 'Panel Appointments',
-    'Panel Workload Monitoring': 'Panel Appointments',
-    'Marks & Evaluation Management': 'Marks Entry',
-    'Mark Entry Period Configuration': 'Marks Entry',
-    'Rubric Components Management': 'Marks Entry',
-    'Evaluation Task Assignment': 'Marks Entry',
-    'Mark Entry Records': 'Marks Entry',
-    'Mark Entry Record Detail': 'Marks Entry',
-    'Notifications & Announcements': 'None'
-  };
-  return map[item] || item;
+// Icon + label lookup for each sidebar entry (identities live in navigation.ts).
+const ITEM_META: Record<string, { label: string; icon: LucideIcon }> = {
+  [SIDEBAR_ITEMS.DASHBOARD]: { label: 'Dashboard Overview', icon: LayoutDashboard },
+  [SIDEBAR_ITEMS.REGISTRY]: { label: 'Registry Management', icon: GraduationCap },
+  [SIDEBAR_ITEMS.FAQ_CHATBOT]: { label: 'FAQ Chatbot', icon: MessageSquareCode },
+  [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { label: 'File Management', icon: FolderMinus },
+  [SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS]: { label: 'Supervisor Appointments', icon: Users },
+  [SIDEBAR_ITEMS.LETTER_GENERATION]: { label: 'Letter Generation', icon: MailOpen },
+  [SIDEBAR_ITEMS.ANNOUNCEMENTS]: { label: 'Announcements', icon: Megaphone },
+  [SIDEBAR_ITEMS.MARKS_ENTRY]: { label: 'Marks Entry', icon: CheckSquare },
+  [SIDEBAR_ITEMS.PANEL_APPOINTMENTS]: { label: 'Panel Appointments', icon: Award },
+  [SIDEBAR_ITEMS.SETTINGS]: { label: 'Settings', icon: SettingsIcon },
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
-  const menuItems = [
-    { id: 'Dashboard Overview', label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'Registry Management', label: 'Registry Management', icon: GraduationCap },
-    { id: 'FAQ Chatbot', label: 'FAQ Chatbot', icon: MessageSquareCode },
-    { id: 'File Management', label: 'File Management', icon: FolderMinus },
-    { id: 'Supervisor Appointments', label: 'Supervisor Appointments', icon: Users },
-    { id: 'Letter Generation', label: 'Letter Generation', icon: MailOpen },
-    { id: 'Announcements', label: 'Announcements', icon: Megaphone },
-    { id: 'Marks Entry', label: 'Marks Entry', icon: CheckSquare },
-    { id: 'Panel Appointments', label: 'Panel Appointments', icon: Award },
-    { id: 'Settings', label: 'Settings', icon: SettingsIcon },
-  ];
+export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose, userRole }) => {
+  // On mobile the sidebar is an overlay drawer; dismiss it after navigating.
+  const handleNavigate = (item: string) => {
+    onNavigate(item);
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      onClose();
+    }
+  };
 
-  const mappedActiveItem = mapActiveItem(activeItem);
+  // Build the menu from the canonical order, scoped to the role's permissions.
+  const filteredMenuItems = allowedModulesFor(userRole, SIDEBAR_MENU_ORDER).map((id) => ({
+    id,
+    label: ITEM_META[id].label,
+    icon: ITEM_META[id].icon,
+  }));
+
+  const mappedActiveItem = resolveSidebarItem(activeItem);
 
   return (
-    <div 
-      id="portal-sidebar" 
-      className="w-72 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between shrink-0 h-screen sticky top-0 font-sans"
+    <div
+      id="portal-sidebar"
+      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-screen w-72 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between font-sans overflow-hidden transition-[width,transform] duration-300 ease-in-out ${
+        isOpen ? 'translate-x-0 lg:w-72' : '-translate-x-full lg:w-0 lg:border-r-0'
+      }`}
     >
       {/* Top Brand Block */}
       <div id="sidebar-brand-block" className="p-6 flex flex-col">
         <div id="sidebar-logo-row" className="flex items-center gap-3">
           <div 
             id="sidebar-logo-container" 
-            className="w-10 h-10 bg-[#0c1424] rounded-xl flex items-center justify-center shadow-md shadow-indigo-950/20"
+            className="w-10 h-10 bg-brand-navy rounded-xl flex items-center justify-center shadow-sm shadow-indigo-950/20"
           >
             <GraduationCap className="w-5.5 h-5.5 text-indigo-300" />
           </div>
           <div id="sidebar-logo-text" className="flex flex-col text-left">
-            <span className="text-[#0c1424] font-extrabold text-sm tracking-widest font-sans">FSKTM</span>
+            <span className="text-brand-navy font-extrabold text-sm tracking-widest font-sans">FSKTM</span>
             <span className="text-slate-500 text-[9px] font-bold tracking-[0.15em] uppercase leading-none mt-0.5">
               Postgraduate
             </span>
@@ -114,16 +90,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
 
       {/* Navigation List items */}
       <div id="sidebar-nav-list" className="flex-1 px-4 py-2 overflow-y-auto space-y-1">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = mappedActiveItem === item.id;
+          const displayLabel = item.id === SIDEBAR_ITEMS.FILE_MANAGEMENT && userRole === 'Student'
+            ? 'File Submission'
+            : item.label;
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNavigate(item.id)}
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer group ${
                 isActive 
-                  ? 'bg-[#0c1424] text-white shadow-sm' 
+                  ? 'bg-brand-navy text-white shadow-sm' 
                   : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900'
               }`}
             >
@@ -132,23 +111,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
                   isActive ? 'text-indigo-300' : 'text-slate-400 group-hover:text-slate-600'
                 }`} 
               />
-              <span className="tracking-wide">{item.label}</span>
+              <span className="tracking-wide">{displayLabel}</span>
               {isActive && (
                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300" />
               )}
             </button>
           );
         })}
-      </div>
-
-      {/* Small Admin Indicator footer */}
-      <div id="sidebar-footer-indicator" className="p-4 mx-4 mb-4 bg-slate-100 rounded-2xl border border-slate-200/50 text-left">
-        <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider block">Office Division</span>
-        <span className="text-[11px] font-bold text-slate-700 block mt-0.5">Academic Secretariat</span>
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span className="text-[10px] font-semibold text-emerald-700">Counter Online</span>
-        </div>
       </div>
     </div>
   );

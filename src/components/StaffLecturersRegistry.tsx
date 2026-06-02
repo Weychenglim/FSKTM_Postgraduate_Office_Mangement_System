@@ -1,9 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   ChevronDown, 
@@ -26,28 +27,46 @@ import {
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { StaffRecord } from '../types';
+import { getStaff } from '../services';
+import { MOCK_DEPARTMENTS } from '../mocks/lecturers';
 
 // ==================== STYLES & TYPES ====================
+// StaffRecord now lives in src/types.
 
-export interface StaffRecord {
-  id: string;
-  name: string;
-  avatarText: string;
-  avatarBg: string;
-  department: string;
-  email: string;
-  status: 'Active' | 'Inactive' | 'Suspended';
-  role: 'Office Staff' | 'Lecturer' | 'Programme Coordinator';
-}
+const DEPARTMENTS = MOCK_DEPARTMENTS;
 
-const DEPARTMENTS = [
-  'Academic Affairs',
-  'IT Support',
-  'Administration',
-  'Software Engineering',
-  'Computer Science',
-  'Information Systems'
-];
+export type RegistryModuleTab = 'students' | 'staff_lecturers';
+
+// Shared Students / Staff & Lecturers switcher. Rendered directly beneath each
+// registry list heading so the page header stays in the same position as every
+// other page in the portal.
+export const RegistryModuleTabs: React.FC<{
+  active: RegistryModuleTab;
+  onChange: (tab: RegistryModuleTab) => void;
+}> = ({ active, onChange }) => (
+  <div className="flex items-center gap-3 select-none">
+    {([
+      { key: 'students', label: 'Students' },
+      { key: 'staff_lecturers', label: 'Staff & Lecturers' },
+    ] as const).map(({ key, label }) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => onChange(key)}
+        className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+          active === key
+            ? 'bg-[#121c2e] text-white shadow-xs'
+            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+        }`}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+);
 
 interface StaffSummaryCardProps {
   title: string;
@@ -59,15 +78,12 @@ interface StaffSummaryCardProps {
 
 const StaffSummaryCard: React.FC<StaffSummaryCardProps> = ({ title, value, icon: Icon, colorClass }) => {
   return (
-    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 flex items-center justify-between relative overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 group">
-      {/* Accent hover glow */}
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full filter blur-2xl opacity-5 transition-all group-hover:scale-125 ${colorClass}`} />
-      
+    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 flex items-center justify-between relative overflow-hidden shadow-xs hover:shadow-sm transition-all duration-300 group">
       <div className="text-left space-y-1.5 z-15">
         <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block">
           {title}
         </span>
-        <h2 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-brand-navy tracking-tight font-sans">
           {value}
         </h2>
       </div>
@@ -127,7 +143,7 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
         onClick={() => onChange('Office Staff')}
         className={`p-6 rounded-2xl border-2 text-left flex items-start gap-4 transition-all duration-200 shadow-3xs cursor-pointer ${
           selectedType === 'Office Staff'
-            ? 'bg-[#0c1424] border-[#0c1424] text-white'
+            ? 'bg-brand-navy border-brand-navy text-white'
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
@@ -151,7 +167,7 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ select
         onClick={() => onChange('Lecturer')}
         className={`p-6 rounded-2xl border-2 text-left flex items-start gap-4 transition-all duration-200 shadow-3xs cursor-pointer ${
           selectedType === 'Lecturer'
-            ? 'bg-[#0c1424] border-[#0c1424] text-white'
+            ? 'bg-brand-navy border-brand-navy text-white'
             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
         }`}
       >
@@ -181,15 +197,15 @@ interface FormCardProps {
   children: React.ReactNode;
 }
 
-export const FormCard: React.FC<FormCardProps> = ({ title, subtitle, icon: Icon, iconColorClass = "text-[#0c1424]", children }) => {
+export const FormCard: React.FC<FormCardProps> = ({ title, subtitle, icon: Icon, iconColorClass = "text-brand-navy", children }) => {
   return (
-    <div className="bg-white border border-[#e2e8f0] rounded-3xl overflow-hidden shadow-2xs text-left p-6 md:p-8 space-y-6">
+    <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-2xs text-left p-6 md:p-8 space-y-6">
       <div className="flex items-center gap-3.5 pb-4.5 border-b border-slate-100 font-sans">
         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500">
           <Icon className={`w-5 h-5 ${iconColorClass}`} />
         </div>
         <div>
-          <h2 className="text-xs font-black text-[#0c1424] uppercase tracking-wider">
+          <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
             {title}
           </h2>
           <p className="text-[10px] text-slate-500 font-bold mt-0.5 leading-tight font-sans">
@@ -215,7 +231,7 @@ interface FormInputProps {
 export const FormInput: React.FC<FormInputProps> = ({ label, type = "text", required = false, placeholder, value, helperText, onChange }) => {
   return (
     <div>
-      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 font-sans font-extrabold">
+      <label className="form-label block">
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <input
@@ -224,7 +240,7 @@ export const FormInput: React.FC<FormInputProps> = ({ label, type = "text", requ
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs font-bold text-slate-800 bg-white border border-slate-205 px-4 py-3 rounded-xl placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all font-sans"
+        className="form-control form-control-md"
       />
       {helperText && (
         <span className="text-[9.5px] text-slate-400 font-semibold block mt-1.5 font-sans">
@@ -247,14 +263,14 @@ interface FormSelectProps {
 export const FormSelect: React.FC<FormSelectProps> = ({ label, required = false, value, options, placeholder, onChange }) => {
   return (
     <div>
-      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 font-sans font-extrabold">
+      <label className="form-label block">
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none text-xs font-bold text-slate-850 bg-white border border-slate-205 pl-4 pr-10 py-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0c1424]"
+          className="form-control form-control-md appearance-none pr-10 cursor-pointer"
         >
           {placeholder && (
             <option value="" disabled>{placeholder}</option>
@@ -295,7 +311,7 @@ export const RoleAssignmentCard: React.FC<RoleAssignmentCardProps> = ({ title, d
         <Icon className="w-5 h-5 stroke-[2]" />
       </div>
       <div className="space-y-1.5 pr-12 text-left">
-        <h4 className="font-extrabold text-[12.5px] text-[#0c1424] flex items-center gap-2 font-sans">
+        <h4 className="font-extrabold text-[12.5px] text-brand-navy flex items-center gap-2 font-sans">
           <span>{title}</span>
           {isLocked && (
             <span className="font-black text-[8px] uppercase tracking-wider text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md font-sans">
@@ -359,175 +375,42 @@ interface ActionButtonProps {
 }
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type = 'button', variant = 'primary', iconLeft: IconLeft, iconRight: IconRight }) => {
-  const styles = {
-    primary: 'bg-[#0c1424] hover:bg-slate-800 text-white shadow-sm border border-transparent',
-    secondary: 'bg-white hover:bg-slate-50 border border-slate-205 text-slate-705',
-  };
   return (
-    <button
+    <PortalButton
       type={type}
       onClick={onClick}
-      className={`px-5 py-2.5 rounded-xl font-extrabold uppercase tracking-widest transition cursor-pointer flex items-center justify-center gap-2 font-sans text-[10px] ${styles[variant]}`}
+      variant={variant}
+      size="md"
+      icon={IconLeft}
     >
-      {IconLeft && <IconLeft className="w-3.5 h-3.5 stroke-[3]" />}
-      <span>{label}</span>
+      {label}
       {IconRight && <IconRight className="w-3.5 h-3.5 stroke-[3]" />}
-    </button>
+    </PortalButton>
   );
 };
 
-export const Footer: React.FC = () => {
-  return (
-    <footer className="mt-16 text-center select-none pt-6 border-t border-slate-200/50 text-slate-400 font-semibold flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-wider font-sans">
-      <p>© 2026 FSKTM Postgraduate Center, University of Malaya. All rights reserved.</p>
-      <div className="flex gap-4">
-        <span className="hover:text-slate-650 cursor-help">Technical Support Secretariat</span>
-        <span className="text-slate-300">•</span>
-        <span className="hover:text-slate-655 cursor-help">Academic Guidelines Docs</span>
-      </div>
-    </footer>
-  );
-};
+export const StaffLecturersRegistry: React.FC<{
+  registryTab?: RegistryModuleTab;
+  onRegistryTabChange?: (tab: RegistryModuleTab) => void;
+}> = ({ registryTab = 'staff_lecturers', onRegistryTabChange }) => {
+  // Staff/lecturer accounts loaded from lecturersApi (mock-backed today).
+  // setStaffList is retained for local account-creation mutations.
+  const [staffList, setStaffList] = useState<StaffRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export const StaffLecturersRegistry: React.FC = () => {
-  // Master State for staff members
-  const [staffList, setStaffList] = useState<StaffRecord[]>([
-    // Office Staff (Default Mockup Rows + Extra)
-    {
-      id: 'STF-2023-081',
-      name: 'Sarah Ahmad',
-      avatarText: 'SA',
-      avatarBg: 'bg-blue-50 text-blue-600 border-blue-105',
-      department: 'Academic Affairs',
-      email: 'sarah.a@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2021-042',
-      name: 'Michael Lee',
-      avatarText: 'ML',
-      avatarBg: 'bg-slate-50 text-slate-600 border-slate-105',
-      department: 'IT Support',
-      email: 'm.lee@fsktm.edu.my',
-      status: 'Inactive',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2019-112',
-      name: 'Karthik Rajan',
-      avatarText: 'KR',
-      avatarBg: 'bg-rose-50 text-rose-600 border-rose-105',
-      department: 'Administration',
-      email: 'krajan@fsktm.edu.my',
-      status: 'Suspended',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2022-015',
-      name: 'Norhaliza Binti Idris',
-      avatarText: 'NI',
-      avatarBg: 'bg-indigo-50 text-indigo-600 border-indigo-105',
-      department: 'Academic Affairs',
-      email: 'norhaliza@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    {
-      id: 'STF-2024-009',
-      name: 'Steven Choong',
-      avatarText: 'SC',
-      avatarBg: 'bg-emerald-50 text-emerald-600 border-emerald-105',
-      department: 'IT Support',
-      email: 's.choong@fsktm.edu.my',
-      status: 'Active',
-      role: 'Office Staff'
-    },
-    
-    // Lecturers
-    {
-      id: 'LEC-2015-092',
-      name: 'Prof. Dr. Sarah Chen',
-      avatarText: 'SC',
-      avatarBg: 'bg-emerald-50 text-emerald-600 border-emerald-105',
-      department: 'Software Engineering',
-      email: 'sarah.chen@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2018-104',
-      name: 'Assoc. Prof. Dr. Amina Malik',
-      avatarText: 'AM',
-      avatarBg: 'bg-purple-50 text-purple-600 border-purple-105',
-      department: 'Computer Science',
-      email: 'amina.malik@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2020-058',
-      name: 'Dr. Robert Chen',
-      avatarText: 'RC',
-      avatarBg: 'bg-blue-50 text-blue-600 border-blue-105',
-      department: 'Information Systems',
-      email: 'robert.chen@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2021-073',
-      name: 'Dr. Lim Jin Ho',
-      avatarText: 'JH',
-      avatarBg: 'bg-rose-50 text-rose-600 border-rose-105',
-      department: 'Computer Science',
-      email: 'jinho.lim@fsktm.edu.my',
-      status: 'Inactive',
-      role: 'Lecturer'
-    },
-    {
-      id: 'LEC-2016-041',
-      name: 'Prof. Dr. Jamaluddin',
-      avatarText: 'JD',
-      avatarBg: 'bg-amber-50 text-amber-600 border-amber-105',
-      department: 'Information Systems',
-      email: 'jamal.m@fsktm.edu.my',
-      status: 'Active',
-      role: 'Lecturer'
-    },
+  const loadStaff = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getStaff()
+      .then(setStaffList)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load staff accounts.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-    // Programme Coordinators
-    {
-      id: 'CRD-2017-005',
-      name: 'Dr. Muhammad Fauzi',
-      avatarText: 'MF',
-      avatarBg: 'bg-teal-50 text-teal-600 border-teal-105',
-      department: 'Academic Affairs',
-      email: 'm.fauzi@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    },
-    {
-      id: 'CRD-2019-014',
-      name: 'Dr. Evelyn Wong',
-      avatarText: 'EW',
-      avatarBg: 'bg-amber-50 text-amber-600 border-amber-105',
-      department: 'Information Systems',
-      email: 'evelyn.wong@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    },
-    {
-      id: 'CRD-2020-022',
-      name: 'Prof. Madya Dr. Zulkifli',
-      avatarText: 'ZK',
-      avatarBg: 'bg-violet-50 text-violet-600 border-violet-105',
-      department: 'Software Engineering',
-      email: 'zulkifli.m@fsktm.edu.my',
-      status: 'Active',
-      role: 'Programme Coordinator'
-    }
-  ]);
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   // Tab state (sub-tabs)
   const [activeSubTab, setActiveSubTab] = useState<'Office Staff' | 'Lecturer' | 'Programme Coordinator'>('Office Staff');
@@ -707,41 +590,18 @@ export const StaffLecturersRegistry: React.FC = () => {
   return (
     <div id="staff-lecturer-registry" className="space-y-8 select-none animate-fade-in font-sans text-xs">
       
-      {/* Toast slide notifier */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -25, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -25, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide font-sans">{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
       {innerView === 'create' ? (
         /* ==================== CREATE NEW ACCOUNT VIEW ==================== */
         <RegistryLayout>
           
-          {/* Breadcrumb line from screenshot */}
-          <div className="font-sans text-left">
-            <div className="flex items-center gap-1.5 text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5 select-none hover:text-slate-600">
-              <span>Dashboard</span>
-              <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
-              <span>Staff and Lecturer Accounts</span>
-              <ChevronRight className="w-3 h-3 text-slate-450 stroke-[2.5]" />
-              <span className="text-slate-600 font-black">Create New Account</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-              Create New Account
-            </h1>
-            <p className="text-xs text-slate-550 font-bold mt-1.5 leading-relaxed text-[#556987]">
-              Register a new office staff or lecturer account for the system.
-            </p>
-          </div>
+          <PageHeader
+            title="Create New Account"
+            subtitle="Register a new office staff or lecturer account for the system."
+            backLabel="Back to Staff & Lecturer Accounts"
+            onBack={() => setInnerView('list')}
+          />
 
           {/* Account Type Selector twin block cards */}
           <AccountTypeSelector 
@@ -762,7 +622,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               ? "Enter the staff's personal and departmental information." 
               : "Enter the lecturer's personal and departmental information."}
             icon={newAccountFormData.role === 'Office Staff' ? Briefcase : GraduationCap}
-            iconColorClass={newAccountFormData.role === 'Office Staff' ? "text-[#0c1424]" : "text-emerald-500"}
+            iconColorClass={newAccountFormData.role === 'Office Staff' ? "text-brand-navy" : "text-emerald-500"}
           >
             <form onSubmit={handleAddAccountSubmit} className="space-y-6">
               
@@ -898,7 +758,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                     <Lock className="w-5 h-5 stroke-[2.5]" />
                   </div>
                   <div className="space-y-1">
-                    <h5 className="text-[11px] font-extrabold text-[#0c1424] tracking-wide font-sans leading-none pb-0.5">
+                    <h5 className="text-[11px] font-extrabold text-brand-navy tracking-wide font-sans leading-none pb-0.5">
                       Auto-generated Password
                     </h5>
                     <p className="text-[10px] text-slate-500 font-bold leading-relaxed font-sans">
@@ -910,7 +770,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                 {/* Send credentials immediate switcher */}
                 <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-150 rounded-2xl select-none">
                   <div className="text-left space-y-0.5 pr-4 font-sans">
-                    <h6 className="text-[11.5px] font-black text-[#0c1424] leading-snug">
+                    <h6 className="text-[11.5px] font-black text-brand-navy leading-snug">
                       Send credentials immediately via email
                     </h6>
                     <p className="text-[10px] text-slate-450 font-bold leading-normal">
@@ -961,42 +821,39 @@ export const StaffLecturersRegistry: React.FC = () => {
       ) : (
         /* ==================== NORMAL REGISTRY LISTING DESKTOP VIEW ==================== */
         <>
-          {/* HEADER ACTION ROADMAP MOCKUP */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/50 pb-5 text-left">
-            <div>
-              {/* Breadcrumb line from screenshot */}
-              <div className="flex items-center gap-1.5 text-slate-400 font-extrabold text-[10px] uppercase tracking-widest mb-1.5 font-sans">
-                <span>Registry Management</span>
-                <ChevronRight className="w-3 h-3 text-slate-455 stroke-[2.5]" />
-                <span className="text-slate-600">Staff and Lecturer Accounts</span>
-              </div>
-              <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-                Staff and Lecturer Accounts
-              </h1>
-            </div>
+          <PageHeader
+            title="Staff and Lecturer Accounts"
+            subtitle="University Postgraduate Secretariat"
+            actions={
+              <PortalButton
+                onClick={() => {
+                  setNewAccountFormData({
+                    name: '',
+                    id: '',
+                    email: '',
+                    phone: '',
+                    department: 'Academic Affairs',
+                    role: 'Office Staff',
+                    status: 'Active',
+                    sendEmailImmediate: true
+                  });
+                  setInnerView('create');
+                }}
+                variant="primary"
+                size="md"
+                icon={UserPlus}
+              >
+                Add New Account
+              </PortalButton>
+            }
+          />
 
-            {/* Add New Account Action Top Right */}
-            <button
-              type="button"
-              onClick={() => {
-                setNewAccountFormData({
-                  name: '',
-                  id: '',
-                  email: '',
-                  phone: '',
-                  department: 'Academic Affairs',
-                  role: 'Office Staff',
-                  status: 'Active',
-                  sendEmailImmediate: true
-                });
-                setInnerView('create');
-              }}
-              className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4 text-indigo-300 animate-bounce" />
-              <span>Add New Account</span>
-            </button>
-          </div>
+          {/* Module switcher below the heading */}
+          {onRegistryTabChange && (
+            <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
+              <RegistryModuleTabs active={registryTab} onChange={onRegistryTabChange} />
+            </div>
+          )}
 
           {/* SUMMARY STATS GRID */}
           <div id="staff-summary-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -1050,21 +907,21 @@ export const StaffLecturersRegistry: React.FC = () => {
                 }}
                 className={`pb-3 transition-all relative cursor-pointer font-black tracking-wide text-xs uppercase flex items-center gap-2 ${
                   isTabActive 
-                    ? 'text-[#0c1424]' 
+                    ? 'text-brand-navy' 
                     : 'text-slate-400 hover:text-slate-655'
                 }`}
               >
                 <span>{subtab.label}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all ${
                   isTabActive 
-                    ? 'bg-[#0c1424] text-white' 
+                    ? 'bg-brand-navy text-white' 
                     : 'bg-slate-150 text-slate-500'
                 }`}>
                   {getSubTabCount(subtab.key as any)}
                 </span>
                 
                 {isTabActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-[#0c1424] rounded-full animate-fade-in" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-brand-navy rounded-full animate-fade-in" />
                 )}
               </button>
             );
@@ -1146,21 +1003,33 @@ export const StaffLecturersRegistry: React.FC = () => {
 
         {/* DATABLE ELEMENT */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="data-table min-w-[700px]">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/40 text-slate-400 font-extrabold select-none tracking-widest text-[9.5px] uppercase">
-                <th className="py-4.5 px-6 w-12 text-center">
+              <tr className="data-thead bg-slate-50/40 select-none">
+                <th className="data-th w-12 text-center">
                   <input type="checkbox" className="rounded border-slate-300 text-slate-900 focus:ring-slate-900" readOnly disabled />
                 </th>
-                <th className="py-4.5 px-6 font-black">Name & ID</th>
-                <th className="py-4.5 px-6 font-black">Department</th>
-                <th className="py-4.5 px-6 font-black">Email</th>
-                <th className="py-4.5 px-6 font-black">Status</th>
-                <th className="py-4.5 px-6 w-24 text-right font-black pr-10">Actions</th>
+                <th className="data-th">Name & ID</th>
+                <th className="data-th">Department</th>
+                <th className="data-th">Email</th>
+                <th className="data-th">Status</th>
+                <th className="data-th w-24 text-right pr-10">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {displayedStaff.length === 0 ? (
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <LoadingState message="Loading staff accounts…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="p-0">
+                    <ErrorState message={error} onRetry={loadStaff} />
+                  </td>
+                </tr>
+              ) : displayedStaff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400 italic bg-white font-semibold">
                     No registry ledger matches found matching requirements.
@@ -1180,24 +1049,24 @@ export const StaffLecturersRegistry: React.FC = () => {
                   }
 
                   return (
-                    <tr 
-                      key={staff.id} 
-                      className="hover:bg-slate-50/40 transition duration-150 group font-bold text-xs"
+                    <tr
+                      key={staff.id}
+                      className="data-row group font-bold text-xs"
                     >
                       {/* Checkbox */}
-                      <td className="py-4 px-6 text-center">
+                      <td className="data-td w-12 text-center">
                         <input type="checkbox" className="rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
                       </td>
 
                       {/* Name and ID */}
-                      <td className="py-4 px-6">
+                      <td className="data-td">
                         <div className="flex items-center gap-3">
                           {/* Avatar Initials */}
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-black tracking-wide border select-none ${staff.avatarBg}`}>
                             {staff.avatarText}
                           </div>
                           <div className="text-left flex flex-col justify-center">
-                            <span className="text-[#0c1424] font-black text-xs block group-hover:text-blue-900 transition-colors">
+                            <span className="text-brand-navy font-black text-xs block group-hover:text-blue-900 transition-colors">
                               {staff.name}
                             </span>
                             <span className="text-slate-400 font-mono text-[9px] font-black mt-0.5 tracking-wide uppercase">
@@ -1208,17 +1077,17 @@ export const StaffLecturersRegistry: React.FC = () => {
                       </td>
 
                       {/* Department */}
-                      <td className="py-4 px-6 text-slate-700 font-bold max-w-[150px] truncate">
+                      <td className="data-td max-w-[150px] truncate">
                         {staff.department}
                       </td>
 
                       {/* Email address */}
-                      <td className="py-4 px-6 text-slate-500 font-medium select-all hover:text-blue-600 transition-colors">
+                      <td className="data-td select-all hover:text-blue-600 transition-colors">
                         {staff.email}
                       </td>
 
                       {/* Status chip */}
-                      <td className="py-4 px-6">
+                      <td className="data-td">
                         <span className={`inline-flex items-center px-3.5 py-1 text-[10.5px] font-black rounded-full border tracking-wide select-none ${statusChipStyle}`}>
                           <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
                             staff.status === 'Active' 
@@ -1232,13 +1101,13 @@ export const StaffLecturersRegistry: React.FC = () => {
                       </td>
 
                       {/* Actions Buttons Column */}
-                      <td className="py-4 px-6 text-right pr-10">
+                      <td className="data-td text-right pr-10">
                         <div className="flex items-center justify-end">
                           <button
                             type="button"
                             onClick={() => setViewingStaff(staff)}
                             title="View Account Details"
-                            className="p-2 text-slate-400 hover:text-[#0c1424] hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
+                            className="p-2 text-slate-400 hover:text-brand-navy hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -1255,7 +1124,7 @@ export const StaffLecturersRegistry: React.FC = () => {
         {/* BOTTOM RANGE & PAGINATION */}
         <div className="p-4 px-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none font-bold text-slate-500 text-[11px]">
           <div>
-            Showing <span className="text-[#0c1424]">{startEntryIndex}</span> to <span className="text-[#0c1424]">{endEntryIndex}</span> of <span className="text-[#0c1424]">{totalEntriesMatching}</span> entries
+            Showing <span className="text-brand-navy">{startEntryIndex}</span> to <span className="text-brand-navy">{endEntryIndex}</span> of <span className="text-brand-navy">{totalEntriesMatching}</span> entries
           </div>
 
           <div className="flex items-center gap-1">
@@ -1305,9 +1174,10 @@ export const StaffLecturersRegistry: React.FC = () => {
       )}
 
       {/* ==================== ADD NEW ACCOUNT MODAL OVERLAY ==================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isAddAccountOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsAddAccountOpen(false)} />
 
@@ -1316,7 +1186,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header */}
               <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none">
@@ -1452,7 +1322,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                             value={st}
                             checked={newAccountFormData.status === st}
                             onChange={() => setNewAccountFormData(prev => ({ ...prev, status: st }))}
-                            className="rounded-full border-slate-350 text-[#0c1424] focus:ring-[#0c1424]"
+                            className="rounded-full border-slate-350 text-brand-navy focus:ring-brand-navy"
                           />
                           <span>{st}</span>
                         </label>
@@ -1472,7 +1342,7 @@ export const StaffLecturersRegistry: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-[#0c1424] text-white rounded-xl shadow-xs hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                    className="px-5 py-2 bg-brand-navy text-white rounded-xl shadow-xs hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
                   >
                     Save & Create Account
                   </button>
@@ -1481,12 +1351,15 @@ export const StaffLecturersRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ==================== VIEW ACCOUNT DETAILS MODAL OVERLAY ==================== */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {viewingStaff && (
-          <div className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setViewingStaff(null)} />
 
@@ -1495,7 +1368,7 @@ export const StaffLecturersRegistry: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header */}
               <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none font-sans">
@@ -1615,7 +1488,9 @@ export const StaffLecturersRegistry: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

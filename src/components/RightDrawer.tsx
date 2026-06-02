@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PortalButton } from './PortalPrimitives';
 
 interface RightDrawerProps {
   id?: string;
@@ -44,7 +45,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0c1424] cursor-pointer"
+            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
             onClick={onClose}
           />
 
@@ -55,21 +56,22 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-            className="relative w-full max-w-lg md:max-w-xl h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-100"
+            className="relative w-full max-w-lg md:max-w-xl h-full bg-white shadow-sm flex flex-col z-10 border-l border-slate-100"
           >
             {/* Drawer Header */}
             <div id="drawer-header" className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-extrabold text-[#0c1424] text-[15px] tracking-tight font-sans">
+              <h3 className="font-extrabold text-brand-navy text-[15px] tracking-tight font-sans">
                 {title}
               </h3>
-              <button
+              <PortalButton
                 id="drawer-close-btn"
                 onClick={onClose}
-                className="w-10 h-10 hover:bg-slate-50 border border-slate-205 rounded-xl flex items-center justify-center transition-colors text-slate-400 hover:text-[#0c1424]"
+                variant="ghost"
+                size="icon"
+                icon={X}
+                className="w-10 h-10 border-slate-200 text-slate-400 hover:text-brand-navy"
                 aria-label="Close drawer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              />
             </div>
 
             {/* Scrollable Content Container */}

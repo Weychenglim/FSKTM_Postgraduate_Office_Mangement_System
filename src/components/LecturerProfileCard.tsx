@@ -1,9 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React from 'react';
+import { StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 
 interface LecturerProfileCardProps {
   lecturerId: string;
@@ -35,35 +36,6 @@ export const LecturerProfileCard: React.FC<LecturerProfileCardProps> = ({
     return photoMap[id] || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop';
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Available':
-        return {
-          bg: 'bg-emerald-50',
-          text: 'text-emerald-700',
-          border: 'border-emerald-200',
-          dot: 'bg-emerald-500',
-        };
-      case 'Near Limit':
-        return {
-          bg: 'bg-[#fffbeb]',
-          text: 'text-[#b45309]',
-          border: 'border-[#fef3c7]',
-          dot: 'bg-[#d97706]',
-        };
-      case 'Full Load':
-      default:
-        return {
-          bg: 'bg-rose-50',
-          text: 'text-rose-700',
-          border: 'border-rose-200',
-          dot: 'bg-rose-500',
-        };
-    }
-  };
-
-  const statusStyle = getStatusColor(availability);
-
   return (
     <div id={`lecturer-profile-card-${lecturerId}`} className="bg-white border border-[#e2e8f0] rounded-xl p-4 flex gap-4 text-left font-sans">
       {/* Lecturer Photo */}
@@ -80,15 +52,16 @@ export const LecturerProfileCard: React.FC<LecturerProfileCardProps> = ({
       <div className="flex-1 space-y-3">
         {/* Top line with Name and Badge */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-transparent pb-1">
-          <h4 className="text-[14px] font-bold text-[#0c1424] leading-tight">
+          <h4 className="text-[14px] font-bold text-brand-navy leading-tight">
             {lecturerName}
           </h4>
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}
+          <StatusBadge
+            tone={getStatusBadgeTone(availability)}
+            dot
+            className="px-2.5 py-0.5 text-[9px]"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
             {availability}
-          </span>
+          </StatusBadge>
          </div>
 
         {/* Detailed Info Grid */}

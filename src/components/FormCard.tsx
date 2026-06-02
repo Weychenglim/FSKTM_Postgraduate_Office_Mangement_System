@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,13 +23,13 @@ export const FormCard: React.FC<FormCardProps> = ({
   return (
     <div
       id={id}
-      className={`bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)] ${className}`}
+      className={`bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs ${className}`}
     >
       {(title || icon) && (
         <div id={`${id}-header`} className="flex items-center gap-3 border-b border-slate-100 pb-5 mb-6">
           {icon && <div className="text-blue-600 shrink-0">{icon}</div>}
           {title && (
-            <h3 className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+            <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
               {title}
             </h3>
           )}

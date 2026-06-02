@@ -1,12 +1,13 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Bell, 
-  ArrowLeft, 
+  ChevronLeft,
   Search, 
   Mail, 
   MailOpen, 
@@ -21,6 +22,10 @@ import {
   FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalToast, StatusDot } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { NotificationItem } from '../types';
+import { getNotifications } from '../services';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -136,98 +141,35 @@ export const MetadataGrid: React.FC<MetadataGridProps> = ({ from, to, reference 
 
 // ==================== NOTIFICATION CORE DATA ====================
 
-interface NotificationItem {
-  id: string;
-  title: string;
-  service: string;
-  description: string;
-  timeAgo: string;
-  priority: 'high' | 'medium' | 'normal';
-  isUnread: boolean;
-  isAnnouncement: boolean;
-  reference: string;
-  recipient: string;
-  detailedMessage?: string;
-  moduleLabel?: string;
-}
+// NotificationItem now lives in src/types.
 
 interface NotificationsAnnouncementsProps {
   onBack: () => void;
 }
 
 export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = ({ onBack }) => {
-  // 1. Initial State Seed (Preset values designed to match reference layout and copy exactly)
-  const [items, setItems] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'New Supervisor Request Submitted',
-      service: 'System Sync Service',
-      description: 'A new supervisor preference request has been submitted for Application #4421. The student has selected Dr. Sarah Chen...',
-      detailedMessage: 'A new supervisor preference request has been submitted for Application #4421. The student has selected Dr. Sarah Chen as their primary choice.\n\nPlease review the attached academic credentials and approve the allocation within 48 hours to comply with the department SLAs.',
-      timeAgo: '14 Nov 2023 — 09:42 AM',
-      priority: 'high',
-      isUnread: true,
-      isAnnouncement: false,
-      reference: 'APP-4421',
-      recipient: 'Office Staff — Wey Cheng',
-      moduleLabel: 'Supervisor Appointment'
-    },
-    {
-      id: 'notif-2',
-      title: 'Thesis Proposal Approval Notice',
-      service: 'Academic Office',
-      description: 'The thesis proposal submitted by candidate #9023 has been accepted by the review committee panel.',
-      detailedMessage: 'The thesis proposal submitted by candidate #9023 has been officially verified and accepted by the review committee panel for Session 1 2024/2025. Please finalize the documentation logs inside the master schema.',
-      timeAgo: '13 Nov 2023 — 11:15 AM',
-      priority: 'medium',
-      isUnread: true,
-      isAnnouncement: false,
-      reference: 'THESIS-9023',
-      recipient: 'Office Staff — Wey Cheng',
-      moduleLabel: 'Supervisor Appointment'
-    },
-    {
-      id: 'notif-3',
-      title: 'System Maintenance Window Scheduled',
-      service: 'Database Manager',
-      description: 'Filing repositories of the Postgraduate center will be temporarily offline for infrastructure redundancy updates.',
-      detailedMessage: 'Filing repositories of the Postgraduate center will be temporarily offline for infrastructure redundancy updates from 02:00 AM to 05:00 AM. Access may be restricted during this time.',
-      timeAgo: '12 Nov 2023 — 03:00 PM',
-      priority: 'normal',
-      isUnread: false,
-      isAnnouncement: true,
-      reference: 'SYS-MNT-92',
-      recipient: 'All Staff Members',
-      moduleLabel: 'General Notification'
-    },
-    {
-      id: 'notif-4',
-      title: 'Google Sheets Calendar Sync Complete',
-      service: 'System Sync Service',
-      description: 'Synchronization of candidate enrollment records from UM registrar database completed under token #2ECA.',
-      detailedMessage: 'Synchronization of candidate enrollment records from UM registrar database completed under token #2ECA. All schedules are updated.',
-      timeAgo: '11 Nov 2023 — 08:30 AM',
-      priority: 'normal',
-      isUnread: false,
-      isAnnouncement: false,
-      reference: 'SYNC-2ECA',
-      recipient: 'Office Staff — Wey Cheng',
-      moduleLabel: 'System Sync Logs'
-    }
-  ]);
+  // 1. Notifications loaded from notificationsApi (mock-backed today).
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadNotifications = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getNotifications()
+      .then(setItems)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load notifications.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   // Interactive dialog visibility states
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
-
-  // Default popup modal of "New Supervisor Request Submitted" on load for immediate screenshot visual fidelity!
-  useEffect(() => {
-    const target = items.find(i => i.id === 'notif-1');
-    if (target) {
-      setSelectedNotification(target);
-    }
-  }, []);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -259,51 +201,28 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   );
 
   return (
-    <div id="notifications-announcements-root" className="font-sans text-[#0c1424] text-xs pb-16 animate-fade-in relative min-h-[750px]">
+    <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
       
-      {/* Toast notifications */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[120] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-2.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] tracking-wide">{toast}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toast} />
 
-      {/* HEADER CONTROLS (Always Visible) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 text-left select-none">
-        <div>
-          <button 
-            onClick={onBack}
-            className="group hover:opacity-85 transition inline-flex items-center gap-1 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider mb-2.5 cursor-pointer bg-transparent border-none p-0"
+      <PageHeader
+        title="My Notifications & Announcements"
+        backLabel="Back to Dashboard"
+        onBack={onBack}
+        className="mb-8 select-none"
+        actions={(
+          <button
+            type="button"
+            onClick={handleMarkAllRead}
+            className="px-5 py-2.5 bg-[#001f3f] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer self-start md:self-auto"
           >
-            <ArrowLeft className="w-3.5 h-3.5 stroke-[3] transition-transform group-hover:-translate-x-0.5" />
-            <span>Back to Dashboard</span>
+            Mark All as Read
           </button>
-          
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-            My Notifications & Announcements
-          </h1>
-        </div>
+        )}
+      />
 
-        {/* Global check mark read button */}
-        <button
-          type="button"
-          onClick={handleMarkAllRead}
-          className="px-5 py-2.5 bg-[#001f3f] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer self-start md:self-auto"
-        >
-          Mark All as Read
-        </button>
-      </div>
-
-      {/* FILTER SEARCH WRAPPER CARD (Becomes dimmed/blurred when modal overlay is active) */}
-      <div className={`transition-all duration-300 ${selectedNotification ? 'blur-[1.5px] opacity-40 pointer-events-none' : ''}`}>
+      {/* FILTER SEARCH WRAPPER CARD */}
+      <div>
         
         {/* Dynamic Search row */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6 select-none">
@@ -316,7 +235,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               placeholder="Search notifications, announcements..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#f8fafc] border border-slate-205 text-xs font-bold text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+              className="form-control form-control-sm pl-10 pr-4"
             />
           </div>
           
@@ -327,7 +246,11 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
         {/* LIST FEED PORTLET OF ITEMS */}
         <div className="space-y-3.5">
-          {filteredNotifications.map((it) => {
+          {loading ? (
+            <LoadingState message="Loading notifications…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={loadNotifications} />
+          ) : filteredNotifications.map((it) => {
             const isHigh = it.priority === 'high';
             const isAnn = it.isAnnouncement;
             return (
@@ -347,9 +270,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 <div className="space-y-1 pl-2">
                   <div className="flex items-center gap-2">
                     {it.isUnread && (
-                      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0" />
+                      <StatusDot tone="info" className="w-2 h-2" />
                     )}
-                    <h3 className="text-xs md:text-sm font-black text-[#0c1424] tracking-tight hover:text-blue-600 transition-colors">
+                    <h3 className="text-xs md:text-sm font-black text-brand-navy tracking-tight hover:text-blue-600 transition-colors">
                       {it.title}
                     </h3>
                   </div>
@@ -383,11 +306,12 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      <AnimatePresence>
-        {selectedNotification && (
-          <div 
+      {createPortal(
+        <AnimatePresence>
+          {selectedNotification && (
+          <div
             id="notification-modal-overlay"
-            className="fixed inset-0 bg-[#0c1424]/60 backdrop-blur-xs flex items-center justify-center z-[90] p-4 animate-fade-in"
+            className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
           >
             {/* Backdrop Dimmer dismiss area */}
             <div 
@@ -402,7 +326,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               initial={{ scale: 0.96, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.96, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative z-[100] border border-slate-100 flex flex-col text-left"
+              className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
             >
               
               {/* Modal Header Panel - Deep Midnight Theme */}
@@ -511,7 +435,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                     setSelectedNotification(null);
                     triggerToast('Logged notification read and archived successfully.');
                   }}
-                  className="px-5 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <CheckCircle className="w-3.5 h-3.5 text-indigo-300" />
                   <span>Mark Resolved</span>
@@ -521,7 +445,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

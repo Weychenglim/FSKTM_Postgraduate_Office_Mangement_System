@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,10 @@ import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart } from 'lucide-react';
+import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart, HelpCircle } from 'lucide-react';
+import { MOCK_MARK_ENTRY_MODAL_RUBRICS } from '../mocks/rubrics';
+import { EditableRubricWeight } from '../types';
+import { PortalButton } from './PortalPrimitives';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -15,6 +18,8 @@ interface AppLayoutProps {
   onNavigate: (item: string) => void;
   onLogout: () => void;
   onNotificationsTrigger: () => void;
+  userName: string;
+  userRole: string;
   
   // Handlers for modal interactions
   activeModal: 'period' | 'rubric' | 'generate' | 'help' | null;
@@ -27,19 +32,23 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNavigate,
   onLogout,
   onNotificationsTrigger,
+  userName,
+  userRole,
   activeModal,
   setActiveModal
 }) => {
+  // Responsive sidebar drawer — open on desktop (lg+), closed on mobile by default
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  );
+
   // Modal configurations states
   const [periodStart, setPeriodStart] = useState('2025-12-01');
   const [periodEnd, setPeriodEnd] = useState('2025-12-10');
   
-  const [rubrics, setRubrics] = useState([
-    { id: 1, name: 'Research Methodology Proposal', weight: 20 },
-    { id: 2, name: 'Oral Defense Presentation', weight: 30 },
-    { id: 3, name: 'Written Thesis Dissertation Progress', weight: 40 },
-    { id: 4, name: 'Technical Demo & Artifacts', weight: 10 }
-  ]);
+  const [rubrics, setRubrics] = useState<EditableRubricWeight[]>(
+    () => [...MOCK_MARK_ENTRY_MODAL_RUBRICS]
+  );
 
   const [generating, setGenerating] = useState(false);
   const [generateLogs, setGenerateLogs] = useState<string[]>([]);
@@ -69,31 +78,79 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
       
-      {/* 1. Left sticky navigation sidebar */}
-      <Sidebar activeItem={activeItem} onNavigate={onNavigate} />
+      {/* 1. Left navigation sidebar (collapsible drawer) */}
+      <Sidebar
+        activeItem={activeItem}
+        onNavigate={onNavigate}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        userRole={userRole}
+      />
+
+      {/* Mobile drawer backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-brand-navy/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* 2. Main workflow workspace content viewport */}
       <div id="portal-workspace" className="flex-grow flex flex-col min-w-0 min-h-screen">
         
         {/* Top Header Navigation panel */}
-        <TopHeader 
-          userName="Wey Cheng" 
-          userRole="Office Staff / Admin" 
+        <TopHeader
+          userName={userName}
+          userRole={userRole}
           onLogout={onLogout}
           onHelpdeskTrigger={() => setActiveModal('help')}
           onNotificationsTrigger={onNotificationsTrigger}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
         />
 
         {/* Actionable page frame details scrollable box */}
-        <main id="portal-inner-content" className="flex-1 overflow-y-auto p-8 max-w-7xl w-full mx-auto">
+        <main id="portal-inner-content" className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>
+
+        {/* Portal Footer — single global footer, transparent so it blends with the page background */}
+        <footer id="portal-footer" className="shrink-0 border-t border-[#e2e8f0] font-sans">
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
+            <div className="text-left font-sans text-slate-400">
+              © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
+            </div>
+            <div id="footer-actions-links" className="flex items-center flex-wrap gap-4 uppercase tracking-wider font-sans text-slate-400">
+              <button
+                type="button"
+                className="hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <span>|</span>
+              <button
+                type="button"
+                className="hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                System Manual
+              </button>
+              <span>|</span>
+              <button
+                type="button"
+                onClick={() => setActiveModal('help')}
+                className="hover:text-slate-800 transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <HelpCircle className="w-3.5 h-3.5 inline text-slate-400" />
+                <span>Support Desk</span>
+              </button>
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Interactive Global admin Modal Overlays */}
       <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
 
@@ -103,17 +160,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -15 }}
               transition={{ duration: 0.25 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl relative z-10 border border-slate-100 text-left"
+              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left"
             >
               {/* Close Button top right */}
-              <button
+              <PortalButton
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"
+                variant="ghost"
+                size="icon"
+                icon={X}
+                className="absolute top-6 right-6 w-9 h-9 text-slate-400 hover:text-brand-navy"
                 title="Dismiss Dialog"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              />
 
               {/* A. CONFIGURE MARK ENTRY PERIOD */}
               {activeModal === 'period' && (
@@ -170,15 +228,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     <span className="font-semibold">Modifying dates notifies all 48 coordinator modules with immediate broadcast logs.</span>
                   </div>
 
-                  <button
+                  <PortalButton
                     onClick={() => {
                       alert(`Administrative configuration saved: Mark entry window defined as ${periodStart} to ${periodEnd}.`);
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-[#0c1424] text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 transition shadow-sm cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    icon={Save}
+                    fullWidth
                   >
                     Apply Parameters
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
@@ -198,7 +259,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       <div key={rub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-3 text-xs">
                         <div className="flex-1">
                           <span className="text-[10px] font-extrabold text-indigo-500 block">RUBRIC 0{rub.id}</span>
-                          <span className="font-bold text-[#0c1424] block mt-0.5">{rub.name}</span>
+                          <span className="font-bold text-brand-navy block mt-0.5">{rub.name}</span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <input 
@@ -223,16 +284,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </span>
                   </div>
 
-                  <button
+                  <PortalButton
                     disabled={rubricSum !== 100}
                     onClick={() => {
                       alert("Rubric weight distribution metrics deployed to grading schemas.");
                       setActiveModal(null);
                     }}
-                    className="w-full py-3 bg-[#0c1424] text-white rounded-xl text-xs font-extrabold tracking-wider uppercase hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    icon={Save}
+                    fullWidth
                   >
                     Save & Distribute Rubrics
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
@@ -267,20 +331,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </div>
                   </div>
 
-                  <button
+                  <PortalButton
                     disabled={generating}
                     onClick={runTaskGenerator}
-                    className="w-full py-3.5 bg-blue-600 font-extrabold text-xs tracking-wider uppercase text-white hover:bg-blue-700 rounded-xl transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    variant="primary"
+                    size="lg"
+                    icon={ListRestart}
+                    isLoading={generating}
+                    fullWidth
                   >
                     {generating ? 'Processing Engine...' : 'Run Generation Protocol'}
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 
               {/* D. FAQ RESOURCE HELPDESK */}
               {activeModal === 'help' && (
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2.5 mb-4 text-[#0c1424]">
+                  <div className="flex items-center gap-2.5 mb-4 text-brand-navy">
                     <Users className="w-6 h-6 text-indigo-500" />
                     <h3 className="text-xl font-extrabold tracking-tight">FSKTM Office Contacts</h3>
                   </div>
@@ -301,7 +369,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
                       <span className="text-slate-400 font-semibold">Database Center System Ops</span>
-                      <span className="text-slate-900 font-bold">Prof. Wey Cheng Lim</span>
+                      <span className="text-slate-900 font-bold">{userName}</span>
                     </div>
 
                     <div className="flex justify-between py-1.5">
@@ -310,12 +378,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     </div>
                   </div>
 
-                  <button
+                  <PortalButton
                     onClick={() => setActiveModal(null)}
-                    className="w-full py-3 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase transition hover:bg-slate-800 cursor-pointer text-center"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                   >
                     Done
-                  </button>
+                  </PortalButton>
                 </div>
               )}
 

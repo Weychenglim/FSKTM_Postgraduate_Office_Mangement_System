@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,119 +20,49 @@ import { MarkEntryRecords } from './components/MarkEntryRecords';
 import { MarkEntryRecordDetail } from './components/MarkEntryRecordDetail';
 import { PanelAppointmentManagement } from './components/PanelAppointmentManagement';
 import { SupervisorAppointmentManagement } from './components/SupervisorAppointmentManagement';
+import { LecturerMarksEntry } from './components/LecturerMarksEntry';
+import { LecturerPanelAppointments } from './components/LecturerPanelAppointments';
+import { LecturerSupervisorAppointments } from './components/LecturerSupervisorAppointments';
 import { AdministrationDashboard } from './components/AdministrationDashboard';
 import { TimelineManagement } from './components/TimelineManagement';
 import { FileRepository } from './components/FileRepository';
+import { StudentFileSubmission } from './components/StudentFileSubmission';
 import { NotificationsAnnouncements } from './components/NotificationsAnnouncements';
 import { AnnouncementManagement } from './components/AnnouncementManagement';
 import { AcademicFAQEditor } from './components/AcademicFAQEditor';
+import { StudentFAQChatbot } from './components/StudentFAQChatbot';
 import { LetterTemplateManagement } from './components/LetterTemplateManagement';
+import { StudentLetterGeneration } from './components/StudentLetterGeneration';
 import { StudentRegistry } from './components/StudentRegistry';
+import { StudentDashboard } from './components/StudentDashboard';
+import { StudentSupervisorAppointment } from './components/StudentSupervisorAppointment';
+import { StudentPanelAppointment } from './components/StudentPanelAppointment';
 import { 
   Calendar, 
   Sliders, 
-  CheckCircle, 
-  ArrowUpRight,
+  CheckCircle,
   Database,
   Briefcase,
   Layers,
-  GraduationCap
 } from 'lucide-react';
 import { DemoUser } from './types';
+import { SIDEBAR_ITEMS } from './constants/navigation';
+import { MOCK_MARK_RECORDS } from './mocks/marks';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
-  const records = [
-    {
-      recordId: 'MRK-2025-021',
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      researchTitle: 'Blockchain-Based Academic Record Verification System',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'MSc. Computer Science',
-      totalMark: 84,
-      submittedDate: '12 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-018',
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      researchTitle: 'Mobile Learning Adoption in Malaysian Higher Education',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 79,
-      submittedDate: '13 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-014',
-      studentId: 'MEA2302199',
-      studentName: 'Jason Lee',
-      researchTitle: 'Quantum Computing Algorithms in Cryptography & Cybersecurity',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: 'Draft',
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-011',
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-009',
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      researchTitle: 'Cloud-Based Research Document Management for Multi-University Collaboration',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Computer Science',
-      totalMark: null,
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-008',
-      studentId: 'MEA2400211',
-      studentName: 'Abdul Rahman Malik',
-      researchTitle: 'Internet of Things (IoT) Based Flood Defense Alert Mechanisms',
-      panelMember: 'Dr. Sarah Lim',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Information Technology',
-      totalMark: 91,
-      submittedDate: '10 Dec 2025'
-    },
-    {
-      recordId: 'MRK-2025-007',
-      studentId: 'MEA2304910',
-      studentName: 'Clara Wong',
-      researchTitle: 'Predictive Medical Diagnostics Using Deep Convoluted Neural Networks',
-      panelMember: 'Assoc. Prof. Dr. Amina Malik',
-      semester: 'Sem 1 2025/2026',
-      programme: 'Master of Software Engineering',
-      totalMark: 'Draft',
-      submittedDate: '-'
-    },
-    {
-      recordId: 'MRK-2025-006',
-      studentId: 'MEA2401123',
-      studentName: 'Zainab Qureshi',
-      researchTitle: 'Interactive Arabic Sign Language Translation Engine with Haptic Feedback',
-      panelMember: 'Dr. Robert Chen',
-      semester: 'Sem 2 2024/2025',
-      programme: 'Master of Information Technology',
-      totalMark: 88,
-      submittedDate: '15 Jun 2025'
-    }
-  ];
-  return records.find(r => r.recordId === id) || records[0];
+  const record = MOCK_MARK_RECORDS.find((r) => r.id === id) || MOCK_MARK_RECORDS[0];
+  return {
+    recordId: record.id,
+    studentId: record.studentId,
+    studentName: record.studentName,
+    researchTitle: record.researchTitle,
+    panelMember: record.panelMember,
+    semester: record.semester,
+    programme: record.programme,
+    totalMark: record.totalMark,
+    submittedDate: record.submittedDate,
+  };
 };
 
 // Default logged-in state of Wey Cheng (as seen in the mockup)
@@ -153,7 +83,7 @@ export default function App() {
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
 
   // Sidebar navigation active state
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard Overview');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(SIDEBAR_ITEMS.DASHBOARD);
 
   // Sub-view transition state under Dashboard Overview
   const [dashboardSubView, setDashboardSubView] = useState<'overview' | 'timeline'>('overview');
@@ -165,6 +95,9 @@ export default function App() {
 
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
+
+  const isLecturerWorkspace = currentUser?.role === 'Lecturer';
+  const isStudentWorkspace = currentUser?.role === 'Student';
 
   // Setup checklist data
   const checklistTasks: ChecklistItem[] = [
@@ -187,7 +120,9 @@ export default function App() {
 
   const handleSuccessfulLogin = (user: DemoUser) => {
     setCurrentUser(user);
-    setActiveSidebarItem('Marks Entry');
+    setActiveSidebarItem(user.role === 'Lecturer' ? SIDEBAR_ITEMS.MARKS_ENTRY : SIDEBAR_ITEMS.DASHBOARD);
+    setCurrentSubView('dashboard');
+    setDashboardSubView('overview');
   };
 
   const handleLogout = () => {
@@ -207,13 +142,17 @@ export default function App() {
           }}
           onLogout={handleLogout}
           onNotificationsTrigger={() => {
-            setActiveSidebarItem('Notifications & Announcements');
+            setActiveSidebarItem(SIDEBAR_ITEMS.NOTIFICATIONS);
           }}
+          userName={currentUser.fullName}
+          userRole={currentUser.role}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
-          {activeSidebarItem === 'Marks Entry' ? (
-            currentSubView === 'config' ? (
+          {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
+            isLecturerWorkspace ? (
+              <LecturerMarksEntry onBackToDashboard={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
+            ) : currentSubView === 'config' ? (
               <MarkEntryPeriodConfig onBack={() => setCurrentSubView('dashboard')} />
             ) : currentSubView === 'rubric' ? (
               <RubricsManagementView onBack={() => setCurrentSubView('dashboard')} />
@@ -237,24 +176,13 @@ export default function App() {
               <div id="marks-entry-workspace" className="space-y-8 animate-fade-in">
                 
                 {/* Header Title section */}
-                <div id="page-metadata-block" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="text-left">
-                    <h1 id="main-view-title" className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
-                      Marks & Evaluation Management
-                    </h1>
-                    <p id="main-view-subtitle" className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium">
-                      Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
-                    </p>
-                  </div>
-
-                  {/* Return button indicator to let user easily toggle back manually and check Login UI */}
-                  <button
-                    onClick={handleLogout}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#0c1424] border border-slate-200/80 rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition-all cursor-pointer shadow-xs"
-                  >
-                    <ArrowUpRight className="w-4 h-4 text-slate-500" />
-                    <span>Switch to Login Screen</span>
-                  </button>
+                <div id="page-metadata-block" className="text-left">
+                  <h1 id="main-view-title" className="page-title">
+                    Marks & Evaluation Management
+                  </h1>
+                  <p id="main-view-subtitle" className="page-subtitle">
+                    Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
+                  </p>
                 </div>
 
                 {/* 4 Summary Cards Grid */}
@@ -306,7 +234,7 @@ export default function App() {
                     />
 
                     {/* Submission Monitoring */}
-                    <MarkSubmissionMonitoring />
+                    <MarkSubmissionMonitoring onViewRecords={() => setCurrentSubView('records')} />
                   </div>
 
                   {/* Right column content: Urgent alerts list, Quick Actions, Database sync */}
@@ -328,14 +256,33 @@ export default function App() {
 
               </div>
             )
-          ) : activeSidebarItem === 'Panel Appointments' ? (
-            <PanelAppointmentManagement />
-          ) : activeSidebarItem === 'Supervisor Appointments' ? (
-            <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem('Panel Appointments')} />
-          ) : activeSidebarItem === 'Registry Management' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
+            isStudentWorkspace ? (
+              <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
+            ) : isLecturerWorkspace ? (
+              <LecturerPanelAppointments />
+            ) : (
+              <PanelAppointmentManagement />
+            )
+          ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
+            isStudentWorkspace ? (
+              <StudentSupervisorAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
+            ) : isLecturerWorkspace ? (
+              <LecturerSupervisorAppointments />
+            ) : (
+              <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem(SIDEBAR_ITEMS.PANEL_APPOINTMENTS)} />
+            )
+          ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
             <StudentRegistry />
-          ) : activeSidebarItem === 'Dashboard Overview' || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
-            dashboardSubView === 'timeline' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
+            isStudentWorkspace ? (
+              <StudentDashboard
+                studentName={currentUser.fullName}
+                studentId={currentUser.studentId}
+                programme={currentUser.department}
+                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+              />
+            ) : dashboardSubView === 'timeline' ? (
               <TimelineManagement onBack={() => setDashboardSubView('overview')} />
             ) : (
               <AdministrationDashboard 
@@ -347,19 +294,31 @@ export default function App() {
                 onNavigateToTimeline={() => setDashboardSubView('timeline')}
               />
             )
-          ) : activeSidebarItem === 'File Management' ? (
-            <FileRepository />
-          ) : activeSidebarItem === 'FAQ Chatbot' ? (
-            <AcademicFAQEditor />
-          ) : activeSidebarItem === 'Letter Generation' ? (
-            <LetterTemplateManagement />
-          ) : activeSidebarItem === 'Announcements' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
+            isStudentWorkspace ? (
+              <StudentFileSubmission />
+            ) : (
+              <FileRepository />
+            )
+          ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
+            isStudentWorkspace ? (
+              <StudentFAQChatbot />
+            ) : (
+              <AcademicFAQEditor />
+            )
+          ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
+            isStudentWorkspace ? (
+              <StudentLetterGeneration />
+            ) : (
+              <LetterTemplateManagement />
+            )
+          ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
             <AnnouncementManagement />
-          ) : activeSidebarItem === 'Notifications & Announcements' ? (
-            <NotificationsAnnouncements onBack={() => setActiveSidebarItem('Dashboard Overview')} />
+          ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
+            <NotificationsAnnouncements onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
           ) : (
             /* Placeholder message for other sidebar routes */
-            <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
+            <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
               <div className="w-16 h-16 bg-[#eff6ff] text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Briefcase className="w-8 h-8" />
               </div>
@@ -370,8 +329,8 @@ export default function App() {
                 You have routed to the <strong>{activeSidebarItem}</strong> workflow module inside the FSKTM administrative center. To fulfill layout reference checks, please toggle back to the <strong>Marks Entry</strong> tab.
               </p>
               <button
-                onClick={() => setActiveSidebarItem('Marks Entry')}
-                className="mt-6 px-5 py-2.5 bg-[#000d23] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
+                onClick={() => setActiveSidebarItem(SIDEBAR_ITEMS.MARKS_ENTRY)}
+                className="mt-6 px-5 py-2.5 bg-brand-navy text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
               >
                 Return to Marks Entry
               </button>
@@ -390,7 +349,7 @@ export default function App() {
             <div className="w-full flex justify-center flex-col items-center">
               
               {/* Back to Portal Top Banner (helps reviewers instantly go to Portal from Login Page) */}
-              <div className="w-full max-w-[490px] mb-4 bg-[#0a152d] text-slate-200 p-3.5 rounded-2xl border border-white/[0.05] text-left text-xs flex justify-between items-center shadow-md">
+              <div className="w-full max-w-[490px] mb-4 bg-[#0a152d] text-slate-200 p-3.5 rounded-2xl border border-white/[0.05] text-left text-xs flex justify-between items-center shadow-sm">
                 <div className="flex gap-2.5 items-center">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="font-semibold text-slate-300">Fast-docking Portal Access:</span>

@@ -1,12 +1,12 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
-  Users, 
-  UserX, 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  Users,
+  UserX,
   FileText, 
   AlertTriangle, 
   CheckCircle, 
@@ -25,28 +25,13 @@ import {
   Eye,
   AlertCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
+import { SupervisorRecord } from '../types';
+import { getSupervisorAppointments } from '../services';
 
-export interface SupervisorRecord {
-  studentId: string;
-  studentName: string;
-  programme: string;
-  supervisor: string;
-  status: 'Approved' | 'Pending' | 'No Supervisor' | 'Workload Alert' | 'Rejected';
-  updatedDate: string;
-  email?: string;
-  semester?: string;
-  researchTopic?: string;
-  researchArea?: string;
-  abstract?: string;
-  appointmentId?: string;
-  workloadLimit?: string;
-  approvedDate?: string;
-  releasedDate?: string;
-  panelMemberName?: string;
-  panelAssignedDate?: string;
-}
+// SupervisorRecord now lives in src/types.
 
 interface SupervisorAppointmentManagementProps {
   onNavigateToWorkload?: () => void;
@@ -67,199 +52,23 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [viewState, setViewState] = useState<'list' | 'detail' | 'workload'>('list');
   const [selectedRecord, setSelectedRecord] = useState<SupervisorRecord | null>(null);
 
-  // Base list of supervisor appointment records (corrected the corrupted text with extra high-fidelity fields)
-  const [records, setRecords] = useState<SupervisorRecord[]>([
-    {
-      studentId: 'MEA2301184',
-      studentName: 'Sarah Natasha',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Siti Noor',
-      status: 'Approved',
-      updatedDate: '14 Oct 2025',
-      email: 'sarah.natasha@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Blockchain-Based Verification Framework for Academic Credentials"',
-      researchArea: 'Blockchain / Academic Credential Verification',
-      abstract: 'This research explores how blockchain can be used to verify academic credentials securely, reduce document fraud, and improve trust in postgraduate academic records. By leveraging decentralized ledgers and smart contracts, the study aims to create a tamper-proof system for real-time validation of degrees and transcripts across international institutional boundaries.',
-      appointmentId: 'SV-APT-2025-014',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: '13 Oct 2025',
-      releasedDate: '14 Oct 2025',
-      panelMemberName: 'Assoc. Prof. Dr. Amina Malik',
-      panelAssignedDate: '22 Nov 2025'
-    },
-    {
-      studentId: 'MEA2400712',
-      studentName: 'Nur Aina Rahman',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Pending',
-      status: 'Pending',
-      updatedDate: '12 Oct 2025',
-      email: 'nuraina@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Machine Learning Approaches for Dynamic Malware Classification"',
-      researchArea: 'Cybersecurity / Applied Machine Learning',
-      abstract: 'This study investigates deep neural networks for classify malware signatures in heterogeneous cloud workloads. The dynamic taxonomy will yield higher precision and faster execution over static hashes, defending container instances.',
-      appointmentId: 'SV-APT-2025-089',
-      workloadLimit: '1/5 Supervisees',
-      approvedDate: 'Pending Review',
-      releasedDate: 'Pending Release',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '15 Nov 2025'
-    },
-    {
-      studentId: 'MEA2400881',
-      studentName: 'Kumar Raj',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Not Assigned',
-      status: 'No Supervisor',
-      updatedDate: '10 Oct 2025',
-      email: 'kumar.raj@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Privacy-Preserving Federated Learning on Edge Devices"',
-      researchArea: 'Distributed Systems & Mobile Security',
-      abstract: 'Abstract pending supervisor assignment. The proposed research focuses on decentralized optimization of deep models without exposing local user records to centralized entities.',
-      appointmentId: 'SV-APT-2025-102',
-      workloadLimit: 'N/A',
-      approvedDate: 'N/A',
-      releasedDate: 'N/A',
-      panelMemberName: 'Not Assigned',
-      panelAssignedDate: 'N/A'
-    },
-    {
-      studentId: 'MEA2401023',
-      studentName: 'Farah Nabila',
-      programme: 'MSc. Data Science',
-      supervisor: 'Dr. Aris Ghaffar',
-      status: 'Workload Alert',
-      updatedDate: '13 Oct 2025',
-      email: 'farah.nabila@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Graph Neural Networks for Financial Fraud Identification"',
-      researchArea: 'Graph Analytics / Deep Learning',
-      abstract: 'This research plans to model transactions as complex multi-layer graphs. Graph Neural Networks will track pattern shifts, identifying anomalies before transaction propagation.',
-      appointmentId: 'SV-APT-2025-045',
-      workloadLimit: '5/5 Supervisees',
-      approvedDate: '11 Oct 2025',
-      releasedDate: '13 Oct 2025',
-      panelMemberName: 'Dr. Robert Chen',
-      panelAssignedDate: '28 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401301',
-      studentName: 'Lim Wei',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Prof. Dr. Ahmad Kamil',
-      status: 'Rejected',
-      updatedDate: '11 Oct 2025',
-      email: 'limwei@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Heuristic Routing Protocols in Software-Defined Aerial Networks"',
-      researchArea: 'Network Architecture / Network Virtualization',
-      abstract: 'Investigating high-altitude aerial routing algorithms. Rejected due to alignment overlaps with standard department hardware tracks.',
-      appointmentId: 'SV-APT-2025-003',
-      workloadLimit: '3/5 Supervisees',
-      approvedDate: 'Rejected',
-      releasedDate: 'Rejected',
-      panelMemberName: 'Dr. Jane Doe',
-      panelAssignedDate: '10 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401415',
-      studentName: 'Azizul Ibrahim',
-      programme: 'MSc. Software Engineering',
-      supervisor: 'Dr. Sarah Lim',
-      status: 'Approved',
-      updatedDate: '15 Oct 2025',
-      email: 'azizul.i@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Automated Security Patch Verification via Static Code Logic"',
-      researchArea: 'Software Security / Code Automation',
-      abstract: 'Analyzing continuous delivery pipelines to detect vulnerabilities immediately during branch builds. Automated testing will generate proof-of-correctness theorems for common CVEs.',
-      appointmentId: 'SV-APT-2025-031',
-      workloadLimit: '3/5 Supervisees',
-      approvedDate: '14 Oct 2025',
-      releasedDate: '15 Oct 2025',
-      panelMemberName: 'Assoc. Prof. Dr. Amina Malik',
-      panelAssignedDate: '12 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401590',
-      studentName: 'Chloe Ding',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Robert Chen',
-      status: 'Approved',
-      updatedDate: '16 Oct 2025',
-      email: 'chloe.ding@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Visual Question Answering Models for Low-Resource Languages"',
-      researchArea: 'Computer Vision / NLP',
-      abstract: 'Exploring cross-lingual zero-shot visual reasoning frameworks. The project leverages visual attention mechanisms and tiny language model decoders adapted for Southeast Asian speech.',
-      appointmentId: 'SV-APT-2025-067',
-      workloadLimit: '2/5 Supervisees',
-      approvedDate: '15 Oct 2025',
-      releasedDate: '16 Oct 2025',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '19 Nov 2025'
-    },
-    {
-      studentId: 'MEA2401612',
-      studentName: 'Siddharth Sen',
-      programme: 'MSc. Data Science',
-      supervisor: 'Dr. Jane Doe',
-      status: 'Pending',
-      updatedDate: '12 Oct 2025',
-      email: 'siddharth@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Clustering Approaches for High-Dimensional Genomic Datasets"',
-      researchArea: 'Bioinformatics / Unsupervised Learning',
-      abstract: 'Formulating robust proximity metrics to tackle sparsity in genetic sequences. Project targets identification of latent markers for metabolic anomalies.',
-      appointmentId: 'SV-APT-2025-059',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: 'Pending Review',
-      releasedDate: 'Pending Release',
-      panelMemberName: 'Dr. Robert Chen',
-      panelAssignedDate: '11 Nov 25'
-    },
-    {
-      studentId: 'MEA2401788',
-      studentName: 'Farhan Hanif',
-      programme: 'MSc. Information Technology',
-      supervisor: 'Assoc. Prof. Dr. Amina Malik',
-      status: 'No Supervisor',
-      updatedDate: '10 Oct 2025',
-      email: 'farhan.h@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Cloud Resource Orchestration for IoT Event Processing"',
-      researchArea: 'Edge Computing / IT Management',
-      abstract: 'Analyzing edge gateway layouts for micro-event delivery. Currently seeking supervisor expert in real-time embedded communication protocols.',
-      appointmentId: 'SV-APT-2025-099',
-      workloadLimit: 'N/A',
-      approvedDate: 'N/A',
-      releasedDate: 'N/A',
-      panelMemberName: 'Not Assigned',
-      panelAssignedDate: 'N/A'
-    },
-    {
-      studentId: 'MEA2401920',
-      studentName: 'Zahra Al-Habshi',
-      programme: 'MSc. Computer Science',
-      supervisor: 'Dr. Siti Noor',
-      status: 'Workload Alert',
-      updatedDate: '14 Oct 2025',
-      email: 'zahra.ah@student.fsktm.edu.my',
-      semester: 'Sem 1 2024/2025',
-      researchTopic: '"Self-Supervised Contrastive Learning in Remote Sensing"',
-      researchArea: 'Computer Vision / Geotechnical Data',
-      abstract: 'Analyzing multi-spectral satellite tiles using vision transformer backbones. This study reduces label-dataset dependency, detecting physical layout shifts.',
-      appointmentId: 'SV-APT-2025-048',
-      workloadLimit: '4/5 Supervisees',
-      approvedDate: '12 Oct 2025',
-      releasedDate: '14 Oct 2025',
-      panelMemberName: 'Dr. Sarah Lim',
-      panelAssignedDate: '25 Nov 2025'
-    }
-  ]);
+  // Supervisor appointment records loaded from appointmentsApi (mock-backed today).
+  const [records, setRecords] = useState<SupervisorRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSupervisorAppointments()
+      .then(setRecords)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -342,49 +151,23 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     const r = selectedRecord;
     return (
       <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
-        {/* Toast Alert Banner */}
-        <AnimatePresence>
-          {toastMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="fixed top-6 right-6 z-20 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-            >
-              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-              <span>{toastMessage}</span>
-            </motion.div>
+        <PortalToast message={toastMessage} />
+
+        <PageHeader
+          title="Supervisor Appointment Detail"
+          subtitle="View student supervision details, appointment status, related records, and supporting documents."
+          backLabel="Back to Supervisor Appointment Management"
+          onBack={() => {
+            setViewState('list');
+            showToast("Returned to Supervisor Appointment Management");
+          }}
+          subtitleClassName="leading-relaxed"
+          actions={(
+            <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+              SESSION 2024/2025
+            </div>
           )}
-        </AnimatePresence>
-
-        {/* Back Link */}
-        <div className="flex">
-          <button 
-            onClick={() => {
-              setViewState('list');
-              showToast("Returned to Supervisor Appointment Management");
-            }} 
-            className="group flex items-center gap-2 text-xs font-extrabold text-[#000d23] hover:text-[#3b82f6] transition-colors uppercase tracking-wider mb-2 cursor-pointer border border-slate-205 rounded-xl px-4 py-2.5 bg-white shadow-3xs"
-          >
-            <ChevronLeft className="w-4.5 h-4.5 transition-transform group-hover:-translate-x-0.5 text-slate-500" />
-            <span>Back to Supervisor Appointment Management</span>
-          </button>
-        </div>
-
-        {/* Page Header with Session Badge */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-1">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-[#0a152d] tracking-tight">
-              Supervisor Appointment Detail
-            </h1>
-            <p className="text-slate-505 text-xs md:text-sm font-semibold mt-1 leading-relaxed text-slate-500">
-              View student supervision details, appointment status, related records, and supporting documents.
-            </p>
-          </div>
-          <div className="bg-[#0a152d] text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-md shrink-0">
-            SESSION 2024/2025
-          </div>
-        </div>
+        />
 
         {/* Grid Layout of Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-4">
@@ -393,18 +176,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="lg:col-span-5 space-y-6">
             
             {/* Student Profile Card */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-[#eff6ff] text-[#3b82f6] font-black text-lg rounded-xl flex items-center justify-center uppercase tracking-wider shrink-0 shadow-3xs border border-indigo-100">
                   {r.studentName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#0c1424]">{r.studentName}</h3>
+                  <h3 className="text-base font-extrabold text-brand-navy">{r.studentName}</h3>
                   <div className="mt-1.5 flex items-center">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[9px] font-black uppercase tracking-wider select-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <StatusBadge tone="success" dot pulse className="text-[9px]">
                       {r.status === 'No Supervisor' ? 'APPROVED' : r.status.toUpperCase()}
-                    </span>
+                    </StatusBadge>
                   </div>
                 </div>
               </div>
@@ -432,7 +214,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
                     Semester
                   </span>
-                  <span className="text-xs font-bold text-[#0c1424] block mt-1">
+                  <span className="text-xs font-bold text-brand-navy block mt-1">
                     {r.semester || 'Sem 1 2024/2025'}
                   </span>
                 </div>
@@ -441,7 +223,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
                     Email
                   </span>
-                  <span className="text-xs font-semibold text-[#000d23] hover:text-blue-600 block mt-1 break-all select-all">
+                  <span className="text-xs font-semibold text-brand-navy hover:text-blue-600 block mt-1 break-all select-all">
                     {r.email || `${r.studentName.toLowerCase().replace(/\s+/g, '')}@student.fsktm.edu.my`}
                   </span>
                 </div>
@@ -449,10 +231,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             </div>
 
             {/* Appointment Information Card */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <User className="w-4 h-4 text-[#0c1424]" />
-                <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+                <User className="w-4 h-4 text-brand-navy" />
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Appointment Info
                 </span>
               </div>
@@ -460,35 +242,35 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="space-y-3 font-sans text-xs">
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Appointment ID</span>
-                  <span className="font-mono font-black text-[#0c1424]">
+                  <span className="font-mono font-black text-brand-navy">
                     {r.appointmentId || 'SV-APT-2025-014'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Supervisor</span>
-                  <span className="font-black text-[#0c1424]">
+                  <span className="font-black text-brand-navy">
                     {r.supervisor === 'Not Assigned' ? 'Dr. Siti Noor' : r.supervisor}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Workload</span>
-                  <span className="font-black text-[#0c1424]">
+                  <span className="font-black text-brand-navy">
                     {r.status === 'No Supervisor' ? '4/5 Supervisees' : (r.workloadLimit || '4/5 Supervisees')}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Approved Date</span>
-                  <span className="font-bold text-[#0c1424]">
+                  <span className="font-bold text-brand-navy">
                     {r.status === 'Pending' || r.status === 'No Supervisor' ? '13 Oct 2025' : (r.approvedDate || '13 Oct 2025')}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Released Date</span>
-                  <span className="font-bold text-[#0c1424]">
+                  <span className="font-bold text-brand-navy">
                     {r.status === 'Pending' || r.status === 'No Supervisor' ? '14 Oct 2025' : (r.releasedDate || '14 Oct 2025')}
                   </span>
                 </div>
@@ -496,10 +278,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             </div>
 
             {/* Evaluation Summary Card */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <BookOpen className="w-4 h-4 text-[#000d23]" />
-                <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+                <BookOpen className="w-4 h-4 text-brand-navy" />
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Evaluation Summary
                 </span>
               </div>
@@ -528,16 +310,16 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="lg:col-span-7 space-y-6">
             
             {/* Research Information Card */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-1">
-                <BookOpen className="w-4.5 h-4.5 text-[#000d23]" />
-                <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+                <BookOpen className="w-4.5 h-4.5 text-brand-navy" />
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Research Information
                 </span>
               </div>
 
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-5 space-y-2">
-                <h4 className="text-sm font-extrabold text-[#0a152d] leading-snug">
+                <h4 className="text-sm font-extrabold text-brand-navy leading-snug">
                   {r.researchTopic || '"Blockchain-Based Verification Framework for Academic Credentials"'}
                 </h4>
                 <span className="text-[10.5px] font-black text-slate-500 block tracking-wide">
@@ -556,10 +338,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             </div>
 
             {/* Status History Card (Timeline design) */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <FileText className="w-4.5 h-4.5 text-[#000d23]" />
-                <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+                <FileText className="w-4.5 h-4.5 text-brand-navy" />
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Status History
                 </span>
               </div>
@@ -568,45 +350,45 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 {/* Event 1 */}
                 <div className="relative">
                   <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white ring-4 ring-blue-50" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">Confirmation Released</h4>
+                  <h4 className="font-extrabold text-brand-navy text-xs">Confirmation Released</h4>
                   <p className="text-[10px] font-bold text-slate-400 mt-1">14 Oct 2025 • 09:30 AM</p>
                 </div>
 
                 {/* Event 2 */}
                 <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-[#0c1424] border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">Coordinator Approval</h4>
+                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
+                  <h4 className="font-extrabold text-brand-navy text-xs">Coordinator Approval</h4>
                   <p className="text-[10px] font-bold text-slate-400 mt-1">13 Oct 2025 • 02:45 PM</p>
                 </div>
 
                 {/* Event 3 */}
                 <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-[#0c1424] border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">Supervisor Review</h4>
+                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
+                  <h4 className="font-extrabold text-brand-navy text-xs">Supervisor Review</h4>
                   <p className="text-[10px] font-bold text-slate-400 mt-1">12 Oct 2025 • 11:15 AM</p>
                 </div>
 
                 {/* Event 4 */}
                 <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-[#0c1424] border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">Request Submitted</h4>
+                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
+                  <h4 className="font-extrabold text-brand-navy text-xs">Request Submitted</h4>
                   <p className="text-[10px] font-bold text-slate-400 mt-1">10 Oct 2025 • 04:00 PM</p>
                 </div>
               </div>
             </div>
 
             {/* Related Panel Status Card */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-3xs text-left">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <Users className="w-4.5 h-4.5 text-[#000d23]" />
-                <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider">
+                <Users className="w-4.5 h-4.5 text-brand-navy" />
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
                   Related Panel Status
                 </span>
               </div>
 
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-4 flex items-center justify-between mb-4 shadow-3xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#0a152d] text-white font-black text-xs rounded-lg flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 bg-brand-navy text-white font-black text-xs rounded-lg flex items-center justify-center shrink-0">
                     {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'AM'}
                   </div>
                   <div>
@@ -616,13 +398,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </div>
                 <div className="text-right shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Assigned</span>
-                  <span className="text-xs font-black text-[#0c1424] block mt-1">{r.panelAssignedDate || '22 Nov 2025'}</span>
+                  <span className="text-xs font-black text-brand-navy block mt-1">{r.panelAssignedDate || '22 Nov 2025'}</span>
                 </div>
               </div>
 
               <button 
                 onClick={() => showToast(`Opening panel member record page for ${r.panelMemberName || 'Assoc. Prof. Dr. Amina Malik'}`)} 
-                className="w-full py-2.5 border border-slate-250 hover:bg-slate-50 text-[#000d23] font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center font-sans font-bold"
+                className="w-full py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center font-sans font-bold"
               >
                 View Panel Record
               </button>
@@ -633,10 +415,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         </div>
 
         {/* Related Files block */}
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-3xs text-left mt-6">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left mt-6">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <span className="font-extrabold text-[#000d23] text-xs uppercase tracking-wider block">
+              <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
                 Related Files
               </span>
               <span className="text-[10px] font-bold text-slate-400 block mt-1">
@@ -649,29 +431,29 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           </div>
 
           <div className="overflow-x-auto text-xs">
-            <table className="w-full text-left min-w-[650px] border-collapse font-sans">
+            <table className="data-table min-w-[650px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                  <th className="py-4 px-6">File Name</th>
-                  <th className="py-4 px-6">Category</th>
-                  <th className="py-4 px-6">Uploaded Date</th>
-                  <th className="py-4 px-6 text-center">Action</th>
+                <tr className="data-thead bg-slate-50 select-none">
+                  <th className="data-th">File Name</th>
+                  <th className="data-th">Category</th>
+                  <th className="data-th">Uploaded Date</th>
+                  <th className="data-th text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {/* File 1 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Proposal.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Research Proposal
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     10 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Proposal.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -684,17 +466,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                 {/* File 2 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Supervisor Appointment Letter.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Official Letter
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     14 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Supervisor Appointment Letter.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -707,17 +489,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                 {/* File 3 */}
                 <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 font-semibold text-slate-800 flex items-center gap-2.5">
+                  <td className="data-td-strong flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-rose-500 shrink-0" />
                     <span>Student Profile.pdf</span>
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     Student Record
                   </td>
-                  <td className="py-4 px-6 font-bold text-slate-500">
+                  <td className="data-td">
                     10 Oct 2025
                   </td>
-                  <td className="py-4 px-6 text-center">
+                  <td className="data-td text-center">
                     <button 
                       onClick={() => showToast("Opening document: Student Profile.pdf")} 
                       className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
@@ -737,22 +519,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs mt-6">
           <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <span className="font-extrabold text-[#0f172a] text-xs uppercase tracking-wider block">
+            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
               Confidential Administrative View
             </span>
             <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500">
               This page provides a read-only administrative view of the supervisor appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
             </p>
-          </div>
-        </div>
-
-        {/* Footer Block */}
-        <div className="pt-6 border-t border-slate-205 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold tracking-wide uppercase mt-12 gap-4">
-          <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-          <div className="flex items-center gap-4 mt-2 md:mt-0">
-            <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Policy details loading..."); }} className="hover:text-slate-650 transition">Privacy Policy</a>
-            <a href="#system" onClick={(e) => { e.preventDefault(); showToast("System diagnostics manual accessed..."); }} className="hover:text-slate-650 transition">System Manual</a>
-            <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Support terminal routed..."); }} className="hover:text-[#0c1424] transition font-bold">Support Desk</a>
           </div>
         </div>
 
@@ -763,30 +535,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   return (
     <div id="supervisor-mgmt-viewport" className="space-y-8 animate-fade-in text-left font-sans">
       
-      {/* Toast Alert Banner */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-50 bg-[#0c1424] text-white py-3 px-5 rounded-xl shadow-xl flex items-center gap-3 text-xs font-bold font-sans border border-slate-700"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
-      {/* Page Header */}
-      <div id="sup-page-header" className="text-left">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight">
-          Supervisor Appointment Management
-        </h1>
-        <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 leading-relaxed max-w-3xl">
-          Monitor supervisor appointment records, workload distribution, and records needing attention.
-        </p>
-      </div>
+      <PageHeader
+        title="Supervisor Appointment Management"
+        subtitle="Monitor supervisor appointment records, workload distribution, and records needing attention."
+        subtitleClassName="leading-relaxed max-w-3xl"
+      />
 
       {/* 4 Vitals Summary Cards matching wireframe exactly */}
       <div id="sup-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -797,11 +552,11 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
               Students Without Supervisor
             </span>
-            <span className="text-3xl font-black text-[#0c1424] block pt-1">
+            <span className="text-3xl font-black text-brand-navy block pt-1">
               12
             </span>
             <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+              <StatusDot tone="danger" pulse />
               No approved supervisor record.
             </span>
           </div>
@@ -816,11 +571,11 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
               Pending Records
             </span>
-            <span className="text-3xl font-black text-[#0c1424] block pt-1">
+            <span className="text-3xl font-black text-brand-navy block pt-1">
               8
             </span>
             <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <StatusDot tone="info" />
               Supervisor records still in workflow.
             </span>
           </div>
@@ -839,7 +594,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               126
             </span>
             <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <StatusDot tone="success" />
               Active approved appointments.
             </span>
           </div>
@@ -858,7 +613,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               3
             </span>
             <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <StatusDot tone="warning" pulse />
               Lecturers near supervision limit.
             </span>
           </div>
@@ -898,7 +653,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by student name, ID, supervisor, or research title"
-                    className="w-full pl-9 pr-4 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 transition font-semibold text-xs text-slate-700"
+                    className="form-control form-control-sm pl-9 pr-4"
                   />
                 </div>
               </div>
@@ -915,7 +670,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                       id="prog-select"
                       value={programmeFilter}
                       onChange={(e) => setProgrammeFilter(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700 font-bold"
+                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option>All Programmes</option>
                       <option>MSc. Computer Science</option>
@@ -936,7 +691,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                       id="sem-select"
                       value={semesterFilter}
                       onChange={(e) => setSemesterFilter(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 appearance-none font-sans text-xs font-bold text-slate-700 font-bold"
+                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option>All Semesters</option>
                       <option>Semester 1, 2024/2025</option>
@@ -963,7 +718,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                         }}
                         className={`px-3 py-1.5 text-[10.5px] font-black transition rounded-lg ${
                           isActive 
-                            ? 'bg-[#0c1424] text-white' 
+                            ? 'bg-brand-navy text-white' 
                             : 'bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-650'
                         }`}
                       >
@@ -974,18 +729,20 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </div>
 
                 <div className="flex gap-2 shrink-0">
-                  <button
+                  <PortalButton
                     onClick={handleResetFilters}
-                    className="px-4 py-2 hover:bg-slate-50 border border-slate-200 font-extrabold text-[10.5px] rounded-xl uppercase transition cursor-pointer"
+                    variant="secondary"
+                    size="sm"
                   >
                     Reset
-                  </button>
-                  <button
+                  </PortalButton>
+                  <PortalButton
                     onClick={handleApplyFilters}
-                    className="px-4 py-2 bg-[#0c1424] hover:bg-slate-850 text-white font-black text-[10.5px] rounded-xl uppercase tracking-wider transition cursor-pointer shadow-3xs"
+                    variant="primary"
+                    size="sm"
                   >
                     Apply Filters
-                  </button>
+                  </PortalButton>
                 </div>
 
               </div>
@@ -997,7 +754,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <span className="font-extrabold text-[#0c1424] text-xs uppercase tracking-wider block">
+                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
                   Supervisor Appointment Records
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 block mt-1">
@@ -1007,7 +764,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <button
                 onClick={handleExportData}
-                className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-[#0c1424] transition uppercase tracking-wider cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Export Data</span>
@@ -1015,47 +772,59 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[700px] border-collapse font-sans text-xs">
+              <table className="data-table min-w-[700px] text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                    <th className="py-4 px-6">Student ID</th>
-                    <th className="py-4 px-6">Student Name</th>
-                    <th className="py-4 px-6">Programme</th>
-                    <th className="py-4 px-6">Supervisor</th>
-                    <th className="py-4 px-6 text-center">Status</th>
-                    <th className="py-4 px-6">Updated Date</th>
-                    <th className="py-4 px-6 text-center">Action</th>
+                  <tr className="data-thead bg-slate-50 select-none">
+                    <th className="data-th">Student ID</th>
+                    <th className="data-th">Student Name</th>
+                    <th className="data-th">Programme</th>
+                    <th className="data-th">Supervisor</th>
+                    <th className="data-th text-center">Status</th>
+                    <th className="data-th">Updated Date</th>
+                    <th className="data-th text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {paginatedRecords.length > 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <LoadingState message="Loading supervisor appointments…" />
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <ErrorState message={error} onRetry={loadRecords} />
+                      </td>
+                    </tr>
+                  ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((r) => (
                       <tr key={r.studentId} className="hover:bg-slate-50/50 transition-colors">
                         
                         {/* Student ID */}
-                        <td className="py-4 px-6 font-semibold text-slate-500 font-mono text-[11px]">
+                        <td className="data-td font-mono">
                           {r.studentId}
                         </td>
 
                         {/* Student Name */}
-                        <td className="py-4 px-6 font-extrabold text-[#0c1424] text-xs">
+                        <td className="data-td-strong">
                           {r.studentName}
                         </td>
 
                         {/* Programme */}
-                        <td className="py-4 px-6 font-bold text-slate-500">
+                        <td className="data-td">
                           {r.programme}
                         </td>
 
                         {/* Supervisor */}
-                        <td className={`py-4 px-6 font-black ${
-                          r.supervisor === 'Not Assigned' ? 'text-red-500 font-extrabold' : 'text-[#0c1424]'
+                        <td className={`data-td-strong ${
+                          r.supervisor === 'Not Assigned' ? 'text-red-500' : ''
                         }`}>
                           {r.supervisor}
                         </td>
 
                         {/* Status chip */}
-                        <td className="py-4 px-6 text-center">
+                        <td className="data-td text-center">
                           <div className="flex items-center justify-center">
                             {r.status === 'Approved' ? (
                               <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-emerald-100">
@@ -1082,19 +851,19 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                         </td>
 
                         {/* Updated Date */}
-                        <td className="py-4 px-6 font-bold text-slate-500">
+                        <td className="data-td">
                           {r.updatedDate}
                         </td>
 
                         {/* Action - View Button */}
-                        <td className="py-4 px-6 text-center">
+                        <td className="data-td text-center">
                           <button
                             onClick={() => {
                               setSelectedRecord(r);
                               setViewState('detail');
                               showToast(`Loaded supervisor details for ${r.studentName}`);
                             }}
-                            className="px-3 py-1.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
+                            className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
                           >
                             View
                           </button>
@@ -1136,7 +905,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                       onClick={() => setCurrentPage(pNum)}
                       className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
                         currentPage === pNum 
-                          ? 'bg-[#0c1424] text-white border border-[#0c1424]' 
+                          ? 'bg-brand-navy text-white border border-brand-navy' 
                           : 'bg-white border border-slate-205 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -1166,7 +935,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center gap-2">
               <AlertTriangle className="w-4.5 h-4.5 text-rose-500 shrink-0" />
-              <span className="font-extrabold text-[#0c1424] text-[10.5px] uppercase tracking-wider">
+              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
                 Records Needing Attention
               </span>
             </div>
@@ -1175,7 +944,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">
+                  <h4 className="font-extrabold text-brand-navy text-xs">
                     Students without approved supervisor
                   </h4>
                   <span className="text-[10px] font-bold text-rose-600">
@@ -1196,7 +965,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">
+                  <h4 className="font-extrabold text-brand-navy text-xs">
                     Supervisor records pending over 7 days
                   </h4>
                   <span className="text-[10px] font-bold text-amber-600">
@@ -1217,7 +986,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">
+                  <h4 className="font-extrabold text-brand-navy text-xs">
                     Lecturers near workload limit
                   </h4>
                   <span className="text-[10px] font-bold text-amber-600">
@@ -1238,7 +1007,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-[#0c1424] text-xs">
+                  <h4 className="font-extrabold text-brand-navy text-xs">
                     Missing confirmation letters
                   </h4>
                   <span className="text-[10px] font-bold text-slate-400">
@@ -1259,10 +1028,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           {/* Supervisor Workload Snapshot */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center justify-between">
-              <span className="font-extrabold text-[#0c1424] text-[10.5px] uppercase tracking-wider block">
+              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider block">
                 Supervisor Workload Snapshot
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <StatusDot tone="success" className="w-2 h-2" />
             </div>
 
             <div className="p-5 space-y-4 font-sans text-xs">
@@ -1270,7 +1039,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               {/* Dr Siti Noor */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-[#0c1424] font-extrabold">Dr. Siti Noor</span>
+                  <span className="text-brand-navy font-extrabold">Dr. Siti Noor</span>
                   <span className="text-amber-600 uppercase text-[9px] tracking-wide font-black">Near Limit</span>
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
@@ -1284,7 +1053,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               {/* Dr Aris Ghaffar */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-[#0c1424] font-extrabold">Dr. Aris Ghaffar</span>
+                  <span className="text-brand-navy font-extrabold">Dr. Aris Ghaffar</span>
                   <span className="text-red-650 uppercase text-[9px] tracking-wide font-black">Full</span>
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
@@ -1298,7 +1067,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               {/* Dr Wey Cheng */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-[#0c1424] font-extrabold">Dr. Wey Cheng</span>
+                  <span className="text-brand-navy font-extrabold">Dr. Wey Cheng</span>
                   <span className="text-emerald-600 uppercase text-[9px] tracking-wide font-black">Available</span>
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
@@ -1315,7 +1084,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   setViewState('workload');
                   showToast("Opened Supervisor Workload Monitoring");
                 }}
-                className="w-full mt-2 py-2.5 border border-slate-250 hover:bg-slate-50 text-[#0c1424] font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center"
+                className="w-full mt-2 py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center"
               >
                 View All Workload
               </button>
@@ -1327,7 +1096,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left space-y-3 shadow-3xs">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="font-extrabold text-[#0f172a] text-[10.5px] uppercase tracking-wider">
+              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
                 Quick Tip
               </span>
             </div>
@@ -1345,16 +1114,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
         </div>
 
-      </div>
-
-      {/* Footer block */}
-      <div className="pt-2 border-t border-slate-200/45 flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-400 font-bold tracking-wide uppercase">
-        <span>© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
-        <div className="flex items-center gap-4 mt-2 md:mt-0">
-          <a href="#privacy" onClick={(e) => { e.preventDefault(); showToast("Policy details loading..."); }} className="hover:text-slate-650 transition">Privacy Policy</a>
-          <a href="#system" onClick={(e) => { e.preventDefault(); showToast("System diagnostics manual accessed..."); }} className="hover:text-slate-650 transition">System Manual</a>
-          <a href="#support" onClick={(e) => { e.preventDefault(); showToast("Support terminal routed..."); }} className="hover:text-slate-650 transition">Support Desk</a>
-        </div>
       </div>
 
     </div>

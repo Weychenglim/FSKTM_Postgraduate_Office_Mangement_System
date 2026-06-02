@@ -1,11 +1,11 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  ArrowLeft,
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ChevronLeft,
   Download, 
   Plus, 
   Upload, 
@@ -28,16 +28,12 @@ import { SemesterTimeline } from './SemesterTimeline';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { TimelineEntry } from '../types';
+import { getTimelineEntries } from '../services';
 
-interface TimelineEntry {
-  id: string;
-  event: string;
-  category: 'Supervisor Appointment' | 'Panel Appointment' | 'Document Submission' | 'Announcements' | 'Marks & Evaluation';
-  startDate: string;
-  endDate: string;
-  targetRole: ('STUDENT' | 'LECTURER')[];
-  status: 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
-}
+// TimelineEntry now lives in src/types.
 
 interface UpdateLog {
   id: string;
@@ -67,54 +63,23 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     }, 4000);
   };
 
-  // Initial Data rows
-  const [entries, setEntries] = useState<TimelineEntry[]>([
-    {
-      id: 'ent_1',
-      event: 'Supervisor Request Period',
-      category: 'Supervisor Appointment',
-      startDate: '01 Oct 2025',
-      endDate: '15 Oct 2025',
-      targetRole: ['STUDENT'],
-      status: 'Completed'
-    },
-    {
-      id: 'ent_2',
-      event: 'Panel Recommendation Period',
-      category: 'Panel Appointment',
-      startDate: '16 Oct 2025',
-      endDate: '30 Oct 2025',
-      targetRole: ['LECTURER'],
-      status: 'Active'
-    },
-    {
-      id: 'ent_3',
-      event: 'Proposal Upload Deadline',
-      category: 'Document Submission',
-      startDate: '25 Oct 2025',
-      endDate: '25 Oct 2025',
-      targetRole: ['STUDENT'],
-      status: 'Deadline'
-    },
-    {
-      id: 'ent_4',
-      event: 'Evaluation Schedule Release',
-      category: 'Announcements',
-      startDate: '20 Nov 2025',
-      endDate: '20 Nov 2025',
-      targetRole: ['STUDENT', 'LECTURER'],
-      status: 'Upcoming'
-    },
-    {
-      id: 'ent_5',
-      event: 'Mark Entry Period',
-      category: 'Marks & Evaluation',
-      startDate: '01 Dec 2025',
-      endDate: '10 Dec 2025',
-      targetRole: ['LECTURER'],
-      status: 'Upcoming'
-    }
-  ]);
+  // Timeline rows loaded from timelineApi (mock-backed today).
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEntries = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getTimelineEntries()
+      .then(setEntries)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load timeline entries.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
 
   // Recent Update Track Log data
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([
@@ -288,101 +253,47 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     triggerToast('Advanced schedule audit logs compiled. Exporting system telemetry...');
   };
 
-  const getStatusBadgeStyles = (status: TimelineEntry['status']) => {
+  const getStatusTone = (status: TimelineEntry['status']) => {
     switch (status) {
       case 'Completed':
-        return 'bg-slate-50 text-slate-500 border border-slate-200/60';
+        return 'neutral';
       case 'Active':
-        return 'bg-blue-50 text-blue-600 border border-blue-150';
+        return 'info';
       case 'Deadline':
-        return 'bg-rose-50 text-rose-600 border border-rose-150 font-extrabold';
+        return 'danger';
       case 'Upcoming':
-        return 'bg-amber-50 text-amber-700 border border-amber-150';
+        return 'warning';
       default:
-        return 'bg-slate-50 text-slate-500 border border-slate-200';
-    }
-  };
-
-  const getStatusBulletColor = (status: TimelineEntry['status']) => {
-    switch (status) {
-      case 'Completed': return 'bg-slate-400';
-      case 'Active': return 'bg-blue-500';
-      case 'Deadline': return 'bg-rose-500 animate-ping';
-      case 'Upcoming': return 'bg-amber-500';
-      default: return 'bg-slate-400';
+        return 'neutral';
     }
   };
 
   return (
     <div id="timeline-management-universe" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       
-      {/* Toast notifications overlay popup */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#0c1424] text-white font-extrabold px-5 py-3 rounded-xl border border-white/10 shadow-2xl flex items-center gap-2 max-w-sm">
-          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-ping shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Back to previous screen dashboard anchor */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-extrabold uppercase text-[10px] tracking-wider transition-all cursor-pointer bg-transparent border-0"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Back to Office Dashboard</span>
-      </button>
+      <PortalToast message={toastMessage} />
 
       {/* Head section title with actions buttons Row */}
-      <div id="timeline-page-intro" className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-        <div className="text-left space-y-1">
-          <h1 className="text-2xl md:text-3xl font-black text-[#0c1424] tracking-tight">
-            Timeline Management
-          </h1>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
-            View, upload, and manage semester timeline entries.
-          </p>
-        </div>
-
-        {/* Global master actions button toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 1. Download Template */}
-          <button
-            onClick={handleDownloadTemplate}
-            className="px-4.5 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-3xs"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Download Template</span>
-          </button>
-
-          {/* 2. Add Timeline Entry */}
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4.5 py-2.5 bg-white border border-indigo-200 hover:bg-slate-50 text-indigo-650 text-indigo-700 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-3xs"
-          >
-            <Plus className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Add Timeline Entry</span>
-          </button>
-
-          {/* 3. Upload Timeline */}
-          <button
-            onClick={handleUploadTimeline}
-            className="px-4.5 py-2.5 bg-[#0c1424] text-white hover:bg-slate-800 font-bold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm"
-          >
-            <Upload className="w-3.5 h-3.5 text-indigo-300" />
-            <span>Upload Timeline</span>
-          </button>
-
-          {/* 4. More toggle options */}
-          <button
-            onClick={handleMoreOptions}
-            className="p-2.5 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition cursor-pointer"
-            title="More Options"
-          >
-            <MoreVertical className="w-4 h-4 text-slate-600" />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Timeline Management"
+        subtitle="View, upload, and manage semester timeline entries."
+        backLabel="Back to Office Dashboard"
+        onBack={onBack}
+        actions={(
+          <>
+            <PortalButton variant="secondary" size="md" icon={Download} onClick={handleDownloadTemplate}>
+              Download Template
+            </PortalButton>
+            <PortalButton variant="soft" size="md" icon={Plus} onClick={handleOpenAddModal}>
+              Add Timeline Entry
+            </PortalButton>
+            <PortalButton variant="primary" size="md" icon={Upload} onClick={handleUploadTimeline}>
+              Upload Timeline
+            </PortalButton>
+            <PortalButton variant="secondary" size="icon" icon={MoreVertical} onClick={handleMoreOptions} title="More Options" />
+          </>
+        )}
+      />
 
       {/* Grid: Four Top Summary Cards matching mock parameters exactly */}
       <div id="timeline-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -392,7 +303,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             ACTIVE SEMESTER
           </span>
-          <span className="text-[17px] font-black text-[#0c1424] block mt-3 tracking-tight">
+          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
             Sem 1 2025/2026
           </span>
         </div>
@@ -403,10 +314,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             TIMELINE STATUS
           </span>
           <div className="flex items-center gap-2 mt-3.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[16px] font-extrabold text-emerald-700 uppercase tracking-wide leading-none">
+            <StatusBadge tone="success" dot pulse className="text-[11px]">
               Active
-            </span>
+            </StatusBadge>
           </div>
         </div>
 
@@ -415,7 +325,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             LAST UPDATED
           </span>
-          <span className="text-[17px] font-black text-[#0c1424] block mt-3 tracking-tight">
+          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
             20 Nov 2025
           </span>
         </div>
@@ -425,7 +335,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
             TOTAL EVENTS
           </span>
-          <span className="text-2xl font-black text-[#0c1424] block mt-2.5 tracking-tight">
+          <span className="text-2xl font-black text-brand-navy block mt-2.5 tracking-tight">
             {entries.length}
           </span>
         </div>
@@ -439,13 +349,13 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
         
         <div className="space-y-1 block text-left">
-          <h2 className="text-sm font-black text-[#0c1424] tracking-tight">
+          <h2 className="text-sm font-black text-brand-navy tracking-tight">
             Timeline Entries
           </h2>
         </div>
 
         {/* Query filter controls bar block */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-[#f8fafc] p-4.5 rounded-2xl border border-slate-100">
+        <div className="filter-toolbar grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           
           {/* Search bar input text input column */}
           <div className="md:col-span-4 relative">
@@ -454,7 +364,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               placeholder="Search event name"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold font-sans text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0c1424]"
+              className="form-control form-control-sm pl-10 pr-4"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 shrink-0" />
           </div>
@@ -464,7 +374,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Category: All</option>
               <option value="Supervisor Appointment">Supervisor Appointment</option>
@@ -480,7 +390,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Status: All</option>
               <option value="Completed">Completed</option>
@@ -495,7 +405,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold font-sans text-slate-800 focus:outline-none appearance-none cursor-pointer"
+              className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Target Role: All</option>
               <option value="STUDENT">Student</option>
@@ -505,32 +415,46 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
           {/* Action Trigger Filter criteria */}
           <div className="md:col-span-2">
-            <button
+            <PortalButton
+              variant="soft"
+              size="sm"
+              fullWidth
               onClick={handleApplyFilters}
-              className="w-full text-center py-2.5 bg-[#2563eb] hover:bg-blue-700 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer"
             >
               Apply Filters
-            </button>
+            </PortalButton>
           </div>
 
         </div>
 
         {/* Data list Table layout */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left font-sans border-collapse">
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-slate-200 text-[9px] font-black text-slate-400 bg-slate-50/20 uppercase tracking-widest text-left select-none">
-                <th className="py-3 px-4">Event</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Start Date</th>
-                <th className="py-3 px-4">End Date</th>
-                <th className="py-3 px-4">Target Role</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-right">Action</th>
+              <tr className="data-thead select-none">
+                <th className="data-th">Event</th>
+                <th className="data-th">Category</th>
+                <th className="data-th">Start Date</th>
+                <th className="data-th">End Date</th>
+                <th className="data-th">Target Role</th>
+                <th className="data-th text-center">Status</th>
+                <th className="data-th text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#efecf6]/14 divide-slate-100 text-xs">
-              {filteredEntries.length === 0 ? (
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <LoadingState message="Loading timeline…" />
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <ErrorState message={error} onRetry={loadEntries} />
+                  </td>
+                </tr>
+              ) : filteredEntries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400 italic">
                     No timeline schedule events found matching your filter scope criteria.
@@ -538,29 +462,29 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                 </tr>
               ) : (
                 filteredEntries.map((ent) => (
-                  <tr key={ent.id} className="hover:bg-slate-50/30 transition-colors">
+                  <tr key={ent.id} className="data-row">
                     {/* Event name banner */}
-                    <td className="py-4 px-4 font-black text-[#0c1424] max-w-[240px]">
+                    <td className="data-td-strong max-w-[240px]">
                       {ent.event}
                     </td>
 
                     {/* Category Label description */}
-                    <td className="py-4 px-4 text-slate-500 font-bold">
+                    <td className="data-td">
                       {ent.category}
                     </td>
 
                     {/* Start timeline */}
-                    <td className="py-4 px-4 font-mono font-bold text-slate-550 text-slate-550">
+                    <td className="data-td font-mono">
                       {ent.startDate}
                     </td>
 
                     {/* End timeline */}
-                    <td className="py-4 px-4 font-mono font-bold text-slate-550 text-slate-550">
+                    <td className="data-td font-mono">
                       {ent.endDate}
                     </td>
 
                     {/* Target Roles Badge Chips */}
-                    <td className="py-4 px-4">
+                    <td className="data-td">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {ent.targetRole.map((role) => (
                           <span
@@ -578,15 +502,14 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                     </td>
 
                     {/* Status indicator pill with colored bullet code */}
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${getStatusBadgeStyles(ent.status)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusBulletColor(ent.status)}`} />
-                        <span>{ent.status}</span>
-                      </span>
+                    <td className="data-td text-center">
+                      <StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status === 'Deadline'}>
+                        {ent.status}
+                      </StatusBadge>
                     </td>
 
                     {/* Manage row edit handler link */}
-                    <td className="py-4 px-4 text-right">
+                    <td className="data-td text-right">
                       <div className="flex items-center justify-end gap-2.5">
                         <button
                           onClick={() => handleOpenEditModal(ent)}
@@ -616,48 +539,48 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
       {/* 3. Recent Updates Track Section */}
       <div id="recent-timeline-updates-card" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4 text-left">
-        <h3 className="text-sm font-black text-[#0c1424] tracking-tight">
+        <h3 className="text-sm font-black text-brand-navy tracking-tight">
           Recent Timeline Updates
         </h3>
 
         <div className="overflow-x-auto pt-1">
-          <table className="w-full text-left font-sans border-collapse text-xs">
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-slate-200 text-[9px] font-black text-slate-400 bg-slate-50/20 uppercase tracking-widest select-none">
-                <th className="py-2 px-4 text-left">USER</th>
-                <th className="py-2 px-4 text-left">DATE</th>
-                <th className="py-2 px-4 text-left">ACTION</th>
-                <th className="py-2 px-4 text-left">DETAILS</th>
+              <tr className="data-thead select-none">
+                <th className="data-th text-left">USER</th>
+                <th className="data-th text-left">DATE</th>
+                <th className="data-th text-left">ACTION</th>
+                <th className="data-th text-left">DETAILS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {updateLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/20">
+                <tr key={log.id} className="data-row">
                   {/* User identity cell with photo avatar */}
-                  <td className="py-4 px-4 flex items-center gap-3">
+                  <td className="data-td flex items-center gap-3">
                     <img
                       src={log.avatar}
                       alt={log.user}
                       className="w-7 h-7 rounded-full object-cover border border-slate-200 text-[9px]"
                       referrerPolicy="no-referrer"
                     />
-                    <span className="font-bold text-[#0c1424]">{log.user}</span>
+                    <span className="font-bold text-brand-navy">{log.user}</span>
                   </td>
 
                   {/* Operation date log */}
-                  <td className="py-4 px-4 text-slate-500 font-semibold">
+                  <td className="data-td">
                     {log.date}
                   </td>
 
                   {/* Operational tag action color mapping */}
-                  <td className="py-4 px-4 font-extrabold">
+                  <td className="data-td font-extrabold">
                     <span className={log.actionColor}>
                       {log.action}
                     </span>
                   </td>
 
                   {/* Details summary */}
-                  <td className="py-4 px-4 text-slate-600 font-medium">
+                  <td className="data-td">
                     {log.details}
                   </td>
                 </tr>
@@ -691,39 +614,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         onClose={() => setUploadDrawerOpen(false)} 
         onImportSuccess={handleImportSuccess} 
       />
-
-      {/* Footer layout */}
-      <footer id="timeline-portal-footer" className="pt-10 border-t border-[#e2e8f0] flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
-        <div className="text-left font-sans text-slate-400">
-          © 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)
-        </div>
-        <div id="timeline-footer-actions-links" className="flex items-center flex-wrap gap-4 uppercase tracking-wider font-sans text-slate-400">
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Opening privacy policy conditions...')}
-            className="hover:text-slate-800 cursor-pointer text-slate-400"
-          >
-            Privacy Policy
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Downloading updated system admin manual...')}
-            className="hover:text-slate-800 cursor-pointer text-slate-400"
-          >
-            System Manual
-          </button>
-          <span>|</span>
-          <button 
-            type="button" 
-            onClick={() => triggerToast('Opening support desk contact information...')}
-            className="hover:text-slate-800 cursor-pointer flex items-center gap-1 text-slate-400"
-          >
-            <HelpCircle className="w-3.5 h-3.5 inline text-slate-400" />
-            <span>Support Desk</span>
-          </button>
-        </div>
-      </footer>
 
     </div>
   );

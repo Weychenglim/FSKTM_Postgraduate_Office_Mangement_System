@@ -1,9 +1,10 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, 
   Upload, 
@@ -35,118 +36,32 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UploadNewDocument } from './UploadNewDocument';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
+import { LoadingState, ErrorState } from './StateViews';
+import { FileItem } from '../types';
+import { getFiles } from '../services';
 
-// Custom typescript types
-export interface FileItem {
-  id: string;
-  name: string;
-  studentId: string;
-  category: 'Coursework' | 'Research' | 'Administrative' | 'Evaluation';
-  sem: string;
-  uploadedBy: string;
-  date: string;
-  size: string;
-  status: 'Active' | 'Archived';
-  tags: string[];
-  moduleName?: string;
-  fileType: 'pdf' | 'docx' | 'xlsx' | 'pptx';
-  description?: string;
-}
+// FileItem now lives in src/types.
 
 export const FileRepository: React.FC = () => {
-  // Mock initial state for files
-  const [files, setFiles] = useState<FileItem[]>([
-    {
-      id: 'file_1',
-      name: 'WIE2003_Assignment1_Final.pdf',
-      studentId: 'U2001234',
-      category: 'Coursework',
-      sem: '2023/24 S1',
-      uploadedBy: 'Ahmad S.',
-      date: '24 Oct 2023',
-      size: '2.4 MB',
-      status: 'Active',
-      tags: ['Assignment', 'Final'],
-      moduleName: 'Research Methodology',
-      fileType: 'pdf',
-      description: 'First assignment submission addressing core research planning methodologies.'
-    },
-    {
-      id: 'file_2',
-      name: 'Research_Proposal_Draft_v2.docx',
-      studentId: 'S2109988',
-      category: 'Research',
-      sem: '2023/24 S1',
-      uploadedBy: 'Dr. Lee M.',
-      date: '22 Oct 2023',
-      size: '1.1 MB',
-      status: 'Active',
-      tags: ['Proposal'],
-      moduleName: 'Thesis Preparation',
-      fileType: 'docx',
-      description: 'Second draft framework for dissertation panel feedback.'
-    },
-    {
-      id: 'file_3',
-      name: 'Old_Syllabus_2021.pdf',
-      studentId: 'Admin',
-      category: 'Administrative',
-      sem: '2021/22 S2',
-      uploadedBy: 'System',
-      date: '15 Jan 2022',
-      size: '4.8 MB',
-      status: 'Archived',
-      tags: ['Deprecated', 'Confidential'],
-      moduleName: 'Curriculum Master',
-      fileType: 'pdf',
-      description: 'Legacy Master Syllabus references. Retained for retrospective audit purposes.'
-    },
-    {
-      id: 'file_4',
-      name: 'Student_Grades_Draft.xlsx',
-      studentId: 'Admin',
-      category: 'Evaluation',
-      sem: '2023/24 S1',
-      uploadedBy: 'Sarah J.',
-      date: '20 Oct 2023',
-      size: '520 KB',
-      status: 'Active',
-      tags: ['Confidential'],
-      moduleName: 'Marks Entry Audit',
-      fileType: 'xlsx',
-      description: 'Intermediate raw grades consolidation before faculty submission lock.'
-    },
-    {
-      id: 'file_5',
-      name: 'Panel_Exemption_List.xlsx',
-      studentId: 'Admin',
-      category: 'Administrative',
-      sem: '2023/24 S1',
-      uploadedBy: 'Ahmad S.',
-      date: '10 Nov 2023',
-      size: '1.2 MB',
-      status: 'Active',
-      tags: ['Confidential'],
-      moduleName: 'Panel Appointment',
-      fileType: 'xlsx',
-      description: 'Listing of student exceptions approved by the postgraduate panel.'
-    },
-    {
-      id: 'file_6',
-      name: 'Supervisor_Agreement_Forms.pdf',
-      studentId: 'U2005882',
-      category: 'Coursework',
-      sem: '2023/24 S1',
-      uploadedBy: 'Dr. Sarah Lim',
-      date: '18 Nov 2023',
-      size: '3.1 MB',
-      status: 'Active',
-      tags: ['Agreement'],
-      moduleName: 'Supervisor Selection',
-      fileType: 'pdf',
-      description: 'Signed agreements allocating final supervisor quotas.'
-    }
-  ]);
+  // Files loaded from filesApi (mock-backed today). setFiles is retained for
+  // local archive/upload mutations.
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFiles = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getFiles()
+      .then(setFiles)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load files.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
 
   // View state options
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -417,81 +332,57 @@ export const FileRepository: React.FC = () => {
   }
 
   return (
-    <div id="file-repository-workspace" className="font-sans text-[#0c1424] text-xs">
+    <div id="file-repository-workspace" className="font-sans text-brand-navy text-xs">
       
-      {/* Dynamic Toast warning block */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-8 z-[100] bg-[#0c1424] text-white p-4 rounded-xl shadow-xl flex items-center gap-3.5 border border-white/10 font-bold"
-          >
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            <span className="text-[11px] font-sans tracking-wide">{toastMessage}</span>
-            <button onClick={() => setToastMessage(null)} className="text-slate-400 hover:text-white transition">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PortalToast message={toastMessage} />
 
-      {/* Title Header with action buttons */}
-      <div id="file-page-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="text-left">
-          <h1 className="text-2xl font-black text-[#0c1424] tracking-tight">
-            File Repository
-          </h1>
-          <p className="text-slate-500 text-[11px] font-medium leading-relaxed mt-1">
-            Browse, preview and download documents
-          </p>
-        </div>
-
-        {/* Action Controls for uploading & toggling archived archives */}
-        <div className="flex items-center gap-3.5">
-          <button
+      <PageHeader
+        title="File Repository"
+        subtitle="Browse, preview and download documents"
+        className="mb-6"
+        actions={(
+          <>
+          <PortalButton
             type="button"
             onClick={() => {
               setShowArchivedOnly(!showArchivedOnly);
               triggerToast(showArchivedOnly ? 'Viewing active files.' : 'Filtered dataset to Archived files only.');
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-2 border shadow-xs cursor-pointer ${
-              showArchivedOnly 
-                ? 'bg-amber-50 border-amber-300 text-amber-800 font-extrabold' 
-                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-            }`}
+            variant={showArchivedOnly ? 'soft' : 'secondary'}
+            size="md"
+            icon={FolderLock}
           >
-            <FolderLock className="w-4 h-4 stroke-[2]" />
-            <span>Archived Files</span>
-          </button>
+            Archived Files
+          </PortalButton>
 
-          <button
+          <PortalButton
             type="button"
             onClick={() => setCurrentSubView('upload')}
-            className="px-4 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white rounded-xl text-xs font-black font-sans transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+            variant="primary"
+            size="md"
+            icon={Upload}
           >
-            <Upload className="w-4 h-4 stroke-[2]" />
-            <span>Upload New File</span>
-          </button>
-        </div>
-      </div>
+            Upload New File
+          </PortalButton>
+          </>
+        )}
+      />
 
       {/* 4 Summary Cards Row */}
       <div id="file-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 text-left">
         {/* TOTAL FILES */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Files</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">12,458</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">12,458</span>
           <span className="text-[10px] text-slate-500 font-medium pt-1">Active + archived documents</span>
         </div>
 
         {/* ACTIVE DOCUMENTS */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Active Documents</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">11,204</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">11,204</span>
           <span className="text-[10px] text-emerald-600 font-bold pt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            <StatusDot tone="success" />
             90% of overall database files
           </span>
         </div>
@@ -499,7 +390,7 @@ export const FileRepository: React.FC = () => {
         {/* ARCHIVED */}
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Archived</span>
-          <span className="text-2xl font-black text-[#0c1424] tracking-tight">1,254</span>
+          <span className="text-2xl font-black text-brand-navy tracking-tight">1,254</span>
           <span className="text-[10px] text-slate-500 font-medium pt-1">Historical files storage</span>
         </div>
 
@@ -507,13 +398,11 @@ export const FileRepository: React.FC = () => {
         <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Storage Used</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-[#0c1424] tracking-tight">45.2 GB</span>
+            <span className="text-2xl font-black text-brand-navy tracking-tight">45.2 GB</span>
             <span className="text-[10px] text-slate-400 font-bold">/ 100 GB</span>
           </div>
           {/* Progress slider bar illustration */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2.5 overflow-hidden">
-            <div className="bg-indigo-600 h-full rounded-full" style={{ width: '45.2%' }} />
-          </div>
+          <ProgressBar value={45.2} tone="brand" trackClassName="mt-2.5 bg-slate-100" />
         </div>
       </div>
 
@@ -527,7 +416,7 @@ export const FileRepository: React.FC = () => {
           <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
             
             {/* Filter controls section */}
-            <div className="p-5 border-b border-slate-150 space-y-4">
+            <div className="filter-toolbar m-5 space-y-4">
               
               {/* Row 1: Search block */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -540,7 +429,7 @@ export const FileRepository: React.FC = () => {
                     placeholder="Search by file name, student ID, or tags..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#0c1424] focus:outline-none text-xs font-bold text-slate-800 placeholder:text-slate-400 outline-none"
+                    className="form-control form-control-sm pl-10 pr-4"
                   />
                 </div>
 
@@ -573,7 +462,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Category: All</option>
                     <option value="Coursework">Coursework</option>
@@ -589,7 +478,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={moduleFilter}
                     onChange={(e) => setModuleFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Module: All</option>
                     {allAvailableModules.map(m => (
@@ -604,7 +493,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={semesterFilter}
                     onChange={(e) => setSemesterFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Semester: All</option>
                     {allAvailableSemesters.map(s => (
@@ -619,7 +508,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={fileTypeFilter}
                     onChange={(e) => setFileTypeFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">File Type: All</option>
                     <option value="pdf">PDF files</option>
@@ -634,7 +523,7 @@ export const FileRepository: React.FC = () => {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-[#f8fafc] border border-slate-200 text-slate-700 hover:border-slate-300 px-3 py-1.5 pr-8 rounded-lg font-bold text-[11px] cursor-pointer focus:outline-none"
+                    className="form-control form-control-sm appearance-none pr-8 text-[11px] cursor-pointer"
                   >
                     <option value="All">Status: All</option>
                     <option value="Active">Active</option>
@@ -644,13 +533,15 @@ export const FileRepository: React.FC = () => {
                 </div>
 
                 {/* Clear Actions link button */}
-                <button
+                <PortalButton
                   type="button"
                   onClick={handleClearAllFilters}
-                  className="text-indigo-600 hover:text-indigo-800 font-extrabold text-[11px] px-2 py-1 hover:underline transition select-none cursor-pointer"
+                  variant="ghost"
+                  size="sm"
+                  className="px-2 py-1"
                 >
                   Clear All Filters
-                </button>
+                </PortalButton>
               </div>
 
               {/* Row 3: Multiselect bulk actions */}
@@ -661,22 +552,24 @@ export const FileRepository: React.FC = () => {
                     <span><strong>{checkedIds.length}</strong> document(s) checked.</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button
+                    <PortalButton
                       type="button"
                       onClick={() => handleDownloadFile(`${checkedIds.length} selected zip package`)}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 transition text-[10px] uppercase font-extrabold tracking-wide"
+                      variant="primary"
+                      size="sm"
+                      icon={Download}
                     >
-                      <Download className="w-3 h-3" />
-                      <span>Download Bundle</span>
-                    </button>
-                    <button
+                      Download Bundle
+                    </PortalButton>
+                    <PortalButton
                       type="button"
                       onClick={handleBulkArchive}
-                      className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-slate-50 rounded-lg text-slate-700 flex items-center gap-1.5 transition text-[10px] uppercase font-extrabold tracking-wide"
+                      variant="secondary"
+                      size="sm"
+                      icon={Archive}
                     >
-                      <Archive className="w-3 h-3 text-indigo-600" />
-                      <span>Archive Selected</span>
-                    </button>
+                      Archive Selected
+                    </PortalButton>
                   </div>
                 </div>
               )}
@@ -702,7 +595,7 @@ export const FileRepository: React.FC = () => {
                       }}
                       className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer ${
                         isSelected 
-                          ? 'bg-[#0c1424] text-white border border-[#0c1424]'
+                          ? 'bg-brand-navy text-white border border-brand-navy'
                           : 'bg-slate-100 text-slate-600 border border-transparent hover:bg-slate-200'
                       }`}
                     >
@@ -715,22 +608,26 @@ export const FileRepository: React.FC = () => {
             </div>
 
             {/* List vs Grid display block */}
-            {filteredFiles.length === 0 ? (
+            {loading ? (
+              <LoadingState message="Loading files…" />
+            ) : error ? (
+              <ErrorState message={error} onRetry={loadFiles} />
+            ) : filteredFiles.length === 0 ? (
               <div className="p-12 text-center text-slate-400">
                 <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 mx-auto flex items-center justify-center mb-3">
                   <Database className="w-5 h-5 text-slate-400" />
                 </div>
-                <p className="font-extrabold text-[#0c1424]">No matching templates or records</p>
+                <p className="font-extrabold text-brand-navy">No matching templates or records</p>
                 <p className="text-[10px] mt-1 text-slate-400">Please relax search strings or clear quick active filter badges.</p>
               </div>
             ) : viewMode === 'list' ? (
               
               /* LIST TYPE TABLE VIEW */
               <div className="overflow-x-auto">
-                <table className="w-full font-sans text-left border-collapse">
+                <table className="data-table">
                   <thead>
-                    <tr className="bg-[#f8fafc] border-b border-slate-150 text-slate-500 font-extrabold text-[10px] uppercase tracking-wider">
-                      <th className="px-5 py-3.5 w-6 select-none">
+                    <tr className="data-thead bg-[#f8fafc]">
+                      <th className="data-th w-6 select-none">
                         <input
                           type="checkbox"
                           checked={checkedIds.length > 0 && checkedIds.length === filteredFiles.map(f => f.id).length}
@@ -738,15 +635,15 @@ export const FileRepository: React.FC = () => {
                           className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-slate-900 cursor-pointer"
                         />
                       </th>
-                      <th className="px-5 py-3.5">File Name</th>
-                      <th className="px-4 py-3.5">Student ID</th>
-                      <th className="px-4 py-3.5">Category</th>
-                      <th className="px-3 py-3.5">Sem</th>
-                      <th className="px-4 py-3.5">Uploaded By</th>
-                      <th className="px-4 py-3.5">Date</th>
-                      <th className="px-3 py-3.5">Size</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className="data-th">File Name</th>
+                      <th className="data-th">Student ID</th>
+                      <th className="data-th">Category</th>
+                      <th className="data-th">Sem</th>
+                      <th className="data-th">Uploaded By</th>
+                      <th className="data-th">Date</th>
+                      <th className="data-th">Size</th>
+                      <th className="data-th text-center">Status</th>
+                      <th className="data-th text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -762,7 +659,7 @@ export const FileRepository: React.FC = () => {
                           }`}
                         >
                           {/* Checked Checkbox selection */}
-                          <td className="px-5 py-4 w-6 select-none" onClick={(e) => e.stopPropagation()}>
+                          <td className="data-td w-6 select-none" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -778,7 +675,7 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* File logo & styling name */}
-                          <td className="px-5 py-4">
+                          <td className="data-td">
                             <div className="flex items-center gap-3">
                               {getFileIcon(f.fileType)}
                               <div className="flex flex-col">
@@ -798,12 +695,12 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Student ID */}
-                          <td className="px-4 py-4 font-bold text-slate-500 whitespace-nowrap">
+                          <td className="data-td font-bold text-slate-500 whitespace-nowrap">
                             {f.studentId}
                           </td>
 
                           {/* Category pill column with beautiful custom layouts */}
-                          <td className="px-4 py-4">
+                          <td className="data-td">
                             {f.category === 'Coursework' ? (
                               <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-100 text-[10px]">Coursework</span>
                             ) : f.category === 'Research' ? (
@@ -816,12 +713,12 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Semester text */}
-                          <td className="px-3 py-4 font-bold text-slate-500 whitespace-nowrap">
+                          <td className="data-td font-bold text-slate-500 whitespace-nowrap">
                             {f.sem}
                           </td>
 
                           {/* Uploaded By */}
-                          <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
+                          <td className="data-td text-slate-600 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <div className="w-4 h-4 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-[8px] border border-slate-200">
                                 {f.uploadedBy[0]}
@@ -831,49 +728,47 @@ export const FileRepository: React.FC = () => {
                           </td>
 
                           {/* Upload Date */}
-                          <td className="px-4 py-4 text-slate-500 font-medium whitespace-nowrap">
+                          <td className="data-td text-slate-500 font-medium whitespace-nowrap">
                             {f.date}
                           </td>
 
                           {/* File size size */}
-                          <td className="px-3 py-4 text-slate-500 font-bold whitespace-nowrap">
+                          <td className="data-td text-slate-500 font-bold whitespace-nowrap">
                             {f.size}
                           </td>
 
                           {/* Status option */}
-                          <td className="px-4 py-4 text-center whitespace-nowrap">
-                            {f.status === 'Active' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-150 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                                <span>Active</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-50 text-slate-500 border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                <span className="w-1 h-1 rounded-full bg-slate-400" />
-                                <span>Archived</span>
-                              </span>
-                            )}
+                          <td className="data-td text-center whitespace-nowrap">
+                            <StatusBadge
+                              tone={getStatusBadgeTone(f.status)}
+                              dot
+                              className="text-[9px] px-2.5 py-0.5"
+                            >
+                              {f.status}
+                            </StatusBadge>
                           </td>
 
                           {/* Actions button */}
-                          <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="data-td text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1.5">
-                              <button
+                              <PortalButton
                                 type="button"
                                 onClick={() => handleDownloadFile(f.name)}
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-800 transition"
+                                variant="ghost"
+                                size="icon"
+                                icon={Download}
+                                className="w-8 h-8"
                                 title="Download"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button
+                              />
+                              <PortalButton
                                 type="button"
                                 onClick={() => handleToggleArchiveSingle(f.id)}
-                                className="p-1 rounded-md text-slate-400 hover:text-amber-700 transition"
+                                variant="ghost"
+                                size="icon"
+                                icon={Archive}
+                                className="w-8 h-8"
                                 title={f.status === 'Active' ? 'Archive file' : 'Activate file'}
-                              >
-                                <Archive className="w-4 h-4" />
-                              </button>
+                              />
                             </div>
                           </td>
                         </tr>
@@ -914,11 +809,9 @@ export const FileRepository: React.FC = () => {
                           />
                         </div>
 
-                        {f.status === 'Active' ? (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[8px] font-black uppercase">Active</span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-full text-[8px] font-black uppercase">Archived</span>
-                        )}
+                        <StatusBadge tone={getStatusBadgeTone(f.status)} className="text-[8px] px-2 py-0.5">
+                          {f.status}
+                        </StatusBadge>
                       </div>
 
                       {/* File main identifiers */}
@@ -986,7 +879,7 @@ export const FileRepository: React.FC = () => {
               
               {/* Header Title section */}
               <div className="p-4 border-b border-slate-150 flex items-center justify-between">
-                <span className="font-black text-[#0c1424] text-[13px] tracking-tight">
+                <span className="font-black text-brand-navy text-[13px] tracking-tight">
                   File Preview
                 </span>
 
@@ -1023,7 +916,7 @@ export const FileRepository: React.FC = () => {
               {/* 1. PDF Page visual mockup layout (Exact representation of the screenshot mockup) */}
               <div className="p-4.5 bg-[#f8fafc] border-b border-slate-100">
                 <div 
-                  className="bg-white rounded-xl shadow-md border border-slate-200 p-6 mx-auto relative overflow-hidden transition-all duration-200 ease-in-out"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mx-auto relative overflow-hidden transition-all duration-200 ease-in-out"
                   style={{ 
                     aspectRatio: '1 / 1.414',
                     width: '100%',
@@ -1114,7 +1007,7 @@ export const FileRepository: React.FC = () => {
                 <div className="space-y-1 pt-2 border-t border-slate-100">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider block">Uploaded By</span>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 text-[#0c1424] font-black text-[9px] flex items-center justify-center border border-slate-200 capitalize">
+                    <div className="w-5 h-5 rounded-full bg-slate-100 text-brand-navy font-black text-[9px] flex items-center justify-center border border-slate-200 capitalize">
                       {selectedFileItem.uploadedBy[0]}
                     </div>
                     <span className="font-extrabold text-slate-700">{selectedFileItem.uploadedBy} (Admin Office Staff)</span>
@@ -1123,23 +1016,27 @@ export const FileRepository: React.FC = () => {
 
                 {/* Action parameters buttons */}
                 <div className="space-y-2.5 pt-4 border-t border-slate-150">
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => handleDownloadFile(selectedFileItem.name)}
-                    className="w-full py-3 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    variant="primary"
+                    size="md"
+                    icon={Download}
+                    fullWidth
                   >
-                    <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Download File</span>
-                  </button>
+                    Download File
+                  </PortalButton>
 
-                  <button
+                  <PortalButton
                     type="button"
                     onClick={() => handleToggleArchiveSingle(selectedFileItem.id)}
-                    className="w-full py-3 border border-slate-200 hover:bg-[#fff5f5] text-rose-700 hover:text-rose-900 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                    variant={selectedFileItem.status === 'Active' ? 'danger' : 'secondary'}
+                    size="md"
+                    icon={Archive}
+                    fullWidth
                   >
-                    <Archive className="w-3.5 h-3.5 text-rose-600" />
-                    <span>{selectedFileItem.status === 'Active' ? 'Archive File' : 'Activate Document'}</span>
-                  </button>
+                    {selectedFileItem.status === 'Active' ? 'Archive File' : 'Activate Document'}
+                  </PortalButton>
                 </div>
 
               </div>
@@ -1151,9 +1048,10 @@ export const FileRepository: React.FC = () => {
       </div>
 
       {/* Manual upload simulation dialog modal overlay */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isUploadOpen && (
-          <div className="fixed inset-0 bg-[#0c1424]/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
             {/* Backdrop Dismiss */}
             <div className="absolute inset-0" onClick={() => setIsUploadOpen(false)} />
 
@@ -1162,12 +1060,12 @@ export const FileRepository: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative z-10 border border-slate-100 text-left font-sans"
+              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-sm relative z-10 border border-slate-100 text-left font-sans"
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 select-none">
                 <div className="flex items-center gap-2">
                   <Upload className="w-5 h-5 text-indigo-500" />
-                  <h3 className="font-black text-[#0c1424] text-[14px] tracking-tight">
+                  <h3 className="font-black text-brand-navy text-[14px] tracking-tight">
                     Upload New File
                   </h3>
                 </div>
@@ -1276,7 +1174,7 @@ export const FileRepository: React.FC = () => {
                 {/* Drag-and-drop simulated indicator area */}
                 <div className="border border-dashed border-slate-250 p-4 rounded-2xl bg-slate-50/50 hover:bg-slate-100/40 text-center space-y-1 transition-colors cursor-pointer select-none">
                   <Upload className="w-5 h-5 mx-auto text-slate-400 stroke-[2.5]" />
-                  <span className="font-bold text-[#0c1424] block">Select document sheet / drag & drop</span>
+                  <span className="font-bold text-brand-navy block">Select document sheet / drag & drop</span>
                   <span className="text-[9px] text-slate-400 block font-medium">Accept pdf, docx, xlsx, pptx files up to 25MB</span>
                 </div>
 
@@ -1291,7 +1189,7 @@ export const FileRepository: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-[#0c1424] hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
+                    className="flex-1 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
                   >
                     Upload Document
                   </button>
@@ -1301,7 +1199,9 @@ export const FileRepository: React.FC = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
 
     </div>
   );

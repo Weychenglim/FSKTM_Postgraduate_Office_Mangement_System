@@ -1,24 +1,20 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React from 'react';
 import { CheckCircle2, Info } from 'lucide-react';
+import { MOCK_RUBRIC_VALIDATION_REQUIREMENTS } from '../mocks/rubrics';
 
 export const ValidationCard: React.FC = () => {
-  const requirements = [
-    { id: '1', text: 'Total weight must be exactly 100%', type: 'check' },
-    { id: '2', text: 'Required components must have > 0 max marks', type: 'check' },
-    { id: '3', text: 'All component names must be unique', type: 'check' },
-    { id: '4', text: 'Changes affect new tasks only', type: 'info' }
-  ];
+  const requirements = MOCK_RUBRIC_VALIDATION_REQUIREMENTS;
 
   return (
-    <div id="rubrics-validation-panel" className="bg-[#f0f4fa]/60 rounded-3xl border border-[#d3dfef]/70 p-6 text-left">
+    <div id="rubrics-validation-panel" className="bg-[#f0f4fa]/60 rounded-2xl border border-[#d3dfef]/70 p-6 text-left">
       <div className="flex items-center gap-2 mb-5">
         <svg
-          className="w-4.5 h-4.5 text-[#0c1424]"
+          className="w-4.5 h-4.5 text-brand-navy"
           fill="none"
           stroke="currentColor"
           strokeWidth="2.2"
@@ -30,7 +26,7 @@ export const ValidationCard: React.FC = () => {
             d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m11.25-3l3 3m0 0l-3 3m3-3H12"
           />
         </svg>
-        <span className="font-extrabold text-[15px] text-[#0c1424] tracking-tight">
+        <span className="font-extrabold text-[15px] text-brand-navy tracking-tight">
           Rubric Validation
         </span>
       </div>

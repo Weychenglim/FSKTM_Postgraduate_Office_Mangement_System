@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -41,10 +41,10 @@ export const AuditLogCard: React.FC<AuditLogCardProps> = ({
         {logs.map((log) => (
           <div
             key={log.id}
-            className="p-3 bg-white border border-slate-200 rounded-xl text-left shadow-[0_2px_8px_rgba(241,245,249,0.3)] transition-all"
+            className="p-3 bg-white border border-slate-200 rounded-xl text-left shadow-3xs transition-all"
           >
             <div className="flex gap-2 items-baseline text-xs">
-              <span className="text-[10px] font-extrabold text-[#0c1424] tracking-tight shrink-0 font-sans">
+              <span className="text-[10px] font-extrabold text-brand-navy tracking-tight shrink-0 font-sans">
                 {log.timestamp}:
               </span>
               <span className="text-[11px] text-slate-600 font-medium leading-relaxed">

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,8 +13,9 @@ import { AuditLogCard } from './AuditLogCard';
 import { DataTable, TableRow } from './DataTable';
 import { SummaryCard } from './SummaryCard';
 import { ActionButton } from './ActionButton';
-import { ArrowLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
+import { ChevronLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -173,31 +174,15 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
   return (
     <div id="mark-entry-configuration-master" className="space-y-8 animate-fade-in relative">
       
-      {/* Toast Alert Banner */}
-      {toastMessage && (
-        <div id="toast-notif-banner" className="fixed top-6 right-6 z-50 max-w-md bg-[#0c1424] text-white py-3.5 px-5 rounded-2xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-bold font-sans">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      <PortalToast message={toastMessage} />
 
-      {/* Top Breadcrumb Header panel */}
-      <div id="config-breadcrumb-header" className="flex flex-col text-left">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider mb-3.5 cursor-pointer select-none"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Marks & Evaluation Management</span>
-        </button>
-
-        <h1 id="config-page-title" className="text-2xl md:text-3xl font-extrabold text-[#0c1424] tracking-tight font-sans">
-          Mark Entry Period Configuration
-        </h1>
-        <p id="config-page-subtext" className="text-slate-500 text-xs md:text-sm mt-1.5 font-medium leading-relaxed">
-          Set mark entry start dates, end dates, and submission deadlines for evaluation tasks.
-        </p>
-      </div>
+      <PageHeader
+        title="Mark Entry Period Configuration"
+        subtitle="Set mark entry start dates, end dates, and submission deadlines for evaluation tasks."
+        backLabel="Back to Marks & Evaluation Management"
+        onBack={onBack}
+        subtitleClassName="leading-relaxed"
+      />
 
       {/* Summary Cards Row */}
       <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -348,11 +333,11 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ on
       </div>
 
       {/* Existing Mark Entry Periods Table view (Bottom panel) */}
-      <div id="table-existing-periods-card" className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 text-left shadow-[0_8px_30px_rgb(241,245,249,0.5)]">
+      <div id="table-existing-periods-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
         
         {/* Table header bar */}
         <div id="table-header-toolbar" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 id="table-heading" className="text-lg font-extrabold text-[#0c1424] tracking-tight">
+          <h3 id="table-heading" className="text-lg font-extrabold text-brand-navy tracking-tight">
             Existing Mark Entry Periods
           </h3>
 
