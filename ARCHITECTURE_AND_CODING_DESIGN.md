@@ -3,6 +3,7 @@
 ## Tech Stack
 
 - React 19 with TypeScript
+- React type declarations through `@types/react` and `@types/react-dom` for editor and `tsc` support.
 - Vite for development and production builds
 - Tailwind CSS utility classes
 - Lucide React icons

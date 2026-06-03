@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python / Django backend
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3

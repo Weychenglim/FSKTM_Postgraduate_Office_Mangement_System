@@ -196,6 +196,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                 reg: 'WEA200192',
                 refId: 'FSKTM-SV-REF-2024-819',
                 status: 'APPROVED',
+                date: '01 Aug 2024',
                 submittedDate: '01 Aug 2024',
                 step1Date: '01 Aug 2024, 08:00 AM',
                 history: [
@@ -300,6 +301,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                           reg: 'WEA200192',
                           refId: `FSKTM-SV-REF-${app.id.split('-').pop()}`,
                           status: app.status,
+                          date: app.date,
                           submittedDate: app.date,
                           step1Date: `${app.date}, 09:30 AM`,
                           history: app.status === 'APPROVED' ? [

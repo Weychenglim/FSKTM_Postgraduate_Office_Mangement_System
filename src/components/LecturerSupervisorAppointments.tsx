@@ -33,6 +33,7 @@ import {
   Building,
   Download
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
@@ -127,7 +128,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
 
 interface ActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
-  icon?: React.ComponentType<any>;
+  icon?: LucideIcon;
   children: React.ReactNode;
 }
 

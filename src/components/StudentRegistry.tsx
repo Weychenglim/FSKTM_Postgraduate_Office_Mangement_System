@@ -39,6 +39,7 @@ import {
   FileDown,
   Sparkle
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
@@ -145,7 +146,7 @@ export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ 
 // Reusable Action Button
 interface ActionButtonProps {
   onClick: () => void;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   title: string;
 }
 
