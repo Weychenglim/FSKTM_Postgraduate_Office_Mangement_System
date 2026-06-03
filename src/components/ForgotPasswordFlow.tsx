@@ -15,6 +15,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { authApi, ApiError } from '../services';
 
 // ==================== PATTERN COMPONENTS ====================
 
@@ -265,7 +266,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState('');
 
-  const handlePostRequest = (e: React.FormEvent) => {
+  const handlePostRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
 
@@ -280,21 +281,29 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
     }
 
     setIsLoading(true);
-
-    // Dynamic timeout matching professional background action
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await authApi.requestPasswordReset(email.trim());
       setIsSubmitted(true);
-    }, 1200);
+    } catch (err) {
+      setErrorText(
+        err instanceof ApiError ? err.message : 'Cannot reach the server. Please try again shortly.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setIsLoading(true);
     setErrorText('');
-    setTimeout(() => {
+    try {
+      await authApi.requestPasswordReset(email.trim());
+      alert('A new security reset link has been dispatched to your inbox.');
+    } catch {
+      setErrorText('Cannot reach the server. Please try again shortly.');
+    } finally {
       setIsLoading(false);
-      alert("A new security reset link has been dispatched to your inbox.");
-    }, 1000);
+    }
   };
 
   const openMailClient = () => {

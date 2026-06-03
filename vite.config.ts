@@ -12,11 +12,16 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: {
+        // Auth API is served by the Django backend (see backend/). Other /api
+        // routes are mocked client-side while only auth is live.
+        '/api': {
+          target: `http://localhost:${process.env.API_PORT ?? 8000}`,
+          changeOrigin: true,
+        },
+      },
     },
   };
 });

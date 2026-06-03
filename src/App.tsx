@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
 import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
@@ -45,8 +45,10 @@ import {
   Briefcase,
   Layers,
 } from 'lucide-react';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { DemoUser } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
+import { authApi } from './services';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
@@ -155,10 +157,24 @@ const DEFAULT_SECRETARY_ADMIN: DemoUser = {
 
 export default function App() {
   // Authentication session tracking
-  const [currentUser, setCurrentUser] = useState<DemoUser | null>(DEFAULT_SECRETARY_ADMIN);
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
 
   // Unauthenticated view routing state
-  const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
+
+  // Captured from a password-reset email link (?uid=...&token=...).
+  const [resetParams, setResetParams] = useState<{ uid: string; token: string } | null>(null);
+
+  // On first load, detect a password-reset link and switch to the reset view.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get('uid');
+    const token = params.get('token');
+    if (uid && token) {
+      setResetParams({ uid, token });
+      setAuthView('reset');
+    }
+  }, []);
 
   // Sidebar navigation active state
   const [activeSidebarItem, setActiveSidebarItem] = useState(SIDEBAR_ITEMS.DASHBOARD);
@@ -204,7 +220,17 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    void authApi.logout();
     setCurrentUser(null);
+  };
+
+  // Leave the reset view and clean the reset params out of the URL bar.
+  const handleBackToLogin = () => {
+    if (resetParams) {
+      window.history.replaceState({}, '', '/');
+      setResetParams(null);
+    }
+    setAuthView('login');
   };
 
   return (
@@ -415,6 +441,13 @@ export default function App() {
             </div>
           )}
         </AppLayout>
+      ) : authView === 'reset' && resetParams ? (
+        /* ==================== FRONTEND: STANDALONE RESET PASSWORD SCREEN ==================== */
+        <ResetPasswordPage
+          uid={resetParams.uid}
+          token={resetParams.token}
+          onBackToLogin={handleBackToLogin}
+        />
       ) : authView === 'forgot' ? (
         /* ==================== FRONTEND: STANDALONE FORGOT PASSWORD SCREEN ==================== */
         <ForgotPasswordFlow onBackToLogin={() => setAuthView('login')} />
