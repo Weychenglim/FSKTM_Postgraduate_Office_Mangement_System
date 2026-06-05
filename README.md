@@ -1,20 +1,5 @@
 # FSKTM Postgraduate Management System
 
-<<<<<<< Updated upstream
-Frontend portal for office staff, lecturers, and postgraduate students.
-
-## Environment
-
-Copy `.env.example` to `.env.local` for local overrides.
-
-```bash
-VITE_API_BASE_URL="/api"
-VITE_USE_MOCKS="true"
-VITE_MOCK_LATENCY_MS="500"
-```
-
-Set `VITE_USE_MOCKS="false"` and point `VITE_API_BASE_URL` at the backend when real endpoints are ready.
-=======
 Full-stack postgraduate management portal for FSKTM administrative, lecturer, and student workflows.
 
 ## Project Layout
@@ -64,4 +49,3 @@ The frontend proxies `/api` requests to `http://localhost:8000`.
 - [ARCHITECTURE_AND_CODING_DESIGN.md](ARCHITECTURE_AND_CODING_DESIGN.md) - architecture, structure, and coding conventions
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) - completed work, testing status, known issues, and next steps
 - [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) - database and backend setup notes
->>>>>>> Stashed changes

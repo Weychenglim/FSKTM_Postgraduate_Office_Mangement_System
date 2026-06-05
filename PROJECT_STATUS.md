@@ -46,8 +46,6 @@
 - Replaced additional local page headers and specialized controls with shared primitives, including student and lecturer module `PageHeader` usage, dashboard/announcement segmented controls, upload permission switches, removable tag chips, summary/status dots, and progress bars.
 - Finished the remaining authenticated module header cleanup so local `page-title`, `page-subtitle`, and `back-link` usage now lives inside `PortalPrimitives`, and converted more reusable summary/status/progress indicators to `StatusBadge`, `StatusDot`, and `ProgressBar`.
 - Adjusted Panel Appointment Management so the records table no longer depends on a horizontal scrollbar on desktop: the records area now uses a wider column, fixed table layout, compact cell spacing, and wrapped text.
-<<<<<<< Updated upstream
-=======
 - Resolved the `App.tsx` merge compile issue by restoring the missing mark-record mock import and cleaned duplicate dependency keys left in `package.json`.
 - Added missing React TypeScript declaration packages and tightened exposed type issues in sidebar state, icon wrapper props, login manual download alert handling, and student supervisor detail records.
 - Updated the existing lecturer Panel Appointments recommendation workflow so supervisor panel recommendations move from draft/submission to selected panel acceptance or rejection, then Programme Coordinator approval or rejection.
@@ -57,7 +55,8 @@
 - Added a panel recommendation review drawer pattern with approval controls and rejection reason fields placed inside the scrollable drawer content instead of a fixed drawer footer.
 - Added a request progress timeline to the panel recommendation View Flow drawer for submitted, selected-panel review, Programme Coordinator review, and final appointment states.
 - Fixed the lecturer Supervisor Appointment review drawer so the approve/reject controls and rejection reason field scroll with the request content instead of staying in a fixed bottom action area.
->>>>>>> Stashed changes
+- Resolved the `origin/main` merge conflicts on `Lim_Branch` by preserving the organized `frontend/` and `backend/` layout, retaining the richer panel recommendation workflow, and keeping incoming Django auth/reset-password wiring.
+- Cleaned the frontend package after the merge so obsolete Node/Express server scripts and dependencies stay out of the Vite app.
 
 ## Current Testing Status
 
@@ -104,6 +103,10 @@
 - `npm run lint` passes after the Panel Appointment Management no-horizontal-scroll table layout fix.
 - `npm run build` passes after the Panel Appointment Management no-horizontal-scroll table layout fix.
 - Vite dev server smoke probe returns HTTP 200 with the root element present after the Panel Appointment Management table layout fix.
+- `npm run lint` passes after resolving the `App.tsx` merge compile issue.
+- `npm run build` passes after resolving the `App.tsx` merge compile issue and duplicate `package.json` dependency keys.
+- `npm run lint` passes after adding React type declarations and fixing the stricter TypeScript issues they exposed.
+- `npm run build` passes after adding React type declarations and fixing the stricter TypeScript issues they exposed.
 - Vite foreground server check returns HTTP 200 for the app root.
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, lecturer routes, and student routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.
@@ -116,6 +119,8 @@
 - Focused workflow test `node_modules\.bin\tsx.cmd src\utils\panelRecommendationWorkflow.test.ts` passes after fixing the approval drawer scroll behavior.
 - `npm run lint` passes after fixing the supervisor appointment and panel recommendation approval drawer scroll behavior.
 - `npm run build` passes after fixing the supervisor appointment and panel recommendation approval drawer scroll behavior, with the existing non-blocking chunk-size warning.
+- `npm run lint` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`.
+- `npm run build` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`, with the existing non-blocking chunk-size warning.
 - Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
 
 ## Known Issues and Notes
