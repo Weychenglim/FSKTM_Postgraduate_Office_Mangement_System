@@ -26,6 +26,7 @@ import {
   GraduationCap,
   Info
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
@@ -370,8 +371,8 @@ interface ActionButtonProps {
   onClick?: () => void;
   type?: 'button' | 'submit';
   variant?: 'primary' | 'secondary';
-  iconLeft?: React.ComponentType<any>;
-  iconRight?: React.ComponentType<any>;
+  iconLeft?: LucideIcon;
+  iconRight?: LucideIcon;
 }
 
 export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type = 'button', variant = 'primary', iconLeft: IconLeft, iconRight: IconRight }) => {

@@ -19,6 +19,12 @@ db.sqlite3
 .env*
 !.env.example
 
+# Python / Django backend
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+
 # OS / editor
 .DS_Store
 

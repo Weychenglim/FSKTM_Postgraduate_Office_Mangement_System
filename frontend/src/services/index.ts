@@ -7,6 +7,7 @@
 // here, e.g. `import { getStudents } from '../services'`.
 
 export * from './apiClient';
+export * as authApi from './authApi';
 export * from './studentsApi';
 export * from './lecturersApi';
 export * from './appointmentsApi';
