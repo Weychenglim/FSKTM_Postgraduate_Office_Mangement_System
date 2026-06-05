@@ -2,6 +2,12 @@
 
 ## Completed
 
+- Reorganized the workspace into a standard full-stack structure with `frontend/`, `backend/`, and `docs/` at the project root while keeping the three mandatory governance documents at the root.
+- Moved the Vite React application source, package files, and frontend configuration into `frontend/`.
+- Moved the Django backend into root-level `backend/`.
+- Moved supporting setup notes and PDF references into `docs/`.
+- Moved Git metadata to the project root so the repository matches the new workspace entry point.
+- Cleaned `frontend/.env.example` so it documents only public Vite frontend variables; frontend `.env` is optional because `apiClient` provides defaults.
 - Installed project dependencies for the current frontend.
 - Verified the existing Vite React app compiles with TypeScript.
 - Verified the existing app builds for production.
@@ -42,9 +48,21 @@
 - Adjusted Panel Appointment Management so the records table no longer depends on a horizontal scrollbar on desktop: the records area now uses a wider column, fixed table layout, compact cell spacing, and wrapped text.
 - Resolved the `App.tsx` merge compile issue by restoring the missing mark-record mock import and cleaned duplicate dependency keys left in `package.json`.
 - Added missing React TypeScript declaration packages and tightened exposed type issues in sidebar state, icon wrapper props, login manual download alert handling, and student supervisor detail records.
+- Updated the existing lecturer Panel Appointments recommendation workflow so supervisor panel recommendations move from draft/submission to selected panel acceptance or rejection, then Programme Coordinator approval or rejection.
+- Added UI/mock enforcement for exactly one recommended panel lecturer per student recommendation and duplicate blocking until a previous recommendation is rejected by the selected panel or Programme Coordinator.
+- Added a tested panel recommendation workflow helper covering lifecycle labels, duplicate blocking, selected-panel transitions, coordinator transitions, and required rejection reasons.
+- Corrected the lecturer Panel Appointments supervisor view so the submitting supervisor can only track recommendation progress and cannot approve or reject as the selected panel member or Programme Coordinator.
+- Added a panel recommendation review drawer pattern with approval controls and rejection reason fields placed inside the scrollable drawer content instead of a fixed drawer footer.
+- Added a request progress timeline to the panel recommendation View Flow drawer for submitted, selected-panel review, Programme Coordinator review, and final appointment states.
+- Fixed the lecturer Supervisor Appointment review drawer so the approve/reject controls and rejection reason field scroll with the request content instead of staying in a fixed bottom action area.
+- Resolved the `origin/main` merge conflicts on `Lim_Branch` by preserving the organized `frontend/` and `backend/` layout, retaining the richer panel recommendation workflow, and keeping incoming Django auth/reset-password wiring.
+- Cleaned the frontend package after the merge so obsolete Node/Express server scripts and dependencies stay out of the Vite app.
 
 ## Current Testing Status
 
+- `npm run lint` passes from `frontend/` after reorganizing the project structure.
+- `npm run build` passes from `frontend/` after reorganizing the project structure, with the existing non-blocking chunk-size warning.
+- `npm run lint` passes after cleaning `frontend/.env.example`.
 - `npm run lint` passes after the dashboard integration.
 - `npm run build` passes after the dashboard integration.
 - `npm run lint` passes after the expanded office-staff module merge.
@@ -93,12 +111,25 @@
 - Vite source probe confirms the merged app includes Dashboard Overview, Registry Management, File Management, FAQ Chatbot, Letter Generation, Announcements, Notifications & Announcements, lecturer routes, and student routes.
 - Browser smoke testing confirms `Dashboard Overview` renders the Administration Dashboard with no console errors.
 - Browser interaction testing confirms `Manage Timeline` opens Timeline Management and shows the back navigation.
+- Focused workflow test `node_modules\.bin\tsx.cmd src\utils\panelRecommendationWorkflow.test.ts` passes for the supervisor panel recommendation approval rules.
+- `npm run lint` passes after implementing the supervisor panel recommendation approval flow.
+- `npm run build` passes after implementing the supervisor panel recommendation approval flow, with the existing non-blocking chunk-size warning.
+- Vite HTTP smoke probe returns HTTP 200 with the root element present after the supervisor panel recommendation approval flow.
+- Focused workflow test covers the role-gated recommendation review rule that blocks supervisors from approving their own recommendation.
+- Focused workflow test `node_modules\.bin\tsx.cmd src\utils\panelRecommendationWorkflow.test.ts` passes after fixing the approval drawer scroll behavior.
+- `npm run lint` passes after fixing the supervisor appointment and panel recommendation approval drawer scroll behavior.
+- `npm run build` passes after fixing the supervisor appointment and panel recommendation approval drawer scroll behavior, with the existing non-blocking chunk-size warning.
+- `npm run lint` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`.
+- `npm run build` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`, with the existing non-blocking chunk-size warning.
 - Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
 
 ## Known Issues and Notes
 
+- Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
+- A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
 - The current frontend uses mock-backed demo data by default through `VITE_USE_MOCKS=true`.
 - Real backend API integration still needs endpoint mapping for dashboard metrics, timeline records, appointment records, lecturer workflows, student workflows, mark records, registry records, file records, FAQ entries, letters, announcements, and notifications.
+- Panel recommendation backend/database integration has not started yet; the accepted UI/mock lifecycle should be used as the contract for the later appointment database and API slice.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.

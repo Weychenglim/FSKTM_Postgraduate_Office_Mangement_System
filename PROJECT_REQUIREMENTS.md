@@ -4,6 +4,16 @@
 
 The application is an FSKTM postgraduate management system frontend for postgraduate administrative workflows.
 
+## Repository Organization Requirements
+
+- The project root must remain the workspace entry point.
+- `PROJECT_REQUIREMENTS.md`, `ARCHITECTURE_AND_CODING_DESIGN.md`, and `PROJECT_STATUS.md` must stay at the project root.
+- Frontend source, configuration, package files, and frontend runtime assets must live under `frontend/`.
+- Frontend environment examples must include only public `VITE_` variables; a frontend `.env` file is optional unless local overrides are needed.
+- Django backend source, configuration, requirements, and backend environment example files must live under `backend/`.
+- Supporting PDFs, setup notes, specs, plans, and reference material must live under `docs/`.
+- Generated local artifacts such as `node_modules`, `dist`, `.venv`, logs, and local `.env` files must be ignored and kept out of source-controlled project structure.
+
 ## Main Roles
 
 - Office Staff/Admin
@@ -47,7 +57,18 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 
 - When an authenticated demo user has the `Lecturer` role, Supervisor Appointments, Panel Appointments, and Marks Entry must render lecturer-focused workflows rather than office-staff administrative workflows.
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
-- Lecturer Panel Appointments must support assigned panel task review, panel recommendation submission, and submitted recommendation review.
+- Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
+- Lecturer Panel Appointments must support assigned panel task review, supervisor panel recommendation submission, and submitted recommendation review.
+- Supervisor panel recommendation is separate from the student supervisor appointment workflow and applies only after a student already has an approved supervisor.
+- A supervisor panel recommendation must contain exactly one recommended panel lecturer for the student.
+- A supervisor cannot create another panel recommendation for the same student while a recommendation is Draft, Submitted to Panel, Accepted by Panel, Pending Coordinator, or Approved.
+- A supervisor may create a new recommendation for the same student only after the selected panel member rejects it or the Programme Coordinator rejects it.
+- Submitted panel recommendations must route first to the selected panel member for acceptance or rejection; selected panel rejection requires a rejection reason.
+- Programme Coordinator approval or rejection must occur only after the selected panel member accepts the recommendation.
+- The supervisor who submitted a panel recommendation must see only tracking/status information for that recommendation and must not be able to approve or reject it as the selected panel member or Programme Coordinator.
+- Panel recommendation review actions must be role-gated: selected panel members may decide only recommendations submitted to them, and Programme Coordinators may decide only recommendations that have passed selected-panel acceptance.
+- Panel recommendation approval drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long research details do not leave decision controls fixed outside the scroll region.
+- Panel recommendation approval flow drawers must show a request progress timeline covering recommendation submission, selected panel review, Programme Coordinator approval, and final panel appointment status.
 - Lecturer Marks Entry must support mark-entry task review, mark-entry form access, history review, and submitted mark detail review.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.

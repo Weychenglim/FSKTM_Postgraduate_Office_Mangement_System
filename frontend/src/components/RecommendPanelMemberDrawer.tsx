@@ -23,6 +23,7 @@ export interface StudentData {
   studentId: string;
   programme: string;
   intake: string;
+  supervisor: string;
   initials: string;
   proposedTopic: string;
   area: string;
@@ -55,6 +56,7 @@ const defaultStudent: StudentData = {
   studentId: 'MEA2209841',
   programme: 'MSc. Computer Science',
   intake: 'Sem 1 2025/2026',
+  supervisor: 'Dr. Siti Noor',
   initials: 'AL',
   proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
   area: 'Artificial Intelligence',
@@ -119,6 +121,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLecturer, setSelectedLecturer] = useState<LecturerCandidate>(LECTURER_POOL[0]);
   const [recommendationNotes, setRecommendationNotes] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -146,10 +149,23 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     lec.expertise.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const isSupervisorSelected = selectedLecturer.name === student.supervisor;
+  const hasRecommendationNotes = recommendationNotes.trim().length > 0;
+  const canSubmitRecommendation = selectedLecturer.eligible && !isSupervisorSelected && hasRecommendationNotes;
+  const validationMessage = isSupervisorSelected
+    ? 'The selected panel member cannot be the student supervisor.'
+    : !selectedLecturer.eligible
+    ? 'This lecturer has reached the panel workload limit and cannot be submitted.'
+    : !hasRecommendationNotes
+    ? 'Add justification notes before submitting to the selected panel member.'
+    : 'This recommendation is ready to be submitted to the selected panel member for acceptance.';
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+    if (!canSubmitRecommendation) return;
     if (onSubmit) {
-      onSubmit(recommendationNotes, selectedLecturer.id);
+      onSubmit(recommendationNotes.trim(), selectedLecturer.id);
     } else {
       alert(`Success: Recommendation for ${selectedLecturer.name} submitted successfully!`);
     }
@@ -257,6 +273,14 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     </span>
                     <span id="summary-student-intake" className="text-xs font-bold text-slate-700 block mt-0.5">
                       {student.intake}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+                      SUPERVISOR
+                    </span>
+                    <span className="text-xs font-bold text-slate-700 block mt-0.5">
+                      {student.supervisor}
                     </span>
                   </div>
                 </div>
@@ -436,13 +460,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                 <div 
                   id="eligibility-notice-panel"
                   className={`p-4 rounded-xl border flex gap-3 items-start transition-colors ${
-                    selectedLecturer.eligible
+                    canSubmitRecommendation
                       ? 'bg-emerald-50/40 border-emerald-150 text-emerald-800'
                       : 'bg-amber-50/40 border-amber-150 text-amber-800'
                   }`}
                 >
                   <div className="shrink-0 mt-0.5">
-                    {selectedLecturer.eligible ? (
+                    {canSubmitRecommendation ? (
                       <CheckCircle className="w-5 h-5 text-emerald-600" />
                     ) : (
                       <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -450,14 +474,16 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-wider block">
-                      {selectedLecturer.eligible ? 'Eligible' : 'Requires Review'}
+                      {canSubmitRecommendation ? 'Ready for Panel Review' : 'Validation Required'}
                     </span>
                     <p id="eligibility-text" className="text-[11px] font-medium text-slate-600 leading-relaxed">
-                      {selectedLecturer.eligible 
-                        ? 'This lecturer is available for panel assignment based on the current workload limit.'
-                        : 'This lecturer has reached the maximum recommended panel workload allocation. Selecting this member will require manual secretariat bypass coordination.'
-                      }
+                      {validationMessage}
                     </p>
+                    {submitAttempted && !canSubmitRecommendation && (
+                      <p className="text-[10px] font-bold text-amber-700">
+                        Fix this validation issue before submitting the recommendation.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -495,10 +521,10 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                 id="submit-recommendation-btn"
                 type="submit"
                 onClick={handleFormSubmit}
-                disabled={!selectedLecturer.eligible}
+                disabled={!canSubmitRecommendation}
                 className="w-full py-3.5 bg-brand-navy hover:bg-slate-850 disabled:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all select-none cursor-pointer text-center"
               >
-                Submit Recommendation
+                Submit to Panel
               </button>
             </div>
           </motion.div>
