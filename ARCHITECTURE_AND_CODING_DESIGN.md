@@ -8,7 +8,19 @@
 - Lucide React icons
 - Motion for animated drawer transitions
 
+## Repository Layout
+
+- Project root is the workspace entry point and contains the three mandatory governance documents.
+- `frontend/` contains the Vite React application, including `src/`, `index.html`, `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`, `metadata.json`, and the frontend `.env.example`.
+- `frontend/.env.example` documents only public `VITE_` variables. A frontend `.env` file is optional unless local overrides are needed.
+- `backend/` contains the Django backend, including `manage.py`, `config/`, `accounts/`, `requirements.txt`, `README.md`, and the backend `.env.example`.
+- `docs/` contains supporting documents such as `DATABASE_SETUP.md`, requirements PDFs, use-case PDFs, and implementation specs/plans.
+- `docs/legacy/` is reserved only for preserved generated metadata that is not part of the runnable application.
+- Generated local folders such as `frontend/node_modules`, `frontend/dist`, and `.venv` are ignored and should not be treated as source modules.
+
 ## Application Structure
+
+Frontend paths in this section are relative to `frontend/`.
 
 - `src/main.tsx` mounts the React app.
 - `src/App.tsx` owns the current demo authentication state, sidebar navigation state, and top-level module routing.
@@ -27,7 +39,11 @@
 - `src/components/NotificationsAnnouncements.tsx` implements notification review from the top header.
 - `src/components/ForgotPasswordFlow.tsx` implements the unauthenticated password recovery view.
 - `src/components/LecturerSupervisorAppointments.tsx` implements the lecturer supervisor workspace and composes supervisor history/detail screens.
+- `src/components/LecturerSupervisorAppointments.tsx` uses a single scrollable drawer body for supervisor request details, approve/reject controls, and rejection reason input; only the drawer header stays outside the scroll flow.
 - `src/components/LecturerPanelAppointments.tsx` implements the lecturer panel workspace and composes recommendation/detail screens.
+- `src/components/LecturerPanelAppointments.tsx` owns the mock-backed supervisor panel recommendation submission and tracking UI. The supervisor table is read-only for approval decisions so supervisors cannot decide their own recommendations as selected panel members or Programme Coordinators.
+- `src/components/LecturerPanelAppointments.tsx` includes a panel recommendation review drawer patterned after the supervisor appointment drawer, with decision controls and rejection reason fields rendered inside the scrollable drawer body for reviewer contexts.
+- `src/components/LecturerPanelAppointments.tsx` maps panel recommendation lifecycle statuses into a drawer progress timeline so submitted, accepted, rejected, pending coordinator, and approved states are visible in the same flow view.
 - `src/components/LecturerMarksEntry.tsx` implements the lecturer mark-entry workspace and composes mark-entry form/history/detail screens.
 - `src/components/StudentFAQChatbot.tsx` implements the student FAQ support workflow.
 - `src/components/StudentSupervisorAppointment.tsx` implements student supervisor appointment viewing and composes the application screen.
@@ -42,6 +58,7 @@
 - `src/index.css` defines shared table, card, form-control, filter-toolbar, icon-button, and drawer layout classes for repeated generated UI patterns that need custom layouts.
 - `src/services/apiClient.ts` centralizes HTTP configuration. It reads `VITE_API_BASE_URL`, `VITE_USE_MOCKS`, and `VITE_MOCK_LATENCY_MS` from Vite env and defaults to mock mode until backend endpoints are ready.
 - `src/vite-env.d.ts` defines the Vite env variables used by the frontend.
+- `src/utils/panelRecommendationWorkflow.ts` centralizes the supervisor panel recommendation lifecycle labels, duplicate-blocking rule, role-gated review permissions, approval transitions, and selected-panel rejection reason validation so UI components use one status policy.
 - `src/mocks` contains shared demo fixtures for dashboard attention rows, student next actions, appointments, mark records, rubric rows, file documents, announcements, letters, lecturers, and timeline imports.
 - `src/types` contains shared domain models so role modules can move from demo data to service/API responses without changing component contracts.
 
@@ -78,6 +95,8 @@ The app currently uses local React state rather than a route library.
 - Shared action controls should use `PortalButton` for primary, secondary, soft, danger, ghost, icon, drawer, modal, pagination, and row-level actions. Segmented controls, removable tags, permission switches, progress bars, status dots, and reusable status badges should use the shared primitives or the shared `ToggleSwitch`; only highly layout-specific timeline, carousel, navigation, avatar, or flow markers should remain local.
 - Shared form components (`FormInput`, `FormSelect`, `FormTextarea`) and legacy local action/status helpers should delegate to portal primitives or shared CSS classes so backend validation, loading, disabled, and status states remain visually consistent across roles.
 - Components should import backend-shaped records from `src/mocks` or `src/services`; component-local arrays should be limited to UI-only controls such as month labels, filter options, decorative step labels, or icon/style mappings.
+- Panel recommendation backend/database integration is deferred until the UI/mock workflow is accepted; the future API should preserve the same lifecycle statuses and one-active-recommendation-per-student rule.
+- Backend authorization for panel recommendations must mirror the frontend role gate: supervisors can create and track, selected panel lecturers can accept/reject their assigned nomination, and Programme Coordinators can approve/reject only after selected-panel acceptance.
 - Do not add Gemini-specific dependencies, metadata capabilities, or env variables unless a future requirement explicitly adds AI functionality.
 
 ## Testing Strategy

@@ -446,6 +446,7 @@ export const MOCK_PANEL_RECOMMENDATION_DRAFTS: PanelRecommendationDraft[] = [
     recommendedMemberId: 'A004812',
     submittedDate: '20 May 2026',
     status: 'APPROVED',
+    justification: 'The lecturer has strong expertise in decentralized identity and academic credential systems.',
   },
 ];
 
