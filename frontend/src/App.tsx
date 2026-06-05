@@ -333,7 +333,11 @@ export default function App() {
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
             isStudentWorkspace ? (
-              <StudentLetterGeneration />
+              <StudentLetterGeneration
+                studentName={currentUser.fullName}
+                studentId={currentUser.studentId}
+                programme={currentUser.department}
+              />
             ) : (
               <LetterTemplateManagement />
             )
