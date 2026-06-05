@@ -34,7 +34,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
-import { getLetterTemplates } from '../services';
+import {
+  getLetterTemplates,
+  createLetterTemplate,
+  updateLetterTemplate,
+  deleteLetterTemplate,
+} from '../services';
 
 // LetterTemplate now lives in src/types.
 
@@ -54,6 +59,7 @@ export const LetterTemplateManagement: React.FC = () => {
   // Selected state
   const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Editable Form Inputs matching the current selection
   const [editorName, setEditorName] = useState('');
@@ -115,33 +121,47 @@ export const LetterTemplateManagement: React.FC = () => {
     triggerToast('Letterhead branding removed.');
   };
 
-  // Actions
-  const handleSaveTemplate = () => {
-    if (!selectedTemplate) return;
+  // Actions — persisted through the letters API.
+  const handleSaveTemplate = async () => {
+    if (!selectedTemplate || saving) return;
     if (!editorName.trim()) {
       triggerToast('Error: Please enter a template name.');
       return;
     }
 
-    setTemplates(prev => prev.map(t => {
-      if (t.id === selectedTemplate.id) {
-        const updated = {
-          ...t,
-          name: editorName,
-          type: editorType,
-          content: editorContent,
-          status: editorStatus,
-          lastModified: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-          modifiedBy: 'Wey Cheng'
-        };
-        // Also update the local selected focus
-        setTimeout(() => setSelectedTemplate(updated), 50);
-        return updated;
-      }
-      return t;
-    }));
+    setSaving(true);
+    try {
+      const updated = await updateLetterTemplate(selectedTemplate.id, {
+        name: editorName.trim(),
+        type: editorType,
+        content: editorContent,
+        status: editorStatus,
+      });
+      setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setSelectedTemplate(updated);
+      triggerToast(`Template "${updated.name}" saved.`);
+    } catch (e) {
+      triggerToast(e instanceof Error ? `Save failed: ${e.message}` : 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    triggerToast(`Template "${editorName}" preserved inside local library store.`);
+  const handleDeleteTemplate = async () => {
+    if (!selectedTemplate || saving) return;
+    setSaving(true);
+    try {
+      const deletedId = selectedTemplate.id;
+      await deleteLetterTemplate(deletedId);
+      const remaining = templates.filter((t) => t.id !== deletedId);
+      setTemplates(remaining);
+      setSelectedTemplate(remaining[0] ?? null);
+      triggerToast('Template deleted.');
+    } catch (e) {
+      triggerToast(e instanceof Error ? `Delete failed: ${e.message}` : 'Delete failed.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDiscardChanges = () => {
@@ -150,7 +170,7 @@ export const LetterTemplateManagement: React.FC = () => {
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
     setEditorStatus(selectedTemplate.status);
-    triggerToast('Reverted modifications back to active database record.');
+    triggerToast('Reverted unsaved changes back to the saved template.');
   };
 
   const handlePreviewLetterPop = () => {
@@ -291,23 +311,29 @@ export const LetterTemplateManagement: React.FC = () => {
               )}
             </div>
 
-            {/* Add template placeholder */}
+            {/* Create a new template on the backend */}
             <PortalButton
               type="button"
-              onClick={() => {
-                const newTpl: LetterTemplate = {
-                  id: `tpl-${Date.now()}`,
-                  name: 'New Custom Letter Template',
-                  type: 'Academic Certification',
-                  status: 'Draft',
-                  lastModified: 'Today',
-                  modifiedBy: 'Wey Cheng',
-                  description: 'Custom letters drafted for secretariat administration.',
-                  content: 'To Whom It May Concern,\n\nWrite your template body here using {{STUDENT_NAME}}.'
-                };
-                setTemplates([newTpl, ...templates]);
-                setSelectedTemplate(newTpl);
-                triggerToast('Created a new blank letter template.');
+              disabled={saving}
+              onClick={async () => {
+                if (saving) return;
+                setSaving(true);
+                try {
+                  const created = await createLetterTemplate({
+                    name: 'New Custom Letter Template',
+                    type: 'Academic Certification',
+                    status: 'Draft',
+                    description: 'Custom letters drafted for secretariat administration.',
+                    content: 'To Whom It May Concern,\n\nWrite your template body here using {{STUDENT_NAME}}.',
+                  });
+                  setTemplates((prev) => [created, ...prev]);
+                  setSelectedTemplate(created);
+                  triggerToast('Created a new draft template.');
+                } catch (e) {
+                  triggerToast(e instanceof Error ? `Create failed: ${e.message}` : 'Create failed.');
+                } finally {
+                  setSaving(false);
+                }
               }}
               variant="secondary"
               size="md"
@@ -668,14 +694,26 @@ export const LetterTemplateManagement: React.FC = () => {
 
               {/* Action buttons row block */}
               <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-                
-                <button
-                  type="button"
-                  onClick={handleDiscardChanges}
-                  className="w-full md:w-auto px-5 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
-                >
-                  Discard Changes
-                </button>
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+                  <button
+                    type="button"
+                    onClick={handleDiscardChanges}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
+                  >
+                    Discard Changes
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteTemplate}
+                    disabled={saving}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
 
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
                   <button
@@ -689,9 +727,10 @@ export const LetterTemplateManagement: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSaveTemplate}
-                    className="w-full md:w-auto px-6 py-2.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                    disabled={saving}
+                    className="w-full md:w-auto px-6 py-2.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <span>Save Template</span>
+                    <span>{saving ? 'Saving…' : 'Save Template'}</span>
                   </button>
                 </div>
 
