@@ -112,6 +112,7 @@ export default function App() {
   const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
 
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
+  const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
   const isStudentWorkspace = currentUser?.role === 'Student';
 
   // Setup checklist data
@@ -284,8 +285,8 @@ export default function App() {
           ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
             isStudentWorkspace ? (
               <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
-            ) : isLecturerWorkspace ? (
-              <LecturerPanelAppointments />
+            ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
+              <LecturerPanelAppointments currentUser={currentUser} />
             ) : (
               <PanelAppointmentManagement />
             )

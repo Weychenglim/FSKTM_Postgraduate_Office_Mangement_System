@@ -6,15 +6,16 @@
 import assert from 'node:assert/strict';
 import {
   PANEL_RECOMMENDATION_STATUS_LABELS,
+  canSubmitPanelCandidate,
   canReviewPanelRecommendation,
   canCreatePanelRecommendation,
+  getPanelCandidateValidationMessage,
   getNextPanelRecommendationStatus,
   requiresPanelRejectionReason,
 } from './panelRecommendationWorkflow';
 import { PanelRecommendationStatus } from '../types';
 
 const activeStatuses: PanelRecommendationStatus[] = [
-  'DRAFT',
   'SUBMITTED_TO_PANEL',
   'ACCEPTED_BY_PANEL',
   'PENDING_COORDINATOR',
@@ -28,6 +29,12 @@ for (const status of activeStatuses) {
     `${PANEL_RECOMMENDATION_STATUS_LABELS[status]} should block a duplicate recommendation`,
   );
 }
+
+assert.equal(
+  Object.values(PANEL_RECOMMENDATION_STATUS_LABELS).includes('Draft'),
+  false,
+  'Panel recommendations should not expose a draft lifecycle state',
+);
 
 assert.equal(
   canCreatePanelRecommendation([{ studentId: 'MEA2209841', status: 'REJECTED_BY_PANEL' }], 'MEA2209841'),
@@ -82,5 +89,17 @@ assert.equal(canReviewPanelRecommendation('SUBMITTED_TO_PANEL', 'PROGRAMME_COORD
 assert.equal(canReviewPanelRecommendation('PENDING_COORDINATOR', 'SELECTED_PANEL'), false);
 assert.equal(canReviewPanelRecommendation('PENDING_COORDINATOR', 'PROGRAMME_COORDINATOR'), true);
 assert.equal(canReviewPanelRecommendation('APPROVED', 'PROGRAMME_COORDINATOR'), false);
+
+assert.equal(canSubmitPanelCandidate({ workloadCount: 4, workloadLimit: 5, isSupervisor: false }), true);
+assert.equal(canSubmitPanelCandidate({ workloadCount: 5, workloadLimit: 5, isSupervisor: false }), false);
+assert.equal(canSubmitPanelCandidate({ workloadCount: 1, workloadLimit: 5, isSupervisor: true }), false);
+assert.match(
+  getPanelCandidateValidationMessage({ workloadCount: 5, workloadLimit: 5, isSupervisor: false, hasNotes: true }),
+  /workload limit/i,
+);
+assert.match(
+  getPanelCandidateValidationMessage({ workloadCount: 3, workloadLimit: 5, isSupervisor: false, hasNotes: false }),
+  /justification/i,
+);
 
 console.log('panelRecommendationWorkflow tests passed');

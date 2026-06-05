@@ -19,6 +19,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office Staff/Admin
 - Student
 - Lecturer, including supervisor and panel responsibilities
+- Programme Coordinator, as a separate authenticated role for panel appointment confirmation
 
 ## Current Frontend Scope
 
@@ -61,14 +62,20 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Lecturer Panel Appointments must support assigned panel task review, supervisor panel recommendation submission, and submitted recommendation review.
 - Supervisor panel recommendation is separate from the student supervisor appointment workflow and applies only after a student already has an approved supervisor.
 - A supervisor panel recommendation must contain exactly one recommended panel lecturer for the student.
-- A supervisor cannot create another panel recommendation for the same student while a recommendation is Draft, Submitted to Panel, Accepted by Panel, Pending Coordinator, or Approved.
+- A supervisor cannot create another panel recommendation for the same student while a recommendation is Submitted to Panel, Accepted by Panel, Pending Coordinator, or Approved/Confirmed.
 - A supervisor may create a new recommendation for the same student only after the selected panel member rejects it or the Programme Coordinator rejects it.
 - Submitted panel recommendations must route first to the selected panel member for acceptance or rejection; selected panel rejection requires a rejection reason.
-- Programme Coordinator approval or rejection must occur only after the selected panel member accepts the recommendation.
+- Programme Coordinator confirmation or rejection must occur only after the selected panel member accepts the recommendation.
 - The supervisor who submitted a panel recommendation must see only tracking/status information for that recommendation and must not be able to approve or reject it as the selected panel member or Programme Coordinator.
 - Panel recommendation review actions must be role-gated: selected panel members may decide only recommendations submitted to them, and Programme Coordinators may decide only recommendations that have passed selected-panel acceptance.
-- Panel recommendation approval drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long research details do not leave decision controls fixed outside the scroll region.
-- Panel recommendation approval flow drawers must show a request progress timeline covering recommendation submission, selected panel review, Programme Coordinator approval, and final panel appointment status.
+- Panel recommendation role-gating must be enforced by the backend API and database workflow, not only by frontend button visibility.
+- Programme Coordinator panel appointment confirmation must use the existing separate `Programme Coordinator` login role.
+- The backend must persist student research profiles, supervisor panel recommendations, and final approved panel appointments for the lecturer-side panel workflow.
+- Panel recommendation decision drawers must keep confirm/reject controls and rejection reason inputs inside the scrollable drawer body so long research details do not leave decision controls fixed outside the scroll region.
+- Submitted panel recommendation detail drawers must be the supervisor tracking surface and show a request progress timeline covering recommendation submission, selected panel review, Programme Coordinator confirmation, and appointed panel status.
+- Panel recommendation timelines must display recorded submission and confirmation/rejection date-times when those timestamps are available from the backend.
+- Panel recommendations must not support a save-as-draft flow; supervisors submit directly to the selected panel lecturer.
+- Panel workload validation must count confirmed active panel appointments plus submitted/pending nominations, and the UI must explain that this reserved workload is used before submission.
 - Lecturer Marks Entry must support mark-entry task review, mark-entry form access, history review, and submitted mark detail review.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
@@ -76,6 +83,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Authenticated role workspaces must use consistent `rounded-2xl` card surfaces, subdued shadows, and shared brand color tokens.
 - Repeated portal UI patterns such as page headers, action buttons, cards, status badges, toast notifications, tables, forms, and filter controls should use shared primitives or shared CSS classes where practical.
 - Frontend API configuration must be driven by Vite environment variables so mock mode and backend base URL can change without code edits.
+- Lecturer-side panel appointment persistence must use the backend by default through `VITE_USE_PANEL_BACKEND=true`, even while unfinished modules continue using global mock mode.
 - Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
 - Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
 

@@ -10,6 +10,7 @@ Idempotent: re-running updates the existing rows (and resets their passwords).
 from django.core.management.base import BaseCommand
 
 from accounts.models import User
+from appointments.models import StudentResearchProfile
 
 DEMO_USERS = [
     {
@@ -37,12 +38,45 @@ DEMO_USERS = [
         "staff_id": "L84920",
     },
     {
+        "email": "panelamina@fsktm.edu.my",
+        "password": "lecturer2026",
+        "full_name": "Assoc. Prof. Dr. Amina Malik",
+        "role": User.Role.LECTURER,
+        "department": "Data Science Department",
+        "staff_id": "A004812",
+    },
+    {
         "email": "WEA200192@fsktm.edu.my",
         "password": "student2026",
         "full_name": "Fatimah Al-Zahra",
         "role": User.Role.STUDENT,
         "department": "Master of Computer Science (By Coursework)",
         "student_id": "WEA200192",
+    },
+    {
+        "email": "MEA2209841@fsktm.edu.my",
+        "password": "student2026",
+        "full_name": "Ahmad Luqman",
+        "role": User.Role.STUDENT,
+        "department": "MSc. Computer Science",
+        "student_id": "MEA2209841",
+    },
+]
+
+PANEL_RESEARCH_PROFILES = [
+    {
+        "matric_no": "MEA2209841",
+        "student_email": "MEA2209841@fsktm.edu.my",
+        "student_name": "Ahmad Luqman",
+        "programme": "MSc. Computer Science",
+        "semester": "Sem 1 2025/2026",
+        "proposed_topic": "Optimizing Generative Adversarial Networks for Low-Resource Languages",
+        "research_area": "Artificial Intelligence",
+        "abstract": (
+            "This research explores novel architectural improvements for GANs to improve "
+            "synthetic data quality in languages with limited linguistic resources."
+        ),
+        "supervisor_email": "lecturer@fsktm.edu.my",
     },
 ]
 
@@ -60,5 +94,24 @@ class Command(BaseCommand):
             user.save()
             verb = "Created" if created else "Updated"
             self.stdout.write(self.style.SUCCESS(f"  {verb} {user.role:<22} {user.email}"))
+
+        for entry in PANEL_RESEARCH_PROFILES:
+            student = User.objects.get(email=entry["student_email"])
+            supervisor = User.objects.get(email=entry["supervisor_email"])
+            profile, created = StudentResearchProfile.objects.update_or_create(
+                matric_no=entry["matric_no"],
+                defaults={
+                    "student": student,
+                    "student_name": entry["student_name"],
+                    "programme": entry["programme"],
+                    "semester": entry["semester"],
+                    "proposed_topic": entry["proposed_topic"],
+                    "research_area": entry["research_area"],
+                    "abstract": entry["abstract"],
+                    "supervisor": supervisor,
+                },
+            )
+            verb = "Created" if created else "Updated"
+            self.stdout.write(self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}"))
 
         self.stdout.write(self.style.SUCCESS("\nDemo accounts ready."))

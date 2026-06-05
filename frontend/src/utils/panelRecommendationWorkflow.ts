@@ -22,13 +22,12 @@ export interface PanelRecommendationStatusRecord {
 }
 
 export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
-  DRAFT: 'Draft',
   SUBMITTED_TO_PANEL: 'Submitted to Panel',
   REJECTED_BY_PANEL: 'Rejected by Panel',
   ACCEPTED_BY_PANEL: 'Accepted by Panel',
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
-  APPROVED: 'Approved',
+  APPROVED: 'Confirmed',
 };
 
 const REJECTED_STATUSES: PanelRecommendationStatus[] = [
@@ -80,3 +79,32 @@ export const requiresPanelRejectionReason = (
   action: PanelRecommendationAction,
   reason: string,
 ): boolean => action === 'panelReject' && reason.trim().length === 0;
+
+interface PanelCandidateValidationInput {
+  workloadCount: number;
+  workloadLimit: number;
+  isSupervisor: boolean;
+  hasNotes?: boolean;
+}
+
+export const canSubmitPanelCandidate = ({
+  workloadCount,
+  workloadLimit,
+  isSupervisor,
+  hasNotes = true,
+}: PanelCandidateValidationInput): boolean =>
+  !isSupervisor && hasNotes && workloadCount < workloadLimit;
+
+export const getPanelCandidateValidationMessage = ({
+  workloadCount,
+  workloadLimit,
+  isSupervisor,
+  hasNotes = true,
+}: PanelCandidateValidationInput): string => {
+  if (isSupervisor) return 'The selected panel member cannot be the student supervisor.';
+  if (workloadCount >= workloadLimit) {
+    return 'This lecturer has reached the panel workload limit. Please choose another panel member.';
+  }
+  if (!hasNotes) return 'Add justification notes before submitting to the selected panel member.';
+  return 'This recommendation is ready to be submitted to the selected panel member for acceptance.';
+};

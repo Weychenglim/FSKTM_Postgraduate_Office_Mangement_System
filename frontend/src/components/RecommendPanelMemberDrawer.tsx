@@ -9,14 +9,15 @@ import {
   Search, 
   CheckCircle, 
   AlertTriangle, 
-  Info, 
   ChevronDown, 
   User,
-  Save,
-  Send,
-  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PanelCandidate } from '../types';
+import {
+  canSubmitPanelCandidate,
+  getPanelCandidateValidationMessage,
+} from '../utils/panelRecommendationWorkflow';
 
 export interface StudentData {
   studentName: string;
@@ -30,24 +31,11 @@ export interface StudentData {
   abstract: string;
 }
 
-export interface LecturerCandidate {
-  id: string;
-  name: string;
-  department: string;
-  expertise: string;
-  workload: string;
-  workloadCount: number;
-  maxWorkload: number;
-  availability: 'Available' | 'Overloaded';
-  eligible: boolean;
-  avatarUrl?: string;
-}
-
 interface RecommendPanelMemberDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   student?: StudentData;
-  onSaveDraft?: (notes: string, candidateId: string) => void;
+  candidates?: PanelCandidate[];
   onSubmit?: (notes: string, candidateId: string) => void;
 }
 
@@ -63,50 +51,46 @@ const defaultStudent: StudentData = {
   abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources, aiming to enhance machine translation and speech recognition accuracy in indigenous contexts.'
 };
 
-const LECTURER_POOL: LecturerCandidate[] = [
+const DEFAULT_PANEL_CANDIDATES: PanelCandidate[] = [
   {
-    id: 'amina',
+    staffId: 'A004812',
     name: 'Assoc. Prof. Dr. Amina Malik',
     department: 'Data Science Department',
-    expertise: 'Big Data Analytics',
-    workload: '2/5',
     workloadCount: 2,
-    maxWorkload: 5,
+    workloadLimit: 5,
+    canSubmit: true,
     availability: 'Available',
-    eligible: true
+    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
   },
   {
-    id: 'siti',
+    staffId: 'A004918',
     name: 'Dr. Siti Noor',
     department: 'Software Engineering Department',
-    expertise: 'Distributed Ledger & Cryptography',
-    workload: '3/5',
     workloadCount: 3,
-    maxWorkload: 5,
+    workloadLimit: 5,
+    canSubmit: true,
     availability: 'Available',
-    eligible: true
+    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
   },
   {
-    id: 'robert',
+    staffId: 'A002931',
     name: 'Dr. Robert Chen',
     department: 'Information Systems Department',
-    expertise: 'Natural Language Processing',
-    workload: '5/5',
     workloadCount: 5,
-    maxWorkload: 5,
-    availability: 'Overloaded',
-    eligible: false
+    workloadLimit: 5,
+    canSubmit: false,
+    availability: 'Workload Full',
+    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
   },
   {
-    id: 'aris',
+    staffId: 'A003328',
     name: 'Dr. Aris Ghaffar',
     department: 'Computer System & Technology Department',
-    expertise: 'Quantum Computing & Algorithms',
-    workload: '1/5',
     workloadCount: 1,
-    maxWorkload: 5,
+    workloadLimit: 5,
+    canSubmit: true,
     availability: 'Available',
-    eligible: true
+    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
   }
 ];
 
@@ -114,15 +98,23 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   isOpen,
   onClose,
   student = defaultStudent,
-  onSaveDraft,
+  candidates,
   onSubmit
 }) => {
+  const lecturerPool = candidates && candidates.length > 0 ? candidates : DEFAULT_PANEL_CANDIDATES;
   const [searchTerm, setSearchTerm] = useState('Assoc. Prof. Dr. Amina Malik');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedLecturer, setSelectedLecturer] = useState<LecturerCandidate>(LECTURER_POOL[0]);
+  const [selectedLecturer, setSelectedLecturer] = useState<PanelCandidate>(lecturerPool[0]);
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!lecturerPool.some(lecturer => lecturer.staffId === selectedLecturer.staffId)) {
+      setSelectedLecturer(lecturerPool[0]);
+      setSearchTerm(lecturerPool[0].name);
+    }
+  }, [lecturerPool, selectedLecturer.staffId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -137,46 +129,43 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     };
   }, []);
 
-  const handleLecturerSelect = (lecturer: LecturerCandidate) => {
+  const handleLecturerSelect = (lecturer: PanelCandidate) => {
     setSelectedLecturer(lecturer);
     setSearchTerm(lecturer.name);
     setShowDropdown(false);
   };
 
-  const filteredLecturers = LECTURER_POOL.filter(lec => 
+  const filteredLecturers = lecturerPool.filter(lec => 
     lec.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     lec.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lec.expertise.toLowerCase().includes(searchTerm.toLowerCase())
+    lec.staffId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const isSupervisorSelected = selectedLecturer.name === student.supervisor;
   const hasRecommendationNotes = recommendationNotes.trim().length > 0;
-  const canSubmitRecommendation = selectedLecturer.eligible && !isSupervisorSelected && hasRecommendationNotes;
-  const validationMessage = isSupervisorSelected
-    ? 'The selected panel member cannot be the student supervisor.'
-    : !selectedLecturer.eligible
-    ? 'This lecturer has reached the panel workload limit and cannot be submitted.'
-    : !hasRecommendationNotes
-    ? 'Add justification notes before submitting to the selected panel member.'
-    : 'This recommendation is ready to be submitted to the selected panel member for acceptance.';
+  const canSubmitRecommendation = selectedLecturer.canSubmit && canSubmitPanelCandidate({
+    workloadCount: selectedLecturer.workloadCount,
+    workloadLimit: selectedLecturer.workloadLimit,
+    isSupervisor: isSupervisorSelected,
+    hasNotes: hasRecommendationNotes,
+  });
+  const validationMessage = selectedLecturer.canSubmit
+    ? getPanelCandidateValidationMessage({
+        workloadCount: selectedLecturer.workloadCount,
+        workloadLimit: selectedLecturer.workloadLimit,
+        isSupervisor: isSupervisorSelected,
+        hasNotes: hasRecommendationNotes,
+      })
+    : 'This lecturer has reached the panel workload limit. Please choose another panel member.';
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
     if (!canSubmitRecommendation) return;
     if (onSubmit) {
-      onSubmit(recommendationNotes.trim(), selectedLecturer.id);
+      onSubmit(recommendationNotes.trim(), selectedLecturer.staffId);
     } else {
       alert(`Success: Recommendation for ${selectedLecturer.name} submitted successfully!`);
-    }
-  };
-
-  const handleFormSaveDraft = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (onSaveDraft) {
-      onSaveDraft(recommendationNotes, selectedLecturer.id);
-    } else {
-      alert(`Draft Saved: Recommended panel candidate ${selectedLecturer.name} is stored as draft.`);
     }
   };
 
@@ -375,11 +364,11 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                           ) : (
                             filteredLecturers.map((lec) => (
                               <button
-                                key={lec.id}
+                                key={lec.staffId}
                                 type="button"
                                 onClick={() => handleLecturerSelect(lec)}
                                 className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 hover:bg-slate-5/80 hover:bg-slate-50 flex items-center justify-between text-brand-navy transition ${
-                                  selectedLecturer.id === lec.id ? 'bg-indigo-50/45 text-blue-600' : ''
+                                  selectedLecturer.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
                                 }`}
                               >
                                 <div className="space-y-0.5">
@@ -387,7 +376,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                                   <span className="text-[10px] text-slate-400 font-semibold block">{lec.department}</span>
                                 </div>
                                 <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                  lec.eligible ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                  lec.canSubmit ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
                                 }`}>
                                   {lec.availability}
                                 </span>
@@ -409,7 +398,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <div className="flex items-center gap-3 w-full">
                       {/* Avatar with beautiful sketch style or generic portrait */}
                       <div className="w-11 h-11 rounded-lg bg-[#e0f2fe]/80 border border-blue-200 flex items-center justify-center shrink-0 overflow-hidden">
-                        {selectedLecturer.id === 'amina' ? (
+                        {selectedLecturer.staffId === 'A004812' ? (
                           <div id="amina-avatar" className="relative w-full h-full bg-[#1e293b] flex items-center justify-center">
                             {/* Stylish simplified icon with green scarf look */}
                             <div className="absolute bottom-0 w-8 h-8 rounded-t-full bg-emerald-600/80" />
@@ -431,12 +420,15 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                         {/* Selected Metadata Badges */}
                         <div id="candidate-tags" className="flex items-center gap-2 pt-1.5 flex-wrap">
                           <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
-                            Expertise: {selectedLecturer.expertise}
+                            Staff ID: {selectedLecturer.staffId}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
-                            Workload: {selectedLecturer.workload}
+                            Reserved workload: {selectedLecturer.workloadCount}/{selectedLecturer.workloadLimit}
                           </span>
                         </div>
+                        <p className="text-[9.5px] text-slate-400 font-semibold leading-relaxed pt-1">
+                          {selectedLecturer.workloadHelpText}
+                        </p>
                       </div>
                     </div>
 
@@ -444,7 +436,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <span 
                       id="candidate-avail-badge"
                       className={`text-[9px] font-black uppercase tracking-wider shrink-0 px-2.5 py-1 rounded-md ${
-                        selectedLecturer.eligible 
+                        selectedLecturer.canSubmit 
                           ? 'text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db]' 
                           : 'text-rose-600 bg-rose-50 border border-rose-150'
                       }`}
@@ -507,16 +499,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
             {/* 3. Action Buttons Sticky Bottom Bar */}
             <div 
               id="recommend-panel-footer" 
-              className="p-6 border-t border-slate-100 bg-white grid grid-cols-2 gap-4 shrink-0 shadow-3xs"
+              className="p-6 border-t border-slate-100 bg-white shrink-0 shadow-3xs"
             >
-              <button
-                id="save-draft-btn"
-                type="button"
-                onClick={handleFormSaveDraft}
-                className="w-full py-3.5 bg-white border border-slate-250 hover:border-slate-350 hover:bg-slate-50 text-slate-800 rounded-xl font-bold text-xs uppercase tracking-wider transition-all select-none cursor-pointer text-center"
-              >
-                Save as Draft
-              </button>
               <button
                 id="submit-recommendation-btn"
                 type="submit"

@@ -48,13 +48,19 @@
 - Adjusted Panel Appointment Management so the records table no longer depends on a horizontal scrollbar on desktop: the records area now uses a wider column, fixed table layout, compact cell spacing, and wrapped text.
 - Resolved the `App.tsx` merge compile issue by restoring the missing mark-record mock import and cleaned duplicate dependency keys left in `package.json`.
 - Added missing React TypeScript declaration packages and tightened exposed type issues in sidebar state, icon wrapper props, login manual download alert handling, and student supervisor detail records.
-- Updated the existing lecturer Panel Appointments recommendation workflow so supervisor panel recommendations move from draft/submission to selected panel acceptance or rejection, then Programme Coordinator approval or rejection.
+- Updated the existing lecturer Panel Appointments recommendation workflow so supervisor panel recommendations move from direct submission to selected panel acceptance or rejection, then Programme Coordinator confirmation or rejection.
 - Added UI/mock enforcement for exactly one recommended panel lecturer per student recommendation and duplicate blocking until a previous recommendation is rejected by the selected panel or Programme Coordinator.
 - Added a tested panel recommendation workflow helper covering lifecycle labels, duplicate blocking, selected-panel transitions, coordinator transitions, and required rejection reasons.
 - Corrected the lecturer Panel Appointments supervisor view so the submitting supervisor can only track recommendation progress and cannot approve or reject as the selected panel member or Programme Coordinator.
 - Added a panel recommendation review drawer pattern with approval controls and rejection reason fields placed inside the scrollable drawer content instead of a fixed drawer footer.
 - Added a request progress timeline to the panel recommendation View Flow drawer for submitted, selected-panel review, Programme Coordinator review, and final appointment states.
 - Fixed the lecturer Supervisor Appointment review drawer so the approve/reject controls and rejection reason field scroll with the request content instead of staying in a fixed bottom action area.
+- Added the Django `appointments` app for lecturer-side panel appointment persistence.
+- Added database models and migration for student research profiles, panel recommendations, and final panel appointments.
+- Added role-gated panel recommendation APIs for supervisor submission/tracking, selected panel accept/reject, Programme Coordinator confirm/reject, final panel assignments, and panel records compatibility.
+- Connected the lecturer Panel Appointments frontend workflow to the new backend endpoints while preserving `VITE_USE_MOCKS` mock mode.
+- Routed Programme Coordinator users to the role-aware panel recommendation coordinator review queue instead of the office/admin panel monitoring screen.
+- Extended `seed_users` with a selected panel lecturer account and an eligible supervised student research profile for panel recommendation testing.
 - Resolved the `origin/main` merge conflicts on `Lim_Branch` by preserving the organized `frontend/` and `backend/` layout, retaining the richer panel recommendation workflow, and keeping incoming Django auth/reset-password wiring.
 - Cleaned the frontend package after the merge so obsolete Node/Express server scripts and dependencies stay out of the Vite app.
 
@@ -121,6 +127,24 @@
 - `npm run build` passes after fixing the supervisor appointment and panel recommendation approval drawer scroll behavior, with the existing non-blocking chunk-size warning.
 - `npm run lint` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`.
 - `npm run build` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`, with the existing non-blocking chunk-size warning.
+- `python manage.py test appointments` passes for panel recommendation creation, duplicate blocking, selected-panel decisions, Programme Coordinator approval, assignment output, and wrong-user denial.
+- `python manage.py test` passes after adding the appointments backend workflow.
+- `python manage.py check` reports no Django system issues after adding the appointments app.
+- `python manage.py migrate` applied the appointments migration to the configured local PostgreSQL database.
+- `python manage.py seed_users` refreshed demo accounts and created the panel recommendation demo profile.
+- `npm run lint` passes after wiring the panel appointment workflow to backend services.
+- `npm run build` passes after wiring the panel appointment workflow to backend services, with the existing non-blocking chunk-size warning.
+- Fixed the panel recommendation refresh-loss issue by routing panel appointment service calls to the Django backend by default with `VITE_USE_PANEL_BACKEND=true`.
+- `npm run lint`, focused panel workflow test, `python manage.py test appointments`, and `npm run build` pass after fixing the panel backend/mock routing issue.
+- Fixed lecturer panel appointment UI data bugs: selected-panel-only accounts no longer see a fake supervisee recommendation card, the panel workload card now reflects actual assignment rows, and submitted recommendation history de-duplicates backend records.
+- Removed the duplicate supervisor-side recommendation flow table from the lecturer Panel Appointments page so submitted recommendations are the single tracking surface.
+- Rebuilt the submitted recommendation detail drawer to use real recommendation fields, remove hardcoded panel workload and screenshot-specific fallback data, and display the selected-panel/coordinator confirmation timeline with backend date-time fields.
+- Removed the panel recommendation save-as-draft flow from the frontend and backend create API.
+- Added backend panel workload validation and a candidate workload endpoint so reserved workload includes confirmed active panel appointments plus submitted/pending nominations before submission.
+- Updated the recommend-panel drawer to explain reserved workload, show real candidate workload counts, disable full-workload candidates for submission, and keep only the direct submit action.
+- `python manage.py test appointments`, `python manage.py makemigrations --check --dry-run`, `python manage.py check`, focused panel workflow test, `npm run lint`, and `npm run build` pass after removing panel recommendation drafts and adding workload validation.
+- `python manage.py migrate` applied the no-draft and workload-validation support migrations to the local development database.
+- `python manage.py test appointments`, `python manage.py check`, `npm run lint`, focused panel workflow test, and `npm run build` pass after the submitted recommendation drawer and timeline timestamp cleanup.
 - Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
 
 ## Known Issues and Notes
@@ -128,8 +152,8 @@
 - Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
 - A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
 - The current frontend uses mock-backed demo data by default through `VITE_USE_MOCKS=true`.
-- Real backend API integration still needs endpoint mapping for dashboard metrics, timeline records, appointment records, lecturer workflows, student workflows, mark records, registry records, file records, FAQ entries, letters, announcements, and notifications.
-- Panel recommendation backend/database integration has not started yet; the accepted UI/mock lifecycle should be used as the contract for the later appointment database and API slice.
+- Real backend API integration still needs endpoint mapping for dashboard metrics, timeline records, non-panel appointment workflows, broader student workflows, mark records, registry records, file records, FAQ entries, announcements, and notifications.
+- Office Staff/Admin panel monitoring and Student panel appointment release still need fuller frontend integration with the persisted panel appointment records.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
@@ -138,4 +162,5 @@
 
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
 - Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
-- Connect dashboard, registry, file, FAQ, letter, announcement, notification, appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.
+- Connect Office Staff/Admin panel monitoring and Student panel appointment release to the persisted panel appointment records.
+- Connect dashboard, registry, file, FAQ, announcement, notification, remaining appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.

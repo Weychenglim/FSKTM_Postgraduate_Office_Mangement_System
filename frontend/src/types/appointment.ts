@@ -90,7 +90,6 @@ export interface PanelAssignment {
 
 // Approval lifecycle for a supervisor's panel-member recommendation.
 export type PanelRecommendationStatus =
-  | 'DRAFT'
   | 'SUBMITTED_TO_PANEL'
   | 'REJECTED_BY_PANEL'
   | 'ACCEPTED_BY_PANEL'
@@ -100,16 +99,47 @@ export type PanelRecommendationStatus =
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft {
+  id?: number | string;
   studentId: string;
   studentName: string;
   programme: string;
+  semester?: string;
   proposedTopic: string;
+  researchArea?: string;
+  abstract?: string;
   recommendedMember: string;
   recommendedMemberId: string;
   submittedDate: string;
+  submittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
   status: PanelRecommendationStatus;
   justification?: string;
   rejectionReason?: string;
+}
+
+export interface PanelRecommendationSupervisee {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  semester: string;
+  proposedTopic: string;
+  researchArea: string;
+  abstract: string;
+  supervisorName: string;
+  supervisorId: string;
+  canRecommend: boolean;
+}
+
+export interface PanelCandidate {
+  staffId: string;
+  name: string;
+  department: string;
+  workloadCount: number;
+  workloadLimit: number;
+  canSubmit: boolean;
+  availability: 'Available' | 'Workload Full' | string;
+  workloadHelpText: string;
 }
 
 // A submitted panel recommendation record shown in the history list.
@@ -119,12 +149,19 @@ export interface SubmittedRecommendation {
   studentId: string;
   researchTitle: string;
   recommendedPanel: string;
+  recommendedPanelId?: string;
   date: string;
   status: 'Approved' | 'Pending Approval' | 'Rejected';
+  workflowStatus?: PanelRecommendationStatus;
   semester: string;
   programme?: string;
+  researchArea?: string;
   abstract?: string;
   justification?: string;
+  rejectionReason?: string;
+  submittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
 }
 
 // A past supervisor appointment request the lecturer already approved/rejected.
