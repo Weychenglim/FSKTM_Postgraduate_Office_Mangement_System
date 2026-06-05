@@ -88,6 +88,16 @@ export interface PanelAssignment {
   initials?: string;
 }
 
+// Approval lifecycle for a supervisor's panel-member recommendation.
+export type PanelRecommendationStatus =
+  | 'DRAFT'
+  | 'SUBMITTED_TO_PANEL'
+  | 'REJECTED_BY_PANEL'
+  | 'ACCEPTED_BY_PANEL'
+  | 'PENDING_COORDINATOR'
+  | 'REJECTED_BY_COORDINATOR'
+  | 'APPROVED';
+
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft {
   studentId: string;
@@ -97,7 +107,9 @@ export interface PanelRecommendationDraft {
   recommendedMember: string;
   recommendedMemberId: string;
   submittedDate: string;
-  status: 'SUBMITTED' | 'APPROVED' | 'UNDER REVIEW';
+  status: PanelRecommendationStatus;
+  justification?: string;
+  rejectionReason?: string;
 }
 
 // A submitted panel recommendation record shown in the history list.

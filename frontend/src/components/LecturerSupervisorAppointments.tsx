@@ -401,10 +401,10 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 
       <div className="fixed inset-y-0 right-0 max-w-full flex">
         {/* Sliding Panel container */}
-        <div className="w-screen max-w-md bg-white shadow-sm flex flex-col justify-between overflow-y-auto z-50 border-l border-slate-100">
+        <div className="w-screen max-w-md bg-white shadow-sm flex flex-col overflow-hidden z-50 border-l border-slate-100">
           
           {/* Header block with close icon */}
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none shrink-0">
             <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
               Supervisor Request Review
             </h3>
@@ -417,7 +417,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             </button>
           </div>
 
-          {/* Drawer content drawer body scroll */}
+          {/* Drawer content and review controls scroll together. */}
           <div className="flex-1 p-6 space-y-6 overflow-y-auto">
             {/* Student Profile Header */}
             <StudentProfileHeader 
@@ -487,32 +487,26 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
                 ]}
               />
             </InfoCard>
-          </div>
 
-          {/* Bottom anchoring action inputs inside RightDrawer matching layout exactly */}
-          <div className="p-6 border-t border-slate-100 bg-white space-y-4">
-            
-            {/* Primary actions buttons on top */}
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => onApprove(request.studentId)}
-                className="w-full py-4 bg-brand-navy hover:bg-slate-900 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
-              >
-                Approve as Supervisor
-              </button>
-              
-              <button
-                type="button"
-                onClick={handleRejectClick}
-                className="w-full py-3.5 border border-rose-200 hover:bg-rose-50 text-rose-600 font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
-              >
-                Reject Request
-              </button>
-            </div>
+            <div className="pt-5 border-t border-slate-100 space-y-4">
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => onApprove(request.studentId)}
+                  className="w-full py-4 bg-brand-navy hover:bg-slate-900 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
+                >
+                  Approve as Supervisor
+                </button>
 
-            {/* Rejection reason located BELOW as shown in screenshot */}
-            <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleRejectClick}
+                  className="w-full py-3.5 border border-rose-200 hover:bg-rose-50 text-rose-600 font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
+                >
+                  Reject Request
+                </button>
+              </div>
+
               <FormTextarea 
                 label="REASON FOR REJECTION" 
                 placeholder="Enter reason..."
@@ -523,7 +517,6 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
                 A reason is required before rejecting this supervisor appointment request.
               </NoticeText>
             </div>
-
           </div>
 
         </div>

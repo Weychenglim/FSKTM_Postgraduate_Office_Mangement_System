@@ -1,23 +1,51 @@
-# FSKTM Postgraduate Office Management System
+# FSKTM Postgraduate Management System
 
-Faculty postgraduate-admin portal. **React 19 + Vite + TypeScript** frontend with
-an **Express + PostgreSQL** backend API.
+Full-stack postgraduate management portal for FSKTM administrative, lecturer, and student workflows.
 
-## Quick start
+## Project Layout
 
-```powershell
-npm install
-Copy-Item .env.example .env   # then set PGPASSWORD to your local Postgres password
-npm run db:setup              # creates + seeds the database
-npm run dev:server            # API  → http://localhost:4000
-npm run dev                   # web  → http://localhost:3000
+```text
+.
+├── frontend/   # React 19 + Vite + TypeScript portal UI
+├── backend/    # Django authentication backend
+├── docs/       # Supporting PDFs, setup notes, specs, and plans
+├── PROJECT_REQUIREMENTS.md
+├── ARCHITECTURE_AND_CODING_DESIGN.md
+└── PROJECT_STATUS.md
 ```
 
-📄 **Full database + backend setup (for new teammates): [DATABASE_SETUP.md](DATABASE_SETUP.md)**
+The three project governance files stay at the project root so they are easy to find and update during implementation work.
+
+## Frontend
+
+```powershell
+Set-Location frontend
+npm install
+npm run dev
+```
+
+The Vite dev server runs at `http://localhost:3000`.
+The frontend `.env` file is optional because the app has safe defaults for mock mode and `/api`.
+Copy `frontend/.env.example` to `frontend/.env` only when you need to override those Vite values locally.
+
+## Backend
+
+```powershell
+Set-Location backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+python manage.py migrate
+python manage.py seed_users
+python manage.py runserver 8000
+```
+
+The frontend proxies `/api` requests to `http://localhost:8000`.
 
 ## Docs
 
-- [DATABASE_SETUP.md](DATABASE_SETUP.md) — get the DB + API running locally
-- [PROJECT_REQUIREMENTS.md](PROJECT_REQUIREMENTS.md) — product scope & module requirements
-- [ARCHITECTURE_AND_CODING_DESIGN.md](ARCHITECTURE_AND_CODING_DESIGN.md) — tech stack & structure
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) — what's done / known issues / next steps
+- [PROJECT_REQUIREMENTS.md](PROJECT_REQUIREMENTS.md) - product scope and module requirements
+- [ARCHITECTURE_AND_CODING_DESIGN.md](ARCHITECTURE_AND_CODING_DESIGN.md) - architecture, structure, and coding conventions
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) - completed work, testing status, known issues, and next steps
+- [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) - database and backend setup notes
