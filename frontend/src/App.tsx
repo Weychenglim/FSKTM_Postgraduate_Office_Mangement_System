@@ -37,6 +37,7 @@ import { StudentRegistry } from './components/StudentRegistry';
 import { StudentDashboard } from './components/StudentDashboard';
 import { StudentSupervisorAppointment } from './components/StudentSupervisorAppointment';
 import { StudentPanelAppointment } from './components/StudentPanelAppointment';
+import { SettingsView } from './components/SettingsView';
 import { 
   Calendar, 
   Sliders, 
@@ -48,6 +49,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { DemoUser } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
 import { authApi } from './services';
+import { NotificationsProvider } from './context/NotificationsContext';
 import { MOCK_MARK_RECORDS } from './mocks/marks';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
@@ -64,16 +66,6 @@ const getRecordDetails = (id: string) => {
     totalMark: record.totalMark,
     submittedDate: record.submittedDate,
   };
-};
-
-// Default logged-in state of Wey Cheng (as seen in the mockup)
-const DEFAULT_SECRETARY_ADMIN: DemoUser = {
-  id: 'usr_wey_cheng',
-  email: 'weycheng@fsktm.edu.my',
-  role: 'Office Staff/Admin',
-  fullName: 'Wey Cheng',
-  department: 'Postgraduate Office Division',
-  staffId: 'A004918'
 };
 
 export default function App() {
@@ -158,6 +150,7 @@ export default function App() {
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
       {currentUser ? (
         /* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */
+        <NotificationsProvider>
         <AppLayout
           activeItem={activeSidebarItem}
           onNavigate={(target) => {
@@ -345,6 +338,8 @@ export default function App() {
             <AnnouncementManagement />
           ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
             <NotificationsAnnouncements onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
+          ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
+            <SettingsView currentUser={currentUser} onLogout={handleLogout} />
           ) : (
             /* Placeholder message for other sidebar routes */
             <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
@@ -366,6 +361,7 @@ export default function App() {
             </div>
           )}
         </AppLayout>
+        </NotificationsProvider>
       ) : authView === 'reset' && resetParams ? (
         /* ==================== FRONTEND: STANDALONE RESET PASSWORD SCREEN ==================== */
         <ResetPasswordPage
@@ -383,21 +379,6 @@ export default function App() {
           <div className="w-full flex justify-center items-center">
             {/* When LoginCard completes successful auth, it passes down via context or sets page user. Since LoginCard handles its own local session established state, let's wrap it. To allow LoginCard to let a user login to App, we can provide a button or direct detection. We put LoginCard inside. */}
             <div className="w-full flex justify-center flex-col items-center">
-              
-              {/* Back to Portal Top Banner (helps reviewers instantly go to Portal from Login Page) */}
-              <div className="w-full max-w-[490px] mb-4 bg-[#0a152d] text-slate-200 p-3.5 rounded-2xl border border-white/[0.05] text-left text-xs flex justify-between items-center shadow-sm">
-                <div className="flex gap-2.5 items-center">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-semibold text-slate-300">Fast-docking Portal Access:</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleSuccessfulLogin(DEFAULT_SECRETARY_ADMIN)}
-                  className="px-3 py-1.5 bg-[#1f305c] hover:bg-blue-800 text-white font-extrabold text-[10px] uppercase rounded-lg transition-colors cursor-pointer"
-                >
-                  Enter Portal Direct
-                </button>
-              </div>
 
               {/* Real LoginCard */}
               <LoginCard 

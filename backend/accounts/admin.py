@@ -1,10 +1,44 @@
-"""Django admin registration for the custom user — this is the 'super admin'
-screen the office staff use to create and manage accounts."""
+"""Django admin for the custom user + role profiles — the 'super admin' screen
+office staff use to create and manage accounts.
+
+A User is edited together with its one matching profile (Student / Office staff /
+Lecturer) via inlines. A Lecturer's overlapping specializations (Coordinator /
+Supervisor / Panel) are managed on the dedicated Lecturer admin page.
+"""
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .forms import UserCreationForm, UserChangeForm
-from .models import User
+from .models import (
+    Coordinator,
+    Lecturer,
+    OfficeStaff,
+    Panel,
+    Student,
+    Supervisor,
+    User,
+)
+
+
+# ── Profile inlines shown on the User page ───────────────────────────────────
+
+
+class StudentInline(admin.StackedInline):
+    model = Student
+    extra = 0
+    verbose_name_plural = "Student profile"
+
+
+class OfficeStaffInline(admin.StackedInline):
+    model = OfficeStaff
+    extra = 0
+    verbose_name_plural = "Office staff profile"
+
+
+class LecturerInline(admin.StackedInline):
+    model = Lecturer
+    extra = 0
+    verbose_name_plural = "Lecturer profile"
 
 
 @admin.register(User)
@@ -12,25 +46,24 @@ class UserAdmin(BaseUserAdmin):
     add_form = UserCreationForm
     form = UserChangeForm
     model = User
+    inlines = [StudentInline, OfficeStaffInline, LecturerInline]
 
-    list_display = (
+    list_display = ("email", "full_name", "role", "is_staff", "is_active")
+    list_filter = ("role", "is_staff", "is_active")
+    search_fields = (
         "email",
         "full_name",
-        "role",
-        "student_id",
-        "staff_id",
-        "is_staff",
-        "is_active",
+        "student__matric_no",
+        "office_staff__staff_no",
+        "lecturer__staff_no",
     )
-    list_filter = ("role", "is_staff", "is_active")
-    search_fields = ("email", "full_name", "student_id", "staff_id")
     ordering = ("full_name",)
     filter_horizontal = ("groups", "user_permissions")
     readonly_fields = ("last_login", "date_joined")
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("Profile", {"fields": ("full_name", "role", "department", "student_id", "staff_id")}),
+        ("Profile", {"fields": ("full_name", "role", "phone", "must_change_password")}),
         (
             "Permissions",
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
@@ -42,16 +75,82 @@ class UserAdmin(BaseUserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": (
-                    "email",
-                    "full_name",
-                    "role",
-                    "department",
-                    "student_id",
-                    "staff_id",
-                    "password1",
-                    "password2",
-                ),
+                "fields": ("email", "full_name", "role", "phone", "password1", "password2"),
             },
         ),
     )
+
+    def get_inline_instances(self, request, obj=None):
+        # Profiles can only attach to a saved user, so hide inlines on the add page.
+        if obj is None:
+            return []
+        return super().get_inline_instances(request, obj)
+
+
+# ── Lecturer specialization inlines (managed on the Lecturer page) ───────────
+
+
+class CoordinatorInline(admin.StackedInline):
+    model = Coordinator
+    extra = 0
+
+
+class SupervisorInline(admin.StackedInline):
+    model = Supervisor
+    extra = 0
+
+
+class PanelInline(admin.StackedInline):
+    model = Panel
+    extra = 0
+
+
+@admin.register(Lecturer)
+class LecturerAdmin(admin.ModelAdmin):
+    inlines = [CoordinatorInline, SupervisorInline, PanelInline]
+    list_display = (
+        "staff_no",
+        "full_name",
+        "department",
+        "is_coordinator",
+        "is_supervisor",
+        "is_panel",
+    )
+    search_fields = ("staff_no", "user__full_name", "user__email")
+
+    @admin.display(description="Name")
+    def full_name(self, obj):
+        return obj.user.full_name
+
+    @admin.display(boolean=True, description="Coordinator")
+    def is_coordinator(self, obj):
+        return Coordinator.objects.filter(pk=obj.pk).exists()
+
+    @admin.display(boolean=True, description="Supervisor")
+    def is_supervisor(self, obj):
+        return Supervisor.objects.filter(pk=obj.pk).exists()
+
+    @admin.display(boolean=True, description="Panel")
+    def is_panel(self, obj):
+        return Panel.objects.filter(pk=obj.pk).exists()
+
+
+@admin.register(Student)
+class StudentAdmin(admin.ModelAdmin):
+    list_display = ("matric_no", "full_name", "programme", "status")
+    list_filter = ("status",)
+    search_fields = ("matric_no", "user__full_name", "user__email")
+
+    @admin.display(description="Name")
+    def full_name(self, obj):
+        return obj.user.full_name
+
+
+@admin.register(OfficeStaff)
+class OfficeStaffAdmin(admin.ModelAdmin):
+    list_display = ("staff_no", "full_name", "department", "position")
+    search_fields = ("staff_no", "user__full_name", "user__email")
+
+    @admin.display(description="Name")
+    def full_name(self, obj):
+        return obj.user.full_name

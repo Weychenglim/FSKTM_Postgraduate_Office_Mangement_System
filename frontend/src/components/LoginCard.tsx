@@ -8,8 +8,6 @@ import {
   Lock,
   User,
   Server,
-  RefreshCw,
-  ShieldCheck,
   Calendar,
   AlertCircle
 } from 'lucide-react';
@@ -271,33 +269,6 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
           )}
         </AnimatePresence>
       </motion.div>
-
-      {/* Status capsule badges */}
-      <div id="status-badges-footer" className="w-full flex flex-col gap-2.5 items-center select-none">
-        <div className="flex items-center gap-2">
-          <div
-            id="status-capsule-online"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0f9ff]/90 border border-[#e0f2fe]/60 rounded-full text-[10px] font-extrabold text-sky-800 uppercase tracking-widest shadow-xs"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            System Online
-          </div>
-          <div
-            id="status-capsule-sync"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f8fafc] border border-slate-200/50 rounded-full text-[10px] font-extrabold text-slate-500 uppercase tracking-widest shadow-xs"
-          >
-            <RefreshCw className="w-3 h-3 text-slate-400 rotate-smooth" />
-            Updated Today
-          </div>
-        </div>
-        <div
-          id="status-capsule-ssl"
-          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50/70 border border-indigo-100/40 rounded-full text-[10px] font-extrabold text-[#1f2937] uppercase tracking-widest shadow-xs"
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
-          SSL Secured
-        </div>
-      </div>
 
       {/* Interactive demo prefiller console */}
       <motion.div

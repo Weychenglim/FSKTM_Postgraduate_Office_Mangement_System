@@ -30,12 +30,17 @@ def login_view(request):
     identifier = serializer.validated_data["identifier"].strip()
     password = serializer.validated_data["password"]
 
+    # Match the identifier against the email, a student's matric no, or a
+    # staff/lecturer's staff no (the latter two now live in the profile tables).
     user = (
         User.objects.filter(
             Q(email__iexact=identifier)
-            | Q(student_id__iexact=identifier)
-            | Q(staff_id__iexact=identifier)
-        ).first()
+            | Q(student__matric_no__iexact=identifier)
+            | Q(office_staff__staff_no__iexact=identifier)
+            | Q(lecturer__staff_no__iexact=identifier)
+        )
+        .distinct()
+        .first()
     )
     if user is None or not user.check_password(password):
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)

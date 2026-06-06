@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Bell, 
@@ -19,13 +19,17 @@ import {
   Lock,
   Clock,
   ArrowUpRight,
-  FileText
+  FileText,
+  Download,
+  Megaphone,
+  BellOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalToast, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
-import { getNotifications } from '../services';
+import { downloadAnnouncementAttachment } from '../services';
+import { useNotifications } from '../context/NotificationsContext';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -34,8 +38,14 @@ interface PriorityBadgeProps {
 }
 
 export const PriorityBadge: React.FC<PriorityBadgeProps> = ({ level }) => {
+  const lower = level.toLowerCase();
+  const tone = lower.includes('high')
+    ? 'bg-rose-50 text-rose-600 border-rose-100'
+    : lower.includes('medium')
+    ? 'bg-blue-50 text-blue-600 border-blue-100'
+    : 'bg-slate-100 text-slate-600 border-slate-200';
   return (
-    <span className="inline-flex items-center px-3.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-full text-[10px] font-black uppercase tracking-wider select-none">
+    <span className={`inline-flex items-center px-3.5 py-1.5 ${tone} border rounded-full text-[10px] font-black uppercase tracking-wider select-none`}>
       {level}
     </span>
   );
@@ -139,6 +149,35 @@ export const MetadataGrid: React.FC<MetadataGridProps> = ({ from, to, reference 
   );
 };
 
+interface TabEmptyStateProps {
+  tab: 'announcements' | 'notifications';
+  searching: boolean;
+}
+
+export const TabEmptyState: React.FC<TabEmptyStateProps> = ({ tab, searching }) => {
+  const isNotifications = tab === 'notifications';
+  const Icon = searching ? Search : isNotifications ? BellOff : Megaphone;
+  const title = searching
+    ? 'No matches found'
+    : isNotifications
+    ? 'No notifications yet'
+    : 'No announcements yet';
+  const message = searching
+    ? 'Try a different search term.'
+    : isNotifications
+    ? 'Updates about your supervisor appointment, panel assignment, and confirmation letters will appear here once those modules go live.'
+    : 'Published announcements addressed to you will show up here.';
+  return (
+    <div className="bg-white border border-dashed border-slate-200 rounded-2xl py-16 px-6 flex flex-col items-center text-center select-none">
+      <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-150 flex items-center justify-center mb-4">
+        <Icon className="w-6 h-6 text-slate-400" />
+      </div>
+      <h3 className="text-sm font-extrabold text-brand-navy tracking-tight">{title}</h3>
+      <p className="text-[11px] text-slate-500 font-medium mt-1.5 max-w-sm leading-relaxed">{message}</p>
+    </div>
+  );
+};
+
 // ==================== NOTIFICATION CORE DATA ====================
 
 // NotificationItem now lives in src/types.
@@ -148,57 +187,74 @@ interface NotificationsAnnouncementsProps {
 }
 
 export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = ({ onBack }) => {
-  // 1. Notifications loaded from notificationsApi (mock-backed today).
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadNotifications = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getNotifications()
-      .then(setItems)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load notifications.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+  // 1. Notifications come from the shared store so reading here updates the
+  //    header bell badge instantly (and vice versa).
+  const { items, loading, error, reload, markRead, markAllRead } = useNotifications();
 
   // Interactive dialog visibility states
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
+  // Bell view is split into two tabs. Announcements are the broadcast feed
+  // (already built); Notifications are personal system events (supervisor
+  // appointment updates, confirmation letters, …) and stay empty until those
+  // modules publish non-announcement notifications.
+  const [activeTab, setActiveTab] = useState<'announcements' | 'notifications'>('announcements');
+
   const triggerToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleMarkAllRead = () => {
-    setItems(prev => prev.map(item => ({ ...item, isUnread: false })));
-    triggerToast('All notifications marked as read.');
+  const priorityLabel = (priority: string) =>
+    priority === 'high' ? 'High Priority' : priority === 'medium' ? 'Medium Priority' : 'General';
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllRead();
+      triggerToast('All notifications marked as read.');
+    } catch (err) {
+      triggerToast(`Error: ${err instanceof Error ? err.message : 'Failed to update.'}`);
+    }
   };
 
-  const handleToggleReadState = (id: string, e: React.MouseEvent) => {
+  const handleToggleReadState = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Stop row click trigger
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const nextState = !item.isUnread;
-        triggerToast(`Marked notification as ${nextState ? 'unread' : 'read'}.`);
-        return { ...item, isUnread: nextState };
-      }
-      return item;
-    }));
+    const target = items.find(it => it.id === id);
+    if (!target) return;
+    const nextUnread = !target.isUnread;
+    try {
+      await markRead(id, !nextUnread);
+      triggerToast(`Marked notification as ${nextUnread ? 'unread' : 'read'}.`);
+    } catch (err) {
+      triggerToast(`Error: ${err instanceof Error ? err.message : 'Failed to update.'}`);
+    }
   };
 
-  // Filtered computed list matches
-  const filteredNotifications = items.filter(item => 
+  const handleDownloadAttachment = async (notif: NotificationItem) => {
+    if (!notif.announcementId || !notif.attachmentName) return;
+    try {
+      await downloadAnnouncementAttachment(notif.announcementId, notif.attachmentName);
+      triggerToast(`Downloading ${notif.attachmentName}…`);
+    } catch (err) {
+      triggerToast(`Error: ${err instanceof Error ? err.message : 'Download failed.'}`);
+    }
+  };
+
+  // Split the shared feed into the two tabs by the backend `isAnnouncement` flag.
+  const announcementFeed = items.filter((it) => it.isAnnouncement);
+  const notificationFeed = items.filter((it) => !it.isAnnouncement);
+  const activeFeed = activeTab === 'announcements' ? announcementFeed : notificationFeed;
+
+  // Filtered computed list matches (scoped to the active tab).
+  const filteredNotifications = activeFeed.filter(item =>
     item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const noun = activeTab === 'announcements' ? 'announcements' : 'notifications';
 
   return (
     <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
@@ -206,10 +262,11 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
       <PortalToast message={toast} />
 
       <PageHeader
-        title="My Notifications & Announcements"
+        title="Notifications & Announcements"
+        subtitle="Broadcast announcements and your personal system notifications."
         backLabel="Back to Dashboard"
         onBack={onBack}
-        className="mb-8 select-none"
+        className="mb-6 select-none"
         actions={(
           <button
             type="button"
@@ -220,6 +277,36 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
           </button>
         )}
       />
+
+      {/* TAB SWITCHER — Announcements (built) vs Notifications (reserved) */}
+      <div className="flex items-center gap-1 mb-6 border-b border-slate-200 select-none">
+        {([
+          { id: 'announcements' as const, label: 'Announcements', count: announcementFeed.length },
+          { id: 'notifications' as const, label: 'Notifications', count: notificationFeed.length },
+        ]).map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => { setActiveTab(tab.id); setSearchQuery(''); }}
+              className={`relative px-4 py-3 text-[11px] md:text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
+                active ? 'text-brand-navy' : 'text-slate-400 hover:text-slate-600'
+              }`}
+              role="tab"
+              aria-selected={active}
+            >
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                active ? 'bg-brand-navy text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {tab.count}
+              </span>
+              {active && <span className="absolute -bottom-px inset-x-0 h-0.5 bg-brand-navy rounded-full" />}
+            </button>
+          );
+        })}
+      </div>
 
       {/* FILTER SEARCH WRAPPER CARD */}
       <div>
@@ -232,24 +319,26 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             </span>
             <input
               type="text"
-              placeholder="Search notifications, announcements..."
+              placeholder={`Search ${noun}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="form-control form-control-sm pl-10 pr-4"
             />
           </div>
-          
+
           <div className="text-[10px] text-slate-400 font-bold shrink-0">
-            Total {filteredNotifications.length} alerts
+            Total {filteredNotifications.length} {noun}
           </div>
         </div>
 
         {/* LIST FEED PORTLET OF ITEMS */}
         <div className="space-y-3.5">
           {loading ? (
-            <LoadingState message="Loading notifications…" />
+            <LoadingState message={`Loading ${noun}…`} />
           ) : error ? (
-            <ErrorState message={error} onRetry={loadNotifications} />
+            <ErrorState message={error} onRetry={reload} />
+          ) : filteredNotifications.length === 0 ? (
+            <TabEmptyState tab={activeTab} searching={searchQuery.trim().length > 0} />
           ) : filteredNotifications.map((it) => {
             const isHigh = it.priority === 'high';
             const isAnn = it.isAnnouncement;
@@ -357,7 +446,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 {/* Priority, Timestamp and Module Badge Row Segment */}
                 <div className="flex flex-wrap items-center gap-3.5 select-none">
                   {/* Priority Badge */}
-                  <PriorityBadge level="High Priority" />
+                  <PriorityBadge level={priorityLabel(selectedNotification.priority)} />
 
                   {/* Timestamp Calendar Badge */}
                   <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200/60 rounded-full text-[10px] font-black text-slate-505 select-none leading-none">
@@ -383,28 +472,48 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   </span>
                   
                   <div className="text-xs font-semibold text-slate-700 leading-relaxed space-y-3 prose pr-2">
-                    <p>
-                      A new supervisor preference request has been submitted for Application #4421. The student has selected Dr. Sarah Chen as their primary choice.
-                    </p>
-                    <p>
-                      Please review the attached academic credentials and approve the allocation within 48 hours to comply with the department SLAs.
-                    </p>
+                    {(selectedNotification.detailedMessage || selectedNotification.description)
+                      .split('\n')
+                      .filter((line) => line.trim().length > 0)
+                      .map((line, idx) => (
+                        <p key={idx}>{line}</p>
+                      ))}
                   </div>
                 </div>
 
-                {/* Document Attachments Panel */}
-                <div className="space-y-2.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                    Attached Documents
-                  </span>
+                {/* Document Attachments Panel — only when the announcement carries a file */}
+                {selectedNotification.attachmentName && (
+                  <div className="space-y-2.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                      Attached Documents
+                    </span>
 
-                  {/* High Fidelity PDF Card with Disabled Open Letter button */}
-                  <AttachmentCard 
-                    name="Supervisor Confirmation Letter" 
-                    meta={`Generated on ${selectedNotification.timeAgo.split(' — ')[0]} — PDF Format`}
-                    disabled={true} // As requested to match screenshot exactly
-                  />
-                </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 border border-slate-200/85 rounded-xl gap-4 text-left shadow-3xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-12 bg-blue-100/60 rounded-lg flex flex-col items-center justify-center border border-blue-200 select-none shrink-0">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-extrabold text-slate-800 leading-snug break-all">
+                            {selectedNotification.attachmentName}
+                          </h4>
+                          <p className="text-[9.5px] text-slate-450 font-bold mt-0.5">
+                            Attached by {selectedNotification.service}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAttachment(selectedNotification)}
+                        className="w-full sm:w-auto px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Automatic Notice Info Stamp Footer Note */}
                 <div className="pt-2 border-t border-slate-100">
@@ -426,13 +535,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 <button
                   type="button"
                   onClick={() => {
-                    setItems(prev => prev.map(item => {
-                      if (item.id === selectedNotification.id) {
-                        return { ...item, isUnread: false };
-                      }
-                      return item;
-                    }));
+                    const id = selectedNotification.id;
                     setSelectedNotification(null);
+                    void markRead(id, true).catch(() => undefined);
                     triggerToast('Logged notification read and archived successfully.');
                   }}
                   className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"

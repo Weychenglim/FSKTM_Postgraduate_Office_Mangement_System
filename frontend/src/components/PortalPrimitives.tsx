@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
@@ -358,9 +359,12 @@ export const PortalToast: React.FC<PortalToastProps> = ({ message, tone = 'info'
 
   const Icon = toneClass[tone].icon;
 
-  return (
+  // Rendered through a portal into <body> so it is always anchored to the
+  // viewport (never trapped by a transformed/clipping ancestor) and is placed
+  // bottom-right where it can't collide with the sticky top header.
+  const node = (
     <div className={joinClasses(
-      'fixed top-5 right-5 z-[70] px-5 py-3 rounded-xl shadow-sm border flex items-center gap-2.5 max-w-sm font-sans',
+      'fixed bottom-6 right-6 z-[120] px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 max-w-sm font-sans animate-fade-in',
       toneClass[tone].wrapper,
       className
     )}>
@@ -368,4 +372,6 @@ export const PortalToast: React.FC<PortalToastProps> = ({ message, tone = 'info'
       <span className="text-[11px] font-bold tracking-wide leading-snug">{message}</span>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     # local
     "accounts",
     "letters",
+    "announcements",
 ]
 
 MIDDLEWARE = [
@@ -110,6 +111,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── Media (announcement attachments and other uploaded files) ────────────────
+# Files are served only through permission-checked API endpoints (e.g.
+# /api/announcements/<id>/attachment/), so MEDIA_URL is not exposed publicly.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # ── Django REST Framework + SimpleJWT ────────────────────────────────────────
 REST_FRAMEWORK = {
