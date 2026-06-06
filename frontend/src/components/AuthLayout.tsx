@@ -4,12 +4,7 @@
  */
 
 import React from 'react';
-import { 
-  GraduationCap, 
-  ShieldCheck, 
-  FileText, 
-  MessageSquare 
-} from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface AuthLayoutProps {
@@ -85,60 +80,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             Manage records, automate document workflows, and access institutional resources efficiently.
           </motion.p>
         </div>
-
-        {/* Bottom Features Columns */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          id="feature-columns-grid" 
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t border-white/[0.06] relative z-10"
-        >
-          {/* Feature 1 */}
-          <div id="feature-card-1" className="flex flex-col gap-3 text-left">
-            <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-xl flex items-center justify-center w-fit">
-              <ShieldCheck className="w-5 h-5 text-indigo-300" />
-            </div>
-            <div>
-              <h3 className="text-white text-[11px] font-extrabold tracking-wider uppercase">
-                Secure Role-Based Access
-              </h3>
-              <p className="text-slate-400 text-xs mt-1.5 leading-relaxed font-normal">
-                Strict data integrity with isolated permissions for staff, faculty, and students.
-              </p>
-            </div>
-          </div>
-
-          {/* Feature 2 */}
-          <div id="feature-card-2" className="flex flex-col gap-3 text-left">
-            <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-xl flex items-center justify-center w-fit">
-              <FileText className="w-5 h-5 text-indigo-300" />
-            </div>
-            <div>
-              <h3 className="text-white text-[11px] font-extrabold tracking-wider uppercase">
-                Automated Letter Gen
-              </h3>
-              <p className="text-slate-400 text-xs mt-1.5 leading-relaxed font-normal">
-                Instantly generate official verification and enrollment documents.
-              </p>
-            </div>
-          </div>
-
-          {/* Feature 3 */}
-          <div id="feature-card-3" className="flex flex-col gap-3 text-left">
-            <div className="w-10 h-10 bg-white/[0.04] border border-white/[0.08] rounded-xl flex items-center justify-center w-fit">
-              <MessageSquare className="w-5 h-5 text-indigo-300" />
-            </div>
-            <div>
-              <h3 className="text-white text-[11px] font-extrabold tracking-wider uppercase">
-                FAQ Student Support
-              </h3>
-              <p className="text-slate-400 text-xs mt-1.5 leading-relaxed font-normal">
-                Centralized institutional knowledge base and procedural guidance.
-              </p>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Left Side Column Footer */}
         <div id="left-footer" className="mt-8 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center text-[11px] text-slate-500 font-medium relative z-10 gap-2 text-left">

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Megaphone,
   Search, 
@@ -22,15 +22,27 @@ import {
   ShieldAlert,
   Send,
   Eye,
-  FileText
+  FileText,
+  Pencil
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementItem } from '../types';
-import { getAnnouncements } from '../services';
-import { MOCK_ANNOUNCEMENT_ATTACHMENTS } from '../mocks/announcements';
+import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services';
 
 // AnnouncementItem now lives in src/types.
+
+// Target-audience chip options. "All" reaches everyone; "Students" is students-only.
+type AudienceOption = 'All' | 'Students' | 'Lecturers' | 'Staff' | 'Coordinators';
+const AUDIENCE_OPTIONS: AudienceOption[] = ['All', 'Students', 'Lecturers', 'Staff', 'Coordinators'];
+
+// Map the chip choice to the backend target value, and back again when editing.
+const targetForAudience = (a: AudienceOption): AnnouncementItem['target'] =>
+  a === 'Students' ? 'All Students' : a;
+const audienceFromTarget = (target: string): AudienceOption =>
+  target === 'All Students'
+    ? 'Students'
+    : (['All', 'Lecturers', 'Staff', 'Coordinators'].includes(target) ? (target as AudienceOption) : 'All');
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -63,12 +75,17 @@ export const AnnouncementManagement: React.FC = () => {
 
   // --- 3. Draft Form States ---
   const [headline, setHeadline] = useState('');
-  const [targetAudience, setTargetAudience] = useState<'All' | 'Lecturers' | 'Staff' | 'Coordinators'>('All');
+  const [targetAudience, setTargetAudience] = useState<AudienceOption>('All');
   const [priorityLevel, setPriorityLevel] = useState<'Urgent' | 'Info' | 'General'>('Info');
   const [contentBody, setContentBody] = useState('');
   const [startDate, setStartDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // When set, the form edits an existing draft (PATCH) instead of creating one.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [existingAttachmentName, setExistingAttachmentName] = useState<string | null>(null);
 
   // --- 4. Search and Table Pagination States ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,7 +93,7 @@ export const AnnouncementManagement: React.FC = () => {
   const itemsPerPage = 4;
 
   // --- 5. Handlers ---
-  const handleAudienceClick = (audience: 'All' | 'Lecturers' | 'Staff' | 'Coordinators') => {
+  const handleAudienceClick = (audience: AudienceOption) => {
     setTargetAudience(audience);
   };
 
@@ -84,17 +101,99 @@ export const AnnouncementManagement: React.FC = () => {
     setPriorityLevel(priority);
   };
 
-  // Attach simulated files
+  // Open the OS file picker (the hidden <input> below does the real work).
   const handleAttachFile = () => {
-    const fileOptions = MOCK_ANNOUNCEMENT_ATTACHMENTS;
-    const randomFile = fileOptions[Math.floor(Math.random() * fileOptions.length)];
-    setAttachedFile(randomFile);
-    showToast(`Attached file: ${randomFile}`);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (file) {
+      setAttachedFile(file);
+      showToast(`Attached file: ${file.name}`);
+    }
   };
 
   const handleRemoveAttachment = () => {
     setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     showToast('Attachment removed.');
+  };
+
+  // Shared submit: creates a new announcement, or updates the draft being edited.
+  // Publishing (status Active) makes the backend fan it out to the target audience.
+  const submitAnnouncement = async (status: 'Active' | 'Draft') => {
+    setSubmitting(true);
+    try {
+      const payload = {
+        title: headline.trim(),
+        content: contentBody,
+        target: targetForAudience(targetAudience),
+        priority: priorityLevel,
+        status,
+        startDate: startDate || undefined,
+        expiryDate: expiryDate || undefined,
+        attachment: attachedFile,
+      };
+      const saved = editingId
+        ? await updateAnnouncement(editingId, payload)
+        : await createAnnouncement(payload);
+      if (status === 'Active') {
+        const reach = saved.deliveredTo ?? 0;
+        showToast(`Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`);
+      } else {
+        showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
+      }
+      resetForm();
+      loadAnnouncements();
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Load a draft back into the form for editing.
+  const handleEditDraft = (draft: AnnouncementItem) => {
+    setEditingId(draft.id);
+    setHeadline(draft.title);
+    setContentBody(draft.content ?? draft.summary ?? '');
+    setTargetAudience(audienceFromTarget(draft.target));
+    setPriorityLevel(draft.priority);
+    setStartDate(draft.startDate ?? '');
+    setExpiryDate(draft.expiryDate ?? '');
+    setExistingAttachmentName(draft.attachmentName ?? null);
+    setAttachedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast(`Editing draft: "${draft.title}"`);
+  };
+
+  // Publish a draft straight from the list (no need to open it first).
+  const handlePublishDraft = async (draft: AnnouncementItem) => {
+    try {
+      const saved = await updateAnnouncement(draft.id, {
+        title: draft.title,
+        content: draft.content ?? draft.summary ?? '',
+        target: draft.target,
+        priority: draft.priority,
+        status: 'Active',
+        startDate: draft.startDate ?? undefined,
+        expiryDate: draft.expiryDate ?? undefined,
+        attachment: null,
+      });
+      const reach = saved.deliveredTo ?? 0;
+      showToast(`Draft published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`);
+      if (editingId === draft.id) resetForm();
+      loadAnnouncements();
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to publish draft.'}`);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
+    showToast('Edit cancelled.');
   };
 
   // Submit flow: Publish Now
@@ -108,20 +207,7 @@ export const AnnouncementManagement: React.FC = () => {
       showToast('Error: Please provide descriptive Content Body details.');
       return;
     }
-
-    const newAnnouncement: AnnouncementItem = {
-      id: `ann-${Date.now()}`,
-      title: headline,
-      summary: contentBody.length > 90 ? `${contentBody.substring(0, 90)}...` : contentBody,
-      target: targetAudience === 'All' ? 'All Students' : targetAudience,
-      priority: priorityLevel,
-      dateCreated: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-      status: 'Active'
-    };
-
-    setHistoryItems(prev => [newAnnouncement, ...prev]);
-    showToast('Success: Your announcement was published and broadcasted to the FSKTM portal!');
-    resetForm();
+    void submitAnnouncement('Active');
   };
 
   // Submit flow: Save Draft
@@ -131,20 +217,7 @@ export const AnnouncementManagement: React.FC = () => {
       showToast('Error: Please enter at least a headline before saving as draft.');
       return;
     }
-
-    const newDraft: AnnouncementItem = {
-      id: `ann-${Date.now()}`,
-      title: `[Draft] ${headline}`,
-      summary: contentBody || 'No description provided.',
-      target: targetAudience === 'All' ? 'All Students' : targetAudience,
-      priority: priorityLevel,
-      dateCreated: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-      status: 'Draft'
-    };
-
-    setHistoryItems(prev => [newDraft, ...prev]);
-    showToast('Announcement saved inside local administrative drafts.');
-    resetForm();
+    void submitAnnouncement('Draft');
   };
 
   const resetForm = () => {
@@ -155,15 +228,27 @@ export const AnnouncementManagement: React.FC = () => {
     setStartDate('');
     setExpiryDate('');
     setAttachedFile(null);
+    setEditingId(null);
+    setExistingAttachmentName(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDeleteHistoryItem = (id: string, title: string) => {
-    setHistoryItems(prev => prev.filter(item => item.id !== id));
-    showToast(`Removed broadcast record: "${title}"`);
+  const handleDeleteHistoryItem = async (id: string, title: string) => {
+    try {
+      await deleteAnnouncement(id);
+      setHistoryItems(prev => prev.filter(item => item.id !== id));
+      showToast(`Removed broadcast record: "${title}"`);
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to remove announcement.'}`);
+    }
   };
 
-  // --- 6. Sorting & Search Filtering Logic ---
-  const filteredAnnouncements = historyItems.filter(item => {
+  // --- 6. Split drafts (their own section) from published records (history) ---
+  const drafts = historyItems.filter(item => item.status === 'Draft');
+  const publishedItems = historyItems.filter(item => item.status !== 'Draft');
+
+  // History search runs over published records only (drafts live below the form).
+  const filteredAnnouncements = publishedItems.filter(item => {
     const term = searchQuery.toLowerCase();
     return (
       item.title.toLowerCase().includes(term) ||
@@ -174,9 +259,9 @@ export const AnnouncementManagement: React.FC = () => {
   });
 
   // Calculate dynamic stats matching screenshot visual indicators
-  const activeCount = historyItems.filter(item => item.status === 'Active').length;
-  const urgentCount = historyItems.filter(item => item.priority === 'Urgent').length;
-  const scheduledCount = historyItems.filter(item => item.status === 'Scheduled' || item.status === 'Draft').length;
+  const activeCount = publishedItems.filter(item => item.status === 'Active').length;
+  const urgentCount = publishedItems.filter(item => item.priority === 'Urgent').length;
+  const scheduledCount = publishedItems.filter(item => item.status === 'Scheduled').length;
 
   // Pagination bounds
   const totalPages = Math.ceil(filteredAnnouncements.length / itemsPerPage) || 1;
@@ -193,19 +278,31 @@ export const AnnouncementManagement: React.FC = () => {
       <div className="space-y-6">
 
         <PageHeader
-          title="Draft New Announcement"
-          subtitle="Craft your message for the FSKTM community."
+          title={editingId ? 'Edit Draft Announcement' : 'Draft New Announcement'}
+          subtitle={editingId ? 'Update the draft below, then save it or publish it.' : 'Craft your message for the FSKTM community.'}
           actions={(
-            <PortalButton
-              type="button"
-              variant="secondary"
-              size="md"
-              icon={Eye}
-              onClick={() => setView('history')}
-              className="shrink-0"
-            >
-              View Announcement History
-            </PortalButton>
+            <div className="flex items-center gap-2 shrink-0">
+              {editingId && (
+                <PortalButton
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  icon={X}
+                  onClick={handleCancelEdit}
+                >
+                  Cancel Edit
+                </PortalButton>
+              )}
+              <PortalButton
+                type="button"
+                variant="secondary"
+                size="md"
+                icon={Eye}
+                onClick={() => setView('history')}
+              >
+                View Announcement History
+              </PortalButton>
+            </div>
           )}
         />
 
@@ -232,11 +329,16 @@ export const AnnouncementManagement: React.FC = () => {
                 Target Audience
               </label>
               <SegmentedControl
-                options={['All', 'Lecturers', 'Staff', 'Coordinators'] as const}
+                options={AUDIENCE_OPTIONS}
                 value={targetAudience}
                 onChange={handleAudienceClick}
-                className="inline-flex"
+                className="inline-flex flex-wrap"
               />
+              <p className="text-[10px] text-slate-400 font-semibold">
+                {targetAudience === 'All'
+                  ? 'Reaches everyone (students, lecturers, staff, coordinators).'
+                  : `Reaches ${targetAudience} only.`}
+              </p>
             </div>
 
             {/* Field C: Priority Selector boxes */}
@@ -309,6 +411,13 @@ export const AnnouncementManagement: React.FC = () => {
                   <Paperclip className="w-3.5 h-3.5" />
                   <span>Attach File</span>
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelected}
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.txt"
+                />
               </div>
 
               <div className="relative">
@@ -320,16 +429,21 @@ export const AnnouncementManagement: React.FC = () => {
                   className="form-control form-control-md resize-none"
                 />
 
-                {attachedFile && (
+                {(attachedFile || existingAttachmentName) && (
                   <div className="absolute bottom-3 left-3 right-3 bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between text-[10px] shadow-2xs">
                     <div className="flex items-center gap-2">
                       <FileText className="w-3.5 h-3.5 text-blue-500" />
-                      <span className="font-bold text-slate-700 truncate max-w-[200px]">{attachedFile}</span>
+                      <span className="font-bold text-slate-700 truncate max-w-[200px]">
+                        {attachedFile ? attachedFile.name : existingAttachmentName}
+                      </span>
+                      {!attachedFile && existingAttachmentName && (
+                        <span className="text-slate-400 font-semibold italic">(current — upload to replace)</span>
+                      )}
                     </div>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={handleRemoveAttachment}
-                      className="text-slate-400 hover:text-red-500 p-0.5 rounded transition"
+                      className={`text-slate-400 hover:text-red-500 p-0.5 rounded transition ${attachedFile ? '' : 'hidden'}`}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -378,9 +492,10 @@ export const AnnouncementManagement: React.FC = () => {
                 size="lg"
                 icon={Send}
                 fullWidth
+                disabled={submitting}
                 className="md:w-auto"
               >
-                Publish Now
+                {submitting ? 'Publishing…' : editingId ? 'Publish Draft' : 'Publish Now'}
               </PortalButton>
 
               <PortalButton
@@ -389,13 +504,101 @@ export const AnnouncementManagement: React.FC = () => {
                 variant="secondary"
                 size="lg"
                 fullWidth
+                disabled={submitting}
                 className="md:w-auto"
               >
-                Save Draft
+                {editingId ? 'Update Draft' : 'Save Draft'}
               </PortalButton>
             </div>
 
         </form>
+
+        {/* ==================== SAVED DRAFTS (below the form, not in history) ==================== */}
+        {drafts.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-2xs">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Saved Drafts</h3>
+                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                  Unpublished announcements. Edit to keep working, or publish to broadcast.
+                </p>
+              </div>
+              <StatusBadge tone="warning" className="rounded-lg px-2.5 py-1 text-[9px] shrink-0">
+                {drafts.length} draft{drafts.length === 1 ? '' : 's'}
+              </StatusBadge>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {drafts.map((draft) => (
+                <div
+                  key={draft.id}
+                  className={`py-3.5 flex flex-col md:flex-row md:items-start md:justify-between gap-3 ${
+                    editingId === draft.id ? 'bg-blue-50/40 -mx-2 px-2 rounded-lg' : ''
+                  }`}
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-slate-800 text-[12px] leading-snug">
+                        {draft.title || 'Untitled draft'}
+                      </span>
+                      <StatusBadge tone={getStatusBadgeTone(draft.priority)} className="rounded-md px-1.5 py-0.5 text-[8px]">
+                        {draft.priority}
+                      </StatusBadge>
+                      <StatusBadge tone="neutral" className="rounded-md px-1.5 py-0.5 text-[8px]">
+                        {draft.target}
+                      </StatusBadge>
+                      {editingId === draft.id && (
+                        <StatusBadge tone="info" className="rounded-md px-1.5 py-0.5 text-[8px]">
+                          Editing
+                        </StatusBadge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-semibold leading-relaxed line-clamp-2">
+                      {draft.summary || 'No content yet.'}
+                    </p>
+                    {draft.attachmentName && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-bold">
+                        <Paperclip className="w-3 h-3" />
+                        {draft.attachmentName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <PortalButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      icon={Pencil}
+                      onClick={() => handleEditDraft(draft)}
+                    >
+                      Edit
+                    </PortalButton>
+                    <PortalButton
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      icon={Send}
+                      onClick={() => handlePublishDraft(draft)}
+                    >
+                      Publish
+                    </PortalButton>
+                    <PortalButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={Trash2}
+                      onClick={() => handleDeleteHistoryItem(draft.id, draft.title)}
+                      className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      Delete
+                    </PortalButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
       ) : (

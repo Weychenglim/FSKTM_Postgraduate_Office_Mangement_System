@@ -1,12 +1,26 @@
-"""Custom user model for the FSKTM PG Office system.
+"""Custom user model + role profile tables for the FSKTM PG Office system.
 
-Login is by email / student ID / staff ID (no username), so we use a custom
-user with ``USERNAME_FIELD = 'email'``. The fields mirror the frontend
-``DemoUser`` shape (id, email, role, fullName, department, studentId, staffId)
-so the API can hand the React app exactly what it expects.
+Login is by email / matric no / staff no (no username), so we use a custom
+user with ``USERNAME_FIELD = 'email'``. Role-specific attributes live in
+subtype "profile" tables that share the User's primary key — a
+generalization/specialization (EER) hierarchy:
+
+    User
+    ├── Student        (user_id PK / FK)
+    ├── OfficeStaff    (user_id PK / FK)
+    └── Lecturer       (user_id PK / FK)
+        ├── Coordinator  (lecturer_id PK / FK)   ┐ overlapping: a lecturer may
+        ├── Supervisor   (lecturer_id PK / FK)   │ hold several of these (or
+        └── Panel        (lecturer_id PK / FK)   ┘ none) at the same time.
+
+``User.role`` stays as a fast discriminator (and keeps the existing auth /
+announcement code working); the profile tables hold the normalized per-role
+attributes. ``to_public_dict`` reassembles the flat shape the React frontend's
+``DemoUser`` (id, email, role, fullName, department, studentId, staffId) expects.
 """
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils import timezone
 
@@ -43,7 +57,8 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """Login account for every role in the system."""
+    """Login account (the superclass). Role-specific data lives in the profile
+    tables below, linked one-to-one on this row's primary key."""
 
     class Role(models.TextChoices):
         OFFICE_ADMIN = "Office Staff/Admin", "Office Staff/Admin"
@@ -54,11 +69,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=64, choices=Role.choices, default=Role.STUDENT)
-    department = models.CharField(max_length=255, blank=True)
-    # A student logs in with a matric no; staff with a staff no. Either may be
-    # blank depending on the role, so keep them optional but indexed for lookups.
-    student_id = models.CharField(max_length=64, blank=True, null=True, db_index=True)
-    staff_id = models.CharField(max_length=64, blank=True, null=True, db_index=True)
+    phone = models.CharField(max_length=32, blank=True, default="")
+    # Set True when an account is created with a temporary password (FR-04); the
+    # login flow can then force a password change on first sign-in.
+    must_change_password = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
@@ -78,14 +92,143 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return f"{self.full_name} <{self.email}> ({self.role})"
 
+    def _related_or_none(self, attr):
+        """Return the linked profile row for ``attr`` (e.g. 'student'), or None
+        if this user has no such profile."""
+        try:
+            return getattr(self, attr)
+        except ObjectDoesNotExist:
+            return None
+
     def to_public_dict(self):
-        """Shape this user the way the React frontend's ``DemoUser`` expects."""
+        """Flatten this user + its role profile into the shape the React
+        frontend's ``DemoUser`` expects."""
+        student = self._related_or_none("student")
+        office_staff = self._related_or_none("office_staff")
+        lecturer = self._related_or_none("lecturer")
+
+        if student:
+            department, student_no, staff_no = student.programme, student.matric_no, None
+        elif office_staff:
+            department, student_no, staff_no = office_staff.department, None, office_staff.staff_no
+        elif lecturer:
+            department, student_no, staff_no = lecturer.department, None, lecturer.staff_no
+        else:
+            department, student_no, staff_no = "", None, None
+
         return {
             "id": str(self.pk),
             "email": self.email,
             "role": self.role,
             "fullName": self.full_name,
-            "department": self.department,
-            "studentId": self.student_id or None,
-            "staffId": self.staff_id or None,
+            "phone": self.phone,
+            "department": department,
+            "studentId": student_no,
+            "staffId": staff_no,
         }
+
+
+# ── Top-level subtypes (User → Student / OfficeStaff / Lecturer) ─────────────
+
+
+class Student(models.Model):
+    """Postgraduate student profile (FR-11)."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "Active", "Active"
+        GRADUATED = "Graduated", "Graduated"
+        DEFERRED = "Deferred", "Deferred"
+        WITHDRAWN = "Withdrawn", "Withdrawn"
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, primary_key=True, related_name="student"
+    )
+    matric_no = models.CharField(max_length=64, unique=True)
+    programme = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.ACTIVE
+    )
+    intake_semester = models.CharField(max_length=32, blank=True, default="")
+
+    def __str__(self):
+        return f"{self.matric_no} — {self.user.full_name}"
+
+
+class OfficeStaff(models.Model):
+    """Postgraduate office staff / admin profile."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, primary_key=True, related_name="office_staff"
+    )
+    staff_no = models.CharField(max_length=64, unique=True)
+    department = models.CharField(max_length=255, blank=True, default="")
+    position = models.CharField(max_length=128, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Office staff"
+        verbose_name_plural = "Office staff"
+
+    def __str__(self):
+        return f"{self.staff_no} — {self.user.full_name}"
+
+
+class Lecturer(models.Model):
+    """Academic staff profile. A lecturer may additionally act as a Coordinator,
+    Supervisor, and/or Panel member (overlapping specializations below)."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, primary_key=True, related_name="lecturer"
+    )
+    staff_no = models.CharField(max_length=64, unique=True)
+    department = models.CharField(max_length=255, blank=True, default="")
+    title = models.CharField(max_length=64, blank=True, default="")
+    specialization = models.CharField(max_length=255, blank=True, default="")
+
+    def __str__(self):
+        return f"{self.staff_no} — {self.user.full_name}"
+
+
+# ── Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel) ───
+
+
+class Coordinator(models.Model):
+    """Programme Coordinator role of a lecturer (panel approval authority,
+    UC31)."""
+
+    lecturer = models.OneToOneField(
+        Lecturer, on_delete=models.CASCADE, primary_key=True, related_name="coordinator"
+    )
+    programme_managed = models.CharField(max_length=255, blank=True, default="")
+    appointed_date = models.DateField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Coordinator — {self.lecturer.user.full_name}"
+
+
+class Supervisor(models.Model):
+    """Supervisor role of a lecturer. ``max_supervisees`` caps how many students
+    this lecturer may supervise (FR-22 workload validation)."""
+
+    lecturer = models.OneToOneField(
+        Lecturer, on_delete=models.CASCADE, primary_key=True, related_name="supervisor"
+    )
+    max_supervisees = models.PositiveIntegerField(default=5)
+
+    def __str__(self):
+        return f"Supervisor — {self.lecturer.user.full_name}"
+
+
+class Panel(models.Model):
+    """Panel-member role of a lecturer. ``max_appointments`` caps panel load
+    (relates to FR-29 selection-count tracking)."""
+
+    lecturer = models.OneToOneField(
+        Lecturer, on_delete=models.CASCADE, primary_key=True, related_name="panel"
+    )
+    max_appointments = models.PositiveIntegerField(default=10)
+
+    class Meta:
+        verbose_name = "Panel member"
+
+    def __str__(self):
+        return f"Panel — {self.lecturer.user.full_name}"

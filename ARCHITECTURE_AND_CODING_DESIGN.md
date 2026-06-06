@@ -35,9 +35,19 @@ Frontend paths in this section are relative to `frontend/`.
 - `src/components/PortalPrimitives.tsx` provides shared portal primitives for page headers, cards, buttons, status badges, segmented controls, removable tags, progress bars, status dots, and toast notifications.
 - `src/components/PortalPrimitives.tsx` also centralizes common status-to-badge tone mapping through `getStatusBadgeTone`, so tables, workload views, upload panels, lecturer cards, and shared status chips avoid duplicated color logic.
 - `src/components/TimelineManagement.tsx` implements the dashboard timeline management sub-view.
+- `src/components/SettingsView.tsx` implements the Settings module (profile summary, contact details, password change, and notification preferences) and is routed for every role.
+- `src/components/NotificationsAnnouncements.tsx` is the notification-bell view, split into Announcements and Notifications tabs (the feed is split by the backend `isAnnouncement` flag).
+- `src/context/NotificationsContext.tsx` is the shared notifications store; it feeds both the bell badge and the bell view.
 - Timeline add/edit drawers keep timeline classification limited to P1/P2 and derive the saved status from the selected date range instead of offering manual status controls.
 - `src/services/timelineApi.ts` connects the dashboard timeline UI to `/api/dashboard/timeline/active/`, `/api/dashboard/timeline/template/`, `/api/dashboard/timeline/upload/`, `/api/dashboard/timeline/entries/<id>/`, and `/api/dashboard/tasks/` when frontend mock mode is disabled.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
+
+## Backend Data Model
+
+- `accounts.User` is the login superclass (email, role discriminator, phone, flags). Role-specific data lives in one-to-one subtype "profile" tables that share the user's primary key: `Student`, `OfficeStaff`, and `Lecturer`. `Coordinator`, `Supervisor`, and `Panel` are one-to-one specializations of `Lecturer` (overlapping — a lecturer may hold several).
+- `User.to_public_dict()` reassembles the flat shape the frontend `DemoUser` expects from these profile tables, so the auth API contract is unchanged.
+- The `letters` and `announcements` apps own the letter-template, announcement, and per-recipient notification tables.
+- The full user/role ER diagram lives at `docs/erd/01-user-roles.md`; `docs/erd/` is the home for further ER diagrams as more modules are modeled.
 - `src/components/LecturerPanelAppointments.tsx` is role-aware: Lecturer users see supervisor recommendation, selected-panel review queue, and their confirmed panel assignments; Programme Coordinator users see the panel recommendation confirmation queue.
 - `src/components/SubmittedRecommendationsPage.tsx` and `src/components/RecommendationDetailsDrawer.tsx` are the supervisor-facing panel recommendation tracking surface; the drawer renders the same confirmation route as the review drawer and uses backend workflow timestamps when available.
 - `src/components/StudentPanelAppointment.tsx` loads the authenticated student's panel appointment view from the appointments service and renders either the pending Programme Coordinator confirmation state or the confirmed appointed-panel details.

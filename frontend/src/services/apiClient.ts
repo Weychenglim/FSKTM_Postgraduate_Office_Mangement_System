@@ -122,7 +122,27 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function requestBlob(path: string, init?: RequestInit): Promise<Blob> {
+/** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
+async function raiseForStatus(res: Response): Promise<never> {
+  let message = `Request failed: ${res.status} ${res.statusText}`;
+  try {
+    const extracted = messageFromErrorBody(await res.json());
+    if (extracted) message = extracted;
+  } catch {
+    /* error body was not JSON — keep the status-based message */
+  }
+  throw new ApiError(message, res.status);
+}
+
+/**
+ * Send a `multipart/form-data` body (used for file uploads). The browser sets
+ * `Content-Type` with the correct boundary, so we must NOT set it ourselves.
+ */
+export async function requestMultipart<T>(
+  path: string,
+  formData: FormData,
+  init?: RequestInit,
+): Promise<T> {
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),
   };
@@ -130,18 +150,25 @@ export async function requestBlob(path: string, init?: RequestInit): Promise<Blo
     headers['Authorization'] = `Bearer ${_authToken}`;
   }
   const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
     ...init,
+    body: formData,
     headers,
   });
-  if (!res.ok) {
-    let message = `Request failed: ${res.status} ${res.statusText}`;
-    try {
-      const extracted = messageFromErrorBody(await res.json());
-      if (extracted) message = extracted;
-    } catch {
-      /* binary or empty error body */
-    }
-    throw new ApiError(message, res.status);
+  if (!res.ok) return raiseForStatus(res);
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** Fetch a binary file (with auth) as a Blob — used for attachment downloads. */
+export async function requestBlob(path: string, init?: RequestInit): Promise<Blob> {
+  const headers: Record<string, string> = {
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`;
   }
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  if (!res.ok) return raiseForStatus(res);
   return res.blob();
 }

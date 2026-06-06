@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/appointments/", include("appointments.urls")),
     path("api/dashboard/", include("dashboard.urls")),
     path("api/letter-templates/", include("letters.urls")),
+    path("api/", include("announcements.urls")),
 ]

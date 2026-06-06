@@ -4,20 +4,6 @@ build/
 dist/
 coverage/
 *.log
-<<<<<<< Updated upstream
-.env*
-!.env.example
-=======
-
-# Python / Django
-.venv/
-__pycache__/
-*.py[cod]
-db.sqlite3
-
-# Local environment files
-.env*
-!.env.example
 
 # Python / Django backend
 .venv/
@@ -25,9 +11,15 @@ __pycache__/
 *.py[cod]
 db.sqlite3
 
+# Uploaded media (announcement attachments, etc.)
+media/
+
+# Local environment files
+.env*
+!.env.example
+
 # OS / editor
 .DS_Store
 
 # Preserved generated metadata that is not part of the runnable app
 docs/legacy/
->>>>>>> Stashed changes
