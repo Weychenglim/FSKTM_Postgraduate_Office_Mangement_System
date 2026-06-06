@@ -142,6 +142,21 @@ export interface PanelCandidate {
   workloadHelpText: string;
 }
 
+export interface StudentPanelAppointmentView {
+  status: 'PENDING' | 'CONFIRMED';
+  studentName: string;
+  studentId: string;
+  programme: string;
+  semester: string;
+  researchTitle: string;
+  supervisorName: string;
+  panelMemberName: string | null;
+  panelMemberId: string | null;
+  panelMemberDepartment: string | null;
+  panelMemberEmail: string | null;
+  appointmentDate: string | null;
+}
+
 // A submitted panel recommendation record shown in the history list.
 export interface SubmittedRecommendation {
   id: string;

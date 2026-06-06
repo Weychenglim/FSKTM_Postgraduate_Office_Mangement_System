@@ -14,6 +14,7 @@ import {
   PanelCandidate,
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
+  StudentPanelAppointmentView,
   SubmittedRecommendation,
   SupervisorRequestHistoryRow,
 } from '../types';
@@ -131,6 +132,26 @@ export async function getPanelCandidates(): Promise<PanelCandidate[]> {
     ]);
   }
   return request<PanelCandidate[]>('/appointments/panel/candidates/');
+}
+
+export async function getStudentPanelAppointment(): Promise<StudentPanelAppointmentView> {
+  if (USE_PANEL_MOCKS) {
+    return mockResponse({
+      status: 'CONFIRMED',
+      studentName: 'Ahmad Luqman',
+      studentId: 'MEA2209841',
+      programme: 'MSc. Computer Science',
+      semester: 'Sem 1 2025/2026',
+      researchTitle: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
+      supervisorName: 'Prof. Dr. Ahmad Shahrir',
+      panelMemberName: 'Assoc. Prof. Dr. Amina Malik',
+      panelMemberId: 'A004812',
+      panelMemberDepartment: 'Data Science Department',
+      panelMemberEmail: 'panelamina@fsktm.edu.my',
+      appointmentDate: '05 Jun 2026',
+    });
+  }
+  return request<StudentPanelAppointmentView>('/appointments/panel/student/');
 }
 
 // Lecturer-facing: panel recommendations this lecturer has submitted.

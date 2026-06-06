@@ -11,21 +11,24 @@ import {
   Download, 
   CheckCircle2, 
   XCircle,
-  FileSpreadsheet, 
-  AlertCircle,
   ArrowRight,
   RefreshCw,
   FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton, PortalToast } from './PortalPrimitives';
-import { MOCK_IMPORTED_TIMELINE_ENTRIES } from '../mocks/timeline';
 import { TimelineEntry } from '../types';
+import {
+  downloadTimelineTemplate,
+  saveBlob,
+  timelineEntryToLegacy,
+  uploadTimelineFile,
+} from '../services';
 
 interface UploadTimelineDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportSuccess?: (events: TimelineEntry[]) => void;
+  onImportSuccess?: (events: TimelineEntry[], importedCount?: number) => void;
 }
 
 export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
@@ -42,6 +45,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   // Validation status states
   const [isValidating, setIsValidating] = useState(false);
   const [validationCompleted, setValidationCompleted] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   // Checklist verification states (empty circle = 'pending', green check = 'success', red X = 'fail')
   const [checklist, setChecklist] = useState({
@@ -107,15 +111,14 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
 
   const handleDownloadTemplate = () => {
     triggerToast('Generating Excel master template download...');
-    setTimeout(() => {
-      const element = document.createElement("a");
-      const file = new Blob(["FSKTM Office Postgraduate Timeline Template Placeholder"], {type: 'text/plain'});
-      element.href = URL.createObjectURL(file);
-      element.download = "FSKTM_Master_Timeline_Template.xlsx";
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    }, 1000);
+    downloadTimelineTemplate()
+      .then((blob) => {
+        saveBlob(blob, 'FSKTM_Semester_Timeline_Template.xlsx');
+        triggerToast('Success! FSKTM_Semester_Timeline_Template.xlsx downloaded.');
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to download timeline template.');
+      });
   };
 
   const handleBrowseClick = () => {
@@ -174,12 +177,27 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
       triggerToast('Error: Please run schema validations before executing database commit.');
       return;
     }
-
-    if (onImportSuccess) {
-      onImportSuccess(MOCK_IMPORTED_TIMELINE_ENTRIES);
+    if (!uploadedFile) {
+      triggerToast('Error: Please select or drop an Excel timeline file first.');
+      return;
     }
-    
-    onClose();
+
+    setIsImporting(true);
+    uploadTimelineFile(uploadedFile)
+      .then((result) => {
+        const importedEntries = result.timeline.levels.flatMap((group) =>
+          group.entries.map(timelineEntryToLegacy)
+        );
+        onImportSuccess?.(importedEntries, result.importedCount);
+        triggerToast(`Import completed. ${result.importedCount} entries committed.`);
+        onClose();
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Timeline import failed.');
+      })
+      .finally(() => {
+        setIsImporting(false);
+      });
   };
 
   const renderChecklistBullet = (state: 'pending' | 'success' | 'fail') => {
@@ -509,8 +527,10 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   size="md"
                   icon={ArrowRight}
                   iconPosition="right"
+                  isLoading={isImporting}
+                  disabled={isImporting}
                 >
-                  Commit Import
+                  {isImporting ? 'Importing...' : 'Commit Import'}
                 </PortalButton>
               ) : (
                 <PortalButton

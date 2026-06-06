@@ -226,3 +226,73 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
 
     def get_initials(self, obj):
         return "".join(part[0] for part in obj.profile.student_name.split()[:2]).upper()
+
+
+class StudentPanelAppointmentSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    studentName = serializers.CharField()
+    studentId = serializers.CharField()
+    programme = serializers.CharField()
+    semester = serializers.CharField()
+    researchTitle = serializers.CharField()
+    supervisorName = serializers.CharField()
+    panelMemberName = serializers.CharField(allow_null=True)
+    panelMemberId = serializers.CharField(allow_null=True)
+    panelMemberDepartment = serializers.CharField(allow_blank=True, allow_null=True)
+    panelMemberEmail = serializers.EmailField(allow_null=True)
+    appointmentDate = serializers.CharField(allow_blank=True, allow_null=True)
+
+
+def student_panel_appointment_payload(profile):
+    appointment = (
+        PanelAppointment.objects.filter(
+            profile=profile,
+            status=PanelAppointment.Status.ACTIVE,
+        )
+        .select_related("panel_member", "supervisor")
+        .first()
+    )
+    base = {
+        "status": "PENDING",
+        "studentName": profile.student_name,
+        "studentId": profile.matric_no,
+        "programme": profile.programme,
+        "semester": profile.semester,
+        "researchTitle": profile.proposed_topic,
+        "supervisorName": profile.supervisor.full_name,
+        "panelMemberName": None,
+        "panelMemberId": None,
+        "panelMemberDepartment": None,
+        "panelMemberEmail": None,
+        "appointmentDate": None,
+    }
+    if not appointment:
+        return base
+
+    panel_member = appointment.panel_member
+    return {
+        **base,
+        "status": "CONFIRMED",
+        "panelMemberName": panel_member.full_name,
+        "panelMemberId": panel_member.staff_id,
+        "panelMemberDepartment": panel_member.department,
+        "panelMemberEmail": panel_member.email,
+        "appointmentDate": format_display_date(appointment.appointment_date),
+    }
+
+
+def pending_student_panel_payload_from_user(user):
+    return {
+        "status": "PENDING",
+        "studentName": user.full_name,
+        "studentId": user.student_id or "",
+        "programme": user.department or "",
+        "semester": "Not available yet",
+        "researchTitle": "Not available yet",
+        "supervisorName": "Not assigned yet",
+        "panelMemberName": None,
+        "panelMemberId": None,
+        "panelMemberDepartment": None,
+        "panelMemberEmail": None,
+        "appointmentDate": None,
+    }

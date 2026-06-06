@@ -142,9 +142,33 @@
 - Removed the panel recommendation save-as-draft flow from the frontend and backend create API.
 - Added backend panel workload validation and a candidate workload endpoint so reserved workload includes confirmed active panel appointments plus submitted/pending nominations before submission.
 - Updated the recommend-panel drawer to explain reserved workload, show real candidate workload counts, disable full-workload candidates for submission, and keep only the direct submit action.
+- Added a student-facing panel appointment backend endpoint that returns pending state before confirmation and confirmed active appointed-panel details after Programme Coordinator confirmation.
+- Connected the student Panel Appointment page to the persisted panel appointment workflow, removed the manual Pending/Confirmed test toggle, and kept the FAQ/help action available.
+- Updated the student panel endpoint so seeded student accounts without a linked research profile see the normal pending appointment state instead of a data-load error.
+- Simplified the confirmed student Panel Appointment page into one appointed-panel summary plus a compact FAQ help row, removing staff ID, supervisor display, duplicate date/semester fields, and repeated student metadata.
+- Added the Django `dashboard` app for Office Staff/Admin semester timeline persistence.
+- Added semester timeline database models for active timelines, P1/P2 timeline entries, and timeline audit logs.
+- Added structured Excel `.xlsx` template generation and upload parsing with `openpyxl` for UC47 timeline imports.
+- Added role-gated dashboard timeline APIs for active timeline retrieval, template download, timeline upload/replacement, timeline entry patching, and role-specific dashboard tasks.
+- Connected the dashboard timeline frontend service and office-staff timeline management screen to the new dashboard timeline endpoints while preserving mock mode.
+- Replaced the hardcoded dashboard timeline visualization with a backend-shaped P1/P2 timeline view that shows the required no-active-timeline message without hiding other dashboard sections.
+- Refined the Administration Dashboard timeline UI to remove Month/Quarter/Year controls, use P1/P2 phase switching, keep P2 selectable with an empty-state message, remove `Export Report` and `New Entry`, and make `Manage Timeline` a direct navigation button.
+- Updated Timeline Management to use the same P1/P2 calendar-style timeline surface, removed the overflow menu action, stopped the edit drawer from opening automatically, and simplified Add/Edit drawers so classification is P1/P2 only with status derived from dates.
+- Reworked the shared P1/P2 timeline display from a list/table into a month-lane calendar-style view with month headers, timeline labels positioned by date range, and a click-to-view details modal.
+- Adjusted the month-lane timeline so each event renders on its own row with a left event label and a date-range bar, reducing congestion when multiple entries fall near the same months.
+- Corrected month-lane bar sizing so event bars are proportional to actual dates instead of filling whole month columns, removed the context column, removed inline date text from event bars, and allowed long event labels to wrap instead of truncating.
 - `python manage.py test appointments`, `python manage.py makemigrations --check --dry-run`, `python manage.py check`, focused panel workflow test, `npm run lint`, and `npm run build` pass after removing panel recommendation drafts and adding workload validation.
 - `python manage.py migrate` applied the no-draft and workload-validation support migrations to the local development database.
 - `python manage.py test appointments`, `python manage.py check`, `npm run lint`, focused panel workflow test, and `npm run build` pass after the submitted recommendation drawer and timeline timestamp cleanup.
+- `python manage.py test appointments --keepdb`, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, focused panel workflow test, `npm run lint`, and `npm run build` pass after connecting the student Panel Appointment page to the persisted appointed-panel workflow.
+- `python manage.py test appointments --keepdb` and `python manage.py check` pass after adding the pending fallback for valid student accounts without a research profile.
+- `npm run lint` passes after simplifying the confirmed student Panel Appointment UI.
+- Focused dashboard timeline API tests pass for no-active-timeline payload, admin-only template/upload, valid Excel import, invalid template errors, duplicate/conflicting rows, active timeline replacement, entry patching, audit logs, and office-staff tasks.
+- `npm run lint` passes after wiring the dashboard timeline frontend service and P1/P2 dashboard timeline view to the backend contract.
+- `python manage.py test --keepdb`, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, and `npm run build` pass after adding the dashboard timeline backend/database slice and frontend integration.
+- `python manage.py migrate` applied `dashboard.0001_initial` to the local development database.
+- `npm run lint` passes after refining the Administration Dashboard and Timeline Management P1/P2 timeline UI.
+- `npm run lint` passes after converting the shared timeline display to a month-lane calendar-style view.
 - Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
 
 ## Known Issues and Notes
@@ -152,8 +176,8 @@
 - Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
 - A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
 - The current frontend uses mock-backed demo data by default through `VITE_USE_MOCKS=true`.
-- Real backend API integration still needs endpoint mapping for dashboard metrics, timeline records, non-panel appointment workflows, broader student workflows, mark records, registry records, file records, FAQ entries, announcements, and notifications.
-- Office Staff/Admin panel monitoring and Student panel appointment release still need fuller frontend integration with the persisted panel appointment records.
+- Real backend API integration still needs endpoint mapping for dashboard metrics beyond semester timeline/tasks, non-panel appointment workflows, broader student workflows, mark records, registry records, file records, FAQ entries, announcements, and notifications.
+- Office Staff/Admin panel monitoring still needs fuller frontend integration with the persisted panel appointment records.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
@@ -162,5 +186,5 @@
 
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
 - Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
-- Connect Office Staff/Admin panel monitoring and Student panel appointment release to the persisted panel appointment records.
+- Connect Office Staff/Admin panel monitoring to the persisted panel appointment records.
 - Connect dashboard, registry, file, FAQ, announcement, notification, remaining appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.

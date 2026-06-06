@@ -9,20 +9,8 @@ import {
   Download, 
   Plus, 
   Upload, 
-  MoreVertical, 
   Search, 
-  ChevronRight,
-  HelpCircle,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Calendar,
-  Layers,
-  Edit2,
   Trash2,
-  X,
-  Sliders,
-  FileSpreadsheet
 } from 'lucide-react';
 import { SemesterTimeline } from './SemesterTimeline';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
@@ -31,7 +19,13 @@ import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { TimelineEntry } from '../types';
-import { getTimelineEntries } from '../services';
+import {
+  downloadTimelineTemplate,
+  getTimelineEntries,
+  saveBlob,
+  timelineEntryToLegacy,
+  updateTimelineEntry,
+} from '../services';
 
 // TimelineEntry now lives in src/types.
 
@@ -135,16 +129,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
   // Entry Management Modals & Drawers
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
-  const [editDrawerOpen, setEditDrawerOpen] = useState(true);
-  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>({
-    id: 'ent_2',
-    event: 'Panel Recommendation Period',
-    category: 'Panel Appointment',
-    startDate: '16 Oct 2025',
-    endDate: '30 Oct 2025',
-    targetRole: ['LECTURER'],
-    status: 'Active'
-  });
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
 
   const handleApplyFilters = () => {
     setAppliedSearch(searchTerm);
@@ -187,22 +173,29 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   };
 
   const handleEditEntry = (updated: TimelineEntry) => {
-    setEntries(prev => prev.map(ent => (ent.id === updated.id ? updated : ent)));
+    updateTimelineEntry(updated.id, updated)
+      .then((savedEntry) => {
+        const normalizedEntry = timelineEntryToLegacy(savedEntry);
+        setEntries(prev => prev.map(ent => (ent.id === updated.id ? normalizedEntry : ent)));
 
-    // Log action
-    const newLog: UpdateLog = {
-      id: `log_${Date.now()}`,
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-      date: '27 May 2026',
-      action: 'Edited entry',
-      actionColor: 'text-[#d97706]',
-      details: `Updated entry: ${updated.event}`
-    };
-    setUpdateLogs(prev => [newLog, ...prev]);
+        // Log action
+        const newLog: UpdateLog = {
+          id: `log_${Date.now()}`,
+          user: 'Admin Office Staff',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
+          date: '27 May 2026',
+          action: 'Edited entry',
+          actionColor: 'text-[#d97706]',
+          details: `Updated entry: ${normalizedEntry.event}`
+        };
+        setUpdateLogs(prev => [newLog, ...prev]);
 
-    triggerToast(`Successfully modified entry: "${updated.event}"`);
-    setEditDrawerOpen(false);
+        triggerToast(`Successfully modified entry: "${normalizedEntry.event}"`);
+        setEditDrawerOpen(false);
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to update timeline entry.');
+      });
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
@@ -213,25 +206,22 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   };
 
   const handleDownloadTemplate = () => {
-    triggerToast('Generating CSV Master Schedule Layout Template...');
-    setTimeout(() => {
-      // Simulate file download
-      const element = document.createElement("a");
-      const file = new Blob(["Event_Name,Category,Start_Date,End_Date,Target_Role,Status\nSupervisor Request Period,Supervisor Appointment,2025-10-01,2025-10-15,STUDENT,Completed"], {type: 'text/csv'});
-      element.href = URL.createObjectURL(file);
-      element.download = "FSKTM_Timeline_Template.csv";
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-      triggerToast('Success! FSKTM_Timeline_Template.csv downloaded.');
-    }, 1200);
+    triggerToast('Generating Excel master schedule template...');
+    downloadTimelineTemplate()
+      .then((blob) => {
+        saveBlob(blob, 'FSKTM_Semester_Timeline_Template.xlsx');
+        triggerToast('Success! FSKTM_Semester_Timeline_Template.xlsx downloaded.');
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to download timeline template.');
+      });
   };
 
   const handleUploadTimeline = () => {
     setUploadDrawerOpen(true);
   };
 
-  const handleImportSuccess = (importedEvents: any[]) => {
+  const handleImportSuccess = (importedEvents: TimelineEntry[], importedCount?: number) => {
     // Add a new timeline update log
     const newLog: UpdateLog = {
       id: `log_${Date.now()}`,
@@ -240,17 +230,14 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       date: '27 May 2026',
       action: 'Replaced timeline',
       actionColor: 'text-[#2563eb]',
-      details: 'Imported timeline layout via Excel template'
+      details: `Imported ${importedCount ?? importedEvents.length} timeline entries via Excel template`
     };
 
     // Replace entries with the validated imported records
     setEntries(importedEvents);
     setUpdateLogs(prev => [newLog, ...prev]);
     triggerToast('Import completed! Successfully re-compiled master schedule records.');
-  };
-
-  const handleMoreOptions = () => {
-    triggerToast('Advanced schedule audit logs compiled. Exporting system telemetry...');
+    loadEntries();
   };
 
   const getStatusTone = (status: TimelineEntry['status']) => {
@@ -290,7 +277,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <PortalButton variant="primary" size="md" icon={Upload} onClick={handleUploadTimeline}>
               Upload Timeline
             </PortalButton>
-            <PortalButton variant="secondary" size="icon" icon={MoreVertical} onClick={handleMoreOptions} title="More Options" />
           </>
         )}
       />
@@ -377,11 +363,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Category: All</option>
-              <option value="Supervisor Appointment">Supervisor Appointment</option>
-              <option value="Panel Appointment">Panel Appointment</option>
-              <option value="Document Submission">Document Submission</option>
-              <option value="Announcements">Announcements</option>
-              <option value="Marks & Evaluation">Marks & Evaluation</option>
+              <option value="Research Project (P1)">Research Project (P1)</option>
+              <option value="Research Project (P2)">Research Project (P2)</option>
             </select>
           </div>
 

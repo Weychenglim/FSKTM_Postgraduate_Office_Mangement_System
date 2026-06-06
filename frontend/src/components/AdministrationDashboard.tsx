@@ -4,23 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { 
   Users, 
-  FileText, 
-  Database, 
   CheckCircle, 
   AlertTriangle, 
-  Download, 
-  Plus, 
-  FolderSync, 
-  HelpCircle,
-  ExternalLink,
   ChevronRight
 } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { MOCK_DASHBOARD_ATTENTION_ROWS } from '../mocks/dashboard';
 
 interface AdministrationDashboardProps {
@@ -35,47 +27,12 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
   onNavigateToTimeline
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [newEntryModalOpen, setNewEntryModalOpen] = useState(false);
-  const [newEntryData, setNewEntryData] = useState({
-    title: '',
-    category: 'Supervisor Appointment',
-    startDate: '2025-10-01',
-    endDate: '2025-10-15',
-    status: 'Upcoming' as 'Completed' | 'Active' | 'Upcoming' | 'Deadline'
-  });
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
-  };
-
-  const handleExportReport = () => {
-    setExporting(true);
-    triggerToast('Compiling administrative statistics report...');
-    setTimeout(() => {
-      setExporting(false);
-      triggerToast('Success! CSV report downloaded as FSKTM_Dashboard_Report_2025.csv');
-    }, 1800);
-  };
-
-  const handleCreateNewEntry = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEntryData.title.trim()) {
-      triggerToast('Error: Please provide a descriptive title for this timeline entry.');
-      return;
-    }
-    setNewEntryModalOpen(false);
-    triggerToast(`Created new entry "${newEntryData.title}" under ${newEntryData.category} successfully!`);
-    setNewEntryData({
-      title: '',
-      category: 'Supervisor Appointment',
-      startDate: '2025-10-01',
-      endDate: '2025-10-15',
-      status: 'Upcoming'
-    });
   };
 
   const attentionRows = MOCK_DASHBOARD_ATTENTION_ROWS;
@@ -89,27 +46,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       <PageHeader
         title="Administration Dashboard"
         subtitle="Overview administrative status, timeline intervals, and records requiring office review."
-        actions={(
-          <>
-            <PortalButton
-              variant="secondary"
-              size="md"
-              icon={Download}
-              onClick={handleExportReport}
-              isLoading={exporting}
-            >
-              {exporting ? 'Exporting' : 'Export Report'}
-            </PortalButton>
-            <PortalButton
-              variant="primary"
-              size="md"
-              icon={Plus}
-              onClick={() => setNewEntryModalOpen(true)}
-            >
-              New Entry
-            </PortalButton>
-          </>
-        )}
       />
 
       {/* 1. Semester Timeline Section */}
@@ -277,7 +213,9 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         <div className="lg:col-span-4">
           <MonitoringTasksCard 
             onTaskClick={(taskId) => {
-              if (taskId === 'task_config') {
+              if (taskId === 'task_upload') {
+                onNavigateToTimeline?.();
+              } else if (taskId === 'task_config') {
                 onNavigateToTab('Marks Entry');
               } else if (taskId === 'task_rubric') {
                 onNavigateToTab('Marks Entry');
@@ -291,110 +229,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         </div>
 
       </div>
-
-      {/* Create New Timeline Event / Entry Modal Dialog overlay */}
-      {newEntryModalOpen && createPortal(
-        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="absolute inset-0" onClick={() => setNewEntryModalOpen(false)} />
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left font-sans">
-            <div className="flex items-center gap-2 mb-4">
-              <FolderSync className="w-5 h-5 text-indigo-500" />
-              <h3 className="text-lg font-black text-brand-navy tracking-tight">Create Timeline Activity</h3>
-            </div>
-            
-            <form onSubmit={handleCreateNewEntry} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Process Classification Row
-                </label>
-                <select
-                  value={newEntryData.category}
-                  onChange={(e) => setNewEntryData({...newEntryData, category: e.target.value})}
-                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                >
-                  <option value="Supervisor Appointment">Supervisor Appointment</option>
-                  <option value="Panel Appointment">Panel Appointment</option>
-                  <option value="Marks & Evaluation">Marks & Evaluation</option>
-                  <option value="Document Submission">Document Submission</option>
-                  <option value="Announcements / Release">Announcements / Release</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Activity Title Wording
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Schedule Verification Period"
-                  value={newEntryData.title}
-                  onChange={(e) => setNewEntryData({...newEntryData, title: e.target.value})}
-                  className="w-full text-xs font-bold text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:ring-1 focus:ring-slate-900 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={newEntryData.startDate}
-                    onChange={(e) => setNewEntryData({...newEntryData, startDate: e.target.value})}
-                    className="w-full text-xs text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={newEntryData.endDate}
-                    onChange={(e) => setNewEntryData({...newEntryData, endDate: e.target.value})}
-                    className="w-full text-xs text-slate-800 border border-slate-205 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-1.5">
-                  Visual Category Type
-                </label>
-                <select
-                  value={newEntryData.status}
-                  onChange={(e) => setNewEntryData({...newEntryData, status: e.target.value as any})}
-                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-lg focus:outline-none"
-                >
-                  <option value="Active">Active (Navy Blue style)</option>
-                  <option value="Completed">Completed (Slate grey style)</option>
-                  <option value="Upcoming">Upcoming (Ice Blue style)</option>
-                  <option value="Deadline">Deadline (Orange Warning style)</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setNewEntryModalOpen(false)}
-                  className="flex-1 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition"
-                >
-                  CANCEL
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
-                >
-                  SAVE ENTRY
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
     </div>
   );
 };

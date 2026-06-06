@@ -13,7 +13,10 @@ from .serializers import (
     PanelRecommendationCreateSerializer,
     PanelRecommendationSerializer,
     ReasonSerializer,
+    StudentPanelAppointmentSerializer,
     StudentResearchProfileSerializer,
+    pending_student_panel_payload_from_user,
+    student_panel_appointment_payload,
 )
 
 
@@ -99,6 +102,22 @@ def panel_candidates_view(request):
         return error_response("Only lecturers can view panel candidates.", status.HTTP_403_FORBIDDEN)
     lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).exclude(pk=request.user.pk)
     return Response(PanelCandidateSerializer(lecturers, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_panel_appointment_view(request):
+    if request.user.role != User.Role.STUDENT:
+        return error_response("Only students can view their panel appointment.", status.HTTP_403_FORBIDDEN)
+
+    try:
+        profile = StudentResearchProfile.objects.select_related("supervisor").get(student=request.user)
+    except StudentResearchProfile.DoesNotExist:
+        serializer = StudentPanelAppointmentSerializer(pending_student_panel_payload_from_user(request.user))
+        return Response(serializer.data)
+
+    serializer = StudentPanelAppointmentSerializer(student_panel_appointment_payload(profile))
+    return Response(serializer.data)
 
 
 @api_view(["GET", "POST"])

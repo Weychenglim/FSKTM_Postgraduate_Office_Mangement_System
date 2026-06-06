@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     # local
     "accounts",
     "appointments",
+    "dashboard",
     "letters",
 ]
 

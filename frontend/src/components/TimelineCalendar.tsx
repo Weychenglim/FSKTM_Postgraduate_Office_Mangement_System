@@ -1,0 +1,295 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CalendarDays, ListTodo, X } from 'lucide-react';
+import { StatusBadge } from './PortalPrimitives';
+import { SemesterTimelineEntry, TimelineLevel } from '../types';
+
+export interface TimelineCalendarGroup {
+  level: TimelineLevel;
+  entries: SemesterTimelineEntry[];
+}
+
+interface TimelineCalendarProps {
+  groups: TimelineCalendarGroup[];
+}
+
+const levelLabels: Record<TimelineLevel, string> = {
+  P1: 'Research Project (P1)',
+  P2: 'Research Project (P2)',
+};
+
+const monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const parseDate = (value: string) => {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDisplayDate = (value: string) => {
+  const date = parseDate(value);
+  if (!date) return value;
+  return `${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+};
+
+const monthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+const monthLabel = (key: string) => {
+  const [year, month] = key.split('-').map(Number);
+  return `${monthNames[month - 1]} ${year}`;
+};
+
+const statusTone = (status: SemesterTimelineEntry['status']) => {
+  if (status === 'Active') return 'info';
+  if (status === 'Completed') return 'neutral';
+  if (status === 'Deadline') return 'danger';
+  return 'warning';
+};
+
+const monthsBetween = (entries: SemesterTimelineEntry[]) => {
+  const dates = entries.flatMap((entry) => [parseDate(entry.deadlineStart), parseDate(entry.deadlineEnd)])
+    .filter((date): date is Date => Boolean(date));
+
+  if (dates.length === 0) return [];
+
+  const min = new Date(Math.min(...dates.map((date) => date.getTime())));
+  const max = new Date(Math.max(...dates.map((date) => date.getTime())));
+  const cursor = new Date(min.getFullYear(), min.getMonth(), 1);
+  const last = new Date(max.getFullYear(), max.getMonth(), 1);
+  const keys: string[] = [];
+
+  while (cursor <= last) {
+    keys.push(monthKey(cursor));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return keys;
+};
+
+const startOfMonthFromKey = (key: string) => {
+  const [year, month] = key.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+};
+
+const endOfMonthFromKey = (key: string) => {
+  const [year, month] = key.split('-').map(Number);
+  return new Date(year, month, 0);
+};
+
+const dayDiff = (start: Date, end: Date) => {
+  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.max(0, Math.round((endUtc - startUtc) / 86400000));
+};
+
+export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) => {
+  const entriesByLevel = useMemo(() => {
+    const map: Record<TimelineLevel, SemesterTimelineEntry[]> = { P1: [], P2: [] };
+    groups.forEach((group) => {
+      map[group.level] = [...group.entries].sort((a, b) => a.step - b.step);
+    });
+    return map;
+  }, [groups]);
+
+  const [activeLevel, setActiveLevel] = useState<TimelineLevel>(entriesByLevel.P1.length > 0 ? 'P1' : 'P2');
+  const [selectedEntry, setSelectedEntry] = useState<SemesterTimelineEntry | null>(null);
+  const activeEntries = entriesByLevel[activeLevel];
+  const monthKeys = monthsBetween(activeEntries);
+  const rangeStart = monthKeys[0] ? startOfMonthFromKey(monthKeys[0]) : null;
+  const rangeEnd = monthKeys[monthKeys.length - 1] ? endOfMonthFromKey(monthKeys[monthKeys.length - 1]) : null;
+  const totalDays = rangeStart && rangeEnd ? dayDiff(rangeStart, rangeEnd) + 1 : 1;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
+          {(['P1', 'P2'] as const).map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => setActiveLevel(level)}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
+                activeLevel === level
+                  ? 'bg-brand-navy text-white shadow-3xs'
+                  : 'text-slate-500 hover:bg-white hover:text-brand-navy'
+              }`}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+          {activeEntries.length} {activeEntries.length === 1 ? 'item' : 'items'}
+        </span>
+      </div>
+
+      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+        <div className="bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-indigo-600" />
+            <h4 className="text-xs font-black text-brand-navy">{levelLabels[activeLevel]}</h4>
+          </div>
+        </div>
+
+        {activeEntries.length === 0 ? (
+          <div className="px-5 py-10 text-center bg-white">
+            <ListTodo className="w-6 h-6 mx-auto mb-3 text-slate-400" />
+            <p className="text-sm font-black text-brand-navy">
+              {activeLevel === 'P2' ? 'P2 timeline is not available yet' : 'P1 timeline is not available yet'}
+            </p>
+            <p className="text-[11px] font-semibold text-slate-500 mt-1">
+              {activeLevel === 'P2'
+                ? 'P1 starts first.'
+                : 'Upload the active semester timeline to show the first project phase.'}
+            </p>
+          </div>
+        ) : (
+          <div className="p-4 overflow-x-auto">
+            <div className="min-w-[760px] space-y-2">
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(220px, 1fr))`,
+                }}
+              >
+                {monthKeys.map((key) => (
+                  <div
+                    key={key}
+                    className="px-3 pb-2 text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-l first:border-l-0 border-slate-200"
+                  >
+                    {monthLabel(key)}
+                  </div>
+                ))}
+              </div>
+
+              {activeEntries.map((entry) => {
+                const start = parseDate(entry.deadlineStart);
+                const end = parseDate(entry.deadlineEnd) || start;
+                const offsetDays = rangeStart && start ? dayDiff(rangeStart, start) : 0;
+                const durationDays = start && end ? dayDiff(start, end) + 1 : 1;
+                const leftPercent = Math.min(100, Math.max(0, (offsetDays / totalDays) * 100));
+                const widthPercent = Math.max(4, Math.min(100 - leftPercent, (durationDays / totalDays) * 100));
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="relative min-h-[72px] rounded-2xl border border-slate-100 bg-white hover:bg-slate-50/70 transition overflow-hidden"
+                  >
+                    <div
+                      className="absolute inset-0 grid"
+                      style={{ gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(220px, 1fr))` }}
+                    >
+                      {monthKeys.map((key) => (
+                        <div key={key} className="border-l first:border-l-0 border-slate-100" />
+                      ))}
+                    </div>
+
+                    <div
+                      className="absolute top-3 bottom-3 w-0.5 bg-indigo-500/70 rounded-full"
+                      style={{ left: `${leftPercent}%` }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEntry(entry)}
+                      className="absolute top-3 min-h-11 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left hover:border-indigo-300 hover:bg-indigo-100 transition shadow-3xs"
+                      style={{
+                        left: `${leftPercent}%`,
+                        width: `min(${100 - leftPercent}%, max(${widthPercent}%, 240px))`,
+                      }}
+                    >
+                      <span className="block text-[11px] font-black text-brand-navy leading-snug whitespace-normal break-words">
+                        {entry.detail}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedEntry && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/55 p-4 font-sans">
+          <div className="absolute inset-0" onClick={() => setSelectedEntry(null)} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <h3 className="text-base font-black text-brand-navy leading-snug">
+                  {selectedEntry.detail}
+                </h3>
+                <div className="mt-2">
+                  <StatusBadge tone={statusTone(selectedEntry.status)} dot>
+                    {selectedEntry.status}
+                  </StatusBadge>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEntry(null)}
+                className="icon-button w-9 h-9"
+                aria-label="Close timeline details"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span className="form-label block">Phase</span>
+                  <p className="text-sm font-black text-brand-navy">{selectedEntry.level}</p>
+                </div>
+                <div>
+                  <span className="form-label block">Action</span>
+                  <p className="text-sm font-black text-brand-navy">{selectedEntry.action}</p>
+                </div>
+                <div>
+                  <span className="form-label block">Start Date</span>
+                  <p className="text-sm font-black text-brand-navy">{formatDisplayDate(selectedEntry.deadlineStart)}</p>
+                </div>
+                <div>
+                  <span className="form-label block">End Date</span>
+                  <p className="text-sm font-black text-brand-navy">{formatDisplayDate(selectedEntry.deadlineEnd)}</p>
+                </div>
+              </div>
+
+              <div>
+                <span className="form-label block">Description</span>
+                <p className="mt-1 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-semibold text-slate-600 leading-relaxed">
+                  {selectedEntry.detail}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};

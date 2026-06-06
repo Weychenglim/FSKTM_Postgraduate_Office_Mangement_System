@@ -46,6 +46,21 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - The dashboard must show semester timeline status, key administrative summary cards, records needing attention, monitoring tasks, and dashboard actions.
 - Office staff must be able to open timeline management from the dashboard and return to the dashboard.
 - Dashboard actions must route to existing modules such as Supervisor Appointments, Panel Appointments, and Marks Entry without breaking those modules.
+- Administration Dashboard must display semester timeline entries in a month-lane calendar-style P1/P2 phase view instead of Month/Quarter/Year timeline controls.
+- Each timeline event in the month-lane calendar must render on its own row so overlapping or adjacent events remain readable.
+- Month-lane timeline bars must be positioned proportionally by actual day within the displayed month range, so short ranges ending early in a month do not fill the entire month column.
+- Timeline event bars must show the event title without inline date text, wrap long labels onto additional lines, and leave exact dates/details to the click-through modal.
+- Timeline labels in the calendar-style view must be clickable and open a detail modal with phase, start date, end date, action/status context, and description.
+- The P2 phase must remain selectable and show an appropriate empty state when P2 entries are not available yet.
+- Administration Dashboard must not show dashboard-level `Export Report` or `New Entry` actions.
+- `Manage Timeline` must behave as a direct button that navigates to Timeline Management.
+- All authenticated users must be able to retrieve the active semester timeline for Dashboard Overview.
+- If no active semester timeline is available, the dashboard must display `No timeline available at now` while keeping the rest of the dashboard available.
+- Office Staff/Admin users must be able to download the official structured Excel timeline template, upload a completed `.xlsx` timeline, replace the active semester timeline, edit individual timeline entries, and trigger audit logging.
+- Timeline Management must use the same P1/P2 calendar-style timeline presentation as Administration Dashboard and must not show an overflow menu action.
+- Add/Edit timeline entry drawers must restrict classification to Research Project (P1) and Research Project (P2), and must not expose manual status-state selection because status is derived from the entry date range.
+- Semester timeline upload validation must reject missing required columns, missing required fields, invalid P1/P2 levels, invalid step numbers, invalid dates, duplicate level/step pairs, invalid target roles, invalid statuses, and deadline end dates before start dates.
+- The supported timeline upload template must use structured rows with `Level`, `Step`, `Detail`, `Action`, `Deadline Start`, `Deadline End`, `Week Label`, `Target Roles`, and `Status`.
 
 ## Office Staff Module Requirements
 
@@ -93,6 +108,13 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Student users must be able to access FAQ Chatbot, Supervisor Appointments, Panel Appointments, File Submission, Letter Generation, Dashboard Overview, and Settings from the sidebar.
 - Student Supervisor Appointments must support viewing current supervisor details and submitting supervisor appointment applications.
 - Student Panel Appointments must support viewing pending and confirmed panel appointment states.
+- Student Panel Appointments must load panel appointment status from the persisted backend panel workflow instead of a manual test toggle.
+- Student users must see a pending state until Programme Coordinator confirmation creates an active appointed panel record.
+- Student users without a linked research profile must also see the pending panel appointment state instead of a hard loading error.
+- After Programme Coordinator confirmation, the student Panel Appointment page must show the appointed panel member, programme, semester, research title, appointment date, and panel contact email when available.
+- The confirmed student Panel Appointment view should avoid staff ID and repeated supervisor/student metadata so the module stays focused on the appointed panel.
+- Student panel visibility starts immediately after Programme Coordinator confirmation; no separate Office Staff/Admin release step is required for this slice.
+- Student panel appointment data must be scoped to the authenticated student so a student cannot view another student's appointed panel.
 - Student File Submission must support selecting a submission category and uploading/viewing submitted research documents.
 - Student Letter Generation must support selecting a letter template, previewing content, and triggering generate/print actions.
 - Student Dashboard Overview must show the shared semester timeline in a read-only student context without the office-staff Manage Timeline action.

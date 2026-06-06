@@ -95,8 +95,9 @@ function messageFromErrorBody(body: unknown): string | null {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
     ...((init?.headers as Record<string, string>) ?? {}),
   };
   if (_authToken) {
@@ -119,4 +120,28 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // 204 No Content (or empty body) → nothing to parse.
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+export async function requestBlob(path: string, init?: RequestInit): Promise<Blob> {
+  const headers: Record<string, string> = {
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`;
+  }
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers,
+  });
+  if (!res.ok) {
+    let message = `Request failed: ${res.status} ${res.statusText}`;
+    try {
+      const extracted = messageFromErrorBody(await res.json());
+      if (extracted) message = extracted;
+    } catch {
+      /* binary or empty error body */
+    }
+    throw new ApiError(message, res.status);
+  }
+  return res.blob();
 }
