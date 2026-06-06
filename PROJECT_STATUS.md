@@ -57,6 +57,14 @@
 - Fixed the lecturer Supervisor Appointment review drawer so the approve/reject controls and rejection reason field scroll with the request content instead of staying in a fixed bottom action area.
 - Resolved the `origin/main` merge conflicts on `Lim_Branch` by preserving the organized `frontend/` and `backend/` layout, retaining the richer panel recommendation workflow, and keeping incoming Django auth/reset-password wiring.
 - Cleaned the frontend package after the merge so obsolete Node/Express server scripts and dependencies stay out of the Vite app.
+- Built the announcement + notification backend (`announcements` app) and wired the frontend: announcement publish/draft/delete with file attachments, per-recipient notification fan-out on publish, and the in-app notification feed with mark read/unread and attachment download (backed by a shared `NotificationsContext` that also drives the header bell badge).
+- Normalized the account model into a generalization/specialization (EER) hierarchy: `User` is the superclass; `Student`, `OfficeStaff`, and `Lecturer` are one-to-one subtype tables; `Coordinator`, `Supervisor`, and `Panel` are one-to-one specializations of `Lecturer`. Moved `department` / `student_id` / `staff_id` off `User` into the relevant profile tables; `User.to_public_dict()` still returns the same flat shape (`id, email, role, fullName, department, studentId, staffId`) the frontend expects, so the login API contract is unchanged.
+- Updated the login lookup (matches email / matric no / staff no through the profile relations), the Django admin (profile inlines on the user page + a dedicated Lecturer admin with Coordinator/Supervisor/Panel inlines), the create/change forms, and `seed_users` (now also seeds the role profiles) for the new subtype tables. Migrated the existing demo accounts and superuser into their profile tables.
+- Added an Entity-Relationship diagram for the user/role hierarchy at `docs/erd/01-user-roles.md`.
+- Added a real Settings module (`SettingsView`) routed for every role: profile summary, editable contact details, password-change form with validation, and notification preference toggles, all using the shared portal primitives.
+- Improved mobile responsiveness: narrower sidebar drawer on small screens, tightened top-header utility spacing, and a help button that collapses on the smallest viewports.
+- Cleaned up the login screen: removed the demo "Enter Portal Direct" banner, the marketing feature cards (Secure Role-Based Access / Automated Letter Gen / FAQ Student Support), and the System Online / Updated Today / SSL Secured status badges.
+- Split the notification bell view into **Announcements** and **Notifications** tabs (by the backend `isAnnouncement` flag). Announcements are live; the Notifications tab is reserved (currently empty) for upcoming supervisor-appointment and confirmation-letter events.
 
 ## Current Testing Status
 
@@ -122,6 +130,10 @@
 - `npm run lint` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`.
 - `npm run build` passes after resolving the `origin/main` merge conflicts on `Lim_Branch`, with the existing non-blocking chunk-size warning.
 - Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
+- `python manage.py check` passes after the account subtype-table refactor (0 issues).
+- `makemigrations` + `migrate` apply the `accounts/0002` subtype-table migration cleanly; `seed_users` repopulates the demo accounts and their role profiles.
+- Verified login by email and by matric number, and that `to_public_dict()` correctly resolves department / IDs from the new profile tables.
+- `npm run lint` and `npm run build` pass after the Settings module, mobile responsiveness, login cleanup, and notification-tab split (with the existing non-blocking chunk-size warning).
 
 ## Known Issues and Notes
 
@@ -139,3 +151,6 @@
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
 - Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
 - Connect dashboard, registry, file, FAQ, letter, announcement, notification, appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.
+- Wire the Settings module (contact details, password change, notification preferences) to backend endpoints; today the forms validate and toast but do not persist.
+- Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.
+- Decide a single source of truth for Programme Coordinator (it currently exists both as a `User.role` value and as a `Coordinator` profile table).

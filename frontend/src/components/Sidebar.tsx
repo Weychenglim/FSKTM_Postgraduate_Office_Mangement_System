@@ -63,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
   return (
     <div
       id="portal-sidebar"
-      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-screen w-72 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between font-sans overflow-hidden transition-[width,transform] duration-300 ease-in-out ${
+      className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-screen w-[15.5rem] sm:w-64 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] flex flex-col justify-between font-sans overflow-hidden transition-[width,transform] duration-300 ease-in-out ${
         isOpen ? 'translate-x-0 lg:w-72' : '-translate-x-full lg:w-0 lg:border-r-0'
       }`}
     >

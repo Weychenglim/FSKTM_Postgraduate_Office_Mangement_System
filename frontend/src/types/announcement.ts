@@ -17,4 +17,13 @@ export interface AnnouncementItem {
   priority: AnnouncementPriority;
   dateCreated: string;
   status: AnnouncementStatus;
+  // Optional fields returned by the backend (absent in older mock rows).
+  content?: string;
+  startDate?: string | null;
+  expiryDate?: string | null;
+  createdBy?: string;
+  attachmentName?: string | null;
+  attachmentUrl?: string | null;
+  /** Number of recipients reached, set on the create response when published. */
+  deliveredTo?: number;
 }

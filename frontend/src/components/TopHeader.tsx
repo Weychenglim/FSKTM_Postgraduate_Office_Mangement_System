@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Bell, HelpCircle, LogOut, User, Settings, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNotifications } from '../context/NotificationsContext';
 
 interface TopHeaderProps {
   userName: string;
@@ -25,6 +26,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleSidebar
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { unreadCount } = useNotifications();
   const displayInitials = userName
     .split(/\s+/)
     .filter(Boolean)
@@ -56,34 +58,39 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       {/* Utilities Column */}
-      <div id="header-utilities" className="flex items-center gap-4">
+      <div id="header-utilities" className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
         
         {/* Dynamic Interactive Alerts Button */}
         <div className="relative">
-          <button 
+          <button
             type="button"
             onClick={onNotificationsTrigger}
             className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer relative"
-            title="Notifications"
+            title={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}` : 'Notifications'}
           >
             <Bell className="w-4.5 h-4.5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
+            {/* Unread badge — driven by the shared notifications store, so it
+                clears as soon as the user reads or marks all as read. */}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none ring-2 ring-white select-none">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
         </div>
 
         {/* Global Manual Assistance Help Trigger */}
-        <button 
+        <button
           type="button"
           onClick={onHelpdeskTrigger}
-          className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
+          className="hidden sm:flex w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
           title="Administrative Manual Guide"
         >
           <HelpCircle className="w-4.5 h-4.5" />
         </button>
 
         {/* Divider separator */}
-        <div className="w-[1px] h-6 bg-slate-200" />
+        <div className="hidden sm:block w-[1px] h-6 bg-slate-200" />
 
         {/* User profile dropdown column */}
         <div className="relative">
