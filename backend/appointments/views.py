@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import PanelAppointment, PanelRecommendation, StudentResearchProfile
+from .models import PANEL_WORKLOAD_LIMIT, PanelAppointment, PanelRecommendation, StudentResearchProfile
 from .serializers import (
     PanelAssignmentSerializer,
     PanelCandidateSerializer,
@@ -15,7 +15,10 @@ from .serializers import (
     ReasonSerializer,
     StudentPanelAppointmentSerializer,
     StudentResearchProfileSerializer,
+    department_for_user,
+    format_display_date,
     pending_student_panel_payload_from_user,
+    staff_no_for_user,
     student_panel_appointment_payload,
 )
 
@@ -29,6 +32,7 @@ def panel_record_from_appointment(appointment):
         "studentName": appointment.profile.student_name,
         "programme": appointment.profile.programme,
         "semester": appointment.profile.semester,
+        "researchTitle": appointment.profile.proposed_topic,
         "supervisor": appointment.supervisor.full_name,
         "panelMember": appointment.panel_member.full_name,
         "status": "Approved",
@@ -37,22 +41,106 @@ def panel_record_from_appointment(appointment):
 
 
 def panel_record_from_recommendation(recommendation):
+    if recommendation.status == PanelRecommendation.Status.SUBMITTED_TO_PANEL:
+        display_status = "Recommendation"
+    elif recommendation.status in [
+        PanelRecommendation.Status.ACCEPTED_BY_PANEL,
+        PanelRecommendation.Status.PENDING_COORDINATOR,
+    ]:
+        display_status = "Pending"
+    elif recommendation.status in [
+        PanelRecommendation.Status.REJECTED_BY_PANEL,
+        PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
+    ]:
+        display_status = "Rejected"
+    else:
+        display_status = "Approved"
+
     return {
         "id": recommendation.profile.matric_no,
         "studentName": recommendation.profile.student_name,
         "programme": recommendation.profile.programme,
         "semester": recommendation.profile.semester,
+        "researchTitle": recommendation.profile.proposed_topic,
         "supervisor": recommendation.supervisor.full_name,
         "panelMember": recommendation.recommended_member.full_name
         if recommendation.status != PanelRecommendation.Status.REJECTED_BY_PANEL
         else "Not Assigned",
-        "status": "Rejected"
-        if recommendation.status in [
-            PanelRecommendation.Status.REJECTED_BY_PANEL,
-            PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
-        ]
-        else "Recommendation",
+        "status": display_status,
         "updatedDate": recommendation.updated_at.strftime("%d %b %Y"),
+    }
+
+
+def panel_record_from_profile(profile):
+    return {
+        "id": profile.matric_no,
+        "studentName": profile.student_name,
+        "programme": profile.programme,
+        "semester": profile.semester,
+        "researchTitle": profile.proposed_topic,
+        "supervisor": profile.supervisor.full_name,
+        "panelMember": "Not Assigned",
+        "status": "No Panel",
+        "updatedDate": profile.updated_at.strftime("%d %b %Y"),
+    }
+
+
+def initials_for_name(name):
+    return "".join(part[0] for part in name.split()[:2]).upper()
+
+
+def panel_workload_availability(count):
+    if count >= PANEL_WORKLOAD_LIMIT:
+        return "Full Load"
+    if count >= max(PANEL_WORKLOAD_LIMIT - 1, 1):
+        return "Near Limit"
+    return "Available"
+
+
+def panel_workload_row(lecturer):
+    confirmed_appointments = list(
+        PanelAppointment.objects.filter(
+            panel_member=lecturer,
+            status=PanelAppointment.Status.ACTIVE,
+        ).select_related("profile")
+    )
+    pending_nominations = list(
+        PanelRecommendation.objects.filter(
+            recommended_member=lecturer,
+            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+        ).select_related("profile")
+    )
+    workload_count = len(confirmed_appointments) + len(pending_nominations)
+    workload_items = [
+        {
+            "type": "Confirmed Appointment",
+            "studentName": appointment.profile.student_name,
+            "studentId": appointment.profile.matric_no,
+            "researchTitle": appointment.profile.proposed_topic,
+            "date": format_display_date(appointment.appointment_date),
+        }
+        for appointment in confirmed_appointments
+    ] + [
+        {
+            "type": "Pending Nomination",
+            "studentName": recommendation.profile.student_name,
+            "studentId": recommendation.profile.matric_no,
+            "researchTitle": recommendation.profile.proposed_topic,
+            "date": format_display_date(recommendation.submitted_at or recommendation.updated_at),
+        }
+        for recommendation in pending_nominations
+    ]
+    return {
+        "id": staff_no_for_user(lecturer),
+        "name": lecturer.full_name,
+        "department": department_for_user(lecturer),
+        "currentStudents": workload_count,
+        "workloadLimit": PANEL_WORKLOAD_LIMIT,
+        "availability": panel_workload_availability(workload_count),
+        "initials": initials_for_name(lecturer.full_name),
+        "confirmedAppointments": len(confirmed_appointments),
+        "pendingNominations": len(pending_nominations),
+        "workloadItems": workload_items,
     }
 
 
@@ -72,18 +160,44 @@ def get_recommendation_or_404(pk):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def panel_records_view(request):
-    appointments = PanelAppointment.objects.select_related(
+    appointments = list(PanelAppointment.objects.select_related(
         "profile", "supervisor", "panel_member"
-    )
-    appointment_profile_ids = appointments.values_list("profile_id", flat=True)
-    recommendations = PanelRecommendation.objects.exclude(
-        profile_id__in=appointment_profile_ids
-    ).select_related("profile", "supervisor", "recommended_member")
-    records = [
-        *[panel_record_from_appointment(appointment) for appointment in appointments],
-        *[panel_record_from_recommendation(recommendation) for recommendation in recommendations],
-    ]
+    ))
+    appointments_by_profile = {appointment.profile_id: appointment for appointment in appointments}
+
+    latest_recommendations_by_profile = {}
+    recommendations = PanelRecommendation.objects.select_related(
+        "profile", "supervisor", "recommended_member"
+    ).order_by("profile_id", "-updated_at", "-created_at")
+    for recommendation in recommendations:
+        latest_recommendations_by_profile.setdefault(recommendation.profile_id, recommendation)
+
+    profiles = StudentResearchProfile.objects.select_related("supervisor").order_by("student_name")
+    records = []
+    for profile in profiles:
+        appointment = appointments_by_profile.get(profile.pk)
+        if appointment:
+            records.append(panel_record_from_appointment(appointment))
+            continue
+
+        recommendation = latest_recommendations_by_profile.get(profile.pk)
+        if recommendation:
+            records.append(panel_record_from_recommendation(recommendation))
+            continue
+
+        records.append(panel_record_from_profile(profile))
+
     return Response(records)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def panel_workload_view(request):
+    if request.user.role != User.Role.OFFICE_ADMIN:
+        return error_response("Only Office Staff/Admin can view panel workload monitoring.", status.HTTP_403_FORBIDDEN)
+
+    lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).select_related("lecturer")
+    return Response([panel_workload_row(lecturer) for lecturer in lecturers])
 
 
 @api_view(["GET"])
@@ -91,7 +205,9 @@ def panel_records_view(request):
 def eligible_supervisees_view(request):
     if request.user.role != User.Role.LECTURER:
         return error_response("Only lecturers can view eligible supervisees.", status.HTTP_403_FORBIDDEN)
-    profiles = StudentResearchProfile.objects.filter(supervisor=request.user).select_related("supervisor")
+    profiles = StudentResearchProfile.objects.filter(supervisor=request.user).select_related(
+        "supervisor", "supervisor__lecturer"
+    )
     return Response(StudentResearchProfileSerializer(profiles, many=True).data)
 
 
@@ -100,7 +216,9 @@ def eligible_supervisees_view(request):
 def panel_candidates_view(request):
     if request.user.role != User.Role.LECTURER:
         return error_response("Only lecturers can view panel candidates.", status.HTTP_403_FORBIDDEN)
-    lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).exclude(pk=request.user.pk)
+    lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).select_related(
+        "lecturer"
+    ).exclude(pk=request.user.pk)
     return Response(PanelCandidateSerializer(lecturers, many=True).data)
 
 
@@ -127,7 +245,7 @@ def recommendations_view(request):
         if request.user.role != User.Role.LECTURER:
             return error_response("Only lecturers can view submitted panel recommendations.", status.HTTP_403_FORBIDDEN)
         recommendations = PanelRecommendation.objects.filter(supervisor=request.user).select_related(
-            "profile", "recommended_member"
+            "profile", "recommended_member", "recommended_member__lecturer"
         )
         return Response(PanelRecommendationSerializer(recommendations, many=True).data)
 
@@ -145,7 +263,7 @@ def review_queue_view(request):
     recommendations = PanelRecommendation.objects.filter(
         recommended_member=request.user,
         status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
-    ).select_related("profile", "recommended_member")
+    ).select_related("profile", "recommended_member", "recommended_member__lecturer")
     return Response(PanelRecommendationSerializer(recommendations, many=True).data)
 
 
@@ -156,7 +274,7 @@ def coordinator_queue_view(request):
         return error_response("Only Programme Coordinators can view coordinator review queues.", status.HTTP_403_FORBIDDEN)
     recommendations = PanelRecommendation.objects.filter(
         status=PanelRecommendation.Status.PENDING_COORDINATOR
-    ).select_related("profile", "recommended_member")
+    ).select_related("profile", "recommended_member", "recommended_member__lecturer")
     return Response(PanelRecommendationSerializer(recommendations, many=True).data)
 
 

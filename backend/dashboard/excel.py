@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from io import BytesIO
 
+from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 
 from .models import SemesterTimelineEntry
@@ -8,27 +9,18 @@ from .models import SemesterTimelineEntry
 
 REQUIRED_HEADERS = [
     "Level",
-    "Step",
+    "Title",
     "Detail",
     "Action",
     "Deadline Start",
     "Deadline End",
     "Week Label",
     "Target Roles",
-    "Status",
 ]
 
 
 def normalize_header(value):
     return str(value or "").strip()
-
-
-def normalize_status(value):
-    status = str(value or "").strip()
-    for valid, _label in SemesterTimelineEntry.Status.choices:
-        if status.lower() == valid.lower():
-            return valid
-    return status
 
 
 def parse_date(value):
@@ -56,6 +48,17 @@ def parse_target_roles(value):
     return roles
 
 
+def derive_status(deadline_start, deadline_end):
+    today = timezone.localdate()
+    if today < deadline_start:
+        return SemesterTimelineEntry.Status.UPCOMING
+    if today > deadline_end:
+        return SemesterTimelineEntry.Status.COMPLETED
+    if deadline_start == deadline_end:
+        return SemesterTimelineEntry.Status.DEADLINE
+    return SemesterTimelineEntry.Status.ACTIVE
+
+
 def parse_timeline_workbook(uploaded_file):
     errors = []
     parsed_rows = []
@@ -71,7 +74,7 @@ def parse_timeline_workbook(uploaded_file):
         return [], [f"Missing required columns: {', '.join(missing)}"]
 
     column_index = {header: headers.index(header) for header in REQUIRED_HEADERS}
-    seen_steps = set()
+    next_step_by_level = {"P1": 0, "P2": 0}
 
     for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
         if not any(value not in (None, "") for value in row):
@@ -86,13 +89,9 @@ def parse_timeline_workbook(uploaded_file):
         if level not in {"P1", "P2"}:
             row_errors.append("Level must be P1 or P2.")
 
-        try:
-            step = int(get("Step"))
-            if step < 1:
-                raise ValueError
-        except (TypeError, ValueError):
-            step = None
-            row_errors.append("Step must be a positive number.")
+        title = str(get("Title") or "").strip()
+        if not title:
+            row_errors.append("Title is required.")
 
         detail = str(get("Detail") or "").strip()
         if not detail:
@@ -125,31 +124,23 @@ def parse_timeline_workbook(uploaded_file):
             target_roles = []
             row_errors.append(str(exc))
 
-        status = normalize_status(get("Status"))
-        if status not in SemesterTimelineEntry.Status.values:
-            row_errors.append("Status must be Completed, Active, Deadline, or Upcoming.")
-
-        if level and step:
-            step_key = (level, step)
-            if step_key in seen_steps:
-                row_errors.append(f"Row duplicates Level {level} Step {step}.")
-            seen_steps.add(step_key)
-
         if row_errors:
             errors.extend([f"Row {row_number}: {error}" for error in row_errors])
             continue
 
+        next_step_by_level[level] += 1
         parsed_rows.append(
             {
                 "level": level,
-                "step": step,
+                "step": next_step_by_level[level],
+                "title": title,
                 "detail": detail,
                 "action_owner": action,
                 "deadline_start": deadline_start,
                 "deadline_end": deadline_end,
                 "week_label": week_label,
                 "target_roles": target_roles,
-                "status": status,
+                "status": derive_status(deadline_start, deadline_end),
                 "display_order": len(parsed_rows) + 1,
             }
         )
@@ -168,27 +159,25 @@ def build_template_workbook():
     sheet.append(
         [
             "P1",
-            1,
-            "Submit appointment of supervisor forms",
+            "Supervisor appointment request",
+            "Students submit appointment of supervisor forms.",
             "Student / Supervisor",
             date(2026, 3, 16),
             date(2026, 3, 20),
             "Week 2",
             "STUDENT,LECTURER",
-            "Upcoming",
         ]
     )
     sheet.append(
         [
             "P2",
-            1,
             "Final presentation",
+            "Students complete the final presentation.",
             "Student / Supervisor / Examiner",
             date(2026, 6, 8),
             date(2026, 7, 3),
             "Week 13 - 15",
             "STUDENT,LECTURER",
-            "Upcoming",
         ]
     )
     for column in sheet.columns:
@@ -199,4 +188,3 @@ def build_template_workbook():
     workbook.save(stream)
     stream.seek(0)
     return stream.getvalue()
-

@@ -51,7 +51,7 @@ DEMO_USERS = [
             "specialization": "Software Engineering",
         },
         "coordinator": {
-            "programme_managed": "Master of Software Engineering",
+            "programme_managed": "MASTER OF CYBER SECURITY (COURSEWORK)",
         },
     },
     {
@@ -94,7 +94,7 @@ DEMO_USERS = [
         "role": User.Role.STUDENT,
         "student": {
             "matric_no": "200192",
-            "programme": "Master of Computer Science (By Coursework)",
+            "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2024/2025 Semester 1",
         },
@@ -106,7 +106,7 @@ DEMO_USERS = [
         "role": User.Role.STUDENT,
         "student": {
             "matric_no": "2209841",
-            "programme": "MSc. Computer Science",
+            "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2025/2026 Semester 1",
         },
@@ -119,7 +119,7 @@ PANEL_RESEARCH_PROFILES = [
         "matric_no": "2209841",
         "student_email": "MEA2209841@fsktm.edu.my",
         "student_name": "Ahmad Luqman",
-        "programme": "MSc. Computer Science",
+        "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
         "semester": "Sem 1 2025/2026",
         "proposed_topic": "Optimizing Generative Adversarial Networks for Low-Resource Languages",
         "research_area": "Artificial Intelligence",
@@ -208,9 +208,9 @@ class Command(BaseCommand):
             supervisor_user = User.objects.get(email=entry["supervisor_email"])
 
             profile, created = StudentResearchProfile.objects.update_or_create(
-                matric_no=entry["matric_no"],
+                student=student_user,
                 defaults={
-                    "student": student_user,
+                    "matric_no": entry["matric_no"],
                     "student_name": entry["student_name"],
                     "programme": entry["programme"],
                     "semester": entry["semester"],
@@ -220,7 +220,6 @@ class Command(BaseCommand):
                     "supervisor": supervisor_user,
                 },
             )
-
             verb = "Created" if created else "Updated"
             self.stdout.write(
                 self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}")

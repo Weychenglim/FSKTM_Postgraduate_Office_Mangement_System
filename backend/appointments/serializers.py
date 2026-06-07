@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from .models import (
@@ -11,6 +12,41 @@ from .models import (
 
 
 User = get_user_model()
+
+
+def related_or_none(obj, attr):
+    try:
+        return getattr(obj, attr)
+    except ObjectDoesNotExist:
+        return None
+
+
+def staff_no_for_user(user):
+    lecturer = related_or_none(user, "lecturer")
+    if lecturer:
+        return lecturer.staff_no
+    office_staff = related_or_none(user, "office_staff")
+    if office_staff:
+        return office_staff.staff_no
+    return ""
+
+
+def department_for_user(user):
+    lecturer = related_or_none(user, "lecturer")
+    if lecturer:
+        return lecturer.department
+    office_staff = related_or_none(user, "office_staff")
+    if office_staff:
+        return office_staff.department
+    student = related_or_none(user, "student")
+    if student:
+        return student.programme
+    return ""
+
+
+def student_no_for_user(user):
+    student = related_or_none(user, "student")
+    return student.matric_no if student else ""
 
 
 def format_display_date(value):
@@ -27,7 +63,7 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
     proposedTopic = serializers.CharField(source="proposed_topic")
     researchArea = serializers.CharField(source="research_area")
     supervisorName = serializers.CharField(source="supervisor.full_name")
-    supervisorId = serializers.CharField(source="supervisor.staff_id")
+    supervisorId = serializers.SerializerMethodField()
     canRecommend = serializers.SerializerMethodField()
 
     class Meta:
@@ -50,10 +86,14 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
             status__in=PanelRecommendation.ACTIVE_STATUSES
         ).exists()
 
+    def get_supervisorId(self, obj):
+        return staff_no_for_user(obj.supervisor)
+
 
 class PanelCandidateSerializer(serializers.ModelSerializer):
-    staffId = serializers.CharField(source="staff_id")
+    staffId = serializers.SerializerMethodField()
     name = serializers.CharField(source="full_name")
+    department = serializers.SerializerMethodField()
     workloadCount = serializers.SerializerMethodField()
     workloadLimit = serializers.SerializerMethodField()
     canSubmit = serializers.SerializerMethodField()
@@ -75,6 +115,12 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
 
     def get_workloadCount(self, obj):
         return count_panel_workload(obj)
+
+    def get_staffId(self, obj):
+        return staff_no_for_user(obj)
+
+    def get_department(self, obj):
+        return department_for_user(obj)
 
     def get_workloadLimit(self, obj):
         return PANEL_WORKLOAD_LIMIT
@@ -98,7 +144,7 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     researchArea = serializers.CharField(source="profile.research_area", read_only=True)
     abstract = serializers.CharField(source="profile.abstract", read_only=True)
     recommendedMember = serializers.CharField(source="recommended_member.full_name", read_only=True)
-    recommendedMemberId = serializers.CharField(source="recommended_member.staff_id", read_only=True)
+    recommendedMemberId = serializers.SerializerMethodField()
     submittedDate = serializers.SerializerMethodField()
     submittedAt = serializers.DateTimeField(source="submitted_at", read_only=True)
     panelDecisionAt = serializers.DateTimeField(source="panel_decided_at", read_only=True)
@@ -130,6 +176,9 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     def get_submittedDate(self, obj):
         return format_display_date(obj.submitted_at or obj.created_at)
 
+    def get_recommendedMemberId(self, obj):
+        return staff_no_for_user(obj.recommended_member)
+
 
 class PanelRecommendationCreateSerializer(serializers.Serializer):
     studentId = serializers.CharField()
@@ -158,7 +207,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
 
         try:
             recommended_member = User.objects.get(
-                staff_id__iexact=attrs["recommendedMemberId"],
+                lecturer__staff_no__iexact=attrs["recommendedMemberId"],
                 role=User.Role.LECTURER,
                 is_active=True,
             )
@@ -249,7 +298,7 @@ def student_panel_appointment_payload(profile):
             profile=profile,
             status=PanelAppointment.Status.ACTIVE,
         )
-        .select_related("panel_member", "supervisor")
+        .select_related("panel_member", "panel_member__lecturer", "supervisor")
         .first()
     )
     base = {
@@ -274,8 +323,8 @@ def student_panel_appointment_payload(profile):
         **base,
         "status": "CONFIRMED",
         "panelMemberName": panel_member.full_name,
-        "panelMemberId": panel_member.staff_id,
-        "panelMemberDepartment": panel_member.department,
+        "panelMemberId": staff_no_for_user(panel_member),
+        "panelMemberDepartment": department_for_user(panel_member),
         "panelMemberEmail": panel_member.email,
         "appointmentDate": format_display_date(appointment.appointment_date),
     }
@@ -285,8 +334,8 @@ def pending_student_panel_payload_from_user(user):
     return {
         "status": "PENDING",
         "studentName": user.full_name,
-        "studentId": user.student_id or "",
-        "programme": user.department or "",
+        "studentId": student_no_for_user(user),
+        "programme": department_for_user(user),
         "semester": "Not available yet",
         "researchTitle": "Not available yet",
         "supervisorName": "Not assigned yet",

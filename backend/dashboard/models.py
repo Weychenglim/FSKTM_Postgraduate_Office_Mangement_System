@@ -43,7 +43,7 @@ class SemesterTimelineEntry(models.Model):
         DEADLINE = "Deadline", "Deadline"
         UPCOMING = "Upcoming", "Upcoming"
 
-    VALID_TARGET_ROLES = {"STUDENT", "LECTURER", "OFFICE_STAFF", "ALL"}
+    VALID_TARGET_ROLES = {"STUDENT", "LECTURER", "OFFICE_STAFF"}
 
     timeline = models.ForeignKey(
         SemesterTimeline,
@@ -52,6 +52,7 @@ class SemesterTimelineEntry(models.Model):
     )
     level = models.CharField(max_length=2, choices=Level.choices, db_index=True)
     step = models.PositiveIntegerField()
+    title = models.CharField(max_length=255, blank=True)
     detail = models.TextField()
     action_owner = models.CharField(max_length=255)
     deadline_start = models.DateField()
@@ -80,7 +81,9 @@ class TimelineAuditLog(models.Model):
     class Action(models.TextChoices):
         UPLOAD = "UPLOAD", "Upload"
         REPLACE = "REPLACE", "Replace"
+        ADD_ENTRY = "ADD_ENTRY", "Add Entry"
         EDIT_ENTRY = "EDIT_ENTRY", "Edit Entry"
+        DELETE_ENTRY = "DELETE_ENTRY", "Delete Entry"
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -108,4 +111,3 @@ class TimelineAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action}: {self.summary}"
-
