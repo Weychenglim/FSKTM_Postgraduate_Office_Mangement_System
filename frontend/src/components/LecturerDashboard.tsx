@@ -4,19 +4,16 @@
  */
 
 import React, { useState } from 'react';
-import { Award, ChevronRight, UserCheck } from 'lucide-react';
+import { Award, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { TimelineNextActions } from './TimelineNextActions';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 
-interface StudentDashboardProps {
-  studentName: string;
-  studentId?: string;
-  programme?: string;
+interface LecturerDashboardProps {
   onNavigateToTab: (tabName: string) => void;
 }
 
-interface StatusCardProps {
+interface LecturerSummaryCardProps {
   title: string;
   value: string;
   subtext: string;
@@ -27,7 +24,7 @@ interface StatusCardProps {
   onClick: () => void;
 }
 
-const StatusCard: React.FC<StatusCardProps> = ({
+const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
   title,
   value,
   subtext,
@@ -35,7 +32,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
   badgeTone,
   icon: Icon,
   actionLabel,
-  onClick
+  onClick,
 }) => (
   <button
     type="button"
@@ -69,9 +66,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
   </button>
 );
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = ({
-  onNavigateToTab
-}) => {
+export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigateToTab }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (message: string) => {
@@ -80,46 +75,46 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   };
 
   return (
-    <div id="student-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
+    <div id="lecturer-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toastMessage} />
 
       <PageHeader
-        title="Student Dashboard"
-        subtitle="Track your semester timeline, appointment status, submissions, and official document requests."
+        title="Lecturer Dashboard"
+        subtitle="Track your semester timeline, supervisee records, panel appointments, and upcoming academic actions."
       />
 
       <DashboardTimeline
         showManageTimeline={false}
         onTimelineUpdate={triggerToast}
-        visibleRoles={['STUDENT']}
+        visibleRoles={['LECTURER']}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <StatusCard
-          title="Supervisor Status"
-          value="Approved"
-          subtext="Dr. Siti Noor is assigned as your current supervisor."
-          badge="Active"
+        <LecturerSummaryCard
+          title="Students Under Supervision"
+          value="Active"
+          subtext="Open your supervisee workspace to review assigned postgraduate students."
+          badge="Supervisor workspace"
           badgeTone="success"
-          icon={UserCheck}
-          actionLabel="View supervisor"
+          icon={UsersRound}
+          actionLabel="View supervisees"
           onClick={() => onNavigateToTab('Supervisor Appointments')}
         />
-        <StatusCard
-          title="Panel Appointment"
-          value="Pending"
-          subtext="Panel recommendation is in progress and will be released after approval."
-          badge="Awaiting release"
-          badgeTone="warning"
+        <LecturerSummaryCard
+          title="Panel Appointment for Students"
+          value="Review"
+          subtext="Check panel appointment records and assigned evaluation responsibilities."
+          badge="Panel workspace"
+          badgeTone="info"
           icon={Award}
-          actionLabel="Check panel"
+          actionLabel="View panels"
           onClick={() => onNavigateToTab('Panel Appointments')}
         />
       </div>
 
       <TimelineNextActions
-        title="Next Student Actions"
-        visibleRoles={['STUDENT']}
+        title="Next Lecturer Actions"
+        visibleRoles={['LECTURER']}
         onNavigateToTab={onNavigateToTab}
       />
     </div>

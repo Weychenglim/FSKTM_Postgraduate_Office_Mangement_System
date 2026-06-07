@@ -16,11 +16,14 @@ export interface TimelineCalendarGroup {
 
 interface TimelineCalendarProps {
   groups: TimelineCalendarGroup[];
+  activeLevel?: TimelineLevel;
+  onActiveLevelChange?: (level: TimelineLevel) => void;
+  showPhaseTabs?: boolean;
 }
 
 const levelLabels: Record<TimelineLevel, string> = {
-  P1: 'Research Project (P1)',
-  P2: 'Research Project (P2)',
+  P1: 'Research Project 1',
+  P2: 'Research Project 2',
 };
 
 const monthNames = [
@@ -106,7 +109,12 @@ const dayDiff = (start: Date, end: Date) => {
   return Math.max(0, Math.round((endUtc - startUtc) / 86400000));
 };
 
-export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) => {
+export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
+  groups,
+  activeLevel,
+  onActiveLevelChange,
+  showPhaseTabs = true,
+}) => {
   const entriesByLevel = useMemo(() => {
     const map: Record<TimelineLevel, SemesterTimelineEntry[]> = { P1: [], P2: [] };
     groups.forEach((group) => {
@@ -115,9 +123,16 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
     return map;
   }, [groups]);
 
-  const [activeLevel, setActiveLevel] = useState<TimelineLevel>(entriesByLevel.P1.length > 0 ? 'P1' : 'P2');
+  const [internalActiveLevel, setInternalActiveLevel] = useState<TimelineLevel>(entriesByLevel.P1.length > 0 ? 'P1' : 'P2');
   const [selectedEntry, setSelectedEntry] = useState<SemesterTimelineEntry | null>(null);
-  const activeEntries = entriesByLevel[activeLevel];
+  const selectedLevel = activeLevel ?? internalActiveLevel;
+  const setSelectedLevel = (level: TimelineLevel) => {
+    onActiveLevelChange?.(level);
+    if (activeLevel === undefined) {
+      setInternalActiveLevel(level);
+    }
+  };
+  const activeEntries = entriesByLevel[selectedLevel];
   const monthKeys = monthsBetween(activeEntries);
   const rangeStart = monthKeys[0] ? startOfMonthFromKey(monthKeys[0]) : null;
   const rangeEnd = monthKeys[monthKeys.length - 1] ? endOfMonthFromKey(monthKeys[monthKeys.length - 1]) : null;
@@ -126,22 +141,26 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
-          {(['P1', 'P2'] as const).map((level) => (
-            <button
-              key={level}
-              type="button"
-              onClick={() => setActiveLevel(level)}
-              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
-                activeLevel === level
-                  ? 'bg-brand-navy text-white shadow-3xs'
-                  : 'text-slate-500 hover:bg-white hover:text-brand-navy'
-              }`}
-            >
-              {level}
-            </button>
-          ))}
-        </div>
+        {showPhaseTabs ? (
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
+            {(['P1', 'P2'] as const).map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setSelectedLevel(level)}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
+                  selectedLevel === level
+                    ? 'bg-brand-navy text-white shadow-3xs'
+                    : 'text-slate-500 hover:bg-white hover:text-brand-navy'
+                }`}
+              >
+                {levelLabels[level]}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="sr-only">{levelLabels[selectedLevel]}</span>
+        )}
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
           {activeEntries.length} {activeEntries.length === 1 ? 'item' : 'items'}
         </span>
@@ -151,7 +170,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
         <div className="bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-indigo-600" />
-            <h4 className="text-xs font-black text-brand-navy">{levelLabels[activeLevel]}</h4>
+            <h4 className="text-xs font-black text-brand-navy">{levelLabels[selectedLevel]}</h4>
           </div>
         </div>
 
@@ -159,21 +178,21 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
           <div className="px-5 py-10 text-center bg-white">
             <ListTodo className="w-6 h-6 mx-auto mb-3 text-slate-400" />
             <p className="text-sm font-black text-brand-navy">
-              {activeLevel === 'P2' ? 'P2 timeline is not available yet' : 'P1 timeline is not available yet'}
+              {selectedLevel === 'P2' ? 'P2 timeline is not available yet' : 'P1 timeline is not available yet'}
             </p>
             <p className="text-[11px] font-semibold text-slate-500 mt-1">
-              {activeLevel === 'P2'
+              {selectedLevel === 'P2'
                 ? 'P1 starts first.'
                 : 'Upload the active semester timeline to show the first project phase.'}
             </p>
           </div>
         ) : (
           <div className="p-4 overflow-x-auto">
-            <div className="min-w-[760px] space-y-2">
+            <div className="min-w-[640px] space-y-2">
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(220px, 1fr))`,
+                  gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(180px, 1fr))`,
                 }}
               >
                 {monthKeys.map((key) => (
@@ -201,17 +220,12 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
                   >
                     <div
                       className="absolute inset-0 grid"
-                      style={{ gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(220px, 1fr))` }}
+                      style={{ gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(180px, 1fr))` }}
                     >
                       {monthKeys.map((key) => (
                         <div key={key} className="border-l first:border-l-0 border-slate-100" />
                       ))}
                     </div>
-
-                    <div
-                      className="absolute top-3 bottom-3 w-0.5 bg-indigo-500/70 rounded-full"
-                      style={{ left: `${leftPercent}%` }}
-                    />
 
                     <button
                       type="button"
@@ -219,11 +233,11 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
                       className="absolute top-3 min-h-11 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left hover:border-indigo-300 hover:bg-indigo-100 transition shadow-3xs"
                       style={{
                         left: `${leftPercent}%`,
-                        width: `min(${100 - leftPercent}%, max(${widthPercent}%, 240px))`,
+                        width: `min(${100 - leftPercent}%, max(${widthPercent}%, 180px))`,
                       }}
                     >
                       <span className="block text-[11px] font-black text-brand-navy leading-snug whitespace-normal break-words">
-                        {entry.detail}
+                        {entry.title || entry.detail}
                       </span>
                     </button>
                   </div>
@@ -241,7 +255,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({ groups }) =>
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
               <div>
                 <h3 className="text-base font-black text-brand-navy leading-snug">
-                  {selectedEntry.detail}
+                  {selectedEntry.title || selectedEntry.detail}
                 </h3>
                 <div className="mt-2">
                   <StatusBadge tone={statusTone(selectedEntry.status)} dot>

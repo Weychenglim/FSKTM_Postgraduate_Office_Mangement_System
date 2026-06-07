@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, AlertTriangle, Save, GraduationCap, Users, Sliders, ListRestart, HelpCircle } from 'lucide-react';
 import { MOCK_MARK_ENTRY_MODAL_RUBRICS } from '../mocks/rubrics';
 import { EditableRubricWeight } from '../types';
-import { PortalButton } from './PortalPrimitives';
+import { PortalButton, PortalToast } from './PortalPrimitives';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -52,6 +52,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
   const [generating, setGenerating] = useState(false);
   const [generateLogs, setGenerateLogs] = useState<string[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const runTaskGenerator = () => {
     setGenerating(true);
@@ -77,6 +83,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
   return (
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
+      <PortalToast message={toastMessage} />
       
       {/* 1. Left navigation sidebar (collapsible drawer) */}
       <Sidebar
@@ -230,7 +237,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
                   <PortalButton
                     onClick={() => {
-                      alert(`Administrative configuration saved: Mark entry window defined as ${periodStart} to ${periodEnd}.`);
+                      showToast(`Administrative configuration saved: Mark entry window defined as ${periodStart} to ${periodEnd}.`);
                       setActiveModal(null);
                     }}
                     variant="primary"
@@ -287,7 +294,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                   <PortalButton
                     disabled={rubricSum !== 100}
                     onClick={() => {
-                      alert("Rubric weight distribution metrics deployed to grading schemas.");
+                      showToast('Rubric weight distribution metrics deployed to grading schemas.');
                       setActiveModal(null);
                     }}
                     variant="primary"

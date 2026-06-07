@@ -35,9 +35,11 @@ import { LetterTemplateManagement } from './components/LetterTemplateManagement'
 import { StudentLetterGeneration } from './components/StudentLetterGeneration';
 import { StudentRegistry } from './components/StudentRegistry';
 import { StudentDashboard } from './components/StudentDashboard';
+import { LecturerDashboard } from './components/LecturerDashboard';
 import { StudentSupervisorAppointment } from './components/StudentSupervisorAppointment';
 import { StudentPanelAppointment } from './components/StudentPanelAppointment';
 import { SettingsView } from './components/SettingsView';
+import { PortalToast } from './components/PortalPrimitives';
 import { 
   Calendar, 
   Sliders, 
@@ -102,6 +104,7 @@ export default function App() {
 
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
+  const [appToastMessage, setAppToastMessage] = useState<string | null>(null);
 
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
@@ -133,6 +136,11 @@ export default function App() {
     setDashboardSubView('overview');
   };
 
+  const showAppToast = (message: string) => {
+    setAppToastMessage(message);
+    window.setTimeout(() => setAppToastMessage(null), 3500);
+  };
+
   const handleLogout = () => {
     void authApi.logout();
     setCurrentUser(null);
@@ -152,6 +160,7 @@ export default function App() {
       {currentUser ? (
         /* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */
         <NotificationsProvider>
+        <PortalToast message={appToastMessage} />
         <AppLayout
           activeItem={activeSidebarItem}
           onNavigate={(target) => {
@@ -236,7 +245,7 @@ export default function App() {
                     badgeType="ratio"
                     subtext="16 submissions pending"
                     icon={Database}
-                    onClick={() => alert("Mark Auditor: 32 candidates have finalized submissions. 16 records remain open for edit access.")}
+                    onClick={() => showAppToast('Mark Auditor: 32 candidates have finalized submissions. 16 records remain open for edit access.')}
                   />
                 </div>
 
@@ -299,6 +308,10 @@ export default function App() {
                 studentName={currentUser.fullName}
                 studentId={currentUser.studentId}
                 programme={currentUser.department}
+                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+              />
+            ) : isLecturerWorkspace ? (
+              <LecturerDashboard
                 onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
               />
             ) : dashboardSubView === 'timeline' ? (

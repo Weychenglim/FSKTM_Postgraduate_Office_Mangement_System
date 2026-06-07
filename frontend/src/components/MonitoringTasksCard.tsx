@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
-import { Calendar, Sliders, CheckSquare, BarChart3, UploadCloud } from 'lucide-react';
+import React from 'react';
+import { Calendar, Sliders, CheckSquare, UploadCloud } from 'lucide-react';
 import { StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
-import { getDashboardTasks } from '../services';
 
 interface MonitoringTask {
   id: string;
@@ -24,69 +23,34 @@ const defaultTasks: MonitoringTask[] = [
   {
     id: 'task_upload',
     name: 'Upload semester timeline',
-    status: 'critical',
-    statusText: 'Due in 2 days',
+    status: 'completed',
+    statusText: 'Done',
     icon: UploadCloud,
   },
   {
     id: 'task_config',
     name: 'Configure mark entry period',
-    status: 'completed',
-    statusText: 'Completed',
+    status: 'warning',
+    statusText: 'Required Action',
     icon: CheckSquare,
   },
   {
     id: 'task_rubric',
     name: 'Define rubric components',
-    status: 'active',
-    statusText: 'Ongoing',
+    status: 'warning',
+    statusText: 'Required Action',
     icon: Sliders,
   },
   {
     id: 'task_generate',
     name: 'Generate evaluation tasks',
-    status: 'scheduled',
-    statusText: 'Scheduled',
+    status: 'warning',
+    statusText: 'Required Action',
     icon: Calendar,
-  },
-  {
-    id: 'task_monitor',
-    name: 'Monitor mark submission status',
-    status: 'active',
-    statusText: 'Active',
-    icon: BarChart3,
   },
 ];
 
-const iconForTask = (taskId: string) => {
-  if (taskId.includes('upload')) return UploadCloud;
-  if (taskId.includes('config')) return CheckSquare;
-  if (taskId.includes('rubric')) return Sliders;
-  if (taskId.includes('generate')) return Calendar;
-  return BarChart3;
-};
-
 export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTaskClick }) => {
-  const [tasks, setTasks] = useState<MonitoringTask[]>(defaultTasks);
-
-  useEffect(() => {
-    getDashboardTasks()
-      .then((response) => {
-        const apiTasks = response.tasks.map((task) => ({
-          ...task,
-          icon: iconForTask(task.id),
-        }));
-        const merged = [
-          ...apiTasks,
-          ...defaultTasks.filter((task) => !apiTasks.some((apiTask) => apiTask.id === task.id)),
-        ];
-        setTasks(merged);
-      })
-      .catch(() => {
-        setTasks(defaultTasks);
-      });
-  }, []);
-
   return (
     <div
       id="monitoring-tasks-sidebar-card"
@@ -97,7 +61,7 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
       </h4>
 
       <div className="divide-y divide-[#efecf6]/10 divide-slate-100 flex flex-col pt-1">
-        {tasks.map((task) => {
+        {defaultTasks.map((task) => {
           const IconComponent = task.icon;
           return (
             <div

@@ -14,6 +14,7 @@ import {
   PanelCandidate,
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
+  PanelWorkloadRecord,
   StudentPanelAppointmentView,
   SubmittedRecommendation,
   SupervisorRequestHistoryRow,
@@ -72,7 +73,7 @@ export async function getEligiblePanelSupervisees(): Promise<PanelRecommendation
       {
         studentId: 'MEA2209841',
         studentName: 'Ahmad Luqman',
-        programme: 'MSc. Computer Science',
+        programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
         semester: 'Sem 1 2025/2026',
         proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
         researchArea: 'Artificial Intelligence',
@@ -134,13 +135,48 @@ export async function getPanelCandidates(): Promise<PanelCandidate[]> {
   return request<PanelCandidate[]>('/appointments/panel/candidates/');
 }
 
+export async function getPanelWorkloads(): Promise<PanelWorkloadRecord[]> {
+  if (USE_PANEL_MOCKS) {
+    return mockResponse([
+      {
+        id: 'A004812',
+        name: 'Assoc. Prof. Dr. Amina Malik',
+        department: 'Data Science Department',
+        currentStudents: 2,
+        workloadLimit: 5,
+        availability: 'Available',
+        initials: 'AM',
+        confirmedAppointments: 1,
+        pendingNominations: 1,
+        workloadItems: [
+          {
+            type: 'Confirmed Appointment',
+            studentName: 'Ahmad Luqman',
+            studentId: 'MEA2209841',
+            researchTitle: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
+            date: '05 Jun 2026',
+          },
+          {
+            type: 'Pending Nomination',
+            studentName: 'Nur Aina Rahman',
+            studentId: 'MEA2400712',
+            researchTitle: 'Blockchain-Based Academic Record Verification',
+            date: '05 Jun 2026',
+          },
+        ],
+      },
+    ]);
+  }
+  return request<PanelWorkloadRecord[]>('/appointments/panel/workload/');
+}
+
 export async function getStudentPanelAppointment(): Promise<StudentPanelAppointmentView> {
   if (USE_PANEL_MOCKS) {
     return mockResponse({
       status: 'CONFIRMED',
       studentName: 'Ahmad Luqman',
       studentId: 'MEA2209841',
-      programme: 'MSc. Computer Science',
+      programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
       semester: 'Sem 1 2025/2026',
       researchTitle: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
       supervisorName: 'Prof. Dr. Ahmad Shahrir',
@@ -202,7 +238,7 @@ export async function createPanelRecommendation(
     return mockResponse({
       studentId: payload.studentId,
       studentName: 'Ahmad Luqman',
-      programme: 'MSc. Computer Science',
+      programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
       proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
       recommendedMember: 'Assoc. Prof. Dr. Amina Malik',
       recommendedMemberId: payload.recommendedMemberId,

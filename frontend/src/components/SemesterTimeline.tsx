@@ -10,10 +10,10 @@ import { ErrorState, LoadingState } from './StateViews';
 import { TimelineCalendar } from './TimelineCalendar';
 
 interface SemesterTimelineProps {
-  onTimelineUpdate?: (msg: string) => void;
+  refreshKey?: number;
 }
 
-export const SemesterTimeline: React.FC<SemesterTimelineProps> = () => {
+export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ refreshKey = 0 }) => {
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = () => {
 
   useEffect(() => {
     loadTimeline();
-  }, []);
+  }, [refreshKey]);
 
   return (
     <div

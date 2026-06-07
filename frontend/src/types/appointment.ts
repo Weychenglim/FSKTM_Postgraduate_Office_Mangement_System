@@ -49,6 +49,17 @@ export interface PanelRecord {
   panelMember: string; // lecturer name, or "Pending" / "Not Assigned"
   status: PanelAppointmentStatus;
   updatedDate: string; // "23 Nov 2025" or "-"
+  researchTitle?: string;
+  researchArea?: string;
+  abstract?: string;
+  appointmentDate?: string;
+  panelMemberId?: string;
+  panelMemberDepartment?: string;
+  panelMemberEmail?: string;
+  recommendationSubmittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
+  appointmentConfirmedAt?: string | null;
 }
 
 // ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
@@ -84,8 +95,15 @@ export interface PanelAssignment {
   status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
   programme?: string;
   intake?: string;
+  researchArea?: string;
   abstract?: string;
   initials?: string;
+  supervisorDepartment?: string;
+  supervisorEmail?: string;
+  recommendationSubmittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
+  appointmentConfirmedAt?: string | null;
 }
 
 // Approval lifecycle for a supervisor's panel-member recommendation.
@@ -140,6 +158,27 @@ export interface PanelCandidate {
   canSubmit: boolean;
   availability: 'Available' | 'Workload Full' | string;
   workloadHelpText: string;
+}
+
+export interface PanelWorkloadItem {
+  type: 'Confirmed Appointment' | 'Pending Nomination';
+  studentName: string;
+  studentId: string;
+  researchTitle: string;
+  date: string;
+}
+
+export interface PanelWorkloadRecord {
+  id: string;
+  name: string;
+  department: string;
+  currentStudents: number;
+  workloadLimit: number;
+  availability: 'Available' | 'Near Limit' | 'Full Load';
+  initials: string;
+  confirmedAppointments: number;
+  pendingNominations: number;
+  workloadItems: PanelWorkloadItem[];
 }
 
 export interface StudentPanelAppointmentView {

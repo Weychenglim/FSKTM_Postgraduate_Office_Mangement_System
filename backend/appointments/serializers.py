@@ -250,11 +250,19 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
     studentId = serializers.CharField(source="profile.matric_no")
     studentName = serializers.CharField(source="profile.student_name")
     researchTitle = serializers.CharField(source="profile.proposed_topic")
+    researchArea = serializers.CharField(source="profile.research_area")
     supervisor = serializers.CharField(source="supervisor.full_name")
+    supervisorDepartment = serializers.SerializerMethodField()
+    supervisorEmail = serializers.EmailField(source="supervisor.email")
     appointmentDate = serializers.SerializerMethodField()
     programme = serializers.CharField(source="profile.programme")
+    intake = serializers.CharField(source="profile.semester")
     abstract = serializers.CharField(source="profile.abstract")
     initials = serializers.SerializerMethodField()
+    recommendationSubmittedAt = serializers.DateTimeField(source="recommendation.submitted_at", read_only=True)
+    panelDecisionAt = serializers.DateTimeField(source="recommendation.panel_decided_at", read_only=True)
+    coordinatorDecisionAt = serializers.DateTimeField(source="recommendation.coordinator_decided_at", read_only=True)
+    appointmentConfirmedAt = serializers.DateTimeField(source="recommendation.coordinator_decided_at", read_only=True)
 
     class Meta:
         model = PanelAppointment
@@ -262,12 +270,20 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
             "studentId",
             "studentName",
             "researchTitle",
+            "researchArea",
             "supervisor",
+            "supervisorDepartment",
+            "supervisorEmail",
             "appointmentDate",
             "status",
             "programme",
+            "intake",
             "abstract",
             "initials",
+            "recommendationSubmittedAt",
+            "panelDecisionAt",
+            "coordinatorDecisionAt",
+            "appointmentConfirmedAt",
         ]
 
     def get_appointmentDate(self, obj):
@@ -275,6 +291,9 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
 
     def get_initials(self, obj):
         return "".join(part[0] for part in obj.profile.student_name.split()[:2]).upper()
+
+    def get_supervisorDepartment(self, obj):
+        return department_for_user(obj.supervisor)
 
 
 class StudentPanelAppointmentSerializer(serializers.Serializer):

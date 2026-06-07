@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,6 +18,7 @@ import {
   canSubmitPanelCandidate,
   getPanelCandidateValidationMessage,
 } from '../utils/panelRecommendationWorkflow';
+import { PortalToast } from './PortalPrimitives';
 
 export interface StudentData {
   studentName: string;
@@ -42,7 +43,7 @@ interface RecommendPanelMemberDrawerProps {
 const defaultStudent: StudentData = {
   studentName: 'Ahmad Luqman',
   studentId: 'MEA2209841',
-  programme: 'MSc. Computer Science',
+  programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
   intake: 'Sem 1 2025/2026',
   supervisor: 'Dr. Siti Noor',
   initials: 'AL',
@@ -107,7 +108,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const [selectedLecturer, setSelectedLecturer] = useState<PanelCandidate>(lecturerPool[0]);
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 3500);
+  };
 
   useEffect(() => {
     if (!lecturerPool.some(lecturer => lecturer.staffId === selectedLecturer.staffId)) {
@@ -165,7 +172,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     if (onSubmit) {
       onSubmit(recommendationNotes.trim(), selectedLecturer.staffId);
     } else {
-      alert(`Success: Recommendation for ${selectedLecturer.name} submitted successfully!`);
+      showToast(`Recommendation for ${selectedLecturer.name} submitted successfully.`);
     }
   };
 
@@ -173,6 +180,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     <AnimatePresence>
       {isOpen && (
         <div id="recommend-panel-drawer-container" className="fixed inset-0 z-50 flex justify-end overflow-hidden">
+          <PortalToast message={toastMessage} tone="success" />
           {/* Backdrop screen dimmer */}
           <motion.div
             id="recommend-panel-backdrop"

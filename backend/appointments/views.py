@@ -27,14 +27,26 @@ User = get_user_model()
 
 
 def panel_record_from_appointment(appointment):
+    panel_member = appointment.panel_member
+    recommendation = appointment.recommendation
     return {
         "id": appointment.profile.matric_no,
         "studentName": appointment.profile.student_name,
         "programme": appointment.profile.programme,
         "semester": appointment.profile.semester,
         "researchTitle": appointment.profile.proposed_topic,
+        "researchArea": appointment.profile.research_area,
+        "abstract": appointment.profile.abstract,
         "supervisor": appointment.supervisor.full_name,
-        "panelMember": appointment.panel_member.full_name,
+        "panelMember": panel_member.full_name,
+        "panelMemberId": staff_no_for_user(panel_member),
+        "panelMemberDepartment": department_for_user(panel_member),
+        "panelMemberEmail": panel_member.email,
+        "appointmentDate": format_display_date(appointment.appointment_date),
+        "recommendationSubmittedAt": recommendation.submitted_at,
+        "panelDecisionAt": recommendation.panel_decided_at,
+        "coordinatorDecisionAt": recommendation.coordinator_decided_at,
+        "appointmentConfirmedAt": recommendation.coordinator_decided_at or appointment.created_at,
         "status": "Approved",
         "updatedDate": appointment.updated_at.strftime("%d %b %Y"),
     }
@@ -62,10 +74,26 @@ def panel_record_from_recommendation(recommendation):
         "programme": recommendation.profile.programme,
         "semester": recommendation.profile.semester,
         "researchTitle": recommendation.profile.proposed_topic,
+        "researchArea": recommendation.profile.research_area,
+        "abstract": recommendation.profile.abstract,
         "supervisor": recommendation.supervisor.full_name,
         "panelMember": recommendation.recommended_member.full_name
         if recommendation.status != PanelRecommendation.Status.REJECTED_BY_PANEL
         else "Not Assigned",
+        "panelMemberId": staff_no_for_user(recommendation.recommended_member)
+        if recommendation.status != PanelRecommendation.Status.REJECTED_BY_PANEL
+        else "",
+        "panelMemberDepartment": department_for_user(recommendation.recommended_member)
+        if recommendation.status != PanelRecommendation.Status.REJECTED_BY_PANEL
+        else "",
+        "panelMemberEmail": recommendation.recommended_member.email
+        if recommendation.status != PanelRecommendation.Status.REJECTED_BY_PANEL
+        else "",
+        "appointmentDate": "",
+        "recommendationSubmittedAt": recommendation.submitted_at,
+        "panelDecisionAt": recommendation.panel_decided_at,
+        "coordinatorDecisionAt": recommendation.coordinator_decided_at,
+        "appointmentConfirmedAt": None,
         "status": display_status,
         "updatedDate": recommendation.updated_at.strftime("%d %b %Y"),
     }
@@ -78,8 +106,18 @@ def panel_record_from_profile(profile):
         "programme": profile.programme,
         "semester": profile.semester,
         "researchTitle": profile.proposed_topic,
+        "researchArea": profile.research_area,
+        "abstract": profile.abstract,
         "supervisor": profile.supervisor.full_name,
         "panelMember": "Not Assigned",
+        "panelMemberId": "",
+        "panelMemberDepartment": "",
+        "panelMemberEmail": "",
+        "appointmentDate": "",
+        "recommendationSubmittedAt": None,
+        "panelDecisionAt": None,
+        "coordinatorDecisionAt": None,
+        "appointmentConfirmedAt": None,
         "status": "No Panel",
         "updatedDate": profile.updated_at.strftime("%d %b %Y"),
     }

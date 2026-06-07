@@ -8,12 +8,21 @@
 import {
   ActiveSemesterTimeline,
   DashboardTask,
+  TimelineAuditLog,
   SemesterTimelineEntry,
   TimelineEntry,
   TimelineUploadResult,
 } from '../types';
 import { MOCK_IMPORTED_TIMELINE_ENTRIES, MOCK_TIMELINE_ENTRIES } from '../mocks/timeline';
 import { USE_MOCKS, mockResponse, request, requestBlob } from './apiClient';
+
+const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined || value.trim() === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+};
+
+const USE_TIMELINE_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_TIMELINE_BACKEND, true);
+const USE_TIMELINE_MOCKS = USE_MOCKS && !USE_TIMELINE_BACKEND;
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -39,14 +48,33 @@ function toIsoDate(value: string): string {
   return value;
 }
 
+function deriveTimelineStatus(startDate: string, endDate: string): SemesterTimelineEntry['status'] {
+  const start = new Date(toIsoDate(startDate));
+  const end = new Date(toIsoDate(endDate));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Upcoming';
+  if (today < start) return 'Upcoming';
+  if (today > end) return 'Completed';
+  if (start.getTime() === end.getTime()) return 'Deadline';
+  return 'Active';
+}
+
 function legacyCategory(entry: SemesterTimelineEntry): TimelineEntry['category'] {
   return entry.level === 'P1' ? 'Research Project (P1)' : 'Research Project (P2)';
+}
+
+function legacyLevel(entry: Pick<TimelineEntry, 'category'>): SemesterTimelineEntry['level'] {
+  return entry.category === 'Research Project (P2)' ? 'P2' : 'P1';
 }
 
 export function timelineEntryToLegacy(entry: SemesterTimelineEntry): TimelineEntry {
   return {
     id: String(entry.id),
-    event: entry.detail,
+    event: entry.title || entry.detail,
+    description: entry.detail,
     category: legacyCategory(entry),
     startDate: formatDisplayDate(entry.deadlineStart),
     endDate: formatDisplayDate(entry.deadlineEnd),
@@ -56,18 +84,19 @@ export function timelineEntryToLegacy(entry: SemesterTimelineEntry): TimelineEnt
 }
 
 function legacyToSemesterEntry(entry: TimelineEntry, index: number): SemesterTimelineEntry {
-  const level = entry.category === 'Research Project (P2)' ? 'P2' : 'P1';
+  const level = legacyLevel(entry);
   return {
     id: Number(entry.id.replace(/\D/g, '')) || index + 1,
     level,
     step: index + 1,
-    detail: entry.event,
+    title: entry.event,
+    detail: entry.description || entry.event,
     action: entry.targetRole.includes('OFFICE_STAFF') ? 'TDIT Office' : entry.targetRole.join(' / '),
     deadlineStart: toIsoDate(entry.startDate),
     deadlineEnd: toIsoDate(entry.endDate),
     weekLabel: '',
     targetRoles: entry.targetRole,
-    status: entry.status,
+    status: entry.status || deriveTimelineStatus(entry.startDate, entry.endDate),
     displayOrder: index + 1,
   };
 }
@@ -91,13 +120,13 @@ function mockActiveTimeline(entries = MOCK_TIMELINE_ENTRIES): ActiveSemesterTime
 }
 
 export async function getTimelineEntries(): Promise<TimelineEntry[]> {
-  if (USE_MOCKS) return mockResponse(MOCK_TIMELINE_ENTRIES);
+  if (USE_TIMELINE_MOCKS) return mockResponse(MOCK_TIMELINE_ENTRIES);
   const timeline = await getActiveTimeline();
   return timeline.levels.flatMap((group) => group.entries.map(timelineEntryToLegacy));
 }
 
 export async function getActiveTimeline(): Promise<ActiveSemesterTimeline> {
-  if (USE_MOCKS) return mockResponse(mockActiveTimeline());
+  if (USE_TIMELINE_MOCKS) return mockResponse(mockActiveTimeline());
   return request<ActiveSemesterTimeline>('/dashboard/timeline/active/');
 }
 
@@ -106,7 +135,7 @@ export async function uploadTimelineFile(
   semester = 'Semester II',
   session = '2025/2026',
 ): Promise<TimelineUploadResult> {
-  if (USE_MOCKS) {
+  if (USE_TIMELINE_MOCKS) {
     return mockResponse({
       importedCount: MOCK_IMPORTED_TIMELINE_ENTRIES.length,
       timeline: mockActiveTimeline(MOCK_IMPORTED_TIMELINE_ENTRIES),
@@ -123,13 +152,36 @@ export async function uploadTimelineFile(
   });
 }
 
+export async function createTimelineEntry(
+  entry: Omit<TimelineEntry, 'id' | 'status'>,
+): Promise<SemesterTimelineEntry> {
+  if (USE_TIMELINE_MOCKS) {
+    return mockResponse(legacyToSemesterEntry(
+      { ...entry, id: `ent_${Date.now()}`, status: deriveTimelineStatus(entry.startDate, entry.endDate) },
+      MOCK_TIMELINE_ENTRIES.length,
+    ));
+  }
+  return request<SemesterTimelineEntry>('/dashboard/timeline/entries/', {
+    method: 'POST',
+    body: JSON.stringify({
+      level: legacyLevel(entry),
+      title: entry.event,
+      detail: entry.description || entry.event,
+      action: entry.targetRole.join(' / '),
+      deadlineStart: toIsoDate(entry.startDate),
+      deadlineEnd: toIsoDate(entry.endDate),
+      targetRoles: entry.targetRole,
+    }),
+  });
+}
+
 export async function updateTimelineEntry(
   id: string,
-  entry: Pick<TimelineEntry, 'event' | 'startDate' | 'endDate' | 'targetRole' | 'status'> & { weekLabel?: string },
+  entry: Pick<TimelineEntry, 'event' | 'description' | 'category' | 'startDate' | 'endDate' | 'targetRole'> & { weekLabel?: string },
 ): Promise<SemesterTimelineEntry> {
-  if (USE_MOCKS) {
+  if (USE_TIMELINE_MOCKS) {
     return mockResponse({
-      ...legacyToSemesterEntry({ ...entry, id, category: 'Research Project (P1)' }, 0),
+      ...legacyToSemesterEntry({ ...entry, id, status: deriveTimelineStatus(entry.startDate, entry.endDate) }, 0),
       id: Number(id.replace(/\D/g, '')) || 1,
       weekLabel: entry.weekLabel || '',
     });
@@ -137,18 +189,44 @@ export async function updateTimelineEntry(
   return request<SemesterTimelineEntry>(`/dashboard/timeline/entries/${id}/`, {
     method: 'PATCH',
     body: JSON.stringify({
-      detail: entry.event,
+      level: legacyLevel(entry),
+      title: entry.event,
+      detail: entry.description || entry.event,
       deadlineStart: toIsoDate(entry.startDate),
       deadlineEnd: toIsoDate(entry.endDate),
       targetRoles: entry.targetRole,
-      status: entry.status,
       ...(entry.weekLabel !== undefined ? { weekLabel: entry.weekLabel } : {}),
     }),
   });
 }
 
+export async function deleteTimelineEntry(id: string): Promise<void> {
+  if (USE_TIMELINE_MOCKS) return mockResponse(undefined);
+  return request<void>(`/dashboard/timeline/entries/${id}/`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getTimelineAuditLogs(): Promise<TimelineAuditLog[]> {
+  if (USE_TIMELINE_MOCKS) {
+    return mockResponse([
+      {
+        id: 1,
+        actorName: 'Admin Office Staff',
+        action: 'UPLOAD',
+        summary: 'Imported mock semester timeline entries.',
+        createdAt: '2026-03-01T00:00:00+08:00',
+        entryId: null,
+        timelineId: 1,
+      },
+    ]);
+  }
+  const result = await request<{ logs: TimelineAuditLog[] }>('/dashboard/timeline/audit-logs/');
+  return result.logs;
+}
+
 export async function downloadTimelineTemplate(): Promise<Blob> {
-  if (USE_MOCKS) {
+  if (USE_TIMELINE_MOCKS) {
     return new Blob(['Mock FSKTM semester timeline template'], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
@@ -157,7 +235,7 @@ export async function downloadTimelineTemplate(): Promise<Blob> {
 }
 
 export async function getDashboardTasks(): Promise<{ tasks: DashboardTask[] }> {
-  if (USE_MOCKS) {
+  if (USE_TIMELINE_MOCKS) {
     return mockResponse({
       tasks: [
         {

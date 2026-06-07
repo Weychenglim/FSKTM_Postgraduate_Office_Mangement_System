@@ -15,12 +15,13 @@ export type TimelineCategory =
   | 'Research Project (P2)';
 
 export type TimelineStatus = 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
-export type TimelineRole = 'STUDENT' | 'LECTURER' | 'OFFICE_STAFF' | 'ALL';
+export type TimelineRole = 'STUDENT' | 'LECTURER' | 'OFFICE_STAFF';
 export type TimelineLevel = 'P1' | 'P2';
 
 export interface TimelineEntry {
   id: string;
   event: string;
+  description?: string;
   category: TimelineCategory;
   startDate: string;
   endDate: string;
@@ -32,6 +33,7 @@ export interface SemesterTimelineEntry {
   id: number;
   level: TimelineLevel;
   step: number;
+  title: string;
   detail: string;
   action: string;
   deadlineStart: string;
@@ -61,4 +63,14 @@ export interface ActiveSemesterTimeline {
 export interface TimelineUploadResult {
   importedCount: number;
   timeline: ActiveSemesterTimeline;
+}
+
+export interface TimelineAuditLog {
+  id: number;
+  actorName: string;
+  action: 'UPLOAD' | 'REPLACE' | 'ADD_ENTRY' | 'EDIT_ENTRY' | 'DELETE_ENTRY';
+  summary: string;
+  createdAt: string;
+  entryId: number | null;
+  timelineId: number;
 }

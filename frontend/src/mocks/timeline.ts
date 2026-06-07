@@ -10,7 +10,7 @@ import { TimelineEntry } from '../types';
 export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
   {
     id: 'ent_1',
-    event: 'Submit appointment of supervisor forms',
+    event: 'Download supervisor appointment forms and research intent',
     category: 'Research Project (P1)',
     startDate: '16 Mar 2026',
     endDate: '20 Mar 2026',
@@ -19,6 +19,15 @@ export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
   },
   {
     id: 'ent_2',
+    event: 'Submit supervisor appointment and research intent forms',
+    category: 'Research Project (P1)',
+    startDate: '16 Mar 2026',
+    endDate: '20 Mar 2026',
+    targetRole: ['STUDENT'],
+    status: 'Upcoming',
+  },
+  {
+    id: 'ent_3',
     event: 'Office informs students and supervisors of step 2 decision',
     category: 'Research Project (P1)',
     startDate: '03 Apr 2026',
@@ -27,7 +36,7 @@ export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
     status: 'Deadline',
   },
   {
-    id: 'ent_3',
+    id: 'ent_4',
     event: 'Supervisor nominates Internal Examiner (Panel)',
     category: 'Research Project (P1)',
     startDate: '04 May 2026',
@@ -36,7 +45,25 @@ export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
     status: 'Upcoming',
   },
   {
-    id: 'ent_4',
+    id: 'ent_5',
+    event: 'Proposal presentation',
+    category: 'Research Project (P1)',
+    startDate: '08 Jun 2026',
+    endDate: '17 Jul 2026',
+    targetRole: ['STUDENT', 'LECTURER'],
+    status: 'Upcoming',
+  },
+  {
+    id: 'ent_6',
+    event: 'Marks entry',
+    category: 'Research Project (P1)',
+    startDate: '08 Jun 2026',
+    endDate: '17 Jul 2026',
+    targetRole: ['LECTURER'],
+    status: 'Upcoming',
+  },
+  {
+    id: 'ent_7',
     event: 'Final presentation',
     category: 'Research Project (P2)',
     startDate: '08 Jun 2026',
@@ -45,7 +72,16 @@ export const MOCK_TIMELINE_ENTRIES: TimelineEntry[] = [
     status: 'Upcoming',
   },
   {
-    id: 'ent_5',
+    id: 'ent_8',
+    event: 'Submit finalized research report',
+    category: 'Research Project (P2)',
+    startDate: '08 Jun 2026',
+    endDate: '03 Jul 2026',
+    targetRole: ['STUDENT'],
+    status: 'Upcoming',
+  },
+  {
+    id: 'ent_9',
     event: 'Marks entry',
     category: 'Research Project (P2)',
     startDate: '08 Jun 2026',

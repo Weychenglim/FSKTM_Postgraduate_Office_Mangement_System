@@ -20,8 +20,7 @@ interface TimelineEntry {
   category: 'Supervisor Appointment' | 'Panel Appointment' | 'Document Submission' | 'Announcements' | 'Marks & Evaluation' | 'Research Project (P1)' | 'Research Project (P2)';
   startDate: string;
   endDate: string;
-  targetRole: ('STUDENT' | 'LECTURER' | 'OFFICE_STAFF' | 'ALL')[];
-  status: 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
+  targetRole: ('STUDENT' | 'LECTURER' | 'OFFICE_STAFF')[];
   description?: string;
 }
 
@@ -69,20 +68,6 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
     return `${day} ${month} ${year}`;
   };
 
-  const deriveStatus = (): TimelineEntry['status'] => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Upcoming';
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    if (today < start) return 'Upcoming';
-    if (today > end) return 'Completed';
-    if (start.getTime() === end.getTime()) return 'Deadline';
-    return 'Active';
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventName.trim() || targetRole.length === 0) return;
@@ -93,7 +78,6 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
       startDate: formatToDisplayDate(startDate),
       endDate: formatToDisplayDate(endDate),
       targetRole,
-      status: deriveStatus(),
       description
     });
   };
@@ -173,10 +157,10 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   </p>
                 </div>
 
-                {/* Field 1: Event Name */}
+                {/* Field 1: Event title */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
-                    Event Name
+                    Title
                   </label>
                   <input
                     type="text"
@@ -296,7 +280,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 {/* Field 6: Description or notes field */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
-                    Description or Notes
+                    Detail / Description
                   </label>
                   <textarea
                     rows={3}

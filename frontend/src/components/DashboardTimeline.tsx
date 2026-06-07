@@ -6,8 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarCog, ListTodo, RefreshCw } from 'lucide-react';
 import { getActiveTimeline } from '../services';
-import { ActiveSemesterTimeline } from '../types';
-import { PortalButton, StatusDot } from './PortalPrimitives';
+import { ActiveSemesterTimeline, TimelineLevel, TimelineRole } from '../types';
+import { PortalButton } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { TimelineCalendar } from './TimelineCalendar';
 
@@ -15,6 +15,7 @@ interface DashboardTimelineProps {
   onTimelineUpdate?: (message: string) => void;
   onManageTimeline?: () => void;
   showManageTimeline?: boolean;
+  visibleRoles?: TimelineRole[];
 }
 
 const formatDisplayDate = (value: string) => {
@@ -25,18 +26,20 @@ const formatDisplayDate = (value: string) => {
   return `${String(day).padStart(2, '0')} ${months[month - 1]} ${year}`;
 };
 
+const formatSessionTitle = (session?: string) => {
+  const match = session?.match(/\d{4}\/\d{4}/);
+  return `Session ${match ? match[0] : session || '2025/2026'}`;
+};
+
 export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
-  onTimelineUpdate,
   onManageTimeline,
-  showManageTimeline = true
+  showManageTimeline = true,
+  visibleRoles,
 }) => {
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const triggerToast = (msg: string) => {
-    onTimelineUpdate?.(msg);
-  };
+  const [activeLevel, setActiveLevel] = useState<TimelineLevel>('P1');
 
   const loadTimeline = () => {
     setLoading(true);
@@ -51,6 +54,20 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
     loadTimeline();
   }, []);
 
+  const scopedTimeline = timeline?.available && visibleRoles
+    ? {
+        ...timeline,
+        levels: timeline.levels
+          .map((group) => ({
+            ...group,
+            entries: group.entries.filter((entry) =>
+              visibleRoles.some((role) => entry.targetRoles.includes(role))
+            ),
+          }))
+          .filter((group) => group.entries.length > 0),
+      }
+    : timeline;
+
   return (
     <div
       id="dashboard-semester-timeline-container"
@@ -62,16 +79,41 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
             Semester Timeline
           </h3>
           <span className="text-lg font-black text-brand-navy block mt-1 tracking-tight">
-            {timeline?.available ? `${timeline.semester} ${timeline.session}` : 'Active Semester Timeline'}
+            {scopedTimeline?.available ? formatSessionTitle(scopedTimeline.session) : 'Active Semester Timeline'}
           </span>
           <span className="text-[10px] text-slate-400 font-bold block">
-            {timeline?.available && timeline.uploadedAt
-              ? `Active - Uploaded ${formatDisplayDate(timeline.uploadedAt)}`
+            {scopedTimeline?.available && scopedTimeline.uploadedAt
+              ? `Active - Uploaded ${formatDisplayDate(scopedTimeline.uploadedAt)}`
               : 'Timeline status updates when office staff upload the active semester file'}
           </span>
         </div>
 
         <div className="flex items-center flex-wrap gap-3">
+          {scopedTimeline?.available && (
+            <div
+              className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1"
+              aria-label="Select research project timeline phase"
+            >
+              {([
+                { level: 'P1', label: 'Research Project 1' },
+                { level: 'P2', label: 'Research Project 2' },
+              ] as const).map((option) => (
+                <button
+                  key={option.level}
+                  type="button"
+                  onClick={() => setActiveLevel(option.level)}
+                  className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition whitespace-nowrap ${
+                    activeLevel === option.level
+                      ? 'bg-brand-navy text-white shadow-3xs'
+                      : 'text-slate-500 hover:bg-white hover:text-brand-navy'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <PortalButton
             onClick={loadTimeline}
             variant="secondary"
@@ -99,46 +141,29 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
         <LoadingState message="Loading active semester timeline..." />
       ) : error ? (
         <ErrorState message={error} onRetry={loadTimeline} />
-      ) : !timeline?.available ? (
+      ) : !scopedTimeline?.available ? (
         <div className="rounded-2xl border border-dashed border-slate-250 bg-slate-50/60 px-5 py-8 text-center">
           <ListTodo className="w-6 h-6 text-slate-400 mx-auto mb-3" />
           <p className="text-sm font-black text-brand-navy">
-            {timeline?.message || 'No timeline available at now'}
+            {scopedTimeline?.message || 'No timeline available at now'}
+          </p>
+        </div>
+      ) : scopedTimeline.levels.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-250 bg-slate-50/60 px-5 py-8 text-center">
+          <ListTodo className="w-6 h-6 text-slate-400 mx-auto mb-3" />
+          <p className="text-sm font-black text-brand-navy">
+            No timeline tasks are assigned to your role yet.
           </p>
         </div>
       ) : (
-        <TimelineCalendar groups={timeline.levels} />
+        <TimelineCalendar
+          groups={scopedTimeline.levels}
+          activeLevel={activeLevel}
+          onActiveLevelChange={setActiveLevel}
+          showPhaseTabs={false}
+        />
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-[#f1f5f9] text-[10px] select-none text-slate-400">
-        <div className="flex items-center flex-wrap gap-5">
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <StatusDot tone="neutral" className="w-2.5 h-2.5 bg-slate-200 border border-slate-300/40" />
-            <span>Completed</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <StatusDot tone="brand" className="w-2.5 h-2.5 bg-brand-navy" />
-            <span>Active</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <StatusDot tone="neutral" className="w-2.5 h-2.5 bg-slate-100 border border-slate-200" />
-            <span>Upcoming</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-            <StatusDot tone="warning" className="w-2.5 h-2.5 bg-orange-100 border border-orange-200" />
-            <span className="text-[#c2410c] font-black">Deadline</span>
-          </div>
-        </div>
-
-        <PortalButton
-          onClick={() => triggerToast('Opening active semester timeline details...')}
-          variant="ghost"
-          size="sm"
-          className="text-blue-600 hover:text-blue-700"
-        >
-          View Full Timeline &gt;
-        </PortalButton>
-      </div>
     </div>
   );
 };

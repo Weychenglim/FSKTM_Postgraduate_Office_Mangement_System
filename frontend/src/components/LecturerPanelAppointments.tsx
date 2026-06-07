@@ -73,7 +73,7 @@ import {
 const RECOMMENDATION_STUDENT = {
   studentId: 'MEA2209841',
   studentName: 'Ahmad Luqman',
-  programme: 'MSc. Computer Science',
+  programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
   intake: 'Sem 1 2025/2026',
   supervisor: 'Dr. Siti Noor',
   initials: 'AL',
@@ -245,6 +245,12 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   onReject,
 }) => {
   const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionError, setRejectionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRejectionReason('');
+    setRejectionError(null);
+  }, [recommendation?.id, isOpen]);
 
   if (!isOpen || !recommendation) return null;
 
@@ -386,9 +392,10 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                     type="button"
                     onClick={() => {
                       if (!rejectionReason.trim()) {
-                        alert('A reason is required before rejecting this panel recommendation.');
+                        setRejectionError('A reason is required before rejecting this panel recommendation.');
                         return;
                       }
+                      setRejectionError(null);
                       onReject?.(recommendation, rejectionReason.trim());
                     }}
                     className="w-full py-3.5 border border-rose-200 hover:bg-rose-50 text-rose-600 font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
@@ -400,13 +407,16 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 <div className="space-y-1.5 text-left">
                   <span className="form-label block">REASON FOR REJECTION</span>
                   <textarea
-                    className="form-control form-control-md min-h-[124px]"
+                    className={`form-control form-control-md min-h-[124px] ${rejectionError ? 'border-rose-200 bg-rose-50/30' : ''}`}
                     placeholder="Enter reason..."
                     value={rejectionReason}
-                    onChange={(event) => setRejectionReason(event.target.value)}
+                    onChange={(event) => {
+                      setRejectionReason(event.target.value);
+                      if (rejectionError) setRejectionError(null);
+                    }}
                   />
-                  <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                    A reason is required before rejecting this panel recommendation.
+                  <p className={`text-[10px] font-semibold leading-relaxed ${rejectionError ? 'text-rose-600' : 'text-slate-400'}`}>
+                    {rejectionError || 'A reason is required before rejecting this panel recommendation.'}
                   </p>
                 </div>
               </div>
@@ -760,20 +770,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           {!isCoordinator && (
           <div id="panel-supervisors-recommendations-layout" className="space-y-4">
             <div className="flex justify-between items-center select-none font-sans">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider block text-left">
-                  Panel Recommendations for My Supervisees
-                </h3>
-                <span className="bg-blue-600 border border-blue-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-lg">
-                  {!recommendationStudent
-                    ? '0 ACTION'
-                    : canRecommendForStudent
-                    ? '1 ACTION'
-                    : currentRecommendation
-                    ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status]
-                    : 'ACTIVE'}
-                </span>
-              </div>
+              <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider block text-left">
+                Panel Recommendations for My Supervisees
+              </h3>
 
               <button
                 onClick={() => setPanelView('submitted')}
@@ -1001,7 +1000,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                 </div>
 
                 <button 
-                  onClick={() => alert("Assignments lookup filters applied.")}
+                  onClick={() => triggerToast('Assignments lookup filters applied.')}
                   className="w-10 h-10 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer shadow-3xs"
                   title="Filter Assignments"
                 >
@@ -1116,7 +1115,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             setPanelView('list');
           }}
           onOpenMarksEntry={() => {
-            alert(`Redirecting to Marks Entry dashboard to grade candidate: ${selectedAssignment.studentName}.`);
+            triggerToast(`Redirecting to Marks Entry dashboard to grade candidate: ${selectedAssignment.studentName}.`);
           }}
         />
       )}
@@ -1146,3 +1145,4 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     </div>
   );
 };
+

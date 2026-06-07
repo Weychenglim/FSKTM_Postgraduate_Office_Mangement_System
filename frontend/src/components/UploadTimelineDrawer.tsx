@@ -46,6 +46,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   const [isValidating, setIsValidating] = useState(false);
   const [validationCompleted, setValidationCompleted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState<number | null>(null);
   
   // Checklist verification states (empty circle = 'pending', green check = 'success', red X = 'fail')
   const [checklist, setChecklist] = useState({
@@ -82,6 +83,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     }
     setUploadedFile(file);
     setValidationCompleted(false);
+    setImportedCount(null);
     // Reset checklists
     setChecklist({
       columns: 'pending',
@@ -129,6 +131,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     e.stopPropagation();
     setUploadedFile(null);
     setValidationCompleted(false);
+    setImportedCount(null);
     setChecklist({
       columns: 'pending',
       format: 'pending',
@@ -145,36 +148,66 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     }
 
     setIsValidating(true);
-    triggerToast('Initiating structural schema verification audits...');
+    setImportedCount(null);
+    setChecklist({
+      columns: 'pending',
+      format: 'pending',
+      duplicates: 'pending',
+      conflicts: 'pending',
+      roles: 'pending',
+    });
+    triggerToast('Uploading timeline file for backend validation...');
 
-    // Stagger checklist item transitions to simulate a thorough audit checks
-    setTimeout(() => {
-      setChecklist(prev => ({ ...prev, columns: 'success' }));
-    }, 400);
+    uploadTimelineFile(uploadedFile)
+      .then((result) => {
+        const importedEntries = result.timeline.levels.flatMap((group) =>
+          group.entries.map(timelineEntryToLegacy)
+        );
+        setChecklist({
+          columns: 'success',
+          format: 'success',
+          duplicates: 'success',
+          conflicts: 'success',
+          roles: 'success',
+        });
+        setImportedCount(result.importedCount);
+        setValidationCompleted(true);
+        onImportSuccess?.(importedEntries, result.importedCount);
+        triggerToast(`Import completed. ${result.importedCount} entries committed.`);
+      })
+      .catch((e) => {
+        setChecklist({
+          columns: 'fail',
+          format: 'fail',
+          duplicates: 'fail',
+          conflicts: 'fail',
+          roles: 'fail',
+        });
+        setValidationCompleted(false);
+        triggerToast(e instanceof Error ? e.message : 'Timeline import failed.');
+      })
+      .finally(() => {
+        setIsValidating(false);
+      });
+  };
 
-    setTimeout(() => {
-      setChecklist(prev => ({ ...prev, format: 'success' }));
-    }, 800);
-
-    setTimeout(() => {
-      setChecklist(prev => ({ ...prev, duplicates: 'success' }));
-    }, 1200);
-
-    setTimeout(() => {
-      setChecklist(prev => ({ ...prev, conflicts: 'success' }));
-    }, 1600);
-
-    setTimeout(() => {
-      setChecklist(prev => ({ ...prev, roles: 'success' }));
-      setIsValidating(false);
-      setValidationCompleted(true);
-      triggerToast('Validation passed! All 5 critical parameters successfully verified.');
-    }, 2000);
+  const handleDone = () => {
+    setUploadedFile(null);
+    setValidationCompleted(false);
+    setImportedCount(null);
+    setChecklist({
+      columns: 'pending',
+      format: 'pending',
+      duplicates: 'pending',
+      conflicts: 'pending',
+      roles: 'pending',
+    });
+    onClose();
   };
 
   const handleFinalImport = () => {
-    if (!validationCompleted) {
-      triggerToast('Error: Please run schema validations before executing database commit.');
+    if (validationCompleted) {
+      handleDone();
       return;
     }
     if (!uploadedFile) {
@@ -190,7 +223,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
         );
         onImportSuccess?.(importedEntries, result.importedCount);
         triggerToast(`Import completed. ${result.importedCount} entries committed.`);
-        onClose();
+        handleDone();
       })
       .catch((e) => {
         triggerToast(e instanceof Error ? e.message : 'Timeline import failed.');
@@ -476,7 +509,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                         <span>Ready for import commit</span>
                       </h4>
                       <p className="font-semibold text-[11px] text-emerald-850 leading-relaxed">
-                        Validation checks complete. Found <strong>5 new calendar milestones</strong> spanning 3 months. No overlaps found.
+                        Backend validation passed and <strong>{importedCount ?? 0} timeline entries</strong> were committed to the active semester timeline.
                       </p>
                     </motion.div>
                   ) : isValidating ? (
@@ -530,7 +563,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   isLoading={isImporting}
                   disabled={isImporting}
                 >
-                  {isImporting ? 'Importing...' : 'Commit Import'}
+                  Done
                 </PortalButton>
               ) : (
                 <PortalButton
@@ -543,7 +576,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                   iconPosition="right"
                   isLoading={isValidating}
                 >
-                  {isValidating ? 'Validating...' : 'Validate and Upload'}
+                  {isValidating ? 'Uploading...' : 'Validate and Import'}
                 </PortalButton>
               )}
             </div>

@@ -7,7 +7,6 @@ export interface DashboardAttentionRow {
   id: string;
   type: string;
   count: string;
-  status: 'OPEN' | 'RESOLVED';
   targetTab: string;
   detail: string;
 }

@@ -3,17 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
-  Users, 
-  CheckCircle, 
-  AlertTriangle, 
   ChevronRight
 } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalToast } from './PortalPrimitives';
 import { MOCK_DASHBOARD_ATTENTION_ROWS } from '../mocks/dashboard';
+import { getPanelWorkloads } from '../services';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -35,7 +33,45 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
     }, 4000);
   };
 
-  const attentionRows = MOCK_DASHBOARD_ATTENTION_ROWS;
+  const [panelWorkloadCount, setPanelWorkloadCount] = useState<number | null>(null);
+  const [panelWorkloadLoadFailed, setPanelWorkloadLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getPanelWorkloads()
+      .then((records) => {
+        if (!active) return;
+        const attentionCount = records.filter((record) =>
+          record.availability === 'Near Limit' || record.availability === 'Full Load'
+        ).length;
+        setPanelWorkloadCount(attentionCount);
+        setPanelWorkloadLoadFailed(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPanelWorkloadCount(null);
+        setPanelWorkloadLoadFailed(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const attentionRows = useMemo(() => MOCK_DASHBOARD_ATTENTION_ROWS.map((row) => {
+    if (row.id !== 'attn_3') return row;
+    return {
+      ...row,
+      count: panelWorkloadLoadFailed
+        ? 'Unavailable'
+        : panelWorkloadCount === null
+        ? 'Loading...'
+        : `${panelWorkloadCount} ${panelWorkloadCount === 1 ? 'lecturer' : 'lecturers'}`,
+      detail: panelWorkloadLoadFailed
+        ? 'Panel workload data could not be loaded. Opening workload monitoring for review...'
+        : `${panelWorkloadCount ?? 0} lecturers are near or at the panel workload limit. Opening workload monitoring...`,
+    };
+  }), [panelWorkloadCount, panelWorkloadLoadFailed]);
 
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
@@ -51,99 +87,7 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       {/* 1. Semester Timeline Section */}
       <DashboardTimeline onTimelineUpdate={triggerToast} onManageTimeline={onNavigateToTimeline} />
 
-      {/* 2. Four Integrated Summary Cards Grid */}
-      <div id="stat-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Card 1: Students Without Supervisor */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 relative text-left shadow-2xs hover:border-slate-300 transition-all">
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
-              Students Without Supervisor
-            </span>
-            <StatusBadge tone="danger" className="rounded-md px-2 py-0.5 text-[9px]">Critical</StatusBadge>
-          </div>
-
-          <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
-              12
-            </span>
-          </div>
-
-          <p className="text-slate-400 font-bold text-[10.5px] mt-2.5">
-            No approved supervisor record.
-          </p>
-
-          <div className="absolute right-5 bottom-4 text-slate-300">
-            <AlertTriangle className="w-5 h-5 text-rose-500/20" />
-          </div>
-        </div>
-
-        {/* Card 2: Supervisor Records */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 relative text-left shadow-2xs hover:border-slate-300 transition-all">
-          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-            Supervisor Records
-          </span>
-
-          <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
-              8
-            </span>
-          </div>
-
-          <p className="text-slate-400 font-bold text-[10.5px] mt-2.5">
-            Pending or incomplete records.
-          </p>
-
-          <div className="absolute right-5 bottom-4 text-slate-300">
-            <Users className="w-5 h-5 text-blue-500/20" />
-          </div>
-        </div>
-
-        {/* Card 3: Panel Records */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 relative text-left shadow-2xs hover:border-slate-300 transition-all">
-          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-            Panel Records
-          </span>
-
-          <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-brand-navy font-black text-3xl md:text-4xl tracking-tight leading-none">
-              5
-            </span>
-          </div>
-
-          <p className="text-slate-400 font-bold text-[10.5px] mt-2.5">
-            Panel appointment gaps detected.
-          </p>
-
-          <div className="absolute right-5 bottom-4 text-slate-300">
-            <Users className="w-5 h-5 text-indigo-500/20" />
-          </div>
-        </div>
-
-        {/* Card 4: Mark Entry Setup */}
-        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 relative text-left shadow-2xs hover:border-slate-300 transition-all">
-          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-            Mark Entry Setup
-          </span>
-
-          <div className="flex items-baseline gap-2 mt-4 text-emerald-600">
-            <span className="font-extrabold text-2xl tracking-tight uppercase leading-none">
-              Active
-            </span>
-          </div>
-
-          <p className="text-slate-400 font-bold text-[10.5px] mt-3.5">
-            Rubric and entry period configured.
-          </p>
-
-          <div className="absolute right-5 bottom-4 text-slate-300">
-            <CheckCircle className="w-5 h-5 text-emerald-500/20" />
-          </div>
-        </div>
-
-      </div>
-
-      {/* 3. Lower Content Workflows Layout Grid */}
+      {/* 2. Lower Content Workflows Layout Grid */}
       <div id="dashboard-lower-layout" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Left (65% approx): Records Needing Attention Table */}
@@ -163,7 +107,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                 <tr className="data-thead">
                   <th className="data-th text-left">Record Type</th>
                   <th className="data-th text-left">Impact Count</th>
-                  <th className="data-th text-center">Status</th>
                   <th className="data-th text-right">Action</th>
                 </tr>
               </thead>
@@ -178,13 +121,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                     {/* Impact amount count */}
                     <td className="data-td">
                       {row.count}
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="data-td text-center">
-                      <StatusBadge tone="info" dot pulse className="text-[9px]">
-                        {row.status}
-                      </StatusBadge>
                     </td>
 
                     {/* Trigger Navigation callback action */}
