@@ -26,8 +26,6 @@ export interface AnnouncementInput {
   target: AnnouncementItem['target'];
   priority: AnnouncementItem['priority'];
   status: AnnouncementItem['status'];
-  startDate?: string;
-  expiryDate?: string;
   attachment?: File | null;
 }
 
@@ -51,8 +49,6 @@ export async function createAnnouncement(
   form.append('target', input.target);
   form.append('priority', input.priority);
   form.append('status', input.status);
-  if (input.startDate) form.append('startDate', input.startDate);
-  if (input.expiryDate) form.append('expiryDate', input.expiryDate);
   if (input.attachment) form.append('attachment', input.attachment);
   return requestMultipart<AnnouncementItem>('/announcements/', form);
 }
@@ -69,8 +65,6 @@ export async function updateAnnouncement(
   form.append('target', input.target);
   form.append('priority', input.priority);
   form.append('status', input.status);
-  if (input.startDate) form.append('startDate', input.startDate);
-  if (input.expiryDate) form.append('expiryDate', input.expiryDate);
   if (input.attachment) form.append('attachment', input.attachment);
   return requestMultipart<AnnouncementItem>(`/announcements/${id}/`, form, {
     method: 'PATCH',

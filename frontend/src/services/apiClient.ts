@@ -63,14 +63,42 @@ export async function mockResponse<T>(
 
 // ─── Token management ────────────────────────────────────────────────────────
 
-let _authToken: string | null = null;
+// Persisted in localStorage so the session survives a page refresh / new tab.
+const AUTH_TOKEN_KEY = 'fsktm_auth_token';
+
+function readStoredToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    // Storage blocked (e.g. private mode) — fall back to in-memory only.
+    return null;
+  }
+}
+
+// Seed from storage at module load so a refresh keeps the user logged in.
+let _authToken: string | null = readStoredToken();
 
 export function setAuthToken(token: string): void {
   _authToken = token;
+  try {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  } catch {
+    /* storage unavailable — keep the in-memory token for this tab */
+  }
 }
 
 export function clearAuthToken(): void {
   _authToken = null;
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Whether a token is currently held (used to bootstrap the session on load). */
+export function getAuthToken(): string | null {
+  return _authToken;
 }
 
 // ─── HTTP helper ─────────────────────────────────────────────────────────────

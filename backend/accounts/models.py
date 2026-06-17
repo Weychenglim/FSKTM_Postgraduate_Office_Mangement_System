@@ -1,23 +1,3 @@
-"""Custom user model + role profile tables for the FSKTM PG Office system.
-
-Login is by email / matric no / staff no (no username), so we use a custom
-user with ``USERNAME_FIELD = 'email'``. Role-specific attributes live in
-subtype "profile" tables that share the User's primary key — a
-generalization/specialization (EER) hierarchy:
-
-    User
-    ├── Student        (user_id PK / FK)
-    ├── OfficeStaff    (user_id PK / FK)
-    └── Lecturer       (user_id PK / FK)
-        ├── Coordinator  (lecturer_id PK / FK)   ┐ overlapping: a lecturer may
-        ├── Supervisor   (lecturer_id PK / FK)   │ hold several of these (or
-        └── Panel        (lecturer_id PK / FK)   ┘ none) at the same time.
-
-``User.role`` stays as a fast discriminator (and keeps the existing auth /
-announcement code working); the profile tables hold the normalized per-role
-attributes. ``to_public_dict`` reassembles the flat shape the React frontend's
-``DemoUser`` (id, email, role, fullName, department, studentId, staffId) expects.
-"""
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ObjectDoesNotExist
@@ -152,6 +132,72 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.matric_no} — {self.user.full_name}"
+
+
+class StudentRegistry(models.Model):
+    """Extended registry details for a Student — the data an official letter
+    (e.g. the visa / confirmation-of-study letter) needs that the base Student
+    profile does not hold (passport, nationality, programme mode, semesters…).
+
+    One-to-one *specialization* of Student: it shares the student's primary key
+    (``student_id`` PK = FK), exactly like Coordinator/Supervisor/Panel
+    specialize Lecturer. So every registry row belongs to exactly one student and
+    is reachable as ``student.registry``. Letters read their placeholder values
+    from here (see the frontend ``letterDocument.ts`` placeholder set)."""
+
+    class ProgrammeMode(models.TextChoices):
+        COURSEWORK = "Coursework", "Coursework"
+        RESEARCH = "Research", "Research"
+        MIXED = "Mixed Mode", "Mixed Mode"
+
+    class StudyMode(models.TextChoices):
+        FULL_TIME = "Full Time", "Full Time"
+        PART_TIME = "Part Time", "Part Time"
+
+    student = models.OneToOneField(
+        Student, on_delete=models.CASCADE, primary_key=True, related_name="registry"
+    )
+    # Identity — a local student has an IC; an international student a passport.
+    ic_number = models.CharField(max_length=32, blank=True, default="")
+    passport_number = models.CharField(max_length=32, blank=True, default="")
+    nationality = models.CharField(max_length=64, blank=True, default="")  # {{COUNTRY}}
+    address = models.TextField(blank=True, default="")
+    # Programme-of-study details printed on the confirmation / visa letter.
+    programme_mode = models.CharField(
+        max_length=32, choices=ProgrammeMode.choices, blank=True, default=""
+    )  # {{PROGRAMME_MODE}}
+    field_of_study = models.CharField(max_length=255, blank=True, default="")  # {{FIELD_OF_RESEARCH}}
+    mode_of_study = models.CharField(
+        max_length=32, choices=StudyMode.choices, blank=True, default=""
+    )  # {{MODE_OF_STUDY}}
+    current_semester = models.CharField(max_length=64, blank=True, default="")  # {{CURRENT_SEMESTER}}
+    max_semester = models.CharField(max_length=64, blank=True, default="")  # {{MAX_SEMESTER}}
+    expected_completion = models.CharField(max_length=64, blank=True, default="")  # {{EXPECTED_COMPLETION}}
+    sponsor = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Student registry detail"
+        verbose_name_plural = "Student registry details"
+
+    def __str__(self):
+        return f"Registry — {self.student.matric_no}"
+
+    def to_letter_dict(self):
+        """The letter-placeholder values for this student (camelCase to match the
+        frontend). ``initialSemester`` reuses the base Student's intake to avoid a
+        second source of truth; a passport falls back to the IC for local students."""
+        return {
+            "passportNumber": self.passport_number or self.ic_number,
+            "country": self.nationality,
+            "programmeMode": self.programme_mode,
+            "fieldOfResearch": self.field_of_study,
+            "modeOfStudy": self.mode_of_study,
+            "initialSemester": self.student.intake_semester,
+            "currentSemester": self.current_semester,
+            "maxSemester": self.max_semester,
+            "expectedCompletion": self.expected_completion,
+        }
 
 
 class OfficeStaff(models.Model):

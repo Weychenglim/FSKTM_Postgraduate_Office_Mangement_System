@@ -4,15 +4,17 @@
  */
 
 import React, { useState } from 'react';
-import { 
-  Lock, 
-  Mail, 
-  Send, 
-  ChevronLeft, 
-  Check, 
-  Info, 
-  RotateCw, 
-  ExternalLink 
+import {
+  Lock,
+  Mail,
+  Send,
+  ChevronLeft,
+  Check,
+  Info,
+  RotateCw,
+  ExternalLink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { authApi, ApiError } from '../services';
@@ -130,12 +132,18 @@ export const FormInput: React.FC<FormInputProps> = ({
   error,
   required,
   className = "",
+  type,
   ...props
 }) => {
+  const isPassword = type === 'password';
+  const [showPassword, setShowPassword] = useState(false);
+  // For password fields, swap the input type when the eye toggle is on.
+  const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
+
   return (
     <div id={`auth-input-wrapper-${id}`} className="w-full flex flex-col text-left mb-6">
-      <label 
-        htmlFor={id} 
+      <label
+        htmlFor={id}
         className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 select-none font-sans font-extrabold"
       >
         {label} {required && <span className="text-red-500">*</span>}
@@ -148,14 +156,27 @@ export const FormInput: React.FC<FormInputProps> = ({
         )}
         <input
           id={id}
+          type={inputType}
           className={`w-full bg-[#f8fafc] text-slate-800 placeholder-slate-400 text-xs font-bold rounded-xl border px-4 py-3.5 outline-none transition-all duration-200 font-sans ${
-            error 
-              ? "border-red-350 focus:border-red-500 focus:ring-1 focus:ring-red-500" 
+            error
+              ? "border-red-350 focus:border-red-500 focus:ring-1 focus:ring-red-500"
               : "border-slate-205 focus:border-[#0c1424] focus:ring-1 focus:ring-[#0c1424]"
-          } ${Icon ? 'pl-11' : 'pl-4'} ${className}`}
+          } ${Icon ? 'pl-11' : 'pl-4'} ${isPassword ? 'pr-11' : ''} ${className}`}
           required={required}
           {...props}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            tabIndex={-1}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          >
+            {showPassword ? <EyeOff className="w-4 h-4 stroke-[2]" /> : <Eye className="w-4 h-4 stroke-[2]" />}
+          </button>
+        )}
       </div>
       {error && (
         <span className="text-[10px] text-red-500 mt-1.5 font-bold font-sans">

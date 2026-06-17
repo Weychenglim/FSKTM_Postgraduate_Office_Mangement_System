@@ -63,6 +63,50 @@ TEMPLATES = [
         ),
     },
     {
+        # Real letter supplied by the postgraduate office (visa / student-pass
+        # renewal). Auto-filled fields use the standard placeholders; the
+        # immigration-specific fields (passport, country, research, semesters)
+        # have no system data source, so they render as blank fill-in lines for
+        # the office to complete by hand.
+        "name": "Confirmation Letter for Student Pass Renewal",
+        "letter_type": "Visa & Immigration",
+        "status": LetterTemplate.Status.ACTIVE,
+        "reference_prefix": "UM.W/606/2",
+        "description": "EMGS / Immigration confirmation letter supporting a student pass (visa) renewal.",
+        "content": (
+            "HEAD OF STUDENT PASS UNIT\n"
+            "Immigration Department of Malaysia\n"
+            "Wilayah Persekutuan Kuala Lumpur EMGS Branch\n"
+            "Menara TA One\n"
+            "No 22 Jalan P. Ramlee\n"
+            "50250 Kuala Lumpur\n\n"
+            "Dear Sir/Madam,\n\n"
+            "**CONFIRMATION LETTER FOR STUDENT PASS RENEWAL**\n\n"
+            "This is to confirm that the following student is currently pursuing "
+            "studies at the Faculty of Computer Science & Information Technology, "
+            "Universiti Malaya. The details of this candidate are as follows:\n\n"
+            "**STUDENT DETAILS**\n\n"
+            "NAME: {{STUDENT_NAME}}\n"
+            "MATRIC NUMBER: {{STUDENT_ID}}\n"
+            "PASSPORT NUMBER: {{PASSPORT_NUMBER}}\n"
+            "COUNTRY: {{COUNTRY}}\n"
+            "STATUS: {{CURRENT_STATUS}}\n\n"
+            "**PROGRAMME OF STUDY DETAILS**\n\n"
+            "PROGRAMME: {{PROGRAMME_NAME}}\n"
+            "PROGRAMME MODE: {{PROGRAMME_MODE}}\n"
+            "FIELD OF RESEARCH: {{FIELD_OF_RESEARCH}}\n"
+            "MODE OF STUDY: {{MODE_OF_STUDY}}\n"
+            "INITIAL SEMESTER: {{INITIAL_SEMESTER}}\n"
+            "CURRENT SEMESTER: {{CURRENT_SEMESTER}}\n"
+            "MAXIMUM SEMESTER: {{MAX_SEMESTER}}\n"
+            "SUPERVISOR(S): {{SUPERVISOR_NAME}}\n"
+            "EXPECTED COMPLETION OF STUDY: {{EXPECTED_COMPLETION}}\n\n"
+            "Should you require any further enquiries, please do not hesitate to "
+            "contact us at +603-7967 6408.\n\n"
+            "Thank you."
+        ),
+    },
+    {
         "name": "Completion Letter",
         "letter_type": "Academic Certification",
         "status": LetterTemplate.Status.DRAFT,

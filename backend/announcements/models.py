@@ -55,8 +55,6 @@ class Announcement(models.Model):
     attachment = models.FileField(
         upload_to="announcements/%Y/%m/", blank=True, null=True
     )
-    start_date = models.DateField(blank=True, null=True)
-    expiry_date = models.DateField(blank=True, null=True)
     # Author. Kept nullable so deleting a staff account does not erase history.
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -99,8 +97,6 @@ class Announcement(models.Model):
             "priority": self.priority,
             "status": self.status,
             "dateCreated": localtime(self.created_at).strftime("%d %b %Y"),
-            "startDate": self.start_date.isoformat() if self.start_date else None,
-            "expiryDate": self.expiry_date.isoformat() if self.expiry_date else None,
             "createdBy": self.created_by_name or "Postgraduate Office",
             "attachmentName": self.attachment_name,
             "attachmentUrl": attachment_url,

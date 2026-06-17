@@ -15,6 +15,7 @@ from .models import (
     OfficeStaff,
     Panel,
     Student,
+    StudentRegistry,
     Supervisor,
     User,
 )
@@ -135,15 +136,26 @@ class LecturerAdmin(admin.ModelAdmin):
         return Panel.objects.filter(pk=obj.pk).exists()
 
 
+class StudentRegistryInline(admin.StackedInline):
+    model = StudentRegistry
+    extra = 0
+    verbose_name_plural = "Registry details (for official letters)"
+
+
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("matric_no", "full_name", "programme", "status")
+    inlines = [StudentRegistryInline]
+    list_display = ("matric_no", "full_name", "programme", "status", "has_registry")
     list_filter = ("status",)
     search_fields = ("matric_no", "user__full_name", "user__email")
 
     @admin.display(description="Name")
     def full_name(self, obj):
         return obj.user.full_name
+
+    @admin.display(boolean=True, description="Registry details")
+    def has_registry(self, obj):
+        return StudentRegistry.objects.filter(pk=obj.pk).exists()
 
 
 @admin.register(OfficeStaff)

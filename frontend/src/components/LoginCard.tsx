@@ -124,7 +124,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               id="email-or-username"
               label="Email or Staff / Student ID"
               icon={User}
-              placeholder="e.g. WEA200192 or admin@fsktm.edu.my"
+              placeholder="e.g. 23004955 or admin@siswa.um.edu.my"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               error={errors.id}
@@ -308,7 +308,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">2. Lecturer</span>
-            <span className="text-[9px] text-slate-400 block font-mono">lecturer@fsktm.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">lecturer@siswa.um.edu.my</span>
           </button>
 
           <button
@@ -321,7 +321,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">3. Office Staff</span>
-            <span className="text-[9px] text-slate-400 block font-mono">admin@fsktm.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">admin@siswa.um.edu.my</span>
           </button>
 
           <button
@@ -334,7 +334,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">4. Coordinator</span>
-            <span className="text-[9px] text-slate-400 block font-mono">coordinator@fsktm.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">coordinator@siswa.um.edu.my</span>
           </button>
         </div>
       </motion.div>

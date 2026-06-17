@@ -57,9 +57,29 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{SUPERVISOR_NAME}}', label: 'Supervisor' },
   { tag: '{{REFERENCE_NUMBER}}', label: 'Reference No.' },
   { tag: '{{CURRENT_DATE}}', label: 'Date' },
+  // Visa / immigration + programme fields. Filled from the student's registry
+  // record (StudentRegistry) when available, else a blank fill-in line.
+  { tag: '{{PASSPORT_NUMBER}}', label: 'Passport No.' },
+  { tag: '{{COUNTRY}}', label: 'Country' },
+  { tag: '{{PROGRAMME_MODE}}', label: 'Programme Mode' },
+  { tag: '{{FIELD_OF_RESEARCH}}', label: 'Field of Research' },
+  { tag: '{{MODE_OF_STUDY}}', label: 'Mode of Study' },
+  { tag: '{{INITIAL_SEMESTER}}', label: 'Initial Semester' },
+  { tag: '{{CURRENT_SEMESTER}}', label: 'Current Semester' },
+  { tag: '{{MAX_SEMESTER}}', label: 'Maximum Semester' },
+  { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
-/** The values substituted into a template's placeholders for one student. */
+/**
+ * Fallback for a placeholder we have no value for: a blank line the postgraduate
+ * office completes by hand. Registry-backed fields (passport, country, semesters…)
+ * are normally filled from the student's StudentRegistry record, but fall back to
+ * this line when a student has no registry details captured yet.
+ */
+const FILL_IN_BLANK = '____________';
+
+/** The values substituted into a template's placeholders for one student. The
+ *  registry-backed fields are optional — a blank fill-in line is used when absent. */
 export interface PlaceholderValues {
   studentName: string;
   matricNumber: string;
@@ -68,21 +88,108 @@ export interface PlaceholderValues {
   supervisorName?: string;
   referenceNumber: string;
   date: string;
+  // Registry-backed (StudentRegistry) fields.
+  passportNumber?: string;
+  country?: string;
+  programmeMode?: string;
+  fieldOfResearch?: string;
+  modeOfStudy?: string;
+  initialSemester?: string;
+  currentSemester?: string;
+  maxSemester?: string;
+  expectedCompletion?: string;
 }
 
 /** Replace every `{{TAG}}` in `content` with the matching student value. */
 export function substitutePlaceholders(content: string, values: PlaceholderValues): string {
-  const map: Record<string, string> = {
+  const map: Record<string, string | undefined> = {
     '{{STUDENT_NAME}}': values.studentName,
     '{{STUDENT_ID}}': values.matricNumber,
     '{{PROGRAMME_NAME}}': values.programName,
     '{{CURRENT_STATUS}}': values.currentStatus,
-    '{{SUPERVISOR_NAME}}': values.supervisorName?.trim() || '—',
+    '{{SUPERVISOR_NAME}}': values.supervisorName,
     '{{REFERENCE_NUMBER}}': values.referenceNumber,
     '{{CURRENT_DATE}}': values.date,
+    // Registry-backed fields (filled from the student's StudentRegistry record).
+    '{{PASSPORT_NUMBER}}': values.passportNumber,
+    '{{COUNTRY}}': values.country,
+    '{{PROGRAMME_MODE}}': values.programmeMode,
+    '{{FIELD_OF_RESEARCH}}': values.fieldOfResearch,
+    '{{MODE_OF_STUDY}}': values.modeOfStudy,
+    '{{INITIAL_SEMESTER}}': values.initialSemester,
+    '{{CURRENT_SEMESTER}}': values.currentSemester,
+    '{{MAX_SEMESTER}}': values.maxSemester,
+    '{{EXPECTED_COMPLETION}}': values.expectedCompletion,
   };
-  // Leave unknown tags untouched so authors can see what they mistyped.
-  return content.replace(/\{\{[A-Z_]+\}\}/g, (token) => (token in map ? map[token] : token));
+
+  return content.replace(/\{\{[A-Z_]+\}\}/g, (token) => {
+    // Unknown tags are left untouched so authors can see what they mistyped.
+    if (!(token in map)) return token;
+    // Known tag with no value (e.g. an unfilled field) → a line to complete by hand.
+    const value = map[token];
+    return value && value.trim() ? value : FILL_IN_BLANK;
+  });
+}
+
+/**
+ * Apply the inline text markup to one line: `**bold**`, `__underline__`,
+ * `*italic*`. The text is HTML-escaped first, then only our own safe tags are
+ * added — so it's safe to inject with `dangerouslySetInnerHTML` / into the print
+ * window. When `highlightPlaceholders` is on (the staff editor preview), any
+ * leftover `{{TAG}}` is wrapped in a highlight chip.
+ */
+function applyInlineMarkup(raw: string, highlightPlaceholders: boolean): string {
+  let s = esc(raw);
+  s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>'); // bold (before italic)
+  s = s.replace(/__([^_]+?)__/g, '<u>$1</u>'); // underline (double underscore)
+  s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>'); // italic (single asterisk)
+  if (highlightPlaceholders) {
+    s = s.replace(
+      /\{\{[A-Z_]+\}\}/g,
+      (tag) =>
+        `<span style="background:#0c1424;color:#a5b4fc;font-family:ui-monospace,monospace;` +
+        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`,
+    );
+  }
+  return s;
+}
+
+/**
+ * Render a letter body (with the lightweight markup authored in the template
+ * editor) into a safe HTML string. Shared by the staff editor preview, the
+ * student preview, and the printed PDF so all three look identical.
+ *
+ * Supported markup: `**bold**`, `*italic*`, `__underline__`, blank lines start a
+ * new paragraph, and lines beginning with `- ` become a bullet list.
+ */
+export function renderLetterBodyHtml(
+  body: string,
+  opts?: { highlightPlaceholders?: boolean },
+): string {
+  const highlight = opts?.highlightPlaceholders ?? false;
+  return body
+    .split(/\n{2,}/)
+    .map((block) => {
+      const lines = block.split('\n');
+      const bulletLines = lines.filter((l) => /^\s*-\s+/.test(l));
+      const nonEmpty = lines.filter((l) => l.trim() !== '');
+      // A block is a bullet list when every non-empty line is a "- " item.
+      if (bulletLines.length > 0 && bulletLines.length === nonEmpty.length) {
+        const items = bulletLines
+          .map(
+            (l) =>
+              `<li style="margin:0 0 4px;">${applyInlineMarkup(
+                l.replace(/^\s*-\s+/, ''),
+                highlight,
+              )}</li>`,
+          )
+          .join('');
+        return `<ul style="margin:0 0 14px;padding-left:22px;list-style:disc;">${items}</ul>`;
+      }
+      const html = lines.map((l) => applyInlineMarkup(l, highlight)).join('<br>');
+      return `<p style="margin:0 0 14px;">${html}</p>`;
+    })
+    .join('');
 }
 
 /** Today's date, formatted for a letter ("05 June 2026"). */
@@ -123,12 +230,10 @@ export function buildLetterHtml(data: LetterData): string {
   const logoUrl = `${window.location.origin}${LETTERHEAD.logoPath}`;
   const title = fileName(data);
 
-  // Render the (already-substituted) body: blank lines separate paragraphs,
-  // single newlines become line breaks within a paragraph.
-  const bodyHtml = data.bodyParagraphs
-    .split(/\n{2,}/)
-    .map((para) => `<p class="body">${esc(para).replace(/\n/g, '<br>')}</p>`)
-    .join('\n      ');
+  // Render the (already-substituted) body through the shared markup formatter,
+  // so the printed letter matches the on-screen preview exactly (bold / italic /
+  // underline / bullet lists, paragraphs split on blank lines).
+  const bodyHtml = renderLetterBodyHtml(data.bodyParagraphs);
 
   const addressHtml = LETTERHEAD.addressLines.map((line) => esc(line)).join('<br>');
 
@@ -151,11 +256,8 @@ export function buildLetterHtml(data: LetterData): string {
     .sheet {
       background: #ffffff;
       width: 210mm;
-      min-height: 297mm;
       margin: 0 auto;
       padding: 18mm 16mm;
-      display: flex;
-      flex-direction: column;
     }
     .header {
       display: flex;
@@ -203,10 +305,11 @@ export function buildLetterHtml(data: LetterData): string {
     }
     table.details td { font-size: 12px; font-weight: 700; color: #0f172a; }
     .disclaimer { font-size: 10px; color: #64748b; font-weight: 600; margin: 4px 0 0; }
-    .spacer { flex: 1 1 auto; }
     .signature {
       display: flex; justify-content: space-between; align-items: flex-end;
-      border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 28px;
+      border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 56px;
+      /* Keep the whole signature block together — never split it across pages. */
+      break-inside: avoid; page-break-inside: avoid;
     }
     .signature .line { width: 150px; border-bottom: 1px solid #94a3b8; height: 22px; margin-bottom: 6px; }
     .signature .name { font-weight: 800; color: #0f172a; }
@@ -221,32 +324,28 @@ export function buildLetterHtml(data: LetterData): string {
     }
     @media print {
       body { background: #ffffff; }
-      .sheet { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      .sheet { width: auto; margin: 0; padding: 0; box-shadow: none; }
     }
   </style>
 </head>
 <body>
   <div class="sheet">
-    <div>
-      <div class="header">
-        <div class="brand">
-          <img src="${logoUrl}" alt="Universiti Malaya" />
-          <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
-        </div>
-        <div class="address">${addressHtml}</div>
+    <div class="header">
+      <div class="brand">
+        <img src="${logoUrl}" alt="Universiti Malaya" />
+        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
       </div>
-
-      <div class="meta">
-        <div>Our Ref: <span class="value">${esc(data.refNo)}</span></div>
-        <div>Date: <span class="value">${esc(data.date)}</span></div>
-      </div>
-
-      ${bodyHtml}
-
-      <p class="disclaimer">${esc(LETTERHEAD.disclaimer)}</p>
+      <div class="address">${addressHtml}</div>
     </div>
 
-    <div class="spacer"></div>
+    <div class="meta">
+      <div>Our Ref: <span class="value">${esc(data.refNo)}</span></div>
+      <div>Date: <span class="value">${esc(data.date)}</span></div>
+    </div>
+
+    ${bodyHtml}
+
+    <p class="disclaimer">${esc(LETTERHEAD.disclaimer)}</p>
 
     <div class="signature">
       <div>

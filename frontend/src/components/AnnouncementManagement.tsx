@@ -78,8 +78,6 @@ export const AnnouncementManagement: React.FC = () => {
   const [targetAudience, setTargetAudience] = useState<AudienceOption>('All');
   const [priorityLevel, setPriorityLevel] = useState<'Urgent' | 'Info' | 'General'>('Info');
   const [contentBody, setContentBody] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -131,8 +129,6 @@ export const AnnouncementManagement: React.FC = () => {
         target: targetForAudience(targetAudience),
         priority: priorityLevel,
         status,
-        startDate: startDate || undefined,
-        expiryDate: expiryDate || undefined,
         attachment: attachedFile,
       };
       const saved = editingId
@@ -160,8 +156,6 @@ export const AnnouncementManagement: React.FC = () => {
     setContentBody(draft.content ?? draft.summary ?? '');
     setTargetAudience(audienceFromTarget(draft.target));
     setPriorityLevel(draft.priority);
-    setStartDate(draft.startDate ?? '');
-    setExpiryDate(draft.expiryDate ?? '');
     setExistingAttachmentName(draft.attachmentName ?? null);
     setAttachedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -178,8 +172,6 @@ export const AnnouncementManagement: React.FC = () => {
         target: draft.target,
         priority: draft.priority,
         status: 'Active',
-        startDate: draft.startDate ?? undefined,
-        expiryDate: draft.expiryDate ?? undefined,
         attachment: null,
       });
       const reach = saved.deliveredTo ?? 0;
@@ -225,8 +217,6 @@ export const AnnouncementManagement: React.FC = () => {
     setTargetAudience('All');
     setPriorityLevel('Info');
     setContentBody('');
-    setStartDate('');
-    setExpiryDate('');
     setAttachedFile(null);
     setEditingId(null);
     setExistingAttachmentName(null);
@@ -449,37 +439,6 @@ export const AnnouncementManagement: React.FC = () => {
                     </button>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Field E: Start Date & Auto Expiry Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  Start Date
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="form-control form-control-md"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  Auto-Expiry
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={expiryDate}
-                    onChange={(e) => setExpiryDate(e.target.value)}
-                    className="form-control form-control-md"
-                  />
-                </div>
               </div>
             </div>
 
