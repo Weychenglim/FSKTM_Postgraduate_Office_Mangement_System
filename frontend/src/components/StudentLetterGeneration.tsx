@@ -7,19 +7,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   Eye,
-  Printer,
-  Edit3,
   ZoomIn,
   ZoomOut,
   Info,
   FileCheck,
   ShieldCheck,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
-import { getStudentLetterTemplates } from '../services';
+import { getStudentLetterTemplates, getMyLetterDetails, StudentLetterDetails } from '../services';
 import {
   LETTERHEAD,
   LetterData,
@@ -28,6 +25,7 @@ import {
   generateReferenceNumber,
   openLetterDocument,
   substitutePlaceholders,
+  renderLetterBodyHtml,
 } from '../utils/letterDocument';
 
 interface StudentLetterGenerationProps {
@@ -51,15 +49,20 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // Preview / UI state.
   const [zoomScale, setZoomScale] = useState<number>(100);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
 
-  // Student details substituted into the template — prefilled from the logged-in
-  // student where available, with sensible demo fallbacks.
-  const [studentName, setStudentName] = useState<string>(studentNameProp ?? 'Fatimah Al-Zahra');
-  const [matricNumber, setMatricNumber] = useState<string>(studentIdProp ?? 'WEA200192');
-  const [programName, setProgramName] = useState<string>(programmeProp ?? 'Master of Computer Science (By Coursework)');
-  const [currentStatus, setCurrentStatus] = useState<string>('Active — Semester 1, Session 2025/2026');
-  const [supervisorName, setSupervisorName] = useState<string>('');
+  // Live student details (incl. registry fields) fetched from the backend.
+  const [details, setDetails] = useState<StudentLetterDetails | null>(null);
+
+  // Student details substituted into the template. These are read-only: they are
+  // taken from the logged-in student's record (live from the backend, with the
+  // passed-in props / demo values as a fallback) and the student cannot edit
+  // them, so the issued letter cannot be tampered with.
+  const studentName = details?.studentName ?? studentNameProp ?? 'Fatimah Al-Zahra';
+  const matricNumber = details?.matricNumber ?? studentIdProp ?? 'WEA200192';
+  const programName =
+    details?.programName ?? programmeProp ?? 'Master of Computer Science (By Coursework)';
+  const currentStatus = details?.currentStatus ?? 'Active';
+  const supervisorName = details?.supervisorName ?? '';
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -82,6 +85,23 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     loadTemplates();
   }, [loadTemplates]);
 
+  // Load the logged-in student's letter details (name, matric, programme +
+  // registry fields). Failures are non-fatal: the letter still renders with the
+  // prop/demo fallbacks and blank fill-in lines for any missing registry fields.
+  useEffect(() => {
+    let cancelled = false;
+    getMyLetterDetails()
+      .then((data) => {
+        if (!cancelled) setDetails(data);
+      })
+      .catch(() => {
+        /* keep fallbacks — registry fields render as blank fill-in lines */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // One date for this session; one reference number per selected template.
   const letterDate = useMemo(() => formatLetterDate(), []);
   const referenceNumber = useMemo(
@@ -97,13 +117,22 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     supervisorName,
     referenceNumber,
     date: letterDate,
+    // Registry-backed fields — fill from the student's record when available.
+    passportNumber: details?.passportNumber,
+    country: details?.country,
+    programmeMode: details?.programmeMode,
+    fieldOfResearch: details?.fieldOfResearch,
+    modeOfStudy: details?.modeOfStudy,
+    initialSemester: details?.initialSemester,
+    currentSemester: details?.currentSemester,
+    maxSemester: details?.maxSemester,
+    expectedCompletion: details?.expectedCompletion,
   };
 
   // The template body with the student's details filled in.
   const previewBody = selectedTemplate
     ? substitutePlaceholders(selectedTemplate.content, placeholderValues)
     : '';
-  const previewParagraphs = previewBody.split(/\n{2,}/);
 
   const buildLetterData = (): LetterData => ({
     templateName: selectedTemplate?.name ?? 'Letter',
@@ -114,25 +143,15 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     matricNumber,
   });
 
-  // Both actions open the real letter in a print window; the browser print
-  // dialog handles "Save as PDF" (download) or a physical printer.
+  // Opens the real letter in a print window; the browser print dialog handles
+  // both "Save as PDF" (download) and printing to a physical printer.
   const handleGeneratePDF = () => {
     if (!selectedTemplate) return;
     const opened = openLetterDocument(buildLetterData());
     triggerToast(
       opened
-        ? `Opening "${selectedTemplate.name}" — choose "Save as PDF" in the print dialog to download it.`
+        ? `Opening "${selectedTemplate.name}" — choose "Save as PDF" or a printer in the print dialog.`
         : 'Please allow pop-ups for this site to generate the letter.',
-    );
-  };
-
-  const handlePrintCollection = () => {
-    if (!selectedTemplate) return;
-    const opened = openLetterDocument(buildLetterData());
-    triggerToast(
-      opened
-        ? `Opening "${selectedTemplate.name}" — choose your printer in the print dialog.`
-        : 'Please allow pop-ups for this site to print the letter.',
     );
   };
 
@@ -211,7 +230,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
               <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                 <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <p className="text-[10px] font-semibold text-slate-500 leading-normal">
-                  Selecting a template updates the preview live. Use “Modify Details” to set the values filled into the letter before you generate it.
+                  Selecting a template updates the preview live. Your details are filled in automatically from your student record — fields left blank are completed by the postgraduate office.
                 </p>
               </div>
             </div>
@@ -242,48 +261,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                 </span>
               </div>
             </div>
-
-            {/* Modify details drawer */}
-            <AnimatePresence>
-              {isEditingDetails && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border-b border-dashed border-slate-200 mt-2"
-                >
-                  <div className="p-4 bg-slate-50/80 rounded-xl my-3 border border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { label: 'Student Name', value: studentName, set: setStudentName, mono: false },
-                      { label: 'Matric Number', value: matricNumber, set: setMatricNumber, mono: true },
-                      { label: 'Programme', value: programName, set: setProgramName, mono: false },
-                      { label: 'Registration Status', value: currentStatus, set: setCurrentStatus, mono: false },
-                      { label: 'Supervisor (if required)', value: supervisorName, set: setSupervisorName, mono: false },
-                    ].map((field) => (
-                      <div key={field.label} className="space-y-1">
-                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">{field.label}</span>
-                        <input
-                          type="text"
-                          value={field.value}
-                          onChange={(e) => field.set(e.target.value)}
-                          className={`w-full bg-white border border-slate-250 text-xs font-bold text-slate-800 px-3 py-1.5 rounded-lg focus:ring-1 focus:ring-slate-900 outline-none ${field.mono ? 'font-mono' : ''}`}
-                        />
-                      </div>
-                    ))}
-                    <div className="md:col-span-2 flex items-center justify-between border-t border-slate-200/65 pt-3 mt-1.5 select-none">
-                      <p className="text-[9px] text-slate-400 font-semibold italic">These values are filled into the template placeholders instantly.</p>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingDetails(false)}
-                        className="px-3.5 py-1 bg-brand-navy text-white text-[9px] font-black uppercase tracking-wider rounded transition hover:bg-slate-850 cursor-pointer"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* A4 document */}
             <div className="bg-slate-100/60 border border-slate-200 rounded-2xl my-5 p-6 md:p-8 overflow-x-auto">
@@ -325,12 +302,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                         </div>
                       </div>
 
-                      {/* Body (placeholders substituted) */}
-                      <div className="space-y-3 text-slate-850 font-medium">
-                        {previewParagraphs.map((para, i) => (
-                          <p key={i} className="whitespace-pre-wrap">{para}</p>
-                        ))}
-                      </div>
+                      {/* Body (placeholders substituted + markup rendered) */}
+                      <div
+                        className="text-slate-850 font-medium leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: renderLetterBodyHtml(previewBody) }}
+                      />
 
                       {/* Disclaimer */}
                       <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">
@@ -363,29 +339,8 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             </div>
 
             {/* Action bar */}
-            <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-              <button
-                type="button"
-                onClick={() => setIsEditingDetails((p) => !p)}
-                disabled={!selectedTemplate}
-                className={`w-full md:w-auto px-5 py-3 rounded-xl font-black text-[10px] tracking-widest uppercase transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isEditingDetails ? 'bg-slate-100 text-brand-navy hover:bg-slate-200' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Modify Details</span>
-              </button>
-
+            <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-end gap-4">
               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
-                <button
-                  type="button"
-                  onClick={handlePrintCollection}
-                  disabled={!selectedTemplate}
-                  className="w-full sm:w-auto px-5 py-3 bg-slate-100 hover:bg-slate-250 text-brand-navy font-black text-[10px] tracking-widest uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print for Collection</span>
-                </button>
                 <button
                   type="button"
                   onClick={handleGeneratePDF}

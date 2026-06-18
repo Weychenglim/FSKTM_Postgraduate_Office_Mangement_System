@@ -6,20 +6,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText,
-  Search, 
-  Plus, 
-  Trash2, 
-  Check, 
-  Eye, 
-  UploadCloud, 
-  X, 
-  Bold, 
-  Italic, 
-  Underline, 
-  AlignLeft, 
-  AlignCenter, 
-  AlignRight, 
-  List, 
+  Search,
+  Plus,
+  Trash2,
+  Check,
+  Eye,
+  Bold,
+  Italic,
+  Underline,
+  List,
   Image as ImageIcon,
   CheckCircle,
   HelpCircle,
@@ -34,6 +29,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
+import { LETTER_PLACEHOLDERS, LETTERHEAD, renderLetterBodyHtml } from '../utils/letterDocument';
 import {
   getLetterTemplates,
   createLetterTemplate,
@@ -67,9 +63,10 @@ export const LetterTemplateManagement: React.FC = () => {
   const [editorContent, setEditorContent] = useState('');
   const [editorStatus, setEditorStatus] = useState<'Active' | 'Draft'>('Active');
 
-  // File Upload Letterhead Sim State
-  const [letterheadImage, setLetterheadImage] = useState<string | null>(null);
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // Editor textarea ref + the caret position to restore after inserting a tag,
+  // so a placeholder lands at the cursor (not the end) and the caret follows it.
+  const editorTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingCursorRef = useRef<number | null>(null);
 
   const loadTemplates = useCallback(() => {
     setLoading(true);
@@ -96,29 +93,45 @@ export const LetterTemplateManagement: React.FC = () => {
     setEditorStatus(selectedTemplate.status);
   }, [selectedTemplate]);
 
-  // Available Placeholder Tags List
-  const placeholderTags = [
-    { label: '+ Student Name', tag: '{{STUDENT_NAME}}' },
-    { label: '+ Student ID', tag: '{{STUDENT_ID}}' },
-    { label: '+ Programme', tag: '{{PROGRAMME_NAME}}' },
-    { label: '+ Supervisor', tag: '{{SUPERVISOR_NAME}}' }
-  ];
+  // After an inserted tag changes the content, refocus the textarea and move the
+  // caret to just after the tag (no-op for normal typing — ref stays null then).
+  useEffect(() => {
+    if (pendingCursorRef.current === null) return;
+    const cursor = pendingCursorRef.current;
+    pendingCursorRef.current = null;
+    const textarea = editorTextareaRef.current;
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+    }
+  }, [editorContent]);
 
-  // Quick Insertion Helper
+  // Available placeholder tags — the canonical set (incl. visa/immigration
+  // fields) so any template, including the student-pass letter, can be authored.
+  const placeholderTags = LETTER_PLACEHOLDERS.map((p) => ({
+    label: `+ ${p.label}`,
+    tag: p.tag,
+  }));
+
+  // Quick Insertion Helper — insert the tag at the caret (or over the current
+  // selection), not at the end. Falls back to appending if the textarea ref is
+  // somehow unavailable.
   const handleInsertTag = (tag: string) => {
-    setEditorContent(prev => prev + ' ' + tag);
+    const textarea = editorTextareaRef.current;
+    const start = textarea?.selectionStart ?? editorContent.length;
+    const end = textarea?.selectionEnd ?? editorContent.length;
+
+    const before = editorContent.slice(0, start);
+    const after = editorContent.slice(end);
+    // Pad with a single space only where the tag would otherwise touch a word.
+    const lead = before.length && !/\s$/.test(before) ? ' ' : '';
+    const trail = after.length && !/^\s/.test(after) ? ' ' : '';
+    const insertion = `${lead}${tag}${trail}`;
+
+    setEditorContent(before + insertion + after);
+    // Place the caret just after the inserted tag once React has re-rendered.
+    pendingCursorRef.current = before.length + insertion.length;
     triggerToast(`Inserted placeholder tag: ${tag}`);
-  };
-
-  // Mock File Uploader trigger
-  const handleFileUploadSim = () => {
-    setLetterheadImage('https://upload.wikimedia.org/wikipedia/commons/2/22/University_of_Malaya_coat_of_arms.svg'); // Simulated UM Logo
-    triggerToast('Faculty Letterhead graphic loaded. Rendered on A4 preview header.');
-  };
-
-  const handleRemoveLetterhead = () => {
-    setLetterheadImage(null);
-    triggerToast('Letterhead branding removed.');
   };
 
   // Actions — persisted through the letters API.
@@ -177,25 +190,44 @@ export const LetterTemplateManagement: React.FC = () => {
     triggerToast('Initiating visual layout assertion check... Letter template validated successfully.');
   };
 
-  // Highlight preview rendering mapping
-  const renderFormattedPreview = (text: string) => {
-    if (!text) return <p className="text-slate-400 italic">No message content drafted yet...</p>;
+  // Wrap the current selection (or insert a stub) with a markup marker, e.g.
+  // **bold**, *italic*, __underline__. The wrapped text stays selected so the
+  // author can immediately re-style or keep typing.
+  const wrapSelection = (marker: string, label: string) => {
+    const textarea = editorTextareaRef.current;
+    const start = textarea?.selectionStart ?? editorContent.length;
+    const end = textarea?.selectionEnd ?? editorContent.length;
+    const selected = editorContent.slice(start, end) || label;
+    const before = editorContent.slice(0, start);
+    const after = editorContent.slice(end);
 
-    // We split on placeholders and render custom background tags for beautiful visual matching
-    const parts = text.split(/(\{\{[A-Z_]+\}\})/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('{{') && part.endsWith('}}')) {
-        return (
-          <span 
-            key={i} 
-            className="inline-block bg-brand-navy text-[#a5b4fc] text-[10px] font-mono font-black px-1.5 py-0.5 rounded mx-0.5 select-all hover:bg-slate-800 transition"
-          >
-            {part}
-          </span>
-        );
-      }
-      return <span key={i} className="whitespace-pre-wrap">{part}</span>;
-    });
+    setEditorContent(`${before}${marker}${selected}${marker}${after}`);
+    // Re-select the inner text (between the markers) after re-render.
+    pendingCursorRef.current = before.length + marker.length + selected.length;
+    triggerToast(`Applied ${label} formatting.`);
+  };
+
+  // Turn the current line(s) into a bullet list (toggles a "- " prefix).
+  const toggleBulletList = () => {
+    const textarea = editorTextareaRef.current;
+    const selStart = textarea?.selectionStart ?? 0;
+    const selEnd = textarea?.selectionEnd ?? 0;
+    const lineStart = editorContent.lastIndexOf('\n', selStart - 1) + 1;
+    let lineEnd = editorContent.indexOf('\n', selEnd);
+    if (lineEnd === -1) lineEnd = editorContent.length;
+
+    const before = editorContent.slice(0, lineStart);
+    const block = editorContent.slice(lineStart, lineEnd);
+    const after = editorContent.slice(lineEnd);
+    const allBulleted = block.split('\n').every((l) => l.trim() === '' || /^\s*-\s+/.test(l));
+    const newBlock = block
+      .split('\n')
+      .map((l) => (l.trim() === '' ? l : allBulleted ? l.replace(/^\s*-\s+/, '') : `- ${l}`))
+      .join('\n');
+
+    setEditorContent(before + newBlock + after);
+    pendingCursorRef.current = (before + newBlock).length;
+    triggerToast(allBulleted ? 'Removed bullet list.' : 'Formatted as a bullet list.');
   };
 
   // Auto count matches
@@ -457,29 +489,29 @@ export const LetterTemplateManagement: React.FC = () => {
                 <div className="bg-slate-50 border-b border-slate-205 px-4 py-2 flex items-center justify-between select-none">
                   <div className="flex items-center gap-1">
                     
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Bold format assertion compiled.')}
+                    <button
+                      type="button"
+                      onClick={() => wrapSelection('**', 'bold')}
                       className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Bold font"
+                      title="Bold (**text**)"
                     >
                       <Bold className="w-3.5 h-3.5" />
                     </button>
 
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Italic formatting compiled.')}
+                    <button
+                      type="button"
+                      onClick={() => wrapSelection('*', 'italic')}
                       className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Italic font"
+                      title="Italic (*text*)"
                     >
                       <Italic className="w-3.5 h-3.5" />
                     </button>
 
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Underline assertions complete.')}
+                    <button
+                      type="button"
+                      onClick={() => wrapSelection('__', 'underline')}
                       className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Underline text"
+                      title="Underline (__text__)"
                     >
                       <Underline className="w-3.5 h-3.5" />
                     </button>
@@ -487,49 +519,20 @@ export const LetterTemplateManagement: React.FC = () => {
                     {/* Splitter bar line separator */}
                     <div className="w-px h-4 bg-slate-250 mx-1.5" />
 
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Paragraph alignment aligned left.')}
-                      className="p-1.5 rounded bg-slate-200 text-slate-800 transition"
-                      title="Align Left"
-                    >
-                      <AlignLeft className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Paragraph alignment centered.')}
+                    <button
+                      type="button"
+                      onClick={toggleBulletList}
                       className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Align Center"
-                    >
-                      <AlignCenter className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Paragraph alignment aligned right.')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Align Right"
-                    >
-                      <AlignRight className="w-3.5 h-3.5" />
-                    </button>
-
-                    <div className="w-px h-4 bg-slate-250 mx-1.5" />
-
-                    <button 
-                      type="button" 
-                      onClick={() => triggerToast('Formatted as bullet list points.')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Bullet list"
+                      title="Bullet list (- item)"
                     >
                       <List className="w-3.5 h-3.5" />
                     </button>
 
-                    <button 
-                      type="button" 
-                      onClick={handleFileUploadSim}
+                    <button
+                      type="button"
+                      onClick={() => triggerToast('The official faculty letterhead is applied automatically to every letter.')}
                       className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Insert Letterhead placement"
+                      title="Faculty letterhead (applied automatically)"
                     >
                       <ImageIcon className="w-3.5 h-3.5" />
                     </button>
@@ -537,12 +540,13 @@ export const LetterTemplateManagement: React.FC = () => {
                   </div>
 
                   <div className="text-[10px] text-slate-400 font-bold">
-                    Plain HTML Rendering Type
+                    **bold** · *italic* · __underline__ · - list
                   </div>
                 </div>
 
                 {/* Edit Area Input Textarea */}
                 <textarea
+                  ref={editorTextareaRef}
                   rows={8}
                   value={editorContent}
                   onChange={(e) => setEditorContent(e.target.value)}
@@ -558,53 +562,24 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* A4 Paper mockup layout */}
                 <div className="bg-white border border-slate-250/60 rounded p-6 shadow-sm relative min-h-[380px] text-left text-[11px] text-slate-700 leading-relaxed font-sans max-w-2xl mx-auto">
                   
-                  {/* Faculty official header block letterhead upload */}
-                  <div className="border-b border-double border-slate-400 pb-3 mb-5 text-center">
-                    {letterheadImage ? (
-                      <div className="flex flex-col items-center select-none relative group">
-                        <img 
-                          src={letterheadImage} 
-                          className="h-14 opacity-90 transition mb-1" 
-                          alt="Universiti Malaya Logo Coat" 
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-800 leading-none">
-                          Faculty of Computer Science & Information Technology
-                        </span>
-                        <span className="text-[7px] text-slate-400 tracking-wide mt-0.5 font-bold">
-                          University of Malaya • 50603 Kuala Lumpur, Malaysia
-                        </span>
-
-                        {/* Hover remove trigger */}
-                        <button
-                          type="button"
-                          onClick={handleRemoveLetterhead}
-                          className="absolute -top-3 -right-3 p-1 bg-red-100 hover:bg-red-500 text-red-700 hover:text-white rounded-full transition shadow"
-                          title="Remove letterhead branding"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      /* Drag & drop upload state */
-                      <div 
-                        onDragOver={(e) => { e.preventDefault(); setIsDraggingOver(true); }}
-                        onDragLeave={() => setIsDraggingOver(false)}
-                        onDrop={(e) => { e.preventDefault(); setIsDraggingOver(false); handleFileUploadSim(); }}
-                        className={`border border-dashed rounded-xl p-4 transition-colors flex flex-col items-center justify-center cursor-pointer ${
-                          isDraggingOver ? 'border-brand-navy bg-slate-50' : 'border-slate-300 hover:bg-slate-50/50'
-                        }`}
-                        onClick={handleFileUploadSim}
-                      >
-                        <UploadCloud className="w-6 h-6 text-slate-400 mb-1.5" />
-                        <span className="text-[10px] font-black text-slate-800 block text-center">
-                          Upload Faculty Letterhead Image
-                        </span>
-                        <span className="text-[8px] text-slate-400 block mt-0.5 text-center">
-                          PNG or JPG, max 5MB
-                        </span>
-                      </div>
-                    )}
+                  {/* Faculty official letterhead — the fixed institutional header,
+                      shared with the student preview and the printed letter. */}
+                  <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 select-none">
+                      <img
+                        src={LETTERHEAD.logoPath}
+                        alt="Universiti Malaya"
+                        className="h-12 w-auto object-contain"
+                      />
+                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
+                        {LETTERHEAD.faculty}
+                      </span>
+                    </div>
+                    <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
+                      {LETTERHEAD.addressLines.map((line) => (
+                        <span key={line} className="block">{line}</span>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Reference line details block */}
@@ -628,10 +603,18 @@ export const LetterTemplateManagement: React.FC = () => {
                     To Whom It May Concern,
                   </div>
 
-                  {/* Main Formed dynamic document body preview */}
-                  <div className="space-y-4">
-                    {renderFormattedPreview(editorContent)}
-                  </div>
+                  {/* Main Formed dynamic document body preview (markup rendered;
+                      placeholders highlighted so the author can see their tags) */}
+                  {editorContent.trim() ? (
+                    <div
+                      className="leading-relaxed"
+                      dangerouslySetInnerHTML={{
+                        __html: renderLetterBodyHtml(editorContent, { highlightPlaceholders: true }),
+                      }}
+                    />
+                  ) : (
+                    <p className="text-slate-400 italic">No message content drafted yet...</p>
+                  )}
 
                   {/* Signature Dean footer stamp line block */}
                   <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-1">

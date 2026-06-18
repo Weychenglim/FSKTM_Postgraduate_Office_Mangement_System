@@ -22,6 +22,7 @@ from accounts.models import (
     OfficeStaff,
     Panel,
     Student,
+    StudentRegistry,
     Supervisor,
     User,
 )
@@ -39,7 +40,7 @@ OLD_TO_NEW_STUDENT_EMAILS = {
 
 DEMO_USERS = [
     {
-        "email": "admin@fsktm.edu.my",
+        "email": "admin@siswa.um.edu.my",
         "password": "staffAdmin2026",
         "full_name": "Puan Noraini binti Kamaruddin",
         "role": User.Role.OFFICE_ADMIN,
@@ -50,7 +51,7 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "coordinator@fsktm.edu.my",
+        "email": "coordinator@siswa.um.edu.my",
         "password": "coordinator2026",
         "full_name": "Dr. Adrian Tan Kok Seng",
         "role": User.Role.COORDINATOR,
@@ -65,7 +66,7 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "lecturer@fsktm.edu.my",
+        "email": "lecturer@siswa.um.edu.my",
         "password": "lecturer2026",
         "full_name": "Prof. Dr. Ahmad Shahrir",
         "role": User.Role.LECTURER,
@@ -107,6 +108,36 @@ DEMO_USERS = [
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2024/2025 Semester 1",
+        },
+    },
+    {
+        # Primary viva demo account (real UM mailbox, used for the live
+        # forgot-password / reset-email demonstration).
+        "email": "23004955@siswa.um.edu.my",
+        "password": "Kkx@041125",
+        "full_name": "Ku Kian Xiang",
+        "role": User.Role.STUDENT,
+        "student": {
+            "matric_no": "23004955",
+            "programme": "Master of Computer Science (By Coursework)",
+            "status": Student.Status.ACTIVE,
+            "intake_semester": "2024/2025 Semester 1",
+        },
+        # Extended registry details so the confirmation/visa letter can fill its
+        # placeholders. Demo values — editable in the Django admin (Student page).
+        "student_registry": {
+            "ic_number": "051104-14-5523",
+            "passport_number": "",
+            "nationality": "Malaysian",
+            "address": "Faculty of Computer Science & Information Technology, "
+            "Universiti Malaya, 50603 Kuala Lumpur",
+            "programme_mode": StudentRegistry.ProgrammeMode.COURSEWORK,
+            "field_of_study": "Computer Science",
+            "mode_of_study": StudentRegistry.StudyMode.FULL_TIME,
+            "current_semester": "Semester II, 2025/2026 Session",
+            "max_semester": "Semester I, 2027/2028 Session",
+            "expected_completion": "Semester I, 2027/2028 Session",
+            "sponsor": "Self-funded",
         },
     },
     {
@@ -172,6 +203,27 @@ PANEL_RESEARCH_PROFILES = [
 class Command(BaseCommand):
     help = "Seed/refresh the demo login accounts and their role profiles."
 
+    @staticmethod
+    def _purge_conflicts(entry):
+        """Delete any pre-existing account that collides on a unique profile
+        number (matric_no / staff_no) but uses a *different* email — e.g. a row
+        left over from an earlier seed under the old ``@fsktm.edu.my`` domain.
+        Cascades remove the linked profile rows so the new email can reuse the
+        number. Re-running with the same emails is a no-op (excluded by email)."""
+        email = entry["email"]
+        if "student" in entry:
+            User.objects.filter(
+                student__matric_no=entry["student"]["matric_no"]
+            ).exclude(email=email).delete()
+        if "office_staff" in entry:
+            User.objects.filter(
+                office_staff__staff_no=entry["office_staff"]["staff_no"]
+            ).exclude(email=email).delete()
+        if "lecturer" in entry:
+            User.objects.filter(
+                lecturer__staff_no=entry["lecturer"]["staff_no"]
+            ).exclude(email=email).delete()
+
     @transaction.atomic
     def handle(self, *args, **options):
         # Migrate old student demo emails to the new siswa.um.edu.my format.
@@ -198,11 +250,14 @@ class Command(BaseCommand):
                     )
 
         for entry in DEMO_USERS:
+            self._purge_conflicts(entry)
+
             data = dict(entry)
             password = data.pop("password")
             email = data.pop("email")
 
             student = data.pop("student", None)
+            student_registry = data.pop("student_registry", None)
             office_staff = data.pop("office_staff", None)
             lecturer = data.pop("lecturer", None)
             coordinator = data.pop("coordinator", None)
@@ -221,11 +276,13 @@ class Command(BaseCommand):
             user.save()
 
             if student is not None:
-                Student.objects.update_or_create(
-                    user=user,
-                    defaults=student,
+                student_obj, _ = Student.objects.update_or_create(
+                    user=user, defaults=student
                 )
-
+                if student_registry is not None:
+                    StudentRegistry.objects.update_or_create(
+                        student=student_obj, defaults=student_registry
+                    )
             if office_staff is not None:
                 OfficeStaff.objects.update_or_create(
                     user=user,

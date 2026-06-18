@@ -50,7 +50,7 @@ import {
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { DemoUser } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
-import { authApi } from './services';
+import { authApi, getAuthToken, clearAuthToken } from './services';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { MOCK_MARK_RECORDS } from './mocks/marks';
 
@@ -74,6 +74,10 @@ export default function App() {
   // Authentication session tracking
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
 
+  // True while we restore an existing session from a stored token on first load.
+  // Prevents the login page from flashing on refresh before /auth/me/ resolves.
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+
   // Unauthenticated view routing state
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
 
@@ -89,6 +93,31 @@ export default function App() {
       setResetParams({ uid, token });
       setAuthView('reset');
     }
+  }, []);
+
+  // On first load, restore the session from the stored JWT so a page refresh
+  // (or a new tab) does not bounce the user back to the login screen.
+  useEffect(() => {
+    let cancelled = false;
+    if (!getAuthToken()) {
+      setIsRestoringSession(false);
+      return;
+    }
+    authApi
+      .getCurrentUser()
+      .then((user) => {
+        if (!cancelled) setCurrentUser(user);
+      })
+      .catch(() => {
+        // Token is missing/expired/invalid — drop it and show login.
+        clearAuthToken();
+      })
+      .finally(() => {
+        if (!cancelled) setIsRestoringSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Sidebar navigation active state
@@ -154,6 +183,22 @@ export default function App() {
     }
     setAuthView('login');
   };
+
+  // While restoring a session from a stored token, hold a neutral loading screen
+  // instead of flashing the login page (skip it for the reset-password link flow).
+  if (isRestoringSession && authView !== 'reset') {
+    return (
+      <div
+        id="session-restore-loading"
+        className="min-h-screen bg-[#f1f5f9] flex items-center justify-center"
+      >
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="w-8 h-8 rounded-full border-2 border-slate-300 border-t-[#0c1424] animate-spin" />
+          <p className="text-xs font-bold tracking-wide">Restoring your session…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">

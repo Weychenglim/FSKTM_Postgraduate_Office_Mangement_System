@@ -1,8 +1,7 @@
 """DRF serializer for creating / updating announcements.
 
 Validates the text fields only. The file attachment is read from
-``request.FILES`` in the view (multipart upload), and the camelCase date fields
-are mapped back to the model's snake_case names.
+``request.FILES`` in the view (multipart upload).
 """
 from rest_framework import serializers
 
@@ -24,11 +23,6 @@ class AnnouncementSerializer(serializers.Serializer):
         choices=[choice.value for choice in Announcement.Status],
         required=False,
     )
-    startDate = serializers.DateField(required=False, allow_null=True)
-    expiryDate = serializers.DateField(required=False, allow_null=True)
-
-    # Frontend name -> model field name.
-    FIELD_MAP = {"startDate": "start_date", "expiryDate": "expiry_date"}
 
     def validate_title(self, value):
         if not value.strip():
@@ -37,7 +31,4 @@ class AnnouncementSerializer(serializers.Serializer):
 
     def to_model_kwargs(self):
         """Return validated data keyed by model field names."""
-        return {
-            self.FIELD_MAP.get(key, key): value
-            for key, value in self.validated_data.items()
-        }
+        return dict(self.validated_data)

@@ -11,7 +11,7 @@ class AnnouncementAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
         (None, {"fields": ("title", "content", "target", "priority", "status")}),
-        ("Attachment & schedule", {"fields": ("attachment", "start_date", "expiry_date")}),
+        ("Attachment", {"fields": ("attachment",)}),
         ("Audit", {"fields": ("created_by", "created_by_name", "created_at", "updated_at")}),
     )
 
