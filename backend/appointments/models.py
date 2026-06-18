@@ -3,8 +3,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-
-PANEL_WORKLOAD_LIMIT = 5
+PANEL_WORKLOAD_LIMIT = 10
 
 
 class StudentResearchProfile(models.Model):
@@ -97,12 +96,14 @@ class PanelRecommendation(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["profile"],
-                condition=Q(status__in=[
-                    "SUBMITTED_TO_PANEL",
-                    "ACCEPTED_BY_PANEL",
-                    "PENDING_COORDINATOR",
-                    "APPROVED",
-                ]),
+                condition=Q(
+                    status__in=[
+                        "SUBMITTED_TO_PANEL",
+                        "ACCEPTED_BY_PANEL",
+                        "PENDING_COORDINATOR",
+                        "APPROVED",
+                    ]
+                ),
                 name="one_active_panel_recommendation_per_student",
             )
         ]
@@ -152,7 +153,9 @@ class PanelAppointment(models.Model):
         related_name="approved_panel_appointments",
     )
     appointment_date = models.DateField(default=timezone.localdate)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.ACTIVE
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

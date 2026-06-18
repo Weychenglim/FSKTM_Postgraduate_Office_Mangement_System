@@ -9,6 +9,7 @@ Idempotent: re-running updates the existing rows and resets passwords.
 
 Number format standard:
 - Student matric_no: numbers only, for example 200192, 2209841
+- Student email: matric_no@siswa.um.edu.my, for example 200192@siswa.um.edu.my
 - Lecturer / Panel staff_no: L + 5 digits, for example L84920, L04812
 """
 
@@ -25,6 +26,15 @@ from accounts.models import (
     User,
 )
 from appointments.models import StudentResearchProfile
+
+
+# Optional migration helper:
+# If old demo accounts already exist, update their emails to the new format.
+OLD_TO_NEW_STUDENT_EMAILS = {
+    "WEA200192@fsktm.edu.my": "200192@siswa.um.edu.my",
+    "MEA2209841@fsktm.edu.my": "2209841@siswa.um.edu.my",
+    "MEA2301123@fsktm.edu.my": "2301123@siswa.um.edu.my",
+}
 
 
 DEMO_USERS = [
@@ -88,7 +98,7 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "WEA200192@fsktm.edu.my",
+        "email": "200192@siswa.um.edu.my",
         "password": "student2026",
         "full_name": "Fatimah Al-Zahra",
         "role": User.Role.STUDENT,
@@ -100,12 +110,24 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "MEA2209841@fsktm.edu.my",
+        "email": "2209841@siswa.um.edu.my",
         "password": "student2026",
         "full_name": "Ahmad Luqman",
         "role": User.Role.STUDENT,
         "student": {
             "matric_no": "2209841",
+            "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            "status": Student.Status.ACTIVE,
+            "intake_semester": "2025/2026 Semester 1",
+        },
+    },
+    {
+        "email": "2301123@siswa.um.edu.my",
+        "password": "student2026",
+        "full_name": "Nur Aisyah binti Rahman",
+        "role": User.Role.STUDENT,
+        "student": {
+            "matric_no": "2301123",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2025/2026 Semester 1",
@@ -117,7 +139,7 @@ DEMO_USERS = [
 PANEL_RESEARCH_PROFILES = [
     {
         "matric_no": "2209841",
-        "student_email": "MEA2209841@fsktm.edu.my",
+        "student_email": "2209841@siswa.um.edu.my",
         "student_name": "Ahmad Luqman",
         "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
         "semester": "Sem 1 2025/2026",
@@ -129,6 +151,21 @@ PANEL_RESEARCH_PROFILES = [
         ),
         "supervisor_email": "lecturer@fsktm.edu.my",
     },
+    {
+        "matric_no": "2301123",
+        "student_email": "2301123@siswa.um.edu.my",
+        "student_name": "Nur Aisyah binti Rahman",
+        "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        "semester": "Sem 1 2025/2026",
+        "proposed_topic": "Enhancing Explainable AI for Academic Performance Prediction",
+        "research_area": "Artificial Intelligence",
+        "abstract": (
+            "This research investigates explainable artificial intelligence techniques "
+            "for predicting student academic performance while improving transparency "
+            "and interpretability of the prediction results."
+        ),
+        "supervisor_email": "lecturer@fsktm.edu.my",
+    },
 ]
 
 
@@ -137,6 +174,29 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        # Migrate old student demo emails to the new siswa.um.edu.my format.
+        # This prevents duplicate users when re-running the seed command.
+        for old_email, new_email in OLD_TO_NEW_STUDENT_EMAILS.items():
+            old_user = User.objects.filter(email=old_email).first()
+            new_user = User.objects.filter(email=new_email).first()
+
+            if old_user is not None:
+                if new_user is not None and new_user.pk != old_user.pk:
+                    old_user.delete()
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  Removed old duplicate student account {old_email}"
+                        )
+                    )
+                else:
+                    old_user.email = new_email
+                    old_user.save(update_fields=["email"])
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"  Migrated student email {old_email} -> {new_email}"
+                        )
+                    )
+
         for entry in DEMO_USERS:
             data = dict(entry)
             password = data.pop("password")
@@ -220,6 +280,7 @@ class Command(BaseCommand):
                     "supervisor": supervisor_user,
                 },
             )
+
             verb = "Created" if created else "Updated"
             self.stdout.write(
                 self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}")

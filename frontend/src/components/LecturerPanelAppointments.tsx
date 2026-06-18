@@ -43,7 +43,14 @@ import { LoadingState, ErrorState } from './StateViews';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
-import { DemoUser, PanelAssignment, PanelCandidate, PanelRecommendationDraft, SubmittedRecommendation } from '../types';
+import {
+  DemoUser,
+  PanelAssignment,
+  PanelCandidate,
+  PanelRecommendationDraft,
+  PanelRecommendationSupervisee,
+  SubmittedRecommendation,
+} from '../types';
 import {
   acceptPanelRecommendation,
   approvePanelRecommendationByCoordinator,
@@ -83,6 +90,18 @@ const RECOMMENDATION_STUDENT = {
 };
 
 type RecommendationStudent = typeof RECOMMENDATION_STUDENT;
+
+const toRecommendationStudent = (student: PanelRecommendationSupervisee): RecommendationStudent => ({
+  studentId: student.studentId,
+  studentName: student.studentName,
+  programme: student.programme,
+  intake: student.semester,
+  supervisor: student.supervisorName,
+  initials: getInitials(student.studentName),
+  proposedTopic: student.proposedTopic,
+  area: student.researchArea,
+  abstract: student.abstract,
+});
 
 const getInitials = (name: string) =>
   name
@@ -463,7 +482,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [coordinatorReviewQueue, setCoordinatorReviewQueue] = useState<PanelRecommendationDraft[]>([]);
   const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
   const [panelCandidates, setPanelCandidates] = useState<PanelCandidate[]>([]);
-  const [recommendationStudent, setRecommendationStudent] = useState<RecommendationStudent | null>(null);
+  const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
+  const [selectedSuperviseeId, setSelectedSuperviseeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -489,6 +509,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           setSubmittedRecs([]);
           setPanelRecommendations([]);
           setPanelCandidates([]);
+          setEligibleSupervisees([]);
+          setSelectedSuperviseeId(null);
           setPanelReviewQueue([]);
           setCoordinatorReviewQueue(coordinatorQueue);
           return;
@@ -508,22 +530,15 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         setPanelCandidates(candidates);
         setPanelReviewQueue(panelQueue);
         setCoordinatorReviewQueue([]);
-        if (eligibleSupervisees.length > 0) {
-          const student = eligibleSupervisees[0];
-          setRecommendationStudent({
-            studentId: student.studentId,
-            studentName: student.studentName,
-            programme: student.programme,
-            intake: student.semester,
-            supervisor: student.supervisorName,
-            initials: getInitials(student.studentName),
-            proposedTopic: student.proposedTopic,
-            area: student.researchArea,
-            abstract: student.abstract,
-          });
-        } else {
-          setRecommendationStudent(null);
-        }
+        setEligibleSupervisees(eligibleSupervisees);
+        setSelectedSuperviseeId((currentId) => {
+          if (currentId && eligibleSupervisees.some((student) => student.studentId === currentId)) {
+            return currentId;
+          }
+          return eligibleSupervisees.find((student) => student.canRecommend)?.studentId
+            ?? eligibleSupervisees[0]?.studentId
+            ?? null;
+        });
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
       .finally(() => setLoading(false));
@@ -532,6 +547,19 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const selectedSupervisee = useMemo(
+    () => eligibleSupervisees.find((student) => student.studentId === selectedSuperviseeId)
+      ?? eligibleSupervisees.find((student) => student.canRecommend)
+      ?? eligibleSupervisees[0]
+      ?? null,
+    [eligibleSupervisees, selectedSuperviseeId],
+  );
+
+  const recommendationStudent = useMemo(
+    () => selectedSupervisee ? toRecommendationStudent(selectedSupervisee) : null,
+    [selectedSupervisee],
+  );
 
   // Merge the lecturer's own drafts with the submitted-recommendation history so
   // newly recommended items appear immediately at the top of the table.
@@ -621,6 +649,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
   const activeAssignmentsCount = assignments.length;
+  // Use workloadLimit from panelCandidates if current user is found, otherwise default to 10.
+  const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.name);
+  const workloadLimit = currentUserCandidate ? currentUserCandidate.workloadLimit : 10;
   const activeReviewQueue = isCoordinator ? coordinatorReviewQueue : panelReviewQueue;
   const activeReviewRole: PanelRecommendationReviewerRole = isCoordinator
     ? 'PROGRAMME_COORDINATOR'
@@ -720,9 +751,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
               <div className="mt-5">
                 <div className="text-3xl font-black text-brand-navy tracking-tight">
-                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ 5 Assignments</span>
+                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Assignments</span>
                 </div>
-                <ProgressBar value={activeAssignmentsCount} max={5} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
+                <ProgressBar value={activeAssignmentsCount} max={workloadLimit} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
               </div>
             </div>
 
@@ -781,6 +812,70 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                 <span>View Submitted Recommendations</span>
               </button>
             </div>
+
+            {eligibleSupervisees.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                      Select Supervisee
+                    </span>
+                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                      Choose which supervised student to submit or review a panel recommendation for.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                    {eligibleSupervisees.length} Students
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {eligibleSupervisees.map((student) => {
+                    const isSelected = recommendationStudent?.studentId === student.studentId;
+                    const recommendation = submittedRecs.find((item) => item.studentId === student.studentId);
+                    const statusText = recommendation
+                      ? PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]
+                      : student.canRecommend
+                      ? 'Recommendation Needed'
+                      : 'Recommendation Active';
+
+                    return (
+                      <button
+                        key={student.studentId}
+                        type="button"
+                        onClick={() => setSelectedSuperviseeId(student.studentId)}
+                        className={`text-left rounded-xl border px-4 py-3 transition-all ${
+                          isSelected
+                            ? 'border-brand-navy bg-slate-50 shadow-xs'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-brand-navy leading-snug truncate">
+                              {student.studentName}
+                            </p>
+                            <p className="text-[10px] font-mono font-bold text-slate-400 mt-1">
+                              {student.studentId}
+                            </p>
+                          </div>
+                          <StatusBadge
+                            tone={recommendation ? getRecommendationTone(recommendation.status) : student.canRecommend ? 'warning' : 'info'}
+                            dot
+                            className="text-[8px] px-2 py-0.5 shrink-0"
+                          >
+                            {statusText}
+                          </StatusBadge>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-2 line-clamp-2">
+                          {student.proposedTopic}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Sub-Layout Cards Box row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -880,7 +975,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                   <Check className="w-5 h-5 text-slate-400 stroke-[2.2]" />
                 </div>
               <p className="text-slate-400 font-bold text-xs max-w-xs">
-                  No other supervisees need panel recommendations right now.
+                  Select another supervisee above to review or submit their panel recommendation.
                 </p>
               </div>
               </>

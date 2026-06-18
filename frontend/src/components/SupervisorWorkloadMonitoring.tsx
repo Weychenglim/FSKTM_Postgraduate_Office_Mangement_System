@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -63,7 +63,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Siti Noor',
       department: 'Faculty of Computing',
       currentStudents: 4,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Near Limit',
       email: 'siti.noor@fsktm.edu.my',
       supervisees: [
@@ -78,7 +78,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Aris Ghaffar',
       department: 'Faculty of Computing',
       currentStudents: 5,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Full Load',
       email: 'aris.ghaffar@fsktm.edu.my',
       supervisees: [
@@ -94,7 +94,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Wey Cheng',
       department: 'Faculty of Computing',
       currentStudents: 3,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Available',
       email: 'weycheng@fsktm.edu.my',
       supervisees: [
@@ -108,7 +108,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Assoc. Prof. Dr. Amina Malik',
       department: 'Data Science',
       currentStudents: 2,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Available',
       email: 'amina.malik@fsktm.edu.my',
       supervisees: [
@@ -121,7 +121,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Prof. Dr. Ahmad Kamil',
       department: 'Software Engineering',
       currentStudents: 1,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Available',
       email: 'ahmad.kamil@fsktm.edu.my',
       supervisees: [
@@ -133,7 +133,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Robert Chen',
       department: 'Software Engineering',
       currentStudents: 0,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Available',
       email: 'robert.chen@fsktm.edu.my',
       supervisees: []
@@ -143,7 +143,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Sarah Lim',
       department: 'Faculty of Computing',
       currentStudents: 3,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Available',
       email: 'sarah.lim@fsktm.edu.my',
       supervisees: [
@@ -157,7 +157,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
       lecturerName: 'Dr. Jane Doe',
       department: 'Data Science',
       currentStudents: 4,
-      workloadLimit: 5,
+      workloadLimit: 10,
       availability: 'Near Limit',
       email: 'jane.doe@fsktm.edu.my',
       supervisees: [

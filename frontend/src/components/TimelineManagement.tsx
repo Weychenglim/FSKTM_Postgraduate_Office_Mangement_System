@@ -3,22 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronLeft,
-  Download, 
-  Plus, 
-  Upload, 
-  Search, 
+  Download,
+  Plus,
+  Search,
   Trash2,
+  Upload
 } from 'lucide-react';
-import { SemesterTimeline } from './SemesterTimeline';
-import { UploadTimelineDrawer } from './UploadTimelineDrawer';
-import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
-import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
-import { ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   createTimelineEntry,
   deleteTimelineEntry,
@@ -29,6 +21,13 @@ import {
   timelineEntryToLegacy,
   updateTimelineEntry,
 } from '../services';
+import { ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
+import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
+import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { SemesterTimeline } from './SemesterTimeline';
+import { ErrorState, LoadingState } from './StateViews';
+import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 
 // TimelineEntry now lives in src/types.
 
@@ -159,6 +158,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<{id: string, name: string} | null>(null);
 
   const handleApplyFilters = () => {
     setAppliedSearch(searchTerm);
@@ -207,17 +207,24 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently remove "${name}" from the postgraduate master timeline?`)) {
-      deleteTimelineEntry(id)
-        .then(() => {
-          setEntries(prev => prev.filter(ent => ent.id !== id));
-          triggerToast(`Deleted entry "${name}" from master record.`);
-          loadEntries();
-        })
-        .catch((e) => {
-          triggerToast(e instanceof Error ? e.message : 'Failed to delete timeline entry.');
-        });
-    }
+    setEntryToDelete({ id, name });
+  };
+
+  const confirmDeleteEntry = () => {
+    if (!entryToDelete) return;
+    const { id, name } = entryToDelete;
+    deleteTimelineEntry(id)
+      .then(() => {
+        setEntries(prev => prev.filter(ent => ent.id !== id));
+        triggerToast(`Deleted entry "${name}" from master record.`);
+        loadEntries();
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to delete timeline entry.');
+      })
+      .finally(() => {
+        setEntryToDelete(null);
+      });
   };
 
   const handleDownloadTemplate = () => {
@@ -608,6 +615,28 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         onClose={() => setUploadDrawerOpen(false)} 
         onImportSuccess={handleImportSuccess} 
       />
+
+      {/* Delete Confirmation Modal */}
+      {entryToDelete && (
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-left animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-6">
+            <div>
+              <h3 className="text-sm font-black text-brand-navy tracking-tight mb-2">Delete Timeline Entry</h3>
+              <p className="text-slate-600 leading-relaxed text-xs">
+                Are you sure you want to permanently remove <span className="font-bold text-slate-800">"{entryToDelete.name}"</span> from the postgraduate master timeline? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <PortalButton variant="ghost" onClick={() => setEntryToDelete(null)}>
+                Cancel
+              </PortalButton>
+              <PortalButton variant="danger" icon={Trash2} onClick={confirmDeleteEntry}>
+                Delete Entry
+              </PortalButton>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
