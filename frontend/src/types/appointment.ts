@@ -49,6 +49,17 @@ export interface PanelRecord {
   panelMember: string; // lecturer name, or "Pending" / "Not Assigned"
   status: PanelAppointmentStatus;
   updatedDate: string; // "23 Nov 2025" or "-"
+  researchTitle?: string;
+  researchArea?: string;
+  abstract?: string;
+  appointmentDate?: string;
+  panelMemberId?: string;
+  panelMemberDepartment?: string;
+  panelMemberEmail?: string;
+  recommendationSubmittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
+  appointmentConfirmedAt?: string | null;
 }
 
 // ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
@@ -84,13 +95,19 @@ export interface PanelAssignment {
   status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
   programme?: string;
   intake?: string;
+  researchArea?: string;
   abstract?: string;
   initials?: string;
+  supervisorDepartment?: string;
+  supervisorEmail?: string;
+  recommendationSubmittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
+  appointmentConfirmedAt?: string | null;
 }
 
 // Approval lifecycle for a supervisor's panel-member recommendation.
 export type PanelRecommendationStatus =
-  | 'DRAFT'
   | 'SUBMITTED_TO_PANEL'
   | 'REJECTED_BY_PANEL'
   | 'ACCEPTED_BY_PANEL'
@@ -100,16 +117,83 @@ export type PanelRecommendationStatus =
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft {
+  id?: number | string;
   studentId: string;
   studentName: string;
   programme: string;
+  semester?: string;
   proposedTopic: string;
+  researchArea?: string;
+  abstract?: string;
   recommendedMember: string;
   recommendedMemberId: string;
   submittedDate: string;
+  submittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
   status: PanelRecommendationStatus;
   justification?: string;
   rejectionReason?: string;
+}
+
+export interface PanelRecommendationSupervisee {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  semester: string;
+  proposedTopic: string;
+  researchArea: string;
+  abstract: string;
+  supervisorName: string;
+  supervisorId: string;
+  canRecommend: boolean;
+}
+
+export interface PanelCandidate {
+  staffId: string;
+  name: string;
+  department: string;
+  workloadCount: number;
+  workloadLimit: number;
+  canSubmit: boolean;
+  availability: 'Available' | 'Workload Full' | string;
+  workloadHelpText: string;
+}
+
+export interface PanelWorkloadItem {
+  type: 'Confirmed Appointment' | 'Pending Nomination';
+  studentName: string;
+  studentId: string;
+  researchTitle: string;
+  date: string;
+}
+
+export interface PanelWorkloadRecord {
+  id: string;
+  name: string;
+  department: string;
+  currentStudents: number;
+  workloadLimit: number;
+  availability: 'Available' | 'Near Limit' | 'Full Load';
+  initials: string;
+  confirmedAppointments: number;
+  pendingNominations: number;
+  workloadItems: PanelWorkloadItem[];
+}
+
+export interface StudentPanelAppointmentView {
+  status: 'PENDING' | 'CONFIRMED';
+  studentName: string;
+  studentId: string;
+  programme: string;
+  semester: string;
+  researchTitle: string;
+  supervisorName: string;
+  panelMemberName: string | null;
+  panelMemberId: string | null;
+  panelMemberDepartment: string | null;
+  panelMemberEmail: string | null;
+  appointmentDate: string | null;
 }
 
 // A submitted panel recommendation record shown in the history list.
@@ -119,12 +203,19 @@ export interface SubmittedRecommendation {
   studentId: string;
   researchTitle: string;
   recommendedPanel: string;
+  recommendedPanelId?: string;
   date: string;
   status: 'Approved' | 'Pending Approval' | 'Rejected';
+  workflowStatus?: PanelRecommendationStatus;
   semester: string;
   programme?: string;
+  researchArea?: string;
   abstract?: string;
   justification?: string;
+  rejectionReason?: string;
+  submittedAt?: string | null;
+  panelDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
 }
 
 // A past supervisor appointment request the lecturer already approved/rejected.

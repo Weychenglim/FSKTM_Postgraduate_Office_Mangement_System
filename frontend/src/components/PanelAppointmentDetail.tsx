@@ -1,474 +1,321 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  Calendar,
-  GraduationCap,
-  Clock,
-  User,
+import React from 'react';
+import {
+  AlertCircle,
   CheckCircle2,
+  Clock,
   FileText,
-  Eye,
-  Lock,
-  ChevronRight,
-  Shield,
-  HelpCircle,
+  GraduationCap,
   Users,
-  AlertCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
-
-export interface PanelDetailRecord {
-  id: string;
-  studentName: string;
-  programme: string;
-  semester: string;
-  supervisor: string;
-  panelMember: string;
-  status: 'Approved' | 'No Panel' | 'Pending' | 'Recommendation' | 'Workload Alert' | 'Rejected';
-  updatedDate: string;
-}
+import { PageHeader, StatusBadge } from './PortalPrimitives';
+import { PanelRecord } from '../types';
+import { PanelWorkflowItem, PanelWorkflowTimeline } from './PanelWorkflowTimeline';
 
 interface PanelAppointmentDetailProps {
   onBack: () => void;
-  record?: PanelDetailRecord | null;
+  record?: PanelRecord | null;
 }
 
-export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({ 
+const statusTone = (status?: PanelRecord['status']) => {
+  if (status === 'Approved') return 'success';
+  if (status === 'Rejected' || status === 'Workload Alert') return 'danger';
+  if (status === 'Pending' || status === 'Recommendation') return 'warning';
+  return 'neutral';
+};
+
+const initialsFor = (name?: string) =>
+  (name || 'NA')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+const sessionFrom = (semester?: string) => {
+  const match = semester?.match(/\d{4}\/\d{4}/);
+  return match ? match[0] : '2025/2026';
+};
+
+const displayValue = (value?: string | null) => value && value.trim() ? value : 'Not available';
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).replace(',', '');
+};
+
+const EmptyRecordState: React.FC<{ title: string }> = ({ title }) => (
+  <div className="py-8 flex flex-col items-center justify-center text-center space-y-3 px-4">
+    <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center shadow-3xs">
+      <AlertCircle className="w-5 h-5 stroke-[1.8]" />
+    </div>
+    <span className="font-extrabold text-brand-navy text-xs block">{title}</span>
+  </div>
+);
+
+const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] => {
+  const status = record?.status;
+  const date = record?.appointmentDate || record?.updatedDate;
+  const approved = status === 'Approved';
+  const rejected = status === 'Rejected';
+  const pendingCoordinator = status === 'Pending';
+  const selectedPanelReview = status === 'Recommendation';
+  const noPanel = status === 'No Panel' || !status;
+
+  return [
+    {
+      id: 'submitted',
+      label: 'Recommendation Submitted',
+      subtext: noPanel ? 'Not started' : displayValue(record?.updatedDate),
+      timestamp: formatDateTime(record?.recommendationSubmittedAt),
+      status: noPanel ? 'pending' : 'completed',
+    },
+    {
+      id: 'panel',
+      label: 'Selected Panel Review',
+      subtext: rejected
+        ? 'Recommendation rejected'
+        : approved || pendingCoordinator
+        ? 'Selected panel accepted'
+        : selectedPanelReview
+        ? 'Awaiting selected panel decision'
+        : 'Pending recommendation submission',
+      timestamp: formatDateTime(record?.panelDecisionAt),
+      status: rejected ? 'rejected' : approved || pendingCoordinator ? 'completed' : selectedPanelReview ? 'active' : 'pending',
+    },
+    {
+      id: 'coordinator',
+      label: 'Programme Coordinator Confirmation',
+      subtext: approved
+        ? 'Programme Coordinator confirmed'
+        : pendingCoordinator
+        ? 'Awaiting Programme Coordinator confirmation'
+        : rejected
+        ? 'Workflow closed'
+        : 'Pending selected panel acceptance',
+      timestamp: formatDateTime(record?.coordinatorDecisionAt),
+      status: approved ? 'completed' : pendingCoordinator ? 'active' : rejected ? 'rejected' : 'pending',
+    },
+    {
+      id: 'appointed',
+      label: 'Panel Appointment Confirmed',
+      subtext: approved ? displayValue(date) : rejected ? 'Not appointed' : 'Pending confirmation',
+      timestamp: formatDateTime(record?.appointmentConfirmedAt),
+      status: approved ? 'completed' : rejected ? 'rejected' : 'pending',
+    },
+  ];
+};
+
+export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
   onBack,
-  record 
+  record,
 }) => {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2500);
-  };
-
-  // Safe defaults based on the high-fidelity screenshot
-  const studentInitials = record?.studentName
-    ? record.studentName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-    : 'SN';
-
-  const defaultRecord = {
-    id: record?.id || 'MEA2301184',
-    studentName: record?.studentName || 'Sarah Natasha',
-    programme: record?.programme || 'MSc. Computer Science',
-    semester: record?.semester || 'Sem 1 2024/2025',
-    email: 'sarah.natasha@student.fsktm.edu.my',
-    status: record?.status || 'Approved',
-    researchTitle: 'Blockchain-Based Verification Framework for Academic Credentials',
-    area: 'Blockchain / Academic Credential Verification',
-    abstract: 'This research explores how blockchain can be used to verify academic credentials securely, reduce document fraud, and improve trust in postgraduate academic records. By leveraging decentralized ledgers and smart contracts, the study aims to create a tamper-proof system for real-time validation of degrees and transcripts across international institutional boundaries.',
-    appointmentId: 'SV-APT-2025-014',
-    supervisor: record?.supervisor || 'Dr. Siti Noor',
-    workload: '4/5 Supervisees',
-    approvedDate: '13 Oct 2025',
-    releasedDate: '14 Oct 2025',
-    panelMember: record?.panelMember && record.panelMember !== 'Not Assigned' && record.panelMember !== 'Pending'
-      ? record.panelMember 
-      : 'Assoc. Prof. Dr. Amina Malik',
-    panelInitials: record?.panelMember && record.panelMember !== 'Not Assigned' && record.panelMember !== 'Pending'
-      ? record.panelMember.split(' ').filter(p => !p.includes('.')).map(n => n[0]).join('').substring(0, 2).toUpperCase()
-      : 'AM',
-    assignedDate: '22 Nov 2025'
-  };
+  const session = sessionFrom(record?.semester);
+  const panelAssigned = record?.panelMember && !['Not Assigned', 'Pending'].includes(record.panelMember);
 
   return (
     <div id="panel-appointment-detail-root" className="space-y-8 animate-fade-in text-left font-sans">
-      
-      <PortalToast message={toastMessage} />
-
       <PageHeader
         title="Panel Appointment Detail"
         subtitle="View student panel appointment details, appointment status, related records, and supporting documents."
         backLabel="Back to Panel Appointment Management"
         onBack={onBack}
         subtitleClassName="max-w-2xl"
-        actions={
+        actions={(
           <span className="inline-flex items-center px-4 py-2 bg-brand-navy text-white text-[11px] font-black tracking-widest rounded-lg uppercase">
-            SESSION 2024/2025
+            Session {session}
           </span>
-        }
+        )}
       />
 
-      {/* Main Core Responsive Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
-        
-        {/* Left Section (Column Span 4): Student Profile, Appointment, Evaluation */}
         <div className="lg:col-span-4 space-y-6 md:space-y-8">
-          
-          {/* Card 1: Student Profile Summary Card */}
-          <div id="student-profile-card" className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs flex flex-col items-start space-y-5">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs flex flex-col items-start space-y-5">
             <div className="flex items-center gap-4 w-full">
-              {/* Profile Avatar Initials */}
-              <div className="w-12 h-12 rounded-xl bg-blue-100 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0 font-extrabold text-base font-sans">
-                {studentInitials}
+              <div className="w-12 h-12 rounded-xl bg-blue-100 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0 font-extrabold text-base">
+                {initialsFor(record?.studentName)}
               </div>
               <div className="text-left space-y-1 overflow-hidden">
                 <h3 className="font-extrabold text-brand-navy text-base truncate leading-tight">
-                  {defaultRecord.studentName}
+                  {displayValue(record?.studentName)}
                 </h3>
-                {/* Status Indicator */}
-                <StatusBadge tone="success" dot className="px-2 py-0.5 text-[9px]">
-                  Approved
+                <StatusBadge tone={statusTone(record?.status)} dot className="px-2 py-0.5 text-[9px]">
+                  {record?.status || 'No Record'}
                 </StatusBadge>
               </div>
             </div>
 
-            {/* Properties fields */}
             <div className="w-full space-y-4 border-t border-slate-100 pt-5 text-left text-xs">
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">
-                  STUDENT ID
-                </span>
-                <span className="font-extrabold text-brand-navy font-mono">
-                  {defaultRecord.id}
-                </span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Student ID</span>
+                <span className="font-extrabold text-brand-navy font-mono">{displayValue(record?.id)}</span>
               </div>
-
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">
-                  PROGRAMME
-                </span>
-                <span className="font-bold text-slate-700">
-                  {defaultRecord.programme}
-                </span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Programme</span>
+                <span className="font-bold text-slate-700">{displayValue(record?.programme)}</span>
               </div>
-
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">
-                  SEMESTER
-                </span>
-                <span className="font-semibold text-slate-600">
-                  {defaultRecord.semester}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">
-                  EMAIL
-                </span>
-                <span className="font-semibold text-slate-600 break-all select-all">
-                  {defaultRecord.email}
-                </span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Semester</span>
+                <span className="font-semibold text-slate-600">{displayValue(record?.semester)}</span>
               </div>
             </div>
           </div>
 
-          {/* Card 2: Appointment Info Card */}
-          <div id="appointment-info-card" className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs text-left space-y-4.5">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs text-left space-y-4.5">
             <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
               <Users className="w-4 h-4 text-blue-500" />
               Appointment Info
             </h4>
-
             <div className="space-y-3.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-450 font-medium">Appointment ID</span>
-                <span className="font-extrabold text-brand-navy font-mono">{defaultRecord.appointmentId}</span>
-              </div>
-
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-450 font-medium">Supervisor</span>
-                <span className="font-extrabold text-slate-850">{defaultRecord.supervisor}</span>
+                <span className="font-extrabold text-slate-850 text-right">{displayValue(record?.supervisor)}</span>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-450 font-medium">Workload</span>
-                <span className="font-extrabold text-slate-800">{defaultRecord.workload}</span>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-450 font-medium">Panel Member</span>
+                <span className="font-extrabold text-slate-850 text-right">{displayValue(record?.panelMember)}</span>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-450 font-medium">Approved Date</span>
-                <span className="font-bold text-slate-700">{defaultRecord.approvedDate}</span>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-450 font-medium">Appointment Date</span>
+                <span className="font-bold text-slate-700 text-right">{displayValue(record?.appointmentDate || record?.updatedDate)}</span>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-450 font-medium">Released Date</span>
-                <span className="font-bold text-slate-700">{defaultRecord.releasedDate}</span>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-slate-450 font-medium">Last Updated</span>
+                <span className="font-bold text-slate-700 text-right">{displayValue(record?.updatedDate)}</span>
               </div>
             </div>
           </div>
 
-          {/* Card 3: Evaluation Summary Card */}
-          <div id="evaluation-summary-card" className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-3xs text-left flex flex-col space-y-4.5">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-3xs text-left flex flex-col space-y-4.5">
             <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               Evaluation Summary
             </h4>
-
-            <div className="py-6 flex flex-col items-center justify-center text-center space-y-3 px-3">
-              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center shadow-3xs">
-                <AlertCircle className="w-6 h-6 stroke-[1.5]" />
-              </div>
-              <div className="space-y-1">
-                <span className="font-extrabold text-brand-navy text-xs block">
-                  No evaluation records available
-                </span>
-                <p className="text-slate-450 text-[10.5px] leading-relaxed max-w-[240px] mx-auto">
-                  Student has not yet reached the evaluation stage of the appointment process.
-                </p>
-              </div>
-            </div>
-
+            <EmptyRecordState
+              title="No evaluation records available"
+            />
             <div className="border-t border-slate-100 pt-3.5 flex items-center justify-between text-xs">
               <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Status:</span>
               <span className="px-2 py-0.5 bg-slate-100 text-slate-600 font-black uppercase text-[9px] rounded-md border border-slate-200">
-                NOT STARTED
+                No records
               </span>
             </div>
           </div>
-
         </div>
 
-        {/* Right Section (Column Span 8): Research Info, Status History, Related Panel, Files */}
         <div className="lg:col-span-8 space-y-6 md:space-y-8">
-          
-          {/* Card 4: Research Information Card */}
-          <div id="research-info-card" className="bg-white rounded-2xl border border-slate-200/90 p-6 md:p-8 space-y-5 text-left">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 md:p-8 space-y-5 text-left">
             <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 pb-1">
               <GraduationCap className="w-4.5 h-4.5 text-blue-500" />
               Research Information
             </h4>
-
-            {/* Title high-fidelity container */}
             <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4.5 md:p-5.5 space-y-1.5 shadow-2xs">
               <span className="text-indigo-650 font-bold block text-sm leading-relaxed tracking-tight">
-                "{defaultRecord.researchTitle}"
+                {displayValue(record?.researchTitle)}
               </span>
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
                 <span className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">Area:</span>
-                <span>{defaultRecord.area}</span>
+                <span>{displayValue(record?.researchArea)}</span>
               </div>
             </div>
-
-            {/* Abstract */}
             <div className="space-y-2 pt-1 text-xs">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
-                ABSTRACT
-              </span>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Abstract</span>
               <p className="text-slate-650 font-medium leading-relaxed">
-                {defaultRecord.abstract}
+                {displayValue(record?.abstract)}
               </p>
             </div>
           </div>
 
-          {/* Connected Grid (Status History & Related Panel Status side-by-side) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-            
-            {/* Card 5: Status History Timeline */}
-            <div id="status-history" className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left">
               <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Clock className="w-4 h-4 text-slate-400 animate-pulse" />
-                Status History
+                <Clock className="w-4 h-4 text-slate-400" />
+                Complete Workflow Status
               </h4>
-
-              {/* Timeline loop */}
-              <div className="relative border-l border-slate-200 pl-5 ml-2.5 space-y-4.5 text-xs font-sans pb-1 pt-1">
-                
-                {/* Milestone 1 */}
-                <div className="relative">
-                  <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-blue-600 border border-blue-100 flex items-center justify-center shadow-3xs" />
-                  <div>
-                    <span className="font-extrabold text-brand-navy block">Confirmation Released</span>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                      14 Oct 2025 • 09:30 AM
-                    </span>
-                  </div>
-                </div>
-
-                {/* Milestone 2 */}
-                <div className="relative">
-                  <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-blue-600 border border-blue-100 flex items-center justify-center shadow-3xs" />
-                  <div>
-                    <span className="font-extrabold text-brand-navy block">Coordinator Approval</span>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                      13 Oct 2025 • 02:45 PM
-                    </span>
-                  </div>
-                </div>
-
-                {/* Milestone 3 */}
-                <div className="relative">
-                  <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-blue-600 border border-blue-100 flex items-center justify-center shadow-3xs" />
-                  <div>
-                    <span className="font-extrabold text-brand-navy block">Supervisor Review</span>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                      12 Oct 2025 • 11:15 AM
-                    </span>
-                  </div>
-                </div>
-
-                {/* Milestone 4 */}
-                <div className="relative">
-                  <div className="absolute -left-7 top-1 w-3 h-3 rounded-full bg-blue-600 border border-blue-100 flex items-center justify-center shadow-3xs" />
-                  <div>
-                    <span className="font-extrabold text-brand-navy block">Request Submitted</span>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                      10 Oct 2025 • 04:00 PM
-                    </span>
-                  </div>
-                </div>
-
-              </div>
+              <PanelWorkflowTimeline items={buildWorkflowItems(record)} />
             </div>
 
-            {/* Card 6: Related Panel Status */}
-            <div id="related-panel-status" className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left flex flex-col justify-between">
               <div>
                 <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Users className="w-4 h-4 text-blue-500" />
                   Related Panel Status
                 </h4>
-
-                {/* Inner member box matching screenshot perfectly */}
-                <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 mt-4 text-xs font-sans text-left space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded bg-brand-navy text-white flex items-center justify-center font-extrabold tracking-wider text-xs">
-                      {defaultRecord.panelInitials}
+                {panelAssigned ? (
+                  <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 mt-4 text-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded bg-brand-navy text-white flex items-center justify-center font-extrabold tracking-wider text-xs">
+                        {initialsFor(record?.panelMember)}
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-brand-navy block text-[11.5px] leading-tight">
+                          {record?.panelMember}
+                        </span>
+                        <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wide">
+                          {displayValue(record?.panelMemberDepartment)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-left space-y-0.5">
-                      <span className="font-extrabold text-brand-navy block text-[11.5px] leading-tight">
-                        {defaultRecord.panelMember}
-                      </span>
-                      <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wide">
-                        Internal Panel Member
-                      </span>
+                    <div className="border-t border-slate-200/70 pt-3 grid grid-cols-1 gap-2.5">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-slate-450 font-medium">Staff ID</span>
+                        <span className="font-bold text-brand-navy">{displayValue(record?.panelMemberId)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-slate-450 font-medium">Email</span>
+                        <span className="font-bold text-brand-navy text-right break-all">{displayValue(record?.panelMemberEmail)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-slate-450 font-medium">Assigned Date</span>
+                        <span className="font-bold text-brand-navy">{displayValue(record?.appointmentDate)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-slate-450 font-medium">Status</span>
+                        <StatusBadge tone={statusTone(record?.status)} dot className="text-[9px] px-2 py-0.5">
+                          {record?.status}
+                        </StatusBadge>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="border-t border-slate-200/70 pt-2.5 flex items-center justify-between">
-                    <span className="text-slate-450 font-medium">Assigned:</span>
-                    <span className="font-bold text-brand-navy">{defaultRecord.assignedDate}</span>
-                  </div>
-                </div>
+                ) : (
+                  <EmptyRecordState
+                    title="No panel member assigned"
+                  />
+                )}
               </div>
-
-              {/* View Panel button */}
-              <button
-                onClick={() => showToast(`Routed to Panel Detail Ledger for ${defaultRecord.panelMember}`)}
-                className="w-full py-2.5 mt-4 border border-slate-250 text-brand-navy hover:bg-slate-50 font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-3xs cursor-pointer focus:outline-none"
-              >
-                View Panel Record
-              </button>
             </div>
-
           </div>
 
-          {/* Card 7: Related Files Table Card */}
-          <div id="related-files-card" className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-3xs text-left">
+          <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-3xs text-left">
             <div className="px-6 py-4.5 border-b border-light-slate flex items-center justify-between">
               <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" />
                 Related Files
               </h4>
-
               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 font-extrabold uppercase text-[9px] rounded-full tracking-wide">
-                3 Files Uploaded
+                No records
               </span>
             </div>
-
-            {/* Scrollable table view */}
-            <div className="overflow-x-auto">
-            <table className="data-table min-w-[500px] text-xs">
-                <thead>
-                  <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th">File Name</th>
-                    <th className="data-th">Category</th>
-                    <th className="data-th">Uploaded Date</th>
-                    <th className="data-th text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
-                  
-                  {/* File 1 */}
-                  <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="data-td flex items-center gap-2.5 font-bold text-brand-navy leading-normal">
-                      <FileText className="w-4 h-4 text-red-500" />
-                      <span>Proposal.pdf</span>
-                    </td>
-                    <td className="data-td font-medium text-slate-600">Research Proposal</td>
-                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
-                    <td className="data-td text-right">
-                      <button
-                        onClick={() => showToast("Opening document: Proposal.pdf in secure administrative preview")}
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View</span>
-                      </button>
-                    </td>
-                  </tr>
-
-                  {/* File 2 */}
-                  <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="data-td flex items-center gap-2.5 font-bold text-brand-navy leading-normal">
-                      <FileText className="w-4 h-4 text-red-500" />
-                      <span>Supervisor Appointment Letter.pdf</span>
-                    </td>
-                    <td className="data-td font-medium text-slate-600">Official Letter</td>
-                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">14 Oct 2025</td>
-                    <td className="data-td text-right">
-                      <button
-                        onClick={() => showToast("Opening document: Supervisor Appointment Letter.pdf in secure administrative preview")}
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View</span>
-                      </button>
-                    </td>
-                  </tr>
-
-                  {/* File 3 */}
-                  <tr className="hover:bg-slate-55 transition-colors">
-                    <td className="data-td flex items-center gap-2.5 font-bold text-brand-navy leading-normal">
-                      <FileText className="w-4 h-4 text-red-500" />
-                      <span>Student Profile.pdf</span>
-                    </td>
-                    <td className="data-td font-medium text-slate-600">Student Record</td>
-                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">10 Oct 2025</td>
-                    <td className="data-td text-right">
-                      <button
-                        onClick={() => showToast("Opening document: Student Profile.pdf in secure administrative preview")}
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold uppercase text-[10px] tracking-wider transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View</span>
-                      </button>
-                    </td>
-                  </tr>
-
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Notice Card: Confidential Administrative Notice */}
-      <div id="notice-card" className="bg-[#eff6ff] rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-[#eff6ff] p-5 shadow-3xs text-left">
-        <div className="flex items-start gap-3.5">
-          <Shield className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h5 className="font-extrabold text-blue-900 text-xs uppercase tracking-wide">
-              Confidential Administrative View
-            </h5>
-            <p className="text-blue-750 text-xs font-semibold leading-relaxed">
-              This page provides a read-only administrative view of the student's panel appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
-            </p>
+            <EmptyRecordState
+              title="No related files available"
+            />
           </div>
         </div>
       </div>
-
     </div>
   );
 };

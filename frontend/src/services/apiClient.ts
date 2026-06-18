@@ -95,8 +95,9 @@ function messageFromErrorBody(body: unknown): string | null {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
     ...((init?.headers as Record<string, string>) ?? {}),
   };
   if (_authToken) {

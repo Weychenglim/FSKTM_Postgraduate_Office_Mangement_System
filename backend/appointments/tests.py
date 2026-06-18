@@ -1,0 +1,499 @@
+from django.contrib.auth import get_user_model
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from accounts.models import Lecturer, OfficeStaff, Student
+
+from .models import PanelAppointment, PanelRecommendation, StudentResearchProfile
+
+
+User = get_user_model()
+
+
+class PanelRecommendationWorkflowTests(APITestCase):
+    def setUp(self):
+        self.supervisor = User.objects.create_user(
+            email="supervisor@example.com",
+            password="password123",
+            full_name="Dr. Supervisor",
+            role=User.Role.LECTURER,
+        )
+        Lecturer.objects.create(user=self.supervisor, staff_no="L10001", department="Software Engineering")
+        self.panel = User.objects.create_user(
+            email="panel@example.com",
+            password="password123",
+            full_name="Dr. Panel",
+            role=User.Role.LECTURER,
+        )
+        Lecturer.objects.create(user=self.panel, staff_no="L10002", department="Data Science")
+        self.other_panel = User.objects.create_user(
+            email="other-panel@example.com",
+            password="password123",
+            full_name="Dr. Other Panel",
+            role=User.Role.LECTURER,
+        )
+        Lecturer.objects.create(user=self.other_panel, staff_no="L10003", department="Artificial Intelligence")
+        self.coordinator = User.objects.create_user(
+            email="coordinator@example.com",
+            password="password123",
+            full_name="Dr. Coordinator",
+            role=User.Role.COORDINATOR,
+        )
+        Lecturer.objects.create(user=self.coordinator, staff_no="C10001", department="Software Engineering")
+        self.office_admin = User.objects.create_user(
+            email="office@example.com",
+            password="password123",
+            full_name="Office Admin",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        OfficeStaff.objects.create(
+            user=self.office_admin,
+            staff_no="M10001",
+            department="Postgraduate Office",
+        )
+        self.student = User.objects.create_user(
+            email="student@example.com",
+            password="password123",
+            full_name="Nur Student",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=self.student,
+            matric_no="MEA999001",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        self.profile = StudentResearchProfile.objects.create(
+            student=self.student,
+            matric_no="MEA999001",
+            student_name="Nur Student",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            semester="Sem 1 2025/2026",
+            proposed_topic="Secure Workflow Automation",
+            research_area="Software Engineering",
+            abstract="Research abstract",
+            supervisor=self.supervisor,
+        )
+
+    def authenticate(self, user):
+        self.client.force_authenticate(user=user)
+
+    def create_submitted_recommendation(self):
+        self.authenticate(self.supervisor)
+        response = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.panel.lecturer.staff_no,
+                "justification": "Strong match for the research topic.",
+                "status": PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return response.data
+
+    def create_profile(self, matric_no, supervisor=None):
+        student = User.objects.create_user(
+            email=f"{matric_no.lower()}@example.com",
+            password="password123",
+            full_name=f"Student {matric_no}",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=student,
+            matric_no=matric_no,
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        return StudentResearchProfile.objects.create(
+            student=student,
+            matric_no=matric_no,
+            student_name=f"Student {matric_no}",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            semester="Sem 1 2025/2026",
+            proposed_topic=f"Research Topic {matric_no}",
+            research_area="Software Engineering",
+            abstract="Research abstract",
+            supervisor=supervisor or self.other_panel,
+        )
+
+    def reserve_panel_workload(self, panel_member, count):
+        for index in range(count):
+            profile = self.create_profile(f"MEA888{index:03d}")
+            PanelRecommendation.objects.create(
+                profile=profile,
+                supervisor=profile.supervisor,
+                recommended_member=panel_member,
+                justification="Existing pending nomination.",
+                status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            )
+
+    def test_office_panel_records_include_approved_pending_rejected_and_no_panel_profiles(self):
+        approved_profile = self.create_profile("MEA999010", supervisor=self.supervisor)
+        approved_recommendation = PanelRecommendation.objects.create(
+            profile=approved_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Approved panel.",
+            status=PanelRecommendation.Status.APPROVED,
+        )
+        PanelAppointment.objects.create(
+            recommendation=approved_recommendation,
+            profile=approved_profile,
+            supervisor=self.supervisor,
+            panel_member=self.panel,
+            approved_by=self.coordinator,
+        )
+        pending_profile = self.create_profile("MEA999011", supervisor=self.supervisor)
+        PanelRecommendation.objects.create(
+            profile=pending_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.other_panel,
+            justification="Awaiting coordinator.",
+            status=PanelRecommendation.Status.PENDING_COORDINATOR,
+        )
+        submitted_profile = self.create_profile("MEA999012", supervisor=self.supervisor)
+        PanelRecommendation.objects.create(
+            profile=submitted_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Awaiting selected panel.",
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+        rejected_profile = self.create_profile("MEA999013", supervisor=self.supervisor)
+        PanelRecommendation.objects.create(
+            profile=rejected_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Rejected panel.",
+            status=PanelRecommendation.Status.REJECTED_BY_PANEL,
+        )
+
+        self.authenticate(self.office_admin)
+        response = self.client.get("/api/appointments/panel/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        records_by_id = {record["id"]: record for record in response.data}
+        self.assertEqual(records_by_id[self.profile.matric_no]["status"], "No Panel")
+        self.assertEqual(records_by_id[self.profile.matric_no]["panelMember"], "Not Assigned")
+        self.assertEqual(records_by_id[approved_profile.matric_no]["status"], "Approved")
+        self.assertEqual(records_by_id[pending_profile.matric_no]["status"], "Pending")
+        self.assertEqual(records_by_id[submitted_profile.matric_no]["status"], "Recommendation")
+        self.assertEqual(records_by_id[rejected_profile.matric_no]["status"], "Rejected")
+
+    def test_supervisor_can_submit_one_recommendation_and_duplicate_is_blocked(self):
+        recommendation = self.create_submitted_recommendation()
+        self.assertEqual(recommendation["status"], PanelRecommendation.Status.SUBMITTED_TO_PANEL)
+        self.assertEqual(recommendation["studentId"], self.profile.matric_no)
+        self.assertEqual(recommendation["recommendedMemberId"], self.panel.lecturer.staff_no)
+        self.assertIsNotNone(recommendation["submittedAt"])
+        self.assertIsNone(recommendation["panelDecisionAt"])
+        self.assertIsNone(recommendation["coordinatorDecisionAt"])
+
+        duplicate = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.other_panel.lecturer.staff_no,
+                "justification": "Try another active recommendation.",
+                "status": PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            },
+            format="json",
+        )
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_supervisor_cannot_save_panel_recommendation_as_draft(self):
+        self.authenticate(self.supervisor)
+        response = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.panel.lecturer.staff_no,
+                "justification": "Save this for later.",
+                "status": "DRAFT",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(PanelRecommendation.objects.filter(profile=self.profile).exists())
+
+    def test_full_panel_workload_blocks_new_submission(self):
+        self.reserve_panel_workload(self.panel, 5)
+
+        self.authenticate(self.supervisor)
+        response = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.panel.lecturer.staff_no,
+                "justification": "Strong match for the research topic.",
+                "status": PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("workload", str(response.data).lower())
+
+    def test_panel_candidates_include_pending_nomination_workload(self):
+        self.reserve_panel_workload(self.panel, 4)
+
+        self.authenticate(self.supervisor)
+        response = self.client.get("/api/appointments/panel/candidates/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        candidate = next(item for item in response.data if item["staffId"] == self.panel.lecturer.staff_no)
+        self.assertEqual(candidate["workloadCount"], 4)
+        self.assertEqual(candidate["workloadLimit"], 5)
+        self.assertTrue(candidate["canSubmit"])
+        self.assertIn("submitted nominations", candidate["workloadHelpText"])
+
+    def test_office_panel_workload_counts_confirmed_appointments_and_pending_nominations(self):
+        approved_profile = self.create_profile("MEA999020", supervisor=self.supervisor)
+        approved_recommendation = PanelRecommendation.objects.create(
+            profile=approved_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Approved panel.",
+            status=PanelRecommendation.Status.APPROVED,
+        )
+        PanelAppointment.objects.create(
+            recommendation=approved_recommendation,
+            profile=approved_profile,
+            supervisor=self.supervisor,
+            panel_member=self.panel,
+            approved_by=self.coordinator,
+        )
+        self.reserve_panel_workload(self.panel, 4)
+
+        self.authenticate(self.office_admin)
+        response = self.client.get("/api/appointments/panel/workload/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        panel_row = next(row for row in response.data if row["id"] == self.panel.lecturer.staff_no)
+        self.assertEqual(panel_row["currentStudents"], 5)
+        self.assertEqual(panel_row["confirmedAppointments"], 1)
+        self.assertEqual(panel_row["pendingNominations"], 4)
+        self.assertEqual(panel_row["availability"], "Full Load")
+        self.assertEqual(len(panel_row["workloadItems"]), 5)
+
+    def test_student_cannot_view_office_panel_workload(self):
+        self.authenticate(self.student)
+
+        response = self.client.get("/api/appointments/panel/workload/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_eligible_supervisees_include_supervisor_profile_staff_number(self):
+        self.authenticate(self.supervisor)
+
+        response = self.client.get("/api/appointments/panel/eligible-supervisees/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        supervisee = response.data[0]
+        self.assertEqual(supervisee["studentId"], self.profile.matric_no)
+        self.assertEqual(supervisee["supervisorName"], self.supervisor.full_name)
+        self.assertEqual(supervisee["supervisorId"], self.supervisor.lecturer.staff_no)
+
+    def test_selected_panel_accepts_then_coordinator_approves_final_assignment(self):
+        recommendation = self.create_submitted_recommendation()
+
+        self.authenticate(self.panel)
+        accept = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/",
+            format="json",
+        )
+        self.assertEqual(accept.status_code, status.HTTP_200_OK)
+        self.assertEqual(accept.data["status"], PanelRecommendation.Status.PENDING_COORDINATOR)
+        self.assertIsNotNone(accept.data["panelDecisionAt"])
+
+        self.authenticate(self.coordinator)
+        approve = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/coordinator-approve/",
+            format="json",
+        )
+        self.assertEqual(approve.status_code, status.HTTP_200_OK)
+        self.assertEqual(approve.data["status"], PanelRecommendation.Status.APPROVED)
+        self.assertIsNotNone(approve.data["coordinatorDecisionAt"])
+
+        self.authenticate(self.panel)
+        assignments = self.client.get("/api/appointments/panel/assignments/")
+        self.assertEqual(assignments.status_code, status.HTTP_200_OK)
+        self.assertEqual(assignments.data[0]["studentId"], self.profile.matric_no)
+        self.assertEqual(assignments.data[0]["status"], "ACTIVE")
+        self.assertTrue(PanelAppointment.objects.filter(recommendation_id=recommendation["id"]).exists())
+
+    def test_student_without_confirmed_panel_appointment_receives_pending_state(self):
+        self.authenticate(self.student)
+
+        response = self.client.get("/api/appointments/panel/student/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "PENDING")
+        self.assertEqual(response.data["studentId"], self.profile.matric_no)
+        self.assertEqual(response.data["supervisorName"], self.supervisor.full_name)
+        self.assertIsNone(response.data["panelMemberName"])
+
+    def test_student_without_research_profile_receives_pending_state(self):
+        unprofiled_student = User.objects.create_user(
+            email="unprofiled-student@example.com",
+            password="password123",
+            full_name="Profile Pending Student",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=unprofiled_student,
+            matric_no="MEA777001",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+
+        self.authenticate(unprofiled_student)
+        response = self.client.get("/api/appointments/panel/student/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "PENDING")
+        self.assertEqual(response.data["studentName"], unprofiled_student.full_name)
+        self.assertEqual(response.data["studentId"], unprofiled_student.student.matric_no)
+        self.assertEqual(response.data["programme"], unprofiled_student.student.programme)
+        self.assertEqual(response.data["supervisorName"], "Not assigned yet")
+        self.assertIsNone(response.data["panelMemberName"])
+
+    def test_student_with_confirmed_panel_appointment_receives_panel_details(self):
+        recommendation = PanelRecommendation.objects.create(
+            profile=self.profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Confirmed panel.",
+            status=PanelRecommendation.Status.APPROVED,
+        )
+        PanelAppointment.objects.create(
+            recommendation=recommendation,
+            profile=self.profile,
+            supervisor=self.supervisor,
+            panel_member=self.panel,
+            approved_by=self.coordinator,
+        )
+
+        self.authenticate(self.student)
+        response = self.client.get("/api/appointments/panel/student/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "CONFIRMED")
+        self.assertEqual(response.data["panelMemberName"], self.panel.full_name)
+        self.assertEqual(response.data["panelMemberId"], self.panel.lecturer.staff_no)
+        self.assertEqual(response.data["panelMemberEmail"], self.panel.email)
+        self.assertEqual(response.data["researchTitle"], self.profile.proposed_topic)
+        self.assertTrue(response.data["appointmentDate"])
+
+    def test_student_panel_endpoint_denies_non_student_roles(self):
+        for user in [self.supervisor, self.panel, self.coordinator]:
+            self.authenticate(user)
+            response = self.client.get("/api/appointments/panel/student/")
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_panel_endpoint_only_returns_logged_in_students_record(self):
+        recommendation = PanelRecommendation.objects.create(
+            profile=self.profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Confirmed panel.",
+            status=PanelRecommendation.Status.APPROVED,
+        )
+        PanelAppointment.objects.create(
+            recommendation=recommendation,
+            profile=self.profile,
+            supervisor=self.supervisor,
+            panel_member=self.panel,
+            approved_by=self.coordinator,
+        )
+        other_student = User.objects.create_user(
+            email="other-student@example.com",
+            password="password123",
+            full_name="Other Student",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=other_student,
+            matric_no="MEA999002",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        other_profile = StudentResearchProfile.objects.create(
+            student=other_student,
+            matric_no="MEA999002",
+            student_name="Other Student",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            semester="Sem 1 2025/2026",
+            proposed_topic="Separate Research Topic",
+            research_area="Software Engineering",
+            abstract="Research abstract",
+            supervisor=self.supervisor,
+        )
+
+        self.authenticate(other_student)
+        response = self.client.get("/api/appointments/panel/student/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "PENDING")
+        self.assertEqual(response.data["studentId"], other_profile.matric_no)
+        self.assertIsNone(response.data["panelMemberName"])
+
+    def test_wrong_users_cannot_make_panel_or_coordinator_decisions(self):
+        recommendation = self.create_submitted_recommendation()
+
+        self.authenticate(self.supervisor)
+        supervisor_accept = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/",
+            format="json",
+        )
+        self.assertEqual(supervisor_accept.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(self.other_panel)
+        wrong_panel_accept = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/",
+            format="json",
+        )
+        self.assertEqual(wrong_panel_accept.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(self.panel)
+        self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/",
+            format="json",
+        )
+
+        self.authenticate(self.panel)
+        panel_coordinator_approve = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/coordinator-approve/",
+            format="json",
+        )
+        self.assertEqual(panel_coordinator_approve.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_panel_reject_requires_reason_and_allows_new_recommendation(self):
+        recommendation = self.create_submitted_recommendation()
+
+        self.authenticate(self.panel)
+        missing_reason = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-reject/",
+            {"reason": ""},
+            format="json",
+        )
+        self.assertEqual(missing_reason.status_code, status.HTTP_400_BAD_REQUEST)
+
+        rejected = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-reject/",
+            {"reason": "Workload conflict."},
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, status.HTTP_200_OK)
+        self.assertEqual(rejected.data["status"], PanelRecommendation.Status.REJECTED_BY_PANEL)
+        self.assertEqual(rejected.data["rejectionReason"], "Workload conflict.")
+
+        self.authenticate(self.supervisor)
+        replacement = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.other_panel.lecturer.staff_no,
+                "justification": "Replacement recommendation.",
+                "status": PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            },
+            format="json",
+        )
+        self.assertEqual(replacement.status_code, status.HTTP_201_CREATED)

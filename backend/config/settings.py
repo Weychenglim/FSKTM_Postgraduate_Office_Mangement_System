@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     "corsheaders",
     # local
     "accounts",
+    "appointments",
+    "dashboard",
     "letters",
     "announcements",
 ]

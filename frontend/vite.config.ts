@@ -16,8 +16,8 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
-        // Auth API is served by the Django backend (see backend/). Other /api
-        // routes are mocked client-side while only auth is live.
+        // Auth, letter templates, and panel appointment APIs are served by
+        // Django. Other unfinished modules can still use frontend mock mode.
         '/api': {
           target: `http://localhost:${process.env.API_PORT ?? 8000}`,
           changeOrigin: true,

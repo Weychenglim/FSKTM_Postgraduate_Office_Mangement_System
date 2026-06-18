@@ -3,51 +3,94 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronLeft,
-  Download, 
-  Plus, 
-  Upload, 
-  MoreVertical, 
-  Search, 
-  ChevronRight,
-  HelpCircle,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Calendar,
-  Layers,
-  Edit2,
+  Download,
+  Plus,
+  Search,
   Trash2,
-  X,
-  Sliders,
-  FileSpreadsheet
+  Upload
 } from 'lucide-react';
-import { SemesterTimeline } from './SemesterTimeline';
-import { UploadTimelineDrawer } from './UploadTimelineDrawer';
-import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  createTimelineEntry,
+  deleteTimelineEntry,
+  downloadTimelineTemplate,
+  getActiveTimeline,
+  getTimelineAuditLogs,
+  saveBlob,
+  timelineEntryToLegacy,
+  updateTimelineEntry,
+} from '../services';
+import { ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
+import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
-import { TimelineEntry } from '../types';
-import { getTimelineEntries } from '../services';
+import { SemesterTimeline } from './SemesterTimeline';
+import { ErrorState, LoadingState } from './StateViews';
+import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 
 // TimelineEntry now lives in src/types.
-
-interface UpdateLog {
-  id: string;
-  user: string;
-  avatar: string;
-  date: string;
-  action: string;
-  actionColor: string;
-  details: string;
-}
 
 interface TimelineManagementProps {
   onBack: () => void;
 }
+
+const formatDisplayDate = (value?: string) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const formatSessionTitle = (session?: string) => {
+  const match = session?.match(/\d{4}\/\d{4}/);
+  return `Session ${match ? match[0] : session || '2025/2026'}`;
+};
+
+const actionLabel = (action: TimelineAuditLog['action']) => {
+  switch (action) {
+    case 'UPLOAD':
+      return 'Uploaded timeline';
+    case 'REPLACE':
+      return 'Replaced timeline';
+    case 'ADD_ENTRY':
+      return 'Added entry';
+    case 'EDIT_ENTRY':
+      return 'Edited entry';
+    case 'DELETE_ENTRY':
+      return 'Deleted entry';
+    default:
+      return action;
+  }
+};
+
+const actionColor = (action: TimelineAuditLog['action']) => {
+  switch (action) {
+    case 'UPLOAD':
+    case 'REPLACE':
+      return 'text-[#2563eb]';
+    case 'ADD_ENTRY':
+      return 'text-[#16a34a]';
+    case 'EDIT_ENTRY':
+      return 'text-[#d97706]';
+    case 'DELETE_ENTRY':
+      return 'text-[#dc2626]';
+    default:
+      return 'text-slate-600';
+  }
+};
+
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'OS';
 
 export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }) => {
   // Toast overlay
@@ -63,16 +106,25 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     }, 4000);
   };
 
-  // Timeline rows loaded from timelineApi (mock-backed today).
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
+  const [auditLogs, setAuditLogs] = useState<TimelineAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
 
   const loadEntries = useCallback(() => {
     setLoading(true);
     setError(null);
-    getTimelineEntries()
-      .then(setEntries)
+    Promise.all([getActiveTimeline(), getTimelineAuditLogs()])
+      .then(([activeTimeline, logs]) => {
+        setTimeline(activeTimeline);
+        setEntries(activeTimeline.available
+          ? activeTimeline.levels.flatMap((group) => group.entries.map(timelineEntryToLegacy))
+          : []);
+        setAuditLogs(logs);
+        setScheduleRefreshKey((value) => value + 1);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load timeline entries.'))
       .finally(() => setLoading(false));
   }, []);
@@ -80,37 +132,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
-
-  // Recent Update Track Log data
-  const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([
-    {
-      id: 'log_1',
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-      date: '20 Nov 2025',
-      action: 'Replaced timeline',
-      actionColor: 'text-[#2563eb]',
-      details: 'Imported Sem 1 2025/2026 timeline'
-    },
-    {
-      id: 'log_2',
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&fit=crop&q=60',
-      date: '10 Nov 2025',
-      action: 'Edited entry',
-      actionColor: 'text-[#d97706]',
-      details: 'Updated mark entry period'
-    },
-    {
-      id: 'log_3',
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=80&fit=crop&q=60',
-      date: '01 Nov 2025',
-      action: 'Added entry',
-      actionColor: 'text-[#16a34a]',
-      details: 'Added evaluation schedule release'
-    }
-  ]);
 
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -135,16 +156,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
   // Entry Management Modals & Drawers
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
-  const [editDrawerOpen, setEditDrawerOpen] = useState(true);
-  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>({
-    id: 'ent_2',
-    event: 'Panel Recommendation Period',
-    category: 'Panel Appointment',
-    startDate: '16 Oct 2025',
-    endDate: '30 Oct 2025',
-    targetRole: ['LECTURER'],
-    status: 'Active'
-  });
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<{id: string, name: string} | null>(null);
 
   const handleApplyFilters = () => {
     setAppliedSearch(searchTerm);
@@ -163,94 +177,76 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     setEditDrawerOpen(true);
   };
 
-  const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id'>) => {
-    const newEnt: TimelineEntry = {
-      id: `ent_${Date.now()}`,
-      ...newEntryVal
-    };
-    setEntries(prev => [...prev, newEnt]);
-
-    // Log action
-    const newLog: UpdateLog = {
-      id: `log_${Date.now()}`,
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-      date: '27 May 2026',
-      action: 'Added entry',
-      actionColor: 'text-[#16a34a]',
-      details: `Created new timeline milestone: ${newEntryVal.event}`
-    };
-    setUpdateLogs(prev => [newLog, ...prev]);
-
-    triggerToast(`Successfully created timeline entry: "${newEntryVal.event}"`);
-    setAddDrawerOpen(false);
+  const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
+    createTimelineEntry(newEntryVal)
+      .then((savedEntry) => {
+        const normalizedEntry = timelineEntryToLegacy(savedEntry);
+        setEntries(prev => [...prev, normalizedEntry]);
+        triggerToast(`Successfully created timeline entry: "${normalizedEntry.event}"`);
+        setAddDrawerOpen(false);
+        loadEntries();
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to create timeline entry.');
+      });
   };
 
-  const handleEditEntry = (updated: TimelineEntry) => {
-    setEntries(prev => prev.map(ent => (ent.id === updated.id ? updated : ent)));
+  const handleEditEntry = (updated: Omit<TimelineEntry, 'status'>) => {
+    updateTimelineEntry(updated.id, updated)
+      .then((savedEntry) => {
+        const normalizedEntry = timelineEntryToLegacy(savedEntry);
+        setEntries(prev => prev.map(ent => (ent.id === updated.id ? normalizedEntry : ent)));
 
-    // Log action
-    const newLog: UpdateLog = {
-      id: `log_${Date.now()}`,
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-      date: '27 May 2026',
-      action: 'Edited entry',
-      actionColor: 'text-[#d97706]',
-      details: `Updated entry: ${updated.event}`
-    };
-    setUpdateLogs(prev => [newLog, ...prev]);
-
-    triggerToast(`Successfully modified entry: "${updated.event}"`);
-    setEditDrawerOpen(false);
+        triggerToast(`Successfully modified entry: "${normalizedEntry.event}"`);
+        setEditDrawerOpen(false);
+        loadEntries();
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to update timeline entry.');
+      });
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently remove "${name}" from the postgraduate master timeline?`)) {
-      setEntries(prev => prev.filter(ent => ent.id !== id));
-      triggerToast(`Deleted entry "${name}" from master record.`);
-    }
+    setEntryToDelete({ id, name });
+  };
+
+  const confirmDeleteEntry = () => {
+    if (!entryToDelete) return;
+    const { id, name } = entryToDelete;
+    deleteTimelineEntry(id)
+      .then(() => {
+        setEntries(prev => prev.filter(ent => ent.id !== id));
+        triggerToast(`Deleted entry "${name}" from master record.`);
+        loadEntries();
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to delete timeline entry.');
+      })
+      .finally(() => {
+        setEntryToDelete(null);
+      });
   };
 
   const handleDownloadTemplate = () => {
-    triggerToast('Generating CSV Master Schedule Layout Template...');
-    setTimeout(() => {
-      // Simulate file download
-      const element = document.createElement("a");
-      const file = new Blob(["Event_Name,Category,Start_Date,End_Date,Target_Role,Status\nSupervisor Request Period,Supervisor Appointment,2025-10-01,2025-10-15,STUDENT,Completed"], {type: 'text/csv'});
-      element.href = URL.createObjectURL(file);
-      element.download = "FSKTM_Timeline_Template.csv";
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-      triggerToast('Success! FSKTM_Timeline_Template.csv downloaded.');
-    }, 1200);
+    triggerToast('Generating Excel master schedule template...');
+    downloadTimelineTemplate()
+      .then((blob) => {
+        saveBlob(blob, 'FSKTM_Semester_Timeline_Template.xlsx');
+        triggerToast('Success! FSKTM_Semester_Timeline_Template.xlsx downloaded.');
+      })
+      .catch((e) => {
+        triggerToast(e instanceof Error ? e.message : 'Failed to download timeline template.');
+      });
   };
 
   const handleUploadTimeline = () => {
     setUploadDrawerOpen(true);
   };
 
-  const handleImportSuccess = (importedEvents: any[]) => {
-    // Add a new timeline update log
-    const newLog: UpdateLog = {
-      id: `log_${Date.now()}`,
-      user: 'Admin Office Staff',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=60',
-      date: '27 May 2026',
-      action: 'Replaced timeline',
-      actionColor: 'text-[#2563eb]',
-      details: 'Imported timeline layout via Excel template'
-    };
-
-    // Replace entries with the validated imported records
+  const handleImportSuccess = (importedEvents: TimelineEntry[], importedCount?: number) => {
     setEntries(importedEvents);
-    setUpdateLogs(prev => [newLog, ...prev]);
-    triggerToast('Import completed! Successfully re-compiled master schedule records.');
-  };
-
-  const handleMoreOptions = () => {
-    triggerToast('Advanced schedule audit logs compiled. Exporting system telemetry...');
+    triggerToast(`Import completed! ${importedCount ?? importedEvents.length} entries committed.`);
+    loadEntries();
   };
 
   const getStatusTone = (status: TimelineEntry['status']) => {
@@ -290,7 +286,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             <PortalButton variant="primary" size="md" icon={Upload} onClick={handleUploadTimeline}>
               Upload Timeline
             </PortalButton>
-            <PortalButton variant="secondary" size="icon" icon={MoreVertical} onClick={handleMoreOptions} title="More Options" />
           </>
         )}
       />
@@ -304,7 +299,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             ACTIVE SEMESTER
           </span>
           <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
-            Sem 1 2025/2026
+            {timeline?.available ? formatSessionTitle(timeline.session) : 'No active session'}
           </span>
         </div>
 
@@ -315,7 +310,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           </span>
           <div className="flex items-center gap-2 mt-3.5">
             <StatusBadge tone="success" dot pulse className="text-[11px]">
-              Active
+              {timeline?.available ? 'Active' : 'Not Uploaded'}
             </StatusBadge>
           </div>
         </div>
@@ -326,7 +321,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             LAST UPDATED
           </span>
           <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
-            20 Nov 2025
+            {timeline?.available ? formatDisplayDate(timeline.uploadedAt) : '-'}
           </span>
         </div>
 
@@ -343,7 +338,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       </div>
 
       {/* Interactive visual Gantt timeline charts */}
-      <SemesterTimeline onTimelineUpdate={triggerToast} />
+      <SemesterTimeline refreshKey={scheduleRefreshKey} />
 
       {/* 2. Timeline Entries Table Section */}
       <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
@@ -377,11 +372,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               className="form-control form-control-sm appearance-none cursor-pointer"
             >
               <option value="All">Category: All</option>
-              <option value="Supervisor Appointment">Supervisor Appointment</option>
-              <option value="Panel Appointment">Panel Appointment</option>
-              <option value="Document Submission">Document Submission</option>
-              <option value="Announcements">Announcements</option>
-              <option value="Marks & Evaluation">Marks & Evaluation</option>
+              <option value="Research Project (P1)">Research Project (P1)</option>
+              <option value="Research Project (P2)">Research Project (P2)</option>
             </select>
           </div>
 
@@ -554,34 +546,43 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
               </tr>
             </thead>
             <tbody>
-              {updateLogs.map((log) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="p-0">
+                    <LoadingState message="Loading audit log..." />
+                  </td>
+                </tr>
+              ) : auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-10 text-center text-slate-400 italic">
+                    No timeline audit records are available yet.
+                  </td>
+                </tr>
+              ) : auditLogs.map((log) => (
                 <tr key={log.id} className="data-row">
                   {/* User identity cell with photo avatar */}
                   <td className="data-td flex items-center gap-3">
-                    <img
-                      src={log.avatar}
-                      alt={log.user}
-                      className="w-7 h-7 rounded-full object-cover border border-slate-200 text-[9px]"
-                      referrerPolicy="no-referrer"
-                    />
-                    <span className="font-bold text-brand-navy">{log.user}</span>
+                    <span className="w-7 h-7 rounded-full border border-slate-200 bg-slate-100 text-[9px] font-black text-slate-600 flex items-center justify-center">
+                      {initials(log.actorName)}
+                    </span>
+                    <span className="font-bold text-brand-navy">{log.actorName}</span>
                   </td>
 
                   {/* Operation date log */}
                   <td className="data-td">
-                    {log.date}
+                    {formatDisplayDate(log.createdAt)}
                   </td>
 
                   {/* Operational tag action color mapping */}
                   <td className="data-td font-extrabold">
-                    <span className={log.actionColor}>
-                      {log.action}
+                    <span className={actionColor(log.action)}>
+                      {actionLabel(log.action)}
                     </span>
                   </td>
 
                   {/* Details summary */}
                   <td className="data-td">
-                    {log.details}
+                    {log.summary}
                   </td>
                 </tr>
               ))}
@@ -614,6 +615,28 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         onClose={() => setUploadDrawerOpen(false)} 
         onImportSuccess={handleImportSuccess} 
       />
+
+      {/* Delete Confirmation Modal */}
+      {entryToDelete && (
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-left animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-6">
+            <div>
+              <h3 className="text-sm font-black text-brand-navy tracking-tight mb-2">Delete Timeline Entry</h3>
+              <p className="text-slate-600 leading-relaxed text-xs">
+                Are you sure you want to permanently remove <span className="font-bold text-slate-800">"{entryToDelete.name}"</span> from the postgraduate master timeline? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <PortalButton variant="ghost" onClick={() => setEntryToDelete(null)}>
+                Cancel
+              </PortalButton>
+              <PortalButton variant="danger" icon={Trash2} onClick={confirmDeleteEntry}>
+                Delete Entry
+              </PortalButton>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

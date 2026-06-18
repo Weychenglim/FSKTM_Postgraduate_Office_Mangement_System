@@ -8,13 +8,15 @@
 - Tailwind CSS utility classes
 - Lucide React icons
 - Motion for animated drawer transitions
+- `openpyxl` for Django-side structured `.xlsx` semester timeline template generation and upload parsing.
 
 ## Repository Layout
 
 - Project root is the workspace entry point and contains the three mandatory governance documents.
 - `frontend/` contains the Vite React application, including `src/`, `index.html`, `vite.config.ts`, `tsconfig.json`, `package.json`, `package-lock.json`, `metadata.json`, and the frontend `.env.example`.
 - `frontend/.env.example` documents only public `VITE_` variables. A frontend `.env` file is optional unless local overrides are needed.
-- `backend/` contains the Django backend, including `manage.py`, `config/`, `accounts/`, `requirements.txt`, `README.md`, and the backend `.env.example`.
+- `backend/` contains the Django backend, including `manage.py`, `config/`, `accounts/`, `appointments/`, `letters/`, `requirements.txt`, `README.md`, and the backend `.env.example`.
+- `backend/dashboard/` contains dashboard-owned backend persistence and APIs for active semester timelines, timeline entries, Excel import/export, dashboard tasks, and timeline audit logs.
 - `docs/` contains supporting documents such as `DATABASE_SETUP.md`, requirements PDFs, use-case PDFs, and implementation specs/plans.
 - `docs/legacy/` is reserved only for preserved generated metadata that is not part of the runnable application.
 - Generated local folders such as `frontend/node_modules`, `frontend/dist`, and `.venv` are ignored and should not be treated as source modules.
@@ -28,13 +30,25 @@ Frontend paths in this section are relative to `frontend/`.
 - `src/components/AppLayout.tsx` provides the authenticated portal layout.
 - `src/components/Sidebar.tsx` defines the office staff sidebar navigation labels.
 - `src/components/AdministrationDashboard.tsx` implements the Dashboard Overview module.
-- `src/components/DashboardTimeline.tsx` implements the shared semester timeline and accepts `showManageTimeline` so office staff can manage timelines while students see a read-only dashboard timeline.
+- `src/components/AdministrationDashboard.tsx` intentionally hides unfinished-module summary cards in the FYP presentation slice and keeps lower dashboard records/actions as lightweight navigation surfaces; its lecturer panel workload attention count is derived from `getPanelWorkloads()` rather than a hardcoded mock count.
+- `src/components/StudentDashboard.tsx` implements the student Dashboard Overview with a read-only role-scoped semester timeline, two appointment-focused status cards, and shared timeline-driven next actions.
+- `src/components/LecturerDashboard.tsx` implements the lecturer Dashboard Overview with a read-only role-scoped semester timeline, two lecturer workspace cards, and shared timeline-driven next actions instead of office-staff monitoring sections.
+- `src/components/DashboardTimeline.tsx` implements the shared semester timeline and accepts `showManageTimeline` so office staff can manage timelines while students see a read-only dashboard timeline. The Administration Dashboard controls the active project phase from the timeline header beside Refresh, and the shared header derives `Session YYYY/YYYY` from the active timeline session for every role dashboard.
+- `src/components/DashboardTimeline.tsx` accepts optional `visibleRoles` for role-scoped dashboard display. Student/Lecturer dashboards pass role filters, while Office Staff/Admin omits the prop to retain the full timeline.
+- `src/components/TimelineNextActions.tsx` loads the active semester timeline and derives reusable Student/Lecturer next-action lists from timeline entries whose target roles include the current role, with loading, error, no-timeline, and no-role-event states.
+- `src/components/TimelineCalendar.tsx` provides the shared P1/P2 month-lane calendar-style timeline display used by Administration Dashboard and Timeline Management, including one row per event, day-proportional date bars across month columns, compact wrapping event title labels without inline date text or separate marker lines, an empty P2 state when P2 entries are not uploaded yet, and a details modal that shows the entry detail/description when a timeline label is clicked.
 - `src/components/PortalPrimitives.tsx` provides shared portal primitives for page headers, cards, buttons, status badges, segmented controls, removable tags, progress bars, status dots, and toast notifications.
+- Dashboard and panel appointment flows use `PortalToast` or inline field validation for user feedback instead of browser-default `alert()` dialogs.
 - `src/components/PortalPrimitives.tsx` also centralizes common status-to-badge tone mapping through `getStatusBadgeTone`, so tables, workload views, upload panels, lecturer cards, and shared status chips avoid duplicated color logic.
+- `src/components/PanelWorkflowTimeline.tsx` provides the shared full panel workflow status timeline used by Office Staff/Admin panel appointment detail and Lecturer panel assignment detail, including recorded workflow date-times when backend timestamp fields are available.
+- `src/utils/csvExport.ts` provides a small shared CSV builder/downloader used by Office Staff/Admin panel appointment and panel workload exports.
+- `src/constants/programmes.ts` centralizes the approved system programme labels used by dashboard and panel-facing UI/data paths.
 - `src/components/TimelineManagement.tsx` implements the dashboard timeline management sub-view.
 - `src/components/SettingsView.tsx` implements the Settings module (profile summary, contact details, password change, and notification preferences) and is routed for every role.
 - `src/components/NotificationsAnnouncements.tsx` is the notification-bell view, split into Announcements and Notifications tabs (the feed is split by the backend `isAnnouncement` flag).
 - `src/context/NotificationsContext.tsx` is the shared notifications store; it feeds both the bell badge and the bell view.
+- Timeline add/edit drawers keep timeline classification limited to P1/P2 and do not submit status; the backend derives the displayed status from the selected date range.
+- `src/services/timelineApi.ts` connects the dashboard timeline UI to `/api/dashboard/timeline/active/`, `/api/dashboard/timeline/template/`, `/api/dashboard/timeline/upload/`, `/api/dashboard/timeline/entries/`, `/api/dashboard/timeline/entries/<id>/`, `/api/dashboard/timeline/audit-logs/`, and `/api/dashboard/tasks/`. It uses `VITE_USE_TIMELINE_BACKEND=true` by default so timeline management can persist to Django even while unfinished modules continue using global mock mode.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
 
 ## Backend Data Model
@@ -43,6 +57,32 @@ Frontend paths in this section are relative to `frontend/`.
 - `User.to_public_dict()` reassembles the flat shape the frontend `DemoUser` expects from these profile tables, so the auth API contract is unchanged.
 - The `letters` and `announcements` apps own the letter-template, announcement, and per-recipient notification tables.
 - The full user/role ER diagram lives at `docs/erd/01-user-roles.md`; `docs/erd/` is the home for further ER diagrams as more modules are modeled.
+- `src/components/LecturerPanelAppointments.tsx` is role-aware: Lecturer users see supervisor recommendation, selected-panel review queue, and their confirmed panel assignments; Programme Coordinator users see the panel recommendation confirmation queue.
+- `src/components/PanelAppointmentManagement.tsx` is the Office Staff/Admin panel monitoring surface; it loads records through `getPanelAppointments()`, loads workload snapshot rows through `getPanelWorkloads()`, derives summary counts with `src/utils/panelAppointmentRecords.ts`, exports the currently filtered appointment records as CSV, and keeps the filter card and records table in the same left-column stack so desktop spacing is not affected by the right-side widgets.
+- `src/components/PanelAppointmentDetail.tsx` renders the selected backend panel record directly, derives the header session badge from the academic-year portion of the backend semester string, shows the shared full panel workflow status timeline from backend lifecycle timestamps, enriches the related panel status card with staff/contact/assignment context, and uses concise no-records states for related files and evaluation data until those modules are connected.
+- `src/components/PanelWorkloadMonitoring.tsx` is the Office Staff/Admin read-only workload page; it loads lecturer workload rows through `getPanelWorkloads()`, derives summary counts with `src/utils/panelWorkloadRecords.ts`, exports the currently filtered workload records as CSV, and displays real workload detail items in the drawer.
+- `src/components/PanelAssignmentDetail.tsx` renders the lecturer's backend panel assignment directly, derives the header session badge from the backend intake string, shows the shared full panel workflow status timeline from backend lifecycle timestamps, and uses concise no-records states for related documents and EE evaluation until those modules are connected.
+- `src/components/SubmittedRecommendationsPage.tsx` and `src/components/RecommendationDetailsDrawer.tsx` are the supervisor-facing panel recommendation tracking surface; the drawer renders the same confirmation route as the review drawer and uses backend workflow timestamps when available.
+- `src/components/StudentPanelAppointment.tsx` loads the authenticated student's panel appointment view from the appointments service and renders either the pending Programme Coordinator confirmation state or the confirmed appointed-panel details.
+- `src/services/appointmentsApi.ts` connects the lecturer-side panel workflow to Django endpoints when `VITE_USE_MOCKS=false` while keeping mock mode available.
+- `src/services/appointmentsApi.ts` uses `VITE_USE_PANEL_BACKEND` so the panel workflow can persist to Django even when the broader frontend remains in mock mode.
+- `src/services/appointmentsApi.ts` exposes `getStudentPanelAppointment()` for the student panel view, with mock fallback available when panel backend mocks are enabled.
+- Backend `appointments` app owns `StudentResearchProfile`, `PanelRecommendation`, and `PanelAppointment` persistence plus role-gated DRF endpoints under `/api/appointments/panel/`.
+- The office monitoring endpoint `/api/appointments/panel/` returns one current row per student research profile: confirmed `PanelAppointment` rows take precedence, otherwise the latest `PanelRecommendation` is shown, otherwise the profile is returned as `No Panel`; rows include research detail and panel-member metadata used by the Office Staff/Admin detail page.
+- The office workload endpoint `/api/appointments/panel/workload/` returns lecturer workload rows for Office Staff/Admin users, counting active confirmed panel appointments plus active pending nominations and including the underlying workload items for read-only drill-down.
+- Appointment serializers and validators resolve public `staffId`, `studentId`, and `department` fields through the normalized `Lecturer`, `Student`, and `OfficeStaff` profile relations rather than flat columns on `User`.
+- Backend `dashboard` app owns `SemesterTimeline`, `SemesterTimelineEntry`, and `TimelineAuditLog` persistence plus role-gated DRF endpoints under `/api/dashboard/`.
+- Dashboard timeline upload uses a structured Excel workbook parsed with `openpyxl`; upload replacement deactivates the previous active timeline, creates the new active timeline and entries in one transaction, derives internal step order and status from row order/date ranges, and records an audit log.
+- Dashboard timeline entries store both `title` and `detail`; `title` is the short schedule/table label and `detail` is the longer description shown in the details modal.
+- Dashboard timeline target roles are limited to `STUDENT`, `LECTURER`, and `OFFICE_STAFF`; lecturer responsibilities are not split into panel/supervisor target-role values.
+- Dashboard timeline entry patching is Office Staff/Admin-only and records an audit log for each saved entry change.
+- Dashboard timeline entry creation, level moves, and deletion are Office Staff/Admin-only; new entries are attached to the active timeline, assigned internal ordering within their P1/P2 level, derive status from dates, and are recorded in `TimelineAuditLog`.
+- Dashboard timeline audit logs are exposed through a management endpoint so Timeline Management can render real upload, replace, add, edit, and delete history instead of local mock rows.
+- Active timeline retrieval is available to every authenticated role and returns a stable empty payload with `No timeline available at now` when no active timeline exists.
+- Dashboard monitoring tasks are exposed through `/api/dashboard/tasks/`; the first backend-backed task set focuses Office Staff/Admin timeline ownership tasks and preserves frontend static monitoring fallbacks.
+- The `PanelRecommendation` database model enforces the one-active-recommendation-per-student rule with a conditional unique constraint, mirrors the frontend lifecycle status contract, and records submission, selected-panel decision, and Programme Coordinator decision timestamps for timeline display.
+- Panel workload validation is centralized in the appointments domain: reserved workload is confirmed active panel appointments plus submitted/pending nominations, exposed through `/api/appointments/panel/candidates/`, and enforced again during recommendation creation.
+- The student-facing endpoint `/api/appointments/panel/student/` is authenticated and role-gated to `Student`; it resolves the `StudentResearchProfile` for `request.user` and returns either pending state data or confirmed active `PanelAppointment` details, falling back to a pending state for valid student accounts without a linked research profile.
 
 ## Navigation Pattern
 
@@ -53,7 +93,7 @@ The app currently uses local React state rather than a route library.
 - `dashboardSubView` selects Dashboard Overview sub-views such as `overview` and `timeline`.
 - `authView` selects the unauthenticated `login` or `forgot` password view after logout.
 - Header notification actions call back into `App.tsx` and set `activeSidebarItem` to `Notifications & Announcements`.
-- `currentUser.role` controls whether shared sidebar entries render office-staff, lecturer, or student workflows. For lecturer users, `Marks Entry`, `Supervisor Appointments`, and `Panel Appointments` route to lecturer-specific components. For student users, `FAQ Chatbot`, `Supervisor Appointments`, `Panel Appointments`, `File Management`, and `Letter Generation` route to student-specific components.
+- `currentUser.role` controls whether shared sidebar entries render office-staff, lecturer, or student workflows. For lecturer users, `Dashboard Overview`, `Marks Entry`, `Supervisor Appointments`, and `Panel Appointments` route to lecturer-specific components. For student users, `Dashboard Overview`, `FAQ Chatbot`, `Supervisor Appointments`, `Panel Appointments`, `File Management`, and `Letter Generation` route to student-specific components.
 - Office staff/admin users still land on `Dashboard Overview`; lecturer users land on `Marks Entry` after login; student users land on the student Dashboard Overview workspace.
 - `Sidebar` filters visible navigation items by active role while preserving the responsive drawer behavior from the current app shell.
 
@@ -64,9 +104,13 @@ The app currently uses local React state rather than a route library.
 - Shared navigation callbacks are passed down as props.
 - Styling follows the existing Tailwind-heavy component pattern.
 - New dashboard components are imported into the current app rather than replacing the whole frontend folder.
+- Panel recommendation backend permissions are endpoint-enforced: supervisors can create/list their own recommendations, selected panel lecturers can accept/reject only assigned recommendations, and Programme Coordinators can confirm/reject only pending coordinator recommendations.
+- Student panel appointment permissions are endpoint-enforced: only authenticated Student users can call the student panel endpoint, and the backend only returns the profile and appointed panel linked to the logged-in user.
+- Semester timeline backend permissions are endpoint-enforced: all authenticated users can read the active timeline, while only Office Staff/Admin users can download templates, upload replacements, or patch timeline entries.
 
 ## Testing Strategy
 
 - Run `npm run lint` for TypeScript compilation checks.
 - Run `npm run build` for production build verification.
+- Run `python manage.py test` for backend workflow and permission checks.
 - Start the Vite dev server and smoke-test Dashboard Overview plus each newly routed office-staff module after UI changes.

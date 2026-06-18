@@ -8,8 +8,6 @@ import {
   X, 
   Calendar,
   Layers,
-  Clock,
-  Save,
   Check,
   Plus
 } from 'lucide-react';
@@ -19,11 +17,10 @@ import { PortalButton } from './PortalPrimitives';
 interface TimelineEntry {
   id: string;
   event: string;
-  category: 'Supervisor Appointment' | 'Panel Appointment' | 'Document Submission' | 'Announcements' | 'Marks & Evaluation';
+  category: 'Supervisor Appointment' | 'Panel Appointment' | 'Document Submission' | 'Announcements' | 'Marks & Evaluation' | 'Research Project (P1)' | 'Research Project (P2)';
   startDate: string;
   endDate: string;
-  targetRole: ('STUDENT' | 'LECTURER')[];
-  status: 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
+  targetRole: ('STUDENT' | 'LECTURER' | 'OFFICE_STAFF')[];
   description?: string;
 }
 
@@ -39,22 +36,20 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
   onSave
 }) => {
   const [eventName, setEventName] = useState('');
-  const [category, setCategory] = useState<TimelineEntry['category']>('Supervisor Appointment');
+  const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [targetRole, setTargetRole] = useState<('STUDENT' | 'LECTURER')[]>(['STUDENT']);
-  const [status, setStatus] = useState<TimelineEntry['status']>('Upcoming');
+  const [targetRole, setTargetRole] = useState<TimelineEntry['targetRole']>(['STUDENT']);
   const [description, setDescription] = useState('');
 
   // Reset fields on open
   useEffect(() => {
     if (isOpen) {
       setEventName('');
-      setCategory('Supervisor Appointment');
-      setStartDate('2025-10-01');
-      setEndDate('2025-10-15');
+      setCategory('Research Project (P1)');
+      setStartDate('2026-03-16');
+      setEndDate('2026-03-20');
       setTargetRole(['STUDENT']);
-      setStatus('Upcoming');
       setDescription('');
     }
   }, [isOpen]);
@@ -83,12 +78,11 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
       startDate: formatToDisplayDate(startDate),
       endDate: formatToDisplayDate(endDate),
       targetRole,
-      status,
       description
     });
   };
 
-  const toggleRole = (role: 'STUDENT' | 'LECTURER') => {
+  const toggleRole = (role: TimelineEntry['targetRole'][number]) => {
     if (targetRole.includes(role)) {
       setTargetRole(prev => prev.filter(r => r !== role));
     } else {
@@ -163,10 +157,10 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   </p>
                 </div>
 
-                {/* Field 1: Event Name */}
+                {/* Field 1: Event title */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
-                    Event Name
+                    Title
                   </label>
                   <input
                     type="text"
@@ -189,11 +183,8 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                       onChange={(e) => setCategory(e.target.value as any)}
                       className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
-                      <option value="Supervisor Appointment">Supervisor Appointment</option>
-                      <option value="Panel Appointment">Panel Appointment</option>
-                      <option value="Marks & Evaluation">Marks & Evaluation</option>
-                      <option value="Document Submission">Document Submission</option>
-                      <option value="Announcements">Announcements</option>
+                      <option value="Research Project (P1)">Research Project (P1)</option>
+                      <option value="Research Project (P2)">Research Project (P2)</option>
                     </select>
                     <Layers className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
                   </div>
@@ -266,33 +257,30 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                       </div>
                       <span>Lecturer</span>
                     </button>
-                  </div>
-                </div>
 
-                {/* Field 5: Status State Radio dropdown option */}
-                <div className="space-y-1.5">
-                  <label className="form-label block">
-                    Status State
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as any)}
-                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => toggleRole('OFFICE_STAFF')}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[10px] font-extrabold uppercase tracking-wider transition ${
+                        targetRole.includes('OFFICE_STAFF')
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                      }`}
                     >
-                      <option value="Completed">Completed (Inactive grey theme)</option>
-                      <option value="Active">Active (Navy blue theme)</option>
-                      <option value="Deadline">Deadline (Urgent warning theme)</option>
-                      <option value="Upcoming">Upcoming (Amber waiting theme)</option>
-                    </select>
-                    <Clock className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+                      <div className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all ${
+                        targetRole.includes('OFFICE_STAFF') ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-transparent border-slate-300'
+                      }`}>
+                        {targetRole.includes('OFFICE_STAFF') && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                      </div>
+                      <span>Office Staff</span>
+                    </button>
                   </div>
                 </div>
 
                 {/* Field 6: Description or notes field */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
-                    Description or Notes
+                    Detail / Description
                   </label>
                   <textarea
                     rows={3}

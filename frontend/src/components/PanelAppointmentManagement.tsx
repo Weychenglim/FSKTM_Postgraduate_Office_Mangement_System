@@ -41,17 +41,13 @@ import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
 import { PageHeader, PortalButton, PortalToast, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { PanelRecord } from '../types';
-import { getPanelAppointments } from '../services';
+import { PanelRecord, PanelWorkloadRecord } from '../types';
+import { getPanelAppointments, getPanelWorkloads } from '../services';
+import { PROGRAMME_OPTIONS } from '../constants/programmes';
+import { downloadCsv } from '../utils/csvExport';
+import { getPanelRecordSummary } from '../utils/panelAppointmentRecords';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
-export interface WorkloadStat {
-  lecturerName: string;
-  assigned: number;
-  limit: number;
-  status: 'AVAILABLE' | 'NEAR LIMIT' | 'FULL';
-}
-
 export interface AttentionItem {
   id: string;
   label: string;
@@ -66,6 +62,7 @@ export const PanelAppointmentManagement: React.FC = () => {
 
   // Panel records loaded from appointmentsApi (mock-backed today).
   const [records, setRecords] = useState<PanelRecord[]>([]);
+  const [workloadRows, setWorkloadRows] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +78,16 @@ export const PanelAppointmentManagement: React.FC = () => {
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  const loadWorkloads = useCallback(() => {
+    getPanelWorkloads()
+      .then(setWorkloadRows)
+      .catch(() => setWorkloadRows([]));
+  }, []);
+
+  useEffect(() => {
+    loadWorkloads();
+  }, [loadWorkloads]);
 
   // Main input filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,7 +149,8 @@ export const PanelAppointmentManagement: React.FC = () => {
         rec.id.toLowerCase().includes(terms) ||
         rec.studentName.toLowerCase().includes(terms) ||
         rec.supervisor.toLowerCase().includes(terms) ||
-        rec.panelMember.toLowerCase().includes(terms);
+        rec.panelMember.toLowerCase().includes(terms) ||
+        (rec.researchTitle || '').toLowerCase().includes(terms);
 
       // 2. Programme select filter
       const matchProg = appliedFilters.programme === 'All Programmes' || 
@@ -178,10 +186,27 @@ export const PanelAppointmentManagement: React.FC = () => {
   }, [filteredRecords, currentPage]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  const panelSummary = useMemo(() => getPanelRecordSummary(records), [records]);
 
   // CSV Exporter
   const handleExportCSV = () => {
-    showToast("Instructing browser to compile and download panel_appointments_report.csv");
+    if (filteredRecords.length === 0) {
+      showToast('No panel appointment records match the current filters.');
+      return;
+    }
+
+    downloadCsv('panel_appointments_report.csv', filteredRecords, [
+      { header: 'Student ID', value: (record) => record.id },
+      { header: 'Student Name', value: (record) => record.studentName },
+      { header: 'Programme', value: (record) => record.programme },
+      { header: 'Semester', value: (record) => record.semester },
+      { header: 'Research Title', value: (record) => record.researchTitle || '' },
+      { header: 'Supervisor', value: (record) => record.supervisor },
+      { header: 'Panel Member', value: (record) => record.panelMember },
+      { header: 'Status', value: (record) => record.status },
+      { header: 'Updated Date', value: (record) => record.updatedDate },
+    ]);
+    showToast(`Downloaded panel_appointments_report.csv with ${filteredRecords.length} records.`);
   };
 
   // Sub-view view triggers
@@ -192,17 +217,13 @@ export const PanelAppointmentManagement: React.FC = () => {
 
   // Mini data lists mockup
   const attentionItems: AttentionItem[] = [
-    { id: '1', label: 'Students without approved panel', desc: '12 records outstanding', filterTab: 'No Panel' },
-    { id: '2', label: 'Panel recommendations pending over 7 days', desc: '4 records in queue', filterTab: 'Pending' },
-    { id: '3', label: 'Lecturers near workload limit', desc: '3 lecturers identified', filterTab: 'Workload Alert' },
-    { id: '4', label: 'Missing confirmation letters', desc: '2 records requiring file', filterTab: 'All Records' }
+    { id: '1', label: 'Students without appointed panel', desc: `${panelSummary.withoutPanel} records outstanding`, filterTab: 'No Panel' },
+    { id: '2', label: 'Panel recommendations in workflow', desc: `${panelSummary.pending} records pending confirmation`, filterTab: 'Pending' },
+    { id: '3', label: 'Confirmed panel appointments', desc: `${panelSummary.approved} active records`, filterTab: 'Approved' },
+    { id: '4', label: 'Rejected panel recommendations', desc: `${panelSummary.rejected} records closed`, filterTab: 'Rejected' }
   ];
 
-  const workloadAlerts: WorkloadStat[] = [
-    { lecturerName: 'Dr. Siti Noor', assigned: 4, limit: 5, status: 'NEAR LIMIT' },
-    { lecturerName: 'Dr. Aris Ghaffar', assigned: 5, limit: 5, status: 'FULL' },
-    { lecturerName: 'Dr. Wey Cheng', assigned: 3, limit: 5, status: 'AVAILABLE' }
-  ];
+  const workloadSnapshotRows = workloadRows.slice(0, 3);
 
   return (
     <div id="panel-module-root" className="space-y-8 animate-fade-in text-left">
@@ -245,7 +266,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                     Students Without Panel
                   </span>
                   <span className="text-3xl font-black text-brand-navy block mt-2.5">
-                    12
+                    {panelSummary.withoutPanel}
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center shrink-0 border border-red-100">
@@ -266,7 +287,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                     Pending Recommendations
                   </span>
                   <span className="text-3xl font-black text-brand-navy block mt-2.5">
-                    8
+                    {panelSummary.pending}
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-blue-55 text-blue-500 flex items-center justify-center shrink-0 border border-blue-100">
@@ -287,7 +308,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                     Approved Panels
                   </span>
                   <span className="text-3xl font-black text-brand-navy block mt-2.5">
-                    126
+                    {panelSummary.approved}
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-110">
@@ -305,19 +326,19 @@ export const PanelAppointmentManagement: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                    Workload Alerts
+                    Rejected Records
                   </span>
                   <span className="text-3xl font-black text-brand-navy block mt-2.5">
-                    3
+                    {panelSummary.rejected}
                   </span>
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 border border-amber-100">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100">
                   <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
-                <StatusDot tone="warning" />
-                <span>Lecturers near panel limit.</span>
+              <div className="flex items-center gap-1.5 mt-4 text-rose-600 text-[10px] font-extrabold tracking-wide">
+                <StatusDot tone="danger" />
+                <span>Rejected panel recommendation records.</span>
               </div>
             </div>
 
@@ -326,9 +347,10 @@ export const PanelAppointmentManagement: React.FC = () => {
 
           {/* Mid Section Layout: Search filter box left, attention widgets right */}
           <div id="filters-layout-grid" className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start font-sans text-xs">
+            <div className="xl:col-span-9 space-y-6">
             
             {/* Filter Section (Left Col) */}
-            <div className="xl:col-span-9 bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
+            <div className="bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
               <h3 className="font-extrabold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <span>Search Records</span>
@@ -371,10 +393,9 @@ export const PanelAppointmentManagement: React.FC = () => {
                         className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
                         <option>All Programmes</option>
-                        <option>MSc. Computer Science</option>
-                        <option>MSc. Data Science</option>
-                        <option>MSc. Information Technology</option>
-                        <option>MSc. Software Engineering</option>
+                        {PROGRAMME_OPTIONS.map((programme) => (
+                          <option key={programme}>{programme}</option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
                     </div>
@@ -450,108 +471,8 @@ export const PanelAppointmentManagement: React.FC = () => {
 
             </div>
 
-            {/* Records Needing Attention Widgets Column (Right Col) */}
-            <div className="order-3 xl:order-none xl:col-span-3 xl:row-start-1 xl:row-span-2 space-y-6 text-left">
-              
-              {/* Box A: Attention list card */}
-              <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
-                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                  <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-                    Records Needing Attention
-                  </h4>
-                </div>
-
-                <div className="space-y-4">
-                  {attentionItems.map((item) => (
-                    <div key={item.id} className="flex items-start justify-between gap-2.5 text-xs font-sans">
-                      <div className="text-left">
-                        <span className="font-bold text-slate-800 block leading-snug">
-                          {item.label}
-                        </span>
-                        <span className="text-[10px] font-bold text-amber-600">
-                          {item.desc}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setActiveTab(item.filterTab);
-                          showToast(`Focused on: ${item.label}`);
-                        }}
-                        className="text-blue-600 font-extrabold text-[10px] uppercase hover:underline leading-none pt-0.5 cursor-pointer"
-                      >
-                        Open
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Box B: Panel Workload Snapshot */}
-              <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs text-xs font-sans">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-                    Panel Workload Snapshot
-                  </span>
-                  <TrendingUp className="w-4 h-4 text-slate-450" />
-                </div>
-
-                <div className="space-y-4 text-left">
-                  {workloadAlerts.map((w, index) => (
-                    <div key={index} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold">
-                        <span className="text-slate-800">{w.lecturerName}</span>
-                        <span className={`text-[9px] font-black ${
-                          w.status === 'FULL' ? 'text-red-600' :
-                          w.status === 'NEAR LIMIT' ? 'text-amber-600' :
-                          'text-emerald-600'
-                        }`}>
-                          {w.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-450">
-                        <span>{w.assigned} / {w.limit} students assigned</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${
-                          w.status === 'FULL' ? 'bg-red-600' :
-                          w.status === 'NEAR LIMIT' ? 'bg-amber-500' :
-                          'bg-emerald-500'
-                        }`} style={{ width: `${(w.assigned / w.limit) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-
-                  <button
-                    onClick={() => setPanelView('workload')}
-                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-brand-navy font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
-                  >
-                    View All Workload
-                  </button>
-                </div>
-              </div>
-
-              {/* Box C: Quick Tip dark panel */}
-              <div className="bg-brand-navy text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
-                <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 block mb-2">
-                  System Tip
-                </span>
-                <p className="text-xs font-sans text-slate-300 leading-relaxed font-semibold">
-                  Panel recommendations are monitored for workload balance and released to candidates only after postgraduate secretariat approval is approved.
-                </p>
-                <button
-                  onClick={() => showToast("Downloading administrative policy manual booklet...")}
-                  className="mt-4 inline-flex items-center gap-2 text-indigo-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Read Policy Document</span>
-                </button>
-              </div>
-
-            </div>
-
           {/* 3. Panel Appointment Records Table Container */}
-          <div className="order-2 xl:order-none xl:col-span-9 xl:col-start-1 xl:row-start-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
@@ -659,6 +580,10 @@ export const PanelAppointmentManagement: React.FC = () => {
                             <span className="px-2.5 py-1 bg-amber-50 text-amber-600 text-[10px] font-black rounded-full uppercase border border-amber-100">
                               Recommendation
                             </span>
+                          ) : rec.status === 'Pending' ? (
+                            <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase border border-blue-100">
+                              Pending
+                            </span>
                           ) : rec.status === 'Workload Alert' ? (
                             <span className="px-2.5 py-1 bg-orange-50 text-orange-650 text-[10px] font-black rounded-full uppercase border border-orange-100">
                               Workload Alert
@@ -750,6 +675,113 @@ export const PanelAppointmentManagement: React.FC = () => {
             </div>
 
           </div>
+
+            </div>
+
+            {/* Records Needing Attention Widgets Column (Right Col) */}
+            <div className="xl:col-span-3 space-y-6 text-left">
+              
+              {/* Box A: Attention list card */}
+              <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                    Records Needing Attention
+                  </h4>
+                </div>
+
+                <div className="space-y-4">
+                  {attentionItems.map((item) => (
+                    <div key={item.id} className="flex items-start justify-between gap-2.5 text-xs font-sans">
+                      <div className="text-left">
+                        <span className="font-bold text-slate-800 block leading-snug">
+                          {item.label}
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-600">
+                          {item.desc}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setActiveTab(item.filterTab);
+                          setCurrentPage(1);
+                          showToast(`Focused on: ${item.label}`);
+                        }}
+                        className="text-blue-600 font-extrabold text-[10px] uppercase hover:underline leading-none pt-0.5 cursor-pointer"
+                      >
+                        Open
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Box B: Panel Workload Snapshot */}
+              <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs text-xs font-sans">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                    Panel Workload Snapshot
+                  </span>
+                  <TrendingUp className="w-4 h-4 text-slate-450" />
+                </div>
+
+                <div className="space-y-4 text-left">
+                  {workloadSnapshotRows.length > 0 ? workloadSnapshotRows.map((w) => (
+                    <div key={w.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold">
+                        <span className="text-slate-800">{w.name}</span>
+                        <span className={`text-[9px] font-black ${
+                          w.availability === 'Full Load' ? 'text-red-600' :
+                          w.availability === 'Near Limit' ? 'text-amber-600' :
+                          'text-emerald-600'
+                        }`}>
+                          {w.availability.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-450">
+                        <span>{w.currentStudents} / {w.workloadLimit} reserved panel seats</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${
+                          w.availability === 'Full Load' ? 'bg-red-600' :
+                          w.availability === 'Near Limit' ? 'bg-amber-500' :
+                          'bg-emerald-500'
+                        }`} style={{ width: `${(w.currentStudents / w.workloadLimit) * 100}%` }} />
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-[11px] font-bold text-slate-400">
+                      No panel workload records available yet.
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setPanelView('workload')}
+                    className="w-full py-2.5 mt-3 text-center border border-slate-205 text-brand-navy font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    View All Workload
+                  </button>
+                </div>
+              </div>
+
+              {/* Box C: Quick Tip dark panel */}
+              <div className="bg-brand-navy text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
+                <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 block mb-2">
+                  System Tip
+                </span>
+                <p className="text-xs font-sans text-slate-300 leading-relaxed font-semibold">
+                  Panel recommendations become appointed panels only after selected panel acceptance and Programme Coordinator confirmation.
+                </p>
+                <button
+                  onClick={() => showToast("Downloading administrative policy manual booklet...")}
+                  className="mt-4 inline-flex items-center gap-2 text-indigo-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Read Policy Document</span>
+                </button>
+              </div>
+
+            </div>
 
           </div>
 

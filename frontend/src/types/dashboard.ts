@@ -7,7 +7,6 @@ export interface DashboardAttentionRow {
   id: string;
   type: string;
   count: string;
-  status: 'OPEN' | 'RESOLVED';
   targetTab: string;
   detail: string;
 }
@@ -20,4 +19,12 @@ export interface StudentNextAction {
   due: string;
   target: string;
   iconKey: StudentActionIconKey;
+}
+
+export interface DashboardTask {
+  id: string;
+  name: string;
+  status: string;
+  statusText: string;
+  target: string;
 }

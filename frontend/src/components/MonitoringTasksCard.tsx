@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Calendar, Sliders, CheckSquare, BarChart3, UploadCloud } from 'lucide-react';
+import { Calendar, Sliders, CheckSquare, UploadCloud } from 'lucide-react';
 import { StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 
 interface MonitoringTask {
@@ -19,45 +19,38 @@ interface MonitoringTasksCardProps {
   onTaskClick?: (taskId: string) => void;
 }
 
-export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTaskClick }) => {
-  const tasks: MonitoringTask[] = [
-    {
-      id: 'task_upload',
-      name: 'Upload semester timeline',
-      status: 'critical',
-      statusText: 'Due in 2 days',
-      icon: UploadCloud,
-    },
-    {
-      id: 'task_config',
-      name: 'Configure mark entry period',
-      status: 'completed',
-      statusText: 'Completed',
-      icon: CheckSquare,
-    },
-    {
-      id: 'task_rubric',
-      name: 'Define rubric components',
-      status: 'active',
-      statusText: 'Ongoing',
-      icon: Sliders,
-    },
-    {
-      id: 'task_generate',
-      name: 'Generate evaluation tasks',
-      status: 'scheduled',
-      statusText: 'Scheduled',
-      icon: Calendar,
-    },
-    {
-      id: 'task_monitor',
-      name: 'Monitor mark submission status',
-      status: 'active',
-      statusText: 'Active',
-      icon: BarChart3,
-    },
-  ];
+const defaultTasks: MonitoringTask[] = [
+  {
+    id: 'task_upload',
+    name: 'Upload semester timeline',
+    status: 'completed',
+    statusText: 'Done',
+    icon: UploadCloud,
+  },
+  {
+    id: 'task_config',
+    name: 'Configure mark entry period',
+    status: 'warning',
+    statusText: 'Required Action',
+    icon: CheckSquare,
+  },
+  {
+    id: 'task_rubric',
+    name: 'Define rubric components',
+    status: 'warning',
+    statusText: 'Required Action',
+    icon: Sliders,
+  },
+  {
+    id: 'task_generate',
+    name: 'Generate evaluation tasks',
+    status: 'warning',
+    statusText: 'Required Action',
+    icon: Calendar,
+  },
+];
 
+export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTaskClick }) => {
   return (
     <div
       id="monitoring-tasks-sidebar-card"
@@ -68,7 +61,7 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTask
       </h4>
 
       <div className="divide-y divide-[#efecf6]/10 divide-slate-100 flex flex-col pt-1">
-        {tasks.map((task) => {
+        {defaultTasks.map((task) => {
           const IconComponent = task.icon;
           return (
             <div
