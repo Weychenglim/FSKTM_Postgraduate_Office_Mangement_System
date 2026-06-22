@@ -15,7 +15,6 @@ import {
   Filter,
   CheckCircle2,
   AlertTriangle,
-  FileText,
   Clock,
   X,
   User,
@@ -46,6 +45,7 @@ import { getPanelAppointments, getPanelWorkloads } from '../services';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { downloadCsv } from '../utils/csvExport';
 import { getPanelRecordSummary } from '../utils/panelAppointmentRecords';
+import { clampPage, paginate, paginationRange } from '../utils/pagination';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface AttentionItem {
@@ -106,7 +106,7 @@ export const PanelAppointmentManagement: React.FC = () => {
 
   // Pagination page tracker
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -180,13 +180,17 @@ export const PanelAppointmentManagement: React.FC = () => {
   }, [records, appliedFilters, activeTab]);
 
   // Paginated chunk
-  const paginatedRecords = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredRecords, currentPage]);
-
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  const paginatedRecords = useMemo(
+    () => paginate(filteredRecords, currentPage, itemsPerPage),
+    [filteredRecords, currentPage],
+  );
+  const recordRange = paginationRange(currentPage, filteredRecords.length, itemsPerPage);
+  const totalPages = recordRange.totalPages;
   const panelSummary = useMemo(() => getPanelRecordSummary(records), [records]);
+
+  useEffect(() => {
+    setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
+  }, [filteredRecords.length]);
 
   // CSV Exporter
   const handleExportCSV = () => {
@@ -523,7 +527,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                     </tr>
                   ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((rec) => (
-                      <tr key={rec.id} className="hover:bg-slate-55 transition-colors">
+                      <tr key={rec.recordId} className="hover:bg-slate-55 transition-colors">
                         
                         {/* ID & Name matched block with exact bold elements */}
                         <td className="data-td px-3 align-top">
@@ -628,7 +632,7 @@ export const PanelAppointmentManagement: React.FC = () => {
             <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
               
               <span className="text-slate-450 font-medium">
-                Showing {paginatedRecords.length} of {filteredRecords.length} records
+                Showing {recordRange.start} to {recordRange.end} of {recordRange.total} records
               </span>
 
               <div id="table-pagination-nav" className="flex items-center gap-1.5 select-none">
@@ -772,13 +776,6 @@ export const PanelAppointmentManagement: React.FC = () => {
                 <p className="text-xs font-sans text-slate-300 leading-relaxed font-semibold">
                   Panel recommendations become appointed panels only after selected panel acceptance and Programme Coordinator confirmation.
                 </p>
-                <button
-                  onClick={() => showToast("Downloading administrative policy manual booklet...")}
-                  className="mt-4 inline-flex items-center gap-2 text-indigo-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Read Policy Document</span>
-                </button>
               </div>
 
             </div>

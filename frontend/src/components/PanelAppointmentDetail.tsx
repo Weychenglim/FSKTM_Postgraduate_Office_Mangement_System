@@ -72,6 +72,8 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
   const date = record?.appointmentDate || record?.updatedDate;
   const approved = status === 'Approved';
   const rejected = status === 'Rejected';
+  const rejectedByPanel = rejected && record?.rejectionStage !== 'Programme Coordinator';
+  const rejectedByCoordinator = rejected && record?.rejectionStage === 'Programme Coordinator';
   const pendingCoordinator = status === 'Pending';
   const selectedPanelReview = status === 'Recommendation';
   const noPanel = status === 'No Panel' || !status;
@@ -87,15 +89,21 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
     {
       id: 'panel',
       label: 'Selected Panel Review',
-      subtext: rejected
+      subtext: rejectedByPanel
         ? 'Recommendation rejected'
-        : approved || pendingCoordinator
+        : approved || pendingCoordinator || rejectedByCoordinator
         ? 'Selected panel accepted'
         : selectedPanelReview
         ? 'Awaiting selected panel decision'
         : 'Pending recommendation submission',
       timestamp: formatDateTime(record?.panelDecisionAt),
-      status: rejected ? 'rejected' : approved || pendingCoordinator ? 'completed' : selectedPanelReview ? 'active' : 'pending',
+      status: rejectedByPanel
+        ? 'rejected'
+        : approved || pendingCoordinator || rejectedByCoordinator
+        ? 'completed'
+        : selectedPanelReview
+        ? 'active'
+        : 'pending',
     },
     {
       id: 'coordinator',
@@ -104,11 +112,19 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
         ? 'Programme Coordinator confirmed'
         : pendingCoordinator
         ? 'Awaiting Programme Coordinator confirmation'
-        : rejected
-        ? 'Workflow closed'
+        : rejectedByCoordinator
+        ? 'Recommendation rejected'
+        : rejectedByPanel
+        ? 'Not reached'
         : 'Pending selected panel acceptance',
       timestamp: formatDateTime(record?.coordinatorDecisionAt),
-      status: approved ? 'completed' : pendingCoordinator ? 'active' : rejected ? 'rejected' : 'pending',
+      status: approved
+        ? 'completed'
+        : pendingCoordinator
+        ? 'active'
+        : rejectedByCoordinator
+        ? 'rejected'
+        : 'pending',
     },
     {
       id: 'appointed',
@@ -290,6 +306,16 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                         </StatusBadge>
                       </div>
                     </div>
+                    {record?.status === 'Rejected' && record.rejectionReason && (
+                      <div className="border-t border-rose-100 pt-3">
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-500 block mb-1">
+                          {record.rejectionStage || 'Workflow'} rejection reason
+                        </span>
+                        <p className="text-[11px] font-semibold leading-relaxed text-rose-700">
+                          {record.rejectionReason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <EmptyRecordState
