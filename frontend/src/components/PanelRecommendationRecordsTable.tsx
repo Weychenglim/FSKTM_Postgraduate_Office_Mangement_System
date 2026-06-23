@@ -22,6 +22,7 @@ const statusTone = (status: PanelRecommendationDraft['status']) => {
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') {
     return 'danger' as const;
   }
+  if (status === 'CANCELLED_BY_SUPERVISOR') return 'neutral' as const;
   if (status === 'PENDING_COORDINATOR') return 'warning' as const;
   return 'info' as const;
 };

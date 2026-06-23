@@ -74,6 +74,7 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
   const rejected = status === 'Rejected';
   const rejectedByPanel = rejected && record?.rejectionStage !== 'Programme Coordinator';
   const rejectedByCoordinator = rejected && record?.rejectionStage === 'Programme Coordinator';
+  const cancelled = status === 'Cancelled';
   const pendingCoordinator = status === 'Pending';
   const selectedPanelReview = status === 'Recommendation';
   const noPanel = status === 'No Panel' || !status;
@@ -88,16 +89,18 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
     },
     {
       id: 'panel',
-      label: 'Selected Panel Review',
-      subtext: rejectedByPanel
+      label: cancelled ? 'Cancelled by Supervisor' : 'Selected Panel Review',
+      subtext: cancelled
+        ? record?.cancellationReason || 'Cancelled before selected panel action'
+        : rejectedByPanel
         ? 'Recommendation rejected'
         : approved || pendingCoordinator || rejectedByCoordinator
         ? 'Selected panel accepted'
         : selectedPanelReview
         ? 'Awaiting selected panel decision'
         : 'Pending recommendation submission',
-      timestamp: formatDateTime(record?.panelDecisionAt),
-      status: rejectedByPanel
+      timestamp: formatDateTime(cancelled ? record?.cancelledAt : record?.panelDecisionAt),
+      status: cancelled || rejectedByPanel
         ? 'rejected'
         : approved || pendingCoordinator || rejectedByCoordinator
         ? 'completed'
@@ -108,7 +111,9 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
-      subtext: approved
+      subtext: cancelled
+        ? 'Not reached'
+        : approved
         ? 'Programme Coordinator confirmed'
         : pendingCoordinator
         ? 'Awaiting Programme Coordinator confirmation'
@@ -128,10 +133,10 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
     },
     {
       id: 'appointed',
-      label: 'Panel Appointment Confirmed',
-      subtext: approved ? displayValue(date) : rejected ? 'Not appointed' : 'Pending confirmation',
+      label: cancelled ? 'Recommendation Closed' : 'Panel Appointment Confirmed',
+      subtext: approved ? displayValue(date) : cancelled ? 'Cancelled by supervisor' : rejected ? 'Not appointed' : 'Pending confirmation',
       timestamp: formatDateTime(record?.appointmentConfirmedAt),
-      status: approved ? 'completed' : rejected ? 'rejected' : 'pending',
+      status: approved ? 'completed' : cancelled || rejected ? 'rejected' : 'pending',
     },
   ];
 };

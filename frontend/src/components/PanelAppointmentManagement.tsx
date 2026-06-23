@@ -592,6 +592,10 @@ export const PanelAppointmentManagement: React.FC = () => {
                             <span className="px-2.5 py-1 bg-orange-50 text-orange-650 text-[10px] font-black rounded-full uppercase border border-orange-100">
                               Workload Alert
                             </span>
+                          ) : rec.status === 'Cancelled' ? (
+                            <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase border border-slate-200">
+                              Cancelled by Supervisor
+                            </span>
                           ) : (
                             <span className="px-2.5 py-1 bg-rose-50 text-rose-605 text-[10px] font-black rounded-full uppercase border border-red-100">
                               {rec.status}

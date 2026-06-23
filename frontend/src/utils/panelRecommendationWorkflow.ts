@@ -27,12 +27,14 @@ export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatu
   ACCEPTED_BY_PANEL: 'Accepted by Panel',
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
+  CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
   APPROVED: 'Confirmed',
 };
 
 const REJECTED_STATUSES: PanelRecommendationStatus[] = [
   'REJECTED_BY_PANEL',
   'REJECTED_BY_COORDINATOR',
+  'CANCELLED_BY_SUPERVISOR',
 ];
 
 export const isRejectedPanelRecommendationStatus = (status: PanelRecommendationStatus): boolean =>
