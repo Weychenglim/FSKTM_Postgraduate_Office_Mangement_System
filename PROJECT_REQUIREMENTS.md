@@ -46,6 +46,9 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office Staff/Admin Panel Appointment Management must load monitoring records from the persisted appointments backend when panel backend mode is enabled.
 - Office Staff/Admin Panel Appointment summary cards must be calculated from the loaded panel records instead of hardcoded mock counts.
 - Office Staff/Admin Panel Appointment records must include confirmed appointed panels, in-progress recommendations, rejected recommendations, and eligible student research profiles with no panel workflow yet.
+- Office Staff/Admin Panel Appointment records must preserve each historical recommendation attempt, so an earlier rejected recommendation remains visible as a separate record after a later recommendation is approved; the approved recommendation and its resulting appointment must not appear as duplicate rows.
+- Office Staff/Admin Panel Appointment records must retain the recommended panel member, rejection stage, rejection reason, and available workflow timestamps for rejected attempts.
+- Office Staff/Admin Panel Appointment Records must paginate the filtered historical dataset at 10 records per page while summary cards and CSV export continue to use all matching records.
 - Office Staff/Admin Panel Appointment Detail must render selected backend panel record fields rather than screenshot/demo placeholders, show the academic year as `Session YYYY/YYYY`, show the complete panel workflow status timeline with recorded date-times when available, show richer related panel status information, and show related files/evaluation as concise no-records states until those modules are connected.
 - Office Staff/Admin Panel Workload Snapshot and Panel Workload Monitoring must load lecturer workload from the persisted appointments backend instead of hardcoded lecturer rows.
 - Office Staff/Admin Panel Appointment Management and Panel Workload Monitoring must export the currently filtered records as downloadable CSV files.
@@ -81,6 +84,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office Staff/Admin users must be able to download the official structured Excel timeline template, upload a completed `.xlsx` timeline, replace the active semester timeline, edit individual timeline entries, and trigger audit logging.
 - Office Staff/Admin users must be able to add individual timeline entries to the active timeline, move entries between Research Project 1 and Research Project 2, delete obsolete entries, and see those changes reflected in the schedule, entries table, dashboards, and audit log.
 - Timeline Management must use persisted backend data for summary cards, active semester schedule, timeline entries, upload results, add/edit/delete actions, and recent timeline updates/audit log when timeline backend mode is enabled.
+- Timeline Management Recent Timeline Updates must display the newest audit records in pages of 10 without removing or merging audit history.
 - Timeline Management must use the same P1/P2 calendar-style timeline presentation as Administration Dashboard and must not show an overflow menu action.
 - Add/Edit timeline entry drawers must restrict classification to Research Project (P1) and Research Project (P2), and must not expose or submit manual status-state selection because status is derived from the entry date range.
 - Semester timeline upload validation must reject missing required columns, missing required fields, invalid P1/P2 levels, invalid dates, invalid target roles, and deadline end dates before start dates.
@@ -90,12 +94,13 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 
 - Sidebar navigation must expose Dashboard Overview, Registry Management, FAQ Chatbot, File Management, Supervisor Appointments, Letter Generation, Announcements, Marks Entry, Panel Appointments, and Settings.
 - Header notifications must route to the Notifications & Announcements view.
-- Existing Dashboard Overview behavior must remain the default authenticated landing view.
+- Existing Dashboard Overview behavior must remain the default authenticated landing view for every role after a normal login.
 - Login and forgot-password flows must remain available after logout without blocking direct office-staff UI review during development.
 
 ## Lecturer Module Requirements
 
 - When an authenticated demo user has the `Lecturer` role, Supervisor Appointments, Panel Appointments, and Marks Entry must render lecturer-focused workflows rather than office-staff administrative workflows.
+- Lecturer users must land on Lecturer Dashboard Overview after login; Marks Entry remains accessible from the sidebar rather than being the automatic landing module.
 - Lecturer Dashboard Overview must render a lecturer-focused dashboard instead of the office-staff administration dashboard.
 - Lecturer Dashboard Overview must show the role-scoped read-only semester timeline without the office-staff Manage Timeline action.
 - Lecturer Dashboard Overview must not show office-staff Records Needing Attention or Office Monitoring Tasks.
@@ -104,10 +109,20 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
 - Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
 - Lecturer Panel Appointments must support assigned panel task review, supervisor panel recommendation submission, and submitted recommendation review.
+- Selected panel lecturers must retain a read-only Reviewed Requests history containing recommendations they personally accepted or rejected, including the later Programme Coordinator outcome when available.
+- Selected-panel Reviewed Requests must open as a separate page from a text-only button positioned above the Selected Panel Review Queue table.
 - Lecturer Panel Assignment Detail must render backend assignment fields rather than screenshot/demo placeholders, show the academic year as `Session YYYY/YYYY`, show the complete panel workflow status timeline with recorded date-times when available, and show related documents/EE evaluation as concise no-records states until those modules are connected.
 - Supervisor panel recommendation is separate from the student supervisor appointment workflow and applies only after a student already has an approved supervisor.
 - A supervisor panel recommendation must contain exactly one recommended panel lecturer for the student.
-- A supervisor cannot create another panel recommendation for the same student while a recommendation is Submitted to Panel, Accepted by Panel, Pending Coordinator, or Approved/Confirmed.
+- A supervisor cannot create another panel recommendation for the same student while a recommendation is Submitted to Panel, Pending Coordinator, or Approved/Confirmed.
+- Panel acceptance moves directly from `SUBMITTED_TO_PANEL` to `PENDING_COORDINATOR`; the unused `ACCEPTED_BY_PANEL` state is not part of the supported workflow.
+- The submitting supervisor may cancel a panel recommendation only while its status is `SUBMITTED_TO_PANEL`; cancellation requires a non-empty reason, is immediate, and creates the terminal status `CANCELLED_BY_SUPERVISOR`.
+- A cancelled panel recommendation must remain in supervisor, selected-panel, Programme Coordinator, and Office Staff/Admin history as `Cancelled by Supervisor`, must leave the selected panel's active queue, must release its reserved workload, and must permit a replacement recommendation for the same student.
+- Cancellation controls must never be available to the selected panel member, Programme Coordinator, Office Staff/Admin, or student, and cancellation must be rejected after any selected-panel or coordinator decision.
+- A student may cancel their Supervisor Appointment request only while it is `SUBMITTED_TO_SUPERVISOR`. Cancellation requires a reason, creates terminal `CANCELLED_BY_STUDENT`, removes the request from the supervisor queue, preserves audit history, and permits a replacement request.
+- Supervisor and Panel transitions must create immutable audit events containing actor, role, previous status, new status, reason, and timestamp.
+- Workflow actions must create in-app notifications for the next actor and affected stakeholders. Office Staff/Admin monitor workflows through read-only records rather than receiving every transition.
+- Workflow notifications must carry protected module and record identifiers so authorized users can open the related record directly.
 - A supervisor may create a new recommendation for the same student only after the selected panel member rejects it or the Programme Coordinator rejects it.
 - Submitted panel recommendations must route first to the selected panel member for acceptance or rejection; selected panel rejection requires a rejection reason.
 - Programme Coordinator confirmation or rejection must occur only after the selected panel member accepts the recommendation.
@@ -115,6 +130,14 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Panel recommendation review actions must be role-gated: selected panel members may decide only recommendations submitted to them, and Programme Coordinators may decide only recommendations that have passed selected-panel acceptance.
 - Panel recommendation role-gating must be enforced by the backend API and database workflow, not only by frontend button visibility.
 - Programme Coordinator panel appointment confirmation must use the existing separate `Programme Coordinator` login role.
+- Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, read-only Lecturer-scoped semester timeline, and timeline-driven next actions.
+- Programme Coordinator dashboard cards must show a disabled Supervisor Approvals state until that workflow is backend-persisted and a real programme-scoped count of panel recommendations awaiting final coordinator approval.
+- Programme Coordinator panel queues, records, dashboard counts, and decision permissions must be restricted to `Coordinator.programme_managed`.
+- A Programme Coordinator without an assigned managed programme must see an explicit no-programme state, no protected panel records, and no approval actions.
+- Programme Coordinator Panel Appointments must show the final-approval queue plus a searchable, status-filtered, read-only full-lifecycle records table for the managed programme, paginated at 10 rows per page.
+- Programme Coordinator approve/reject actions must remain available only from the pending final-approval queue; completed and non-actionable lifecycle records must open in read-only detail mode.
+- Programme Coordinators do not require a separate decision-history page because their programme-wide lifecycle table is the audit surface.
+- Programme Coordinator Supervisor Appointments must show an explicit deferred/unavailable page without fabricated pending counts until supervisor appointment persistence is implemented.
 - The backend must persist student research profiles, supervisor panel recommendations, and final approved panel appointments for the lecturer-side panel workflow.
 - Panel recommendation decision drawers must keep confirm/reject controls and rejection reason inputs inside the scrollable drawer body so long research details do not leave decision controls fixed outside the scroll region.
 - Submitted panel recommendation detail drawers must be the supervisor tracking surface and show a request progress timeline covering recommendation submission, selected panel review, Programme Coordinator confirmation, and appointed panel status.
@@ -128,12 +151,16 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.
 - Authenticated role workspaces must use consistent `rounded-2xl` card surfaces, subdued shadows, and shared brand color tokens.
 - Repeated portal UI patterns such as page headers, action buttons, cards, status badges, toast notifications, tables, forms, and filter controls should use shared primitives or shared CSS classes where practical.
+- Toast notifications should appear at the top-right of the viewport, below the sticky top header, and remain above app overlays.
+- Irreversible confirmations such as cancellation, deletion, and final mark submission must use the shared portal confirmation modal instead of browser-native `window.confirm()` dialogs.
 - Dashboard and panel appointment actions must use in-app portal toasts or inline validation instead of browser-default `alert()` popups.
 - Frontend API configuration must be driven by Vite environment variables so mock mode and backend base URL can change without code edits.
 - Lecturer-side panel appointment persistence must use the backend by default through `VITE_USE_PANEL_BACKEND=true`, even while unfinished modules continue using global mock mode.
 - Office Staff dashboard timeline persistence must use the backend by default through `VITE_USE_TIMELINE_BACKEND=true`, even while unfinished modules continue using global mock mode.
 - Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
 - Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
+- Login demo credentials shown by the frontend must match the Django seed data, including the canonical `@siswa.um.edu.my` staff emails and numeric student matric identifiers.
+- Refreshing demo accounts must preserve existing account identities and their audit, timeline, and appointment history.
 
 ## Student Module Requirements
 
@@ -159,3 +186,24 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Student screens must reuse the current portal shell, global footer, typography scale, card surfaces, and shared Tailwind theme tokens.
 - Student-facing toasts, status labels, action cards, and dashboard cards must follow the same shared portal primitives used by office staff and lecturer screens.
 - Cross-role table actions, pagination controls, drawer close controls, modal actions, upload actions, page headers, sub-view back headers, segmented selectors, removable tag chips, progress bars, status dots, and reusable status badges should use shared portal primitives unless the control is a highly layout-specific visual element.
+
+## Five-Module Completion Requirements
+
+- Supervisor Appointment applications must persist project details, proposed supervisor, supporting-document metadata, decisions, reasons, and timestamps.
+- A student may have only one active supervisor application; rejected applications may be followed by a new application.
+- The requested supervisor decides first, followed by final Programme Coordinator approval scoped to the managed programme.
+- Supervisor and Panel decisions must enforce each lecturer's configured workload limit.
+- Supervisor and Panel workflows must audit actor, role, action, previous status, new status, reason, and timestamp.
+- Supervisor document requirements, workload limits, rubrics, and mark components must remain configurable until official rules are received.
+- Evaluation task generation must create role-specific mark-entry tasks for both active Supervisor Appointments and active Panel Appointments.
+- Marks Assignment must provide production Office Staff/Admin controls for selecting evaluation periods, generating missing tasks, filtering tasks by role/status, and assigning backup evaluators without raw ID prompts.
+- Office Staff/Admin may add a backup/manual-override evaluator only for exception cases, with a mandatory reason and audit trail; this must not change the official supervisor or panel appointment.
+- If a mark entry period is active and tasks were not manually generated, the backend must safely generate missing tasks without duplicating or overwriting existing/submitted entries.
+- Marks Entry overview and monitoring must use live mark periods, task totals, and mark records rather than hardcoded submission counts.
+- Dashboard and Marks Entry monitoring actions must open Mark Entry Records with the relevant status filter selected.
+- Office Staff/Admin mark records must show unsubmitted tasks as `Overdue` after the evaluation period close date while preserving submitted records as `Submitted`.
+- Marks Entry uses only `Not Started`, `Draft`, and `Submitted`; it has no approval workflow.
+- Lecturer submission immediately locks marks.
+- Authorized Office Staff/Admin users may correct or reopen submitted marks through Django Admin with a mandatory reason and before/after audit values.
+- Mark totals must be recalculated by the backend and component marks must not exceed configured maximums.
+- Dashboard summaries must use live Supervisor, Panel, and Marks data with role and programme scoping.

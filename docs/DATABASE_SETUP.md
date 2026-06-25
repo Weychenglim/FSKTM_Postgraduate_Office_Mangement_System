@@ -88,10 +88,10 @@ Expected output ends with:
 
 ```
 ✓ Schema applied
-✓ Seeded Office Staff/Admin      admin@fsktm.edu.my
-✓ Seeded Programme Coordinator   coordinator@fsktm.edu.my
-✓ Seeded Lecturer                lecturer@fsktm.edu.my
-✓ Seeded Student                 WEA200192@fsktm.edu.my
+✓ Seeded Office Staff/Admin      admin@siswa.um.edu.my
+✓ Seeded Programme Coordinator   coordinator@siswa.um.edu.my
+✓ Seeded Lecturer                lecturer@siswa.um.edu.my
+✓ Seeded Student                 200192@siswa.um.edu.my
 
 Database setup complete. You can now start the API with: npm run dev:server
 ```
@@ -122,10 +122,10 @@ of the email. All seeded by `npm run db:setup`.
 
 | Role                 | Email / ID                              | Password          |
 | -------------------- | --------------------------------------- | ----------------- |
-| Office Staff/Admin   | `admin@fsktm.edu.my` (staff `M10492`)   | `staffAdmin2026`  |
-| Programme Coordinator| `coordinator@fsktm.edu.my` (`C29402`)   | `coordinator2026` |
-| Lecturer             | `lecturer@fsktm.edu.my` (`L84920`)      | `lecturer2026`    |
-| Student              | `WEA200192@fsktm.edu.my` (`WEA200192`)  | `student2026`     |
+| Office Staff/Admin   | `admin@siswa.um.edu.my` (staff `M10492`) | `staffAdmin2026`  |
+| Programme Coordinator| `coordinator@siswa.um.edu.my` (`L29402`) | `coordinator2026` |
+| Lecturer             | `lecturer@siswa.um.edu.my` (`L84920`)    | `lecturer2026`    |
+| Student              | `200192@siswa.um.edu.my` (`200192`)       | `student2026`     |
 
 ---
 
@@ -149,3 +149,15 @@ Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 5432,5433 }
 
 > You don't need `psql` on your PATH — the setup script connects through the
 > Node `pg` driver, not the command-line client.
+
+## Supervisor and Marks migrations
+
+After pulling the completed Supervisor Appointment and Marks modules, run:
+
+```powershell
+.\.venv\Scripts\python.exe backend\manage.py migrate
+.\.venv\Scripts\python.exe backend\manage.py seed_users
+```
+
+The seeded Office Staff/Admin account receives Django Admin access and Marks
+permissions for rubric configuration and audited mark corrections.
