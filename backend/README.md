@@ -61,21 +61,58 @@ The frontend (`npm run dev`, port 3000) proxies `/api` to `http://localhost:8000
 | GET/POST | `recommendations/` | Lecturer supervisor |
 | GET | `review-queue/` | Selected panel lecturer |
 | POST | `recommendations/<id>/panel-accept/` | Selected panel lecturer |
+| POST | `recommendations/<id>/cancel/` | Submitting supervisor, only while awaiting selected-panel review |
+| GET | `recommendations/<id>/` | Involved lecturers, programme coordinator, or Office Staff/Admin |
 | POST | `recommendations/<id>/panel-reject/` | Selected panel lecturer |
 | GET | `coordinator-queue/` | Programme Coordinator |
 | POST | `recommendations/<id>/coordinator-approve/` | Programme Coordinator |
 | POST | `recommendations/<id>/coordinator-reject/` | Programme Coordinator |
 | GET | `assignments/` | Lecturer panel member |
 
+## Supervisor appointment endpoints (`/api/appointments/supervisor/`)
+
+| Method | Path | Actor |
+| ------ | ---- | ----- |
+| GET | `candidates/` | Student |
+| GET/POST | `applications/` | Student |
+| GET | `requests/` | Requested supervisor |
+| POST | `applications/<id>/supervisor-accept/` | Requested supervisor |
+| POST | `applications/<id>/supervisor-reject/` | Requested supervisor |
+| GET | `coordinator-queue/` | Programme Coordinator |
+| POST | `applications/<id>/coordinator-approve/` | Programme Coordinator |
+| POST | `applications/<id>/coordinator-reject/` | Programme Coordinator |
+| POST | `applications/<id>/cancel/` | Submitting student, only before supervisor action |
+| GET | `applications/<id>/` | Student, requested supervisor, programme coordinator, or Office Staff/Admin |
+
+## Marks endpoints (`/api/marks/`)
+
+| Method | Path | Actor |
+| ------ | ---- | ----- |
+| GET | `/api/marks/` | Office Staff/Admin |
+| GET | `periods/` | Office Staff/Admin |
+| GET | `assignment-options/` | Office Staff/Admin |
+| GET | `rubric-components/` | Office Staff/Admin |
+| POST | `periods/<id>/generate-tasks/` | Office Staff/Admin |
+| POST | `periods/<id>/manual-overrides/` | Office Staff/Admin |
+| GET | `my-evaluation-tasks/` | Lecturer |
+| PUT | `tasks/<id>/draft/` | Assigned lecturer |
+| POST | `tasks/<id>/submit/` | Assigned lecturer |
+
+Submitted marks are locked. Authorized Office Staff/Admin users correct or reopen
+them through Django Admin with a mandatory reason and audit record.
+Evaluation tasks are generated for active supervisor and panel appointments;
+backup/manual-override evaluator tasks require an Office Staff/Admin reason and
+audit record.
+
 ## Demo logins
 
 | Role | Email / ID | Password |
 | ---- | ---------- | -------- |
-| Office Staff/Admin | `admin@fsktm.edu.my` (`M10492`) | `staffAdmin2026` |
-| Programme Coordinator | `coordinator@fsktm.edu.my` (`C29402`) | `coordinator2026` |
-| Lecturer / Supervisor | `lecturer@fsktm.edu.my` (`L84920`) | `lecturer2026` |
+| Office Staff/Admin | `admin@siswa.um.edu.my` (`M10492`) | `staffAdmin2026` |
+| Programme Coordinator | `coordinator@siswa.um.edu.my` (`L29402`) | `coordinator2026` |
+| Lecturer / Supervisor | `lecturer@siswa.um.edu.my` (`L84920`) | `lecturer2026` |
 | Selected Panel Lecturer | `panelamina@fsktm.edu.my` (`A004812`) | `lecturer2026` |
-| Student | `WEA200192@fsktm.edu.my` (`WEA200192`) | `student2026` |
+| Student | `200192@siswa.um.edu.my` (`200192`) | `student2026` |
 | Panel Demo Student | `MEA2209841@fsktm.edu.my` (`MEA2209841`) | `student2026` |
 
 ## Password-reset email

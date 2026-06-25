@@ -304,7 +304,7 @@ export const MOCK_ACTIVE_SUPERVISEES: ActiveSuperviseeRow[] = [
   },
 ];
 
-export const MOCK_PANEL_APPOINTMENTS: PanelRecord[] = [
+export const MOCK_PANEL_APPOINTMENTS: PanelRecord[] = ([
   {
     id: 'MEA2301184',
     studentName: 'Sarah Natasha',
@@ -405,7 +405,10 @@ export const MOCK_PANEL_APPOINTMENTS: PanelRecord[] = [
     status: 'Workload Alert',
     updatedDate: '22 Nov 2025',
   },
-];
+] satisfies Omit<PanelRecord, 'recordId'>[]).map((record, index) => ({
+  ...record,
+  recordId: `mock-panel-${index + 1}`,
+}));
 
 // Lecturer-facing: students where this lecturer is the assigned panel member.
 export const MOCK_PANEL_ASSIGNMENTS: PanelAssignment[] = [

@@ -13,7 +13,8 @@ Number format standard:
 - Lecturer / Panel staff_no: L + 5 digits, for example L84920, L04812
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth.models import Permission
 from django.db import transaction
 
 from accounts.models import (
@@ -22,6 +23,7 @@ from accounts.models import (
     OfficeStaff,
     Panel,
     Student,
+    StudentRegistry,
     Supervisor,
     User,
 )
@@ -30,7 +32,10 @@ from appointments.models import StudentResearchProfile
 
 # Optional migration helper:
 # If old demo accounts already exist, update their emails to the new format.
-OLD_TO_NEW_STUDENT_EMAILS = {
+OLD_TO_NEW_EMAILS = {
+    "admin@fsktm.edu.my": "admin@siswa.um.edu.my",
+    "coordinator@fsktm.edu.my": "coordinator@siswa.um.edu.my",
+    "lecturer@fsktm.edu.my": "lecturer@siswa.um.edu.my",
     "WEA200192@fsktm.edu.my": "200192@siswa.um.edu.my",
     "MEA2209841@fsktm.edu.my": "2209841@siswa.um.edu.my",
     "MEA2301123@fsktm.edu.my": "2301123@siswa.um.edu.my",
@@ -39,7 +44,7 @@ OLD_TO_NEW_STUDENT_EMAILS = {
 
 DEMO_USERS = [
     {
-        "email": "admin@fsktm.edu.my",
+        "email": "admin@siswa.um.edu.my",
         "password": "staffAdmin2026",
         "full_name": "Puan Noraini binti Kamaruddin",
         "role": User.Role.OFFICE_ADMIN,
@@ -50,7 +55,7 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "coordinator@fsktm.edu.my",
+        "email": "coordinator@siswa.um.edu.my",
         "password": "coordinator2026",
         "full_name": "Dr. Adrian Tan Kok Seng",
         "role": User.Role.COORDINATOR,
@@ -65,7 +70,7 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "lecturer@fsktm.edu.my",
+        "email": "lecturer@siswa.um.edu.my",
         "password": "lecturer2026",
         "full_name": "Prof. Dr. Ahmad Shahrir",
         "role": User.Role.LECTURER,
@@ -110,6 +115,36 @@ DEMO_USERS = [
         },
     },
     {
+        # Primary viva demo account (real UM mailbox, used for the live
+        # forgot-password / reset-email demonstration).
+        "email": "23004955@siswa.um.edu.my",
+        "password": "Kkx@041125",
+        "full_name": "Ku Kian Xiang",
+        "role": User.Role.STUDENT,
+        "student": {
+            "matric_no": "23004955",
+            "programme": "Master of Computer Science (By Coursework)",
+            "status": Student.Status.ACTIVE,
+            "intake_semester": "2024/2025 Semester 1",
+        },
+        # Extended registry details so the confirmation/visa letter can fill its
+        # placeholders. Demo values — editable in the Django admin (Student page).
+        "student_registry": {
+            "ic_number": "051104-14-5523",
+            "passport_number": "",
+            "nationality": "Malaysian",
+            "address": "Faculty of Computer Science & Information Technology, "
+            "Universiti Malaya, 50603 Kuala Lumpur",
+            "programme_mode": StudentRegistry.ProgrammeMode.COURSEWORK,
+            "field_of_study": "Computer Science",
+            "mode_of_study": StudentRegistry.StudyMode.FULL_TIME,
+            "current_semester": "Semester II, 2025/2026 Session",
+            "max_semester": "Semester I, 2027/2028 Session",
+            "expected_completion": "Semester I, 2027/2028 Session",
+            "sponsor": "Self-funded",
+        },
+    },
+    {
         "email": "2209841@siswa.um.edu.my",
         "password": "student2026",
         "full_name": "Ahmad Luqman",
@@ -149,7 +184,7 @@ PANEL_RESEARCH_PROFILES = [
             "This research explores novel architectural improvements for GANs to improve "
             "synthetic data quality in languages with limited linguistic resources."
         ),
-        "supervisor_email": "lecturer@fsktm.edu.my",
+        "supervisor_email": "lecturer@siswa.um.edu.my",
     },
     {
         "matric_no": "2301123",
@@ -164,7 +199,7 @@ PANEL_RESEARCH_PROFILES = [
             "for predicting student academic performance while improving transparency "
             "and interpretability of the prediction results."
         ),
-        "supervisor_email": "lecturer@fsktm.edu.my",
+        "supervisor_email": "lecturer@siswa.um.edu.my",
     },
 ]
 
@@ -172,37 +207,77 @@ PANEL_RESEARCH_PROFILES = [
 class Command(BaseCommand):
     help = "Seed/refresh the demo login accounts and their role profiles."
 
+    @staticmethod
+    def _profile_conflict(entry):
+        """Find an account with the same unique matric/staff number."""
+        email = entry["email"]
+        if "student" in entry:
+            return User.objects.filter(
+                student__matric_no=entry["student"]["matric_no"]
+            ).exclude(email=email).first()
+        if "office_staff" in entry:
+            return User.objects.filter(
+                office_staff__staff_no=entry["office_staff"]["staff_no"]
+            ).exclude(email=email).first()
+        if "lecturer" in entry:
+            return User.objects.filter(
+                lecturer__staff_no=entry["lecturer"]["staff_no"]
+            ).exclude(email=email).first()
+        return None
+
+    def _adopt_profile_conflict(self, entry):
+        """Reuse a legacy account so protected foreign keys remain valid."""
+        conflicting_user = self._profile_conflict(entry)
+        if conflicting_user is None:
+            return
+
+        email = entry["email"]
+        target_user = User.objects.filter(email=email).first()
+        if target_user is not None and target_user.pk != conflicting_user.pk:
+            raise CommandError(
+                f"Cannot seed {email}: its profile number belongs to "
+                f"{conflicting_user.email}, and both accounts exist."
+            )
+
+        old_email = conflicting_user.email
+        conflicting_user.email = email
+        conflicting_user.save(update_fields=["email"])
+        self.stdout.write(
+            self.style.SUCCESS(f"  Migrated account email {old_email} -> {email}")
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
-        # Migrate old student demo emails to the new siswa.um.edu.my format.
-        # This prevents duplicate users when re-running the seed command.
-        for old_email, new_email in OLD_TO_NEW_STUDENT_EMAILS.items():
+        # Migrate known legacy demo emails to the canonical format in place.
+        # This prevents duplicates without breaking protected user references.
+        for old_email, new_email in OLD_TO_NEW_EMAILS.items():
             old_user = User.objects.filter(email=old_email).first()
             new_user = User.objects.filter(email=new_email).first()
 
             if old_user is not None:
                 if new_user is not None and new_user.pk != old_user.pk:
-                    old_user.delete()
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"  Removed old duplicate student account {old_email}"
-                        )
+                    raise CommandError(
+                        f"Cannot migrate {old_email} to {new_email}: "
+                        "both accounts exist."
                     )
                 else:
                     old_user.email = new_email
                     old_user.save(update_fields=["email"])
                     self.stdout.write(
                         self.style.SUCCESS(
-                            f"  Migrated student email {old_email} -> {new_email}"
+                            f"  Migrated account email {old_email} -> {new_email}"
                         )
                     )
 
         for entry in DEMO_USERS:
+            self._adopt_profile_conflict(entry)
+
             data = dict(entry)
             password = data.pop("password")
             email = data.pop("email")
 
             student = data.pop("student", None)
+            student_registry = data.pop("student_registry", None)
             office_staff = data.pop("office_staff", None)
             lecturer = data.pop("lecturer", None)
             coordinator = data.pop("coordinator", None)
@@ -211,6 +286,7 @@ class Command(BaseCommand):
 
             # Demo accounts skip the forced password change on first login.
             data["must_change_password"] = False
+            data["is_staff"] = data["role"] == User.Role.OFFICE_ADMIN
 
             user, created = User.objects.update_or_create(
                 email=email,
@@ -219,13 +295,19 @@ class Command(BaseCommand):
 
             user.set_password(password)
             user.save()
-
-            if student is not None:
-                Student.objects.update_or_create(
-                    user=user,
-                    defaults=student,
+            if user.role == User.Role.OFFICE_ADMIN:
+                user.user_permissions.add(
+                    *Permission.objects.filter(content_type__app_label="marks")
                 )
 
+            if student is not None:
+                student_obj, _ = Student.objects.update_or_create(
+                    user=user, defaults=student
+                )
+                if student_registry is not None:
+                    StudentRegistry.objects.update_or_create(
+                        student=student_obj, defaults=student_registry
+                    )
             if office_staff is not None:
                 OfficeStaff.objects.update_or_create(
                     user=user,

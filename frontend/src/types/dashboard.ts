@@ -9,6 +9,7 @@ export interface DashboardAttentionRow {
   count: string;
   targetTab: string;
   detail: string;
+  markStatusTab?: import('../utils/markRecords').MarkRecordStatusTab;
 }
 
 export type StudentActionIconKey = 'upload' | 'award' | 'mail';
@@ -27,4 +28,17 @@ export interface DashboardTask {
   status: string;
   statusText: string;
   target: string;
+}
+
+export interface DashboardSummary {
+  pendingSupervisorRequests: number;
+  pendingSupervisorApprovals: number;
+  pendingPanelReviews: number;
+  pendingPanelApprovals: number;
+  incompleteMarkEntries: number;
+  overdueMarkEntries: number;
+  supervisorMarkTasks?: number;
+  panelMarkTasks?: number;
+  backupMarkTasks?: number;
+  submittedMarkEntries?: number;
 }

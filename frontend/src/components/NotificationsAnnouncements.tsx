@@ -184,9 +184,13 @@ export const TabEmptyState: React.FC<TabEmptyStateProps> = ({ tab, searching }) 
 
 interface NotificationsAnnouncementsProps {
   onBack: () => void;
+  onOpenWorkflowRecord?: (notification: NotificationItem) => void;
 }
 
-export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = ({ onBack }) => {
+export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = ({
+  onBack,
+  onOpenWorkflowRecord,
+}) => {
   // 1. Notifications come from the shared store so reading here updates the
   //    header bell badge instantly (and vice versa).
   const { items, loading, error, reload, markRead, markAllRead } = useNotifications();
@@ -255,6 +259,22 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   );
 
   const noun = activeTab === 'announcements' ? 'announcements' : 'notifications';
+
+  const openNotification = async (notification: NotificationItem) => {
+    if (notification.isUnread) {
+      await markRead(notification.id, true);
+    }
+    if (
+      !notification.isAnnouncement
+      && notification.targetModule
+      && notification.recordId
+      && onOpenWorkflowRecord
+    ) {
+      onOpenWorkflowRecord(notification);
+      return;
+    }
+    setSelectedNotification(notification);
+  };
 
   return (
     <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
@@ -346,7 +366,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               <button
                 key={it.id}
                 type="button"
-                onClick={() => setSelectedNotification(it)}
+                onClick={() => void openNotification(it)}
                 className={`w-full text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-5 hover:shadow-2xs transition duration-150 flex items-start justify-between gap-4 cursor-pointer relative block ${
                   it.isUnread ? 'ring-1 ring-blue-500/10 bg-slate-50/20' : ''
                 }`}

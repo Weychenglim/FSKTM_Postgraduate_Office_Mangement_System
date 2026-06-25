@@ -15,6 +15,7 @@ import {
 import { PageHeader, StatusBadge } from './PortalPrimitives';
 import { PanelRecord } from '../types';
 import { PanelWorkflowItem, PanelWorkflowTimeline } from './PanelWorkflowTimeline';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface PanelAppointmentDetailProps {
   onBack: () => void;
@@ -72,6 +73,9 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
   const date = record?.appointmentDate || record?.updatedDate;
   const approved = status === 'Approved';
   const rejected = status === 'Rejected';
+  const rejectedByPanel = rejected && record?.rejectionStage !== 'Programme Coordinator';
+  const rejectedByCoordinator = rejected && record?.rejectionStage === 'Programme Coordinator';
+  const cancelled = status === 'Cancelled';
   const pendingCoordinator = status === 'Pending';
   const selectedPanelReview = status === 'Recommendation';
   const noPanel = status === 'No Panel' || !status;
@@ -86,36 +90,54 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
     },
     {
       id: 'panel',
-      label: 'Selected Panel Review',
-      subtext: rejected
+      label: cancelled ? 'Cancelled by Supervisor' : 'Selected Panel Review',
+      subtext: cancelled
+        ? record?.cancellationReason || 'Cancelled before selected panel action'
+        : rejectedByPanel
         ? 'Recommendation rejected'
-        : approved || pendingCoordinator
+        : approved || pendingCoordinator || rejectedByCoordinator
         ? 'Selected panel accepted'
         : selectedPanelReview
         ? 'Awaiting selected panel decision'
         : 'Pending recommendation submission',
-      timestamp: formatDateTime(record?.panelDecisionAt),
-      status: rejected ? 'rejected' : approved || pendingCoordinator ? 'completed' : selectedPanelReview ? 'active' : 'pending',
+      timestamp: formatDateTime(cancelled ? record?.cancelledAt : record?.panelDecisionAt),
+      status: cancelled || rejectedByPanel
+        ? 'rejected'
+        : approved || pendingCoordinator || rejectedByCoordinator
+        ? 'completed'
+        : selectedPanelReview
+        ? 'active'
+        : 'pending',
     },
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
-      subtext: approved
+      subtext: cancelled
+        ? 'Not reached'
+        : approved
         ? 'Programme Coordinator confirmed'
         : pendingCoordinator
         ? 'Awaiting Programme Coordinator confirmation'
-        : rejected
-        ? 'Workflow closed'
+        : rejectedByCoordinator
+        ? 'Recommendation rejected'
+        : rejectedByPanel
+        ? 'Not reached'
         : 'Pending selected panel acceptance',
       timestamp: formatDateTime(record?.coordinatorDecisionAt),
-      status: approved ? 'completed' : pendingCoordinator ? 'active' : rejected ? 'rejected' : 'pending',
+      status: approved
+        ? 'completed'
+        : pendingCoordinator
+        ? 'active'
+        : rejectedByCoordinator
+        ? 'rejected'
+        : 'pending',
     },
     {
       id: 'appointed',
-      label: 'Panel Appointment Confirmed',
-      subtext: approved ? displayValue(date) : rejected ? 'Not appointed' : 'Pending confirmation',
+      label: cancelled ? 'Recommendation Closed' : 'Panel Appointment Confirmed',
+      subtext: approved ? displayValue(date) : cancelled ? 'Cancelled by supervisor' : rejected ? 'Not appointed' : 'Pending confirmation',
       timestamp: formatDateTime(record?.appointmentConfirmedAt),
-      status: approved ? 'completed' : rejected ? 'rejected' : 'pending',
+      status: approved ? 'completed' : cancelled || rejected ? 'rejected' : 'pending',
     },
   ];
 };
@@ -290,6 +312,16 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                         </StatusBadge>
                       </div>
                     </div>
+                    {record?.status === 'Rejected' && record.rejectionReason && (
+                      <div className="border-t border-rose-100 pt-3">
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-500 block mb-1">
+                          {record.rejectionStage || 'Workflow'} rejection reason
+                        </span>
+                        <p className="text-[11px] font-semibold leading-relaxed text-rose-700">
+                          {record.rejectionReason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <EmptyRecordState
@@ -316,6 +348,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
           </div>
         </div>
       </div>
+      <WorkflowAuditLog events={record?.workflow} />
     </div>
   );
 };

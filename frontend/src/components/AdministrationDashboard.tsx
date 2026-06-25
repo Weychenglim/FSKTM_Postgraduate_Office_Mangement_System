@@ -10,17 +10,20 @@ import {
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalToast } from './PortalPrimitives';
-import { MOCK_DASHBOARD_ATTENTION_ROWS } from '../mocks/dashboard';
-import { getPanelWorkloads } from '../services';
+import { getDashboardSummary, getPanelWorkloads } from '../services';
+import { DashboardAttentionRow, DashboardSummary } from '../types';
+import { MarkRecordStatusTab } from '../utils/markRecords';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToMarksRecords?: (statusTab?: MarkRecordStatusTab) => void;
   onShowModal?: (modalType: 'period' | 'rubric' | 'generate' | 'help') => void;
   onNavigateToTimeline?: () => void;
 }
 
 export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = ({ 
   onNavigateToTab,
+  onNavigateToMarksRecords,
   onShowModal,
   onNavigateToTimeline
 }) => {
@@ -35,16 +38,18 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
 
   const [panelWorkloadCount, setPanelWorkloadCount] = useState<number | null>(null);
   const [panelWorkloadLoadFailed, setPanelWorkloadLoadFailed] = useState(false);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
   useEffect(() => {
     let active = true;
-    getPanelWorkloads()
-      .then((records) => {
+    Promise.all([getPanelWorkloads(), getDashboardSummary()])
+      .then(([records, dashboardSummary]) => {
         if (!active) return;
         const attentionCount = records.filter((record) =>
           record.availability === 'Near Limit' || record.availability === 'Full Load'
         ).length;
         setPanelWorkloadCount(attentionCount);
+        setSummary(dashboardSummary);
         setPanelWorkloadLoadFailed(false);
       })
       .catch(() => {
@@ -58,20 +63,51 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
     };
   }, []);
 
-  const attentionRows = useMemo(() => MOCK_DASHBOARD_ATTENTION_ROWS.map((row) => {
-    if (row.id !== 'attn_3') return row;
-    return {
-      ...row,
+  const attentionRows = useMemo<DashboardAttentionRow[]>(() => [
+    {
+      id: 'pending-supervisor',
+      type: 'Pending supervisor requests',
+      count: summary === null ? 'Loading...' : String(summary.pendingSupervisorRequests),
+      targetTab: 'Supervisor Appointments',
+      detail: 'Opening supervisor appointment records requiring review.',
+    },
+    {
+      id: 'pending-panel',
+      type: 'Pending panel approvals',
+      count: summary === null ? 'Loading...' : String(summary.pendingPanelApprovals),
+      targetTab: 'Panel Appointments',
+      detail: 'Opening panel recommendations awaiting final confirmation.',
+    },
+    {
+      id: 'incomplete-marks',
+      type: 'Incomplete mark entries',
+      count: summary === null ? 'Loading...' : String(summary.incompleteMarkEntries),
+      targetTab: 'Marks Entry',
+      markStatusTab: 'All Records',
+      detail: summary === null
+        ? 'Opening mark entries that have not been submitted.'
+        : `Opening ${summary.supervisorMarkTasks ?? 0} supervisor and ${summary.panelMarkTasks ?? 0} panel mark tasks that require monitoring.`,
+    },
+    {
+      id: 'backup-marks',
+      type: 'Backup evaluator assignments',
+      count: summary === null ? 'Loading...' : String(summary.backupMarkTasks ?? 0),
+      targetTab: 'Marks Entry',
+      markStatusTab: 'All Records',
+      detail: 'Opening exception/manual override mark assignments.',
+    },
+    {
+      id: 'panel-workload',
+      type: 'Lecturers near panel workload limit',
       count: panelWorkloadLoadFailed
         ? 'Unavailable'
         : panelWorkloadCount === null
         ? 'Loading...'
-        : `${panelWorkloadCount} ${panelWorkloadCount === 1 ? 'lecturer' : 'lecturers'}`,
-      detail: panelWorkloadLoadFailed
-        ? 'Panel workload data could not be loaded. Opening workload monitoring for review...'
-        : `${panelWorkloadCount ?? 0} lecturers are near or at the panel workload limit. Opening workload monitoring...`,
-    };
-  }), [panelWorkloadCount, panelWorkloadLoadFailed]);
+        : String(panelWorkloadCount),
+      targetTab: 'Panel Appointments',
+      detail: 'Opening panel workload monitoring.',
+    },
+  ], [panelWorkloadCount, panelWorkloadLoadFailed, summary]);
 
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
@@ -129,7 +165,11 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                         onClick={() => {
                           triggerToast(row.detail);
                           setTimeout(() => {
-                            onNavigateToTab(row.targetTab);
+                            if (row.targetTab === 'Marks Entry' && onNavigateToMarksRecords) {
+                              onNavigateToMarksRecords(row.markStatusTab);
+                            } else {
+                              onNavigateToTab(row.targetTab);
+                            }
                           }, 1000);
                         }}
                         className="text-[#2563eb] hover:text-[#1d4ed8] font-black text-xs hover:underline cursor-pointer flex items-center justify-end gap-1 ml-auto"

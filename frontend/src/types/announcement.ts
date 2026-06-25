@@ -19,8 +19,6 @@ export interface AnnouncementItem {
   status: AnnouncementStatus;
   // Optional fields returned by the backend (absent in older mock rows).
   content?: string;
-  startDate?: string | null;
-  expiryDate?: string | null;
   createdBy?: string;
   attachmentName?: string | null;
   attachmentUrl?: string | null;

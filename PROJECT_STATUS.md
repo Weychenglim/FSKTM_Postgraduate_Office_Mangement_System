@@ -2,6 +2,46 @@
 
 ## Completed
 
+- Implemented persistent Supervisor Appointment submission, document metadata, lecturer decisions, programme-scoped coordinator decisions, resubmission, workload validation, appointment records, and histories.
+- Replaced the deferred coordinator supervisor page with a live approval queue and dashboard count.
+- Added shared immutable workflow events for Supervisor and Panel submissions and decisions.
+- Changed Panel workload validation to each lecturer's configurable `Panel.max_appointments`.
+- Added the `marks` Django app with configurable rubrics, periods, tasks, drafts, validation, submission locking, office monitoring, and assignment generation.
+- Extended Marks task assignment so active Supervisor Appointments and active Panel Appointments generate separate role-specific evaluator tasks, with automatic active-period safety generation if Office Staff/Admin forget to run assignment manually.
+- Added audited backup/manual-override evaluation tasks for Office Staff/Admin exception handling without changing official appointment records.
+- Replaced the prompt-based Marks Assignment flow with production Office Staff/Admin period selectors, readiness checks, role/status filters, and a validated backup evaluator drawer.
+- Added Marks Assignment option endpoints for evaluation periods, eligible students, lecturers, and existing task options.
+- Connected Marks Entry overview cards, Mark Submission Monitoring, and Mark Entry Records summaries to live marks period, dashboard, and record data.
+- Added status-filtered navigation from dashboard/monitoring marks actions into Mark Entry Records.
+- Updated Office Staff/Admin mark records to show unsubmitted closed-period tasks as Overdue without changing the database status model.
+- Fixed the Lecturer fresh-login landing page so lecturers enter through Dashboard Overview instead of Marks Entry.
+- Added a shared portal confirmation modal and replaced browser-native confirmation dialogs for panel cancellation, supervisor request cancellation, mark submission locking, and rubric component removal.
+- Moved selected-panel Reviewed Requests into a separate Lecturer Panel Appointments page opened from a button above the Selected Panel Review Queue table.
+- Simplified the Reviewed Requests navigation button to a text-only action for visual consistency with the portal table headers.
+- Added audited Django Admin correction and reopening for submitted marks.
+- Connected Lecturer Marks Entry to live APIs and dynamic backend-provided rubric components.
+- Connected role-scoped live Supervisor, Panel, and Marks counts to dashboards.
+- Removed the non-functional Panel Appointment policy-download action.
+- Added regression tests for supervisor workflow, mark locking/corrections, dashboard summaries, workload limits, and date-relative timelines.
+- Added supervisor-only panel recommendation cancellation while awaiting selected-panel review, including mandatory reasons, terminal cancellation status, immutable audit history, workload release, replacement recommendation support, and distinct read-only history across roles.
+- Added the cancellation API, database fields/migration, supervisor confirmation UI, cancelled status summaries/timelines, and focused authorization/workload/replacement tests.
+- Added student cancellation for pending Supervisor Appointment requests, including mandatory reasons, row locking, `CANCELLED_BY_STUDENT`, audit retention, queue removal, replacement submissions, and supervisor notification.
+- Removed the unused Panel `ACCEPTED_BY_PANEL` state; selected-panel acceptance now has one supported transition directly to `PENDING_COORDINATOR`.
+- Added protected Supervisor and Panel detail APIs, expandable audit logs, workflow notification metadata, stakeholder notification fan-out, and notification-to-record navigation.
+- Applied local migrations through `appointments.0006` and `announcements.0003`.
+- Moved shared portal toast feedback to the top-right viewport position with high overlay layering so it remains visible above the sticky header, drawers, and modals.
+
+- Added a dedicated Programme Coordinator dashboard using the Lecturer timeline/next-action structure, a real programme-scoped pending panel approval count, and a disabled Supervisor Approvals card while that backend workflow remains deferred.
+- Added an explicit Programme Coordinator Supervisor Appointments unavailable page without mock pending counts or approval controls.
+- Added a programme-scoped coordinator panel workspace API returning the managed programme, pending count, final-approval queue, and full recommendation lifecycle records.
+- Enforced `Coordinator.programme_managed` on coordinator queue retrieval and final approve/reject actions, including protected empty behavior for coordinators without an assigned programme.
+- Added a shared searchable, status-filtered, 10-row recommendation records table for Programme Coordinator programme oversight and selected-panel lecturer Reviewed Requests history.
+- Added selected-panel review history persistence access, preserving each lecturer's accepted/rejected decision and later coordinator outcome in read-only detail views.
+- Corrected the panel candidate current-user lookup to use `DemoUser.fullName`.
+- Updated Office Staff/Admin Panel Appointment Records to retain separate historical recommendation attempts, including rejected attempts that precede a later approved appointment, while suppressing the duplicate approved recommendation represented by the final appointment.
+- Added stable per-row panel `recordId` values and retained rejection stage, reason, recommended-member metadata, and lifecycle timestamps for historical detail views.
+- Updated Panel Appointment Detail to distinguish selected-panel rejection from Programme Coordinator rejection and show the stored rejection reason.
+- Added a tested shared frontend pagination utility and changed Panel Appointment Records plus Recent Timeline Updates to 10 rows per page with page ranges, numbered navigation, and safe page clamping after data refresh/filter changes.
 - Reorganized the workspace into a standard full-stack structure with `frontend/`, `backend/`, and `docs/` at the project root while keeping the three mandatory governance documents at the root.
 - Moved the Vite React application source, package files, and frontend configuration into `frontend/`.
 - Moved the Django backend into root-level `backend/`.
@@ -75,6 +115,16 @@
 
 ## Current Testing Status
 
+- Supervisor panel cancellation verification passes: 3 focused Django API tests, the panel workflow frontend test, `npm run lint`, `npm run build`, and `makemigrations --check --dry-run`.
+- Focused Programme Coordinator workspace, programme authorization, full lifecycle, and selected-panel review-history Django tests pass.
+- Focused panel recommendation filtering and shared pagination frontend tests pass.
+- `npm run lint` passes after adding the Programme Coordinator dashboard, scoped panel records, deferred supervisor page, and lecturer reviewed history.
+- Focused Django panel-record tests pass for standard office monitoring states and rejected-history retention after a later approval (2 tests, 0 failures).
+- Focused frontend pagination and panel-summary tests pass.
+- `npm run build` passes after the audit/panel record pagination change, with the existing non-blocking chunk-size warning.
+- Full `npm run lint` remains blocked by the pre-existing `LecturerPanelAppointments.tsx` `DemoUser.name` type error outside this change.
+- Full `python manage.py test appointments --keepdb` currently has five pre-existing baseline failures: two date-sensitive dashboard timeline status expectations and three panel workload-limit expectations that assume 5 while `PANEL_WORKLOAD_LIMIT` is currently 10.
+- Authentication regression tests, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, the canonical credential test, `npm run lint`, and `npm run build` pass after the account migration fix. The full Django suite still reports the same five documented appointment/timeline baseline failures.
 - `npm run lint` passes from `frontend/` after reorganizing the project structure.
 - `npm run build` passes from `frontend/` after reorganizing the project structure, with the existing non-blocking chunk-size warning.
 - `npm run lint` passes after cleaning `frontend/.env.example`.
@@ -225,13 +275,17 @@
 - `python backend\manage.py test appointments -v 2 --keepdb` passes after updating appointments APIs and tests for the normalized role-profile tables.
 - `python manage.py test -v 2 --keepdb` passes from `backend/` after the appointments/profile-table compatibility fix.
 - Added a shared frontend approved-programme list for dashboard/panel-facing flows and aligned panel appointment demo/API fallback data plus backend appointment seed/test data to the three coursework programmes.
+- Fixed demo account refresh failures caused by deleting legacy users referenced by protected timeline/audit records. Legacy staff emails now migrate in place, panel profile seeding uses the canonical lecturer email, and the student login prefiller uses matric number `200192`.
+- Added backend and frontend regression tests for protected-history account migration and canonical demo credentials.
+- Applied `accounts.0003_studentregistry` to the local database and reran `seed_users` twice successfully to verify idempotent account refresh.
+- Verified login returns HTTP 200 for the Admin, Programme Coordinator, Lecturer, and Student demo accounts using both canonical email and staff/matric identifiers.
 
 ## Known Issues and Notes
 
 - Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
 - A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
-- The current frontend uses mock-backed demo data by default through `VITE_USE_MOCKS=true`.
-- Real backend API integration still needs endpoint mapping for dashboard metrics beyond semester timeline/tasks, non-panel appointment workflows, broader student workflows, mark records, registry records, file records, FAQ entries, announcements, and notifications.
+- Unfinished modules remain mock-backed by default, while Supervisor, Panel, Marks, and Timeline can independently use Django.
+- Backend integration is still pending for broader registry, file, FAQ, and some notification workflows.
 - Office Staff/Admin panel monitoring still needs fuller frontend integration with the persisted panel appointment records.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
@@ -241,9 +295,9 @@
 
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
 - Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
-- Connect dashboard, registry, file, FAQ, letter, announcement, notification, appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.
+- Browser smoke-test the completed Supervisor, Panel, Marks, Dashboard, and coordinator flows against a migrated local database.
 - Wire the Settings module (contact details, password change, notification preferences) to backend endpoints; today the forms validate and toast but do not persist.
 - Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.
 - Decide a single source of truth for Programme Coordinator (it currently exists both as a `User.role` value and as a `Coordinator` profile table).
 - Connect Office Staff/Admin panel monitoring to the persisted panel appointment records.
-- Connect dashboard, registry, file, FAQ, announcement, notification, remaining appointment, lecturer, student, and mark data to backend APIs when backend endpoints are available.
+- Seed official rubrics, supervisor document requirements, and workload values after office confirmation.

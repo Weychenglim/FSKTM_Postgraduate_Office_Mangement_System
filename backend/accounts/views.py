@@ -2,6 +2,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db.models import Q
 from django.utils.encoding import force_bytes, force_str
@@ -64,6 +65,46 @@ def logout_view(request):
 def me_view(request):
     """Return the authenticated user (for session restore on the frontend)."""
     return Response(request.user.to_public_dict())
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_letter_details_view(request):
+    """Return the logged-in student's details for letter generation: the base
+    profile (name, matric, programme, status) plus the extended StudentRegistry
+    fields (passport, country, semesters…). The student Letter Generation screen
+    fills its template placeholders from this. Non-students get 403; a student
+    with no registry row yet gets the base fields with the extras left blank
+    (so the office still completes them by hand)."""
+    student = request.user._related_or_none("student")
+    if student is None:
+        return Response(
+            {"error": "Only students have letter details."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    data = {
+        "studentName": request.user.full_name,
+        "matricNumber": student.matric_no,
+        "programName": student.programme,
+        "currentStatus": student.status,
+        "supervisorName": "",  # no system data source for the supervisor yet
+        # Registry-backed fields — blank until a registry row exists.
+        "passportNumber": "",
+        "country": "",
+        "programmeMode": "",
+        "fieldOfResearch": "",
+        "modeOfStudy": "",
+        "initialSemester": student.intake_semester,
+        "currentSemester": "",
+        "maxSemester": "",
+        "expectedCompletion": "",
+    }
+    try:
+        data.update(student.registry.to_letter_dict())
+    except ObjectDoesNotExist:
+        pass  # no registry details captured yet — keep the blanks above
+    return Response(data)
 
 
 def _send_password_reset_email(user):

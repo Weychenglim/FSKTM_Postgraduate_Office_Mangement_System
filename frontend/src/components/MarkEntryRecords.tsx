@@ -26,13 +26,23 @@ import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
 import { getMarkRecords } from '../services';
+import {
+  filterMarkRecordsByStatusTab,
+  getMarkRecordSummary,
+  MarkRecordStatusTab,
+} from '../utils/markRecords';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
   onViewRecordDetail?: (recordId: string) => void;
+  initialStatusTab?: MarkRecordStatusTab;
 }
 
-export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onViewRecordDetail }) => {
+export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
+  onBack,
+  onViewRecordDetail,
+  initialStatusTab = 'All Records',
+}) => {
   // Records are loaded from marksApi (mock-backed today). Loading / error states
   // mirror what the real backend call will surface.
   const [records, setRecords] = useState<MarkRecord[]>([]);
@@ -55,12 +65,12 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
   // Form Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
-  const [semesterFilter, setSemesterFilter] = useState('Sem 1 2025/2026');
+  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
   const [statusFilter, setStatusFilter] = useState('All Statuses');
   const [panelFilter, setPanelFilter] = useState('All Members');
 
   // Interactive pill filter selection mapping directly to Status Pill Buttons
-  const [activeTab, setActiveTab] = useState<'All Records' | 'Submitted' | 'Draft Saved' | 'Not Started' | 'Overdue' | 'Closed'>('All Records');
+  const [activeTab, setActiveTab] = useState<MarkRecordStatusTab>(initialStatusTab);
 
   // Modal inspection target
   const [selectedInspectRecord, setSelectedInspectRecord] = useState<MarkRecord | null>(null);
@@ -69,7 +79,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
     programme: 'All Programmes',
-    semester: 'Sem 1 2025/2026',
+    semester: 'All Semesters',
     status: 'All Statuses',
     panelMember: 'All Members',
   });
@@ -86,6 +96,11 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
     setTimeout(() => setToast(null), 3000);
   };
 
+  useEffect(() => {
+    setActiveTab(initialStatusTab);
+    setCurrentPage(1);
+  }, [initialStatusTab]);
+
   // Run Apply filter logic
   const handleApplyFilters = () => {
     setAppliedFilters({
@@ -100,14 +115,28 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
   };
 
   // Calculated Stats
-  const totalRecordCount = 48; // Preserving values from layout screenshot
-  const submittedCount = 32;
-  const draftSavedCount = 6;
-  const notStartedCount = 8;
+  const summary = useMemo(() => getMarkRecordSummary(records), [records]);
+  const totalRecordCount = summary.total;
+  const submittedCount = summary.submitted;
+  const draftSavedCount = summary.draft;
+  const notStartedCount = summary.notStarted;
+  const overdueCount = summary.overdue;
+  const programmeOptions = useMemo(
+    () => Array.from(new Set(records.map((record) => record.programme))).filter(Boolean).sort(),
+    [records],
+  );
+  const semesterOptions = useMemo(
+    () => Array.from(new Set(records.map((record) => record.semester))).filter(Boolean).sort(),
+    [records],
+  );
+  const evaluatorOptions = useMemo(
+    () => Array.from(new Set(records.map((record) => record.panelMember))).filter(Boolean).sort(),
+    [records],
+  );
 
   // Derived filtered dataset matching active constraints
   const filteredRecords = useMemo(() => {
-    return records.filter(rec => {
+    return filterMarkRecordsByStatusTab(records, activeTab).filter(rec => {
       // 1. Text Search matching student name, student ID, panel member, or research title
       const searchText = appliedFilters.search.toLowerCase();
       if (searchText) {
@@ -135,23 +164,12 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
         return false;
       }
 
-      // 5. Status filter (either from select dropdown or status tabs pills)
-      // Check active header tabs first
-      if (activeTab !== 'All Records') {
-        if (activeTab === 'Submitted' && rec.status !== 'Submitted') return false;
-        if (activeTab === 'Draft Saved' && rec.status !== 'Draft') return false;
-        if (activeTab === 'Not Started' && rec.status !== 'Not Started') return false;
-        if (activeTab === 'Overdue' && rec.status !== 'Overdue') return false;
-        if (activeTab === 'Closed' && rec.status !== 'Closed') return false;
-      } else {
-        // Fallback to Status select box filter
-        if (appliedFilters.status !== 'All Statuses') {
-          if (appliedFilters.status === 'Submitted' && rec.status !== 'Submitted') return false;
-          if (appliedFilters.status === 'Draft' && rec.status !== 'Draft') return false;
-          if (appliedFilters.status === 'Not Started' && rec.status !== 'Not Started') return false;
-          if (appliedFilters.status === 'Overdue' && rec.status !== 'Overdue') return false;
-          if (appliedFilters.status === 'Closed' && rec.status !== 'Closed') return false;
-        }
+      // 5. Status filter dropdown applies only when the status pill is All Records.
+      if (activeTab === 'All Records' && appliedFilters.status !== 'All Statuses') {
+        if (appliedFilters.status === 'Submitted' && rec.status !== 'Submitted') return false;
+        if (appliedFilters.status === 'Draft' && rec.status !== 'Draft') return false;
+        if (appliedFilters.status === 'Not Started' && rec.status !== 'Not Started') return false;
+        if (appliedFilters.status === 'Overdue' && rec.status !== 'Overdue') return false;
       }
 
       return true;
@@ -184,7 +202,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
       />
 
       {/* 4 Summary Cards Row with exact look (number text + solid bottom line) */}
-      <div id="records-metrics-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div id="records-metrics-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         
         {/* Total Records */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
@@ -234,6 +252,17 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-350" />
         </div>
 
+        {/* Overdue */}
+        <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+            Overdue
+          </span>
+          <span className="text-rose-600 font-black text-3xl font-sans tracking-tight block">
+            {overdueCount}
+          </span>
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-rose-500" />
+        </div>
+
       </div>
 
       {/* Advanced search and filters container box */}
@@ -268,9 +297,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
               className="form-control form-control-md cursor-pointer"
             >
               <option value="All Programmes">All Programmes</option>
-              <option value="Master of Software Engineering">Master of Software Engineering</option>
-              <option value="Master of Computer Science">Master of Computer Science</option>
-              <option value="Master of Information Technology">Master of Information Technology</option>
+              {programmeOptions.map((programme) => (
+                <option key={programme} value={programme}>{programme}</option>
+              ))}
             </select>
           </div>
 
@@ -284,8 +313,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
               onChange={(e) => setSemesterFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
             >
-              <option value="Sem 1 2025/2026">Sem 1 2025/2026</option>
-              <option value="Sem 2 2024/2025">Sem 2 2024/2025</option>
+              <option value="All Semesters">All Semesters</option>
+              {semesterOptions.map((semester) => (
+                <option key={semester} value={semester}>{semester}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -306,7 +337,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
               <option value="Draft">Draft Saved</option>
               <option value="Not Started">Not Started</option>
               <option value="Overdue">Overdue</option>
-              <option value="Closed">Closed</option>
             </select>
           </div>
 
@@ -321,9 +351,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
               className="form-control form-control-md cursor-pointer"
             >
               <option value="All Members">All Members</option>
-              <option value="Dr. Sarah Lim">Dr. Sarah Lim</option>
-              <option value="Dr. Robert Chen">Dr. Robert Chen</option>
-              <option value="Assoc. Prof. Dr. Amina Malik">Assoc. Prof. Dr. Amina Malik</option>
+              {evaluatorOptions.map((member) => (
+                <option key={member} value={member}>{member}</option>
+              ))}
             </select>
           </div>
 
@@ -349,8 +379,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
           { key: 'Submitted', label: 'Submitted' },
           { key: 'Draft Saved', label: 'Draft Saved' },
           { key: 'Not Started', label: 'Not Started' },
-          { key: 'Overdue', label: 'Overdue' },
-          { key: 'Closed', label: 'Closed' }
+          { key: 'Overdue', label: 'Overdue' }
         ] as const).map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -519,7 +548,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({ onBack, onVi
         {/* Pagination bar block row */}
         <div id="records-pagination-footer" className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
           <span className="text-xs text-slate-500 font-medium font-sans text-left">
-            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {totalRecordCount} records.
+            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} filtered records ({totalRecordCount} total).
           </span>
 
           <div className="flex items-center gap-1.5 font-sans">

@@ -3,6 +3,7 @@ import { getPanelRecordSummary } from './panelAppointmentRecords';
 
 const records: PanelRecord[] = [
   {
+    recordId: 'profile-1',
     id: 'MEA1',
     studentName: 'Student One',
     programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
@@ -13,6 +14,7 @@ const records: PanelRecord[] = [
     updatedDate: '06 Jun 2026',
   },
   {
+    recordId: 'recommendation-2',
     id: 'MEA2',
     studentName: 'Student Two',
     programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
@@ -23,6 +25,7 @@ const records: PanelRecord[] = [
     updatedDate: '06 Jun 2026',
   },
   {
+    recordId: 'recommendation-3',
     id: 'MEA3',
     studentName: 'Student Three',
     programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
@@ -33,6 +36,7 @@ const records: PanelRecord[] = [
     updatedDate: '06 Jun 2026',
   },
   {
+    recordId: 'appointment-4',
     id: 'MEA4',
     studentName: 'Student Four',
     programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
@@ -43,6 +47,7 @@ const records: PanelRecord[] = [
     updatedDate: '06 Jun 2026',
   },
   {
+    recordId: 'recommendation-5',
     id: 'MEA5',
     studentName: 'Student Five',
     programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',

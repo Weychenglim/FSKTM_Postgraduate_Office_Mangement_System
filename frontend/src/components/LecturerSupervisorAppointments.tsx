@@ -39,8 +39,15 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrim
 import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
-import { getSupervisorRequests, getActiveSupervisees } from '../services';
+import {
+  acceptSupervisorApplication,
+  getSupervisorApplication,
+  getSupervisorRequests,
+  getActiveSupervisees,
+  rejectSupervisorApplication,
+} from '../services';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -381,6 +388,9 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
   const [rejectReason, setRejectReason] = useState('');
 
   if (!isOpen || !request) return null;
+  const canAct =
+    request.status === 'SUBMITTED_TO_SUPERVISOR'
+    || request.status === 'Pending Review';
 
   const handleRejectClick = () => {
     if (!rejectReason.trim()) {
@@ -488,6 +498,9 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
               />
             </InfoCard>
 
+            <WorkflowAuditLog events={request.workflow} />
+
+            {canAct ? (
             <div className="pt-5 border-t border-slate-100 space-y-4">
               <div className="space-y-2.5">
                 <button
@@ -517,6 +530,11 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
                 A reason is required before rejecting this supervisor appointment request.
               </NoticeText>
             </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-[11px] font-semibold text-slate-600">
+                This workflow record is read-only because the request is no longer awaiting your decision.
+              </div>
+            )}
           </div>
 
         </div>
@@ -733,9 +751,13 @@ export const DataTable: React.FC<DataTableProps> = ({
 
 interface LecturerSupervisorAppointmentsProps {
   onBack?: () => void;
+  initialApplicationId?: string;
 }
 
-export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({ onBack }) => {
+export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
+  onBack,
+  initialApplicationId,
+}) => {
   // Supervisory load counter (workload widget). Stays local UI state: it tracks
   // remaining slots and is nudged as the lecturer approves/rejects requests.
   const [summaryLoad, setSummaryLoad] = useState({ current: 3, max: 5 });
@@ -768,6 +790,29 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const [selectedSupervisee, setSelectedSupervisee] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    if (!initialApplicationId) return;
+    const request = requestsList.find(
+      (item) => String(item.applicationId) === String(initialApplicationId),
+    );
+    getSupervisorApplication(initialApplicationId)
+      .then((detail) => {
+        setSelectedRequest({
+          ...request,
+          ...detail,
+          proposedTopic: detail.researchTitle,
+          abstract: detail.researchAbstract,
+          submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
+        });
+        setIsDrawerOpen(true);
+      })
+      .catch(() => {
+        if (!request) return;
+        setSelectedRequest(request);
+        setIsDrawerOpen(true);
+      });
+  }, [initialApplicationId, requestsList]);
+
   const [toastText, setToastText] = useState<string | null>(null);
 
   const showToast = (txt: string) => {
@@ -775,9 +820,19 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     setTimeout(() => setToastText(null), 3000);
   };
 
-  const handleOpenRequest = (req: any) => {
-    setSelectedRequest(req);
-    setIsDrawerOpen(true);
+  const handleOpenRequest = async (req: any) => {
+    if (req.applicationId === undefined) {
+      setSelectedRequest(req);
+      setIsDrawerOpen(true);
+      return;
+    }
+    try {
+      const detail = await getSupervisorApplication(req.applicationId);
+      setSelectedRequest({ ...req, ...detail });
+      setIsDrawerOpen(true);
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : 'Failed to load request history.');
+    }
   };
 
   const handleOpenSupervisee = (supe: any) => {
@@ -796,10 +851,18 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     setDetailView('superviseeDetail');
   };
 
-  const handleApproveRequest = (id: string) => {
+  const handleApproveRequest = async (id: string) => {
     // Add request student to active list
     const studentReq = requestsList.find(r => r.studentId === id);
     if (studentReq) {
+      try {
+        if (studentReq.applicationId !== undefined) {
+          await acceptSupervisorApplication(studentReq.applicationId);
+        }
+      } catch (reason) {
+        showToast(reason instanceof Error ? reason.message : 'Failed to accept supervisor request.');
+        return;
+      }
       const newActive: ActiveSuperviseeRow = {
         studentId: studentReq.studentId,
         studentName: studentReq.studentName,
@@ -816,9 +879,17 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
   };
 
-  const handleRejectRequest = (id: string, reason: string) => {
+  const handleRejectRequest = async (id: string, reason: string) => {
     const studentReq = requestsList.find(r => r.studentId === id);
     if (studentReq) {
+      try {
+        if (studentReq.applicationId !== undefined) {
+          await rejectSupervisorApplication(studentReq.applicationId, reason);
+        }
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Failed to reject supervisor request.');
+        return;
+      }
       setRequestsList(prev => prev.filter(r => r.studentId !== id));
       showToast(`Appointment declined for student ${studentReq.studentName}. Action logged successfully.`);
       setIsDrawerOpen(false);

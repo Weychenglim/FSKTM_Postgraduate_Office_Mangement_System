@@ -10,7 +10,8 @@ export type SupervisorAppointmentStatus =
   | 'Pending'
   | 'No Supervisor'
   | 'Workload Alert'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Cancelled';
 
 export interface SupervisorRecord {
   studentId: string;
@@ -30,6 +31,7 @@ export interface SupervisorRecord {
   releasedDate?: string;
   panelMemberName?: string;
   panelAssignedDate?: string;
+  workflow?: SupervisorWorkflowEvent[];
 }
 
 export type PanelAppointmentStatus =
@@ -38,9 +40,11 @@ export type PanelAppointmentStatus =
   | 'Pending'
   | 'Recommendation'
   | 'Workload Alert'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Cancelled';
 
 export interface PanelRecord {
+  recordId: string;
   id: string; // student ID, e.g. "MEA2301184"
   studentName: string;
   programme: string;
@@ -60,11 +64,18 @@ export interface PanelRecord {
   panelDecisionAt?: string | null;
   coordinatorDecisionAt?: string | null;
   appointmentConfirmedAt?: string | null;
+  recommendationId?: number | string | null;
+  rejectionStage?: 'Selected Panel' | 'Programme Coordinator' | null;
+  rejectionReason?: string;
+  cancelledAt?: string | null;
+  cancellationReason?: string;
+  workflow?: SupervisorWorkflowEvent[];
 }
 
 // ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
 // A pending supervisor appointment request shown to a lecturer to review.
 export interface SupervisorRequest {
+  applicationId?: number;
   studentId: string;
   studentName: string;
   programme: string;
@@ -110,10 +121,10 @@ export interface PanelAssignment {
 export type PanelRecommendationStatus =
   | 'SUBMITTED_TO_PANEL'
   | 'REJECTED_BY_PANEL'
-  | 'ACCEPTED_BY_PANEL'
   | 'PENDING_COORDINATOR'
   | 'REJECTED_BY_COORDINATOR'
-  | 'APPROVED';
+  | 'APPROVED'
+  | 'CANCELLED_BY_SUPERVISOR';
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft {
@@ -127,13 +138,27 @@ export interface PanelRecommendationDraft {
   abstract?: string;
   recommendedMember: string;
   recommendedMemberId: string;
+  supervisorName?: string;
   submittedDate: string;
   submittedAt?: string | null;
   panelDecisionAt?: string | null;
   coordinatorDecisionAt?: string | null;
+  cancelledAt?: string | null;
   status: PanelRecommendationStatus;
   justification?: string;
   rejectionReason?: string;
+  cancellationReason?: string;
+  updatedAt?: string | null;
+  selectedPanelDecision?: 'ACCEPTED' | 'REJECTED' | null;
+  workflow?: SupervisorWorkflowEvent[];
+}
+
+export interface CoordinatorPanelWorkspace {
+  programme: string;
+  pendingCount: number;
+  queue: PanelRecommendationDraft[];
+  records: PanelRecommendationDraft[];
+  message?: string;
 }
 
 export interface PanelRecommendationSupervisee {
@@ -199,13 +224,14 @@ export interface StudentPanelAppointmentView {
 // A submitted panel recommendation record shown in the history list.
 export interface SubmittedRecommendation {
   id: string;
+  recommendationId?: number | string;
   studentName: string;
   studentId: string;
   researchTitle: string;
   recommendedPanel: string;
   recommendedPanelId?: string;
   date: string;
-  status: 'Approved' | 'Pending Approval' | 'Rejected';
+  status: 'Approved' | 'Pending Approval' | 'Rejected' | 'Cancelled';
   workflowStatus?: PanelRecommendationStatus;
   semester: string;
   programme?: string;
@@ -216,6 +242,9 @@ export interface SubmittedRecommendation {
   submittedAt?: string | null;
   panelDecisionAt?: string | null;
   coordinatorDecisionAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string;
+  workflow?: SupervisorWorkflowEvent[];
 }
 
 // A past supervisor appointment request the lecturer already approved/rejected.
@@ -226,7 +255,7 @@ export interface SupervisorRequestHistoryRow {
   programme: string;
   researchTitle: string;
   submittedDate: string;
-  decision: 'Approved' | 'Rejected';
+  decision: 'Approved' | 'Rejected' | 'Cancelled';
   semester: string;
   abstract: string;
   decisionReason?: string;
@@ -251,14 +280,59 @@ export interface RecentAppointment {
 export type StudentSupervisorApplicationStatus =
   | 'PENDING REVIEW'
   | 'RETURNED'
+  | 'CANCELLED'
   | 'APPROVED';
 
 export interface StudentSupervisorApplication {
+  applicationId?: number;
   id: string;
   title: string;
   supervisor: string;
   date: string;
   status: StudentSupervisorApplicationStatus;
+  workflowStatus?: SupervisorApplicationWorkflowStatus;
+  workflow?: SupervisorWorkflowEvent[];
+  cancellationReason?: string;
+  cancelledAt?: string | null;
+}
+
+export type SupervisorApplicationWorkflowStatus =
+  | 'SUBMITTED_TO_SUPERVISOR'
+  | 'REJECTED_BY_SUPERVISOR'
+  | 'PENDING_COORDINATOR'
+  | 'REJECTED_BY_COORDINATOR'
+  | 'CANCELLED_BY_STUDENT'
+  | 'APPROVED';
+
+export interface SupervisorWorkflowEvent {
+  id: number;
+  action: string;
+  actorName: string;
+  actorRole: string;
+  previousStatus: string;
+  newStatus: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface SupervisorApplicationRecord {
+  id: number;
+  studentId: string;
+  studentName: string;
+  programme: string;
+  semester: string;
+  proposedSupervisor: string;
+  proposedSupervisorId: string;
+  researchTitle: string;
+  researchAbstract: string;
+  status: SupervisorApplicationWorkflowStatus;
+  rejectionReason: string;
+  submittedAt: string;
+  supervisorDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string;
+  workflow: SupervisorWorkflowEvent[];
 }
 
 export interface SupervisorCandidate {

@@ -22,6 +22,31 @@ export interface LetterTemplateInput {
   referencePrefix?: string;
 }
 
+/** The logged-in student's details used to fill a letter's placeholders.
+ *  Combines the base student profile with the StudentRegistry extras. */
+export interface StudentLetterDetails {
+  studentName: string;
+  matricNumber: string;
+  programName: string;
+  currentStatus: string;
+  supervisorName: string;
+  passportNumber: string;
+  country: string;
+  programmeMode: string;
+  fieldOfResearch: string;
+  modeOfStudy: string;
+  initialSemester: string;
+  currentSemester: string;
+  maxSemester: string;
+  expectedCompletion: string;
+}
+
+/** Fetch the logged-in student's letter details (live; requires auth — like
+ *  `/auth/me/`). Used by the student Letter Generation screen. */
+export async function getMyLetterDetails(): Promise<StudentLetterDetails> {
+  return request<StudentLetterDetails>('/auth/me/letter-details/');
+}
+
 /** All templates — used by the office-staff template manager. */
 export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   try {

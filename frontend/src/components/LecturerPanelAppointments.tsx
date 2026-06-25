@@ -25,7 +25,6 @@ import {
   FolderMinus,
   MailOpen,
   Megaphone,
-  CheckSquare,
   Award,
   Filter,
   Check,
@@ -45,6 +44,7 @@ import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
 import {
   DemoUser,
+  CoordinatorPanelWorkspace,
   PanelAssignment,
   PanelCandidate,
   PanelRecommendationDraft,
@@ -54,14 +54,16 @@ import {
 import {
   acceptPanelRecommendation,
   approvePanelRecommendationByCoordinator,
+  cancelPanelRecommendation,
   createPanelRecommendation as createPanelRecommendationApi,
-  getCoordinatorPanelReviewQueue,
+  getCoordinatorPanelWorkspace,
   getEligiblePanelSupervisees,
   getPanelCandidates,
   getPanelAssignments,
   getPanelRecommendationDrafts,
   getPanelRecommendations,
   getPanelReviewQueue,
+  getPanelReviewHistory,
   rejectPanelRecommendation,
   rejectPanelRecommendationByCoordinator,
 } from '../services';
@@ -71,6 +73,8 @@ import {
   canReviewPanelRecommendation,
   canCreatePanelRecommendation,
 } from '../utils/panelRecommendationWorkflow';
+import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTable';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
@@ -113,12 +117,12 @@ const getInitials = (name: string) =>
 
 const isPendingPanelRecommendation = (recommendation: PanelRecommendationDraft) =>
   recommendation.status === 'SUBMITTED_TO_PANEL' ||
-  recommendation.status === 'ACCEPTED_BY_PANEL' ||
   recommendation.status === 'PENDING_COORDINATOR';
 
 const getRecommendationTone = (status: PanelRecommendationDraft['status']) => {
   if (status === 'APPROVED') return 'success' as const;
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') return 'danger' as const;
+  if (status === 'CANCELLED_BY_SUPERVISOR') return 'neutral' as const;
   return 'info' as const;
 };
 
@@ -136,12 +140,12 @@ const getPanelRecommendationProgressItems = (
 ): PanelProgressItem[] => {
   const status = recommendation.status;
   const panelAccepted =
-    status === 'ACCEPTED_BY_PANEL' ||
     status === 'PENDING_COORDINATOR' ||
     status === 'APPROVED' ||
     status === 'REJECTED_BY_COORDINATOR';
   const panelRejected = status === 'REJECTED_BY_PANEL';
-  const coordinatorActive = status === 'ACCEPTED_BY_PANEL' || status === 'PENDING_COORDINATOR';
+  const cancelled = status === 'CANCELLED_BY_SUPERVISOR';
+  const coordinatorActive = status === 'PENDING_COORDINATOR';
   const coordinatorCompleted = status === 'APPROVED';
   const coordinatorRejected = status === 'REJECTED_BY_COORDINATOR';
 
@@ -155,17 +159,21 @@ const getPanelRecommendationProgressItems = (
     {
       id: 'panel',
       label: 'Selected Panel Review',
-      subtext: panelRejected
+      subtext: cancelled
+        ? recommendation.cancellationReason || 'Recommendation cancelled by supervisor'
+        : panelRejected
         ? 'Selected panel rejected this recommendation'
         : panelAccepted
         ? 'Selected panel accepted'
         : 'Awaiting selected panel decision',
-      status: panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
+      status: cancelled || panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
     },
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
-      subtext: coordinatorRejected
+      subtext: cancelled
+        ? 'Not reached because the supervisor cancelled the recommendation'
+        : coordinatorRejected
         ? 'Programme Coordinator rejected this recommendation'
         : coordinatorCompleted
         ? 'Programme Coordinator confirmed'
@@ -182,14 +190,16 @@ const getPanelRecommendationProgressItems = (
     },
     {
       id: 'final',
-      label: status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
+      label: cancelled ? 'Recommendation Cancelled' : status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
       subtext:
-        status === 'APPROVED'
+        cancelled
+          ? recommendation.cancellationReason || 'Cancelled by supervisor'
+          : status === 'APPROVED'
           ? 'Recommendation completed'
           : panelRejected || coordinatorRejected
           ? 'Recommendation closed'
           : 'Pending Programme Coordinator confirmation',
-      status: status === 'APPROVED' ? 'completed' : panelRejected || coordinatorRejected ? 'rejected' : 'pending',
+      status: status === 'APPROVED' ? 'completed' : cancelled || panelRejected || coordinatorRejected ? 'rejected' : 'pending',
     },
   ];
 };
@@ -253,6 +263,7 @@ interface PanelRecommendationReviewDrawerProps {
   reviewerRole: PanelRecommendationReviewerRole;
   onAccept?: (recommendation: PanelRecommendationDraft) => void;
   onReject?: (recommendation: PanelRecommendationDraft, reason: string) => void;
+  readOnly?: boolean;
 }
 
 const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
@@ -262,6 +273,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   reviewerRole,
   onAccept,
   onReject,
+  readOnly = false,
 }) => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
@@ -273,9 +285,11 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 
   if (!isOpen || !recommendation) return null;
 
-  const canAct = canReviewPanelRecommendation(recommendation.status, reviewerRole);
+  const canAct = !readOnly && canReviewPanelRecommendation(recommendation.status, reviewerRole);
   const reviewerLabel =
-    reviewerRole === 'SELECTED_PANEL'
+    readOnly
+      ? 'Recommendation Record'
+      : reviewerRole === 'SELECTED_PANEL'
       ? 'Selected Panel Review'
       : reviewerRole === 'PROGRAMME_COORDINATOR'
       ? 'Programme Coordinator Review'
@@ -380,7 +394,9 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 </StatusBadge>
               </div>
               <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                {reviewerRole === 'SUPERVISOR'
+                {readOnly
+                  ? 'This is a read-only workflow record. Completed decisions remain available for audit and tracking.'
+                  : reviewerRole === 'SUPERVISOR'
                   ? 'As the supervisor who submitted this recommendation, you can only track the confirmation progress here. The selected panel member and Programme Coordinator must make their own decisions from their own review queues.'
                   : canAct
                   ? 'This recommendation is awaiting your decision.'
@@ -396,6 +412,8 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 items={getPanelRecommendationProgressItems(recommendation)}
               />
             </div>
+
+            <WorkflowAuditLog events={recommendation.workflow} />
 
             {canAct && (
               <div className="space-y-4">
@@ -449,11 +467,15 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 
 interface LecturerPanelAppointmentsProps {
   currentUser?: DemoUser | null;
+  initialRecommendationId?: string;
 }
 
-export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({ currentUser }) => {
-  // Navigation states: 'list' | 'submitted' | 'detail'
-  const [panelView, setPanelView] = useState<'list' | 'submitted' | 'detail'>('list');
+export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
+  currentUser,
+  initialRecommendationId,
+}) => {
+  // Navigation states: main workspace plus focused history/detail pages.
+  const [panelView, setPanelView] = useState<'list' | 'submitted' | 'reviewed' | 'detail'>('list');
   
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
@@ -462,6 +484,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [selectedAssignment, setSelectedAssignment] = useState<PanelAssignment | null>(null);
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
+  const [selectedRecommendationReadOnly, setSelectedRecommendationReadOnly] = useState(false);
   const isCoordinator = currentUser?.role === 'Programme Coordinator';
 
   // Toast Notification
@@ -480,6 +503,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [submittedRecs, setSubmittedRecs] = useState<PanelRecommendationDraft[]>([]);
   const [panelReviewQueue, setPanelReviewQueue] = useState<PanelRecommendationDraft[]>([]);
   const [coordinatorReviewQueue, setCoordinatorReviewQueue] = useState<PanelRecommendationDraft[]>([]);
+  const [coordinatorWorkspace, setCoordinatorWorkspace] = useState<CoordinatorPanelWorkspace | null>(null);
+  const [reviewedRequests, setReviewedRequests] = useState<PanelRecommendationDraft[]>([]);
   const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
   const [panelCandidates, setPanelCandidates] = useState<PanelCandidate[]>([]);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
@@ -491,12 +516,13 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     setLoading(true);
     setError(null);
     const load = isCoordinator
-      ? Promise.all([getCoordinatorPanelReviewQueue()])
+      ? Promise.all([getCoordinatorPanelWorkspace()])
       : Promise.all([
           getPanelAssignments(),
           getPanelRecommendationDrafts(),
           getPanelRecommendations(),
           getPanelReviewQueue(),
+          getPanelReviewHistory(),
           getEligiblePanelSupervisees(),
           getPanelCandidates(),
         ]);
@@ -504,7 +530,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     load
       .then((result) => {
         if (isCoordinator) {
-          const [coordinatorQueue] = result as [PanelRecommendationDraft[]];
+          const [workspace] = result as [CoordinatorPanelWorkspace];
           setAssignments([]);
           setSubmittedRecs([]);
           setPanelRecommendations([]);
@@ -512,14 +538,17 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           setEligibleSupervisees([]);
           setSelectedSuperviseeId(null);
           setPanelReviewQueue([]);
-          setCoordinatorReviewQueue(coordinatorQueue);
+          setReviewedRequests([]);
+          setCoordinatorWorkspace(workspace);
+          setCoordinatorReviewQueue(workspace.queue);
           return;
         }
 
-        const [asg, drafts, recs, panelQueue, eligibleSupervisees, candidates] = result as [
+        const [asg, drafts, recs, panelQueue, history, eligibleSupervisees, candidates] = result as [
           PanelAssignment[],
           PanelRecommendationDraft[],
           SubmittedRecommendation[],
+          PanelRecommendationDraft[],
           PanelRecommendationDraft[],
           Awaited<ReturnType<typeof getEligiblePanelSupervisees>>,
           PanelCandidate[],
@@ -530,6 +559,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         setPanelCandidates(candidates);
         setPanelReviewQueue(panelQueue);
         setCoordinatorReviewQueue([]);
+        setCoordinatorWorkspace(null);
+        setReviewedRequests(history);
         setEligibleSupervisees(eligibleSupervisees);
         setSelectedSuperviseeId((currentId) => {
           if (currentId && eligibleSupervisees.some((student) => student.studentId === currentId)) {
@@ -547,6 +578,39 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!initialRecommendationId) return;
+    const recommendation = [
+      ...submittedRecs,
+      ...panelReviewQueue,
+      ...coordinatorReviewQueue,
+      ...reviewedRequests,
+      ...(coordinatorWorkspace?.records ?? []),
+    ].find((item) => String(item.id) === String(initialRecommendationId));
+    if (!recommendation) return;
+    setSelectedRecommendation(recommendation);
+    const isSelectedPanel =
+      recommendation.recommendedMemberId === currentUser?.staffId;
+    const role: PanelRecommendationReviewerRole = isCoordinator
+      ? 'PROGRAMME_COORDINATOR'
+      : isSelectedPanel
+      ? 'SELECTED_PANEL'
+      : 'SUPERVISOR';
+    setSelectedReviewerRole(role);
+    setSelectedRecommendationReadOnly(
+      !canReviewPanelRecommendation(recommendation.status, role),
+    );
+  }, [
+    initialRecommendationId,
+    submittedRecs,
+    panelReviewQueue,
+    coordinatorReviewQueue,
+    reviewedRequests,
+    coordinatorWorkspace,
+    isCoordinator,
+    currentUser?.staffId,
+  ]);
 
   const selectedSupervisee = useMemo(
     () => eligibleSupervisees.find((student) => student.studentId === selectedSuperviseeId)
@@ -568,6 +632,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       .filter(r => r.studentId !== 'MEA2400712' && r.studentId !== '17204561')
       .map((r, i) => ({
         id: r.id !== undefined ? `REC-${String(r.id).padStart(4, '0')}` : `REC-2026-${String(100 + i).slice(1)}`,
+        recommendationId: r.id,
         studentName: r.studentName,
         studentId: r.studentId,
         researchTitle: r.proposedTopic,
@@ -576,9 +641,11 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         date: r.submittedDate,
         status: (r.status === 'APPROVED'
           ? 'Approved'
+          : r.status === 'CANCELLED_BY_SUPERVISOR'
+          ? 'Cancelled'
           : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
           ? 'Rejected'
-          : 'Pending Approval') as 'Approved' | 'Pending Approval' | 'Rejected',
+          : 'Pending Approval') as SubmittedRecommendation['status'],
         workflowStatus: r.status,
         semester: r.semester || 'Sem 1 2025/2026',
         programme: r.programme,
@@ -589,6 +656,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         submittedAt: r.submittedAt,
         panelDecisionAt: r.panelDecisionAt,
         coordinatorDecisionAt: r.coordinatorDecisionAt,
+        cancelledAt: r.cancelledAt,
+        cancellationReason: r.cancellationReason,
+        workflow: r.workflow,
       }));
 
     const seen = new Set<string>();
@@ -650,7 +720,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
   const activeAssignmentsCount = assignments.length;
   // Use workloadLimit from panelCandidates if current user is found, otherwise default to 10.
-  const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.name);
+  const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.fullName);
   const workloadLimit = currentUserCandidate ? currentUserCandidate.workloadLimit : 10;
   const activeReviewQueue = isCoordinator ? coordinatorReviewQueue : panelReviewQueue;
   const activeReviewRole: PanelRecommendationReviewerRole = isCoordinator
@@ -709,6 +779,31 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     }
   };
 
+  const handleCancelRecommendation = async (
+    recommendation: SubmittedRecommendation,
+    reason: string,
+  ) => {
+    if (recommendation.recommendationId === undefined) {
+      throw new Error('This recommendation cannot be cancelled because it has no backend ID.');
+    }
+
+    const updated = await cancelPanelRecommendation(recommendation.recommendationId, reason);
+    setSubmittedRecs((items) => items.map((item) => item.id === updated.id ? updated : item));
+    setPanelRecommendations((items) => items.map((item) =>
+      item.recommendationId === updated.id
+        ? {
+            ...item,
+            status: 'Cancelled',
+            workflowStatus: updated.status,
+            cancelledAt: updated.cancelledAt,
+            cancellationReason: updated.cancellationReason,
+          }
+        : item,
+    ));
+    triggerToast('Panel recommendation cancelled. The reserved panel workload has been released.');
+    await loadData();
+  };
+
   return (
     <div id="lecturer-panel-module-container" className="space-y-8 animate-fade-in text-left">
       
@@ -722,7 +817,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             title={isCoordinator ? 'Panel Recommendation Coordinator Review' : 'Panel Appointments'}
             subtitle={
               isCoordinator
-                ? 'Confirm or reject panel recommendations after selected panel lecturer acceptance.'
+                ? coordinatorWorkspace?.programme
+                  ? `Confirm recommendations and monitor panel workflow records for ${coordinatorWorkspace.programme}.`
+                  : 'No managed programme is assigned to this coordinator account.'
                 : 'Recommend panel members for your supervisees and view students assigned to you as panel member.'
             }
             subtitleClassName="leading-relaxed max-w-4xl"
@@ -782,17 +879,19 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
           </div>
           ) : (
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex items-center justify-between gap-6">
+            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-6">
               <div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
                   Pending Coordinator Reviews
                 </span>
                 <p className="text-xs font-semibold text-slate-500 mt-2">
-                  Recommendations shown here already passed selected panel lecturer acceptance.
+                  {coordinatorWorkspace?.programme
+                    ? `Recommendations for ${coordinatorWorkspace.programme} that passed selected panel acceptance.`
+                    : 'No programme is assigned. Approval records are protected until an assignment is configured.'}
                 </p>
               </div>
               <span className="text-3xl font-black text-brand-navy tracking-tight">
-                {coordinatorReviewQueue.length}
+                {coordinatorWorkspace?.pendingCount ?? 0}
               </span>
             </div>
           )}
@@ -987,15 +1086,27 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
           {/* ROLE REVIEW QUEUE */}
           <div id="panel-role-review-queue" className="space-y-4">
-            <div>
-              <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
-                {isCoordinator ? 'Programme Coordinator Review Queue' : 'Selected Panel Review Queue'}
-              </h3>
-              <p className="text-[11px] font-semibold text-slate-400 mt-1 leading-none select-none">
-                {isCoordinator
-                  ? 'Final decisions are available only after selected panel acceptance.'
-                  : 'Panel nominations assigned to you for acceptance or rejection.'}
-              </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
+                  {isCoordinator ? 'Programme Coordinator Review Queue' : 'Selected Panel Review Queue'}
+                </h3>
+                <p className="text-[11px] font-semibold text-slate-400 mt-1 leading-none select-none">
+                  {isCoordinator
+                    ? 'Final decisions are available only after selected panel acceptance.'
+                    : 'Panel nominations assigned to you for acceptance or rejection.'}
+                </p>
+              </div>
+
+              {!isCoordinator && (
+                <button
+                  type="button"
+                  onClick={() => setPanelView('reviewed')}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-brand-navy shadow-3xs transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span>Reviewed Requests</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs">
@@ -1061,6 +1172,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                               type="button"
                               onClick={() => {
                                 setSelectedReviewerRole(activeReviewRole);
+                                setSelectedRecommendationReadOnly(false);
                                 setSelectedRecommendation(recommendation);
                               }}
                               className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
@@ -1077,6 +1189,22 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               </div>
             </div>
           </div>
+
+          {isCoordinator && (
+            <PanelRecommendationRecordsTable
+              title="Programme Panel Recommendation Records"
+              subtitle={coordinatorWorkspace?.programme
+                ? `Read-only lifecycle records for ${coordinatorWorkspace.programme}. Approval actions remain in the queue above.`
+                : 'No programme records can be displayed until a managed programme is assigned.'}
+              records={coordinatorWorkspace?.records ?? []}
+              showSupervisor
+              onView={(recommendation) => {
+                setSelectedReviewerRole('PROGRAMME_COORDINATOR');
+                setSelectedRecommendationReadOnly(true);
+                setSelectedRecommendation(recommendation);
+              }}
+            />
+          )}
 
           {/* MY PANEL ASSIGNMENTS DATA SECTION */}
           {!isCoordinator && (
@@ -1198,7 +1326,31 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         <SubmittedRecommendationsPage
           onBack={() => setPanelView('list')}
           recommendations={combinedRecommendations}
+          onCancelRecommendation={handleCancelRecommendation}
         />
+      )}
+
+      {/* RENDER LAYOUT 3: SELECTED PANEL REVIEWED REQUESTS HISTORY */}
+      {panelView === 'reviewed' && !isCoordinator && (
+        <div id="reviewed-panel-requests-page" className="space-y-6">
+          <PageHeader
+            title="Reviewed Requests"
+            subtitle="Recommendations you accepted or rejected as the selected panel lecturer, including their later coordinator outcome."
+            backLabel="Back to Panel Appointments"
+            onBack={() => setPanelView('list')}
+            className="select-none"
+          />
+          <PanelRecommendationRecordsTable
+            title="Reviewed Requests"
+            subtitle="Use this page as your read-only history for selected-panel decisions already made."
+            records={reviewedRequests}
+            onView={(recommendation) => {
+              setSelectedReviewerRole('SELECTED_PANEL');
+              setSelectedRecommendationReadOnly(true);
+              setSelectedRecommendation(recommendation);
+            }}
+          />
+        </div>
       )}
 
       {/* RENDER LAYOUT 3: PANEL ASSIGNMENT DETAIL PAGE */}
@@ -1230,14 +1382,17 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
       <PanelRecommendationReviewDrawer
         isOpen={selectedRecommendation !== null}
-        onClose={() => setSelectedRecommendation(null)}
+        onClose={() => {
+          setSelectedRecommendation(null);
+          setSelectedRecommendationReadOnly(false);
+        }}
         recommendation={selectedRecommendation}
         reviewerRole={selectedReviewerRole}
         onAccept={handleReviewAccept}
         onReject={handleReviewReject}
+        readOnly={selectedRecommendationReadOnly}
       />
 
     </div>
   );
 };
-

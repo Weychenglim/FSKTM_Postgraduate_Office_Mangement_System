@@ -44,6 +44,54 @@ export const MOCK_LETTER_TEMPLATES: LetterTemplate[] = [
     content: `To Whom It May Concern,\n\nThis is to confirm that {{STUDENT_NAME}} (Matric No: {{STUDENT_ID}}), a candidate of the {{PROGRAMME_NAME}}, is currently under the supervision of {{SUPERVISOR_NAME}} at the Faculty of Computer Science & Information Technology, Universiti Malaya.\n\nThe candidate's registration status is {{CURRENT_STATUS}}.`,
   },
   {
+    id: 'tpl-5',
+    name: 'Confirmation Letter for Student Pass Renewal',
+    type: 'Visa & Immigration',
+    status: 'Active',
+    lastModified: 'Jun 05, 2026',
+    modifiedBy: 'Postgraduate Office',
+    description: 'EMGS / Immigration confirmation letter supporting a student pass (visa) renewal.',
+    referencePrefix: 'UM.W/606/2',
+    // Auto-filled fields use the standard placeholders; immigration-specific
+    // fields have no system data source, so they render as blank fill-in lines.
+    content: `HEAD OF STUDENT PASS UNIT
+Immigration Department of Malaysia
+Wilayah Persekutuan Kuala Lumpur EMGS Branch
+Menara TA One
+No 22 Jalan P. Ramlee
+50250 Kuala Lumpur
+
+Dear Sir/Madam,
+
+CONFIRMATION LETTER FOR STUDENT PASS RENEWAL
+
+This is to confirm that the following student is currently pursuing studies at the Faculty of Computer Science & Information Technology, Universiti Malaya. The details of this candidate are as follows:
+
+STUDENT DETAILS
+
+NAME: {{STUDENT_NAME}}
+MATRIC NUMBER: {{STUDENT_ID}}
+PASSPORT NUMBER: {{PASSPORT_NUMBER}}
+COUNTRY: {{COUNTRY}}
+STATUS: {{CURRENT_STATUS}}
+
+PROGRAMME OF STUDY DETAILS
+
+PROGRAMME: {{PROGRAMME_NAME}}
+PROGRAMME MODE: {{PROGRAMME_MODE}}
+FIELD OF RESEARCH: {{FIELD_OF_RESEARCH}}
+MODE OF STUDY: {{MODE_OF_STUDY}}
+INITIAL SEMESTER: {{INITIAL_SEMESTER}}
+CURRENT SEMESTER: {{CURRENT_SEMESTER}}
+MAXIMUM SEMESTER: {{MAX_SEMESTER}}
+SUPERVISOR(S): {{SUPERVISOR_NAME}}
+EXPECTED COMPLETION OF STUDY: {{EXPECTED_COMPLETION}}
+
+Should you require any further enquiries, please do not hesitate to contact us at +603-7967 6408.
+
+Thank you.`,
+  },
+  {
     id: 'tpl-4',
     name: 'Completion Letter',
     type: 'Academic Certification',

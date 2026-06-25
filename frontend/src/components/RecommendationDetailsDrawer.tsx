@@ -3,18 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PanelRecommendationStatus, SubmittedRecommendation } from '../types';
+import { PortalConfirmModal } from './PortalPrimitives';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface RecommendationDetailsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   recommendation: SubmittedRecommendation | null;
+  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void> | void;
 }
 
-type TimelineItemState = 'completed' | 'active' | 'pending' | 'rejected';
+type TimelineItemState = 'completed' | 'active' | 'pending' | 'rejected' | 'cancelled';
 
 interface TimelineItem {
   id: string;
@@ -26,10 +29,10 @@ interface TimelineItem {
 const STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
   SUBMITTED_TO_PANEL: 'Submitted to Panel',
   REJECTED_BY_PANEL: 'Rejected by Panel',
-  ACCEPTED_BY_PANEL: 'Accepted by Panel',
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
   APPROVED: 'Confirmed',
+  CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
 };
 
 const getInitials = (name: string) =>
@@ -57,6 +60,7 @@ const inferWorkflowStatus = (recommendation: SubmittedRecommendation): PanelReco
   if (recommendation.workflowStatus) return recommendation.workflowStatus;
   if (recommendation.status === 'Approved') return 'APPROVED';
   if (recommendation.status === 'Rejected') return 'REJECTED_BY_COORDINATOR';
+  if (recommendation.status === 'Cancelled') return 'CANCELLED_BY_SUPERVISOR';
   return 'SUBMITTED_TO_PANEL';
 };
 
@@ -66,13 +70,14 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
   const panelDecisionAt = formatDateTime(recommendation.panelDecisionAt);
   const coordinatorDecisionAt = formatDateTime(recommendation.coordinatorDecisionAt);
   const panelAccepted =
-    status === 'ACCEPTED_BY_PANEL' ||
     status === 'PENDING_COORDINATOR' ||
     status === 'APPROVED' ||
     status === 'REJECTED_BY_COORDINATOR';
   const panelRejected = status === 'REJECTED_BY_PANEL';
-  const coordinatorActive = status === 'ACCEPTED_BY_PANEL' || status === 'PENDING_COORDINATOR';
+  const coordinatorActive = status === 'PENDING_COORDINATOR';
   const coordinatorRejected = status === 'REJECTED_BY_COORDINATOR';
+  const cancelled = status === 'CANCELLED_BY_SUPERVISOR';
+  const cancelledAt = formatDateTime(recommendation.cancelledAt);
 
   return [
     {
@@ -83,18 +88,22 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
     },
     {
       id: 'panel',
-      label: 'Selected Panel Review',
-      detail: panelRejected
+      label: cancelled ? 'Cancelled by Supervisor' : 'Selected Panel Review',
+      detail: cancelled
+        ? cancelledAt || recommendation.cancellationReason || 'Cancelled before the selected panel took action'
+        : panelRejected
         ? panelDecisionAt || recommendation.rejectionReason || 'Rejected by selected panel member'
         : panelAccepted
         ? panelDecisionAt || 'Selected panel member accepted'
         : 'Awaiting selected panel member decision',
-      state: panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
+      state: cancelled ? 'cancelled' : panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
     },
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
-      detail: coordinatorRejected
+      detail: cancelled
+        ? 'Not reached because the recommendation was cancelled'
+        : coordinatorRejected
         ? coordinatorDecisionAt || recommendation.rejectionReason || 'Rejected by Programme Coordinator'
         : status === 'APPROVED'
         ? coordinatorDecisionAt || 'Confirmed by Programme Coordinator'
@@ -111,14 +120,16 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
     },
     {
       id: 'final',
-      label: status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
+      label: cancelled ? 'Recommendation Closed' : status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
       detail:
-        status === 'APPROVED'
+        cancelled
+          ? recommendation.cancellationReason || 'Cancelled by supervisor'
+          : status === 'APPROVED'
           ? coordinatorDecisionAt || 'Appointment record created'
           : panelRejected || coordinatorRejected
           ? 'Recommendation closed'
           : 'Pending Programme Coordinator confirmation',
-      state: status === 'APPROVED' ? 'completed' : panelRejected || coordinatorRejected ? 'rejected' : 'pending',
+      state: status === 'APPROVED' ? 'completed' : cancelled ? 'cancelled' : panelRejected || coordinatorRejected ? 'rejected' : 'pending',
     },
   ];
 };
@@ -126,6 +137,7 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
 const getStatusBadgeClass = (status: SubmittedRecommendation['status']) => {
   if (status === 'Approved') return 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]';
   if (status === 'Rejected') return 'bg-rose-50 text-rose-600 border-rose-100';
+  if (status === 'Cancelled') return 'bg-slate-100 text-slate-600 border-slate-200';
   return 'bg-[#eff6ff] text-blue-600 border-blue-100';
 };
 
@@ -137,6 +149,8 @@ const TimelineMarker: React.FC<{ state: TimelineItemState }> = ({ state }) => {
       ? 'bg-brand-navy text-white border-brand-navy ring-4 ring-slate-100'
       : state === 'rejected'
       ? 'bg-rose-50 text-rose-600 border-rose-200'
+      : state === 'cancelled'
+      ? 'bg-slate-100 text-slate-600 border-slate-300'
       : 'bg-white text-slate-300 border-slate-200';
 
   return (
@@ -145,7 +159,7 @@ const TimelineMarker: React.FC<{ state: TimelineItemState }> = ({ state }) => {
         <Check className="w-3 h-3 stroke-[3.5]" />
       ) : state === 'active' ? (
         <span className="w-1.5 h-1.5 rounded-full bg-white block" />
-      ) : state === 'rejected' ? (
+      ) : state === 'rejected' || state === 'cancelled' ? (
         <X className="w-3 h-3 stroke-[3]" />
       ) : (
         <span className="w-1.5 h-1.5 rounded-full bg-slate-200 block" />
@@ -158,7 +172,13 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
   isOpen,
   onClose,
   recommendation,
+  onCancelRecommendation,
 }) => {
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
   if (!recommendation) return null;
 
   const workflowStatus = inferWorkflowStatus(recommendation);
@@ -167,11 +187,53 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
   const abstractText = recommendation.abstract || 'No abstract snippet was recorded for this recommendation.';
   const researchArea = recommendation.researchArea || 'Not recorded';
   const lecturerNotes = recommendation.justification || 'No supervisor justification was saved for this recommendation.';
+  const canCancel =
+    Boolean(onCancelRecommendation) &&
+    workflowStatus === 'SUBMITTED_TO_PANEL';
+
+  const performCancellation = async () => {
+    if (!recommendation) return;
+    const reason = cancellationReason.trim();
+    setIsCancelling(true);
+    setCancellationError(null);
+    try {
+      await onCancelRecommendation?.(recommendation, reason);
+      setCancellationReason('');
+      setIsCancelConfirmOpen(false);
+      onClose();
+    } catch (error) {
+      setCancellationError(error instanceof Error ? error.message : 'Failed to cancel the recommendation.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCancel = () => {
+    const reason = cancellationReason.trim();
+    if (!reason) {
+      setCancellationError('Please provide a cancellation reason.');
+      return;
+    }
+    setCancellationError(null);
+    setIsCancelConfirmOpen(true);
+  };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
+          <PortalConfirmModal
+            isOpen={isCancelConfirmOpen}
+            title="Cancel panel recommendation?"
+            message="This workflow attempt will be closed permanently and cannot be restored. A replacement recommendation can be submitted later if needed."
+            confirmLabel="Cancel Recommendation"
+            cancelLabel="Keep Recommendation"
+            tone="danger"
+            isLoading={isCancelling}
+            onConfirm={performCancellation}
+            onCancel={() => setIsCancelConfirmOpen(false)}
+          />
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.35 }}
@@ -339,6 +401,16 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                         </p>
                       </div>
                     )}
+                    {recommendation.cancellationReason && (
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                          Cancellation Reason
+                        </span>
+                        <p className="text-[11px] font-semibold text-slate-600 leading-relaxed mt-1">
+                          {recommendation.cancellationReason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -356,6 +428,8 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                           ? 'bg-emerald-100'
                           : item.state === 'rejected'
                           ? 'bg-rose-100'
+                          : item.state === 'cancelled'
+                          ? 'bg-slate-200'
                           : 'bg-slate-100';
 
                       return (
@@ -368,7 +442,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                             <h5 className={`text-[11px] font-extrabold ${item.state === 'pending' ? 'text-slate-400' : 'text-brand-navy'}`}>
                               {item.label}
                             </h5>
-                            <p className={`text-[9.5px] font-bold ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : 'text-slate-400'}`}>
+                            <p className={`text-[9.5px] font-bold ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : item.state === 'cancelled' ? 'text-slate-600' : 'text-slate-400'}`}>
                               {item.detail}
                             </p>
                           </div>
@@ -391,6 +465,42 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                   </p>
                 </div>
               </div>
+
+              <WorkflowAuditLog events={recommendation.workflow} />
+
+              {canCancel && (
+                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-900">
+                      Cancel Recommendation
+                    </h4>
+                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-amber-800">
+                      Cancellation is immediate and is only available before the selected panel member takes action.
+                    </p>
+                  </div>
+                  <textarea
+                    value={cancellationReason}
+                    onChange={(event) => {
+                      setCancellationReason(event.target.value);
+                      if (cancellationError) setCancellationError(null);
+                    }}
+                    rows={3}
+                    placeholder="State why this recommendation is being cancelled..."
+                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-amber-400"
+                  />
+                  {cancellationError && (
+                    <p className="text-[10px] font-bold text-rose-600">{cancellationError}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={isCancelling}
+                    className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isCancelling ? 'Cancelling...' : 'Cancel Recommendation'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end select-none bg-slate-50/50">

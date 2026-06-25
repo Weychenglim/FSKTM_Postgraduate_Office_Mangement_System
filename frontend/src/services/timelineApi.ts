@@ -8,6 +8,7 @@
 import {
   ActiveSemesterTimeline,
   DashboardTask,
+  DashboardSummary,
   TimelineAuditLog,
   SemesterTimelineEntry,
   TimelineEntry,
@@ -249,6 +250,10 @@ export async function getDashboardTasks(): Promise<{ tasks: DashboardTask[] }> {
     });
   }
   return request<{ tasks: DashboardTask[] }>('/dashboard/tasks/');
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  return request<DashboardSummary>('/dashboard/summary/');
 }
 
 export function saveBlob(blob: Blob, filename: string): void {

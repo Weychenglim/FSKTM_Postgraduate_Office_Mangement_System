@@ -17,7 +17,6 @@ import { PanelRecommendationStatus } from '../types';
 
 const activeStatuses: PanelRecommendationStatus[] = [
   'SUBMITTED_TO_PANEL',
-  'ACCEPTED_BY_PANEL',
   'PENDING_COORDINATOR',
   'APPROVED',
 ];
@@ -96,6 +95,12 @@ assert.equal(canSubmitPanelCandidate({ workloadCount: 1, workloadLimit: 5, isSup
 assert.match(
   getPanelCandidateValidationMessage({ workloadCount: 5, workloadLimit: 5, isSupervisor: false, hasNotes: true }),
   /workload limit/i,
+);
+
+assert.equal(
+  canCreatePanelRecommendation([{ studentId: 'MEA2209841', status: 'CANCELLED_BY_SUPERVISOR' }], 'MEA2209841'),
+  true,
+  'A supervisor cancellation should allow a fresh recommendation',
 );
 assert.match(
   getPanelCandidateValidationMessage({ workloadCount: 3, workloadLimit: 5, isSupervisor: false, hasNotes: false }),

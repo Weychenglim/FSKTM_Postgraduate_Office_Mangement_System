@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Award, ChevronRight, UsersRound } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Award, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { TimelineNextActions } from './TimelineNextActions';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { getDashboardSummary } from '../services';
+import { DashboardSummary } from '../types';
 
 interface LecturerDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -68,6 +70,11 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
 
 export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigateToTab }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+
+  useEffect(() => {
+    getDashboardSummary().then(setSummary).catch(() => setSummary(null));
+  }, []);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -89,26 +96,36 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigate
         visibleRoles={['LECTURER']}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         <LecturerSummaryCard
           title="Students Under Supervision"
-          value="Active"
-          subtext="Open your supervisee workspace to review assigned postgraduate students."
-          badge="Supervisor workspace"
-          badgeTone="success"
+          value={summary === null ? '…' : String(summary.pendingSupervisorRequests)}
+          subtext="Supervisor appointment requests awaiting your decision."
+          badge="Pending requests"
+          badgeTone={(summary?.pendingSupervisorRequests ?? 0) > 0 ? 'warning' : 'success'}
           icon={UsersRound}
           actionLabel="View supervisees"
           onClick={() => onNavigateToTab('Supervisor Appointments')}
         />
         <LecturerSummaryCard
           title="Panel Appointment for Students"
-          value="Review"
-          subtext="Check panel appointment records and assigned evaluation responsibilities."
-          badge="Panel workspace"
-          badgeTone="info"
+          value={summary === null ? '…' : String(summary.pendingPanelReviews)}
+          subtext="Panel recommendations awaiting your acceptance or rejection."
+          badge="Pending reviews"
+          badgeTone={(summary?.pendingPanelReviews ?? 0) > 0 ? 'warning' : 'info'}
           icon={Award}
           actionLabel="View panels"
           onClick={() => onNavigateToTab('Panel Appointments')}
+        />
+        <LecturerSummaryCard
+          title="Assigned Mark Entries"
+          value={summary === null ? '…' : String(summary.incompleteMarkEntries)}
+          subtext={`${summary?.supervisorMarkTasks ?? 0} supervisor, ${summary?.panelMarkTasks ?? 0} panel, ${summary?.backupMarkTasks ?? 0} backup task(s).`}
+          badge="Incomplete marks"
+          badgeTone={(summary?.incompleteMarkEntries ?? 0) > 0 ? 'warning' : 'success'}
+          icon={CheckSquare}
+          actionLabel="Open marks"
+          onClick={() => onNavigateToTab('Marks Entry')}
         />
       </div>
 

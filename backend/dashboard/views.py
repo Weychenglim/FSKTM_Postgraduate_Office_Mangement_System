@@ -8,6 +8,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from appointments.models import PanelRecommendation, SupervisorApplication
+from marks.models import EvaluationTask, MarkEntry
+from marks.services import ensure_active_period_tasks
 from .excel import build_template_workbook, parse_timeline_workbook
 from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
 from .serializers import (
@@ -305,3 +308,86 @@ def dashboard_tasks_view(request):
                     }
                 )
     return Response({"tasks": tasks})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def dashboard_summary_view(request):
+    ensure_active_period_tasks()
+    summary = {
+        "pendingSupervisorRequests": 0,
+        "pendingSupervisorApprovals": 0,
+        "pendingPanelReviews": 0,
+        "pendingPanelApprovals": 0,
+        "incompleteMarkEntries": 0,
+        "overdueMarkEntries": 0,
+        "supervisorMarkTasks": 0,
+        "panelMarkTasks": 0,
+        "backupMarkTasks": 0,
+        "submittedMarkEntries": 0,
+    }
+
+    if request.user.role == User.Role.OFFICE_ADMIN:
+        summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
+            status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
+        ).count()
+        summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
+            status=SupervisorApplication.Status.PENDING_COORDINATOR
+        ).count()
+        summary["pendingPanelReviews"] = PanelRecommendation.objects.filter(
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL
+        ).count()
+        summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
+            status=PanelRecommendation.Status.PENDING_COORDINATOR
+        ).count()
+        all_tasks = EvaluationTask.objects.all()
+    elif request.user.role == User.Role.COORDINATOR:
+        try:
+            programme = request.user.lecturer.coordinator.programme_managed.strip()
+        except (AttributeError, User.lecturer.RelatedObjectDoesNotExist):
+            programme = ""
+        if programme:
+            summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
+                student__programme=programme,
+                status=SupervisorApplication.Status.PENDING_COORDINATOR,
+            ).count()
+            summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
+                profile__programme=programme,
+                status=PanelRecommendation.Status.PENDING_COORDINATOR,
+            ).count()
+        all_tasks = EvaluationTask.objects.none()
+    elif request.user.role == User.Role.LECTURER:
+        summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
+            proposed_supervisor=request.user,
+            status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
+        ).count()
+        summary["pendingPanelReviews"] = PanelRecommendation.objects.filter(
+            recommended_member=request.user,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        ).count()
+        all_tasks = EvaluationTask.objects.filter(evaluator=request.user)
+    else:
+        all_tasks = EvaluationTask.objects.none()
+
+    submitted_task_ids = MarkEntry.objects.filter(
+        task__in=all_tasks,
+        status=MarkEntry.Status.SUBMITTED,
+    ).values_list("task_id", flat=True)
+    summary["supervisorMarkTasks"] = all_tasks.filter(
+        evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
+    ).count()
+    summary["panelMarkTasks"] = all_tasks.filter(
+        evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
+    ).count()
+    summary["backupMarkTasks"] = all_tasks.filter(
+        evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
+    ).count()
+    summary["submittedMarkEntries"] = len(submitted_task_ids)
+    summary["incompleteMarkEntries"] = all_tasks.exclude(
+        pk__in=submitted_task_ids
+    ).count()
+    summary["overdueMarkEntries"] = all_tasks.filter(
+        period__closes_at__lt=timezone.now()
+    ).exclude(pk__in=submitted_task_ids).count()
+
+    return Response(summary)
