@@ -17,7 +17,6 @@ import { PanelRecommendationStatus } from '../types';
 
 const activeStatuses: PanelRecommendationStatus[] = [
   'SUBMITTED_TO_PANEL',
-  'ACCEPTED_BY_PANEL',
   'PENDING_COORDINATOR',
   'APPROVED',
 ];

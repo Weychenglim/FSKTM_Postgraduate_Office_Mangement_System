@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PanelRecommendationStatus, SubmittedRecommendation } from '../types';
+import { PortalConfirmModal } from './PortalPrimitives';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface RecommendationDetailsDrawerProps {
   isOpen: boolean;
@@ -27,7 +29,6 @@ interface TimelineItem {
 const STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
   SUBMITTED_TO_PANEL: 'Submitted to Panel',
   REJECTED_BY_PANEL: 'Rejected by Panel',
-  ACCEPTED_BY_PANEL: 'Accepted by Panel',
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
   APPROVED: 'Confirmed',
@@ -69,12 +70,11 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
   const panelDecisionAt = formatDateTime(recommendation.panelDecisionAt);
   const coordinatorDecisionAt = formatDateTime(recommendation.coordinatorDecisionAt);
   const panelAccepted =
-    status === 'ACCEPTED_BY_PANEL' ||
     status === 'PENDING_COORDINATOR' ||
     status === 'APPROVED' ||
     status === 'REJECTED_BY_COORDINATOR';
   const panelRejected = status === 'REJECTED_BY_PANEL';
-  const coordinatorActive = status === 'ACCEPTED_BY_PANEL' || status === 'PENDING_COORDINATOR';
+  const coordinatorActive = status === 'PENDING_COORDINATOR';
   const coordinatorRejected = status === 'REJECTED_BY_COORDINATOR';
   const cancelled = status === 'CANCELLED_BY_SUPERVISOR';
   const cancelledAt = formatDateTime(recommendation.cancelledAt);
@@ -177,6 +177,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
   if (!recommendation) return null;
 
@@ -190,21 +191,15 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
     Boolean(onCancelRecommendation) &&
     workflowStatus === 'SUBMITTED_TO_PANEL';
 
-  const handleCancel = async () => {
+  const performCancellation = async () => {
+    if (!recommendation) return;
     const reason = cancellationReason.trim();
-    if (!reason) {
-      setCancellationError('Please provide a cancellation reason.');
-      return;
-    }
-    if (!window.confirm('Cancel this panel recommendation? This workflow attempt cannot be restored.')) {
-      return;
-    }
-
     setIsCancelling(true);
     setCancellationError(null);
     try {
       await onCancelRecommendation?.(recommendation, reason);
       setCancellationReason('');
+      setIsCancelConfirmOpen(false);
       onClose();
     } catch (error) {
       setCancellationError(error instanceof Error ? error.message : 'Failed to cancel the recommendation.');
@@ -213,10 +208,32 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
     }
   };
 
+  const handleCancel = () => {
+    const reason = cancellationReason.trim();
+    if (!reason) {
+      setCancellationError('Please provide a cancellation reason.');
+      return;
+    }
+    setCancellationError(null);
+    setIsCancelConfirmOpen(true);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
+          <PortalConfirmModal
+            isOpen={isCancelConfirmOpen}
+            title="Cancel panel recommendation?"
+            message="This workflow attempt will be closed permanently and cannot be restored. A replacement recommendation can be submitted later if needed."
+            confirmLabel="Cancel Recommendation"
+            cancelLabel="Keep Recommendation"
+            tone="danger"
+            isLoading={isCancelling}
+            onConfirm={performCancellation}
+            onCancel={() => setIsCancelConfirmOpen(false)}
+          />
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.35 }}
@@ -448,6 +465,8 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                   </p>
                 </div>
               </div>
+
+              <WorkflowAuditLog events={recommendation.workflow} />
 
               {canCancel && (
                 <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">

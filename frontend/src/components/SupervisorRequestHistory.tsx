@@ -224,6 +224,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 <option value="All">All Decisions</option>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
               <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             </div>
@@ -351,7 +352,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                           {row.submittedDate}
                         </td>
                         <td className="py-4 px-6">
-                          <StatusBadge tone={row.decision === 'Approved' ? 'success' : 'danger'} dot>
+                          <StatusBadge tone={row.decision === 'Approved' ? 'success' : row.decision === 'Cancelled' ? 'neutral' : 'danger'} dot>
                             {row.decision}
                           </StatusBadge>
                         </td>
@@ -490,7 +491,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                     <span className="font-mono text-xs font-black text-brand-navy">
                       {selectedRecord.requestId}
                     </span>
-                    <StatusBadge tone={selectedRecord.decision === 'Approved' ? 'success' : 'danger'} className="py-0.5 text-[9px]">
+                    <StatusBadge tone={selectedRecord.decision === 'Approved' ? 'success' : selectedRecord.decision === 'Cancelled' ? 'neutral' : 'danger'} className="py-0.5 text-[9px]">
                       {selectedRecord.decision}
                     </StatusBadge>
                   </div>
@@ -552,7 +553,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 </div>
 
                 {/* Decline reason block if rejected */}
-                {selectedRecord.decision === 'Rejected' && selectedRecord.decisionReason && (
+                {(selectedRecord.decision === 'Rejected' || selectedRecord.decision === 'Cancelled') && selectedRecord.decisionReason && (
                   <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-xl space-y-1">
                     <span className="text-[9px] font-black text-rose-500 block tracking-wider">
                       DECLINE REASON LOGGED

@@ -76,7 +76,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
   
   // Tab/status filter state
-  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Rejected' | 'Workload Alert'>('All Records');
+  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
 
   // Applied filter state
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -346,35 +346,28 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </span>
               </div>
 
-              <div className="relative pl-6 border-l-2 border-slate-150 space-y-6 ml-2.5 py-1">
-                {/* Event 1 */}
-                <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white ring-4 ring-blue-50" />
-                  <h4 className="font-extrabold text-brand-navy text-xs">Confirmation Released</h4>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">14 Oct 2025 • 09:30 AM</p>
+              {r.workflow && r.workflow.length > 0 ? (
+                <div className="relative pl-6 border-l-2 border-slate-150 space-y-6 ml-2.5 py-1">
+                  {[...r.workflow].reverse().map((event) => (
+                    <div key={event.id} className="relative">
+                      <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
+                      <h4 className="font-extrabold text-brand-navy text-xs">
+                        {event.action.replaceAll('_', ' ')}
+                      </h4>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1">
+                        {new Date(event.createdAt).toLocaleString('en-GB')}
+                        {' · '}
+                        {event.actorName}
+                      </p>
+                      {event.reason && (
+                        <p className="text-[10px] font-semibold text-rose-600 mt-1">{event.reason}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-
-                {/* Event 2 */}
-                <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-brand-navy text-xs">Coordinator Approval</h4>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">13 Oct 2025 • 02:45 PM</p>
-                </div>
-
-                {/* Event 3 */}
-                <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-brand-navy text-xs">Supervisor Review</h4>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">12 Oct 2025 • 11:15 AM</p>
-                </div>
-
-                {/* Event 4 */}
-                <div className="relative">
-                  <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                  <h4 className="font-extrabold text-brand-navy text-xs">Request Submitted</h4>
-                  <p className="text-[10px] font-bold text-slate-400 mt-1">10 Oct 2025 • 04:00 PM</p>
-                </div>
-              </div>
+              ) : (
+                <p className="text-xs font-semibold text-slate-400">No workflow history recorded.</p>
+              )}
             </div>
 
             {/* Related Panel Status Card */}
@@ -707,7 +700,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 
                 <div className="flex flex-wrap gap-1.5">
-                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Rejected', 'Workload Alert'] as const).map((tab) => {
+                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
                     const isActive = activeTab === tab;
                     return (
                       <button
@@ -841,6 +834,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                             ) : r.status === 'Workload Alert' ? (
                               <span className="px-2.5 py-1 bg-amber-50 text-amber-700 tracking-wide font-black text-[9px] uppercase rounded-full border border-amber-100">
                                 Workload Alert
+                              </span>
+                            ) : r.status === 'Cancelled' ? (
+                              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">
+                                Cancelled by Student
                               </span>
                             ) : (
                               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">

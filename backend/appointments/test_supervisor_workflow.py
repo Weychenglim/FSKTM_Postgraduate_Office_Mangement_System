@@ -1,0 +1,388 @@
+from django.contrib.auth import get_user_model
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from announcements.models import Notification
+
+from .models import (
+    AppointmentWorkflowEvent,
+    SupervisorApplication,
+    SupervisorAppointment,
+)
+
+
+User = get_user_model()
+
+
+class SupervisorAppointmentWorkflowTests(APITestCase):
+    def setUp(self):
+        self.student_user = User.objects.create_user(
+            email="student-supervisor@example.com",
+            password="password123",
+            full_name="Student Applicant",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=self.student_user,
+            matric_no="MEA-SUP-001",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            intake_semester="Sem 1 2025/2026",
+        )
+        self.supervisor_user = User.objects.create_user(
+            email="requested-supervisor@example.com",
+            password="password123",
+            full_name="Dr. Requested Supervisor",
+            role=User.Role.LECTURER,
+        )
+        Lecturer.objects.create(
+            user=self.supervisor_user,
+            staff_no="SV1001",
+            department="Artificial Intelligence",
+            specialization="Machine Learning",
+        )
+        Supervisor.objects.create(
+            lecturer=self.supervisor_user.lecturer,
+            max_supervisees=2,
+        )
+        self.other_supervisor = User.objects.create_user(
+            email="other-supervisor@example.com",
+            password="password123",
+            full_name="Dr. Other Supervisor",
+            role=User.Role.LECTURER,
+        )
+        Lecturer.objects.create(
+            user=self.other_supervisor,
+            staff_no="SV1002",
+            department="Software Engineering",
+        )
+        Supervisor.objects.create(
+            lecturer=self.other_supervisor.lecturer,
+            max_supervisees=2,
+        )
+        self.coordinator = User.objects.create_user(
+            email="supervisor-coordinator@example.com",
+            password="password123",
+            full_name="Programme Coordinator",
+            role=User.Role.COORDINATOR,
+        )
+        Lecturer.objects.create(
+            user=self.coordinator,
+            staff_no="CO1001",
+            department="Artificial Intelligence",
+        )
+        Coordinator.objects.create(
+            lecturer=self.coordinator.lecturer,
+            programme_managed="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        self.office_admin = User.objects.create_user(
+            email="supervisor-office@example.com",
+            password="password123",
+            full_name="Office Administrator",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        OfficeStaff.objects.create(
+            user=self.office_admin,
+            staff_no="OA1001",
+            department="Postgraduate Office",
+        )
+
+    def authenticate(self, user):
+        self.client.force_authenticate(user=user)
+
+    def submit_application(self, supervisor=None):
+        self.authenticate(self.student_user)
+        response = self.client.post(
+            "/api/appointments/supervisor/applications/",
+            {
+                "proposedSupervisorId": (
+                    supervisor or self.supervisor_user
+                ).lecturer.staff_no,
+                "researchTitle": "Configurable postgraduate workflow",
+                "researchAbstract": "A sufficiently detailed research abstract.",
+                "documents": [
+                    {
+                        "name": "proposal.pdf",
+                        "category": "RESEARCH_PROPOSAL",
+                        "contentType": "application/pdf",
+                        "size": 1024,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return response
+
+    def accept_by_supervisor(self, application_id):
+        self.authenticate(self.supervisor_user)
+        return self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/supervisor-accept/"
+        )
+
+    def test_student_submission_creates_pending_request_documents_and_audit_event(self):
+        response = self.submit_application()
+
+        application = SupervisorApplication.objects.get()
+        self.assertEqual(
+            application.status,
+            SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
+        )
+        self.assertEqual(application.documents.count(), 1)
+        self.assertEqual(response.data["status"], "SUBMITTED_TO_SUPERVISOR")
+        event = AppointmentWorkflowEvent.objects.get(
+            supervisor_application=application
+        )
+        self.assertEqual(event.action, "SUBMIT")
+        self.assertEqual(event.new_status, "SUBMITTED_TO_SUPERVISOR")
+        self.assertEqual(event.actor, self.student_user)
+        notification = Notification.objects.get(recipient=self.supervisor_user)
+        self.assertFalse(notification.is_announcement)
+        self.assertEqual(notification.record_type, "SUPERVISOR_APPLICATION")
+        self.assertEqual(notification.record_id, str(application.pk))
+
+    def test_student_can_cancel_pending_request_with_reason_and_resubmit(self):
+        application_id = self.submit_application().data["id"]
+
+        self.authenticate(self.student_user)
+        cancelled = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/cancel/",
+            {"reason": "I selected the wrong supervisor."},
+            format="json",
+        )
+
+        self.assertEqual(cancelled.status_code, status.HTTP_200_OK)
+        self.assertEqual(cancelled.data["status"], "CANCELLED_BY_STUDENT")
+        self.assertEqual(
+            cancelled.data["cancellationReason"],
+            "I selected the wrong supervisor.",
+        )
+        self.assertIsNotNone(cancelled.data["cancelledAt"])
+        event = AppointmentWorkflowEvent.objects.get(
+            supervisor_application_id=application_id,
+            action="STUDENT_CANCEL",
+        )
+        self.assertEqual(event.actor, self.student_user)
+        self.assertEqual(event.reason, "I selected the wrong supervisor.")
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.supervisor_user,
+                event_key=f"supervisor:{application_id}:student-cancel",
+            ).exists()
+        )
+
+        self.authenticate(self.supervisor_user)
+        queue = self.client.get("/api/appointments/supervisor/requests/")
+        self.assertEqual(queue.status_code, status.HTTP_200_OK)
+        self.assertEqual(queue.data, [])
+
+        replacement = self.submit_application(supervisor=self.other_supervisor)
+        self.assertEqual(replacement.status_code, status.HTTP_201_CREATED)
+
+    def test_supervisor_cancellation_requires_owner_reason_and_pending_status(self):
+        application_id = self.submit_application().data["id"]
+        cancel_url = (
+            f"/api/appointments/supervisor/applications/{application_id}/cancel/"
+        )
+
+        self.authenticate(self.supervisor_user)
+        wrong_user = self.client.post(
+            cancel_url,
+            {"reason": "Not my request."},
+            format="json",
+        )
+        self.assertEqual(wrong_user.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.authenticate(self.student_user)
+        missing_reason = self.client.post(
+            cancel_url,
+            {"reason": ""},
+            format="json",
+        )
+        self.assertEqual(missing_reason.status_code, status.HTTP_400_BAD_REQUEST)
+
+        accepted = self.accept_by_supervisor(application_id)
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+
+        self.authenticate(self.student_user)
+        too_late = self.client.post(
+            cancel_url,
+            {"reason": "Attempted after supervisor acceptance."},
+            format="json",
+        )
+        self.assertEqual(too_late.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_supervisor_application_detail_is_role_scoped_and_returns_audit(self):
+        application_id = self.submit_application().data["id"]
+        detail_url = f"/api/appointments/supervisor/applications/{application_id}/"
+
+        for user in [
+            self.student_user,
+            self.supervisor_user,
+            self.coordinator,
+            self.office_admin,
+        ]:
+            self.authenticate(user)
+            response = self.client.get(detail_url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data["id"], application_id)
+            self.assertEqual(response.data["workflow"][0]["action"], "SUBMIT")
+
+        self.authenticate(self.other_supervisor)
+        denied = self.client.get(detail_url)
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_cannot_create_duplicate_active_application(self):
+        self.submit_application()
+
+        response = self.client.post(
+            "/api/appointments/supervisor/applications/",
+            {
+                "proposedSupervisorId": self.other_supervisor.lecturer.staff_no,
+                "researchTitle": "Second active request",
+                "researchAbstract": "This must be rejected while another request is active.",
+                "documents": [],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(SupervisorApplication.objects.count(), 1)
+
+    def test_selected_supervisor_accepts_then_coordinator_approves_appointment(self):
+        application_id = self.submit_application().data["id"]
+
+        accepted = self.accept_by_supervisor(application_id)
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        self.assertEqual(accepted.data["status"], "PENDING_COORDINATOR")
+
+        self.authenticate(self.coordinator)
+        approved = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/coordinator-approve/"
+        )
+
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+        self.assertEqual(approved.data["status"], "APPROVED")
+        appointment = SupervisorAppointment.objects.get()
+        self.assertEqual(appointment.student, self.student_user.student)
+        self.assertEqual(appointment.supervisor, self.supervisor_user)
+        self.assertEqual(
+            AppointmentWorkflowEvent.objects.filter(
+                supervisor_application_id=application_id
+            ).count(),
+            3,
+        )
+
+    def test_rejection_requires_reason_and_allows_student_resubmission(self):
+        application_id = self.submit_application().data["id"]
+        self.authenticate(self.supervisor_user)
+
+        missing_reason = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/supervisor-reject/",
+            {},
+            format="json",
+        )
+        self.assertEqual(missing_reason.status_code, status.HTTP_400_BAD_REQUEST)
+
+        rejected = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/supervisor-reject/",
+            {"reason": "Research topic is outside my current expertise."},
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, status.HTTP_200_OK)
+        self.assertEqual(rejected.data["status"], "REJECTED_BY_SUPERVISOR")
+
+        resubmitted = self.submit_application(supervisor=self.other_supervisor)
+        self.assertEqual(resubmitted.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(SupervisorApplication.objects.count(), 2)
+
+    def test_workload_limit_blocks_supervisor_acceptance(self):
+        for index in range(2):
+            user = User.objects.create_user(
+                email=f"active-supervisee-{index}@example.com",
+                password="password123",
+                full_name=f"Active Student {index}",
+                role=User.Role.STUDENT,
+            )
+            student = Student.objects.create(
+                user=user,
+                matric_no=f"MEA-ACT-{index}",
+                programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+            )
+            previous_application = SupervisorApplication.objects.create(
+                student=student,
+                proposed_supervisor=self.supervisor_user,
+                research_title=f"Existing research {index}",
+                research_abstract="Existing appointment.",
+                status=SupervisorApplication.Status.APPROVED,
+            )
+            SupervisorAppointment.objects.create(
+                application=previous_application,
+                student=student,
+                supervisor=self.supervisor_user,
+                approved_by=self.coordinator,
+            )
+
+        application_id = self.submit_application().data["id"]
+        response = self.accept_by_supervisor(application_id)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("workload", str(response.data).lower())
+
+    def test_role_scoped_queues_records_and_history(self):
+        application_id = self.submit_application().data["id"]
+
+        self.authenticate(self.supervisor_user)
+        queue = self.client.get("/api/appointments/supervisor/requests/")
+        self.assertEqual(queue.status_code, status.HTTP_200_OK)
+        self.assertEqual(queue.data[0]["applicationId"], application_id)
+
+        self.accept_by_supervisor(application_id)
+        history = self.client.get("/api/appointments/supervisor/request-history/")
+        self.assertEqual(history.status_code, status.HTTP_200_OK)
+        self.assertEqual(history.data[0]["decision"], "Approved")
+
+        self.authenticate(self.coordinator)
+        coordinator_queue = self.client.get(
+            "/api/appointments/supervisor/coordinator-queue/"
+        )
+        self.assertEqual(coordinator_queue.status_code, status.HTTP_200_OK)
+        self.assertEqual(coordinator_queue.data[0]["id"], application_id)
+
+        self.authenticate(self.office_admin)
+        records = self.client.get("/api/appointments/supervisor/")
+        self.assertEqual(records.status_code, status.HTTP_200_OK)
+        self.assertEqual(records.data[0]["studentId"], "MEA-SUP-001")
+        self.assertEqual(records.data[0]["status"], "Pending")
+
+    def test_panel_actions_are_written_to_shared_workflow_audit(self):
+        from .models import PanelRecommendation, StudentResearchProfile
+
+        profile = StudentResearchProfile.objects.create(
+            student=self.student_user,
+            matric_no=self.student_user.student.matric_no,
+            student_name=self.student_user.full_name,
+            programme=self.student_user.student.programme,
+            semester=self.student_user.student.intake_semester,
+            proposed_topic="Panel workflow audit",
+            supervisor=self.other_supervisor,
+        )
+        recommendation = PanelRecommendation.objects.create(
+            profile=profile,
+            supervisor=self.other_supervisor,
+            recommended_member=self.supervisor_user,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+
+        self.authenticate(self.supervisor_user)
+        accepted = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation.pk}/panel-accept/"
+        )
+
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        event = AppointmentWorkflowEvent.objects.get(
+            panel_recommendation=recommendation
+        )
+        self.assertEqual(event.action, "PANEL_ACCEPT")
+        self.assertEqual(event.actor, self.supervisor_user)

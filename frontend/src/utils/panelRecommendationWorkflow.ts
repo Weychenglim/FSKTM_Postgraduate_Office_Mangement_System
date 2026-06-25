@@ -24,7 +24,6 @@ export interface PanelRecommendationStatusRecord {
 export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
   SUBMITTED_TO_PANEL: 'Submitted to Panel',
   REJECTED_BY_PANEL: 'Rejected by Panel',
-  ACCEPTED_BY_PANEL: 'Accepted by Panel',
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
   CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',

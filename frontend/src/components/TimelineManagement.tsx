@@ -4,13 +4,15 @@
  */
 
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   Plus,
   Search,
   Trash2,
   Upload
 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createTimelineEntry,
   deleteTimelineEntry,
@@ -28,6 +30,7 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrim
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
+import { clampPage, paginate, paginationRange } from '../utils/pagination';
 
 // TimelineEntry now lives in src/types.
 
@@ -109,9 +112,20 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
   const [auditLogs, setAuditLogs] = useState<TimelineAuditLog[]>([]);
+  const [auditPage, setAuditPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
+  const auditPageSize = 10;
+  const paginatedAuditLogs = useMemo(
+    () => paginate(auditLogs, auditPage, auditPageSize),
+    [auditLogs, auditPage],
+  );
+  const auditRange = paginationRange(auditPage, auditLogs.length, auditPageSize);
+
+  useEffect(() => {
+    setAuditPage((page) => clampPage(page, auditLogs.length, auditPageSize));
+  }, [auditLogs.length]);
 
   const loadEntries = useCallback(() => {
     setLoading(true);
@@ -558,7 +572,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
                     No timeline audit records are available yet.
                   </td>
                 </tr>
-              ) : auditLogs.map((log) => (
+              ) : paginatedAuditLogs.map((log) => (
                 <tr key={log.id} className="data-row">
                   {/* User identity cell with photo avatar */}
                   <td className="data-td flex items-center gap-3">
@@ -589,6 +603,47 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
             </tbody>
           </table>
         </div>
+        {!loading && auditLogs.length > 0 && (
+          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <span className="text-slate-450 font-medium">
+              Showing {auditRange.start} to {auditRange.end} of {auditRange.total} updates
+            </span>
+            <div className="flex items-center gap-1.5 select-none">
+              <button
+                type="button"
+                aria-label="Previous audit page"
+                disabled={auditPage === 1}
+                onClick={() => setAuditPage((page) => Math.max(1, page - 1))}
+                className="w-8 h-8 rounded-lg bg-white border border-slate-250 flex items-center justify-center text-slate-700 disabled:opacity-40 hover:bg-slate-50 transition"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: auditRange.totalPages }, (_, index) => index + 1).map((page) => (
+                <button
+                  type="button"
+                  key={page}
+                  onClick={() => setAuditPage(page)}
+                  className={`w-8 h-8 rounded-lg text-xs font-black transition ${
+                    auditPage === page
+                      ? 'bg-brand-navy text-white border border-brand-navy'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-label="Next audit page"
+                disabled={auditPage === auditRange.totalPages}
+                onClick={() => setAuditPage((page) => Math.min(auditRange.totalPages, page + 1))}
+                className="w-8 h-8 rounded-lg bg-white border border-slate-250 flex items-center justify-center text-slate-700 disabled:opacity-40 hover:bg-slate-50 transition"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Timeline Slide-in Drawer */}

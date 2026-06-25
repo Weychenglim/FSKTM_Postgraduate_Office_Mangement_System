@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
@@ -283,11 +283,12 @@ class DashboardTimelineApiTests(APITestCase):
         )
         entry_id = upload.data["timeline"]["levels"][0]["entries"][0]["id"]
 
+        today = date.today()
         response = self.client.patch(
             f"/api/dashboard/timeline/entries/{entry_id}/",
             {
-                "deadlineStart": "2026-06-01",
-                "deadlineEnd": "2026-06-10",
+                "deadlineStart": (today - timedelta(days=1)).isoformat(),
+                "deadlineEnd": (today + timedelta(days=1)).isoformat(),
                 "weekLabel": "Week 2 - Updated",
             },
             format="json",
@@ -333,6 +334,9 @@ class DashboardTimelineApiTests(APITestCase):
         )
         self.assertEqual(upload.status_code, status.HTTP_201_CREATED)
 
+        today = date.today()
+        upcoming_start = today + timedelta(days=7)
+        upcoming_end = today + timedelta(days=14)
         response = self.client.post(
             "/api/dashboard/timeline/entries/",
             {
@@ -340,8 +344,8 @@ class DashboardTimelineApiTests(APITestCase):
                 "title": "Proposal presentation",
                 "detail": "Proposal presentation",
                 "action": "Student / Supervisor / Examiner",
-                "deadlineStart": "2026-06-08",
-                "deadlineEnd": "2026-07-17",
+                "deadlineStart": upcoming_start.isoformat(),
+                "deadlineEnd": upcoming_end.isoformat(),
                 "weekLabel": "Week 13 - 17",
                 "targetRoles": ["STUDENT", "LECTURER"],
                 "status": "Completed",
@@ -358,8 +362,8 @@ class DashboardTimelineApiTests(APITestCase):
                 "title": "Proposal presentation",
                 "detail": "Proposal presentation",
                 "action": "Student / Supervisor / Examiner",
-                "deadlineStart": "2026-06-08",
-                "deadlineEnd": "2026-07-17",
+                "deadlineStart": upcoming_start.isoformat(),
+                "deadlineEnd": upcoming_end.isoformat(),
                 "weekLabel": "Week 13 - 17",
                 "targetRoles": ["STUDENT", "LECTURER"],
             },

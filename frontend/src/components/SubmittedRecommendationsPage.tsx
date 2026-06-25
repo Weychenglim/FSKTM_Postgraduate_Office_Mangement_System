@@ -39,12 +39,14 @@ interface SubmittedRecommendationsPageProps {
   onBack: () => void;
   recommendations?: SubmittedRecommendation[];
   onViewRecommendation?: (recId: string) => void;
+  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void> | void;
 }
 
 export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPageProps> = ({
   onBack,
   recommendations: recommendationsProp,
-  onViewRecommendation
+  onViewRecommendation,
+  onCancelRecommendation,
 }) => {
   // Controlled vs. self-fetching: when the parent supplies `recommendations`
   // (e.g. LecturerPanelAppointments) use those; otherwise fetch the history
@@ -89,6 +91,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
   const statsApprovedCount = recommendations.filter(r => r.status === 'Approved').length;
   const statsPendingCount = recommendations.filter(r => r.status === 'Pending Approval').length;
   const statsRejectedCount = recommendations.filter(r => r.status === 'Rejected').length;
+  const statsCancelledCount = recommendations.filter(r => r.status === 'Cancelled').length;
 
   // List of unique semesters for dynamic filtration options
   const semesterFilters = useMemo(() => {
@@ -158,8 +161,8 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         className="select-none"
       />
 
-      {/* 3. Summary Statistic Cards Section (4 cards matches UI mockup) */}
-      <div id="submitted-recs-stats-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 select-none font-sans">
+      {/* 3. Summary Statistic Cards Section */}
+      <div id="submitted-recs-stats-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 select-none font-sans">
         
         {/* Card 1: Total Submitted */}
         <div id="stat-card-total" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
@@ -221,6 +224,21 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
           </div>
         </div>
 
+        {/* Card 5: Cancelled by Supervisor */}
+        <div id="stat-card-cancelled" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+              Cancelled
+            </span>
+            <span className="text-2xl font-black text-slate-600">
+              {statsCancelledCount}
+            </span>
+          </div>
+          <div className="w-11 h-11 bg-slate-100 border border-slate-200 text-slate-600 rounded-xl flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5" />
+          </div>
+        </div>
+
       </div>
 
       {/* 4. Filter and Search Tool section card */}
@@ -261,6 +279,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                 <option value="Approved">Approved</option>
                 <option value="Pending Approval">Pending Approval</option>
                 <option value="Rejected">Rejected</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
               <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             </div>
@@ -407,6 +426,8 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                               ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]'
                               : row.status === 'Pending Approval'
                               ? 'bg-[#eff6ff] text-blue-650 border-blue-100 text-blue-600'
+                              : row.status === 'Cancelled'
+                              ? 'bg-slate-100 text-slate-600 border-slate-200'
                               : 'bg-rose-50 text-rose-600 border-rose-100'
                           }`}>
                             {row.status}
@@ -521,6 +542,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         isOpen={!!selectedDetailId}
         onClose={() => setSelectedDetailId(null)}
         recommendation={activeDetailRecord}
+        onCancelRecommendation={onCancelRecommendation}
       />
 
     </div>

@@ -6,8 +6,14 @@ from .models import (
     PANEL_WORKLOAD_LIMIT,
     PanelAppointment,
     PanelRecommendation,
+    AppointmentWorkflowEvent,
     StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorApplicationDocument,
     count_panel_workload,
+    count_supervisor_workload,
+    panel_workload_limit,
+    supervisor_workload_limit,
 )
 
 
@@ -123,13 +129,13 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
         return department_for_user(obj)
 
     def get_workloadLimit(self, obj):
-        return PANEL_WORKLOAD_LIMIT
+        return panel_workload_limit(obj)
 
     def get_canSubmit(self, obj):
-        return count_panel_workload(obj) < PANEL_WORKLOAD_LIMIT
+        return count_panel_workload(obj) < panel_workload_limit(obj)
 
     def get_availability(self, obj):
-        return "Available" if count_panel_workload(obj) < PANEL_WORKLOAD_LIMIT else "Workload Full"
+        return "Available" if count_panel_workload(obj) < panel_workload_limit(obj) else "Workload Full"
 
     def get_workloadHelpText(self, obj):
         return "Workload includes confirmed active panel appointments and submitted nominations."
@@ -145,11 +151,17 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     abstract = serializers.CharField(source="profile.abstract", read_only=True)
     recommendedMember = serializers.CharField(source="recommended_member.full_name", read_only=True)
     recommendedMemberId = serializers.SerializerMethodField()
+    supervisorName = serializers.CharField(source="supervisor.full_name", read_only=True)
     submittedDate = serializers.SerializerMethodField()
     submittedAt = serializers.DateTimeField(source="submitted_at", read_only=True)
     panelDecisionAt = serializers.DateTimeField(source="panel_decided_at", read_only=True)
     coordinatorDecisionAt = serializers.DateTimeField(source="coordinator_decided_at", read_only=True)
+    cancelledAt = serializers.DateTimeField(source="cancelled_at", read_only=True)
+    cancellationReason = serializers.CharField(source="cancellation_reason", read_only=True)
     rejectionReason = serializers.CharField(source="display_rejection_reason", read_only=True)
+    updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+    selectedPanelDecision = serializers.SerializerMethodField()
+    workflow = serializers.SerializerMethodField()
 
     class Meta:
         model = PanelRecommendation
@@ -164,13 +176,19 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             "abstract",
             "recommendedMember",
             "recommendedMemberId",
+            "supervisorName",
             "submittedDate",
             "submittedAt",
             "panelDecisionAt",
             "coordinatorDecisionAt",
+            "cancelledAt",
             "status",
             "justification",
             "rejectionReason",
+            "cancellationReason",
+            "updatedAt",
+            "selectedPanelDecision",
+            "workflow",
         ]
 
     def get_submittedDate(self, obj):
@@ -178,6 +196,19 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
 
     def get_recommendedMemberId(self, obj):
         return staff_no_for_user(obj.recommended_member)
+
+    def get_selectedPanelDecision(self, obj):
+        if obj.panel_decided_at is None:
+            return None
+        if obj.status == PanelRecommendation.Status.REJECTED_BY_PANEL:
+            return "REJECTED"
+        return "ACCEPTED"
+
+    def get_workflow(self, obj):
+        return AppointmentWorkflowEventSerializer(
+            obj.workflow_events.all(),
+            many=True,
+        ).data
 
 
 class PanelRecommendationCreateSerializer(serializers.Serializer):
@@ -220,7 +251,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         if profile.panel_recommendations.filter(status__in=PanelRecommendation.ACTIVE_STATUSES).exists():
             raise serializers.ValidationError("An active panel recommendation already exists for this student.")
 
-        if count_panel_workload(recommended_member) >= PANEL_WORKLOAD_LIMIT:
+        if count_panel_workload(recommended_member) >= panel_workload_limit(recommended_member):
             raise serializers.ValidationError(
                 "Selected panel lecturer has reached the panel workload limit. Please choose another panel member."
             )
@@ -244,6 +275,186 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
 
 class ReasonSerializer(serializers.Serializer):
     reason = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+
+
+class SupervisorApplicationDocumentSerializer(serializers.ModelSerializer):
+    contentType = serializers.CharField(source="content_type", allow_blank=True)
+
+    class Meta:
+        model = SupervisorApplicationDocument
+        fields = ["id", "name", "category", "contentType", "size", "uploaded_at"]
+
+
+class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
+    actorName = serializers.CharField(source="actor.full_name", read_only=True)
+    actorRole = serializers.CharField(source="actor_role", read_only=True)
+    previousStatus = serializers.CharField(source="previous_status", read_only=True)
+    newStatus = serializers.CharField(source="new_status", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta:
+        model = AppointmentWorkflowEvent
+        fields = [
+            "id",
+            "action",
+            "actorName",
+            "actorRole",
+            "previousStatus",
+            "newStatus",
+            "reason",
+            "createdAt",
+        ]
+
+
+class SupervisorApplicationSerializer(serializers.ModelSerializer):
+    studentId = serializers.CharField(source="student.matric_no", read_only=True)
+    studentName = serializers.CharField(source="student.user.full_name", read_only=True)
+    programme = serializers.CharField(source="student.programme", read_only=True)
+    semester = serializers.CharField(source="student.intake_semester", read_only=True)
+    proposedSupervisor = serializers.CharField(
+        source="proposed_supervisor.full_name",
+        read_only=True,
+    )
+    proposedSupervisorId = serializers.SerializerMethodField()
+    researchTitle = serializers.CharField(source="research_title", read_only=True)
+    researchAbstract = serializers.CharField(source="research_abstract", read_only=True)
+    rejectionReason = serializers.CharField(source="rejection_reason", read_only=True)
+    submittedAt = serializers.DateTimeField(source="submitted_at", read_only=True)
+    supervisorDecisionAt = serializers.DateTimeField(
+        source="supervisor_decided_at",
+        read_only=True,
+    )
+    coordinatorDecisionAt = serializers.DateTimeField(
+        source="coordinator_decided_at",
+        read_only=True,
+    )
+    cancelledAt = serializers.DateTimeField(source="cancelled_at", read_only=True)
+    cancellationReason = serializers.CharField(
+        source="cancellation_reason",
+        read_only=True,
+    )
+    documents = SupervisorApplicationDocumentSerializer(many=True, read_only=True)
+    workflow = AppointmentWorkflowEventSerializer(
+        source="workflow_events",
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = SupervisorApplication
+        fields = [
+            "id",
+            "studentId",
+            "studentName",
+            "programme",
+            "semester",
+            "proposedSupervisor",
+            "proposedSupervisorId",
+            "researchTitle",
+            "researchAbstract",
+            "status",
+            "rejectionReason",
+            "submittedAt",
+            "supervisorDecisionAt",
+            "coordinatorDecisionAt",
+            "cancelledAt",
+            "cancellationReason",
+            "documents",
+            "workflow",
+        ]
+
+    def get_proposedSupervisorId(self, obj):
+        return staff_no_for_user(obj.proposed_supervisor)
+
+
+class SupervisorApplicationCreateSerializer(serializers.Serializer):
+    proposedSupervisorId = serializers.CharField()
+    researchTitle = serializers.CharField(max_length=500)
+    researchAbstract = serializers.CharField()
+    documents = SupervisorApplicationDocumentSerializer(many=True, required=False)
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        if request.user.role != User.Role.STUDENT:
+            raise serializers.ValidationError(
+                "Only students can submit supervisor applications."
+            )
+        try:
+            student = request.user.student
+        except ObjectDoesNotExist as exc:
+            raise serializers.ValidationError(
+                "The student profile is not available."
+            ) from exc
+        if student.supervisor_applications.filter(
+            status__in=SupervisorApplication.ACTIVE_STATUSES
+        ).exists():
+            raise serializers.ValidationError(
+                "An active supervisor application already exists."
+            )
+        try:
+            supervisor = User.objects.get(
+                lecturer__staff_no__iexact=attrs["proposedSupervisorId"],
+                lecturer__supervisor__isnull=False,
+                role=User.Role.LECTURER,
+                is_active=True,
+            )
+        except User.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                "The selected supervisor was not found."
+            ) from exc
+        attrs["student"] = student
+        attrs["supervisor"] = supervisor
+        return attrs
+
+    def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
+        application = SupervisorApplication.objects.create(
+            student=validated_data["student"],
+            proposed_supervisor=validated_data["supervisor"],
+            research_title=validated_data["researchTitle"],
+            research_abstract=validated_data["researchAbstract"],
+        )
+        SupervisorApplicationDocument.objects.bulk_create(
+            [
+                SupervisorApplicationDocument(
+                    application=application,
+                    name=document["name"],
+                    category=document["category"],
+                    content_type=document.get("content_type", ""),
+                    size=document.get("size", 0),
+                )
+                for document in documents
+            ]
+        )
+        return application
+
+
+class SupervisorCandidateSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
+    name = serializers.CharField(source="full_name")
+    domain = serializers.SerializerMethodField()
+    filled = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+    initials = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "name", "domain", "filled", "total", "initials"]
+
+    def get_id(self, obj):
+        return staff_no_for_user(obj)
+
+    def get_domain(self, obj):
+        return obj.lecturer.specialization or obj.lecturer.department
+
+    def get_filled(self, obj):
+        return count_supervisor_workload(obj)
+
+    def get_total(self, obj):
+        return supervisor_workload_limit(obj)
+
+    def get_initials(self, obj):
+        return "".join(part[0] for part in obj.full_name.split()[:2]).upper()
 
 
 class PanelAssignmentSerializer(serializers.ModelSerializer):

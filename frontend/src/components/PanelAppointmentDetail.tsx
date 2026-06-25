@@ -15,6 +15,7 @@ import {
 import { PageHeader, StatusBadge } from './PortalPrimitives';
 import { PanelRecord } from '../types';
 import { PanelWorkflowItem, PanelWorkflowTimeline } from './PanelWorkflowTimeline';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface PanelAppointmentDetailProps {
   onBack: () => void;
@@ -347,6 +348,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
           </div>
         </div>
       </div>
+      <WorkflowAuditLog events={record?.workflow} />
     </div>
   );
 };

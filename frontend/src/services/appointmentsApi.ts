@@ -12,11 +12,15 @@ import {
   ActiveSuperviseeRow,
   PanelAssignment,
   PanelCandidate,
+  CoordinatorPanelWorkspace,
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
   PanelWorkloadRecord,
   StudentPanelAppointmentView,
+  StudentSupervisorApplication,
   SubmittedRecommendation,
+  SupervisorApplicationRecord,
+  SupervisorCandidate,
   SupervisorRequestHistoryRow,
 } from '../types';
 import {
@@ -28,6 +32,7 @@ import {
   MOCK_PANEL_RECOMMENDATION_DRAFTS,
   MOCK_PANEL_RECOMMENDATIONS,
   MOCK_SUPERVISOR_REQUEST_HISTORY,
+  MOCK_SUPERVISOR_CANDIDATES,
 } from '../mocks/appointments';
 import { USE_MOCKS, mockResponse, request } from './apiClient';
 
@@ -38,10 +43,12 @@ const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean 
 
 const USE_PANEL_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_PANEL_BACKEND, true);
 const USE_PANEL_MOCKS = USE_MOCKS && !USE_PANEL_BACKEND;
+const USE_SUPERVISOR_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_SUPERVISOR_BACKEND, true);
+const USE_SUPERVISOR_MOCKS = USE_MOCKS && !USE_SUPERVISOR_BACKEND;
 
 export async function getSupervisorAppointments(): Promise<SupervisorRecord[]> {
-  if (USE_MOCKS) return mockResponse(MOCK_SUPERVISOR_APPOINTMENTS);
-  return request<SupervisorRecord[]>('/appointments/supervisor');
+  if (USE_SUPERVISOR_MOCKS) return mockResponse(MOCK_SUPERVISOR_APPOINTMENTS);
+  return request<SupervisorRecord[]>('/appointments/supervisor/');
 }
 
 export async function getPanelAppointments(): Promise<PanelRecord[]> {
@@ -51,14 +58,14 @@ export async function getPanelAppointments(): Promise<PanelRecord[]> {
 
 // Lecturer-facing: pending supervisor requests awaiting the lecturer's review.
 export async function getSupervisorRequests(): Promise<SupervisorRequest[]> {
-  if (USE_MOCKS) return mockResponse(MOCK_SUPERVISOR_REQUESTS);
-  return request<SupervisorRequest[]>('/appointments/supervisor/requests');
+  if (USE_SUPERVISOR_MOCKS) return mockResponse(MOCK_SUPERVISOR_REQUESTS);
+  return request<SupervisorRequest[]>('/appointments/supervisor/requests/');
 }
 
 // Lecturer-facing: the lecturer's active supervisee roster.
 export async function getActiveSupervisees(): Promise<ActiveSuperviseeRow[]> {
-  if (USE_MOCKS) return mockResponse(MOCK_ACTIVE_SUPERVISEES);
-  return request<ActiveSuperviseeRow[]>('/appointments/supervisor/supervisees');
+  if (USE_SUPERVISOR_MOCKS) return mockResponse(MOCK_ACTIVE_SUPERVISEES);
+  return request<ActiveSuperviseeRow[]>('/appointments/supervisor/supervisees/');
 }
 
 // Lecturer-facing: students assigned to this lecturer as panel member.
@@ -202,6 +209,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
   const recommendations = await request<PanelRecommendationDraft[]>('/appointments/panel/recommendations/');
   return recommendations.map((r) => ({
     id: r.id !== undefined ? `REC-${String(r.id).padStart(4, '0')}` : String(r.studentId),
+    recommendationId: r.id,
     studentName: r.studentName,
     studentId: r.studentId,
     researchTitle: r.proposedTopic,
@@ -210,6 +218,8 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     date: r.submittedDate,
     status: r.status === 'APPROVED'
       ? 'Approved'
+      : r.status === 'CANCELLED_BY_SUPERVISOR'
+      ? 'Cancelled'
       : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
       ? 'Rejected'
       : 'Pending Approval',
@@ -223,6 +233,9 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     submittedAt: r.submittedAt,
     panelDecisionAt: r.panelDecisionAt,
     coordinatorDecisionAt: r.coordinatorDecisionAt,
+    cancelledAt: r.cancelledAt,
+    cancellationReason: r.cancellationReason,
+    workflow: r.workflow,
   }));
 }
 
@@ -265,6 +278,31 @@ export async function getCoordinatorPanelReviewQueue(): Promise<PanelRecommendat
     return mockResponse(MOCK_PANEL_RECOMMENDATION_DRAFTS.filter((r) => r.status === 'PENDING_COORDINATOR'));
   }
   return request<PanelRecommendationDraft[]>('/appointments/panel/coordinator-queue/');
+}
+
+export async function getCoordinatorPanelWorkspace(): Promise<CoordinatorPanelWorkspace> {
+  if (USE_PANEL_MOCKS) {
+    const records = MOCK_PANEL_RECOMMENDATION_DRAFTS;
+    const queue = records.filter((record) => record.status === 'PENDING_COORDINATOR');
+    return mockResponse({
+      programme: 'MASTER OF CYBER SECURITY (COURSEWORK)',
+      pendingCount: queue.length,
+      queue,
+      records,
+    });
+  }
+  return request<CoordinatorPanelWorkspace>('/appointments/panel/coordinator-workspace/');
+}
+
+export async function getPanelReviewHistory(): Promise<PanelRecommendationDraft[]> {
+  if (USE_PANEL_MOCKS) {
+    return mockResponse(
+      MOCK_PANEL_RECOMMENDATION_DRAFTS.filter(
+        (record) => record.selectedPanelDecision === 'ACCEPTED' || record.selectedPanelDecision === 'REJECTED',
+      ),
+    );
+  }
+  return request<PanelRecommendationDraft[]>('/appointments/panel/review-history/');
 }
 
 export async function acceptPanelRecommendation(id: number | string): Promise<PanelRecommendationDraft> {
@@ -319,6 +357,155 @@ export async function rejectPanelRecommendationByCoordinator(
 
 // Lecturer-facing: supervisor appointment requests the lecturer has decided on.
 export async function getSupervisorRequestHistory(): Promise<SupervisorRequestHistoryRow[]> {
-  if (USE_MOCKS) return mockResponse(MOCK_SUPERVISOR_REQUEST_HISTORY);
-  return request<SupervisorRequestHistoryRow[]>('/appointments/supervisor/request-history');
+  if (USE_SUPERVISOR_MOCKS) return mockResponse(MOCK_SUPERVISOR_REQUEST_HISTORY);
+  return request<SupervisorRequestHistoryRow[]>('/appointments/supervisor/request-history/');
+}
+
+export async function cancelPanelRecommendation(
+  id: number | string,
+  reason: string,
+): Promise<PanelRecommendationDraft> {
+  if (USE_PANEL_MOCKS) {
+    const recommendation = MOCK_PANEL_RECOMMENDATION_DRAFTS[0];
+    return mockResponse({
+      ...recommendation,
+      id,
+      status: 'CANCELLED_BY_SUPERVISOR',
+      cancellationReason: reason,
+      cancelledAt: new Date().toISOString(),
+    });
+  }
+  return request<PanelRecommendationDraft>(`/appointments/panel/recommendations/${id}/cancel/`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function getSupervisorCandidates(): Promise<SupervisorCandidate[]> {
+  if (USE_SUPERVISOR_MOCKS) {
+    return mockResponse(MOCK_SUPERVISOR_CANDIDATES);
+  }
+  return request<SupervisorCandidate[]>('/appointments/supervisor/candidates/');
+}
+
+export async function getMySupervisorApplications(): Promise<SupervisorApplicationRecord[]> {
+  if (USE_SUPERVISOR_MOCKS) return mockResponse([]);
+  return request<SupervisorApplicationRecord[]>('/appointments/supervisor/applications/');
+}
+
+export async function getSupervisorApplication(
+  id: number | string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/`,
+  );
+}
+
+export async function createSupervisorApplication(payload: {
+  proposedSupervisorId: string;
+  researchTitle: string;
+  researchAbstract: string;
+  documents: Array<{
+    name: string;
+    category: string;
+    contentType: string;
+    size: number;
+  }>;
+}): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>('/appointments/supervisor/applications/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelSupervisorApplication(
+  id: number | string,
+  reason: string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/cancel/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export async function getPanelRecommendation(
+  id: number | string,
+): Promise<PanelRecommendationDraft> {
+  return request<PanelRecommendationDraft>(
+    `/appointments/panel/recommendations/${id}/`,
+  );
+}
+
+export async function acceptSupervisorApplication(
+  id: number | string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/supervisor-accept/`,
+    { method: 'POST' },
+  );
+}
+
+export async function rejectSupervisorApplication(
+  id: number | string,
+  reason: string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/supervisor-reject/`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
+export async function getCoordinatorSupervisorQueue(): Promise<SupervisorApplicationRecord[]> {
+  return request<SupervisorApplicationRecord[]>('/appointments/supervisor/coordinator-queue/');
+}
+
+export async function approveSupervisorApplicationByCoordinator(
+  id: number | string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/coordinator-approve/`,
+    { method: 'POST' },
+  );
+}
+
+export async function rejectSupervisorApplicationByCoordinator(
+  id: number | string,
+  reason: string,
+): Promise<SupervisorApplicationRecord> {
+  return request<SupervisorApplicationRecord>(
+    `/appointments/supervisor/applications/${id}/coordinator-reject/`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
+export function toStudentSupervisorApplication(
+  record: SupervisorApplicationRecord,
+): StudentSupervisorApplication {
+  const status: StudentSupervisorApplication['status'] =
+    record.status === 'APPROVED'
+      ? 'APPROVED'
+      : record.status === 'CANCELLED_BY_STUDENT'
+      ? 'CANCELLED'
+      : record.status === 'REJECTED_BY_SUPERVISOR' || record.status === 'REJECTED_BY_COORDINATOR'
+      ? 'RETURNED'
+      : 'PENDING REVIEW';
+  return {
+    applicationId: record.id,
+    id: `SV-APP-${String(record.id).padStart(5, '0')}`,
+    title: record.researchTitle,
+    supervisor: record.proposedSupervisor,
+    date: new Date(record.submittedAt).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }),
+    status,
+    workflowStatus: record.status,
+    workflow: record.workflow,
+    cancellationReason: record.cancellationReason,
+    cancelledAt: record.cancelledAt,
+  };
 }

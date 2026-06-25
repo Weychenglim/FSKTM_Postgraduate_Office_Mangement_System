@@ -20,6 +20,9 @@ export interface NotificationItem {
   recipient: string;
   detailedMessage?: string;
   moduleLabel?: string;
+  targetModule?: string;
+  recordType?: string;
+  recordId?: string;
   // Set when the notification was delivered from an announcement that has a file.
   announcementId?: string | null;
   attachmentName?: string | null;

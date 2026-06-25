@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Users, 
   Download, 
@@ -24,12 +24,20 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApplicationPage';
-import { MOCK_STUDENT_SUPERVISOR_APPLICATIONS } from '../mocks/appointments';
-import { StudentSupervisorApplication } from '../types';
-import { PageHeader, PortalButton, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
+import { StudentSupervisorApplication, SupervisorApplicationRecord } from '../types';
+import {
+  cancelSupervisorApplication,
+  getMySupervisorApplications,
+  toStudentSupervisorApplication,
+} from '../services';
+import { PageHeader, PortalButton, PortalConfirmModal, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
+import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
+import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
+  initialApplicationId?: string;
 }
 
 type SupervisorApplicationDetail = StudentSupervisorApplication & {
@@ -40,18 +48,87 @@ type SupervisorApplicationDetail = StudentSupervisorApplication & {
   submittedDate?: string;
   step1Date?: string;
   history?: { step: string; date: string; status: string }[];
+  applicationId?: number;
+  workflowStatus?: SupervisorApplicationWorkflowStatus;
+  workflow?: SupervisorWorkflowEvent[];
+  cancellationReason?: string;
 };
 
 export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = ({
-  onShowFAQChatbot
+  onShowFAQChatbot,
+  initialApplicationId,
 }) => {
   const [subview, setSubview] = useState<'overview' | 'new-application'>('overview');
 
-  const [applications, setApplications] = useState<StudentSupervisorApplication[]>(
-    () => [...MOCK_STUDENT_SUPERVISOR_APPLICATIONS]
-  );
+  const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
+  const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
+
+  useEffect(() => {
+    getMySupervisorApplications()
+      .then((records) => {
+        setApplications(records.map(toStudentSupervisorApplication));
+        setApprovedApplication(records.find((record) => record.status === 'APPROVED') || null);
+      })
+      .catch(() => setApplications([]));
+  }, []);
 
   const [activeDetailAp, setActiveDetailAp] = useState<SupervisorApplicationDetail | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (!initialApplicationId || applications.length === 0) return;
+    const app = applications.find(
+      (item) => String(item.applicationId) === String(initialApplicationId),
+    );
+    if (!app) return;
+    setActiveDetailAp({
+      applicationId: app.applicationId,
+      workflowStatus: app.workflowStatus,
+      workflow: app.workflow,
+      cancellationReason: app.cancellationReason,
+      id: app.id,
+      supervisor: app.supervisor,
+      title: app.title,
+      status: app.status,
+      date: app.date,
+      submittedDate: app.date,
+      step1Date: app.date,
+    });
+  }, [applications, initialApplicationId]);
+
+  const performCancelRequest = async () => {
+    if (!activeDetailAp?.applicationId || !activeDetailAp.workflowStatus) return;
+    const reason = cancellationReason.trim();
+    setIsCancelling(true);
+    setCancellationError(null);
+    try {
+      const updated = await cancelSupervisorApplication(activeDetailAp.applicationId, reason);
+      const mapped = toStudentSupervisorApplication(updated);
+      setApplications((items) =>
+        items.map((item) => item.applicationId === mapped.applicationId ? mapped : item),
+      );
+      setActiveDetailAp(null);
+      setCancellationReason('');
+      setIsCancelConfirmOpen(false);
+    } catch (error) {
+      setCancellationError(error instanceof Error ? error.message : 'Failed to cancel the request.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCancelRequest = () => {
+    const reason = cancellationReason.trim();
+    if (!reason) {
+      setCancellationError('Please provide a cancellation reason.');
+      return;
+    }
+    setCancellationError(null);
+    setIsCancelConfirmOpen(true);
+  };
 
   const handleDownloadLetter = (docName: string) => {
     alert(`Downloading Official Confirmation Letter: ${docName}`);
@@ -75,6 +152,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
   return (
     <div id="student-supervisor-app-workspace" className="space-y-6 text-left font-sans pb-12">
+      <PortalConfirmModal
+        isOpen={isCancelConfirmOpen}
+        title="Cancel supervisor request?"
+        message="This workflow attempt will be closed permanently and cannot be restored. You may submit a new supervisor request after cancellation."
+        confirmLabel="Cancel Request"
+        cancelLabel="Keep Request"
+        tone="danger"
+        isLoading={isCancelling}
+        onConfirm={performCancelRequest}
+        onCancel={() => setIsCancelConfirmOpen(false)}
+      />
+
       
       <PageHeader
         title="Supervisor Appointment"
@@ -101,7 +190,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           {/* Circular initials badge */}
           <div className="relative shrink-0 select-none">
             <div className="w-18 h-18 md:w-22 md:h-22 rounded-full bg-brand-navy text-white flex items-center justify-center text-xl md:text-2xl font-black shadow-sm border-3 border-indigo-50/50">
-              SN
+              {approvedApplication
+                ? approvedApplication.proposedSupervisor.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+                : 'NA'}
             </div>
             {/* Active Status indicator badge */}
             <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm animate-pulse" />
@@ -111,9 +202,11 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             {/* Head info role & Badge row */}
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight block">
-                Dr. Siti Noor
+                {approvedApplication?.proposedSupervisor || 'No approved supervisor'}
               </h2>
-              <StatusBadge tone="success" icon={CheckCircle}>Approved</StatusBadge>
+              <StatusBadge tone={approvedApplication ? 'success' : 'neutral'} icon={approvedApplication ? CheckCircle : Clock}>
+                {approvedApplication ? 'Approved' : 'Not appointed'}
+              </StatusBadge>
             </div>
 
             <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
@@ -122,8 +215,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             </p>
 
             <div className="pt-1.5 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-black uppercase tracking-widest text-brand-navy/60">
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg">ID: FSKTM-SV-8491</span>
-              <span className="bg-slate-100 px-2.5 py-1 rounded-lg">Email: sitinoor@um.edu.my</span>
+              <span className="bg-slate-100 px-2.5 py-1 rounded-lg">
+                ID: {approvedApplication?.proposedSupervisorId || 'Not available'}
+              </span>
             </div>
           </div>
         </div>
@@ -136,7 +230,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <span>Research Area</span>
             </span>
             <span className="text-xs font-extrabold text-slate-800 block">
-              Cybersecurity & Cryptography
+              {approvedApplication ? 'Approved research supervision' : 'Awaiting appointment'}
             </span>
           </div>
 
@@ -146,7 +240,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <span>Appointment Date</span>
             </span>
             <span className="text-xs font-semibold text-slate-700 block font-mono">
-              12 Oct 2024
+              {approvedApplication?.coordinatorDecisionAt
+                ? new Date(approvedApplication.coordinatorDecisionAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                : 'Not available'}
             </span>
           </div>
 
@@ -156,7 +252,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <span>Semester Allocated</span>
             </span>
             <span className="text-xs font-extrabold text-slate-800 block">
-              Sem 1 2024/2025
+              {approvedApplication?.semester || 'Not available'}
             </span>
           </div>
 
@@ -166,7 +262,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <span>Current Approved Research Title</span>
             </span>
             <span className="text-xs font-extrabold text-brand-navy block italic leading-tight">
-              &ldquo;Secure Cloud Architecture for Academic Data&rdquo;
+              {approvedApplication?.researchTitle || 'No approved research title'}
             </span>
           </div>
         </div>
@@ -175,7 +271,8 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
         <div className="flex flex-col gap-2 shrink-0 md:w-56">
           <PortalButton
             type="button"
-            onClick={() => handleDownloadLetter('Supervisor_Appointment_Letter_SitiNoor.pdf')}
+            disabled={!approvedApplication}
+            onClick={() => handleDownloadLetter(`Supervisor_Appointment_${approvedApplication?.proposedSupervisorId}.pdf`)}
             variant="primary"
             size="md"
             icon={Download}
@@ -186,24 +283,29 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           
           <PortalButton
             type="button"
+            disabled={!approvedApplication}
             onClick={() => {
+              if (!approvedApplication) return;
               setActiveDetailAp({
-                id: 'SV-APP-2025-014',
-                supervisor: 'Dr. Siti Noor',
-                email: 'sitinoor@um.edu.my',
+                applicationId: approvedApplication.id,
+                workflowStatus: approvedApplication.status,
+                workflow: approvedApplication.workflow,
+                id: `SV-APP-${String(approvedApplication.id).padStart(5, '0')}`,
+                supervisor: approvedApplication.proposedSupervisor,
+                email: 'Available from the postgraduate office',
                 dept: 'Faculty of Computing & Information Technology',
-                title: 'Secure Cloud Architecture for Academic Data',
-                reg: 'WEA200192',
-                refId: 'FSKTM-SV-REF-2024-819',
+                title: approvedApplication.researchTitle,
+                reg: approvedApplication.studentId,
+                refId: `SV-APP-${String(approvedApplication.id).padStart(5, '0')}`,
                 status: 'APPROVED',
-                date: '01 Aug 2024',
-                submittedDate: '01 Aug 2024',
-                step1Date: '01 Aug 2024, 08:00 AM',
-                history: [
-                  { step: 'Student Submission', date: '01 Oct 2024', status: 'Completed' },
-                  { step: 'Department Verification', date: '04 Oct 2024', status: 'Approved' },
-                  { step: 'Postgraduate Committee Approval', date: '12 Oct 2024', status: 'Official letters dispatched' }
-                ]
+                date: new Date(approvedApplication.submittedAt).toLocaleDateString('en-GB'),
+                submittedDate: new Date(approvedApplication.submittedAt).toLocaleDateString('en-GB'),
+                step1Date: new Date(approvedApplication.submittedAt).toLocaleString('en-GB'),
+                history: approvedApplication.workflow.map((event) => ({
+                  step: event.action.replaceAll('_', ' '),
+                  date: new Date(event.createdAt).toLocaleString('en-GB'),
+                  status: event.reason || event.newStatus,
+                })),
               });
             }}
             variant="secondary"
@@ -293,6 +395,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                       type="button"
                       onClick={() => {
                         setActiveDetailAp({
+                          applicationId: app.applicationId,
+                          workflowStatus: app.workflowStatus,
+                          workflow: app.workflow,
+                          cancellationReason: app.cancellationReason,
                           id: app.id,
                           supervisor: app.supervisor,
                           email: app.supervisor.toLowerCase().includes('siti') ? 'sitinoor@um.edu.my' : 'henrylim@um.edu.my',
@@ -611,6 +717,45 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
                   </div>
                 </div>
+
+                <WorkflowAuditLog events={activeDetailAp.workflow} />
+
+                {activeDetailAp.workflowStatus
+                  && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus) && (
+                  <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-900">
+                        Cancel Supervisor Request
+                      </h4>
+                      <p className="mt-1 text-[10px] font-semibold text-amber-800">
+                        This is available only before the requested supervisor takes action.
+                      </p>
+                    </div>
+                    <textarea
+                      value={cancellationReason}
+                      onChange={(event) => {
+                        setCancellationReason(event.target.value);
+                        if (cancellationError) setCancellationError(null);
+                      }}
+                      rows={3}
+                      placeholder="Explain why you are cancelling this request..."
+                      className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-amber-400"
+                    />
+                    {cancellationError && (
+                      <p className="text-[10px] font-bold text-rose-600">{cancellationError}</p>
+                    )}
+                    <PortalButton
+                      type="button"
+                      onClick={handleCancelRequest}
+                      disabled={isCancelling}
+                      variant="danger"
+                      size="md"
+                      fullWidth
+                    >
+                      {isCancelling ? 'Cancelling…' : 'Cancel Request'}
+                    </PortalButton>
+                  </div>
+                )}
 
               </div>
 

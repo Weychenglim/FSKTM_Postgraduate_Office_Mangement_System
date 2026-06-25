@@ -3,13 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   Users, 
   Search, 
   Upload, 
   ArrowLeft, 
-  Save, 
   Send, 
   HelpCircle, 
   CheckCircle, 
@@ -21,8 +20,12 @@ import {
   Info
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { MOCK_SUPERVISOR_CANDIDATES } from '../mocks/appointments';
-import { StudentSupervisorApplication } from '../types';
+import { StudentSupervisorApplication, SupervisorCandidate } from '../types';
+import {
+  createSupervisorApplication,
+  getSupervisorCandidates,
+  toStudentSupervisorApplication,
+} from '../services';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 
 interface SupervisorAppointmentApplicationPageProps {
@@ -48,11 +51,19 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [lastSaved, setLastSaved] = useState('Today at 09:42 AM');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const supervisors = MOCK_SUPERVISOR_CANDIDATES;
+  const [supervisors, setSupervisors] = useState<SupervisorCandidate[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    getSupervisorCandidates()
+      .then(setSupervisors)
+      .catch((reason) => {
+        alert(reason instanceof Error ? reason.message : 'Failed to load supervisor candidates.');
+      });
+  }, []);
 
   // Filtering based on search query
   const filteredSupervisors = supervisors.filter(sv => 
@@ -108,13 +119,8 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     fileInputRef.current?.click();
   };
 
-  const handleSaveAsDraft = () => {
-    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setLastSaved(`Today at ${timeNow}`);
-    alert('Draft progress saved successfully! You can resume and complete the application anytime.');
-  };
 
-  const handleSubmitRequest = (e: React.FormEvent) => {
+  const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!researchTitle.trim()) {
@@ -134,18 +140,25 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       return;
     }
 
-    const selectedSv = supervisors.find(sv => sv.id === selectedSupervisorId);
-
-    // Assembly of new tracking item
-    const newAppPayload: StudentSupervisorApplication = {
-      id: `SV-APP-${new Date().getFullYear()}-${Math.floor(Math.random() * 900) + 100}`,
-      title: researchTitle,
-      supervisor: selectedSv ? selectedSv.name : 'Unspecified Supervisor',
-      date: new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
-      status: 'PENDING REVIEW'
-    };
-
-    onSuccess(newAppPayload);
+    setSubmitting(true);
+    try {
+      const record = await createSupervisorApplication({
+        proposedSupervisorId: selectedSupervisorId,
+        researchTitle: researchTitle.trim(),
+        researchAbstract: researchAbstract.trim(),
+        documents: uploadedFiles.map((file) => ({
+          name: file.name,
+          category: 'RESEARCH_PROPOSAL',
+          contentType: file.type,
+          size: file.size,
+        })),
+      });
+      onSuccess(toStudentSupervisorApplication(record));
+    } catch (reason) {
+      alert(reason instanceof Error ? reason.message : 'Failed to submit supervisor application.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -432,33 +445,23 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       </div>
 
       {/* ========================================================================= */}
-      {/* 6. CURRENT SAVE/SUBMISSION BOTTOM ACTION CONTROL BAR                       */}
+      {/* 6. SUBMISSION ACTION CONTROL BAR                                            */}
       {/* ========================================================================= */}
       <div id="sticky-draft-submit-control" className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 select-none">
-        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider font-mono">
-          Last saved: {lastSaved}
+        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+          Applications submit directly to the selected supervisor
         </div>
 
         <div className="flex gap-2.5 w-full sm:w-auto">
           <PortalButton
-            type="button"
-            onClick={handleSaveAsDraft}
-            variant="secondary"
-            size="lg"
-            icon={Save}
-            className="flex-1 sm:flex-initial"
-          >
-            Save as Draft
-          </PortalButton>
-          
-          <PortalButton
             type="submit"
+            disabled={submitting}
             variant="primary"
             size="lg"
             icon={Send}
             className="flex-1 sm:flex-initial"
           >
-            Submit SV Request
+            {submitting ? 'Submitting…' : 'Submit SV Request'}
           </PortalButton>
         </div>
       </div>

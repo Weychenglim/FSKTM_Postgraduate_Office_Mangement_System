@@ -16,6 +16,7 @@ import os
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.timezone import localtime
 
 
@@ -128,6 +129,10 @@ class Notification(models.Model):
     is_announcement = models.BooleanField(default=True)
     reference = models.CharField(max_length=64, blank=True, default="")
     module_label = models.CharField(max_length=128, blank=True, default="Announcement")
+    target_module = models.CharField(max_length=64, blank=True, default="")
+    record_type = models.CharField(max_length=64, blank=True, default="")
+    record_id = models.CharField(max_length=64, blank=True, default="")
+    event_key = models.CharField(max_length=160, blank=True, default="", db_index=True)
     # Source announcement, so the recipient can open the full content + file.
     announcement = models.ForeignKey(
         Announcement,
@@ -141,6 +146,13 @@ class Notification(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["recipient", "is_read"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "event_key"],
+                condition=~Q(event_key=""),
+                name="unique_workflow_notification_per_recipient_event",
+            )
+        ]
 
     def __str__(self):
         return f"{self.title} -> {self.recipient_id} ({'read' if self.is_read else 'unread'})"
@@ -163,6 +175,9 @@ class Notification(models.Model):
             "reference": self.reference,
             "recipient": getattr(self.recipient, "full_name", "") or self.recipient.email,
             "moduleLabel": self.module_label,
+            "targetModule": self.target_module,
+            "recordType": self.record_type,
+            "recordId": self.record_id,
             "announcementId": str(self.announcement_id) if self.announcement_id else None,
             "attachmentName": attachment_name,
         }
