@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { EvaluationTask } from '../types';
-import { PageHeader } from './PortalPrimitives';
+import { PageHeader, PortalConfirmModal } from './PortalPrimitives';
 
 interface MarkEntryDetailProps {
   task: EvaluationTask;
@@ -28,7 +28,16 @@ interface MarkEntryDetailProps {
   onSubmit: (updatedTask: EvaluationTask) => void;
 }
 
-export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
+const evaluatorRoleLabel = (task: EvaluationTask): string =>
+  task.evaluatorRoleLabel || (
+    task.evaluatorRole === 'SUPERVISOR'
+      ? 'Supervisor'
+      : task.evaluatorRole === 'BACKUP'
+      ? 'Backup Evaluator'
+      : 'Panel Member'
+  );
+
+const LegacyMarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   task,
   onBack,
   onSave,
@@ -72,6 +81,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
   // Error validations state
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const isReadOnly = task.status === 'SUBMITTED';
 
   // Component max limits
@@ -184,6 +194,32 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
     onSave(updated);
   };
 
+  const submitEvaluation = () => {
+    const nowStr = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    const updated: EvaluationTask = {
+      ...task,
+      status: 'SUBMITTED',
+      problemDefinitionScore: Number(problemDefScore),
+      problemDefinitionFeedback: problemDefComment,
+      literatureReviewScore: Number(litReviewScore),
+      literatureReviewFeedback: litReviewComment,
+      methodologyScore: Number(methodologyScoreValue),
+      methodologyFeedback: methodologyComment,
+      technicalUnderstandingScore: Number(technicalScore),
+      technicalUnderstandingFeedback: technicalComment,
+      presentationScore: Number(presentationScoreValue),
+      presentationFeedback: presentationComment,
+      submittedDate: nowStr,
+      comments: `Submitted evaluation total ${totalScore}/100.`,
+    };
+    setIsSubmitConfirmOpen(false);
+    onSubmit(updated);
+  };
+
   const handleSubmitEvaluationAction = () => {
     if (!isFormComplete) {
       alert('Please enter marks for all 5 rubric components before submitting.');
@@ -194,34 +230,22 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       return;
     }
 
-    if (window.confirm(`Are you sure you want to finalize and submit marks for ${task.studentName}? This action is final and irreversible.`)) {
-      const nowStr = new Date().toLocaleDateString('en-GB', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric' 
-      });
-      const updated: EvaluationTask = {
-        ...task,
-        status: 'SUBMITTED',
-        problemDefinitionScore: Number(problemDefScore),
-        problemDefinitionFeedback: problemDefComment,
-        literatureReviewScore: Number(litReviewScore),
-        literatureReviewFeedback: litReviewComment,
-        methodologyScore: Number(methodologyScoreValue),
-        methodologyFeedback: methodologyComment,
-        technicalUnderstandingScore: Number(technicalScore),
-        technicalUnderstandingFeedback: technicalComment,
-        presentationScore: Number(presentationScoreValue),
-        presentationFeedback: presentationComment,
-        submittedDate: nowStr,
-        comments: `Submitted evaluation total ${totalScore}/100.`,
-      };
-      onSubmit(updated);
-    }
+    setIsSubmitConfirmOpen(true);
   };
 
   return (
     <div id="mark-entry-detail-page" className="space-y-6 text-left">
+      <PortalConfirmModal
+        isOpen={isSubmitConfirmOpen}
+        title="Submit and lock marks?"
+        message={`You are about to finalize marks for ${task.studentName}. Submitted marks become locked immediately and can only be reopened by authorized office staff.`}
+        confirmLabel="Submit Marks"
+        cancelLabel="Review Again"
+        tone="warning"
+        onConfirm={submitEvaluation}
+        onCancel={() => setIsSubmitConfirmOpen(false)}
+      />
+
       
       <PageHeader
         title="Mark Entry Detail"
@@ -316,7 +340,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   Your Role
                 </span>
                 <span className="font-black text-indigo-750 text-brand-navy block mt-1">
-                  Panel Member
+                  {evaluatorRoleLabel(task)}
                 </span>
               </div>
             </div>
@@ -752,3 +776,251 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
     </div>
   );
 };
+
+const legacyComponentFields: Record<string, {
+  score: keyof EvaluationTask;
+  feedback: keyof EvaluationTask;
+}> = {
+  problem_definition: {
+    score: 'problemDefinitionScore',
+    feedback: 'problemDefinitionFeedback',
+  },
+  literature_review: {
+    score: 'literatureReviewScore',
+    feedback: 'literatureReviewFeedback',
+  },
+  methodology: {
+    score: 'methodologyScore',
+    feedback: 'methodologyFeedback',
+  },
+  technical_understanding: {
+    score: 'technicalUnderstandingScore',
+    feedback: 'technicalUnderstandingFeedback',
+  },
+  presentation: {
+    score: 'presentationScore',
+    feedback: 'presentationFeedback',
+  },
+};
+
+const DynamicMarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
+  task,
+  onBack,
+  onSave,
+  onSubmit,
+}) => {
+  const [values, setValues] = useState(() => Object.fromEntries(
+    (task.components || []).map((component) => [
+      component.id,
+      {
+        mark: component.marksAwarded === null ? '' : component.marksAwarded,
+        feedback: component.feedback,
+      },
+    ]),
+  ));
+  const [comments, setComments] = useState(task.comments || '');
+  const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
+  const isReadOnly = task.status === 'SUBMITTED';
+  const components = task.components || [];
+  const total = components.reduce(
+    (sum, component) => sum + Number(values[component.id]?.mark || 0),
+    0,
+  );
+  const maximum = components.reduce(
+    (sum, component) => sum + Number(component.maxMarks),
+    0,
+  );
+  const errors = components.flatMap((component) => {
+    const raw = values[component.id]?.mark;
+    if (component.required && raw === '') return [`${component.name} is required.`];
+    const mark = Number(raw);
+    if (!Number.isFinite(mark) || mark < 0 || mark > Number(component.maxMarks)) {
+      return [`${component.name} must be between 0 and ${component.maxMarks}.`];
+    }
+    return [];
+  });
+
+  const buildTask = (status: EvaluationTask['status']): EvaluationTask => {
+    const updated: EvaluationTask = {
+      ...task,
+      status,
+      comments,
+      components: components.map((component) => ({
+        ...component,
+        marksAwarded: values[component.id]?.mark === ''
+          ? null
+          : String(values[component.id]?.mark ?? 0),
+        feedback: values[component.id]?.feedback || '',
+      })),
+    };
+    for (const component of updated.components || []) {
+      const fields = legacyComponentFields[component.code];
+      if (!fields) continue;
+      (updated as unknown as Record<string, unknown>)[fields.score] =
+        component.marksAwarded === null ? undefined : Number(component.marksAwarded);
+      (updated as unknown as Record<string, unknown>)[fields.feedback] = component.feedback;
+    }
+    return updated;
+  };
+
+  return (
+    <div className="space-y-6 text-left">
+      <PortalConfirmModal
+        isOpen={isSubmitConfirmOpen}
+        title="Submit and lock marks?"
+        message={`You are about to finalize marks for ${task.studentName}. Submitted marks become locked immediately and can only be reopened by authorized office staff.`}
+        confirmLabel="Submit Marks"
+        cancelLabel="Review Again"
+        tone="warning"
+        onConfirm={() => {
+          setIsSubmitConfirmOpen(false);
+          onSubmit(buildTask('SUBMITTED'));
+        }}
+        onCancel={() => setIsSubmitConfirmOpen(false)}
+      />
+
+      <PageHeader
+        title="Mark Entry Detail"
+        subtitle="Enter marks using the active rubric configured by the postgraduate office."
+        backLabel="Back to Marks Entry"
+        onBack={onBack}
+      />
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-3xs">
+          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/60">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h2 className="text-base font-black text-brand-navy">{task.studentName}</h2>
+                <p className="text-xs font-semibold text-slate-500 mt-1">
+                  {task.studentId} · {task.researchTitle}
+                </p>
+              </div>
+              <span className="inline-flex self-start px-3 py-1 rounded-full bg-slate-100 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
+                {evaluatorRoleLabel(task)}
+              </span>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {components.map((component, index) => (
+              <div key={component.id} className="p-6 grid grid-cols-1 md:grid-cols-[1fr_140px] gap-5">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="w-7 h-7 rounded-lg bg-brand-navy text-white flex items-center justify-center text-[10px] font-black">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <h3 className="text-xs font-black text-brand-navy">{component.name}</h3>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                        {component.description || 'Configured evaluation component'}
+                      </p>
+                    </div>
+                  </div>
+                  <textarea
+                    disabled={isReadOnly}
+                    value={values[component.id]?.feedback || ''}
+                    onChange={(event) => setValues((current) => ({
+                      ...current,
+                      [component.id]: {
+                        ...current[component.id],
+                        feedback: event.target.value,
+                      },
+                    }))}
+                    placeholder="Evaluator feedback"
+                    className="form-control mt-4 min-h-[82px]"
+                  />
+                </div>
+                <label className="space-y-2">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    Marks / {component.maxMarks}
+                  </span>
+                  <input
+                    disabled={isReadOnly}
+                    type="number"
+                    min="0"
+                    max={component.maxMarks}
+                    step="0.01"
+                    value={values[component.id]?.mark ?? ''}
+                    onChange={(event) => setValues((current) => ({
+                      ...current,
+                      [component.id]: {
+                        ...current[component.id],
+                        mark: event.target.value,
+                      },
+                    }))}
+                    className="form-control text-right font-black text-brand-navy"
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-6 border-t border-slate-100">
+            <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+              Overall comments
+            </label>
+            <textarea
+              disabled={isReadOnly}
+              value={comments}
+              onChange={(event) => setComments(event.target.value)}
+              className="form-control mt-2 min-h-[96px]"
+            />
+          </div>
+        </div>
+
+        <aside className="bg-brand-navy text-white rounded-2xl p-6 shadow-sm space-y-5 sticky top-6">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.18em] font-black text-indigo-300">
+              Calculated total
+            </p>
+            <p className="text-4xl font-black mt-2">
+              {total.toFixed(2)}
+              <span className="text-sm text-slate-400"> / {maximum.toFixed(2)}</span>
+            </p>
+          </div>
+
+          {errors.length > 0 && !isReadOnly && (
+            <div className="rounded-xl bg-rose-500/10 border border-rose-300/20 p-4">
+              {errors.map((error) => (
+                <p key={error} className="text-[10px] font-semibold text-rose-100 leading-relaxed">
+                  {error}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {!isReadOnly && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => onSave(buildTask('DRAFT SAVED'))}
+                className="w-full py-2.5 rounded-xl border border-white/20 hover:bg-white/10 text-xs font-black uppercase tracking-wider"
+              >
+                Save Draft
+              </button>
+              <button
+                type="button"
+                disabled={errors.length > 0}
+                onClick={() => setIsSubmitConfirmOpen(true)}
+                className="w-full py-2.5 rounded-xl bg-white text-brand-navy disabled:opacity-40 text-xs font-black uppercase tracking-wider"
+              >
+                Submit and Lock
+              </button>
+            </div>
+          )}
+          {isReadOnly && (
+            <div className="rounded-xl bg-emerald-400/10 border border-emerald-300/20 p-4 text-xs font-bold text-emerald-100">
+              Submitted marks are locked. Office staff may reopen them through Django Admin.
+            </div>
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = (props) =>
+  props.task.components && props.task.components.length > 0
+    ? <DynamicMarkEntryDetail {...props} />
+    : <LegacyMarkEntryDetail {...props} />;

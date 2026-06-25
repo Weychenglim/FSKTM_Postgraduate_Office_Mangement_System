@@ -12,15 +12,18 @@ import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalToast } from './PortalPrimitives';
 import { getDashboardSummary, getPanelWorkloads } from '../services';
 import { DashboardAttentionRow, DashboardSummary } from '../types';
+import { MarkRecordStatusTab } from '../utils/markRecords';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToMarksRecords?: (statusTab?: MarkRecordStatusTab) => void;
   onShowModal?: (modalType: 'period' | 'rubric' | 'generate' | 'help') => void;
   onNavigateToTimeline?: () => void;
 }
 
 export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = ({ 
   onNavigateToTab,
+  onNavigateToMarksRecords,
   onShowModal,
   onNavigateToTimeline
 }) => {
@@ -80,7 +83,18 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       type: 'Incomplete mark entries',
       count: summary === null ? 'Loading...' : String(summary.incompleteMarkEntries),
       targetTab: 'Marks Entry',
-      detail: 'Opening mark entries that have not been submitted.',
+      markStatusTab: 'All Records',
+      detail: summary === null
+        ? 'Opening mark entries that have not been submitted.'
+        : `Opening ${summary.supervisorMarkTasks ?? 0} supervisor and ${summary.panelMarkTasks ?? 0} panel mark tasks that require monitoring.`,
+    },
+    {
+      id: 'backup-marks',
+      type: 'Backup evaluator assignments',
+      count: summary === null ? 'Loading...' : String(summary.backupMarkTasks ?? 0),
+      targetTab: 'Marks Entry',
+      markStatusTab: 'All Records',
+      detail: 'Opening exception/manual override mark assignments.',
     },
     {
       id: 'panel-workload',
@@ -151,7 +165,11 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
                         onClick={() => {
                           triggerToast(row.detail);
                           setTimeout(() => {
-                            onNavigateToTab(row.targetTab);
+                            if (row.targetTab === 'Marks Entry' && onNavigateToMarksRecords) {
+                              onNavigateToMarksRecords(row.markStatusTab);
+                            } else {
+                              onNavigateToTab(row.targetTab);
+                            }
                           }, 1000);
                         }}
                         className="text-[#2563eb] hover:text-[#1d4ed8] font-black text-xs hover:underline cursor-pointer flex items-center justify-end gap-1 ml-auto"

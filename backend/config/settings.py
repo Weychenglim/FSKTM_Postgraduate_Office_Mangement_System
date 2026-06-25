@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "accounts",
     "appointments",
     "dashboard",
+    "marks",
     "letters",
     "announcements",
 ]

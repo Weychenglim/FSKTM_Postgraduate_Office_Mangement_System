@@ -29,12 +29,21 @@ import { SubmittedMarkDetail } from './SubmittedMarkDetail';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { EvaluationTask, EvaluationStatus } from '../types';
-import { getEvaluationTasks } from '../services';
+import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
 
 // ==================== TYPE DEFINITIONS ====================
 
 // EvaluationStatus and EvaluationTask now live in src/types/marks.ts; the tasks
 // are served by marksApi (getEvaluationTasks).
+
+const evaluatorRoleLabel = (task: EvaluationTask): string =>
+  task.evaluatorRoleLabel || (
+    task.evaluatorRole === 'SUPERVISOR'
+      ? 'Supervisor'
+      : task.evaluatorRole === 'BACKUP'
+      ? 'Backup'
+      : 'Panel'
+  );
 
 interface LecturerMarksEntryProps {
   onBackToDashboard?: () => void;
@@ -358,12 +367,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
 
               {/* Data Table */}
               <div className="overflow-x-auto">
-                    <table className="data-table min-w-[800px] text-xs">
+                    <table className="data-table min-w-[900px] text-xs">
                   <thead>
                     <tr className="border-b border-slate-150 border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
                       <th className="py-2.5 pb-4">Student ID</th>
                       <th className="py-2.5 pb-4">Student Name</th>
                       <th className="py-2.5 pb-4">Research Title</th>
+                      <th className="py-2.5 pb-4">Role</th>
                       <th className="py-2.5 pb-4">Semester</th>
                       <th className="py-2.5 pb-4">Deadline</th>
                       <th className="py-2.5 pb-4">Status</th>
@@ -373,13 +383,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                   <tbody className="divide-y divide-slate-100/60 font-sans text-brand-navy/90">
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="p-0">
+                        <td colSpan={8} className="p-0">
                           <LoadingState message="Loading evaluation tasks…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={7} className="p-0">
+                        <td colSpan={8} className="p-0">
                           <ErrorState message={error} onRetry={loadTasks} />
                         </td>
                       </tr>
@@ -388,7 +398,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                         const isOverdue = task.status !== 'SUBMITTED' && task.deadline === '10 Dec 2025';
                         
                         return (
-                          <tr key={task.studentId} className="hover:bg-slate-50/20 transition-colors">
+                          <tr key={`${task.id ?? task.studentId}-${task.evaluatorRole ?? 'task'}`} className="hover:bg-slate-50/20 transition-colors">
                             {/* ID */}
                             <td className="py-4.5 pr-2 font-mono font-bold text-slate-900">
                               {task.studentId}
@@ -409,6 +419,11 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                               <p className="font-semibold text-slate-650 text-slate-500 leading-relaxed line-clamp-2">
                                 {task.researchTitle}
                               </p>
+                            </td>
+                            <td className="py-4.5 pr-4">
+                              <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
+                                {evaluatorRoleLabel(task)}
+                              </span>
                             </td>
                             {/* Semester */}
                             <td className="py-4.5 pr-2 font-semibold text-slate-605 text-slate-500">
@@ -447,7 +462,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                       })
                     ) : (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center">
+                        <td colSpan={8} className="py-12 text-center">
                           <div className="text-slate-400 font-bold text-xs">
                             No matching valuation tasks found. Adjust search terms.
                           </div>
@@ -497,7 +512,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                     Important Notice
                   </h4>
                   <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-                    Please ensure all marks are entered according to the provided rubrics. Submitted evaluations are final and will be forwarded to the Postgraduate Committee for verification.
+                    Please ensure all marks follow the configured rubric. Submission locks the record immediately; contact Office Staff if a correction requires reopening.
                   </p>
                 </div>
               </div>
@@ -541,17 +556,29 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
           <MarkEntryDetail
             task={activeFormTask}
             onBack={() => setActiveFormTask(null)}
-            onSave={(updatedTask) => {
-              const updatedTasks = tasks.map(t => t.studentId === updatedTask.studentId ? updatedTask : t);
-              setTasks(updatedTasks);
-              setActiveFormTask(null);
-              triggerToast(`Draft saved successfully for ${updatedTask.studentName}!`);
+            onSave={async (updatedTask) => {
+              try {
+                const savedTask = await saveMarkDraft(updatedTask);
+                setTasks((current) => current.map(
+                  (task) => task.studentId === savedTask.studentId ? savedTask : task,
+                ));
+                setActiveFormTask(null);
+                triggerToast(`Draft saved successfully for ${savedTask.studentName}!`);
+              } catch (reason) {
+                triggerToast(reason instanceof Error ? reason.message : 'Failed to save mark draft.');
+              }
             }}
-            onSubmit={(updatedTask) => {
-              const updatedTasks = tasks.map(t => t.studentId === updatedTask.studentId ? updatedTask : t);
-              setTasks(updatedTasks);
-              setActiveFormTask(null);
-              triggerToast(`Marks finalized and submitted for ${updatedTask.studentName}!`);
+            onSubmit={async (updatedTask) => {
+              try {
+                const submittedTask = await submitMarkEntry(updatedTask);
+                setTasks((current) => current.map(
+                  (task) => task.studentId === submittedTask.studentId ? submittedTask : task,
+                ));
+                setActiveFormTask(null);
+                triggerToast(`Marks finalized and submitted for ${submittedTask.studentName}!`);
+              } catch (reason) {
+                triggerToast(reason instanceof Error ? reason.message : 'Failed to submit marks.');
+              }
             }}
           />
         )}

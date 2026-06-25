@@ -11,4 +11,5 @@ urlpatterns = [
     path("timeline/entries/", views.timeline_entry_list_view),
     path("timeline/entries/<int:pk>/", views.timeline_entry_detail_view),
     path("tasks/", views.dashboard_tasks_view),
+    path("summary/", views.dashboard_summary_view),
 ]
