@@ -36,6 +36,8 @@ import { StudentLetterGeneration } from './components/StudentLetterGeneration';
 import { StudentRegistry } from './components/StudentRegistry';
 import { StudentDashboard } from './components/StudentDashboard';
 import { LecturerDashboard } from './components/LecturerDashboard';
+import { CoordinatorDashboard } from './components/CoordinatorDashboard';
+import { CoordinatorSupervisorDeferred } from './components/CoordinatorSupervisorDeferred';
 import { StudentSupervisorAppointment } from './components/StudentSupervisorAppointment';
 import { StudentPanelAppointment } from './components/StudentPanelAppointment';
 import { SettingsView } from './components/SettingsView';
@@ -48,11 +50,14 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
-import { DemoUser } from './types';
+import { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
-import { authApi, getAuthToken, clearAuthToken } from './services';
+import { authApi, getAuthToken, clearAuthToken, getDashboardSummary, getEvaluationPeriods } from './services';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { MOCK_MARK_RECORDS } from './mocks/marks';
+import { defaultLandingPageForUser } from './utils/landingPage';
+import { MarkRecordStatusTab } from './utils/markRecords';
+import { notificationTargetToNavigation } from './utils/workflowTracking';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
@@ -68,6 +73,17 @@ const getRecordDetails = (id: string) => {
     totalMark: record.totalMark,
     submittedDate: record.submittedDate,
   };
+};
+
+const formatPeriodDate = (value?: string | null) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 };
 
 export default function App() {
@@ -130,14 +146,66 @@ export default function App() {
   const [currentSubView, setCurrentSubView] = useState<'dashboard' | 'config' | 'rubric' | 'assignment' | 'records' | 'detail'>('dashboard');
 
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');
+  const [marksDashboardSummary, setMarksDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriodOption[]>([]);
 
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
   const [appToastMessage, setAppToastMessage] = useState<string | null>(null);
+  const [workflowRecordTarget, setWorkflowRecordTarget] = useState<{
+    recordType?: string;
+    recordId?: string;
+  } | null>(null);
 
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
   const isStudentWorkspace = currentUser?.role === 'Student';
+
+  useEffect(() => {
+    if (currentUser?.role !== 'Office Staff/Admin') {
+      setMarksDashboardSummary(null);
+      setEvaluationPeriods([]);
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([getDashboardSummary(), getEvaluationPeriods()])
+      .then(([dashboardSummary, periods]) => {
+        if (cancelled) return;
+        setMarksDashboardSummary(dashboardSummary);
+        setEvaluationPeriods(periods);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMarksDashboardSummary(null);
+        setEvaluationPeriods([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.role]);
+
+  const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records') => {
+    setMarksRecordStatusTab(statusTab);
+    setActiveSidebarItem(SIDEBAR_ITEMS.MARKS_ENTRY);
+    setCurrentSubView('records');
+  };
+
+  const activeEvaluationPeriod = evaluationPeriods.find((period) => period.isOpen) || evaluationPeriods[0];
+  const activePeriodDates = activeEvaluationPeriod
+    ? [formatPeriodDate(activeEvaluationPeriod.opensAt), formatPeriodDate(activeEvaluationPeriod.closesAt)]
+        .filter(Boolean)
+        .join(' - ')
+    : 'No active period configured';
+  const taskTotals = activeEvaluationPeriod?.taskTotals;
+  const totalMarkTasks = taskTotals?.total ?? (
+    (marksDashboardSummary?.submittedMarkEntries ?? 0)
+    + (marksDashboardSummary?.incompleteMarkEntries ?? 0)
+  );
+  const submittedMarkTasks = taskTotals?.submitted ?? marksDashboardSummary?.submittedMarkEntries ?? 0;
+  const incompleteMarkTasks = taskTotals?.incomplete ?? marksDashboardSummary?.incompleteMarkEntries ?? 0;
 
   // Setup checklist data
   const checklistTasks: ChecklistItem[] = [
@@ -160,7 +228,7 @@ export default function App() {
 
   const handleSuccessfulLogin = (user: DemoUser) => {
     setCurrentUser(user);
-    setActiveSidebarItem(user.role === 'Lecturer' ? SIDEBAR_ITEMS.MARKS_ENTRY : SIDEBAR_ITEMS.DASHBOARD);
+    setActiveSidebarItem(defaultLandingPageForUser(user));
     setCurrentSubView('dashboard');
     setDashboardSubView('overview');
   };
@@ -210,7 +278,9 @@ export default function App() {
           activeItem={activeSidebarItem}
           onNavigate={(target) => {
             setActiveSidebarItem(target);
+            setWorkflowRecordTarget(null);
             setCurrentSubView('dashboard');
+            setMarksRecordStatusTab('All Records');
             setDashboardSubView('overview');
           }}
           onLogout={handleLogout}
@@ -234,6 +304,7 @@ export default function App() {
             ) : currentSubView === 'records' ? (
               <MarkEntryRecords 
                 onBack={() => setCurrentSubView('dashboard')} 
+                initialStatusTab={marksRecordStatusTab}
                 onViewRecordDetail={(recordId) => {
                   setSelectedRecordId(recordId);
                   setCurrentSubView('detail');
@@ -262,9 +333,9 @@ export default function App() {
                 <div id="summary-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   <SummaryCard
                     title="Mark Entry Period"
-                    badgeText="Active"
-                    badgeType="active"
-                    subtext="01 Dec - 10 Dec 2025"
+                    badgeText={activeEvaluationPeriod?.isOpen ? 'Active' : 'Configured'}
+                    badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
+                    subtext={activePeriodDates}
                     icon={Calendar}
                     onClick={() => setCurrentSubView('config')}
                   />
@@ -278,19 +349,19 @@ export default function App() {
                   />
                   <SummaryCard
                     title="Evaluation Tasks"
-                    badgeText="Generated"
+                    badgeText={`${totalMarkTasks} Tasks`}
                     badgeType="generated"
-                    subtext="48 tasks assigned"
+                    subtext={`${taskTotals?.supervisor ?? marksDashboardSummary?.supervisorMarkTasks ?? 0} supervisor, ${taskTotals?.panel ?? marksDashboardSummary?.panelMarkTasks ?? 0} panel, ${taskTotals?.backup ?? marksDashboardSummary?.backupMarkTasks ?? 0} backup`}
                     icon={CheckCircle}
                     onClick={() => setCurrentSubView('assignment')}
                   />
                   <SummaryCard
                     title="Submitted Marks"
-                    badgeText="32 / 48"
+                    badgeText={`${submittedMarkTasks} / ${totalMarkTasks}`}
                     badgeType="ratio"
-                    subtext="16 submissions pending"
+                    subtext={`${incompleteMarkTasks} submissions pending`}
                     icon={Database}
-                    onClick={() => showAppToast('Mark Auditor: 32 candidates have finalized submissions. 16 records remain open for edit access.')}
+                    onClick={() => openMarkRecords('Submitted')}
                   />
                 </div>
 
@@ -307,7 +378,7 @@ export default function App() {
                     />
 
                     {/* Submission Monitoring */}
-                    <MarkSubmissionMonitoring onViewRecords={() => setCurrentSubView('records')} />
+                    <MarkSubmissionMonitoring onViewRecords={openMarkRecords} />
                   </div>
 
                   {/* Right column content: Urgent alerts list, Quick Actions, Database sync */}
@@ -321,7 +392,7 @@ export default function App() {
                       onConfigurePeriod={() => setCurrentSubView('config')}
                       onManageRubrics={() => setCurrentSubView('rubric')}
                       onGenerateTasks={() => setCurrentSubView('assignment')}
-                      onViewRecords={() => setCurrentSubView('records')}
+                      onViewRecords={() => openMarkRecords('All Records')}
                     />
                   </div>
 
@@ -333,15 +404,35 @@ export default function App() {
             isStudentWorkspace ? (
               <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
             ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
-              <LecturerPanelAppointments currentUser={currentUser} />
+              <LecturerPanelAppointments
+                currentUser={currentUser}
+                initialRecommendationId={
+                  workflowRecordTarget?.recordType === 'PANEL_RECOMMENDATION'
+                    ? workflowRecordTarget.recordId
+                    : undefined
+                }
+              />
             ) : (
               <PanelAppointmentManagement />
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
             isStudentWorkspace ? (
-              <StudentSupervisorAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
+              <StudentSupervisorAppointment
+                onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)}
+                initialApplicationId={
+                  workflowRecordTarget?.recordType === 'SUPERVISOR_APPLICATION'
+                    ? workflowRecordTarget.recordId
+                    : undefined
+                }
+              />
+            ) : isCoordinatorWorkspace ? (
+              <CoordinatorSupervisorDeferred
+                initialApplicationId={workflowRecordTarget?.recordId}
+              />
             ) : isLecturerWorkspace ? (
-              <LecturerSupervisorAppointments />
+              <LecturerSupervisorAppointments
+                initialApplicationId={workflowRecordTarget?.recordId}
+              />
             ) : (
               <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem(SIDEBAR_ITEMS.PANEL_APPOINTMENTS)} />
             )
@@ -353,6 +444,10 @@ export default function App() {
                 studentName={currentUser.fullName}
                 studentId={currentUser.studentId}
                 programme={currentUser.department}
+                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+              />
+            ) : isCoordinatorWorkspace ? (
+              <CoordinatorDashboard
                 onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
               />
             ) : isLecturerWorkspace ? (
@@ -367,6 +462,7 @@ export default function App() {
                   setActiveSidebarItem(tab);
                   setCurrentSubView('dashboard');
                 }}
+                onNavigateToMarksRecords={openMarkRecords}
                 onShowModal={setActivePortalModal}
                 onNavigateToTimeline={() => setDashboardSubView('timeline')}
               />
@@ -396,7 +492,17 @@ export default function App() {
           ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
             <AnnouncementManagement />
           ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
-            <NotificationsAnnouncements onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
+            <NotificationsAnnouncements
+              onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)}
+              onOpenWorkflowRecord={(notification: NotificationItem) => {
+                const target = notificationTargetToNavigation(notification);
+                setWorkflowRecordTarget({
+                  recordType: target.recordType,
+                  recordId: target.recordId,
+                });
+                setActiveSidebarItem(target.sidebarItem);
+              }}
+            />
           ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
             <SettingsView currentUser={currentUser} onLogout={handleLogout} />
           ) : (

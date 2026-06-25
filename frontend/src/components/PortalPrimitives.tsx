@@ -5,12 +5,12 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
 
-type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'danger' | 'ghost' | 'success';
+type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'danger' | 'dangerSolid' | 'ghost' | 'success';
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
 interface PortalButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -39,6 +39,7 @@ export const PortalButton: React.FC<PortalButtonProps> = ({
     secondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-brand-navy shadow-3xs',
     soft: 'bg-blue-50 text-blue-700 border border-blue-150 hover:bg-blue-100 shadow-3xs',
     danger: 'bg-rose-50 text-rose-700 border border-rose-150 hover:bg-rose-100 shadow-3xs',
+    dangerSolid: 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 shadow-sm',
     ghost: 'bg-transparent text-slate-600 border border-transparent hover:bg-slate-100 hover:text-brand-navy',
     success: 'bg-emerald-50 text-emerald-700 border border-emerald-150 hover:bg-emerald-100 shadow-3xs'
   };
@@ -337,6 +338,117 @@ export const RemovableTag: React.FC<RemovableTagProps> = ({
       </button>
     </span>
   );
+};
+
+type ConfirmTone = 'danger' | 'warning' | 'info';
+
+interface PortalConfirmModalProps {
+  isOpen: boolean;
+  title: string;
+  message: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: ConfirmTone;
+  icon?: LucideIcon;
+  isLoading?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
+  isOpen,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  tone = 'danger',
+  icon,
+  isLoading = false,
+  onConfirm,
+  onCancel,
+}) => {
+  if (!isOpen) return null;
+
+  const toneClass: Record<ConfirmTone, {
+    iconWrap: string;
+    icon: string;
+    eyebrow: string;
+    confirmVariant: ButtonVariant;
+  }> = {
+    danger: {
+      iconWrap: 'bg-rose-50 border-rose-100',
+      icon: 'text-rose-600',
+      eyebrow: 'text-rose-600',
+      confirmVariant: 'dangerSolid',
+    },
+    warning: {
+      iconWrap: 'bg-amber-50 border-amber-100',
+      icon: 'text-amber-600',
+      eyebrow: 'text-amber-700',
+      confirmVariant: 'primary',
+    },
+    info: {
+      iconWrap: 'bg-blue-50 border-blue-100',
+      icon: 'text-blue-600',
+      eyebrow: 'text-blue-700',
+      confirmVariant: 'primary',
+    },
+  };
+
+  const toneConfig = toneClass[tone];
+  const Icon = icon || AlertTriangle;
+
+  const node = (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 px-4 py-6 font-sans backdrop-blur-[2px]"
+      role="presentation"
+      onMouseDown={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl border border-white/80 bg-white p-6 text-left shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="portal-confirm-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-4">
+          <div className={joinClasses('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border', toneConfig.iconWrap)}>
+            <Icon className={joinClasses('h-5 w-5 stroke-[2.4]', toneConfig.icon)} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={joinClasses('text-[10px] font-black uppercase tracking-[0.2em]', toneConfig.eyebrow)}>
+              Confirmation Required
+            </p>
+            <h2 id="portal-confirm-title" className="mt-1 text-lg font-black leading-tight text-brand-navy">
+              {title}
+            </h2>
+            <div className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">
+              {message}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <PortalButton
+            variant="secondary"
+            onClick={onCancel}
+            disabled={isLoading}
+          >
+            {cancelLabel}
+          </PortalButton>
+          <PortalButton
+            variant={toneConfig.confirmVariant}
+            onClick={onConfirm}
+            isLoading={isLoading}
+          >
+            {confirmLabel}
+          </PortalButton>
+        </div>
+      </div>
+    </div>
+  );
+
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
 
 type ToastTone = 'info' | 'success' | 'warning' | 'danger';

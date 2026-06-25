@@ -32,7 +32,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { RubricComponent } from '../types';
 import { getRubricComponents } from '../services';
@@ -92,6 +92,7 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
   // Toast / System Alerts
   const [toast, setToast] = useState<string | null>(null);
+  const [pendingDeleteRubric, setPendingDeleteRubric] = useState<RubricComponent | null>(null);
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -163,10 +164,14 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
 
   const handleDeleteComponent = (id: string) => {
     const item = rubrics.find(r => r.id === id);
-    if (item && confirm(`Are you sure you want to remove "${item.name}" from the evaluation criteria?`)) {
-      setRubrics(prev => prev.filter(r => r.id !== id));
-      triggerToast(`Removed "${item.name}" from rubrics.`);
-    }
+    if (item) setPendingDeleteRubric(item);
+  };
+
+  const confirmDeleteComponent = () => {
+    if (!pendingDeleteRubric) return;
+    setRubrics(prev => prev.filter(r => r.id !== pendingDeleteRubric.id));
+    triggerToast(`Removed "${pendingDeleteRubric.name}" from rubrics.`);
+    setPendingDeleteRubric(null);
   };
 
   // Handle duplicate / clone
@@ -186,6 +191,16 @@ export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ on
     <div id="rubrics-root-frame" className="space-y-8 animate-fade-in relative text-left">
       
       <PortalToast message={toast} />
+      <PortalConfirmModal
+        isOpen={Boolean(pendingDeleteRubric)}
+        title="Remove rubric component?"
+        message={pendingDeleteRubric ? `Remove "${pendingDeleteRubric.name}" from the evaluation criteria? This affects the current rubric setup shown in this workspace.` : ''}
+        confirmLabel="Remove Component"
+        cancelLabel="Keep Component"
+        tone="danger"
+        onConfirm={confirmDeleteComponent}
+        onCancel={() => setPendingDeleteRubric(null)}
+      />
 
       <PageHeader
         title="Rubric Components Management"

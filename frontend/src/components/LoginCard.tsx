@@ -295,7 +295,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">1. Student</span>
-            <span className="text-[9px] text-slate-400 block font-mono">WEA200192</span>
+            <span className="text-[9px] text-slate-400 block font-mono">200192</span>
           </button>
 
           <button

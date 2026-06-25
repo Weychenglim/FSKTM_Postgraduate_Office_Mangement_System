@@ -56,15 +56,15 @@ export const DEMO_CREDENTIALS: Record<string, { email: string; pass: string; use
     }
   },
   student: {
-    email: "WEA200192@siswa.um.edu.my",
+    email: "200192@siswa.um.edu.my",
     pass: "student2026",
     user: {
       id: "usr004",
-      email: "WEA200192@siswa.um.edu.my",
+      email: "200192@siswa.um.edu.my",
       role: "Student",
       fullName: "Fatimah Al-Zahra",
       department: "Master of Computer Science (By Coursework)",
-      studentId: "WEA200192"
+      studentId: "200192"
     }
   }
 };
