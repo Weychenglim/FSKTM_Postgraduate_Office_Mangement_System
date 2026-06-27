@@ -1,4 +1,4 @@
-import { SIDEBAR_ITEMS } from '../constants/navigation';
+import { routeForNotificationTarget } from '../constants/routes';
 
 type SupervisorWorkflowStatus =
   | 'SUBMITTED_TO_SUPERVISOR'
@@ -18,15 +18,5 @@ interface WorkflowNotificationTarget {
   recordId?: string;
 }
 
-export const notificationTargetToNavigation = (
-  target: WorkflowNotificationTarget,
-) => ({
-  sidebarItem:
-    target.targetModule === 'SUPERVISOR_APPOINTMENTS'
-      ? SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS
-      : target.targetModule === 'PANEL_APPOINTMENTS'
-      ? SIDEBAR_ITEMS.PANEL_APPOINTMENTS
-      : SIDEBAR_ITEMS.NOTIFICATIONS,
-  recordType: target.recordType,
-  recordId: target.recordId,
-});
+export const notificationTargetToRoute = (target: WorkflowNotificationTarget) =>
+  routeForNotificationTarget(target);

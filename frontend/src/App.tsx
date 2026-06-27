@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Navigate, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
 import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
@@ -52,12 +53,20 @@ import {
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
+import {
+  APP_ROUTES,
+  isKnownAppPath,
+  routeForMarkRecord,
+  routeForNotificationTarget,
+  routeForSidebarItem,
+  sidebarItemForPath,
+} from './constants/routes';
+import { canAccessModule } from './auth/permissions';
 import { authApi, getAuthToken, clearAuthToken, getDashboardSummary, getEvaluationPeriods } from './services';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { MOCK_MARK_RECORDS } from './mocks/marks';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { MarkRecordStatusTab } from './utils/markRecords';
-import { notificationTargetToNavigation } from './utils/workflowTracking';
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
@@ -87,6 +96,10 @@ const formatPeriodDate = (value?: string | null) => {
 };
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathname = location.pathname;
+
   // Authentication session tracking
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
 
@@ -94,22 +107,12 @@ export default function App() {
   // Prevents the login page from flashing on refresh before /auth/me/ resolves.
   const [isRestoringSession, setIsRestoringSession] = useState(true);
 
-  // Unauthenticated view routing state
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
-
-  // Captured from a password-reset email link (?uid=...&token=...).
-  const [resetParams, setResetParams] = useState<{ uid: string; token: string } | null>(null);
-
-  // On first load, detect a password-reset link and switch to the reset view.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+  const resetParams = (() => {
+    const params = new URLSearchParams(location.search);
     const uid = params.get('uid');
     const token = params.get('token');
-    if (uid && token) {
-      setResetParams({ uid, token });
-      setAuthView('reset');
-    }
-  }, []);
+    return uid && token ? { uid, token } : null;
+  })();
 
   // On first load, restore the session from the stored JWT so a page refresh
   // (or a new tab) does not bounce the user back to the login screen.
@@ -136,16 +139,6 @@ export default function App() {
     };
   }, []);
 
-  // Sidebar navigation active state
-  const [activeSidebarItem, setActiveSidebarItem] = useState<string>(SIDEBAR_ITEMS.DASHBOARD);
-
-  // Sub-view transition state under Dashboard Overview
-  const [dashboardSubView, setDashboardSubView] = useState<'overview' | 'timeline'>('overview');
-
-  // Sub-view transition state under Marks Entry
-  const [currentSubView, setCurrentSubView] = useState<'dashboard' | 'config' | 'rubric' | 'assignment' | 'records' | 'detail'>('dashboard');
-
-  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');
   const [marksDashboardSummary, setMarksDashboardSummary] = useState<DashboardSummary | null>(null);
   const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriodOption[]>([]);
@@ -153,14 +146,21 @@ export default function App() {
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
   const [appToastMessage, setAppToastMessage] = useState<string | null>(null);
-  const [workflowRecordTarget, setWorkflowRecordTarget] = useState<{
-    recordType?: string;
-    recordId?: string;
-  } | null>(null);
-
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
   const isStudentWorkspace = currentUser?.role === 'Student';
+  const activeSidebarItem = sidebarItemForPath(pathname);
+  const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
+  const supervisorApplicationMatch = matchPath(`${APP_ROUTES.supervisorAppointments}/:applicationId`, pathname);
+  const panelRecommendationMatch = matchPath(`${APP_ROUTES.panelAppointments}/recommendations/:recommendationId`, pathname);
+  const markRecordId = markRecordMatch?.params.recordId;
+  const supervisorApplicationId = supervisorApplicationMatch?.params.applicationId;
+  const panelRecommendationId = panelRecommendationMatch?.params.recommendationId;
+  const isMarksConfigRoute = pathname === APP_ROUTES.marksConfig;
+  const isMarksRubricsRoute = pathname === APP_ROUTES.marksRubrics;
+  const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
+  const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
+  const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
 
   useEffect(() => {
     if (currentUser?.role !== 'Office Staff/Admin') {
@@ -189,8 +189,7 @@ export default function App() {
 
   const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records') => {
     setMarksRecordStatusTab(statusTab);
-    setActiveSidebarItem(SIDEBAR_ITEMS.MARKS_ENTRY);
-    setCurrentSubView('records');
+    navigate(APP_ROUTES.marksRecords);
   };
 
   const activeEvaluationPeriod = evaluationPeriods.find((period) => period.isOpen) || evaluationPeriods[0];
@@ -218,19 +217,17 @@ export default function App() {
   // Handler when clicking checklist steps
   const handleChecklistAction = (item: ChecklistItem) => {
     if (item.id === '1') {
-      setCurrentSubView('config');
+      navigate(APP_ROUTES.marksConfig);
     } else if (item.id === '2') {
-      setCurrentSubView('rubric');
+      navigate(APP_ROUTES.marksRubrics);
     } else if (item.id === '3' || item.id === '4') {
-      setCurrentSubView('assignment');
+      navigate(APP_ROUTES.marksTasks);
     }
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
     setCurrentUser(user);
-    setActiveSidebarItem(defaultLandingPageForUser(user));
-    setCurrentSubView('dashboard');
-    setDashboardSubView('overview');
+    navigate(routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
   };
 
   const showAppToast = (message: string) => {
@@ -241,20 +238,17 @@ export default function App() {
   const handleLogout = () => {
     void authApi.logout();
     setCurrentUser(null);
+    navigate(APP_ROUTES.login, { replace: true });
   };
 
   // Leave the reset view and clean the reset params out of the URL bar.
   const handleBackToLogin = () => {
-    if (resetParams) {
-      window.history.replaceState({}, '', '/');
-      setResetParams(null);
-    }
-    setAuthView('login');
+    navigate(APP_ROUTES.login, { replace: true });
   };
 
   // While restoring a session from a stored token, hold a neutral loading screen
   // instead of flashing the login page (skip it for the reset-password link flow).
-  if (isRestoringSession && authView !== 'reset') {
+  if (isRestoringSession && pathname !== APP_ROUTES.resetPassword) {
     return (
       <div
         id="session-restore-loading"
@@ -268,24 +262,80 @@ export default function App() {
     );
   }
 
+  if (!currentUser) {
+    if (pathname === APP_ROUTES.resetPassword && resetParams) {
+      return (
+        <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
+          <ResetPasswordPage
+            uid={resetParams.uid}
+            token={resetParams.token}
+            onBackToLogin={handleBackToLogin}
+          />
+        </div>
+      );
+    }
+
+    if (pathname === APP_ROUTES.forgotPassword) {
+      return (
+        <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
+          <ForgotPasswordFlow onBackToLogin={() => navigate(APP_ROUTES.login)} />
+        </div>
+      );
+    }
+
+    if (pathname !== APP_ROUTES.login) {
+      return <Navigate to={APP_ROUTES.login} replace />;
+    }
+
+    return (
+      <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
+        <AuthLayout>
+          <div className="w-full flex justify-center items-center">
+            <div className="w-full flex justify-center flex-col items-center">
+              <LoginCard
+                onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
+                onLoginSuccess={handleSuccessfulLogin}
+              />
+
+              <div className="mt-4 text-[11px] text-slate-400 font-medium font-sans">
+                Tip: Enter valid credentials or click any character role from the Console to log in.
+              </div>
+            </div>
+          </div>
+        </AuthLayout>
+      </div>
+    );
+  }
+
+  const defaultAuthenticatedRoute = routeForSidebarItem(defaultLandingPageForUser(currentUser));
+  if (
+    pathname === APP_ROUTES.root
+    || pathname === APP_ROUTES.login
+    || pathname === APP_ROUTES.forgotPassword
+    || pathname === APP_ROUTES.resetPassword
+    || !isKnownAppPath(pathname)
+  ) {
+    return <Navigate to={defaultAuthenticatedRoute} replace />;
+  }
+
+  if (!canAccessModule(currentUser.role, activeSidebarItem)) {
+    return <Navigate to={defaultAuthenticatedRoute} replace />;
+  }
+
   return (
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
-      {currentUser ? (
-        /* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */
-        <NotificationsProvider>
+      {/* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */}
+      <NotificationsProvider>
         <PortalToast message={appToastMessage} />
         <AppLayout
           activeItem={activeSidebarItem}
           onNavigate={(target) => {
-            setActiveSidebarItem(target);
-            setWorkflowRecordTarget(null);
-            setCurrentSubView('dashboard');
             setMarksRecordStatusTab('All Records');
-            setDashboardSubView('overview');
+            navigate(routeForSidebarItem(target));
           }}
           onLogout={handleLogout}
           onNotificationsTrigger={() => {
-            setActiveSidebarItem(SIDEBAR_ITEMS.NOTIFICATIONS);
+            navigate(APP_ROUTES.notifications);
           }}
           userName={currentUser.fullName}
           userRole={currentUser.role}
@@ -294,26 +344,23 @@ export default function App() {
         >
           {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
             isLecturerWorkspace ? (
-              <LecturerMarksEntry onBackToDashboard={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)} />
-            ) : currentSubView === 'config' ? (
-              <MarkEntryPeriodConfig onBack={() => setCurrentSubView('dashboard')} />
-            ) : currentSubView === 'rubric' ? (
-              <RubricsManagementView onBack={() => setCurrentSubView('dashboard')} />
-            ) : currentSubView === 'assignment' ? (
-              <EvaluationTaskAssignment onBack={() => setCurrentSubView('dashboard')} />
-            ) : currentSubView === 'records' ? (
+              <LecturerMarksEntry onBackToDashboard={() => navigate(APP_ROUTES.dashboard)} />
+            ) : isMarksConfigRoute ? (
+              <MarkEntryPeriodConfig onBack={() => navigate(APP_ROUTES.marks)} />
+            ) : isMarksRubricsRoute ? (
+              <RubricsManagementView onBack={() => navigate(APP_ROUTES.marks)} />
+            ) : isMarksTasksRoute ? (
+              <EvaluationTaskAssignment onBack={() => navigate(APP_ROUTES.marks)} />
+            ) : isMarksRecordsRoute ? (
               <MarkEntryRecords 
-                onBack={() => setCurrentSubView('dashboard')} 
+                onBack={() => navigate(APP_ROUTES.marks)}
                 initialStatusTab={marksRecordStatusTab}
-                onViewRecordDetail={(recordId) => {
-                  setSelectedRecordId(recordId);
-                  setCurrentSubView('detail');
-                }}
+                onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId))}
               />
-            ) : currentSubView === 'detail' ? (
+            ) : markRecordId ? (
               <MarkEntryRecordDetail
-                onBack={() => setCurrentSubView('records')}
-                {...(selectedRecordId ? getRecordDetails(selectedRecordId) : {})}
+                onBack={() => navigate(APP_ROUTES.marksRecords)}
+                {...getRecordDetails(markRecordId)}
               />
             ) : (
               /* Main Dashboard Marks Entry View workspace */
@@ -337,7 +384,7 @@ export default function App() {
                     badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
                     subtext={activePeriodDates}
                     icon={Calendar}
-                    onClick={() => setCurrentSubView('config')}
+                    onClick={() => navigate(APP_ROUTES.marksConfig)}
                   />
                   <SummaryCard
                     title="Rubric Components"
@@ -345,7 +392,7 @@ export default function App() {
                     badgeType="ready"
                     subtext="5 components, 100 marks"
                     icon={Sliders}
-                    onClick={() => setCurrentSubView('rubric')}
+                    onClick={() => navigate(APP_ROUTES.marksRubrics)}
                   />
                   <SummaryCard
                     title="Evaluation Tasks"
@@ -353,7 +400,7 @@ export default function App() {
                     badgeType="generated"
                     subtext={`${taskTotals?.supervisor ?? marksDashboardSummary?.supervisorMarkTasks ?? 0} supervisor, ${taskTotals?.panel ?? marksDashboardSummary?.panelMarkTasks ?? 0} panel, ${taskTotals?.backup ?? marksDashboardSummary?.backupMarkTasks ?? 0} backup`}
                     icon={CheckCircle}
-                    onClick={() => setCurrentSubView('assignment')}
+                    onClick={() => navigate(APP_ROUTES.marksTasks)}
                   />
                   <SummaryCard
                     title="Submitted Marks"
@@ -389,9 +436,9 @@ export default function App() {
 
                     {/* Quick Actions buttons with Database state indicators */}
                     <QuickActionsCard
-                      onConfigurePeriod={() => setCurrentSubView('config')}
-                      onManageRubrics={() => setCurrentSubView('rubric')}
-                      onGenerateTasks={() => setCurrentSubView('assignment')}
+                      onConfigurePeriod={() => navigate(APP_ROUTES.marksConfig)}
+                      onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
+                      onGenerateTasks={() => navigate(APP_ROUTES.marksTasks)}
                       onViewRecords={() => openMarkRecords('All Records')}
                     />
                   </div>
@@ -402,15 +449,11 @@ export default function App() {
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
             isStudentWorkspace ? (
-              <StudentPanelAppointment onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)} />
+              <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} />
             ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
               <LecturerPanelAppointments
                 currentUser={currentUser}
-                initialRecommendationId={
-                  workflowRecordTarget?.recordType === 'PANEL_RECOMMENDATION'
-                    ? workflowRecordTarget.recordId
-                    : undefined
-                }
+                initialRecommendationId={panelRecommendationId}
               />
             ) : (
               <PanelAppointmentManagement />
@@ -418,53 +461,48 @@ export default function App() {
           ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
             isStudentWorkspace ? (
               <StudentSupervisorAppointment
-                onShowFAQChatbot={() => setActiveSidebarItem(SIDEBAR_ITEMS.FAQ_CHATBOT)}
-                initialApplicationId={
-                  workflowRecordTarget?.recordType === 'SUPERVISOR_APPLICATION'
-                    ? workflowRecordTarget.recordId
-                    : undefined
-                }
+                onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
+                initialApplicationId={supervisorApplicationId}
               />
             ) : isCoordinatorWorkspace ? (
               <CoordinatorSupervisorDeferred
-                initialApplicationId={workflowRecordTarget?.recordId}
+                initialApplicationId={supervisorApplicationId}
               />
             ) : isLecturerWorkspace ? (
               <LecturerSupervisorAppointments
-                initialApplicationId={workflowRecordTarget?.recordId}
+                initialApplicationId={supervisorApplicationId}
               />
             ) : (
-              <SupervisorAppointmentManagement onNavigateToWorkload={() => setActiveSidebarItem(SIDEBAR_ITEMS.PANEL_APPOINTMENTS)} />
+              <SupervisorAppointmentManagement onNavigateToWorkload={() => navigate(APP_ROUTES.panelAppointments)} />
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
             <StudentRegistry />
-          ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD || activeSidebarItem === 'Office Dashboard' || activeSidebarItem === 'Timeline Management' ? (
+          ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
             isStudentWorkspace ? (
               <StudentDashboard
                 studentName={currentUser.fullName}
                 studentId={currentUser.studentId}
                 programme={currentUser.department}
-                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
               />
             ) : isCoordinatorWorkspace ? (
               <CoordinatorDashboard
-                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
               />
             ) : isLecturerWorkspace ? (
               <LecturerDashboard
-                onNavigateToTab={(tab) => setActiveSidebarItem(tab)}
+                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
               />
-            ) : dashboardSubView === 'timeline' ? (
-              <TimelineManagement onBack={() => setDashboardSubView('overview')} />
+            ) : isDashboardTimelineRoute ? (
+              <TimelineManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
             ) : (
               <AdministrationDashboard 
                 onNavigateToTab={(tab) => {
-                  setActiveSidebarItem(tab);
-                  setCurrentSubView('dashboard');
+                  navigate(routeForSidebarItem(tab));
                 }}
                 onNavigateToMarksRecords={openMarkRecords}
                 onShowModal={setActivePortalModal}
-                onNavigateToTimeline={() => setDashboardSubView('timeline')}
+                onNavigateToTimeline={() => navigate(APP_ROUTES.dashboardTimeline)}
               />
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
@@ -493,14 +531,9 @@ export default function App() {
             <AnnouncementManagement />
           ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
             <NotificationsAnnouncements
-              onBack={() => setActiveSidebarItem(SIDEBAR_ITEMS.DASHBOARD)}
+              onBack={() => navigate(APP_ROUTES.dashboard)}
               onOpenWorkflowRecord={(notification: NotificationItem) => {
-                const target = notificationTargetToNavigation(notification);
-                setWorkflowRecordTarget({
-                  recordType: target.recordType,
-                  recordId: target.recordId,
-                });
-                setActiveSidebarItem(target.sidebarItem);
+                navigate(routeForNotificationTarget(notification));
               }}
             />
           ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
@@ -518,7 +551,7 @@ export default function App() {
                 You have routed to the <strong>{activeSidebarItem}</strong> workflow module inside the FSKTM administrative center. To fulfill layout reference checks, please toggle back to the <strong>Marks Entry</strong> tab.
               </p>
               <button
-                onClick={() => setActiveSidebarItem(SIDEBAR_ITEMS.MARKS_ENTRY)}
+                onClick={() => navigate(APP_ROUTES.marks)}
                 className="mt-6 px-5 py-2.5 bg-brand-navy text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
               >
                 Return to Marks Entry
@@ -526,39 +559,7 @@ export default function App() {
             </div>
           )}
         </AppLayout>
-        </NotificationsProvider>
-      ) : authView === 'reset' && resetParams ? (
-        /* ==================== FRONTEND: STANDALONE RESET PASSWORD SCREEN ==================== */
-        <ResetPasswordPage
-          uid={resetParams.uid}
-          token={resetParams.token}
-          onBackToLogin={handleBackToLogin}
-        />
-      ) : authView === 'forgot' ? (
-        /* ==================== FRONTEND: STANDALONE FORGOT PASSWORD SCREEN ==================== */
-        <ForgotPasswordFlow onBackToLogin={() => setAuthView('login')} />
-      ) : (
-        /* ==================== FRONTEND: STANDALONE LOGIN SCREEN ==================== */
-        <AuthLayout>
-          {/* We replace the default internal form but utilize LoginCard's beautiful interaction callbacks */}
-          <div className="w-full flex justify-center items-center">
-            {/* When LoginCard completes successful auth, it passes down via context or sets page user. Since LoginCard handles its own local session established state, let's wrap it. To allow LoginCard to let a user login to App, we can provide a button or direct detection. We put LoginCard inside. */}
-            <div className="w-full flex justify-center flex-col items-center">
-
-              {/* Real LoginCard */}
-              <LoginCard 
-                onForgotPasswordClick={() => setAuthView('forgot')}
-                onLoginSuccess={handleSuccessfulLogin}
-              />
-
-              {/* Visual guidance indicator */}
-              <div className="mt-4 text-[11px] text-slate-400 font-medium font-sans">
-                Tip: Enter valid credentials or click any character role from the Console to log in.
-              </div>
-            </div>
-          </div>
-        </AuthLayout>
-      )}
+      </NotificationsProvider>
     </div>
   );
 }

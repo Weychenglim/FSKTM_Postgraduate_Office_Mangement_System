@@ -28,6 +28,7 @@
 - Added student cancellation for pending Supervisor Appointment requests, including mandatory reasons, row locking, `CANCELLED_BY_STUDENT`, audit retention, queue removal, replacement submissions, and supervisor notification.
 - Removed the unused Panel `ACCEPTED_BY_PANEL` state; selected-panel acceptance now has one supported transition directly to `PENDING_COORDINATOR`.
 - Added protected Supervisor and Panel detail APIs, expandable audit logs, workflow notification metadata, stakeholder notification fan-out, and notification-to-record navigation.
+- Added clean URL routing with React Router DOM for auth pages, sidebar modules, dashboard timeline, marks subviews, mark record detail, supervisor application deep links, panel recommendation deep links, unknown-route redirects, and notification-to-record navigation.
 - Applied local migrations through `appointments.0006` and `announcements.0003`.
 - Moved shared portal toast feedback to the top-right viewport position with high overlay layering so it remains visible above the sticky header, drawers, and modals.
 
@@ -115,6 +116,9 @@
 
 ## Current Testing Status
 
+- Focused route helper, role permission, and workflow notification route tests pass after adding clean URL routing.
+- `npm run lint` passes after adding clean URL routing and the missing Overdue status label.
+- `npm run build` passes after adding clean URL routing; the existing large bundle chunk warning remains.
 - Supervisor panel cancellation verification passes: 3 focused Django API tests, the panel workflow frontend test, `npm run lint`, `npm run build`, and `makemigrations --check --dry-run`.
 - Focused Programme Coordinator workspace, programme authorization, full lifecycle, and selected-panel review-history Django tests pass.
 - Focused panel recommendation filtering and shared pagination frontend tests pass.
@@ -290,6 +294,7 @@
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
+- `npm install react-router-dom` reports 2 npm audit findings (1 low, 1 high); these are not resolved in the routing pass.
 
 ## Next Steps
 
