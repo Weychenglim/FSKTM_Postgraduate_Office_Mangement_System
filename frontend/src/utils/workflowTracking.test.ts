@@ -1,6 +1,6 @@
 import {
   canStudentCancelSupervisorApplication,
-  notificationTargetToNavigation,
+  notificationTargetToRoute,
 } from './workflowTracking';
 
 if (!canStudentCancelSupervisorApplication('SUBMITTED_TO_SUPERVISOR')) {
@@ -19,28 +19,22 @@ for (const status of [
   }
 }
 
-const supervisorTarget = notificationTargetToNavigation({
+const supervisorTarget = notificationTargetToRoute({
   targetModule: 'SUPERVISOR_APPOINTMENTS',
   recordType: 'SUPERVISOR_APPLICATION',
   recordId: '42',
 });
-if (
-  supervisorTarget.sidebarItem !== 'Supervisor Appointments'
-  || supervisorTarget.recordId !== '42'
-) {
-  throw new Error('Supervisor notification target was not resolved correctly.');
+if (supervisorTarget !== '/supervisor-appointments/42') {
+  throw new Error('Supervisor notification route was not resolved correctly.');
 }
 
-const panelTarget = notificationTargetToNavigation({
+const panelTarget = notificationTargetToRoute({
   targetModule: 'PANEL_APPOINTMENTS',
   recordType: 'PANEL_RECOMMENDATION',
   recordId: '7',
 });
-if (
-  panelTarget.sidebarItem !== 'Panel Appointments'
-  || panelTarget.recordId !== '7'
-) {
-  throw new Error('Panel notification target was not resolved correctly.');
+if (panelTarget !== '/panel-appointments/recommendations/7') {
+  throw new Error('Panel notification route was not resolved correctly.');
 }
 
 console.log('workflowTracking tests passed');

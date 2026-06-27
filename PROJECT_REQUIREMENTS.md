@@ -37,6 +37,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Announcement management UI for composing, filtering, and managing announcements.
 - Notification center UI for office staff alerts and announcements.
 - Forgot-password UI for unauthenticated account recovery guidance.
+- Clean URL routing for authenticated portal modules and selected workflow detail links, so refresh, bookmarks, browser history, and notification deep links preserve the intended screen.
 - Marks and evaluation management UI for mark entry period configuration, rubric management, evaluation task assignment, submission monitoring, and mark records.
 - Supervisor and panel appointment management UI for appointment status and workload monitoring.
 - Lecturer workspace UI for supervisor appointment requests, active supervisees, panel assignment details, recommendation submission, assigned mark-entry tasks, mark-entry forms, and submitted-mark review.
@@ -93,9 +94,10 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 ## Office Staff Module Requirements
 
 - Sidebar navigation must expose Dashboard Overview, Registry Management, FAQ Chatbot, File Management, Supervisor Appointments, Letter Generation, Announcements, Marks Entry, Panel Appointments, and Settings.
-- Header notifications must route to the Notifications & Announcements view.
+- Header notifications must route to `/notifications`, and workflow notifications must deep-link authorized users to the relevant Supervisor Appointment, Panel Appointment recommendation, or Marks record route when a record identifier is available.
 - Existing Dashboard Overview behavior must remain the default authenticated landing view for every role after a normal login.
-- Login and forgot-password flows must remain available after logout without blocking direct office-staff UI review during development.
+- Login, forgot-password, and reset-password flows must remain available at `/login`, `/forgot-password`, and `/reset-password?uid=...&token=...` after logout without blocking direct office-staff UI review during development.
+- Production frontend hosting for clean URLs must fall back unknown frontend paths to `index.html` so direct refresh works on routes such as `/marks/records/<recordId>`.
 
 ## Lecturer Module Requirements
 

@@ -4,6 +4,7 @@
 
 - React 19 with TypeScript
 - React type declarations through `@types/react` and `@types/react-dom` for editor and `tsc` support.
+- React Router DOM for clean URL routing in the frontend portal.
 - Vite for development and production builds
 - Tailwind CSS utility classes
 - Lucide React icons
@@ -25,8 +26,9 @@
 
 Frontend paths in this section are relative to `frontend/`.
 
-- `src/main.tsx` mounts the React app.
-- `src/App.tsx` owns the current demo authentication state, sidebar navigation state, and top-level module routing.
+- `src/main.tsx` mounts the React app inside `BrowserRouter`.
+- `src/App.tsx` owns the current demo authentication state and derives top-level module routing from the current URL.
+- `src/constants/routes.ts` centralizes clean URL paths, sidebar-to-route mapping, route-to-sidebar active-state mapping, known-route detection, and workflow notification deep-link targets.
 - `src/components/AppLayout.tsx` provides the authenticated portal layout.
 - `src/components/Sidebar.tsx` defines the office staff sidebar navigation labels.
 - `src/components/AdministrationDashboard.tsx` implements the Dashboard Overview module.
@@ -98,16 +100,18 @@ Frontend paths in this section are relative to `frontend/`.
 
 ## Navigation Pattern
 
-The app currently uses local React state rather than a route library.
+The app uses React Router clean URLs for top-level modules and high-value workflow detail links.
 
-- `activeSidebarItem` selects the main portal module.
-- `currentSubView` selects sub-views inside Marks Entry.
-- `dashboardSubView` selects Dashboard Overview sub-views such as `overview` and `timeline`.
-- `authView` selects the unauthenticated `login` or `forgot` password view after logout.
-- Header notification actions call back into `App.tsx` and set `activeSidebarItem` to `Notifications & Announcements`.
+- Auth routes are `/login`, `/forgot-password`, and `/reset-password?uid=...&token=...`.
+- Authenticated module routes include `/dashboard`, `/dashboard/timeline`, `/registry`, `/faq`, `/files`, `/supervisor-appointments`, `/letters`, `/announcements`, `/marks`, `/panel-appointments`, `/notifications`, and `/settings`.
+- Marks sub-routes include `/marks/config`, `/marks/rubrics`, `/marks/tasks`, `/marks/records`, and `/marks/records/:recordId`.
+- Workflow deep links include `/supervisor-appointments/:applicationId` and `/panel-appointments/recommendations/:recommendationId`.
+- `App.tsx` derives the active sidebar item from `location.pathname`; sidebar clicks and dashboard shortcuts call `navigate(route)`.
+- Component-local UI state remains local for drawers, dialogs, filters, and non-shareable edit/create modes.
 - `currentUser.role` controls whether shared sidebar entries render office-staff, lecturer, coordinator, or student workflows. Programme Coordinators route to their dedicated dashboard, deferred supervisor approval page, and programme-scoped panel workspace. Lecturer and student routing remains role-specific as described above.
-- All authenticated roles land on their role-specific `Dashboard Overview` after normal login; role-specific modules such as Lecturer Marks Entry remain reachable through the sidebar and notification-driven navigation.
+- All authenticated roles land on `Dashboard Overview` after normal login, direct visits to auth routes redirect to the dashboard, unauthorized module routes redirect to the dashboard, and unknown authenticated paths redirect to the dashboard.
 - `Sidebar` filters visible navigation items by active role while preserving the responsive drawer behavior from the current app shell.
+- Production hosts must serve `index.html` for unknown frontend paths so direct refresh works with clean URLs.
 
 ## Coding Conventions
 
@@ -147,5 +151,6 @@ The app currently uses local React state rather than a route library.
 
 - Run `npm run lint` for TypeScript compilation checks.
 - Run `npm run build` for production build verification.
+- Run focused frontend route helper tests with `npx tsx src/constants/routes.test.ts` and `npx tsx src/utils/workflowTracking.test.ts` when navigation behavior changes.
 - Run `python manage.py test` for backend workflow and permission checks.
 - Start the Vite dev server and smoke-test Dashboard Overview plus each newly routed office-staff module after UI changes.

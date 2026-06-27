@@ -78,6 +78,7 @@ const statusLabel = (status: EvaluationPreviewStatus): string => {
     NOT_STARTED: 'Not Started',
     DRAFT: 'Draft',
     SUBMITTED: 'Submitted',
+    OVERDUE: 'Overdue',
   };
   return labels[status] || status;
 };
