@@ -29,6 +29,9 @@
 - Removed the unused Panel `ACCEPTED_BY_PANEL` state; selected-panel acceptance now has one supported transition directly to `PENDING_COORDINATOR`.
 - Added protected Supervisor and Panel detail APIs, expandable audit logs, workflow notification metadata, stakeholder notification fan-out, and notification-to-record navigation.
 - Added clean URL routing with React Router DOM for auth pages, sidebar modules, dashboard timeline, marks subviews, mark record detail, supervisor application deep links, panel recommendation deep links, unknown-route redirects, and notification-to-record navigation.
+- Added page-level nested Panel Appointment routing for Office Staff/Admin record detail and workload monitoring, Lecturer submitted/reviewed/assignment pages, Programme Coordinator recommendation drawer links, and Student nested-route redirects.
+- Tightened Dashboard page-level routing so `/dashboard/timeline` remains the only Dashboard nested page, is Office Staff/Admin-only, and unsupported Dashboard nested paths redirect through the normal authenticated fallback.
+- Added route scroll restoration so routed page transitions start at the top while hash-only URL changes are left alone.
 - Applied local migrations through `appointments.0006` and `announcements.0003`.
 - Moved shared portal toast feedback to the top-right viewport position with high overlay layering so it remains visible above the sticky header, drawers, and modals.
 
@@ -126,7 +129,11 @@
 - Focused Django panel-record tests pass for standard office monitoring states and rejected-history retention after a later approval (2 tests, 0 failures).
 - Focused frontend pagination and panel-summary tests pass.
 - `npm run build` passes after the audit/panel record pagination change, with the existing non-blocking chunk-size warning.
-- Full `npm run lint` remains blocked by the pre-existing `LecturerPanelAppointments.tsx` `DemoUser.name` type error outside this change.
+- All frontend `.test.ts` scripts pass after adding page-level Panel Appointment nested routing.
+- `npm run lint` passes after adding page-level Panel Appointment nested routing.
+- `npm run build` passes after adding page-level Panel Appointment nested routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after tightening Dashboard page-level nested routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after adding top-of-page route scroll restoration; the existing non-blocking chunk-size warning remains.
 - Full `python manage.py test appointments --keepdb` currently has five pre-existing baseline failures: two date-sensitive dashboard timeline status expectations and three panel workload-limit expectations that assume 5 while `PANEL_WORKLOAD_LIMIT` is currently 10.
 - Authentication regression tests, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, the canonical credential test, `npm run lint`, and `npm run build` pass after the account migration fix. The full Django suite still reports the same five documented appointment/timeline baseline failures.
 - `npm run lint` passes from `frontend/` after reorganizing the project structure.

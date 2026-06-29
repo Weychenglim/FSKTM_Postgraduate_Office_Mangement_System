@@ -38,6 +38,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Notification center UI for office staff alerts and announcements.
 - Forgot-password UI for unauthenticated account recovery guidance.
 - Clean URL routing for authenticated portal modules and selected workflow detail links, so refresh, bookmarks, browser history, and notification deep links preserve the intended screen.
+- Routed page transitions must reset the window scroll position to the top while keeping hash-only navigation available for future anchor behavior.
 - Marks and evaluation management UI for mark entry period configuration, rubric management, evaluation task assignment, submission monitoring, and mark records.
 - Supervisor and panel appointment management UI for appointment status and workload monitoring.
 - Lecturer workspace UI for supervisor appointment requests, active supervisees, panel assignment details, recommendation submission, assigned mark-entry tasks, mark-entry forms, and submitted-mark review.
@@ -51,6 +52,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Office Staff/Admin Panel Appointment records must retain the recommended panel member, rejection stage, rejection reason, and available workflow timestamps for rejected attempts.
 - Office Staff/Admin Panel Appointment Records must paginate the filtered historical dataset at 10 records per page while summary cards and CSV export continue to use all matching records.
 - Office Staff/Admin Panel Appointment Detail must render selected backend panel record fields rather than screenshot/demo placeholders, show the academic year as `Session YYYY/YYYY`, show the complete panel workflow status timeline with recorded date-times when available, show richer related panel status information, and show related files/evaluation as concise no-records states until those modules are connected.
+- Office Staff/Admin Panel Appointment record detail and workload monitoring must be page-level routed at `/panel-appointments/records/<recordId>` and `/panel-appointments/workload`, with back actions returning to `/panel-appointments` and unknown records showing a clear not-found state.
 - Office Staff/Admin Panel Workload Snapshot and Panel Workload Monitoring must load lecturer workload from the persisted appointments backend instead of hardcoded lecturer rows.
 - Office Staff/Admin Panel Appointment Management and Panel Workload Monitoring must export the currently filtered records as downloadable CSV files.
 - Panel workload monitoring must count confirmed active panel appointments plus active pending nominations, show confirmed and pending counts separately, and classify lecturers as Available, Near Limit, or Full Load.
@@ -78,6 +80,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Records Needing Attention must remove the redundant Status column, show zero impact for unfinished dependency rows, omit mark-entry task generation rows for now, and calculate the lecturer panel workload impact count from the persisted panel workload data.
 - Office Monitoring Tasks must show Upload Semester Timeline as done, remove Monitor Mark Submission Status, and mark the remaining mark setup tasks as required action.
 - `Manage Timeline` must behave as a direct button that navigates to Timeline Management.
+- Dashboard page-level routing must support only `/dashboard` and Office Staff/Admin-only `/dashboard/timeline`; unsupported Dashboard nested URLs must redirect authenticated users back to `/dashboard`.
 - All authenticated users must be able to retrieve the active semester timeline for Dashboard Overview.
 - Student and Lecturer dashboard timeline views must only display entries targeted to their role; Office Staff/Admin dashboard and management views may display all timeline entries.
 - Student and Lecturer dashboard next-action lists must be driven by active semester timeline events filtered by target role, and must show a clear empty state when no active timeline or no role-specific events are available.
@@ -111,6 +114,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
 - Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
 - Lecturer Panel Appointments must support assigned panel task review, supervisor panel recommendation submission, and submitted recommendation review.
+- Lecturer Panel Appointments must expose submitted recommendations, reviewed requests, and assignment detail as page-level routes at `/panel-appointments/submitted`, `/panel-appointments/reviewed`, and `/panel-appointments/assignments/<studentId>`, while keeping drawers, filters, pagination, and toasts local to the component.
 - Selected panel lecturers must retain a read-only Reviewed Requests history containing recommendations they personally accepted or rejected, including the later Programme Coordinator outcome when available.
 - Selected-panel Reviewed Requests must open as a separate page from a text-only button positioned above the Selected Panel Review Queue table.
 - Lecturer Panel Assignment Detail must render backend assignment fields rather than screenshot/demo placeholders, show the academic year as `Session YYYY/YYYY`, show the complete panel workflow status timeline with recorded date-times when available, and show related documents/EE evaluation as concise no-records states until those modules are connected.
@@ -137,6 +141,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Programme Coordinator panel queues, records, dashboard counts, and decision permissions must be restricted to `Coordinator.programme_managed`.
 - A Programme Coordinator without an assigned managed programme must see an explicit no-programme state, no protected panel records, and no approval actions.
 - Programme Coordinator Panel Appointments must show the final-approval queue plus a searchable, status-filtered, read-only full-lifecycle records table for the managed programme, paginated at 10 rows per page.
+- Programme Coordinator Panel Appointments must continue to support `/panel-appointments/recommendations/<recommendationId>` as a direct recommendation drawer link while redirecting lecturer-only panel subpages back to `/panel-appointments`.
 - Programme Coordinator approve/reject actions must remain available only from the pending final-approval queue; completed and non-actionable lifecycle records must open in read-only detail mode.
 - Programme Coordinators do not require a separate decision-history page because their programme-wide lifecycle table is the audit surface.
 - Programme Coordinator Supervisor Appointments must show an explicit deferred/unavailable page without fabricated pending counts until supervisor appointment persistence is implemented.
@@ -170,6 +175,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Student users must be able to access FAQ Chatbot, Supervisor Appointments, Panel Appointments, File Submission, Letter Generation, Dashboard Overview, and Settings from the sidebar.
 - Student Supervisor Appointments must support viewing current supervisor details and submitting supervisor appointment applications.
 - Student Panel Appointments must support viewing pending and confirmed panel appointment states.
+- Student Panel Appointments must remain rooted at `/panel-appointments`; nested panel appointment URLs that do not apply to students must redirect back to `/panel-appointments`.
 - Student Panel Appointments must load panel appointment status from the persisted backend panel workflow instead of a manual test toggle.
 - Student users must see a pending state until Programme Coordinator confirmation creates an active appointed panel record.
 - Student users without a linked research profile must also see the pending panel appointment state instead of a hard loading error.

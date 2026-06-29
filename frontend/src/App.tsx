@@ -56,8 +56,14 @@ import { SIDEBAR_ITEMS } from './constants/navigation';
 import {
   APP_ROUTES,
   isKnownAppPath,
+  routeForDashboardTimeline,
   routeForMarkRecord,
   routeForNotificationTarget,
+  routeForPanelAssignment,
+  routeForPanelRecord,
+  routeForPanelReviewedRequests,
+  routeForPanelSubmittedRecommendations,
+  routeForPanelWorkload,
   routeForSidebarItem,
   sidebarItemForPath,
 } from './constants/routes';
@@ -153,14 +159,26 @@ export default function App() {
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const supervisorApplicationMatch = matchPath(`${APP_ROUTES.supervisorAppointments}/:applicationId`, pathname);
   const panelRecommendationMatch = matchPath(`${APP_ROUTES.panelAppointments}/recommendations/:recommendationId`, pathname);
+  const panelRecordMatch = matchPath(`${APP_ROUTES.panelAppointmentRecords}/:recordId`, pathname);
+  const panelAssignmentMatch = matchPath(`${APP_ROUTES.panelAppointmentAssignments}/:studentId`, pathname);
   const markRecordId = markRecordMatch?.params.recordId;
   const supervisorApplicationId = supervisorApplicationMatch?.params.applicationId;
   const panelRecommendationId = panelRecommendationMatch?.params.recommendationId;
+  const panelRecordId = panelRecordMatch?.params.recordId;
+  const panelAssignmentStudentId = panelAssignmentMatch?.params.studentId;
   const isMarksConfigRoute = pathname === APP_ROUTES.marksConfig;
   const isMarksRubricsRoute = pathname === APP_ROUTES.marksRubrics;
   const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
   const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
+  const isPanelNestedRoute = pathname !== APP_ROUTES.panelAppointments && activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS;
+  const isCoordinatorUnsupportedPanelRoute =
+    isCoordinatorWorkspace &&
+    (
+      pathname === APP_ROUTES.panelAppointmentSubmitted ||
+      pathname === APP_ROUTES.panelAppointmentReviewed ||
+      Boolean(panelAssignmentStudentId)
+    );
 
   useEffect(() => {
     if (currentUser?.role !== 'Office Staff/Admin') {
@@ -448,15 +466,45 @@ export default function App() {
               </div>
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
-            isStudentWorkspace ? (
+            isStudentWorkspace && isPanelNestedRoute ? (
+              <Navigate to={APP_ROUTES.panelAppointments} replace />
+            ) : isStudentWorkspace ? (
               <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} />
+            ) : isCoordinatorUnsupportedPanelRoute ? (
+              <Navigate to={APP_ROUTES.panelAppointments} replace />
             ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
               <LecturerPanelAppointments
                 currentUser={currentUser}
                 initialRecommendationId={panelRecommendationId}
+                routeView={
+                  pathname === APP_ROUTES.panelAppointmentSubmitted
+                    ? 'submitted'
+                    : pathname === APP_ROUTES.panelAppointmentReviewed
+                    ? 'reviewed'
+                    : panelAssignmentStudentId
+                    ? 'assignmentDetail'
+                    : 'list'
+                }
+                routeAssignmentStudentId={panelAssignmentStudentId}
+                onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
+                onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
+                onNavigateToAssignment={(studentId) => navigate(routeForPanelAssignment(studentId))}
               />
             ) : (
-              <PanelAppointmentManagement />
+              <PanelAppointmentManagement
+                routeView={
+                  pathname === APP_ROUTES.panelAppointmentWorkload
+                    ? 'workload'
+                    : panelRecordId
+                    ? 'detail'
+                    : 'list'
+                }
+                routeRecordId={panelRecordId}
+                onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
+                onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
+              />
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
             isStudentWorkspace ? (
@@ -478,7 +526,9 @@ export default function App() {
           ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
             <StudentRegistry />
           ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-            isStudentWorkspace ? (
+            isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              <Navigate to={APP_ROUTES.dashboard} replace />
+            ) : isStudentWorkspace ? (
               <StudentDashboard
                 studentName={currentUser.fullName}
                 studentId={currentUser.studentId}
@@ -502,7 +552,7 @@ export default function App() {
                 }}
                 onNavigateToMarksRecords={openMarkRecords}
                 onShowModal={setActivePortalModal}
-                onNavigateToTimeline={() => navigate(APP_ROUTES.dashboardTimeline)}
+                onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}
               />
             )
           ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (

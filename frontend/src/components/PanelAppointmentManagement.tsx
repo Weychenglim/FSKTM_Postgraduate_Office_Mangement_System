@@ -39,7 +39,7 @@ import {
 import { PanelAppointmentDetail } from './PanelAppointmentDetail';
 import { PanelWorkloadMonitoring } from './PanelWorkloadMonitoring';
 import { PageHeader, PortalButton, PortalToast, StatusDot } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { PanelRecord, PanelWorkloadRecord } from '../types';
 import { getPanelAppointments, getPanelWorkloads } from '../services';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
@@ -55,10 +55,23 @@ export interface AttentionItem {
   filterTab: 'All Records' | 'No Panel' | 'Pending' | 'Approved' | 'Rejected' | 'Workload Alert';
 }
 
-export const PanelAppointmentManagement: React.FC = () => {
-  // Current view of the panel module: 'list' | 'detail' | 'workload'
-  const [panelView, setPanelView] = useState<'list' | 'detail' | 'workload'>('list');
-  const [selectedRecord, setSelectedRecord] = useState<PanelRecord | null>(null);
+type PanelAppointmentRouteView = 'list' | 'detail' | 'workload';
+
+interface PanelAppointmentManagementProps {
+  routeView?: PanelAppointmentRouteView;
+  routeRecordId?: string;
+  onNavigateToList?: () => void;
+  onNavigateToWorkload?: () => void;
+  onNavigateToRecord?: (recordId: string) => void;
+}
+
+export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
+  routeView = 'list',
+  routeRecordId,
+  onNavigateToList,
+  onNavigateToWorkload,
+  onNavigateToRecord,
+}) => {
 
   // Panel records loaded from appointmentsApi (mock-backed today).
   const [records, setRecords] = useState<PanelRecord[]>([]);
@@ -187,6 +200,13 @@ export const PanelAppointmentManagement: React.FC = () => {
   const recordRange = paginationRange(currentPage, filteredRecords.length, itemsPerPage);
   const totalPages = recordRange.totalPages;
   const panelSummary = useMemo(() => getPanelRecordSummary(records), [records]);
+  const navigateToList = onNavigateToList ?? (() => undefined);
+  const selectedRouteRecord = useMemo(
+    () => routeRecordId
+      ? records.find((record) => String(record.recordId) === String(routeRecordId)) ?? null
+      : null,
+    [records, routeRecordId],
+  );
 
   useEffect(() => {
     setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
@@ -215,8 +235,7 @@ export const PanelAppointmentManagement: React.FC = () => {
 
   // Sub-view view triggers
   const handleViewDetail = (rec: PanelRecord) => {
-    setSelectedRecord(rec);
-    setPanelView('detail');
+    onNavigateToRecord?.(rec.recordId);
   };
 
   // Mini data lists mockup
@@ -235,22 +254,35 @@ export const PanelAppointmentManagement: React.FC = () => {
       <PortalToast message={toastMessage} />
 
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
-      {panelView === 'detail' && selectedRecord && (
-        <PanelAppointmentDetail
-          onBack={() => setPanelView('list')}
-          record={selectedRecord}
-        />
+      {routeView === 'detail' && (
+        loading ? (
+          <LoadingState message="Loading panel appointment record…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadRecords} />
+        ) : selectedRouteRecord ? (
+          <PanelAppointmentDetail
+            onBack={navigateToList}
+            record={selectedRouteRecord}
+          />
+        ) : (
+          <EmptyState
+            title="Panel appointment record not found"
+            description="The requested panel appointment record does not exist or is no longer available."
+            actionLabel="Back to Panel Appointments"
+            onAction={navigateToList}
+          />
+        )
       )}
 
 
       {/* RENDER PATH 2: WORKLOAD MONITORING LIST */}
-      {panelView === 'workload' && (
-        <PanelWorkloadMonitoring onBack={() => setPanelView('list')} />
+      {routeView === 'workload' && (
+        <PanelWorkloadMonitoring onBack={navigateToList} />
       )}
 
 
       {/* RENDER PATH 3: MAIN LISTING PORTAL BOARD (DEFAULT) */}
-      {panelView === 'list' && (
+      {routeView === 'list' && (
         <div id="panel-dashboard-container" className="space-y-8 animate-fade-in text-left">
           
           <PageHeader
@@ -764,7 +796,7 @@ export const PanelAppointmentManagement: React.FC = () => {
                   )}
 
                   <button
-                    onClick={() => setPanelView('workload')}
+                    onClick={onNavigateToWorkload}
                     className="w-full py-2.5 mt-3 text-center border border-slate-205 text-brand-navy font-bold text-xs uppercase rounded-xl hover:bg-slate-50 transition cursor-pointer"
                   >
                     View All Workload
