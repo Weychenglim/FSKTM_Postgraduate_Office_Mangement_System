@@ -30,6 +30,7 @@
 - Added protected Supervisor and Panel detail APIs, expandable audit logs, workflow notification metadata, stakeholder notification fan-out, and notification-to-record navigation.
 - Added clean URL routing with React Router DOM for auth pages, sidebar modules, dashboard timeline, marks subviews, mark record detail, supervisor application deep links, panel recommendation deep links, unknown-route redirects, and notification-to-record navigation.
 - Added page-level nested Supervisor Appointment routing for Office Staff/Admin record detail and workload monitoring, Student new application routing, Lecturer request history and supervisee detail pages, and role-specific fixed-route redirects while preserving `/supervisor-appointments/:applicationId` deep links.
+- Added route-level code splitting for every authenticated routed module, including Notifications, and split React, React Router, Motion, and Lucide vendor code so the production entry chunk stays below Vite's default warning threshold.
 - Added page-level nested Panel Appointment routing for Office Staff/Admin record detail and workload monitoring, Lecturer submitted/reviewed/assignment pages, Programme Coordinator recommendation drawer links, and Student nested-route redirects.
 - Tightened Dashboard page-level routing so `/dashboard/timeline` remains the only Dashboard nested page, is Office Staff/Admin-only, and unsupported Dashboard nested paths redirect through the normal authenticated fallback.
 - Added route scroll restoration so routed page transitions start at the top while hash-only URL changes are left alone.
@@ -136,6 +137,7 @@
 - All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after tightening Dashboard page-level nested routing; the existing non-blocking chunk-size warning remains.
 - All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after adding top-of-page route scroll restoration; the existing non-blocking chunk-size warning remains.
 - All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after adding page-level Supervisor Appointment routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after route-level module code splitting and vendor chunking; Vite now emits multiple JS chunks without the default oversized chunk warning.
 - Full `python manage.py test appointments -v 2 --keepdb` passes for the combined Supervisor, Panel, Workflow Audit, and Dashboard Timeline coverage; the previously documented appointment/timeline baseline failures are no longer present in the current run.
 - Authentication regression tests, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, the canonical credential test, `npm run lint`, and `npm run build` pass after the account migration fix.
 - Five-module verification passes for the current implementation slice: all frontend `.test.ts` scripts, `npm run lint`, `npm run build`, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, focused Supervisor Workflow tests, Dashboard Timeline tests, Marks tests, Dashboard Summary tests, and full `appointments` tests all complete successfully. The Vite build still reports the documented non-blocking large chunk warning.
@@ -282,7 +284,7 @@
 - `npm run lint` and `npm run build` pass after wiring the dashboard lecturer workload attention count to panel workload data and replacing targeted dashboard/panel browser alerts.
 - `npm run lint` passes after removing the misleading section-level panel recommendation status badge.
 - `npm run lint`, `npm run build`, `python manage.py test appointments --keepdb`, and `python manage.py check` pass after adding panel workflow date-times, enriching the related panel status card, and changing dashboard timeline headings to `Session YYYY/YYYY`.
-- Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
+- Vite no longer reports the default production chunk-size warning after the route-level lazy-loading and vendor-chunking pass.
 - `python manage.py check` passes after the account subtype-table refactor (0 issues).
 - `makemigrations` + `migrate` apply the `accounts/0002` subtype-table migration cleanly; `seed_users` repopulates the demo accounts and their role profiles.
 - Verified login by email and by matric number, and that `to_public_dict()` correctly resolves department / IDs from the new profile tables.
@@ -303,14 +305,13 @@
 - Backend integration is still pending for broader registry, file, FAQ, and some notification workflows.
 - Office Staff/Admin panel monitoring still needs fuller frontend integration with the persisted panel appointment records.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
-- The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
+- The previous Vite default 500 kB chunk warning has been resolved through route-level lazy loading and vendor chunking.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
 - `npm install react-router-dom` reports 2 npm audit findings (1 low, 1 high); these are not resolved in the routing pass.
 
 ## Next Steps
 
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
-- Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
 - Browser smoke-test the completed Supervisor, Panel, Marks, Dashboard, and coordinator flows against a migrated local database.
 - Wire the Settings module (contact details, password change, notification preferences) to backend endpoints; today the forms validate and toast but do not persist.
 - Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.

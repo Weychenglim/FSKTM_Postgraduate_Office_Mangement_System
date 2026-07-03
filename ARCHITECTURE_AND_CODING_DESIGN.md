@@ -27,7 +27,8 @@
 Frontend paths in this section are relative to `frontend/`.
 
 - `src/main.tsx` mounts the React app inside `BrowserRouter`.
-- `src/App.tsx` owns the current demo authentication state and derives top-level module routing from the current URL.
+- `src/App.tsx` owns the current demo authentication state and derives top-level module routing from the current URL. Auth, layout, route constants, session utilities, and small marks-overview primitives stay eager, while routed module screens are loaded through `React.lazy` named-export wrappers behind a shared authenticated `Suspense` fallback.
+- `vite.config.ts` defines Rollup manual chunks for React, React Router, Motion, and Lucide so shared vendor code stays separate from the app shell and route-level chunks.
 - `src/constants/routes.ts` centralizes clean URL paths, sidebar-to-route mapping, route-to-sidebar active-state mapping, known-route detection, and workflow notification deep-link targets.
 - `src/components/AppLayout.tsx` provides the authenticated portal layout.
 - `src/components/Sidebar.tsx` defines the office staff sidebar navigation labels.
@@ -157,6 +158,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 
 - Run `npm run lint` for TypeScript compilation checks.
 - Run `npm run build` for production build verification.
+- Route-level code-splitting changes must keep all routed module screens lazy-loaded from `App.tsx`, avoid raising `chunkSizeWarningLimit`, and preserve the split vendor chunks in `vite.config.ts`.
 - Run focused frontend route helper tests with `npx tsx src/constants/routes.test.ts` and `npx tsx src/utils/workflowTracking.test.ts` when navigation behavior changes.
 - Run `python manage.py test` for backend workflow and permission checks.
 - Start the Vite dev server and smoke-test Dashboard Overview plus each newly routed office-staff module after UI changes.

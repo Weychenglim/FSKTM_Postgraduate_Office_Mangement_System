@@ -14,34 +14,6 @@ import { ChecklistCard, ChecklistItem } from './components/ChecklistCard';
 import { MarkSubmissionMonitoring } from './components/MarkSubmissionMonitoring';
 import { AlertListCard } from './components/AlertListCard';
 import { QuickActionsCard } from './components/QuickActionsCard';
-import { MarkEntryPeriodConfig } from './components/MarkEntryPeriodConfig';
-import { RubricsManagementView } from './components/RubricsManagementView';
-import { EvaluationTaskAssignment } from './components/EvaluationTaskAssignment';
-import { MarkEntryRecords } from './components/MarkEntryRecords';
-import { MarkEntryRecordDetail } from './components/MarkEntryRecordDetail';
-import { PanelAppointmentManagement } from './components/PanelAppointmentManagement';
-import { SupervisorAppointmentManagement } from './components/SupervisorAppointmentManagement';
-import { LecturerMarksEntry } from './components/LecturerMarksEntry';
-import { LecturerPanelAppointments } from './components/LecturerPanelAppointments';
-import { LecturerSupervisorAppointments } from './components/LecturerSupervisorAppointments';
-import { AdministrationDashboard } from './components/AdministrationDashboard';
-import { TimelineManagement } from './components/TimelineManagement';
-import { FileRepository } from './components/FileRepository';
-import { StudentFileSubmission } from './components/StudentFileSubmission';
-import { NotificationsAnnouncements } from './components/NotificationsAnnouncements';
-import { AnnouncementManagement } from './components/AnnouncementManagement';
-import { AcademicFAQEditor } from './components/AcademicFAQEditor';
-import { StudentFAQChatbot } from './components/StudentFAQChatbot';
-import { LetterTemplateManagement } from './components/LetterTemplateManagement';
-import { StudentLetterGeneration } from './components/StudentLetterGeneration';
-import { StudentRegistry } from './components/StudentRegistry';
-import { StudentDashboard } from './components/StudentDashboard';
-import { LecturerDashboard } from './components/LecturerDashboard';
-import { CoordinatorDashboard } from './components/CoordinatorDashboard';
-import { CoordinatorSupervisorDeferred } from './components/CoordinatorSupervisorDeferred';
-import { StudentSupervisorAppointment } from './components/StudentSupervisorAppointment';
-import { StudentPanelAppointment } from './components/StudentPanelAppointment';
-import { SettingsView } from './components/SettingsView';
 import { PortalToast } from './components/PortalPrimitives';
 import { 
   Calendar, 
@@ -51,7 +23,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
-import { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem } from './types';
+import type { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
 import {
   APP_ROUTES,
@@ -73,11 +45,57 @@ import {
   sidebarItemForPath,
 } from './constants/routes';
 import { canAccessModule } from './auth/permissions';
-import { authApi, getAuthToken, clearAuthToken, getDashboardSummary, getEvaluationPeriods } from './services';
+import * as authApi from './services/authApi';
+import { clearAuthToken, getAuthToken } from './services/apiClient';
+import { getEvaluationPeriods } from './services/marksApi';
+import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { MOCK_MARK_RECORDS } from './mocks/marks';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { MarkRecordStatusTab } from './utils/markRecords';
+
+const lazyNamed = (
+  exportName: string,
+  loadModule: () => Promise<Record<string, unknown>>,
+) => React.lazy(async () => {
+  const module = await loadModule();
+  return { default: module[exportName] as React.ComponentType<any> };
+});
+
+const MarkEntryPeriodConfig = lazyNamed('MarkEntryPeriodConfig', () => import('./components/MarkEntryPeriodConfig'));
+const RubricsManagementView = lazyNamed('RubricsManagementView', () => import('./components/RubricsManagementView'));
+const EvaluationTaskAssignment = lazyNamed('EvaluationTaskAssignment', () => import('./components/EvaluationTaskAssignment'));
+const MarkEntryRecords = lazyNamed('MarkEntryRecords', () => import('./components/MarkEntryRecords'));
+const MarkEntryRecordDetail = lazyNamed('MarkEntryRecordDetail', () => import('./components/MarkEntryRecordDetail'));
+const PanelAppointmentManagement = lazyNamed('PanelAppointmentManagement', () => import('./components/PanelAppointmentManagement'));
+const SupervisorAppointmentManagement = lazyNamed('SupervisorAppointmentManagement', () => import('./components/SupervisorAppointmentManagement'));
+const LecturerMarksEntry = lazyNamed('LecturerMarksEntry', () => import('./components/LecturerMarksEntry'));
+const LecturerPanelAppointments = lazyNamed('LecturerPanelAppointments', () => import('./components/LecturerPanelAppointments'));
+const LecturerSupervisorAppointments = lazyNamed('LecturerSupervisorAppointments', () => import('./components/LecturerSupervisorAppointments'));
+const AdministrationDashboard = lazyNamed('AdministrationDashboard', () => import('./components/AdministrationDashboard'));
+const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
+const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
+const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
+const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
+const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
+const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
+const StudentFAQChatbot = lazyNamed('StudentFAQChatbot', () => import('./components/StudentFAQChatbot'));
+const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => import('./components/LetterTemplateManagement'));
+const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
+const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
+const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
+const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
+const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
+const CoordinatorSupervisorDeferred = lazyNamed('CoordinatorSupervisorDeferred', () => import('./components/CoordinatorSupervisorDeferred'));
+const StudentSupervisorAppointment = lazyNamed('StudentSupervisorAppointment', () => import('./components/StudentSupervisorAppointment'));
+const StudentPanelAppointment = lazyNamed('StudentPanelAppointment', () => import('./components/StudentPanelAppointment'));
+const SettingsView = lazyNamed('SettingsView', () => import('./components/SettingsView'));
+
+const ModuleLoadingFallback = () => (
+  <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm font-bold text-slate-500 shadow-sm">
+    Loading workspace...
+  </div>
+);
 
 // Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
 const getRecordDetails = (id: string) => {
@@ -387,289 +405,291 @@ export default function App() {
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
-          {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
-            isLecturerWorkspace ? (
-              <LecturerMarksEntry onBackToDashboard={() => navigate(APP_ROUTES.dashboard)} />
-            ) : isMarksConfigRoute ? (
-              <MarkEntryPeriodConfig onBack={() => navigate(APP_ROUTES.marks)} />
-            ) : isMarksRubricsRoute ? (
-              <RubricsManagementView onBack={() => navigate(APP_ROUTES.marks)} />
-            ) : isMarksTasksRoute ? (
-              <EvaluationTaskAssignment onBack={() => navigate(APP_ROUTES.marks)} />
-            ) : isMarksRecordsRoute ? (
-              <MarkEntryRecords 
-                onBack={() => navigate(APP_ROUTES.marks)}
-                initialStatusTab={marksRecordStatusTab}
-                onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId))}
-              />
-            ) : markRecordId ? (
-              <MarkEntryRecordDetail
-                onBack={() => navigate(APP_ROUTES.marksRecords)}
-                {...getRecordDetails(markRecordId)}
-              />
-            ) : (
-              /* Main Dashboard Marks Entry View workspace */
-              <div id="marks-entry-workspace" className="space-y-8 animate-fade-in">
-                
-                {/* Header Title section */}
-                <div id="page-metadata-block" className="text-left">
-                  <h1 id="main-view-title" className="page-title">
-                    Marks & Evaluation Management
-                  </h1>
-                  <p id="main-view-subtitle" className="page-subtitle">
-                    Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
-                  </p>
-                </div>
-
-                {/* 4 Summary Cards Grid */}
-                <div id="summary-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  <SummaryCard
-                    title="Mark Entry Period"
-                    badgeText={activeEvaluationPeriod?.isOpen ? 'Active' : 'Configured'}
-                    badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
-                    subtext={activePeriodDates}
-                    icon={Calendar}
-                    onClick={() => navigate(APP_ROUTES.marksConfig)}
-                  />
-                  <SummaryCard
-                    title="Rubric Components"
-                    badgeText="Ready"
-                    badgeType="ready"
-                    subtext="5 components, 100 marks"
-                    icon={Sliders}
-                    onClick={() => navigate(APP_ROUTES.marksRubrics)}
-                  />
-                  <SummaryCard
-                    title="Evaluation Tasks"
-                    badgeText={`${totalMarkTasks} Tasks`}
-                    badgeType="generated"
-                    subtext={`${taskTotals?.supervisor ?? marksDashboardSummary?.supervisorMarkTasks ?? 0} supervisor, ${taskTotals?.panel ?? marksDashboardSummary?.panelMarkTasks ?? 0} panel, ${taskTotals?.backup ?? marksDashboardSummary?.backupMarkTasks ?? 0} backup`}
-                    icon={CheckCircle}
-                    onClick={() => navigate(APP_ROUTES.marksTasks)}
-                  />
-                  <SummaryCard
-                    title="Submitted Marks"
-                    badgeText={`${submittedMarkTasks} / ${totalMarkTasks}`}
-                    badgeType="ratio"
-                    subtext={`${incompleteMarkTasks} submissions pending`}
-                    icon={Database}
-                    onClick={() => openMarkRecords('Submitted')}
-                  />
-                </div>
-
-                {/* Core layout grid (Left column: 65%, Right column: 35%) */}
-                <div id="core-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <React.Suspense fallback={<ModuleLoadingFallback />}>
+            {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
+              isLecturerWorkspace ? (
+                <LecturerMarksEntry onBackToDashboard={() => navigate(APP_ROUTES.dashboard)} />
+              ) : isMarksConfigRoute ? (
+                <MarkEntryPeriodConfig onBack={() => navigate(APP_ROUTES.marks)} />
+              ) : isMarksRubricsRoute ? (
+                <RubricsManagementView onBack={() => navigate(APP_ROUTES.marks)} />
+              ) : isMarksTasksRoute ? (
+                <EvaluationTaskAssignment onBack={() => navigate(APP_ROUTES.marks)} />
+              ) : isMarksRecordsRoute ? (
+                <MarkEntryRecords 
+                  onBack={() => navigate(APP_ROUTES.marks)}
+                  initialStatusTab={marksRecordStatusTab}
+                  onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId))}
+                />
+              ) : markRecordId ? (
+                <MarkEntryRecordDetail
+                  onBack={() => navigate(APP_ROUTES.marksRecords)}
+                  {...getRecordDetails(markRecordId)}
+                />
+              ) : (
+                /* Main Dashboard Marks Entry View workspace */
+                <div id="marks-entry-workspace" className="space-y-8 animate-fade-in">
                   
-                  {/* Left column content: Setup checklists and Progress Monitoring */}
-                  <div id="left-column-layout" className="lg:col-span-8 space-y-8">
-                    
-                    {/* Setup Checklist */}
-                    <ChecklistCard 
-                      items={checklistTasks} 
-                      onItemAction={handleChecklistAction} 
-                    />
-
-                    {/* Submission Monitoring */}
-                    <MarkSubmissionMonitoring onViewRecords={openMarkRecords} />
+                  {/* Header Title section */}
+                  <div id="page-metadata-block" className="text-left">
+                    <h1 id="main-view-title" className="page-title">
+                      Marks & Evaluation Management
+                    </h1>
+                    <p id="main-view-subtitle" className="page-subtitle">
+                      Configure mark entry setup, generate evaluation tasks, and monitor submission progress.
+                    </p>
                   </div>
 
-                  {/* Right column content: Urgent alerts list, Quick Actions, Database sync */}
-                  <div id="right-column-layout" className="lg:col-span-4 space-y-8">
-                    
-                    {/* Attention Needed items */}
-                    <AlertListCard />
-
-                    {/* Quick Actions buttons with Database state indicators */}
-                    <QuickActionsCard
-                      onConfigurePeriod={() => navigate(APP_ROUTES.marksConfig)}
-                      onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
-                      onGenerateTasks={() => navigate(APP_ROUTES.marksTasks)}
-                      onViewRecords={() => openMarkRecords('All Records')}
+                  {/* 4 Summary Cards Grid */}
+                  <div id="summary-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <SummaryCard
+                      title="Mark Entry Period"
+                      badgeText={activeEvaluationPeriod?.isOpen ? 'Active' : 'Configured'}
+                      badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
+                      subtext={activePeriodDates}
+                      icon={Calendar}
+                      onClick={() => navigate(APP_ROUTES.marksConfig)}
                     />
+                    <SummaryCard
+                      title="Rubric Components"
+                      badgeText="Ready"
+                      badgeType="ready"
+                      subtext="5 components, 100 marks"
+                      icon={Sliders}
+                      onClick={() => navigate(APP_ROUTES.marksRubrics)}
+                    />
+                    <SummaryCard
+                      title="Evaluation Tasks"
+                      badgeText={`${totalMarkTasks} Tasks`}
+                      badgeType="generated"
+                      subtext={`${taskTotals?.supervisor ?? marksDashboardSummary?.supervisorMarkTasks ?? 0} supervisor, ${taskTotals?.panel ?? marksDashboardSummary?.panelMarkTasks ?? 0} panel, ${taskTotals?.backup ?? marksDashboardSummary?.backupMarkTasks ?? 0} backup`}
+                      icon={CheckCircle}
+                      onClick={() => navigate(APP_ROUTES.marksTasks)}
+                    />
+                    <SummaryCard
+                      title="Submitted Marks"
+                      badgeText={`${submittedMarkTasks} / ${totalMarkTasks}`}
+                      badgeType="ratio"
+                      subtext={`${incompleteMarkTasks} submissions pending`}
+                      icon={Database}
+                      onClick={() => openMarkRecords('Submitted')}
+                    />
+                  </div>
+
+                  {/* Core layout grid (Left column: 65%, Right column: 35%) */}
+                  <div id="core-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Left column content: Setup checklists and Progress Monitoring */}
+                    <div id="left-column-layout" className="lg:col-span-8 space-y-8">
+                      
+                      {/* Setup Checklist */}
+                      <ChecklistCard 
+                        items={checklistTasks} 
+                        onItemAction={handleChecklistAction} 
+                      />
+
+                      {/* Submission Monitoring */}
+                      <MarkSubmissionMonitoring onViewRecords={openMarkRecords} />
+                    </div>
+
+                    {/* Right column content: Urgent alerts list, Quick Actions, Database sync */}
+                    <div id="right-column-layout" className="lg:col-span-4 space-y-8">
+                      
+                      {/* Attention Needed items */}
+                      <AlertListCard />
+
+                      {/* Quick Actions buttons with Database state indicators */}
+                      <QuickActionsCard
+                        onConfigurePeriod={() => navigate(APP_ROUTES.marksConfig)}
+                        onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
+                        onGenerateTasks={() => navigate(APP_ROUTES.marksTasks)}
+                        onViewRecords={() => openMarkRecords('All Records')}
+                      />
+                    </div>
+
                   </div>
 
                 </div>
-
-              </div>
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
-            isStudentWorkspace && isPanelNestedRoute ? (
-              <Navigate to={APP_ROUTES.panelAppointments} replace />
-            ) : isStudentWorkspace ? (
-              <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} />
-            ) : isCoordinatorUnsupportedPanelRoute ? (
-              <Navigate to={APP_ROUTES.panelAppointments} replace />
-            ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
-              <LecturerPanelAppointments
-                currentUser={currentUser}
-                initialRecommendationId={panelRecommendationId}
-                routeView={
-                  pathname === APP_ROUTES.panelAppointmentSubmitted
-                    ? 'submitted'
-                    : pathname === APP_ROUTES.panelAppointmentReviewed
-                    ? 'reviewed'
-                    : panelAssignmentStudentId
-                    ? 'assignmentDetail'
-                    : 'list'
-                }
-                routeAssignmentStudentId={panelAssignmentStudentId}
-                onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
-                onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
-                onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
-                onNavigateToAssignment={(studentId) => navigate(routeForPanelAssignment(studentId))}
-              />
-            ) : (
-              <PanelAppointmentManagement
-                routeView={
-                  pathname === APP_ROUTES.panelAppointmentWorkload
-                    ? 'workload'
-                    : panelRecordId
-                    ? 'detail'
-                    : 'list'
-                }
-                routeRecordId={panelRecordId}
-                onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
-                onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
-                onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
-              />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
-            isStudentUnsupportedSupervisorRoute ? (
-              <Navigate to={APP_ROUTES.supervisorAppointments} replace />
-            ) : isStudentWorkspace ? (
-              <StudentSupervisorAppointment
-                onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
-                initialApplicationId={supervisorApplicationId}
-                routeView={isSupervisorNewRoute ? 'newApplication' : 'overview'}
-                onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
-                onNavigateToNewApplication={() => navigate(routeForSupervisorNewApplication())}
-                onNavigateToApplication={(applicationId) => navigate(routeForSupervisorApplication(applicationId))}
-              />
-            ) : isCoordinatorUnsupportedSupervisorRoute ? (
-              <Navigate to={APP_ROUTES.supervisorAppointments} replace />
-            ) : isCoordinatorWorkspace ? (
-              <CoordinatorSupervisorDeferred
-                initialApplicationId={supervisorApplicationId}
-              />
-            ) : isLecturerUnsupportedSupervisorRoute ? (
-              <Navigate to={APP_ROUTES.supervisorAppointments} replace />
-            ) : isLecturerWorkspace ? (
-              <LecturerSupervisorAppointments
-                initialApplicationId={supervisorApplicationId}
-                routeView={
-                  isSupervisorHistoryRoute
-                    ? 'history'
-                    : supervisorSuperviseeStudentId
-                    ? 'superviseeDetail'
-                    : 'list'
-                }
-                routeSuperviseeStudentId={supervisorSuperviseeStudentId}
-                onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
-                onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
-                onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
-              />
-            ) : isOfficeUnsupportedSupervisorRoute ? (
-              <Navigate to={APP_ROUTES.supervisorAppointments} replace />
-            ) : (
-              <SupervisorAppointmentManagement
-                routeView={
-                  isSupervisorWorkloadRoute
-                    ? 'workload'
-                    : supervisorApplicationId
-                    ? 'detail'
-                    : 'list'
-                }
-                routeRecordId={supervisorApplicationId}
-                onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
-                onNavigateToWorkload={() => navigate(routeForSupervisorWorkload())}
-                onNavigateToRecord={(recordId) => navigate(routeForSupervisorApplication(recordId))}
-              />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
-            <StudentRegistry />
-          ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-            isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
-              <Navigate to={APP_ROUTES.dashboard} replace />
-            ) : isStudentWorkspace ? (
-              <StudentDashboard
-                studentName={currentUser.fullName}
-                studentId={currentUser.studentId}
-                programme={currentUser.department}
-                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
-              />
-            ) : isCoordinatorWorkspace ? (
-              <CoordinatorDashboard
-                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
-              />
-            ) : isLecturerWorkspace ? (
-              <LecturerDashboard
-                onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
-              />
-            ) : isDashboardTimelineRoute ? (
-              <TimelineManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
-            ) : (
-              <AdministrationDashboard 
-                onNavigateToTab={(tab) => {
-                  navigate(routeForSidebarItem(tab));
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS ? (
+              isStudentWorkspace && isPanelNestedRoute ? (
+                <Navigate to={APP_ROUTES.panelAppointments} replace />
+              ) : isStudentWorkspace ? (
+                <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} />
+              ) : isCoordinatorUnsupportedPanelRoute ? (
+                <Navigate to={APP_ROUTES.panelAppointments} replace />
+              ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
+                <LecturerPanelAppointments
+                  currentUser={currentUser}
+                  initialRecommendationId={panelRecommendationId}
+                  routeView={
+                    pathname === APP_ROUTES.panelAppointmentSubmitted
+                      ? 'submitted'
+                      : pathname === APP_ROUTES.panelAppointmentReviewed
+                      ? 'reviewed'
+                      : panelAssignmentStudentId
+                      ? 'assignmentDetail'
+                      : 'list'
+                  }
+                  routeAssignmentStudentId={panelAssignmentStudentId}
+                  onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                  onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
+                  onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
+                  onNavigateToAssignment={(studentId) => navigate(routeForPanelAssignment(studentId))}
+                />
+              ) : (
+                <PanelAppointmentManagement
+                  routeView={
+                    pathname === APP_ROUTES.panelAppointmentWorkload
+                      ? 'workload'
+                      : panelRecordId
+                      ? 'detail'
+                      : 'list'
+                  }
+                  routeRecordId={panelRecordId}
+                  onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                  onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
+                  onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
+                />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
+              isStudentUnsupportedSupervisorRoute ? (
+                <Navigate to={APP_ROUTES.supervisorAppointments} replace />
+              ) : isStudentWorkspace ? (
+                <StudentSupervisorAppointment
+                  onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
+                  initialApplicationId={supervisorApplicationId}
+                  routeView={isSupervisorNewRoute ? 'newApplication' : 'overview'}
+                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  onNavigateToNewApplication={() => navigate(routeForSupervisorNewApplication())}
+                  onNavigateToApplication={(applicationId) => navigate(routeForSupervisorApplication(applicationId))}
+                />
+              ) : isCoordinatorUnsupportedSupervisorRoute ? (
+                <Navigate to={APP_ROUTES.supervisorAppointments} replace />
+              ) : isCoordinatorWorkspace ? (
+                <CoordinatorSupervisorDeferred
+                  initialApplicationId={supervisorApplicationId}
+                />
+              ) : isLecturerUnsupportedSupervisorRoute ? (
+                <Navigate to={APP_ROUTES.supervisorAppointments} replace />
+              ) : isLecturerWorkspace ? (
+                <LecturerSupervisorAppointments
+                  initialApplicationId={supervisorApplicationId}
+                  routeView={
+                    isSupervisorHistoryRoute
+                      ? 'history'
+                      : supervisorSuperviseeStudentId
+                      ? 'superviseeDetail'
+                      : 'list'
+                  }
+                  routeSuperviseeStudentId={supervisorSuperviseeStudentId}
+                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
+                  onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
+                />
+              ) : isOfficeUnsupportedSupervisorRoute ? (
+                <Navigate to={APP_ROUTES.supervisorAppointments} replace />
+              ) : (
+                <SupervisorAppointmentManagement
+                  routeView={
+                    isSupervisorWorkloadRoute
+                      ? 'workload'
+                      : supervisorApplicationId
+                      ? 'detail'
+                      : 'list'
+                  }
+                  routeRecordId={supervisorApplicationId}
+                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  onNavigateToWorkload={() => navigate(routeForSupervisorWorkload())}
+                  onNavigateToRecord={(recordId) => navigate(routeForSupervisorApplication(recordId))}
+                />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
+              <StudentRegistry />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
+              isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isStudentWorkspace ? (
+                <StudentDashboard
+                  studentName={currentUser.fullName}
+                  studentId={currentUser.studentId}
+                  programme={currentUser.department}
+                  onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                />
+              ) : isCoordinatorWorkspace ? (
+                <CoordinatorDashboard
+                  onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                />
+              ) : isLecturerWorkspace ? (
+                <LecturerDashboard
+                  onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                />
+              ) : isDashboardTimelineRoute ? (
+                <TimelineManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+              ) : (
+                <AdministrationDashboard 
+                  onNavigateToTab={(tab) => {
+                    navigate(routeForSidebarItem(tab));
+                  }}
+                  onNavigateToMarksRecords={openMarkRecords}
+                  onShowModal={setActivePortalModal}
+                  onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}
+                />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
+              isStudentWorkspace ? (
+                <StudentFileSubmission />
+              ) : (
+                <FileRepository />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
+              isStudentWorkspace ? (
+                <StudentFAQChatbot />
+              ) : (
+                <AcademicFAQEditor />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
+              isStudentWorkspace ? (
+                <StudentLetterGeneration
+                  studentName={currentUser.fullName}
+                  studentId={currentUser.studentId}
+                  programme={currentUser.department}
+                />
+              ) : (
+                <LetterTemplateManagement />
+              )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
+              <AnnouncementManagement />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
+              <NotificationsAnnouncements
+                onBack={() => navigate(APP_ROUTES.dashboard)}
+                onOpenWorkflowRecord={(notification: NotificationItem) => {
+                  navigate(routeForNotificationTarget(notification));
                 }}
-                onNavigateToMarksRecords={openMarkRecords}
-                onShowModal={setActivePortalModal}
-                onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}
               />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
-            isStudentWorkspace ? (
-              <StudentFileSubmission />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
+              <SettingsView currentUser={currentUser} onLogout={handleLogout} />
             ) : (
-              <FileRepository />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
-            isStudentWorkspace ? (
-              <StudentFAQChatbot />
-            ) : (
-              <AcademicFAQEditor />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
-            isStudentWorkspace ? (
-              <StudentLetterGeneration
-                studentName={currentUser.fullName}
-                studentId={currentUser.studentId}
-                programme={currentUser.department}
-              />
-            ) : (
-              <LetterTemplateManagement />
-            )
-          ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
-            <AnnouncementManagement />
-          ) : activeSidebarItem === SIDEBAR_ITEMS.NOTIFICATIONS ? (
-            <NotificationsAnnouncements
-              onBack={() => navigate(APP_ROUTES.dashboard)}
-              onOpenWorkflowRecord={(notification: NotificationItem) => {
-                navigate(routeForNotificationTarget(notification));
-              }}
-            />
-          ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
-            <SettingsView currentUser={currentUser} onLogout={handleLogout} />
-          ) : (
-            /* Placeholder message for other sidebar routes */
-            <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
-              <div className="w-16 h-16 bg-[#eff6ff] text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Briefcase className="w-8 h-8" />
+              /* Placeholder message for other sidebar routes */
+              <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
+                <div className="w-16 h-16 bg-[#eff6ff] text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Briefcase className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">
+                  {activeSidebarItem} Overview Desk
+                </h3>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  You have routed to the <strong>{activeSidebarItem}</strong> workflow module inside the FSKTM administrative center. To fulfill layout reference checks, please toggle back to the <strong>Marks Entry</strong> tab.
+                </p>
+                <button
+                  onClick={() => navigate(APP_ROUTES.marks)}
+                  className="mt-6 px-5 py-2.5 bg-brand-navy text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
+                >
+                  Return to Marks Entry
+                </button>
               </div>
-              <h3 className="text-xl font-bold text-slate-800">
-                {activeSidebarItem} Overview Desk
-              </h3>
-              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                You have routed to the <strong>{activeSidebarItem}</strong> workflow module inside the FSKTM administrative center. To fulfill layout reference checks, please toggle back to the <strong>Marks Entry</strong> tab.
-              </p>
-              <button
-                onClick={() => navigate(APP_ROUTES.marks)}
-                className="mt-6 px-5 py-2.5 bg-brand-navy text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-slate-850 transition"
-              >
-                Return to Marks Entry
-              </button>
-            </div>
-          )}
+            )}
+          </React.Suspense>
         </AppLayout>
       </NotificationsProvider>
     </div>

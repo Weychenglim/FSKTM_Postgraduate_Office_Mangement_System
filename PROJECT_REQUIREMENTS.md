@@ -39,6 +39,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Forgot-password UI for unauthenticated account recovery guidance.
 - Clean URL routing for authenticated portal modules and selected workflow detail links, so refresh, bookmarks, browser history, and notification deep links preserve the intended screen.
 - Routed page transitions must reset the window scroll position to the top while keeping hash-only navigation available for future anchor behavior.
+- Production builds must keep authenticated route-level module screens code-split and shared vendors chunked so Vite does not emit its default oversized JavaScript chunk warning.
 - Marks and evaluation management UI for mark entry period configuration, rubric management, evaluation task assignment, submission monitoring, and mark records.
 - Supervisor and panel appointment management UI for appointment status and workload monitoring.
 - Lecturer workspace UI for supervisor appointment requests, active supervisees, panel assignment details, recommendation submission, assigned mark-entry tasks, mark-entry forms, and submitted-mark review.

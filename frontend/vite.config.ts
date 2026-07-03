@@ -11,6 +11,20 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('react-router')) return 'vendor-router';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('motion')) return 'vendor-motion';
+            if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       // Allow HMR/file watching to be disabled in constrained local environments.
       hmr: process.env.DISABLE_HMR !== 'true',
