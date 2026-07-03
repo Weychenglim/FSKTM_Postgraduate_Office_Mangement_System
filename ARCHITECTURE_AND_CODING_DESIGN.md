@@ -105,11 +105,13 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Auth routes are `/login`, `/forgot-password`, and `/reset-password?uid=...&token=...`.
 - Authenticated module routes include `/dashboard`, `/dashboard/timeline`, `/registry`, `/faq`, `/files`, `/supervisor-appointments`, `/letters`, `/announcements`, `/marks`, `/panel-appointments`, `/notifications`, and `/settings`.
 - Dashboard page-level routing intentionally supports only `/dashboard` and Office Staff/Admin-only `/dashboard/timeline`; drawer, modal, filter, pagination, and selected-entry state inside Timeline Management stays component-local.
+- Supervisor Appointment page routes include `/supervisor-appointments/workload`, `/supervisor-appointments/new`, `/supervisor-appointments/history`, `/supervisor-appointments/supervisees/:studentId`, and the existing compatibility application route `/supervisor-appointments/:applicationId`.
 - Marks sub-routes include `/marks/config`, `/marks/rubrics`, `/marks/tasks`, `/marks/records`, and `/marks/records/:recordId`.
 - Panel Appointment page routes include `/panel-appointments/workload`, `/panel-appointments/records/:recordId`, `/panel-appointments/submitted`, `/panel-appointments/reviewed`, `/panel-appointments/assignments/:studentId`, and the compatibility recommendation route `/panel-appointments/recommendations/:recommendationId`.
 - Workflow deep links include `/supervisor-appointments/:applicationId`, panel appointment record and assignment routes, and `/panel-appointments/recommendations/:recommendationId`.
 - `App.tsx` derives the active sidebar item from `location.pathname`; sidebar clicks and dashboard shortcuts call `navigate(route)`.
 - `RouteScrollRestoration` is mounted under `BrowserRouter` and resets the window to the top when `pathname` or `search` changes, while ignoring hash-only changes.
+- Supervisor Appointment page-level state is route-derived in `App.tsx` and passed into role-specific supervisor components, while review drawers, student detail overlays, confirmation modals, filters, pagination, and toasts remain component-local.
 - Panel Appointment page-level state is route-derived in `App.tsx` and passed into role-specific panel components, while drawers, dialogs, filters, pagination, tabs, and toasts remain component-local.
 - Component-local UI state remains local for drawers, dialogs, filters, and non-shareable edit/create modes.
 - `currentUser.role` controls whether shared sidebar entries render office-staff, lecturer, coordinator, or student workflows. Programme Coordinators route to their dedicated dashboard, deferred supervisor approval page, and programme-scoped panel workspace. Lecturer and student routing remains role-specific as described above.

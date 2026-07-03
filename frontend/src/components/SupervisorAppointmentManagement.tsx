@@ -26,19 +26,28 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorRecord } from '../types';
 import { getSupervisorAppointments } from '../services';
+import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
 
 // SupervisorRecord now lives in src/types.
 
 interface SupervisorAppointmentManagementProps {
+  routeView?: 'list' | 'detail' | 'workload';
+  routeRecordId?: string;
+  onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
+  onNavigateToRecord?: (recordId: string) => void;
 }
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
-  onNavigateToWorkload 
+  routeView = 'list',
+  routeRecordId,
+  onNavigateToList,
+  onNavigateToWorkload,
+  onNavigateToRecord,
 }) => {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -47,10 +56,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
-
-  // View State for switching between List and Detail view
-  const [viewState, setViewState] = useState<'list' | 'detail' | 'workload'>('list');
-  const [selectedRecord, setSelectedRecord] = useState<SupervisorRecord | null>(null);
 
   // Supervisor appointment records loaded from appointmentsApi (mock-backed today).
   const [records, setRecords] = useState<SupervisorRecord[]>([]);
@@ -135,20 +140,44 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   }, [filteredRecords, currentPage]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  const selectedRouteRecord = useMemo(
+    () => findSupervisorRecordByRouteKey(records, routeRecordId),
+    [records, routeRecordId],
+  );
+  const navigateToList = onNavigateToList ?? (() => undefined);
 
   // Handles export interaction
   const handleExportData = () => {
     showToast("Downloading supervisor_appointments_report.csv");
   };
 
-  if (viewState === 'workload') {
+  if (routeView === 'workload') {
     return (
-      <SupervisorWorkloadMonitoring onBack={() => setViewState('list')} />
+      <SupervisorWorkloadMonitoring onBack={navigateToList} />
     );
   }
 
-  if (viewState === 'detail' && selectedRecord) {
-    const r = selectedRecord;
+  if (routeView === 'detail') {
+    if (loading) {
+      return <LoadingState message="Loading supervisor appointment record…" />;
+    }
+
+    if (error) {
+      return <ErrorState message={error} onRetry={loadRecords} />;
+    }
+
+    if (!selectedRouteRecord) {
+      return (
+        <EmptyState
+          title="Supervisor appointment record not found"
+          description="The requested supervisor appointment record does not exist or is no longer available."
+          actionLabel="Back to Supervisor Appointments"
+          onAction={navigateToList}
+        />
+      );
+    }
+
+    const r = selectedRouteRecord;
     return (
       <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
         <PortalToast message={toastMessage} />
@@ -158,7 +187,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           subtitle="View student supervision details, appointment status, related records, and supporting documents."
           backLabel="Back to Supervisor Appointment Management"
           onBack={() => {
-            setViewState('list');
+            navigateToList();
             showToast("Returned to Supervisor Appointment Management");
           }}
           subtitleClassName="leading-relaxed"
@@ -856,8 +885,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                         <td className="data-td text-center">
                           <button
                             onClick={() => {
-                              setSelectedRecord(r);
-                              setViewState('detail');
+                              onNavigateToRecord?.(supervisorRecordRouteKey(r));
                               showToast(`Loaded supervisor details for ${r.studentName}`);
                             }}
                             className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
@@ -1078,7 +1106,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               {/* View All Workload router button */}
               <button
                 onClick={() => {
-                  setViewState('workload');
+                  onNavigateToWorkload?.();
                   showToast("Opened Supervisor Workload Monitoring");
                 }}
                 className="w-full mt-2 py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center"

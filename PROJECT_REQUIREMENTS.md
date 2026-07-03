@@ -101,6 +101,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Existing Dashboard Overview behavior must remain the default authenticated landing view for every role after a normal login.
 - Login, forgot-password, and reset-password flows must remain available at `/login`, `/forgot-password`, and `/reset-password?uid=...&token=...` after logout without blocking direct office-staff UI review during development.
 - Production frontend hosting for clean URLs must fall back unknown frontend paths to `index.html` so direct refresh works on routes such as `/marks/records/<recordId>`.
+- Office Staff/Admin Supervisor Appointment record detail and workload monitoring must be page-level routed at `/supervisor-appointments/<applicationIdOrStudentId>` and `/supervisor-appointments/workload`, with back actions returning to `/supervisor-appointments` and unknown records showing a clear not-found state.
 
 ## Lecturer Module Requirements
 
@@ -112,6 +113,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Lecturer Dashboard Overview must show two dashboard cards: Students Under Supervision and Panel Appointment for Students.
 - Lecturer Dashboard Overview must reuse the shared semester-timeline next-actions list for timeline events targeted to Lecturer.
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
+- Lecturer Supervisor Appointments must expose request history and active supervisee detail as page-level routes at `/supervisor-appointments/history` and `/supervisor-appointments/supervisees/<studentId>`, while keeping review drawers, filters, pagination, and toasts local to the component.
 - Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
 - Lecturer Panel Appointments must support assigned panel task review, supervisor panel recommendation submission, and submitted recommendation review.
 - Lecturer Panel Appointments must expose submitted recommendations, reviewed requests, and assignment detail as page-level routes at `/panel-appointments/submitted`, `/panel-appointments/reviewed`, and `/panel-appointments/assignments/<studentId>`, while keeping drawers, filters, pagination, and toasts local to the component.
@@ -174,6 +176,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - When an authenticated demo user has the `Student` role, shared sidebar entries must render student-focused workflows rather than office-staff administrative workflows.
 - Student users must be able to access FAQ Chatbot, Supervisor Appointments, Panel Appointments, File Submission, Letter Generation, Dashboard Overview, and Settings from the sidebar.
 - Student Supervisor Appointments must support viewing current supervisor details and submitting supervisor appointment applications.
+- Student Supervisor Appointments must expose the new application form as `/supervisor-appointments/new` and continue opening submitted application detail from `/supervisor-appointments/<applicationId>`.
 - Student Panel Appointments must support viewing pending and confirmed panel appointment states.
 - Student Panel Appointments must remain rooted at `/panel-appointments`; nested panel appointment URLs that do not apply to students must redirect back to `/panel-appointments`.
 - Student Panel Appointments must load panel appointment status from the persisted backend panel workflow instead of a manual test toggle.
