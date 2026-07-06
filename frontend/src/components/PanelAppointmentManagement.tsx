@@ -44,7 +44,8 @@ import { PanelRecord, PanelWorkloadRecord } from '../types';
 import { getPanelAppointments, getPanelWorkloads } from '../services';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { downloadCsv } from '../utils/csvExport';
-import { getPanelRecordSummary } from '../utils/panelAppointmentRecords';
+import { filterPanelRecordsByStatusTab, getPanelRecordSummary, PanelRecordStatusTab } from '../utils/panelAppointmentRecords';
+import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
@@ -52,7 +53,7 @@ export interface AttentionItem {
   id: string;
   label: string;
   desc: string;
-  filterTab: 'All Records' | 'No Panel' | 'Pending' | 'Approved' | 'Rejected' | 'Workload Alert';
+  filterTab: Exclude<PanelRecordStatusTab, 'All Records'>;
 }
 
 type PanelAppointmentRouteView = 'list' | 'detail' | 'workload';
@@ -108,7 +109,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
 
   // Interactive pill filter selection
-  const [activeTab, setActiveTab] = useState<'All Records' | 'No Panel' | 'Pending' | 'Approved' | 'Rejected' | 'Workload Alert'>('All Records');
+  const [activeTab, setActiveTab] = useState<PanelRecordStatusTab>('All Records');
 
   // Trigger filters only when 'Apply Filters' is specifically clicked (screenshot business requirement)
   const [appliedFilters, setAppliedFilters] = useState({
@@ -153,9 +154,16 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
     showToast("Reset all search parameters.");
   };
 
+  const semesterOptions = useMemo(
+    () => ['All Semesters', ...Array.from(new Set(records.map((record) => record.semester).filter(Boolean))).sort()],
+    [records],
+  );
+
+  const statusTabs: PanelRecordStatusTab[] = ['All Records', 'No Panel', 'Pending', 'Approved', 'Rejected', 'Cancelled'];
+
   // Status-tab quick filtering
   const filteredRecords = useMemo(() => {
-    return records.filter(rec => {
+    const recordsMatchingFields = records.filter(rec => {
       // 1. Text Search matching student name, ID, supervisor, panel member or course
       const terms = appliedFilters.search.toLowerCase();
       const matchSearch = !terms || 
@@ -173,23 +181,9 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       const matchSem = appliedFilters.semester === 'All Semesters' || 
         rec.semester === appliedFilters.semester;
 
-      // 4. Status Tab Filter
-      let matchTab = true;
-      if (activeTab === 'No Panel') {
-        matchTab = rec.status === 'No Panel';
-      } else if (activeTab === 'Pending') {
-        // Recommendations or pending items in queue
-        matchTab = rec.status === 'Pending' || rec.status === 'Recommendation';
-      } else if (activeTab === 'Approved') {
-        matchTab = rec.status === 'Approved';
-      } else if (activeTab === 'Rejected') {
-        matchTab = rec.status === 'Rejected';
-      } else if (activeTab === 'Workload Alert') {
-        matchTab = rec.status === 'Workload Alert';
-      }
-
-      return matchSearch && matchProg && matchSem && matchTab;
+      return matchSearch && matchProg && matchSem;
     });
+    return filterPanelRecordsByStatusTab(recordsMatchingFields, activeTab);
   }, [records, appliedFilters, activeTab]);
 
   // Paginated chunk
@@ -221,6 +215,8 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
     downloadCsv('panel_appointments_report.csv', filteredRecords, [
       { header: 'Student ID', value: (record) => record.id },
+      { header: 'Record ID', value: (record) => record.recordId },
+      { header: 'Recommendation ID', value: (record) => record.recommendationId ?? '' },
       { header: 'Student Name', value: (record) => record.studentName },
       { header: 'Programme', value: (record) => record.programme },
       { header: 'Semester', value: (record) => record.semester },
@@ -228,6 +224,14 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       { header: 'Supervisor', value: (record) => record.supervisor },
       { header: 'Panel Member', value: (record) => record.panelMember },
       { header: 'Status', value: (record) => record.status },
+      { header: 'Appointment Date', value: (record) => record.appointmentDate || '' },
+      { header: 'Recommendation Submitted At', value: (record) => record.recommendationSubmittedAt || '' },
+      { header: 'Panel Decision At', value: (record) => record.panelDecisionAt || '' },
+      { header: 'Coordinator Decision At', value: (record) => record.coordinatorDecisionAt || '' },
+      { header: 'Cancelled At', value: (record) => record.cancelledAt || '' },
+      { header: 'Rejection Stage', value: (record) => record.rejectionStage || '' },
+      { header: 'Rejection Reason', value: (record) => record.rejectionReason || '' },
+      { header: 'Cancellation Reason', value: (record) => record.cancellationReason || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
     showToast(`Downloaded panel_appointments_report.csv with ${filteredRecords.length} records.`);
@@ -243,7 +247,8 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
     { id: '1', label: 'Students without appointed panel', desc: `${panelSummary.withoutPanel} records outstanding`, filterTab: 'No Panel' },
     { id: '2', label: 'Panel recommendations in workflow', desc: `${panelSummary.pending} records pending confirmation`, filterTab: 'Pending' },
     { id: '3', label: 'Confirmed panel appointments', desc: `${panelSummary.approved} active records`, filterTab: 'Approved' },
-    { id: '4', label: 'Rejected panel recommendations', desc: `${panelSummary.rejected} records closed`, filterTab: 'Rejected' }
+    { id: '4', label: 'Rejected panel recommendations', desc: `${panelSummary.rejected} records closed`, filterTab: 'Rejected' },
+    { id: '5', label: 'Cancelled panel recommendations', desc: `${panelSummary.cancelled} records cancelled`, filterTab: 'Cancelled' }
   ];
 
   const workloadSnapshotRows = workloadRows.slice(0, 3);
@@ -292,7 +297,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
           />
 
           {/* Core Summary Cards Grid row matching screenshots exactly */}
-          <div id="panel-summary-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 font-sans">
+          <div id="panel-summary-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 font-sans">
             
             {/* Card 1: Students Without Panel */}
             <div className="bg-white border-l-4 border-l-red-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
@@ -357,7 +362,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
             </div>
 
-            {/* Card 4: Workload Alerts */}
+            {/* Card 4: Rejected Records */}
             <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
@@ -375,6 +380,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               <div className="flex items-center gap-1.5 mt-4 text-rose-600 text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="danger" />
                 <span>Rejected panel recommendation records.</span>
+              </div>
+            </div>
+
+            {/* Card 5: Cancelled Records */}
+            <div className="bg-white border-l-4 border-l-slate-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                    Cancelled Records
+                  </span>
+                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                    {panelSummary.cancelled}
+                  </span>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 border border-slate-200">
+                  <X className="w-5 h-5 stroke-[2.5]" />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 mt-4 text-slate-600 text-[10px] font-extrabold tracking-wide">
+                <StatusDot tone="neutral" />
+                <span>Cancelled before appointment.</span>
               </div>
             </div>
 
@@ -449,9 +475,9 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                         onChange={(e) => setSemesterFilter(e.target.value)}
                         className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                       >
-                        <option>All Semesters</option>
-                        <option>Sem 1 2025/2026</option>
-                        <option>Sem 2 2024/2025</option>
+                        {semesterOptions.map((semester) => (
+                          <option key={semester}>{semester}</option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
                     </div>
@@ -484,7 +510,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                 {/* Interactive Horizontal filter tabs mimicking screenshot exactly */}
                 <div id="inner-status-pills" className="pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-1.5 select-none">
-                    {(['All Records', 'No Panel', 'Pending', 'Approved', 'Rejected', 'Workload Alert'] as const).map((tab) => (
+                    {statusTabs.map((tab) => (
                       <button
                         key={tab}
                         onClick={() => {
@@ -619,10 +645,6 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           ) : rec.status === 'Pending' ? (
                             <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full uppercase border border-blue-100">
                               Pending
-                            </span>
-                          ) : rec.status === 'Workload Alert' ? (
-                            <span className="px-2.5 py-1 bg-orange-50 text-orange-650 text-[10px] font-black rounded-full uppercase border border-orange-100">
-                              Workload Alert
                             </span>
                           ) : rec.status === 'Cancelled' ? (
                             <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase border border-slate-200">
@@ -786,7 +808,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           w.availability === 'Full Load' ? 'bg-red-600' :
                           w.availability === 'Near Limit' ? 'bg-amber-500' :
                           'bg-emerald-500'
-                        }`} style={{ width: `${(w.currentStudents / w.workloadLimit) * 100}%` }} />
+                        }`} style={{ width: `${getPanelWorkloadUtilization(w)}%` }} />
                       </div>
                     </div>
                   )) : (

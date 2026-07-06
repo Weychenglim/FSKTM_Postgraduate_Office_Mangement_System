@@ -1,5 +1,5 @@
 import { PanelWorkloadRecord } from '../types';
-import { getPanelWorkloadSummary } from './panelWorkloadRecords';
+import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from './panelWorkloadRecords';
 
 const rows: PanelWorkloadRecord[] = [
   {
@@ -46,5 +46,13 @@ if (summary.totalPanels !== 3) throw new Error(`Expected 3 panels, got ${summary
 if (summary.available !== 1) throw new Error(`Expected 1 available, got ${summary.available}`);
 if (summary.nearLimit !== 1) throw new Error(`Expected 1 near limit, got ${summary.nearLimit}`);
 if (summary.fullLoad !== 1) throw new Error(`Expected 1 full load, got ${summary.fullLoad}`);
+
+if (getPanelWorkloadUtilization({ ...rows[0], currentStudents: 6, workloadLimit: 5 }) !== 100) {
+  throw new Error('Utilization should clamp overloaded panel members to 100%.');
+}
+
+if (getPanelWorkloadUtilization({ ...rows[0], currentStudents: 2, workloadLimit: 0 }) !== 0) {
+  throw new Error('Utilization should be 0% when workload limit is zero.');
+}
 
 console.log('panelWorkloadRecords tests passed');

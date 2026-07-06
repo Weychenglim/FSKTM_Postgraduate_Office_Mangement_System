@@ -39,7 +39,6 @@ export type PanelAppointmentStatus =
   | 'No Panel'
   | 'Pending'
   | 'Recommendation'
-  | 'Workload Alert'
   | 'Rejected'
   | 'Cancelled';
 

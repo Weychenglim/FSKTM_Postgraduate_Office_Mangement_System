@@ -197,6 +197,46 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(records_by_id[submitted_profile.matric_no]["status"], "Recommendation")
         self.assertEqual(records_by_id[rejected_profile.matric_no]["status"], "Rejected")
 
+    def test_panel_records_are_office_admin_only(self):
+        for user in [self.supervisor, self.panel, self.coordinator, self.student]:
+            with self.subTest(role=user.role):
+                self.authenticate(user)
+                response = self.client.get("/api/appointments/panel/")
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_office_panel_records_include_cancelled_recommendation_payload(self):
+        cancelled_profile = self.create_profile("MEA999020", supervisor=self.supervisor)
+        cancelled = PanelRecommendation.objects.create(
+            profile=cancelled_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            justification="Cancelled recommendation.",
+            status=PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+            cancellation_reason="Student changed research direction.",
+            cancelled_at=timezone.now(),
+        )
+        AppointmentWorkflowEvent.objects.create(
+            actor=self.supervisor,
+            actor_role=self.supervisor.role,
+            action="SUPERVISOR_CANCEL",
+            previous_status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            new_status=PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+            reason=cancelled.cancellation_reason,
+            panel_recommendation=cancelled,
+        )
+
+        self.authenticate(self.office_admin)
+        response = self.client.get("/api/appointments/panel/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(record for record in response.data if record["id"] == cancelled_profile.matric_no)
+        self.assertEqual(row["status"], "Cancelled")
+        self.assertEqual(row["recordId"], f"recommendation-{cancelled.pk}")
+        self.assertEqual(row["recommendationId"], cancelled.pk)
+        self.assertIsNotNone(row["cancelledAt"])
+        self.assertEqual(row["cancellationReason"], "Student changed research direction.")
+        self.assertEqual(row["workflow"][0]["action"], "SUPERVISOR_CANCEL")
+
     def test_office_panel_records_keep_rejected_history_after_later_approval(self):
         profile = self.create_profile("MEA999014", supervisor=self.supervisor)
         rejected = PanelRecommendation.objects.create(

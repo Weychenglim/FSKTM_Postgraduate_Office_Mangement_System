@@ -325,15 +325,21 @@ def coordinator_can_access_recommendation(user, recommendation):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def panel_records_view(request):
+    if request.user.role != User.Role.OFFICE_ADMIN:
+        return error_response(
+            "Only Office Staff/Admin can view panel records.",
+            status.HTTP_403_FORBIDDEN,
+        )
+
     appointments = list(PanelAppointment.objects.select_related(
         "profile", "supervisor", "panel_member", "recommendation"
-    ))
+    ).prefetch_related("recommendation__workflow_events__actor"))
     appointment_recommendation_ids = {
         appointment.recommendation_id for appointment in appointments
     }
     recommendations = list(PanelRecommendation.objects.select_related(
         "profile", "supervisor", "recommended_member"
-    ).exclude(pk__in=appointment_recommendation_ids))
+    ).prefetch_related("workflow_events__actor").exclude(pk__in=appointment_recommendation_ids))
 
     workflow_records = [
         (appointment.updated_at, panel_record_from_appointment(appointment))
