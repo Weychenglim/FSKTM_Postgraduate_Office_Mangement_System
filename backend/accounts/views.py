@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -18,12 +18,18 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
 )
+from .throttles import (
+    LoginRateThrottle,
+    PasswordResetConfirmRateThrottle,
+    PasswordResetRateThrottle,
+)
 
 User = get_user_model()
 
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     """Authenticate by email / student ID / staff ID (case-insensitive)."""
     serializer = LoginSerializer(data=request.data)
@@ -126,6 +132,7 @@ def _send_password_reset_email(user):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def password_reset_view(request):
     """Send a reset link. Always returns 200 so we never reveal which emails
     are registered."""
@@ -144,6 +151,7 @@ def password_reset_view(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetConfirmRateThrottle])
 def password_reset_confirm_view(request):
     """Validate the uid+token from the email link and set the new password."""
     serializer = PasswordResetConfirmSerializer(data=request.data)

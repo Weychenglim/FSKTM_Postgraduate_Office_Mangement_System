@@ -184,6 +184,8 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Backend role and record scoping is authoritative: students may access only their own records, lecturers only assigned workflow records, Programme Coordinators only their managed programme, and Office Staff/Admin-only monitoring must reject every other role.
 - Letter templates are readable by every authenticated role and writable only by Office Staff/Admin or Programme Coordinator users.
 - Announcements and Notifications are teammate-owned and excluded from behavioral security changes in the current core-API hardening slice.
+- Login must be limited to 10 attempts per minute per client IP, password-reset requests to 5 per hour per client IP, and password-reset confirmations to 10 per hour per client IP, with environment-configurable rates.
+- Authentication throttles must return HTTP `429` with `Retry-After`, and authentication screens must show a clear retry-later message.
 
 ## Student Module Requirements
 

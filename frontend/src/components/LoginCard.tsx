@@ -19,6 +19,7 @@ import { AlertMessage } from './AlertMessage';
 import { DEMO_LOGIN_CONFIG, type DemoRoleKey } from '../config/demoLogin';
 import type { DemoUser } from '../types';
 import { authApi, ApiError } from '../services';
+import { authenticationErrorMessage } from '../utils/authErrorMessage';
 
 interface LoginCardProps {
   onForgotPasswordClick?: () => void;
@@ -62,10 +63,14 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAlert({ type: 'error', message: 'Invalid credentials. Please check your Email / Staff / Student ID and password.' });
-      } else if (err instanceof ApiError && err.status) {
-        setAlert({ type: 'error', message: err.message });
       } else {
-        setAlert({ type: 'error', message: 'Cannot reach the server. Is the API running?' });
+        setAlert({
+          type: 'error',
+          message: authenticationErrorMessage(
+            err,
+            'Cannot reach the server. Is the API running?',
+          ),
+        });
       }
     } finally {
       setIsLoading(false);

@@ -136,6 +136,9 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - A route-discovery security test walks every mounted `/api/` DRF view and exercises every declared method anonymously. It allows only the three recovery/login endpoints and verifies announcement routes return `401` without changing announcement behavior.
 - Accounts, Supervisor, Panel, Dashboard, Marks, and Letters enforce role and object/programme scope in backend queries and decision handlers. Frontend route visibility is never treated as authorization.
 - Announcement/Notification ownership, draft visibility, and attachment authorization remain deferred to the teammate-owned module and require a dedicated review before production.
+- `accounts.throttles` provides separate settings-backed, per-client-IP scopes for login, password-reset request, and password-reset confirmation. `DRF_NUM_PROXIES=0` makes `REMOTE_ADDR` authoritative until a known proxy chain is configured.
+- Development throttle counters use Django's local-memory cache. A shared Redis-compatible cache is a production prerequisite before running multiple API workers; otherwise each worker would enforce an independent counter.
+- Frontend authentication forms centralize `429` handling in `src/utils/authErrorMessage.ts` and retain endpoint-provided messages for other API errors.
 
 ## Supervisor, Workflow Audit, Marks, and Dashboard Completion
 

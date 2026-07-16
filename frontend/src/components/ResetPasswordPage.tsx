@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import { Lock, Check, ShieldCheck } from 'lucide-react';
-import { authApi, ApiError } from '../services';
+import { authApi } from '../services';
+import { authenticationErrorMessage } from '../utils/authErrorMessage';
 import {
   AuthLayout,
   AuthCard,
@@ -56,11 +57,10 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
       await authApi.confirmPasswordReset(uid, token, password);
       setIsDone(true);
     } catch (err) {
-      setErrorText(
-        err instanceof ApiError
-          ? err.message
-          : 'Cannot reach the server. Please try again shortly.'
-      );
+      setErrorText(authenticationErrorMessage(
+        err,
+        'Cannot reach the server. Please try again shortly.',
+      ));
     } finally {
       setIsLoading(false);
     }
