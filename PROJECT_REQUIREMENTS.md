@@ -179,6 +179,11 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Frontend demo-login controls must appear only in Vite development mode when `VITE_ENABLE_DEMO_LOGIN=true` and all per-role local passwords are configured; normal manual login must remain available otherwise.
 - Production frontend builds must not contain demo passwords, testing-console markup, or testing-console copy even when demo environment variables are supplied to the build process.
 - Refreshing or renaming local demo accounts must preserve existing account identities and their audit, timeline, and appointment history through an optional validated legacy-email mapping.
+- Django REST APIs must require authenticated access by default. Only login, password-reset request, and password-reset confirmation may explicitly allow anonymous DRF requests; `/api/health/` remains a minimal public Django health check.
+- Logout must require a valid authenticated session token.
+- Backend role and record scoping is authoritative: students may access only their own records, lecturers only assigned workflow records, Programme Coordinators only their managed programme, and Office Staff/Admin-only monitoring must reject every other role.
+- Letter templates are readable by every authenticated role and writable only by Office Staff/Admin or Programme Coordinator users.
+- Announcements and Notifications are teammate-owned and excluded from behavioral security changes in the current core-API hardening slice.
 
 ## Student Module Requirements
 

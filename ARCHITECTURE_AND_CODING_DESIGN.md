@@ -132,6 +132,10 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Panel recommendation backend permissions are endpoint-enforced: supervisors can create/list their own recommendations, selected panel lecturers can accept/reject only assigned recommendations, and Programme Coordinators can confirm/reject only pending coordinator recommendations.
 - Student panel appointment permissions are endpoint-enforced: only authenticated Student users can call the student panel endpoint, and the backend only returns the profile and appointed panel linked to the logged-in user.
 - Semester timeline backend permissions are endpoint-enforced: all authenticated users can read the active timeline, while only Office Staff/Admin users can download templates, upload replacements, or patch timeline entries.
+- DRF uses `IsAuthenticated` as its default permission. Login, password-reset request, and password-reset confirmation explicitly opt into `AllowAny`; logout requires authentication, while `/api/health/` stays outside DRF as a minimal public probe.
+- A route-discovery security test walks every mounted `/api/` DRF view and exercises every declared method anonymously. It allows only the three recovery/login endpoints and verifies announcement routes return `401` without changing announcement behavior.
+- Accounts, Supervisor, Panel, Dashboard, Marks, and Letters enforce role and object/programme scope in backend queries and decision handlers. Frontend route visibility is never treated as authorization.
+- Announcement/Notification ownership, draft visibility, and attachment authorization remain deferred to the teammate-owned module and require a dedicated review before production.
 
 ## Supervisor, Workflow Audit, Marks, and Dashboard Completion
 

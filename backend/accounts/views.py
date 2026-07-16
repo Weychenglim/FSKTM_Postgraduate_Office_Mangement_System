@@ -53,7 +53,7 @@ def login_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def logout_view(request):
     """Stateless JWT logout — the client discards the token. Endpoint exists so
     the frontend has a stable call and we can add token blacklisting later."""
