@@ -89,6 +89,8 @@ Frontend paths in this section are relative to `frontend/`.
 - Appointment serializers and validators resolve public `staffId`, `studentId`, and `department` fields through the normalized `Lecturer`, `Student`, and `OfficeStaff` profile relations rather than flat columns on `User`.
 - Backend `dashboard` app owns `SemesterTimeline`, `SemesterTimelineEntry`, and `TimelineAuditLog` persistence plus role-gated DRF endpoints under `/api/dashboard/`.
 - Dashboard timeline upload uses a structured Excel workbook parsed with `openpyxl`; upload replacement deactivates the previous active timeline, creates the new active timeline and entries in one transaction, derives internal step order and status from row order/date ranges, and records an audit log.
+- `dashboard.upload_security` validates the 10 MB upload limit and the XLSX ZIP package before `openpyxl` parsing. It bounds entry count and total expansion, rejects encryption, traversal paths, macros, missing workbook parts, and failed CRC checks, then rewinds the stream for normal spreadsheet validation.
+- Production reverse proxies must cap timeline upload request bodies at 12 MB, leaving multipart overhead above the application-level 10 MB file limit while rejecting larger bodies before Django workers process them.
 - Dashboard timeline entries store both `title` and `detail`; `title` is the short schedule/table label and `detail` is the longer description shown in the details modal.
 - Dashboard timeline target roles are limited to `STUDENT`, `LECTURER`, and `OFFICE_STAFF`; lecturer responsibilities are not split into panel/supervisor target-role values.
 - Dashboard timeline entry patching is Office Staff/Admin-only and records an audit log for each saved entry change.

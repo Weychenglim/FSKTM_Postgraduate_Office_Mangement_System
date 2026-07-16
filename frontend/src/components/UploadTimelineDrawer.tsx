@@ -24,6 +24,7 @@ import {
   timelineEntryToLegacy,
   uploadTimelineFile,
 } from '../services';
+import { validateTimelineUploadFile } from '../utils/timelineUploadValidation';
 
 interface UploadTimelineDrawerProps {
   isOpen: boolean;
@@ -77,8 +78,9 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   };
 
   const processFile = (file: File) => {
-    if (!file.name.endsWith('.xlsx')) {
-      triggerToast('Validation Error: Only Excel templates represented as .xlsx are accepted.');
+    const validationError = validateTimelineUploadFile(file);
+    if (validationError) {
+      triggerToast(`Validation Error: ${validationError}`);
       return;
     }
     setUploadedFile(file);

@@ -20,6 +20,7 @@ from .serializers import (
     TimelineEntryUpdateSerializer,
     active_timeline_payload,
 )
+from .upload_security import validate_timeline_upload
 
 
 User = get_user_model()
@@ -98,8 +99,10 @@ def upload_timeline_view(request):
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
         return Response({"errors": ["Timeline Excel file is required."]}, status=status.HTTP_400_BAD_REQUEST)
-    if not uploaded_file.name.lower().endswith(".xlsx"):
-        return Response({"errors": ["Only .xlsx timeline templates are accepted."]}, status=status.HTTP_400_BAD_REQUEST)
+
+    upload_errors = validate_timeline_upload(uploaded_file)
+    if upload_errors:
+        return Response({"errors": upload_errors}, status=status.HTTP_400_BAD_REQUEST)
 
     rows, errors = parse_timeline_workbook(uploaded_file)
     if errors:
