@@ -34,6 +34,15 @@ SECRET_KEY = os.getenv(
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
+# Demo fixtures are opt-in even during local development. Passwords intentionally
+# have no fallback so seed_users cannot create known credentials by accident.
+ENABLE_DEMO_ACCOUNTS = env_bool("ENABLE_DEMO_ACCOUNTS", False)
+DEMO_ADMIN_PASSWORD = os.getenv("DEMO_ADMIN_PASSWORD", "")
+DEMO_COORDINATOR_PASSWORD = os.getenv("DEMO_COORDINATOR_PASSWORD", "")
+DEMO_LECTURER_PASSWORD = os.getenv("DEMO_LECTURER_PASSWORD", "")
+DEMO_STUDENT_PASSWORD = os.getenv("DEMO_STUDENT_PASSWORD", "")
+DEMO_LEGACY_EMAIL_MAP = os.getenv("DEMO_LEGACY_EMAIL_MAP", "")
+
 # Where the React app is served — used to build password-reset links.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 

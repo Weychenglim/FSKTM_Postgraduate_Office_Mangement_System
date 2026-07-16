@@ -25,7 +25,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 2. Environment
+# 2. Environment (set PostgreSQL plus local demo flags/passwords in .env)
 Copy-Item .env.example .env
 
 # 3. Database
@@ -104,16 +104,18 @@ Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.
 
-## Demo logins
+## Development demo logins
 
-| Role | Email / ID | Password |
-| ---- | ---------- | -------- |
-| Office Staff/Admin | `admin@siswa.um.edu.my` (`M10492`) | `staffAdmin2026` |
-| Programme Coordinator | `coordinator@siswa.um.edu.my` (`L29402`) | `coordinator2026` |
-| Lecturer / Supervisor | `lecturer@siswa.um.edu.my` (`L84920`) | `lecturer2026` |
-| Selected Panel Lecturer | `panelamina@fsktm.edu.my` (`A004812`) | `lecturer2026` |
-| Student | `200192@siswa.um.edu.my` (`200192`) | `student2026` |
-| Panel Demo Student | `MEA2209841@fsktm.edu.my` (`MEA2209841`) | `student2026` |
+Demo fixtures use fictional `example.test` emails and `DEMO-*` identifiers.
+They are disabled by default. To use them locally, set
+`ENABLE_DEMO_ACCOUNTS=true` and all four `DEMO_*_PASSWORD` values in the
+ignored `backend/.env`, then run `python manage.py seed_users` while
+`DJANGO_DEBUG=True`.
+
+The command refuses to modify data if any guard is missing. Passwords are not
+stored in source or documentation. The optional `DEMO_LEGACY_EMAIL_MAP` JSON
+setting can rename existing local fixtures in place so workflow and audit
+foreign keys retain their user IDs.
 
 ## Password-reset email
 
@@ -129,6 +131,6 @@ from setup step 4 to manage user accounts and appointment records.
 
 ## Notes
 
-- Demo accounts live in `accounts_user`.
+- Opt-in development demo accounts live in `accounts_user`.
 - Panel workflow records live in the `appointments_*` tables.
 - The old Node `users` table, if present in the same DB, is unused.

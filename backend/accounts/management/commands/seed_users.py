@@ -1,20 +1,15 @@
-"""Seed the demo login accounts and their role profiles.
+"""Seed development-only demo accounts and their role profiles.
 
-These mirror the frontend's DEMO_CREDENTIALS so the login screen's
-demo-prefill buttons keep working against the real backend.
-
-    python manage.py seed_users
-
-Idempotent: re-running updates the existing rows and resets passwords.
-
-Number format standard:
-- Student matric_no: numbers only, for example 200192, 2209841
-- Student email: matric_no@siswa.um.edu.my, for example 200192@siswa.um.edu.my
-- Lecturer / Panel staff_no: L + 5 digits, for example L84920, L04812
+The command is idempotent, but it refuses to run unless Django debug mode and
+the explicit demo-account flag are both enabled. Passwords come only from the
+ignored local environment.
 """
 
-from django.core.management.base import BaseCommand, CommandError
+import json
+
+from django.conf import settings
 from django.contrib.auth.models import Permission
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from accounts.models import (
@@ -30,55 +25,40 @@ from accounts.models import (
 from appointments.models import StudentResearchProfile
 
 
-# Optional migration helper:
-# If old demo accounts already exist, update their emails to the new format.
-OLD_TO_NEW_EMAILS = {
-    "admin@fsktm.edu.my": "admin@siswa.um.edu.my",
-    "coordinator@fsktm.edu.my": "coordinator@siswa.um.edu.my",
-    "lecturer@fsktm.edu.my": "lecturer@siswa.um.edu.my",
-    "WEA200192@fsktm.edu.my": "200192@siswa.um.edu.my",
-    "MEA2209841@fsktm.edu.my": "2209841@siswa.um.edu.my",
-    "MEA2301123@fsktm.edu.my": "2301123@siswa.um.edu.my",
-}
-
-
 DEMO_USERS = [
     {
-        "email": "admin@siswa.um.edu.my",
-        "password": "staffAdmin2026",
-        "full_name": "Puan Noraini binti Kamaruddin",
+        "email": "demo.office.admin@example.test",
+        "full_name": "Demo Office Administrator",
         "role": User.Role.OFFICE_ADMIN,
         "office_staff": {
-            "staff_no": "M10492",
-            "department": "Postgraduate Office Division",
-            "position": "Senior Administrative Officer",
+            "staff_no": "DEMO-ADMIN-001",
+            "department": "Demo Postgraduate Office",
+            "position": "Demo Administrative Officer",
         },
     },
     {
-        "email": "coordinator@siswa.um.edu.my",
-        "password": "coordinator2026",
-        "full_name": "Dr. Adrian Tan Kok Seng",
+        "email": "demo.coordinator@example.test",
+        "full_name": "Demo Programme Coordinator",
         "role": User.Role.COORDINATOR,
         "lecturer": {
-            "staff_no": "L29402",
-            "department": "Software Engineering Division",
-            "title": "Dr.",
-            "specialization": "Software Engineering",
+            "staff_no": "DEMO-COORD-001",
+            "department": "Demo Programme Coordination",
+            "title": "Demo Dr.",
+            "specialization": "Demo Software Engineering",
         },
         "coordinator": {
             "programme_managed": "MASTER OF CYBER SECURITY (COURSEWORK)",
         },
     },
     {
-        "email": "lecturer@siswa.um.edu.my",
-        "password": "lecturer2026",
-        "full_name": "Prof. Dr. Ahmad Shahrir",
+        "email": "demo.supervisor@example.test",
+        "full_name": "Demo Lecturer Supervisor",
         "role": User.Role.LECTURER,
         "lecturer": {
-            "staff_no": "L84920",
-            "department": "Artificial Intelligence Department",
-            "title": "Prof. Dr.",
-            "specialization": "Artificial Intelligence",
+            "staff_no": "DEMO-LECT-001",
+            "department": "Demo Artificial Intelligence Department",
+            "title": "Demo Prof.",
+            "specialization": "Demo Artificial Intelligence",
         },
         "supervisor": {
             "max_supervisees": 5,
@@ -88,81 +68,71 @@ DEMO_USERS = [
         },
     },
     {
-        "email": "panelamina@fsktm.edu.my",
-        "password": "lecturer2026",
-        "full_name": "Assoc. Prof. Dr. Amina Malik",
+        "email": "demo.panel@example.test",
+        "full_name": "Demo Panel Lecturer",
         "role": User.Role.LECTURER,
         "lecturer": {
-            "staff_no": "L04812",
-            "department": "Data Science Department",
-            "title": "Assoc. Prof. Dr.",
-            "specialization": "Data Science",
+            "staff_no": "DEMO-PANEL-001",
+            "department": "Demo Data Science Department",
+            "title": "Demo Assoc. Prof.",
+            "specialization": "Demo Data Science",
         },
         "panel": {
             "max_appointments": 10,
         },
     },
     {
-        "email": "200192@siswa.um.edu.my",
-        "password": "student2026",
-        "full_name": "Fatimah Al-Zahra",
+        "email": "demo.student@example.test",
+        "full_name": "Demo Student One",
         "role": User.Role.STUDENT,
         "student": {
-            "matric_no": "200192",
+            "matric_no": "DEMO-STUDENT-001",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2024/2025 Semester 1",
         },
     },
     {
-        # Primary viva demo account (real UM mailbox, used for the live
-        # forgot-password / reset-email demonstration).
-        "email": "23004955@siswa.um.edu.my",
-        "password": "Kkx@041125",
-        "full_name": "Ku Kian Xiang",
+        "email": "demo.letter.student@example.test",
+        "full_name": "Demo Letter Student",
         "role": User.Role.STUDENT,
         "student": {
-            "matric_no": "23004955",
+            "matric_no": "DEMO-STUDENT-002",
             "programme": "Master of Computer Science (By Coursework)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2024/2025 Semester 1",
         },
-        # Extended registry details so the confirmation/visa letter can fill its
-        # placeholders. Demo values — editable in the Django admin (Student page).
         "student_registry": {
-            "ic_number": "051104-14-5523",
-            "passport_number": "",
-            "nationality": "Malaysian",
-            "address": "Faculty of Computer Science & Information Technology, "
-            "Universiti Malaya, 50603 Kuala Lumpur",
+            "ic_number": "",
+            "passport_number": "DEMO-PASSPORT-NOT-VALID",
+            "nationality": "Fictional Demo Nationality",
+            "address": "Demo Address Only, Not a Deliverable Location",
             "programme_mode": StudentRegistry.ProgrammeMode.COURSEWORK,
-            "field_of_study": "Computer Science",
+            "field_of_study": "Demo Computer Science",
             "mode_of_study": StudentRegistry.StudyMode.FULL_TIME,
             "current_semester": "Semester II, 2025/2026 Session",
             "max_semester": "Semester I, 2027/2028 Session",
             "expected_completion": "Semester I, 2027/2028 Session",
-            "sponsor": "Self-funded",
+            "sponsor": "Demo Sponsor",
         },
     },
     {
-        "email": "2209841@siswa.um.edu.my",
-        "password": "student2026",
-        "full_name": "Ahmad Luqman",
+        "email": "demo.panel.student.one@example.test",
+        "full_name": "Demo Panel Student One",
         "role": User.Role.STUDENT,
         "student": {
-            "matric_no": "2209841",
+            "matric_no": "DEMO-STUDENT-003",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2025/2026 Semester 1",
         },
     },
     {
-        "email": "2301123@siswa.um.edu.my",
-        "password": "student2026",
-        "full_name": "Nur Aisyah binti Rahman",
+        "email": "demo.panel.student.two@example.test",
+        "full_name": "Demo Panel Student Two",
         "role": User.Role.STUDENT,
         "student": {
-            "matric_no": "2301123",
+            "matric_no": "DEMO-STUDENT-004",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
             "intake_semester": "2025/2026 Semester 1",
@@ -173,43 +143,101 @@ DEMO_USERS = [
 
 PANEL_RESEARCH_PROFILES = [
     {
-        "matric_no": "2209841",
-        "student_email": "2209841@siswa.um.edu.my",
-        "student_name": "Ahmad Luqman",
+        "matric_no": "DEMO-STUDENT-003",
+        "student_email": "demo.panel.student.one@example.test",
+        "student_name": "Demo Panel Student One",
         "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
         "semester": "Sem 1 2025/2026",
-        "proposed_topic": "Optimizing Generative Adversarial Networks for Low-Resource Languages",
+        "proposed_topic": "Demo Study of Generative Models for Low-Resource Languages",
         "research_area": "Artificial Intelligence",
         "abstract": (
-            "This research explores novel architectural improvements for GANs to improve "
-            "synthetic data quality in languages with limited linguistic resources."
+            "This fictional demonstration profile explores model architecture "
+            "trade-offs using synthetic, non-personal research data."
         ),
-        "supervisor_email": "lecturer@siswa.um.edu.my",
+        "supervisor_email": "demo.supervisor@example.test",
     },
     {
-        "matric_no": "2301123",
-        "student_email": "2301123@siswa.um.edu.my",
-        "student_name": "Nur Aisyah binti Rahman",
+        "matric_no": "DEMO-STUDENT-004",
+        "student_email": "demo.panel.student.two@example.test",
+        "student_name": "Demo Panel Student Two",
         "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
         "semester": "Sem 1 2025/2026",
-        "proposed_topic": "Enhancing Explainable AI for Academic Performance Prediction",
+        "proposed_topic": "Demo Study of Explainable Academic Prediction",
         "research_area": "Artificial Intelligence",
         "abstract": (
-            "This research investigates explainable artificial intelligence techniques "
-            "for predicting student academic performance while improving transparency "
-            "and interpretability of the prediction results."
+            "This fictional demonstration profile evaluates explainability methods "
+            "with synthetic academic records and no real student information."
         ),
-        "supervisor_email": "lecturer@siswa.um.edu.my",
+        "supervisor_email": "demo.supervisor@example.test",
     },
 ]
 
 
 class Command(BaseCommand):
-    help = "Seed/refresh the demo login accounts and their role profiles."
+    help = "Seed/refresh development-only demo accounts and role profiles."
+
+    password_settings = {
+        User.Role.OFFICE_ADMIN: "DEMO_ADMIN_PASSWORD",
+        User.Role.COORDINATOR: "DEMO_COORDINATOR_PASSWORD",
+        User.Role.LECTURER: "DEMO_LECTURER_PASSWORD",
+        User.Role.STUDENT: "DEMO_STUDENT_PASSWORD",
+    }
+
+    @classmethod
+    def _validated_configuration(cls):
+        if not settings.DEBUG:
+            raise CommandError("seed_users requires DEBUG=True.")
+        if not settings.ENABLE_DEMO_ACCOUNTS:
+            raise CommandError("seed_users requires ENABLE_DEMO_ACCOUNTS=true.")
+
+        passwords = {}
+        for role, setting_name in cls.password_settings.items():
+            password = getattr(settings, setting_name, "")
+            if not password or not password.strip():
+                raise CommandError(f"seed_users requires non-blank {setting_name}.")
+            passwords[role] = password
+
+        raw_mapping = settings.DEMO_LEGACY_EMAIL_MAP.strip()
+        if not raw_mapping:
+            return passwords, {}
+
+        try:
+            legacy_email_map = json.loads(raw_mapping)
+        except json.JSONDecodeError as exc:
+            raise CommandError(
+                "DEMO_LEGACY_EMAIL_MAP must be a JSON object of old-to-new emails."
+            ) from exc
+
+        if not isinstance(legacy_email_map, dict) or any(
+            not isinstance(old_email, str)
+            or not isinstance(new_email, str)
+            or not old_email.strip()
+            or not new_email.strip()
+            for old_email, new_email in legacy_email_map.items()
+        ):
+            raise CommandError(
+                "DEMO_LEGACY_EMAIL_MAP must be a JSON object with non-blank "
+                "string keys and values."
+            )
+
+        canonical_emails = {entry["email"] for entry in DEMO_USERS}
+        destinations = [email.strip() for email in legacy_email_map.values()]
+        if any(email not in canonical_emails for email in destinations):
+            raise CommandError(
+                "Each DEMO_LEGACY_EMAIL_MAP destination must be a canonical demo email."
+            )
+        if len(destinations) != len(set(destinations)):
+            raise CommandError(
+                "DEMO_LEGACY_EMAIL_MAP cannot map multiple users to one demo email."
+            )
+
+        return passwords, {
+            old_email.strip(): new_email.strip()
+            for old_email, new_email in legacy_email_map.items()
+        }
 
     @staticmethod
     def _profile_conflict(entry):
-        """Find an account with the same unique matric/staff number."""
         email = entry["email"]
         if "student" in entry:
             return User.objects.filter(
@@ -226,7 +254,6 @@ class Command(BaseCommand):
         return None
 
     def _adopt_profile_conflict(self, entry):
-        """Reuse a legacy account so protected foreign keys remain valid."""
         conflicting_user = self._profile_conflict(entry)
         if conflicting_user is None:
             return
@@ -246,36 +273,36 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"  Migrated account email {old_email} -> {email}")
         )
 
-    @transaction.atomic
-    def handle(self, *args, **options):
-        # Migrate known legacy demo emails to the canonical format in place.
-        # This prevents duplicates without breaking protected user references.
-        for old_email, new_email in OLD_TO_NEW_EMAILS.items():
+    def _migrate_legacy_emails(self, legacy_email_map):
+        for old_email, new_email in legacy_email_map.items():
             old_user = User.objects.filter(email=old_email).first()
             new_user = User.objects.filter(email=new_email).first()
 
-            if old_user is not None:
-                if new_user is not None and new_user.pk != old_user.pk:
-                    raise CommandError(
-                        f"Cannot migrate {old_email} to {new_email}: "
-                        "both accounts exist."
-                    )
-                else:
-                    old_user.email = new_email
-                    old_user.save(update_fields=["email"])
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"  Migrated account email {old_email} -> {new_email}"
-                        )
-                    )
+            if old_user is None:
+                continue
+            if new_user is not None and new_user.pk != old_user.pk:
+                raise CommandError(
+                    f"Cannot migrate {old_email} to {new_email}: both accounts exist."
+                )
+
+            old_user.email = new_email
+            old_user.save(update_fields=["email"])
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"  Migrated account email {old_email} -> {new_email}"
+                )
+            )
+
+    @transaction.atomic
+    def handle(self, *args, **options):
+        passwords, legacy_email_map = self._validated_configuration()
+        self._migrate_legacy_emails(legacy_email_map)
 
         for entry in DEMO_USERS:
             self._adopt_profile_conflict(entry)
 
             data = dict(entry)
-            password = data.pop("password")
             email = data.pop("email")
-
             student = data.pop("student", None)
             student_registry = data.pop("student_registry", None)
             office_staff = data.pop("office_staff", None)
@@ -284,7 +311,6 @@ class Command(BaseCommand):
             supervisor = data.pop("supervisor", None)
             panel = data.pop("panel", None)
 
-            # Demo accounts skip the forced password change on first login.
             data["must_change_password"] = False
             data["is_staff"] = data["role"] == User.Role.OFFICE_ADMIN
 
@@ -292,9 +318,9 @@ class Command(BaseCommand):
                 email=email,
                 defaults=data,
             )
-
-            user.set_password(password)
+            user.set_password(passwords[user.role])
             user.save()
+
             if user.role == User.Role.OFFICE_ADMIN:
                 user.user_permissions.add(
                     *Permission.objects.filter(content_type__app_label="marks")
@@ -308,37 +334,25 @@ class Command(BaseCommand):
                     StudentRegistry.objects.update_or_create(
                         student=student_obj, defaults=student_registry
                     )
+
             if office_staff is not None:
-                OfficeStaff.objects.update_or_create(
-                    user=user,
-                    defaults=office_staff,
-                )
+                OfficeStaff.objects.update_or_create(user=user, defaults=office_staff)
 
             lecturer_obj = None
-
             if lecturer is not None:
                 lecturer_obj, _ = Lecturer.objects.update_or_create(
-                    user=user,
-                    defaults=lecturer,
+                    user=user, defaults=lecturer
                 )
-
             if lecturer_obj is not None and coordinator is not None:
                 Coordinator.objects.update_or_create(
-                    lecturer=lecturer_obj,
-                    defaults=coordinator,
+                    lecturer=lecturer_obj, defaults=coordinator
                 )
-
             if lecturer_obj is not None and supervisor is not None:
                 Supervisor.objects.update_or_create(
-                    lecturer=lecturer_obj,
-                    defaults=supervisor,
+                    lecturer=lecturer_obj, defaults=supervisor
                 )
-
             if lecturer_obj is not None and panel is not None:
-                Panel.objects.update_or_create(
-                    lecturer=lecturer_obj,
-                    defaults=panel,
-                )
+                Panel.objects.update_or_create(lecturer=lecturer_obj, defaults=panel)
 
             verb = "Created" if created else "Updated"
             self.stdout.write(
@@ -348,7 +362,6 @@ class Command(BaseCommand):
         for entry in PANEL_RESEARCH_PROFILES:
             student_user = User.objects.get(email=entry["student_email"])
             supervisor_user = User.objects.get(email=entry["supervisor_email"])
-
             profile, created = StudentResearchProfile.objects.update_or_create(
                 student=student_user,
                 defaults={
@@ -368,6 +381,4 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}")
             )
 
-        self.stdout.write(
-            self.style.SUCCESS("\nDemo accounts + role profiles ready.")
-        )
+        self.stdout.write(self.style.SUCCESS("\nDemo accounts + role profiles ready."))

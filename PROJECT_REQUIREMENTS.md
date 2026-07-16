@@ -174,8 +174,11 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Office Staff dashboard timeline persistence must use the backend by default through `VITE_USE_TIMELINE_BACKEND=true`, even while unfinished modules continue using global mock mode.
 - Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
 - Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
-- Login demo credentials shown by the frontend must match the Django seed data, including the canonical `@siswa.um.edu.my` staff emails and numeric student matric identifiers.
-- Refreshing demo accounts must preserve existing account identities and their audit, timeline, and appointment history.
+- Demo accounts must use clearly fictional `example.test` emails, `DEMO-*` identifiers, and demonstration-only profile data with no national identity-number patterns.
+- Django demo seeding must require `DEBUG=True`, an explicit `ENABLE_DEMO_ACCOUNTS=true` opt-in, and non-blank per-role passwords supplied only through an ignored local environment file.
+- Frontend demo-login controls must appear only in Vite development mode when `VITE_ENABLE_DEMO_LOGIN=true` and all per-role local passwords are configured; normal manual login must remain available otherwise.
+- Production frontend builds must not contain demo passwords, testing-console markup, or testing-console copy even when demo environment variables are supplied to the build process.
+- Refreshing or renaming local demo accounts must preserve existing account identities and their audit, timeline, and appointment history through an optional validated legacy-email mapping.
 
 ## Student Module Requirements
 

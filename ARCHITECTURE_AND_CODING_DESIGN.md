@@ -53,6 +53,7 @@ Frontend paths in this section are relative to `frontend/`.
 - `src/components/SettingsView.tsx` implements the Settings module (profile summary, contact details, password change, and notification preferences) and is routed for every role.
 - `src/components/NotificationsAnnouncements.tsx` is the notification-bell view, split into Announcements and Notifications tabs (the feed is split by the backend `isAnnouncement` flag).
 - `src/context/NotificationsContext.tsx` is the shared notifications store; it feeds both the bell badge and the bell view.
+- `src/config/demoLogin.ts` owns fictional demo identifiers and the development-only credential assembly. It requires Vite development mode, an explicit enable flag, and all four role passwords before exporting a usable prefiller configuration; production dead-code elimination removes the console branch and password values.
 - Timeline add/edit drawers keep timeline classification limited to P1/P2 and do not submit status; the backend derives the displayed status from the selected date range.
 - `src/services/timelineApi.ts` connects the dashboard timeline UI to `/api/dashboard/timeline/active/`, `/api/dashboard/timeline/template/`, `/api/dashboard/timeline/upload/`, `/api/dashboard/timeline/entries/`, `/api/dashboard/timeline/entries/<id>/`, `/api/dashboard/timeline/audit-logs/`, and `/api/dashboard/tasks/`. It uses `VITE_USE_TIMELINE_BACKEND=true` by default so timeline management can persist to Django even while unfinished modules continue using global mock mode.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
@@ -60,7 +61,8 @@ Frontend paths in this section are relative to `frontend/`.
 ## Backend Data Model
 
 - `accounts.User` is the login superclass (email, role discriminator, phone, flags). Role-specific data lives in one-to-one subtype "profile" tables that share the user's primary key: `Student`, `OfficeStaff`, and `Lecturer`. `Coordinator`, `Supervisor`, and `Panel` are one-to-one specializations of `Lecturer` (overlapping — a lecturer may hold several).
-- `accounts.management.commands.seed_users` migrates legacy demo emails in place and reuses profile-number conflicts instead of deleting users, preserving primary keys referenced by protected timeline, audit, and appointment records.
+- `accounts.management.commands.seed_users` is a guarded development fixture command. It checks `DEBUG`, `ENABLE_DEMO_ACCOUNTS`, and four environment-supplied role passwords before any mutation, validates optional JSON legacy-email mappings, migrates mapped users in place, and reuses profile-number conflicts so protected timeline, audit, and appointment references retain their primary keys.
+- Demo environment flow is deliberately split: ignored `backend/.env` supplies seed passwords, ignored `frontend/.env.development.local` supplies development prefills, and tracked `.env.example` files keep the feature disabled with blank placeholders. The production canary-build test scans emitted HTML and JavaScript for passwords and console markers.
 - `User.to_public_dict()` reassembles the flat shape the frontend `DemoUser` expects from these profile tables, so the auth API contract is unchanged.
 - The `letters` and `announcements` apps own the letter-template, announcement, and per-recipient notification tables.
 - The full user/role ER diagram lives at `docs/erd/01-user-roles.md`; `docs/erd/` is the home for further ER diagrams as more modules are modeled.

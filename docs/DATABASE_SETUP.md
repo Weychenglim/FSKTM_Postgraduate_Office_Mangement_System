@@ -1,163 +1,96 @@
 # Database Setup Guide
 
-How to get the database + backend API running on your own machine. Each teammate
-runs their **own local PostgreSQL** — the setup script recreates an identical
-database and seed data for everyone, so there is nothing to copy between machines.
+Each teammate runs a local PostgreSQL database and Django backend. Local
+credentials and development fixtures stay in ignored environment files.
 
-> Current scope: only **authentication** (the `users` table) is stored in
-> PostgreSQL today. Every other API route still returns mock data from
-> `src/mocks/`. So "the database" right now is a single `users` table plus four
-> demo login accounts.
+## Prerequisites
 
----
+- Python 3.12+
+- Node.js 18+
+- PostgreSQL 16+
 
-## 1. Prerequisites
+## Backend Setup
 
-- **Node.js** 18+ (check: `node --version`)
-- **PostgreSQL** 16 or newer — https://www.postgresql.org/download/
-  - During installation you set a password for the `postgres` superuser.
-    **Write it down** — you need it in step 3.
-  - Keep the default port **5432** if you can. If you already have another
-    PostgreSQL version installed, the installer may use **5433** instead — note
-    which port yours ended up on.
-
----
-
-## 2. Install dependencies
-
-From the project folder (`FSKTM_Postgraduate_Office_Mangement_System`):
+From the repository root:
 
 ```powershell
-npm install
+Set-Location backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
----
-
-## 3. Create your `.env`
-
-Copy the template and fill in your local PostgreSQL password:
+Set the PostgreSQL values in the ignored `backend/.env`, then run:
 
 ```powershell
-Copy-Item .env.example .env      # PowerShell
-# cp .env.example .env           # macOS / Linux
+python manage.py migrate
+python manage.py check
+python manage.py runserver 8000
 ```
 
-Then open `.env` and set **`PGPASSWORD`** to the password you chose when
-installing PostgreSQL. Adjust `PGPORT` if your server runs on 5433.
+The frontend development server proxies `/api` to Django.
+
+## Development Demo Accounts
+
+Demo accounts are optional, fictional fixtures. The seed command refuses to
+run unless all of these conditions are true:
+
+- `DJANGO_DEBUG=True`
+- `ENABLE_DEMO_ACCOUNTS=true`
+- `DEMO_ADMIN_PASSWORD` is non-blank
+- `DEMO_COORDINATOR_PASSWORD` is non-blank
+- `DEMO_LECTURER_PASSWORD` is non-blank
+- `DEMO_STUDENT_PASSWORD` is non-blank
+
+Set those values only in the ignored `backend/.env`, then run:
+
+```powershell
+python manage.py seed_users
+```
+
+Passwords are not stored in Python, TypeScript, or tracked documentation. Seed
+reruns update the same users and role profiles. For an existing local database,
+`DEMO_LEGACY_EMAIL_MAP` may contain a JSON old-to-new email mapping; the command
+renames those users in place so protected workflow, timeline, and audit foreign
+keys keep their original user IDs.
+
+## Frontend Demo Prefills
+
+Create an ignored `frontend/.env.development.local` and set:
 
 ```ini
-JWT_SECRET=change-me-to-a-long-random-string
-API_PORT=4000
-
-PGHOST=localhost
-PGPORT=5432
-PGUSER=postgres
-PGPASSWORD=your_postgres_password   # <-- set this
-PGDATABASE=fsktm_pg_office
+VITE_ENABLE_DEMO_LOGIN="true"
+VITE_DEMO_ADMIN_PASSWORD=""
+VITE_DEMO_COORDINATOR_PASSWORD=""
+VITE_DEMO_LECTURER_PASSWORD=""
+VITE_DEMO_STUDENT_PASSWORD=""
 ```
 
-`.env` is gitignored, so your password stays on your machine only.
+Fill the blank values locally with the matching backend role passwords. The
+testing console appears only in Vite development mode when every value is
+present. Manual login remains available when the console is disabled.
 
----
-
-## 4. Make sure PostgreSQL is running
-
-On Windows it normally runs as a service automatically. To confirm:
+## Production Check
 
 ```powershell
-Get-Service -Name 'postgresql*'
+Set-Location frontend
+npm run test:production-security
+npm run build
 ```
 
-You should see `Running`.
-
----
-
-## 5. Create + seed the database
-
-```powershell
-npm run db:setup
-```
-
-This is **idempotent** (safe to run repeatedly). It:
-
-1. Creates the `fsktm_pg_office` database if it doesn't exist.
-2. Applies `server/schema.sql` (the `users` table + indexes).
-3. Seeds the four demo login accounts (passwords stored as bcrypt hashes).
-
-Expected output ends with:
-
-```
-✓ Schema applied
-✓ Seeded Office Staff/Admin      admin@siswa.um.edu.my
-✓ Seeded Programme Coordinator   coordinator@siswa.um.edu.my
-✓ Seeded Lecturer                lecturer@siswa.um.edu.my
-✓ Seeded Student                 200192@siswa.um.edu.my
-
-Database setup complete. You can now start the API with: npm run dev:server
-```
-
----
-
-## 6. Run the app
-
-Two terminals:
-
-```powershell
-# Terminal 1 — backend API (http://localhost:4000)
-npm run dev:server
-
-# Terminal 2 — frontend (http://localhost:3000)
-npm run dev
-```
-
-Health check: open http://localhost:4000/api/health → should return
-`{ "status": "ok", ... }`.
-
----
-
-## Demo login accounts
-
-You can log in with **email + password**, or with the student/staff ID instead
-of the email. All seeded by `npm run db:setup`.
-
-| Role                 | Email / ID                              | Password          |
-| -------------------- | --------------------------------------- | ----------------- |
-| Office Staff/Admin   | `admin@siswa.um.edu.my` (staff `M10492`) | `staffAdmin2026`  |
-| Programme Coordinator| `coordinator@siswa.um.edu.my` (`L29402`) | `coordinator2026` |
-| Lecturer             | `lecturer@siswa.um.edu.my` (`L84920`)    | `lecturer2026`    |
-| Student              | `200192@siswa.um.edu.my` (`200192`)       | `student2026`     |
-
----
+The security test performs a production build with canary demo passwords and
+fails if a password or demo-console marker appears in generated HTML or
+JavaScript.
 
 ## Troubleshooting
 
-**`password authentication failed for user "postgres"`**
-`PGPASSWORD` in `.env` doesn't match your PostgreSQL install password. Fix it in
-`.env` and re-run `npm run db:setup`.
+**PostgreSQL password authentication failed**
 
-**`ECONNREFUSED` / `could not connect to server`**
-PostgreSQL isn't running, or `PGPORT` is wrong. Start the service (step 4) and
-confirm the port. If you have two PostgreSQL versions, try `PGPORT=5433`.
+Confirm `PGUSER`, `PGPASSWORD`, `PGHOST`, and `PGPORT` in `backend/.env` match
+your local PostgreSQL installation.
 
-**`database "fsktm_pg_office" does not exist`**
-You skipped step 5. Run `npm run db:setup`.
+**`seed_users` refuses to run**
 
-**Which port is my server on?**
-```powershell
-Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 5432,5433 }
-```
-
-> You don't need `psql` on your PATH — the setup script connects through the
-> Node `pg` driver, not the command-line client.
-
-## Supervisor and Marks migrations
-
-After pulling the completed Supervisor Appointment and Marks modules, run:
-
-```powershell
-.\.venv\Scripts\python.exe backend\manage.py migrate
-.\.venv\Scripts\python.exe backend\manage.py seed_users
-```
-
-The seeded Office Staff/Admin account receives Django Admin access and Marks
-permissions for rubric configuration and audited mark corrections.
+Keep the refusal in place. Confirm this is a local development environment,
+then set the explicit demo flag and all four local password variables.

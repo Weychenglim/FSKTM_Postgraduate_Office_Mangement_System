@@ -359,10 +359,6 @@ export default function App() {
                 onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
                 onLoginSuccess={handleSuccessfulLogin}
               />
-
-              <div className="mt-4 text-[11px] text-slate-400 font-medium font-sans">
-                Tip: Enter valid credentials or click any character role from the Console to log in.
-              </div>
             </div>
           </div>
         </AuthLayout>
