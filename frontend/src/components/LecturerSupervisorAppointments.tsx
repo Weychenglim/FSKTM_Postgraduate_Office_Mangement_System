@@ -798,6 +798,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const [detailView, setDetailView] = useState<'requestDetail' | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [detailRejectReason, setDetailRejectReason] = useState('');
 
   useEffect(() => {
     if (!initialApplicationId) return;
@@ -813,11 +814,13 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           abstract: detail.researchAbstract,
           submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
         });
+        setDetailRejectReason('');
         setIsDrawerOpen(true);
       })
       .catch(() => {
         if (!request) return;
         setSelectedRequest(request);
+        setDetailRejectReason('');
         setIsDrawerOpen(true);
       });
   }, [initialApplicationId, requestsList]);
@@ -830,6 +833,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   };
 
   const handleOpenRequest = async (req: any) => {
+    setDetailRejectReason('');
     if (req.applicationId === undefined) {
       setSelectedRequest(req);
       setIsDrawerOpen(true);
@@ -890,6 +894,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       setSupervisees(prev => [newActive, ...prev]);
       setSummaryLoad(prev => ({ ...prev, current: Math.min(prev.max, prev.current + 1) }));
       setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      setDetailRejectReason('');
       showToast(`Appointment approved! ${studentReq.studentName} is now added to your supervisee roster.`);
       setIsDrawerOpen(false);
       navigateToList();
@@ -908,6 +913,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         return;
       }
       setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      setDetailRejectReason('');
       showToast(`Appointment declined for student ${studentReq.studentName}. Action logged successfully.`);
       setIsDrawerOpen(false);
       navigateToList();
@@ -1111,28 +1117,40 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               </div>
 
               {/* Action operations controls */}
-              <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-end items-center gap-3.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const r = prompt("Please provide a concise description explaining the grounds for declining this supervision assignment:");
-                    if (r !== null) {
-                      handleRejectRequest(selectedRequest.studentId, r || "General area misalignment");
-                    }
-                  }}
-                  className="w-full sm:w-auto px-6 py-3 border border-rose-250 hover:bg-rose-50 text-rose-600 hover:text-rose-800 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none text-center"
-                >
-                  Decline Roster
-                </button>
+              <div className="border-t border-slate-100 pt-6 space-y-4">
+                <FormTextarea
+                  label="REASON FOR REJECTION"
+                  placeholder="Enter reason before declining this supervisor appointment request."
+                  value={detailRejectReason}
+                  onChange={(event) => setDetailRejectReason(event.target.value)}
+                />
+                <NoticeText>
+                  A reason is required before declining this supervisor appointment request.
+                </NoticeText>
+                <div className="flex flex-col sm:flex-row justify-end items-center gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!detailRejectReason.trim()) {
+                        showToast('A rejection reason is required.');
+                        return;
+                      }
+                      handleRejectRequest(selectedRequest.studentId, detailRejectReason.trim());
+                    }}
+                    className="w-full sm:w-auto px-6 py-3 border border-rose-250 hover:bg-rose-50 text-rose-600 hover:text-rose-800 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none text-center"
+                  >
+                    Decline Roster
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleApproveRequest(selectedRequest.studentId)}
-                  className="w-full sm:w-auto bg-brand-navy hover:bg-slate-800 text-white px-8 py-3.5 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl shadow-sm cursor-pointer select-none text-center flex items-center justify-center gap-2"
-                >
-                  <Check className="w-4 h-4 text-indigo-300 stroke-[3.5]" />
-                  <span>Accept Roster Assignment</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApproveRequest(selectedRequest.studentId)}
+                    className="w-full sm:w-auto bg-brand-navy hover:bg-slate-800 text-white px-8 py-3.5 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl shadow-sm cursor-pointer select-none text-center flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4 text-indigo-300 stroke-[3.5]" />
+                    <span>Accept Roster Assignment</span>
+                  </button>
+                </div>
               </div>
 
             </div>

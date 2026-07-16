@@ -4,6 +4,9 @@
 
 - Implemented persistent Supervisor Appointment submission, document metadata, lecturer decisions, programme-scoped coordinator decisions, resubmission, workload validation, appointment records, and histories.
 - Replaced the deferred coordinator supervisor page with a live approval queue and dashboard count.
+- Renamed the stale coordinator supervisor approval frontend surface to `CoordinatorSupervisorApprovals` and wired it as the live Programme Coordinator final-approval queue.
+- Replaced prompt-based supervisor approval rejection on the Programme Coordinator queue and lecturer supervisor detail screen with in-app mandatory rejection reason controls.
+- Clarified the five-module ownership boundary so Workflow and Approval Tracking is separate from the Notifications/Announcements module.
 - Added shared immutable workflow events for Supervisor and Panel submissions and decisions.
 - Changed Panel workload validation to each lecturer's configurable `Panel.max_appointments`.
 - Added the `marks` Django app with configurable rubrics, periods, tasks, drafts, validation, submission locking, office monitoring, and assignment generation.
@@ -37,8 +40,8 @@
 - Applied local migrations through `appointments.0006` and `announcements.0003`.
 - Moved shared portal toast feedback to the top-right viewport position with high overlay layering so it remains visible above the sticky header, drawers, and modals.
 
-- Added a dedicated Programme Coordinator dashboard using the Lecturer timeline/next-action structure, a real programme-scoped pending panel approval count, and a disabled Supervisor Approvals card while that backend workflow remains deferred.
-- Added an explicit Programme Coordinator Supervisor Appointments unavailable page without mock pending counts or approval controls.
+- Added a dedicated Programme Coordinator dashboard using the Lecturer timeline/next-action structure with real programme-scoped supervisor and panel approval counts.
+- Added the Programme Coordinator Supervisor Appointments live final-approval queue without fabricated pending counts.
 - Added a programme-scoped coordinator panel workspace API returning the managed programme, pending count, final-approval queue, and full recommendation lifecycle records.
 - Enforced `Coordinator.programme_managed` on coordinator queue retrieval and final approve/reject actions, including protected empty behavior for coordinators without an assigned programme.
 - Added a shared searchable, status-filtered, 10-row recommendation records table for Programme Coordinator programme oversight and selected-panel lecturer Reviewed Requests history.
@@ -127,7 +130,7 @@
 - Supervisor panel cancellation verification passes: 3 focused Django API tests, the panel workflow frontend test, `npm run lint`, `npm run build`, and `makemigrations --check --dry-run`.
 - Focused Programme Coordinator workspace, programme authorization, full lifecycle, and selected-panel review-history Django tests pass.
 - Focused panel recommendation filtering and shared pagination frontend tests pass.
-- `npm run lint` passes after adding the Programme Coordinator dashboard, scoped panel records, deferred supervisor page, and lecturer reviewed history.
+- `npm run lint` passes after adding the Programme Coordinator dashboard, scoped panel records, coordinator supervisor route surface, and lecturer reviewed history.
 - Focused Django panel-record tests pass for standard office monitoring states and rejected-history retention after a later approval (2 tests, 0 failures).
 - Focused frontend pagination and panel-summary tests pass.
 - `npm run build` passes after the audit/panel record pagination change, with the existing non-blocking chunk-size warning.
@@ -294,6 +297,8 @@
 - `python backend\manage.py test appointments -v 2 --keepdb` passes after updating appointments APIs and tests for the normalized role-profile tables.
 - `python manage.py test -v 2 --keepdb` passes from `backend/` after the appointments/profile-table compatibility fix.
 - `python manage.py test appointments --keepdb`, all frontend `.test.ts` scripts, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, `npm run lint`, and `npm run build` pass after finishing Office Staff/Admin panel monitoring integration with cancelled records, Office Staff/Admin-only records access, lifecycle CSV fields, and clamped workload utilization.
+- `npx.cmd tsx` over all frontend `.test.ts` scripts, `npm.cmd run lint`, `npm.cmd run build`, `python manage.py test appointments.test_supervisor_workflow appointments.tests dashboard.tests marks -v 2 --keepdb` split into focused runs, `python manage.py check`, and `python manage.py makemigrations --check --dry-run` pass after completing the Workflow and Approval Tracking naming/rejection-control slice.
+- Browser smoke testing on local Django/Vite (`8001`/`3001`) confirms Office Staff/Admin, Lecturer, Programme Coordinator, and Student workflow routes render without app-visible errors or console errors after the Workflow and Approval Tracking slice.
 - Added a shared frontend approved-programme list for dashboard/panel-facing flows and aligned panel appointment demo/API fallback data plus backend appointment seed/test data to the three coursework programmes.
 - Fixed demo account refresh failures caused by deleting legacy users referenced by protected timeline/audit records. Legacy staff emails now migrate in place, panel profile seeding uses the canonical lecturer email, and the student login prefiller uses matric number `200192`.
 - Added backend and frontend regression tests for protected-history account migration and canonical demo credentials.

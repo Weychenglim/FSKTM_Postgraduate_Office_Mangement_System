@@ -29,7 +29,7 @@ const routeModules = [
   'StudentDashboard',
   'LecturerDashboard',
   'CoordinatorDashboard',
-  'CoordinatorSupervisorDeferred',
+  'CoordinatorSupervisorApprovals',
   'StudentSupervisorAppointment',
   'StudentPanelAppointment',
   'SettingsView',
@@ -47,6 +47,33 @@ for (const moduleName of routeModules) {
     `${moduleName} should use the shared lazyNamed route loader`,
   );
 }
+
+assert.equal(
+  appSource.includes('CoordinatorSupervisorDeferred'),
+  false,
+  'Coordinator supervisor approvals should not use the stale Deferred component name',
+);
+
+const coordinatorSupervisorSource = readFileSync(
+  resolve('src/components/CoordinatorSupervisorApprovals.tsx'),
+  'utf8',
+);
+const lecturerSupervisorSource = readFileSync(
+  resolve('src/components/LecturerSupervisorAppointments.tsx'),
+  'utf8',
+);
+
+assert.equal(
+  coordinatorSupervisorSource.includes('window.prompt'),
+  false,
+  'Coordinator supervisor rejection should use an in-app reason control instead of window.prompt',
+);
+
+assert.equal(
+  lecturerSupervisorSource.includes('prompt('),
+  false,
+  'Lecturer supervisor rejection should use an in-app reason control instead of prompt()',
+);
 
 assert.match(
   appSource,

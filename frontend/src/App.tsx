@@ -86,7 +86,7 @@ const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
-const CoordinatorSupervisorDeferred = lazyNamed('CoordinatorSupervisorDeferred', () => import('./components/CoordinatorSupervisorDeferred'));
+const CoordinatorSupervisorApprovals = lazyNamed('CoordinatorSupervisorApprovals', () => import('./components/CoordinatorSupervisorApprovals'));
 const StudentSupervisorAppointment = lazyNamed('StudentSupervisorAppointment', () => import('./components/StudentSupervisorAppointment'));
 const StudentPanelAppointment = lazyNamed('StudentPanelAppointment', () => import('./components/StudentPanelAppointment'));
 const SettingsView = lazyNamed('SettingsView', () => import('./components/SettingsView'));
@@ -567,7 +567,7 @@ export default function App() {
               ) : isCoordinatorUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isCoordinatorWorkspace ? (
-                <CoordinatorSupervisorDeferred
+                <CoordinatorSupervisorApprovals
                   initialApplicationId={supervisorApplicationId}
                 />
               ) : isLecturerUnsupportedSupervisorRoute ? (

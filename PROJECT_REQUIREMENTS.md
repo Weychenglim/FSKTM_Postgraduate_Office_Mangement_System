@@ -4,6 +4,8 @@
 
 The application is an FSKTM postgraduate management system frontend for postgraduate administrative workflows.
 
+The five owned completion modules are Dashboard/Timeline, Supervisor Appointment, Panel Appointment, Marks Entry, and Workflow and Approval Tracking. Notifications/Announcements is a separate integration module owned outside this slice; these workflows may expose audit and routing metadata for it, but this module does not own notification-center behavior.
+
 ## Programme Scope
 
 - The system programme list is limited to `MASTER OF DATA SCIENCE (COURSEWORK)`, `MASTER OF CYBER SECURITY (COURSEWORK)`, and `MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)`.
@@ -134,8 +136,7 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Cancellation controls must never be available to the selected panel member, Programme Coordinator, Office Staff/Admin, or student, and cancellation must be rejected after any selected-panel or coordinator decision.
 - A student may cancel their Supervisor Appointment request only while it is `SUBMITTED_TO_SUPERVISOR`. Cancellation requires a reason, creates terminal `CANCELLED_BY_STUDENT`, removes the request from the supervisor queue, preserves audit history, and permits a replacement request.
 - Supervisor and Panel transitions must create immutable audit events containing actor, role, previous status, new status, reason, and timestamp.
-- Workflow actions must create in-app notifications for the next actor and affected stakeholders. Office Staff/Admin monitor workflows through read-only records rather than receiving every transition.
-- Workflow notifications must carry protected module and record identifiers so authorized users can open the related record directly.
+- Workflow and Approval Tracking must maintain persisted audit events and stable module/record identifiers that the separate Notifications module can consume for deep links. Office Staff/Admin monitor workflows through read-only records rather than receiving every transition as part of this module.
 - A supervisor may create a new recommendation for the same student only after the selected panel member rejects it or the Programme Coordinator rejects it.
 - Submitted panel recommendations must route first to the selected panel member for acceptance or rejection; selected panel rejection requires a rejection reason.
 - Programme Coordinator confirmation or rejection must occur only after the selected panel member accepts the recommendation.
@@ -144,14 +145,14 @@ The application is an FSKTM postgraduate management system frontend for postgrad
 - Panel recommendation role-gating must be enforced by the backend API and database workflow, not only by frontend button visibility.
 - Programme Coordinator panel appointment confirmation must use the existing separate `Programme Coordinator` login role.
 - Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, read-only Lecturer-scoped semester timeline, and timeline-driven next actions.
-- Programme Coordinator dashboard cards must show a disabled Supervisor Approvals state until that workflow is backend-persisted and a real programme-scoped count of panel recommendations awaiting final coordinator approval.
+- Programme Coordinator dashboard cards must show live supervisor and panel approval counts from persisted backend workflow state, scoped to the coordinator's managed programme.
 - Programme Coordinator panel queues, records, dashboard counts, and decision permissions must be restricted to `Coordinator.programme_managed`.
 - A Programme Coordinator without an assigned managed programme must see an explicit no-programme state, no protected panel records, and no approval actions.
 - Programme Coordinator Panel Appointments must show the final-approval queue plus a searchable, status-filtered, read-only full-lifecycle records table for the managed programme, paginated at 10 rows per page.
 - Programme Coordinator Panel Appointments must continue to support `/panel-appointments/recommendations/<recommendationId>` as a direct recommendation drawer link while redirecting lecturer-only panel subpages back to `/panel-appointments`.
 - Programme Coordinator approve/reject actions must remain available only from the pending final-approval queue; completed and non-actionable lifecycle records must open in read-only detail mode.
 - Programme Coordinators do not require a separate decision-history page because their programme-wide lifecycle table is the audit surface.
-- Programme Coordinator Supervisor Appointments must show an explicit deferred/unavailable page without fabricated pending counts until supervisor appointment persistence is implemented.
+- Programme Coordinator Supervisor Appointments must show the live final-approval queue for accepted supervisor applications in the coordinator's managed programme, including approve/reject actions, mandatory in-app rejection reasons, persisted workflow audit history, loading/error states, and a clear no-pending-approvals state.
 - The backend must persist student research profiles, supervisor panel recommendations, and final approved panel appointments for the lecturer-side panel workflow.
 - Panel recommendation decision drawers must keep confirm/reject controls and rejection reason inputs inside the scrollable drawer body so long research details do not leave decision controls fixed outside the scroll region.
 - Submitted panel recommendation detail drawers must be the supervisor tracking surface and show a request progress timeline covering recommendation submission, selected panel review, Programme Coordinator confirmation, and appointed panel status.
