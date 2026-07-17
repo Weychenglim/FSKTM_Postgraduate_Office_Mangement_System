@@ -141,6 +141,10 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `accounts.throttles` provides separate settings-backed, per-client-IP scopes for login, password-reset request, and password-reset confirmation. `DRF_NUM_PROXIES=0` makes `REMOTE_ADDR` authoritative until a known proxy chain is configured.
 - Development throttle counters use Django's local-memory cache. A shared Redis-compatible cache is a production prerequisite before running multiple API workers; otherwise each worker would enforce an independent counter.
 - Frontend authentication forms centralize `429` handling in `src/utils/authErrorMessage.ts` and retain endpoint-provided messages for other API errors.
+- `config.production_security.validate_production_environment` runs during settings import when `DEBUG=False`, before Django application initialization. It raises `ImproperlyConfigured` for unsafe secret keys, missing or wildcard hosts, and missing, malformed, or non-HTTPS CORS origins.
+- Production settings enable HTTPS redirection, secure strict cookies, nosniff, same-origin referrers, frame denial, and a staged HSTS policy. Development keeps local HTTP defaults and does not enable those production transport controls.
+- HSTS is environment-controlled with a 3,600-second initial duration and disabled subdomain/preload flags. Deployment may move to one year, subdomain coverage, and preload only after HTTPS validation for the full domain tree.
+- `SECURE_PROXY_SSL_HEADER` is configured only when `DJANGO_TRUST_X_FORWARDED_PROTO=True`. The terminating proxy must discard inbound client `X-Forwarded-Proto` values and set an authoritative value before this opt-in is safe.
 
 ## Supervisor, Workflow Audit, Marks, and Dashboard Completion
 

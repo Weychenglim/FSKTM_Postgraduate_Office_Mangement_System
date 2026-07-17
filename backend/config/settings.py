@@ -12,6 +12,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
+from .production_security import (
+    DEVELOPMENT_SECRET_KEY,
+    validate_production_environment,
+)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load backend/.env (no-op if the file is absent — sensible defaults below).
@@ -23,7 +28,8 @@ def env_bool(name: str, default: bool) -> bool:
 
 
 def env_list(name: str, default: str) -> list[str]:
-    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+    raw_value = os.getenv(name, "").strip() or default
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
 
 
 def env_int(name: str, default: int) -> int:
@@ -34,12 +40,43 @@ def env_int(name: str, default: int) -> int:
 
 
 # ── Core ─────────────────────────────────────────────────────────────────────
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-dev-only-change-me-in-production",
-)
 DEBUG = env_bool("DJANGO_DEBUG", True)
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
+SECRET_KEY = configured_secret_key or (DEVELOPMENT_SECRET_KEY if DEBUG else "")
+ALLOWED_HOSTS = env_list(
+    "DJANGO_ALLOWED_HOSTS",
+    "localhost,127.0.0.1" if DEBUG else "",
+)
+CORS_ALLOWED_ORIGINS = env_list(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000" if DEBUG else "",
+)
+
+if not DEBUG:
+    validate_production_environment(
+        secret_key=SECRET_KEY,
+        allowed_hosts=ALLOWED_HOSTS,
+        cors_origins=CORS_ALLOWED_ORIGINS,
+    )
+
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = max(env_int("DJANGO_SECURE_HSTS_SECONDS", 3600), 0)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+        "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", False
+    )
+    SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", False)
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Strict"
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SAMESITE = "Strict"
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    X_FRAME_OPTIONS = "DENY"
+
+    if env_bool("DJANGO_TRUST_X_FORWARDED_PROTO", False):
+        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Demo fixtures are opt-in even during local development. Passwords intentionally
 # have no fallback so seed_users cannot create known credentials by accident.
@@ -170,12 +207,6 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
-
-# ── CORS (the Vite dev server proxies /api, but allow direct calls too) ───────
-CORS_ALLOWED_ORIGINS = env_list(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000",
-)
 
 # ── Email (real SMTP when creds are set, console backend otherwise) ──────────
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
