@@ -38,6 +38,10 @@ import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '..
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
   initialApplicationId?: string;
+  routeView?: 'overview' | 'newApplication';
+  onNavigateToList?: () => void;
+  onNavigateToNewApplication?: () => void;
+  onNavigateToApplication?: (applicationId: string) => void;
 }
 
 type SupervisorApplicationDetail = StudentSupervisorApplication & {
@@ -57,9 +61,11 @@ type SupervisorApplicationDetail = StudentSupervisorApplication & {
 export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = ({
   onShowFAQChatbot,
   initialApplicationId,
+  routeView = 'overview',
+  onNavigateToList,
+  onNavigateToNewApplication,
+  onNavigateToApplication,
 }) => {
-  const [subview, setSubview] = useState<'overview' | 'new-application'>('overview');
-
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
 
@@ -135,16 +141,23 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   };
 
   const handleCreateNewApplication = () => {
-    setSubview('new-application');
+    onNavigateToNewApplication?.();
   };
 
-  if (subview === 'new-application') {
+  const closeActiveDetail = () => {
+    setActiveDetailAp(null);
+    if (initialApplicationId) {
+      onNavigateToList?.();
+    }
+  };
+
+  if (routeView === 'newApplication') {
     return (
       <SupervisorAppointmentApplicationPage
-        onBack={() => setSubview('overview')}
+        onBack={onNavigateToList ?? (() => undefined)}
         onSuccess={(newApp) => {
           setApplications(prev => [newApp, ...prev]);
-          setSubview('overview');
+          onNavigateToList?.();
         }}
       />
     );
@@ -286,27 +299,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             disabled={!approvedApplication}
             onClick={() => {
               if (!approvedApplication) return;
-              setActiveDetailAp({
-                applicationId: approvedApplication.id,
-                workflowStatus: approvedApplication.status,
-                workflow: approvedApplication.workflow,
-                id: `SV-APP-${String(approvedApplication.id).padStart(5, '0')}`,
-                supervisor: approvedApplication.proposedSupervisor,
-                email: 'Available from the postgraduate office',
-                dept: 'Faculty of Computing & Information Technology',
-                title: approvedApplication.researchTitle,
-                reg: approvedApplication.studentId,
-                refId: `SV-APP-${String(approvedApplication.id).padStart(5, '0')}`,
-                status: 'APPROVED',
-                date: new Date(approvedApplication.submittedAt).toLocaleDateString('en-GB'),
-                submittedDate: new Date(approvedApplication.submittedAt).toLocaleDateString('en-GB'),
-                step1Date: new Date(approvedApplication.submittedAt).toLocaleString('en-GB'),
-                history: approvedApplication.workflow.map((event) => ({
-                  step: event.action.replaceAll('_', ' '),
-                  date: new Date(event.createdAt).toLocaleString('en-GB'),
-                  status: event.reason || event.newStatus,
-                })),
-              });
+              onNavigateToApplication?.(String(approvedApplication.id));
             }}
             variant="secondary"
             size="md"
@@ -394,32 +387,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                     <PortalButton
                       type="button"
                       onClick={() => {
-                        setActiveDetailAp({
-                          applicationId: app.applicationId,
-                          workflowStatus: app.workflowStatus,
-                          workflow: app.workflow,
-                          cancellationReason: app.cancellationReason,
-                          id: app.id,
-                          supervisor: app.supervisor,
-                          email: app.supervisor.toLowerCase().includes('siti') ? 'sitinoor@um.edu.my' : 'henrylim@um.edu.my',
-                          dept: 'Faculty of Computing & Information Technology',
-                          title: app.title,
-                          reg: 'WEA200192',
-                          refId: `FSKTM-SV-REF-${app.id.split('-').pop()}`,
-                          status: app.status,
-                          date: app.date,
-                          submittedDate: app.date,
-                          step1Date: `${app.date}, 09:30 AM`,
-                          history: app.status === 'APPROVED' ? [
-                            { step: 'Student Submission', date: app.date, status: 'Completed' },
-                            { step: 'Secretariat Verification', date: '18 Nov 2025', status: 'Approved' }
-                          ] : app.status === 'RETURNED' ? [
-                            { step: 'Student Submission', date: app.date, status: 'Completed' },
-                            { step: 'Panel Review Committee', date: '15 Oct 2025', status: 'Returned for draft structure edits' }
-                          ] : [
-                            { step: 'Student Submission', date: app.date, status: 'Awaiting agenda scheduling' }
-                          ]
-                        });
+                        if (app.applicationId !== undefined) {
+                          onNavigateToApplication?.(String(app.applicationId));
+                        }
                       }}
                       variant="ghost"
                       size="icon"
@@ -501,7 +471,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setActiveDetailAp(null)}
+              onClick={closeActiveDetail}
               className="absolute inset-0 bg-brand-navy/40 backdrop-blur-3xs cursor-pointer"
             />
             
@@ -521,7 +491,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setActiveDetailAp(null)}
+                  onClick={closeActiveDetail}
                   className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
                   title="Close Drawer"
                 >

@@ -13,3 +13,9 @@ export const getPanelWorkloadSummary = (records: PanelWorkloadRecord[]): PanelWo
   nearLimit: records.filter((record) => record.availability === 'Near Limit').length,
   fullLoad: records.filter((record) => record.availability === 'Full Load').length,
 });
+
+export const getPanelWorkloadUtilization = (record: PanelWorkloadRecord): number => {
+  if (record.workloadLimit <= 0) return 0;
+  const percentage = Math.round((record.currentStudents / record.workloadLimit) * 100);
+  return Math.max(0, Math.min(percentage, 100));
+};

@@ -24,7 +24,7 @@ interface PanelAppointmentDetailProps {
 
 const statusTone = (status?: PanelRecord['status']) => {
   if (status === 'Approved') return 'success';
-  if (status === 'Rejected' || status === 'Workload Alert') return 'danger';
+  if (status === 'Rejected') return 'danger';
   if (status === 'Pending' || status === 'Recommendation') return 'warning';
   return 'neutral';
 };
@@ -319,6 +319,16 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                         </span>
                         <p className="text-[11px] font-semibold leading-relaxed text-rose-700">
                           {record.rejectionReason}
+                        </p>
+                      </div>
+                    )}
+                    {record?.status === 'Cancelled' && record.cancellationReason && (
+                      <div className="border-t border-slate-200 pt-3">
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
+                          Cancellation reason
+                        </span>
+                        <p className="text-[11px] font-semibold leading-relaxed text-slate-700">
+                          {record.cancellationReason}
                         </p>
                       </div>
                     )}

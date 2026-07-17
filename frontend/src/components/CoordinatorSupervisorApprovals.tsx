@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Clock3, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
   approveSupervisorApplicationByCoordinator,
   getCoordinatorSupervisorQueue,
@@ -11,17 +11,19 @@ import { ErrorState, LoadingState } from './StateViews';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 
-interface CoordinatorSupervisorDeferredProps {
+interface CoordinatorSupervisorApprovalsProps {
   initialApplicationId?: string;
 }
 
-export const CoordinatorSupervisorDeferred: React.FC<CoordinatorSupervisorDeferredProps> = ({
+export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorApprovalsProps> = ({
   initialApplicationId,
 }) => {
   const [records, setRecords] = useState<SupervisorApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [rejectingRecordId, setRejectingRecordId] = useState<number | string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const loadRecords = useCallback(() => {
     setLoading(true);
@@ -47,6 +49,10 @@ export const CoordinatorSupervisorDeferred: React.FC<CoordinatorSupervisorDeferr
     try {
       await approveSupervisorApplicationByCoordinator(record.id);
       setRecords((current) => current.filter((item) => item.id !== record.id));
+      if (String(rejectingRecordId) === String(record.id)) {
+        setRejectingRecordId(null);
+        setRejectionReason('');
+      }
       notify(`Supervisor appointment approved for ${record.studentName}.`);
     } catch (reason) {
       notify(reason instanceof Error ? reason.message : 'Approval failed.');
@@ -54,15 +60,15 @@ export const CoordinatorSupervisorDeferred: React.FC<CoordinatorSupervisorDeferr
   };
 
   const reject = async (record: SupervisorApplicationRecord) => {
-    const reason = window.prompt('Enter the reason for rejecting this supervisor appointment:');
-    if (reason === null) return;
-    if (!reason.trim()) {
+    if (!rejectionReason.trim()) {
       notify('A rejection reason is required.');
       return;
     }
     try {
-      await rejectSupervisorApplicationByCoordinator(record.id, reason.trim());
+      await rejectSupervisorApplicationByCoordinator(record.id, rejectionReason.trim());
       setRecords((current) => current.filter((item) => item.id !== record.id));
+      setRejectingRecordId(null);
+      setRejectionReason('');
       notify(`Supervisor appointment returned for ${record.studentName}.`);
     } catch (failure) {
       notify(failure instanceof Error ? failure.message : 'Rejection failed.');
@@ -91,15 +97,18 @@ export const CoordinatorSupervisorDeferred: React.FC<CoordinatorSupervisorDeferr
         </div>
       ) : (
         <div className="space-y-4">
-          {records.map((record) => (
-            <div
-              key={record.id}
-              className={`bg-white border rounded-2xl p-6 shadow-3xs ${
-                String(record.id) === String(initialApplicationId)
-                  ? 'border-blue-400 ring-2 ring-blue-100'
-                  : 'border-slate-200'
-              }`}
-            >
+          {records.map((record) => {
+            const isRejecting = String(rejectingRecordId) === String(record.id);
+
+            return (
+              <div
+                key={record.id}
+                className={`bg-white border rounded-2xl p-6 shadow-3xs ${
+                  String(record.id) === String(initialApplicationId)
+                    ? 'border-blue-400 ring-2 ring-blue-100'
+                    : 'border-slate-200'
+                }`}
+              >
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -118,24 +127,67 @@ export const CoordinatorSupervisorDeferred: React.FC<CoordinatorSupervisorDeferr
                   <PortalButton
                     variant="secondary"
                     icon={XCircle}
-                    onClick={() => reject(record)}
+                    onClick={() => {
+                      setRejectingRecordId(isRejecting ? null : record.id);
+                      setRejectionReason('');
+                    }}
                   >
-                    Reject
+                    {isRejecting ? 'Cancel' : 'Reject'}
                   </PortalButton>
                   <PortalButton
                     variant="primary"
                     icon={Clock3}
+                    disabled={isRejecting}
                     onClick={() => approve(record)}
                   >
                     Approve
                   </PortalButton>
                 </div>
               </div>
+              {isRejecting && (
+                <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/70 p-4">
+                  <label
+                    htmlFor={`coordinator-supervisor-rejection-${record.id}`}
+                    className="text-[10px] font-black uppercase tracking-wider text-rose-700"
+                  >
+                    Rejection reason
+                  </label>
+                  <textarea
+                    id={`coordinator-supervisor-rejection-${record.id}`}
+                    value={rejectionReason}
+                    onChange={(event) => setRejectionReason(event.target.value)}
+                    rows={3}
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                    placeholder="Explain why this supervisor appointment is being returned."
+                  />
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <PortalButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setRejectingRecordId(null);
+                        setRejectionReason('');
+                      }}
+                    >
+                      Cancel
+                    </PortalButton>
+                    <PortalButton
+                      variant="dangerSolid"
+                      size="sm"
+                      icon={Send}
+                      onClick={() => reject(record)}
+                    >
+                      Submit Rejection
+                    </PortalButton>
+                  </div>
+                </div>
+              )}
               <div className="mt-4">
                 <WorkflowAuditLog events={record.workflow} />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
@@ -468,20 +468,27 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 interface LecturerPanelAppointmentsProps {
   currentUser?: DemoUser | null;
   initialRecommendationId?: string;
+  routeView?: 'list' | 'submitted' | 'reviewed' | 'assignmentDetail';
+  routeAssignmentStudentId?: string;
+  onNavigateToList?: () => void;
+  onNavigateToSubmitted?: () => void;
+  onNavigateToReviewed?: () => void;
+  onNavigateToAssignment?: (studentId: string) => void;
 }
 
 export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
   currentUser,
   initialRecommendationId,
+  routeView = 'list',
+  routeAssignmentStudentId,
+  onNavigateToList,
+  onNavigateToSubmitted,
+  onNavigateToReviewed,
+  onNavigateToAssignment,
 }) => {
-  // Navigation states: main workspace plus focused history/detail pages.
-  const [panelView, setPanelView] = useState<'list' | 'submitted' | 'reviewed' | 'detail'>('list');
-  
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
   
-  // Active selected panel assignment record.
-  const [selectedAssignment, setSelectedAssignment] = useState<PanelAssignment | null>(null);
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
   const [selectedRecommendationReadOnly, setSelectedRecommendationReadOnly] = useState(false);
@@ -682,6 +689,15 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     [submittedRecs, recommendationStudent],
   );
 
+  const selectedAssignment = useMemo(
+    () => routeAssignmentStudentId
+      ? assignments.find((assignment) => String(assignment.studentId) === String(routeAssignmentStudentId)) ?? null
+      : null,
+    [assignments, routeAssignmentStudentId],
+  );
+
+  const navigateToList = onNavigateToList ?? (() => undefined);
+
   const canRecommendForStudent = recommendationStudent
     ? canCreatePanelRecommendation(submittedRecs, recommendationStudent.studentId)
     : false;
@@ -810,7 +826,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       <PortalToast message={toastText} />
 
       {/* RENDER LAYOUT 1: MAIN LISTING PORTAL VIEW */}
-      {panelView === 'list' && (
+      {routeView === 'list' && (
         <div id="main-panel-listing-view" className="space-y-8">
           
           <PageHeader
@@ -905,7 +921,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               </h3>
 
               <button
-                onClick={() => setPanelView('submitted')}
+                onClick={onNavigateToSubmitted}
                 className="inline-flex items-center gap-2 text-xs font-black text-brand-navy hover:text-slate-800 tracking-wide uppercase px-4 py-2 bg-white border border-slate-200 hover:border-slate-350 shadow-3xs rounded-xl transition-all cursor-pointer"
               >
                 <span>View Submitted Recommendations</span>
@@ -1101,7 +1117,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               {!isCoordinator && (
                 <button
                   type="button"
-                  onClick={() => setPanelView('reviewed')}
+                  onClick={onNavigateToReviewed}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-brand-navy shadow-3xs transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <span>Reviewed Requests</span>
@@ -1298,10 +1314,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                         </td>
                         <td className="py-5 px-6 text-center">
                           <button
-                            onClick={() => {
-                              setSelectedAssignment(asg);
-                              setPanelView('detail');
-                            }}
+                            onClick={() => onNavigateToAssignment?.(asg.studentId)}
                             className="inline-flex items-center gap-1 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
                           >
                             <span>View Assignment</span>
@@ -1322,22 +1335,22 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       )}
 
       {/* RENDER LAYOUT 2: SUBMITTED RECOMMENDATIONS HISTORY */}
-      {panelView === 'submitted' && (
+      {routeView === 'submitted' && (
         <SubmittedRecommendationsPage
-          onBack={() => setPanelView('list')}
+          onBack={navigateToList}
           recommendations={combinedRecommendations}
           onCancelRecommendation={handleCancelRecommendation}
         />
       )}
 
       {/* RENDER LAYOUT 3: SELECTED PANEL REVIEWED REQUESTS HISTORY */}
-      {panelView === 'reviewed' && !isCoordinator && (
+      {routeView === 'reviewed' && !isCoordinator && (
         <div id="reviewed-panel-requests-page" className="space-y-6">
           <PageHeader
             title="Reviewed Requests"
             subtitle="Recommendations you accepted or rejected as the selected panel lecturer, including their later coordinator outcome."
             backLabel="Back to Panel Appointments"
-            onBack={() => setPanelView('list')}
+            onBack={navigateToList}
             className="select-none"
           />
           <PanelRecommendationRecordsTable
@@ -1354,16 +1367,30 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       )}
 
       {/* RENDER LAYOUT 3: PANEL ASSIGNMENT DETAIL PAGE */}
-      {panelView === 'detail' && selectedAssignment && (
+      {routeView === 'assignmentDetail' && loading && (
+        <LoadingState message="Loading panel assignment…" />
+      )}
+
+      {routeView === 'assignmentDetail' && !loading && error && (
+        <ErrorState message={error} onRetry={loadData} />
+      )}
+
+      {routeView === 'assignmentDetail' && selectedAssignment && (
         <PanelAssignmentDetail
           assignment={selectedAssignment}
-          onBack={() => {
-            setSelectedAssignment(null);
-            setPanelView('list');
-          }}
+          onBack={navigateToList}
           onOpenMarksEntry={() => {
             triggerToast(`Redirecting to Marks Entry dashboard to grade candidate: ${selectedAssignment.studentName}.`);
           }}
+        />
+      )}
+
+      {routeView === 'assignmentDetail' && !loading && !error && !selectedAssignment && (
+        <EmptyState
+          title="Panel assignment not found"
+          description="The requested panel assignment does not exist or is no longer available."
+          actionLabel="Back to Panel Appointments"
+          onAction={navigateToList}
         />
       )}
 

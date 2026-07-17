@@ -16,8 +16,10 @@ import { FormInput } from './FormInput';
 import { PasswordInput } from './PasswordInput';
 import { ActionButton } from './ActionButton';
 import { AlertMessage } from './AlertMessage';
-import { DEMO_CREDENTIALS, DemoUser } from '../types';
+import { DEMO_LOGIN_CONFIG, type DemoRoleKey } from '../config/demoLogin';
+import type { DemoUser } from '../types';
 import { authApi, ApiError } from '../services';
+import { authenticationErrorMessage } from '../utils/authErrorMessage';
 
 interface LoginCardProps {
   onForgotPasswordClick?: () => void;
@@ -61,20 +63,26 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAlert({ type: 'error', message: 'Invalid credentials. Please check your Email / Staff / Student ID and password.' });
-      } else if (err instanceof ApiError && err.status) {
-        setAlert({ type: 'error', message: err.message });
       } else {
-        setAlert({ type: 'error', message: 'Cannot reach the server. Is the API running?' });
+        setAlert({
+          type: 'error',
+          message: authenticationErrorMessage(
+            err,
+            'Cannot reach the server. Is the API running?',
+          ),
+        });
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDemoPrefill = (roleKey: 'admin' | 'coordinator' | 'lecturer' | 'student') => {
-    const creds = DEMO_CREDENTIALS[roleKey];
+  const handleDemoPrefill = (roleKey: DemoRoleKey) => {
+    const creds = DEMO_LOGIN_CONFIG?.[roleKey];
+    if (!creds) return;
+
     setIdentifier(creds.email);
-    setPassword(creds.pass);
+    setPassword(creds.password);
     setErrors({});
     setAlert({
       type: 'info',
@@ -124,7 +132,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               id="email-or-username"
               label="Email or Staff / Student ID"
               icon={User}
-              placeholder="e.g. 23004955 or admin@siswa.um.edu.my"
+              placeholder="Enter your student/staff ID or institutional email"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               error={errors.id}
@@ -271,13 +279,14 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
       </motion.div>
 
       {/* Interactive demo prefiller console */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.5 }}
-        id="dev-demo-console"
-        className="w-full bg-[#0c1424]/90 border border-[#1a2c54]/30 p-5 rounded-2xl text-left shadow-lg backdrop-blur-sm"
-      >
+      {DEMO_LOGIN_CONFIG && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+          id="dev-demo-console"
+          className="w-full bg-[#0c1424]/90 border border-[#1a2c54]/30 p-5 rounded-2xl text-left shadow-lg backdrop-blur-sm"
+        >
         <span className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-2.5">
           🔑 Portal Testing Console (Interactive prefiller)
         </span>
@@ -289,55 +298,64 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             type="button"
             onClick={() => handleDemoPrefill('student')}
             className={`px-3 py-2 text-left rounded-lg transition-all border text-xs cursor-pointer ${
-              identifier === DEMO_CREDENTIALS.student.email
+              identifier === DEMO_LOGIN_CONFIG.student.email
                 ? 'bg-indigo-950 text-indigo-200 border-indigo-500 ring-1 ring-indigo-500'
                 : 'bg-white/[0.04] text-white border-white/[0.08] hover:bg-white/[0.08]'
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">1. Student</span>
-            <span className="text-[9px] text-slate-400 block font-mono">200192</span>
+            <span className="text-[9px] text-slate-400 block font-mono">
+              {DEMO_LOGIN_CONFIG.student.displayIdentifier}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => handleDemoPrefill('lecturer')}
             className={`px-3 py-2 text-left rounded-lg transition-all border text-xs cursor-pointer ${
-              identifier === DEMO_CREDENTIALS.lecturer.email
+              identifier === DEMO_LOGIN_CONFIG.lecturer.email
                 ? 'bg-indigo-950 text-indigo-200 border-indigo-500 ring-1 ring-indigo-500'
                 : 'bg-white/[0.04] text-white border-white/[0.08] hover:bg-white/[0.08]'
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">2. Lecturer</span>
-            <span className="text-[9px] text-slate-400 block font-mono">lecturer@siswa.um.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">
+              {DEMO_LOGIN_CONFIG.lecturer.displayIdentifier}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => handleDemoPrefill('admin')}
             className={`px-3 py-2 text-left rounded-lg transition-all border text-xs cursor-pointer ${
-              identifier === DEMO_CREDENTIALS.admin.email
+              identifier === DEMO_LOGIN_CONFIG.admin.email
                 ? 'bg-indigo-950 text-indigo-200 border-indigo-500 ring-1 ring-indigo-500'
                 : 'bg-white/[0.04] text-white border-white/[0.08] hover:bg-white/[0.08]'
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">3. Office Staff</span>
-            <span className="text-[9px] text-slate-400 block font-mono">admin@siswa.um.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">
+              {DEMO_LOGIN_CONFIG.admin.displayIdentifier}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => handleDemoPrefill('coordinator')}
             className={`px-3 py-2 text-left rounded-lg transition-all border text-xs cursor-pointer ${
-              identifier === DEMO_CREDENTIALS.coordinator.email
+              identifier === DEMO_LOGIN_CONFIG.coordinator.email
                 ? 'bg-indigo-950 text-indigo-200 border-indigo-500 ring-1 ring-indigo-500'
                 : 'bg-white/[0.04] text-white border-white/[0.08] hover:bg-white/[0.08]'
             }`}
           >
             <span className="font-bold block text-[10px] text-indigo-300">4. Coordinator</span>
-            <span className="text-[9px] text-slate-400 block font-mono">coordinator@siswa.um.edu.my</span>
+            <span className="text-[9px] text-slate-400 block font-mono">
+              {DEMO_LOGIN_CONFIG.coordinator.displayIdentifier}
+            </span>
           </button>
         </div>
-      </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

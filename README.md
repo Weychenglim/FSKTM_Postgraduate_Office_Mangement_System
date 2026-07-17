@@ -26,7 +26,10 @@ npm run dev
 
 The Vite dev server runs at `http://localhost:3000`.
 The frontend `.env` file is optional because the app has safe defaults for mock mode and `/api`.
-Copy `frontend/.env.example` to `frontend/.env` only when you need to override those Vite values locally.
+For development-only demo prefills, create the ignored
+`frontend/.env.development.local` from the blank variables in
+`frontend/.env.example`; enable the flag and use the same per-role passwords as
+the backend. Production builds remove the entire demo console.
 
 ## Backend
 
@@ -36,6 +39,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
+# In the ignored .env, explicitly enable demo accounts and set all four
+# DEMO_*_PASSWORD values before seeding.
 python manage.py migrate
 python manage.py seed_users
 python manage.py runserver 8000

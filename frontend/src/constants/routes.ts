@@ -11,6 +11,10 @@ export const APP_ROUTES = {
   faq: '/faq',
   files: '/files',
   supervisorAppointments: '/supervisor-appointments',
+  supervisorAppointmentWorkload: '/supervisor-appointments/workload',
+  supervisorAppointmentNew: '/supervisor-appointments/new',
+  supervisorAppointmentHistory: '/supervisor-appointments/history',
+  supervisorAppointmentSupervisees: '/supervisor-appointments/supervisees',
   letters: '/letters',
   announcements: '/announcements',
   marks: '/marks',
@@ -19,6 +23,11 @@ export const APP_ROUTES = {
   marksTasks: '/marks/tasks',
   marksRecords: '/marks/records',
   panelAppointments: '/panel-appointments',
+  panelAppointmentRecords: '/panel-appointments/records',
+  panelAppointmentWorkload: '/panel-appointments/workload',
+  panelAppointmentSubmitted: '/panel-appointments/submitted',
+  panelAppointmentReviewed: '/panel-appointments/reviewed',
+  panelAppointmentAssignments: '/panel-appointments/assignments',
   notifications: '/notifications',
   settings: '/settings',
 } as const;
@@ -54,14 +63,42 @@ const PATH_TO_SIDEBAR: Array<{ path: string; sidebarItem: SidebarItemId }> = [
 export const routeForSidebarItem = (item: SidebarItemId | string): string =>
   SIDEBAR_TO_ROUTE[item as SidebarItemId] ?? APP_ROUTES.dashboard;
 
+export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
+
 export const routeForMarkRecord = (recordId: string): string =>
   `${APP_ROUTES.marksRecords}/${encodeURIComponent(recordId)}`;
 
 export const routeForSupervisorApplication = (applicationId: string): string =>
   `${APP_ROUTES.supervisorAppointments}/${encodeURIComponent(applicationId)}`;
 
+export const routeForSupervisorWorkload = (): string =>
+  APP_ROUTES.supervisorAppointmentWorkload;
+
+export const routeForSupervisorNewApplication = (): string =>
+  APP_ROUTES.supervisorAppointmentNew;
+
+export const routeForSupervisorHistory = (): string =>
+  APP_ROUTES.supervisorAppointmentHistory;
+
+export const routeForSupervisorSupervisee = (studentId: string): string =>
+  `${APP_ROUTES.supervisorAppointmentSupervisees}/${encodeURIComponent(studentId)}`;
+
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
+
+export const routeForPanelRecord = (recordId: string): string =>
+  `${APP_ROUTES.panelAppointmentRecords}/${encodeURIComponent(recordId)}`;
+
+export const routeForPanelWorkload = (): string => APP_ROUTES.panelAppointmentWorkload;
+
+export const routeForPanelSubmittedRecommendations = (): string =>
+  APP_ROUTES.panelAppointmentSubmitted;
+
+export const routeForPanelReviewedRequests = (): string =>
+  APP_ROUTES.panelAppointmentReviewed;
+
+export const routeForPanelAssignment = (studentId: string): string =>
+  `${APP_ROUTES.panelAppointmentAssignments}/${encodeURIComponent(studentId)}`;
 
 export const sidebarItemForPath = (pathname: string): SidebarItemId => {
   const match = PATH_TO_SIDEBAR.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`));
@@ -76,6 +113,22 @@ export const isKnownAppPath = (pathname: string): boolean => {
     || pathname === APP_ROUTES.resetPassword
   ) {
     return true;
+  }
+
+  if (pathname === APP_ROUTES.dashboard || pathname.startsWith(`${APP_ROUTES.dashboard}/`)) {
+    return pathname === APP_ROUTES.dashboard || pathname === APP_ROUTES.dashboardTimeline;
+  }
+
+  if (pathname === APP_ROUTES.supervisorAppointments || pathname.startsWith(`${APP_ROUTES.supervisorAppointments}/`)) {
+    const supervisorSubpath = pathname.slice(`${APP_ROUTES.supervisorAppointments}/`.length);
+    return (
+      pathname === APP_ROUTES.supervisorAppointments
+      || pathname === APP_ROUTES.supervisorAppointmentWorkload
+      || pathname === APP_ROUTES.supervisorAppointmentNew
+      || pathname === APP_ROUTES.supervisorAppointmentHistory
+      || /^supervisees\/[^/]+$/.test(supervisorSubpath)
+      || /^[^/]+$/.test(supervisorSubpath)
+    );
   }
 
   return PATH_TO_SIDEBAR.some(({ path }) => pathname === path || pathname.startsWith(`${path}/`));

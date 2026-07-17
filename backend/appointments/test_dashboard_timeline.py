@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -8,6 +9,12 @@ from rest_framework.test import APITestCase
 
 from accounts.models import OfficeStaff, Student
 from openpyxl import Workbook, load_workbook
+
+from dashboard.upload_security import (
+    MAX_TIMELINE_ARCHIVE_ENTRIES,
+    MAX_TIMELINE_UNCOMPRESSED_BYTES,
+    MAX_TIMELINE_UPLOAD_BYTES,
+)
 
 
 User = get_user_model()
@@ -40,6 +47,37 @@ def workbook_upload(rows, headers=None, filename="timeline.xlsx"):
         stream.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+MINIMUM_XLSX_ENTRIES = {
+    "[Content_Types].xml": b"content-types-data",
+    "_rels/.rels": b"relationships-data",
+    "xl/workbook.xml": b"workbook-data",
+    "xl/worksheets/sheet1.xml": b"worksheet-data",
+}
+
+
+def archive_upload(entries, filename="timeline.xlsx", compression=ZIP_STORED):
+    stream = BytesIO()
+    with ZipFile(stream, "w", compression=compression) as archive:
+        for name, content in entries.items():
+            archive.writestr(name, content)
+    return SimpleUploadedFile(
+        filename,
+        stream.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def encrypted_flag_upload():
+    upload = archive_upload(MINIMUM_XLSX_ENTRIES)
+    data = bytearray(upload.read())
+    local_header = data.find(b"PK\x03\x04")
+    central_header = data.find(b"PK\x01\x02")
+    for offset in (local_header + 6, central_header + 8):
+        flags = int.from_bytes(data[offset : offset + 2], "little") | 1
+        data[offset : offset + 2] = flags.to_bytes(2, "little")
+    return SimpleUploadedFile("encrypted.xlsx", bytes(data))
 
 
 class DashboardTimelineApiTests(APITestCase):
@@ -187,6 +225,170 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("errors", response.data)
         self.assertTrue(any("Missing required columns" in error for error in response.data["errors"]))
+
+    def test_upload_rejects_files_larger_than_ten_megabytes(self):
+        self.authenticate(self.admin)
+        upload = SimpleUploadedFile(
+            "oversized.xlsx",
+            b"x" * (MAX_TIMELINE_UPLOAD_BYTES + 1),
+        )
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {"errors": ["Timeline file must be 10 MB or smaller."]})
+
+    def test_upload_rejects_renamed_non_xlsx_extension(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": workbook_upload(self.valid_rows(), filename="timeline.zip")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Only .xlsx timeline templates are accepted."]},
+        )
+
+    def test_upload_rejects_malformed_zip_container(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": SimpleUploadedFile("malformed.xlsx", b"not-a-zip")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Timeline file is not a valid XLSX workbook."]},
+        )
+
+    def test_upload_rejects_missing_xlsx_workbook_structure(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": archive_upload({"notes.txt": b"not a workbook"})},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Timeline file is missing required XLSX workbook structure."]},
+        )
+
+    def test_upload_rejects_corrupt_zip_entry(self):
+        self.authenticate(self.admin)
+        upload = archive_upload(MINIMUM_XLSX_ENTRIES)
+        data = bytearray(upload.read())
+        payload_offset = data.find(b"workbook-data")
+        data[payload_offset] ^= 0xFF
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": SimpleUploadedFile("corrupt.xlsx", bytes(data))},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Timeline XLSX archive failed its integrity check."]},
+        )
+
+    def test_upload_rejects_encrypted_archive_entries(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": encrypted_flag_upload()},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Encrypted XLSX archive entries are not allowed."]},
+        )
+
+    def test_upload_rejects_archive_path_traversal(self):
+        self.authenticate(self.admin)
+        entries = {**MINIMUM_XLSX_ENTRIES, "../outside.txt": b"blocked"}
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": archive_upload(entries)},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["XLSX archive contains an unsafe file path."]},
+        )
+
+    def test_upload_rejects_embedded_macro_payload(self):
+        self.authenticate(self.admin)
+        entries = {**MINIMUM_XLSX_ENTRIES, "xl/vbaProject.bin": b"macro"}
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": archive_upload(entries)},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["Macro-enabled XLSX content is not allowed."]},
+        )
+
+    def test_upload_rejects_more_than_one_thousand_archive_entries(self):
+        self.authenticate(self.admin)
+        entries = dict(MINIMUM_XLSX_ENTRIES)
+        for index in range(MAX_TIMELINE_ARCHIVE_ENTRIES - len(entries) + 1):
+            entries[f"xl/media/item-{index}.txt"] = b"x"
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": archive_upload(entries, compression=ZIP_DEFLATED)},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["XLSX archive contains more than 1,000 entries."]},
+        )
+
+    def test_upload_rejects_more_than_fifty_megabytes_uncompressed(self):
+        self.authenticate(self.admin)
+        entries = {
+            **MINIMUM_XLSX_ENTRIES,
+            "xl/media/expanded.txt": b"0" * (MAX_TIMELINE_UNCOMPRESSED_BYTES + 1),
+        }
+
+        response = self.client.post(
+            "/api/dashboard/timeline/upload/",
+            {"file": archive_upload(entries, compression=ZIP_DEFLATED)},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"errors": ["XLSX archive expands beyond the 50 MB limit."]},
+        )
 
     def test_upload_rejects_invalid_date_range(self):
         self.authenticate(self.admin)

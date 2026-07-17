@@ -2,8 +2,14 @@
 
 ## Completed
 
+- Isolated demo accounts behind explicit Django and Vite development flags while preserving local one-click role prefills.
+- Replaced seeded identities with fictional `example.test` emails, `DEMO-*` IDs, and demonstration-only registry/profile data; removed passwords from committed Python and TypeScript fixtures.
+- Added guarded, environment-driven role passwords, validated legacy-email mapping, no-mutation refusal tests, idempotent seed coverage, and a production bundle canary test.
 - Implemented persistent Supervisor Appointment submission, document metadata, lecturer decisions, programme-scoped coordinator decisions, resubmission, workload validation, appointment records, and histories.
 - Replaced the deferred coordinator supervisor page with a live approval queue and dashboard count.
+- Renamed the stale coordinator supervisor approval frontend surface to `CoordinatorSupervisorApprovals` and wired it as the live Programme Coordinator final-approval queue.
+- Replaced prompt-based supervisor approval rejection on the Programme Coordinator queue and lecturer supervisor detail screen with in-app mandatory rejection reason controls.
+- Clarified the five-module ownership boundary so Workflow and Approval Tracking is separate from the Notifications/Announcements module.
 - Added shared immutable workflow events for Supervisor and Panel submissions and decisions.
 - Changed Panel workload validation to each lecturer's configurable `Panel.max_appointments`.
 - Added the `marks` Django app with configurable rubrics, periods, tasks, drafts, validation, submission locking, office monitoring, and assignment generation.
@@ -29,11 +35,16 @@
 - Removed the unused Panel `ACCEPTED_BY_PANEL` state; selected-panel acceptance now has one supported transition directly to `PENDING_COORDINATOR`.
 - Added protected Supervisor and Panel detail APIs, expandable audit logs, workflow notification metadata, stakeholder notification fan-out, and notification-to-record navigation.
 - Added clean URL routing with React Router DOM for auth pages, sidebar modules, dashboard timeline, marks subviews, mark record detail, supervisor application deep links, panel recommendation deep links, unknown-route redirects, and notification-to-record navigation.
+- Added page-level nested Supervisor Appointment routing for Office Staff/Admin record detail and workload monitoring, Student new application routing, Lecturer request history and supervisee detail pages, and role-specific fixed-route redirects while preserving `/supervisor-appointments/:applicationId` deep links.
+- Added route-level code splitting for every authenticated routed module, including Notifications, and split React, React Router, Motion, and Lucide vendor code so the production entry chunk stays below Vite's default warning threshold.
+- Added page-level nested Panel Appointment routing for Office Staff/Admin record detail and workload monitoring, Lecturer submitted/reviewed/assignment pages, Programme Coordinator recommendation drawer links, and Student nested-route redirects.
+- Tightened Dashboard page-level routing so `/dashboard/timeline` remains the only Dashboard nested page, is Office Staff/Admin-only, and unsupported Dashboard nested paths redirect through the normal authenticated fallback.
+- Added route scroll restoration so routed page transitions start at the top while hash-only URL changes are left alone.
 - Applied local migrations through `appointments.0006` and `announcements.0003`.
 - Moved shared portal toast feedback to the top-right viewport position with high overlay layering so it remains visible above the sticky header, drawers, and modals.
 
-- Added a dedicated Programme Coordinator dashboard using the Lecturer timeline/next-action structure, a real programme-scoped pending panel approval count, and a disabled Supervisor Approvals card while that backend workflow remains deferred.
-- Added an explicit Programme Coordinator Supervisor Appointments unavailable page without mock pending counts or approval controls.
+- Added a dedicated Programme Coordinator dashboard using the Lecturer timeline/next-action structure with real programme-scoped supervisor and panel approval counts.
+- Added the Programme Coordinator Supervisor Appointments live final-approval queue without fabricated pending counts.
 - Added a programme-scoped coordinator panel workspace API returning the managed programme, pending count, final-approval queue, and full recommendation lifecycle records.
 - Enforced `Coordinator.programme_managed` on coordinator queue retrieval and final approve/reject actions, including protected empty behavior for coordinators without an assigned programme.
 - Added a shared searchable, status-filtered, 10-row recommendation records table for Programme Coordinator programme oversight and selected-panel lecturer Reviewed Requests history.
@@ -122,13 +133,21 @@
 - Supervisor panel cancellation verification passes: 3 focused Django API tests, the panel workflow frontend test, `npm run lint`, `npm run build`, and `makemigrations --check --dry-run`.
 - Focused Programme Coordinator workspace, programme authorization, full lifecycle, and selected-panel review-history Django tests pass.
 - Focused panel recommendation filtering and shared pagination frontend tests pass.
-- `npm run lint` passes after adding the Programme Coordinator dashboard, scoped panel records, deferred supervisor page, and lecturer reviewed history.
+- `npm run lint` passes after adding the Programme Coordinator dashboard, scoped panel records, coordinator supervisor route surface, and lecturer reviewed history.
 - Focused Django panel-record tests pass for standard office monitoring states and rejected-history retention after a later approval (2 tests, 0 failures).
 - Focused frontend pagination and panel-summary tests pass.
 - `npm run build` passes after the audit/panel record pagination change, with the existing non-blocking chunk-size warning.
-- Full `npm run lint` remains blocked by the pre-existing `LecturerPanelAppointments.tsx` `DemoUser.name` type error outside this change.
-- Full `python manage.py test appointments --keepdb` currently has five pre-existing baseline failures: two date-sensitive dashboard timeline status expectations and three panel workload-limit expectations that assume 5 while `PANEL_WORKLOAD_LIMIT` is currently 10.
-- Authentication regression tests, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, the canonical credential test, `npm run lint`, and `npm run build` pass after the account migration fix. The full Django suite still reports the same five documented appointment/timeline baseline failures.
+- All frontend `.test.ts` scripts pass after adding page-level Panel Appointment nested routing.
+- `npm run lint` passes after adding page-level Panel Appointment nested routing.
+- `npm run build` passes after adding page-level Panel Appointment nested routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after tightening Dashboard page-level nested routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after adding top-of-page route scroll restoration; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after adding page-level Supervisor Appointment routing; the existing non-blocking chunk-size warning remains.
+- All frontend `.test.ts` scripts, `npm run lint`, and `npm run build` pass after route-level module code splitting and vendor chunking; Vite now emits multiple JS chunks without the default oversized chunk warning.
+- Full `python manage.py test appointments -v 2 --keepdb` passes for the combined Supervisor, Panel, Workflow Audit, and Dashboard Timeline coverage; the previously documented appointment/timeline baseline failures are no longer present in the current run.
+- Authentication regression tests, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, the canonical credential test, `npm run lint`, and `npm run build` pass after the account migration fix.
+- Five-module verification passes for the current implementation slice: all frontend `.test.ts` scripts, `npm run lint`, `npm run build`, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, focused Supervisor Workflow tests, Dashboard Timeline tests, Marks tests, Dashboard Summary tests, and full `appointments` tests all complete successfully. The Vite build still reports the documented non-blocking large chunk warning.
+- Browser smoke testing against local Django/Vite confirms the five-module role routes render without console errors for Office Staff/Admin, Lecturer, Programme Coordinator, and Student. Current local data has no Office Staff/Admin supervisor records or lecturer active supervisees, so those routed detail checks exercise the intended not-found states; Panel Appointment detail opens successfully from the records table.
 - `npm run lint` passes from `frontend/` after reorganizing the project structure.
 - `npm run build` passes from `frontend/` after reorganizing the project structure, with the existing non-blocking chunk-size warning.
 - `npm run lint` passes after cleaning `frontend/.env.example`.
@@ -210,6 +229,8 @@
 - Updated the student panel endpoint so seeded student accounts without a linked research profile see the normal pending appointment state instead of a data-load error.
 - Simplified the confirmed student Panel Appointment page into one appointed-panel summary plus a compact FAQ help row, removing staff ID, supervisor display, duplicate date/semester fields, and repeated student metadata.
 - Connected the Office Staff/Admin Panel Appointment Management records and summary cards to persisted panel workflow data, including No Panel, Recommendation, Pending, Approved, and Rejected monitoring states.
+- Finished the Office Staff/Admin panel monitoring integration by making cancelled recommendations a first-class persisted monitoring state, adding cancelled summary/tab/attention/detail support, exporting lifecycle metadata in CSV, and limiting the panel records endpoint to Office Staff/Admin users.
+- Removed the stale Panel Appointment Management `Workload Alert` lifecycle tab; workload pressure remains in the dedicated persisted workload monitoring surface with clamped utilization displays.
 - Reworked Office Staff/Admin Panel Appointment Detail to render backend record fields, dynamic `Session YYYY/YYYY` badges, and no-records placeholders for related files/evaluation instead of screenshot/demo data.
 - Added the shared full panel workflow status timeline to Office Staff/Admin Panel Appointment Detail and removed the confidential administrative notice plus explanatory no-records copy.
 - Added recorded date-time display to the Office Staff/Admin panel workflow timeline and enriched the related panel status card with staff ID, email, assigned date, and status context.
@@ -271,38 +292,46 @@
 - `npm run lint` and `npm run build` pass after wiring the dashboard lecturer workload attention count to panel workload data and replacing targeted dashboard/panel browser alerts.
 - `npm run lint` passes after removing the misleading section-level panel recommendation status badge.
 - `npm run lint`, `npm run build`, `python manage.py test appointments --keepdb`, and `python manage.py check` pass after adding panel workflow date-times, enriching the related panel status card, and changing dashboard timeline headings to `Session YYYY/YYYY`.
-- Vite reports a non-blocking production chunk-size warning because the bundled JavaScript is larger than 500 kB.
+- Vite no longer reports the default production chunk-size warning after the route-level lazy-loading and vendor-chunking pass.
 - `python manage.py check` passes after the account subtype-table refactor (0 issues).
 - `makemigrations` + `migrate` apply the `accounts/0002` subtype-table migration cleanly; `seed_users` repopulates the demo accounts and their role profiles.
 - Verified login by email and by matric number, and that `to_public_dict()` correctly resolves department / IDs from the new profile tables.
 - `npm run lint` and `npm run build` pass after the Settings module, mobile responsiveness, login cleanup, and notification-tab split (with the existing non-blocking chunk-size warning).
 - `python backend\manage.py test appointments -v 2 --keepdb` passes after updating appointments APIs and tests for the normalized role-profile tables.
 - `python manage.py test -v 2 --keepdb` passes from `backend/` after the appointments/profile-table compatibility fix.
+- `python manage.py test appointments --keepdb`, all frontend `.test.ts` scripts, `python manage.py check`, `python manage.py makemigrations --check --dry-run`, `npm run lint`, and `npm run build` pass after finishing Office Staff/Admin panel monitoring integration with cancelled records, Office Staff/Admin-only records access, lifecycle CSV fields, and clamped workload utilization.
+- `npx.cmd tsx` over all frontend `.test.ts` scripts, `npm.cmd run lint`, `npm.cmd run build`, `python manage.py test appointments.test_supervisor_workflow appointments.tests dashboard.tests marks -v 2 --keepdb` split into focused runs, `python manage.py check`, and `python manage.py makemigrations --check --dry-run` pass after completing the Workflow and Approval Tracking naming/rejection-control slice.
+- Browser smoke testing on local Django/Vite (`8001`/`3001`) confirms Office Staff/Admin, Lecturer, Programme Coordinator, and Student workflow routes render without app-visible errors or console errors after the Workflow and Approval Tracking slice.
+- `python manage.py test accounts announcements appointments dashboard marks letters --keepdb` passes all 86 tests; `python manage.py check` reports no issues and `python manage.py makemigrations --check --dry-run` reports no changes after demo-account isolation.
+- All 19 frontend `.test.ts` files pass, including the production canary-build guard; `npm run lint`, `npm run build`, tracked-source credential/PII scans, and normal production-output scans pass.
+- Browser smoke testing confirms the development console logs in Office Staff/Admin, Lecturer, Programme Coordinator, and Student through their fictional `DEMO-*` identifiers. The production build retains manual login while rendering no demo console, stale console helper copy, or browser console errors.
 - Added a shared frontend approved-programme list for dashboard/panel-facing flows and aligned panel appointment demo/API fallback data plus backend appointment seed/test data to the three coursework programmes.
-- Fixed demo account refresh failures caused by deleting legacy users referenced by protected timeline/audit records. Legacy staff emails now migrate in place, panel profile seeding uses the canonical lecturer email, and the student login prefiller uses matric number `200192`.
-- Added backend and frontend regression tests for protected-history account migration and canonical demo credentials.
-- Applied `accounts.0003_studentregistry` to the local database and reran `seed_users` twice successfully to verify idempotent account refresh.
-- Verified login returns HTTP 200 for the Admin, Programme Coordinator, Lecturer, and Student demo accounts using both canonical email and staff/matric identifiers.
+- Reworked demo account refresh so an optional local JSON mapping renames legacy users in place, preserving protected workflow, timeline, and audit references.
+- Added backend and frontend regression tests for seed guards, fictional fixture identity, configured passwords, protected-history migration, development gating, and production bundle isolation.
 
 ## Known Issues and Notes
 
+- DRF now defaults to authenticated access, logout requires authentication, and route-wide anonymous plus letter role-matrix tests cover the currently owned APIs. `python manage.py test accounts.test_api_security letters appointments dashboard marks --keepdb` passes all 82 tests.
+- Login and password-reset endpoints now use separate environment-configurable per-IP throttle scopes with standard `429`/`Retry-After` responses; authentication forms show a shared retry-later message. All 13 focused authentication security/throttle tests, the frontend auth-error test, `npm run lint`, and `npm run build` pass.
+- Timeline upload hardening now validates the 10 MB file limit and XLSX archive integrity, structure, encryption, paths, macros, entry count, and uncompressed size before spreadsheet parsing; the frontend applies the same size limit before submission. All 24 focused timeline API tests, the frontend upload-validation test, `npm run lint`, and `npm run build` pass.
+- Final core-security verification passes all 112 Django tests across Accounts, Announcements, Appointments, Dashboard, Marks, and Letters; `python manage.py check` reports no issues, the migration dry run reports no changes, all 21 frontend `.test.ts` files pass, and frontend lint/build complete successfully.
+- A fresh headless browser smoke rerun remains incomplete because the temporary Chrome/Vite DevTools target did not attach to the app reliably. No browser-smoke pass is claimed; role routing, anonymous access, throttling, and valid/rejected timeline uploads remain covered by the automated suites, and the existing user-run development servers were not modified.
+- Announcements/Notifications remain teammate-owned and behaviorally unchanged. Known deferred risks are cross-sender modification, draft/attachment visibility authorization, and missing authoritative announcement attachment size/content validation.
+- Previously committed demo passwords and realistic fixture data remain in Git history until the repository is made private and a collaborator-coordinated `git filter-repo` rewrite is completed; rewritten branches and tags will require force-pushes and fresh clones.
 - Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
 - A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
 - Unfinished modules remain mock-backed by default, while Supervisor, Panel, Marks, and Timeline can independently use Django.
 - Backend integration is still pending for broader registry, file, FAQ, and some notification workflows.
-- Office Staff/Admin panel monitoring still needs fuller frontend integration with the persisted panel appointment records.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
-- The production bundle is above Vite's default 500 kB chunk warning threshold after merging the generated office-staff, lecturer, and student screens.
+- The previous Vite default 500 kB chunk warning has been resolved through route-level lazy loading and vendor chunking.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
 - `npm install react-router-dom` reports 2 npm audit findings (1 low, 1 high); these are not resolved in the routing pass.
 
 ## Next Steps
 
 - Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
-- Consider route-level code splitting for larger generated module screens if production bundle size becomes a deployment concern.
 - Browser smoke-test the completed Supervisor, Panel, Marks, Dashboard, and coordinator flows against a migrated local database.
 - Wire the Settings module (contact details, password change, notification preferences) to backend endpoints; today the forms validate and toast but do not persist.
 - Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.
 - Decide a single source of truth for Programme Coordinator (it currently exists both as a `User.role` value and as a `Coordinator` profile table).
-- Connect Office Staff/Admin panel monitoring to the persisted panel appointment records.
-- Seed official rubrics, supervisor document requirements, and workload values after office confirmation.
+- Keep current configurable demo defaults for rubrics, supervisor document requirements, mark components, and workload values until official office rules/templates are received; then seed the official values without changing the core five-module workflow code.

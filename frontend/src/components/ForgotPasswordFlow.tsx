@@ -17,7 +17,8 @@ import {
   EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { authApi, ApiError } from '../services';
+import { authApi } from '../services';
+import { authenticationErrorMessage } from '../utils/authErrorMessage';
 
 // ==================== PATTERN COMPONENTS ====================
 
@@ -306,9 +307,10 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
       await authApi.requestPasswordReset(email.trim());
       setIsSubmitted(true);
     } catch (err) {
-      setErrorText(
-        err instanceof ApiError ? err.message : 'Cannot reach the server. Please try again shortly.'
-      );
+      setErrorText(authenticationErrorMessage(
+        err,
+        'Cannot reach the server. Please try again shortly.',
+      ));
     } finally {
       setIsLoading(false);
     }
@@ -320,8 +322,11 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
     try {
       await authApi.requestPasswordReset(email.trim());
       alert('A new security reset link has been dispatched to your inbox.');
-    } catch {
-      setErrorText('Cannot reach the server. Please try again shortly.');
+    } catch (err) {
+      setErrorText(authenticationErrorMessage(
+        err,
+        'Cannot reach the server. Please try again shortly.',
+      ));
     } finally {
       setIsLoading(false);
     }

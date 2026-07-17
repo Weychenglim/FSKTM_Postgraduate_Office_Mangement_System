@@ -26,6 +26,13 @@ def env_list(name: str, default: str) -> list[str]:
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 # ── Core ─────────────────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
@@ -33,6 +40,15 @@ SECRET_KEY = os.getenv(
 )
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+
+# Demo fixtures are opt-in even during local development. Passwords intentionally
+# have no fallback so seed_users cannot create known credentials by accident.
+ENABLE_DEMO_ACCOUNTS = env_bool("ENABLE_DEMO_ACCOUNTS", False)
+DEMO_ADMIN_PASSWORD = os.getenv("DEMO_ADMIN_PASSWORD", "")
+DEMO_COORDINATOR_PASSWORD = os.getenv("DEMO_COORDINATOR_PASSWORD", "")
+DEMO_LECTURER_PASSWORD = os.getenv("DEMO_LECTURER_PASSWORD", "")
+DEMO_STUDENT_PASSWORD = os.getenv("DEMO_STUDENT_PASSWORD", "")
+DEMO_LEGACY_EMAIL_MAP = os.getenv("DEMO_LEGACY_EMAIL_MAP", "")
 
 # Where the React app is served — used to build password-reset links.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -121,13 +137,32 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Development uses a process-local cache. Multi-worker production deployments
+# must replace this with a shared cache so throttle counters remain consistent.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "fsktm-pg-office-api",
+    }
+}
+
+AUTH_LOGIN_THROTTLE_RATE = os.getenv("AUTH_LOGIN_THROTTLE_RATE", "10/minute")
+AUTH_PASSWORD_RESET_THROTTLE_RATE = os.getenv(
+    "AUTH_PASSWORD_RESET_THROTTLE_RATE", "5/hour"
+)
+AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE = os.getenv(
+    "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE", "10/hour"
+)
+
 # ── Django REST Framework + SimpleJWT ────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    # Endpoints are public by default; protected views opt in with IsAuthenticated.
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+    # APIs are private by default. Authentication endpoints opt into AllowAny.
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # Do not trust X-Forwarded-For until a known reverse-proxy chain is configured.
+    "NUM_PROXIES": max(env_int("DRF_NUM_PROXIES", 0), 0),
 }
 
 SIMPLE_JWT = {

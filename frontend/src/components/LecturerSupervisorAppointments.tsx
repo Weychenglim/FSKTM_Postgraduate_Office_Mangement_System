@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Users, 
   Clock, 
@@ -36,7 +36,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
+import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
@@ -752,11 +752,21 @@ export const DataTable: React.FC<DataTableProps> = ({
 interface LecturerSupervisorAppointmentsProps {
   onBack?: () => void;
   initialApplicationId?: string;
+  routeView?: 'list' | 'history' | 'superviseeDetail';
+  routeSuperviseeStudentId?: string;
+  onNavigateToList?: () => void;
+  onNavigateToHistory?: () => void;
+  onNavigateToSupervisee?: (studentId: string) => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
   onBack,
   initialApplicationId,
+  routeView = 'list',
+  routeSuperviseeStudentId,
+  onNavigateToList,
+  onNavigateToHistory,
+  onNavigateToSupervisee,
 }) => {
   // Supervisory load counter (workload widget). Stays local UI state: it tracks
   // remaining slots and is nudged as the lecturer approves/rejects requests.
@@ -784,11 +794,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     loadData();
   }, [loadData]);
 
-  // Routing screen details status
-  const [detailView, setDetailView] = useState<'list' | 'requestDetail' | 'superviseeDetail' | 'history'>('list');
+  // Request detail remains local; page-level history/supervisee screens are route controlled.
+  const [detailView, setDetailView] = useState<'requestDetail' | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const [selectedSupervisee, setSelectedSupervisee] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [detailRejectReason, setDetailRejectReason] = useState('');
 
   useEffect(() => {
     if (!initialApplicationId) return;
@@ -804,11 +814,13 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           abstract: detail.researchAbstract,
           submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
         });
+        setDetailRejectReason('');
         setIsDrawerOpen(true);
       })
       .catch(() => {
         if (!request) return;
         setSelectedRequest(request);
+        setDetailRejectReason('');
         setIsDrawerOpen(true);
       });
   }, [initialApplicationId, requestsList]);
@@ -821,6 +833,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   };
 
   const handleOpenRequest = async (req: any) => {
+    setDetailRejectReason('');
     if (req.applicationId === undefined) {
       setSelectedRequest(req);
       setIsDrawerOpen(true);
@@ -835,8 +848,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
   };
 
-  const handleOpenSupervisee = (supe: any) => {
-    const fullProfile = {
+  const buildSuperviseeProfile = (supe: ActiveSuperviseeRow) => ({
       ...supe,
       programme: supe.studentId.startsWith('WEA') ? 'MSc. Computer Science' : 'MSc. Software Engineering',
       email: `${supe.studentName.toLowerCase().replace(/\s+/g, '')}@um.edu.my`,
@@ -846,9 +858,18 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       progressReport: 'Satisfactory (Satisfactory achievement across Milestone 2 targets.)',
       recentMilestone: 'Milestone 2 Defense Confirmed (Approved: Apr 2026)',
       abstract: 'This dissertation investigates security paradigms and computational enhancements, testing deployment structures onto simulated container clusters inside Universiti Malaya’s computing infrastructure.'
-    };
-    setSelectedSupervisee(fullProfile);
-    setDetailView('superviseeDetail');
+    });
+
+  const selectedSupervisee = useMemo(() => {
+    if (!routeSuperviseeStudentId) return null;
+    const supervisee = supervisees.find((item) => String(item.studentId) === String(routeSuperviseeStudentId));
+    return supervisee ? buildSuperviseeProfile(supervisee) : null;
+  }, [supervisees, routeSuperviseeStudentId]);
+
+  const navigateToList = onNavigateToList ?? (() => undefined);
+
+  const handleOpenSupervisee = (supe: ActiveSuperviseeRow) => {
+    onNavigateToSupervisee?.(supe.studentId);
   };
 
   const handleApproveRequest = async (id: string) => {
@@ -873,9 +894,10 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       setSupervisees(prev => [newActive, ...prev]);
       setSummaryLoad(prev => ({ ...prev, current: Math.min(prev.max, prev.current + 1) }));
       setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      setDetailRejectReason('');
       showToast(`Appointment approved! ${studentReq.studentName} is now added to your supervisee roster.`);
       setIsDrawerOpen(false);
-      setDetailView('list');
+      navigateToList();
     }
   };
 
@@ -891,9 +913,10 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         return;
       }
       setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      setDetailRejectReason('');
       showToast(`Appointment declined for student ${studentReq.studentName}. Action logged successfully.`);
       setIsDrawerOpen(false);
-      setDetailView('list');
+      navigateToList();
     }
   };
 
@@ -903,7 +926,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       <PortalToast message={toastText} />
 
       {/* RENDER ACTIVE SCREEN BASED ON DETAILED ROUTE STATE */}
-      {detailView === 'list' && (
+      {routeView === 'list' && (
         <div id="overview-listing-screen" className="space-y-8">
           
           <PageHeader
@@ -954,7 +977,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               </div>
               <button 
                 type="button"
-                onClick={() => setDetailView('history')}
+                onClick={onNavigateToHistory}
                 className="text-xs font-extrabold text-[#2563eb] hover:text-blue-800 tracking-wide transition-colors cursor-pointer"
               >
                 View Request History
@@ -1006,7 +1029,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           className="space-y-6 text-left"
         >
           <PortalButton
-            onClick={() => setDetailView('list')}
+            onClick={() => setDetailView(null)}
             variant="ghost"
             size="sm"
             icon={ArrowLeft}
@@ -1094,28 +1117,40 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               </div>
 
               {/* Action operations controls */}
-              <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-end items-center gap-3.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const r = prompt("Please provide a concise description explaining the grounds for declining this supervision assignment:");
-                    if (r !== null) {
-                      handleRejectRequest(selectedRequest.studentId, r || "General area misalignment");
-                    }
-                  }}
-                  className="w-full sm:w-auto px-6 py-3 border border-rose-250 hover:bg-rose-50 text-rose-600 hover:text-rose-800 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none text-center"
-                >
-                  Decline Roster
-                </button>
+              <div className="border-t border-slate-100 pt-6 space-y-4">
+                <FormTextarea
+                  label="REASON FOR REJECTION"
+                  placeholder="Enter reason before declining this supervisor appointment request."
+                  value={detailRejectReason}
+                  onChange={(event) => setDetailRejectReason(event.target.value)}
+                />
+                <NoticeText>
+                  A reason is required before declining this supervisor appointment request.
+                </NoticeText>
+                <div className="flex flex-col sm:flex-row justify-end items-center gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!detailRejectReason.trim()) {
+                        showToast('A rejection reason is required.');
+                        return;
+                      }
+                      handleRejectRequest(selectedRequest.studentId, detailRejectReason.trim());
+                    }}
+                    className="w-full sm:w-auto px-6 py-3 border border-rose-250 hover:bg-rose-50 text-rose-600 hover:text-rose-800 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none text-center"
+                  >
+                    Decline Roster
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleApproveRequest(selectedRequest.studentId)}
-                  className="w-full sm:w-auto bg-brand-navy hover:bg-slate-800 text-white px-8 py-3.5 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl shadow-sm cursor-pointer select-none text-center flex items-center justify-center gap-2"
-                >
-                  <Check className="w-4 h-4 text-indigo-300 stroke-[3.5]" />
-                  <span>Accept Roster Assignment</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApproveRequest(selectedRequest.studentId)}
+                    className="w-full sm:w-auto bg-brand-navy hover:bg-slate-800 text-white px-8 py-3.5 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl shadow-sm cursor-pointer select-none text-center flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4 text-indigo-300 stroke-[3.5]" />
+                    <span>Accept Roster Assignment</span>
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -1126,28 +1161,45 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       )}
 
       {/* DETAIL SCREEN 2: ACTIVE SUPERVISEE DETAIL */}
-      {detailView === 'superviseeDetail' && selectedSupervisee && (
+      {routeView === 'superviseeDetail' && loading && (
+        <LoadingState message="Loading supervisee detail…" />
+      )}
+
+      {routeView === 'superviseeDetail' && !loading && error && (
+        <ErrorState message={error} onRetry={loadData} />
+      )}
+
+      {routeView === 'superviseeDetail' && selectedSupervisee && (
         <motion.div 
           initial={{ opacity: 0, y: 15 }} 
           animate={{ opacity: 1, y: 0 }} 
           className="space-y-6 text-left"
         >
           <ActiveSuperviseeDetail 
-            onBack={() => setDetailView('list')}
+            onBack={navigateToList}
             studentId={selectedSupervisee.studentId}
             studentName={selectedSupervisee.studentName}
           />
         </motion.div>
       )}
 
+      {routeView === 'superviseeDetail' && !loading && !error && !selectedSupervisee && (
+        <EmptyState
+          title="Active supervisee not found"
+          description="The requested supervisee record does not exist or is no longer available."
+          actionLabel="Back to Supervisor Appointments"
+          onAction={navigateToList}
+        />
+      )}
+
       {/* DETAIL SCREEN 3: SUPERVISOR REQUEST HISTORY */}
-      {detailView === 'history' && (
+      {routeView === 'history' && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          <SupervisorRequestHistory onBack={() => setDetailView('list')} />
+          <SupervisorRequestHistory onBack={navigateToList} />
         </motion.div>
       )}
 

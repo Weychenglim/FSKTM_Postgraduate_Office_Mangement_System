@@ -342,7 +342,8 @@ export const MOCK_PANEL_APPOINTMENTS: PanelRecord[] = ([
     semester: 'Sem 1 2025/2026',
     supervisor: 'Dr. Siti Noor',
     panelMember: 'Dr. Robert Chen',
-    status: 'Workload Alert',
+    status: 'Cancelled',
+    cancellationReason: 'Supervisor cancelled the recommendation before selected panel review.',
     updatedDate: '22 Nov 2025',
   },
   {
@@ -402,7 +403,8 @@ export const MOCK_PANEL_APPOINTMENTS: PanelRecord[] = ([
     semester: 'Sem 1 2025/2026',
     supervisor: 'Prof. Dr. Ahmad Kamil',
     panelMember: 'Dr. Aris Ghaffar',
-    status: 'Workload Alert',
+    status: 'Cancelled',
+    cancellationReason: 'Student changed research direction before appointment confirmation.',
     updatedDate: '22 Nov 2025',
   },
 ] satisfies Omit<PanelRecord, 'recordId'>[]).map((record, index) => ({

@@ -30,7 +30,7 @@ import { ErrorState, LoadingState } from './StateViews';
 import { getPanelWorkloads } from '../services';
 import { PanelWorkloadRecord } from '../types';
 import { downloadCsv } from '../utils/csvExport';
-import { getPanelWorkloadSummary } from '../utils/panelWorkloadRecords';
+import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
@@ -42,9 +42,6 @@ const distributionRows: Array<{ label: string; tone: BadgeTone; key: 'available'
   { label: 'Near Limit', tone: 'warning', key: 'nearLimit' },
   { label: 'Full Load', tone: 'danger', key: 'fullLoad' },
 ];
-
-const utilization = (record: PanelWorkloadRecord) =>
-  record.workloadLimit > 0 ? Math.round((record.currentStudents / record.workloadLimit) * 100) : 0;
 
 export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -148,7 +145,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       { header: 'Department', value: (record) => record.department },
       { header: 'Reserved Panel Seats', value: (record) => record.currentStudents },
       { header: 'Workload Limit', value: (record) => record.workloadLimit },
-      { header: 'Utilization Percent', value: (record) => utilization(record) },
+      { header: 'Utilization Percent', value: (record) => getPanelWorkloadUtilization(record) },
       { header: 'Availability', value: (record) => record.availability },
       { header: 'Confirmed Appointments', value: (record) => record.confirmedAppointments },
       { header: 'Pending Nominations', value: (record) => record.pendingNominations },
@@ -535,11 +532,11 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   <div className="space-y-1.5 pt-1.5">
                     <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500">
                       <span>Capacity Utilization</span>
-                      <span className="text-brand-navy font-bold">{utilization(selectedLecturer)}%</span>
+                      <span className="text-brand-navy font-bold">{getPanelWorkloadUtilization(selectedLecturer)}%</span>
                     </div>
                     <ProgressBar
-                      value={selectedLecturer.currentStudents}
-                      max={selectedLecturer.workloadLimit}
+                      value={getPanelWorkloadUtilization(selectedLecturer)}
+                      max={100}
                       tone={getStatusBadgeTone(selectedLecturer.availability)}
                       trackClassName="h-2 bg-slate-110"
                     />
