@@ -152,6 +152,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `deploy/nginx` defines the supported same-origin production boundary: Nginx serves the Vite build, proxies `/api/` and `/admin/`, serves collected Django Admin assets, overwrites forwarded protocol headers, rejects unknown hosts, and applies the 12 MB request limit plus frontend security headers. Nginx owns public HSTS and suppresses Django's upstream HSTS header on proxied responses.
 - Report-only and enforced Nginx includes carry identical CSP directives. The policy keeps executable scripts and network connections same-origin, blocks script attributes and active embedding, and narrowly allowlists Google Fonts and Unsplash while current React style attributes retain `unsafe-inline` style compatibility.
 - Vite explicitly sets `build.sourcemap=false`; the existing production canary build also rejects map files, source-map references, inline entry scripts, demo credentials, and testing-console content. Nginx returns `404` for `.map` requests so third-party maps collected with Django static packages are not published.
+- Vite is a development-only dependency pinned to the patched 6.x line. The frontend keeps `tsx` and its nested `esbuild` patched independently from the compatible direct `esbuild` 0.25.x build dependency, avoiding an unnecessary Vite major-version change.
 - Letter printing no longer emits an inline script. The trusted application bundle registers load, print, and close handlers on the generated same-origin document so `script-src 'self'` remains enforceable.
 - Production uses `STATIC_ROOT=backend/staticfiles` for Nginx-served Django Admin assets. The deployment runs `collectstatic`, uses relative `VITE_API_BASE_URL=/api`, and sets forwarded-proxy trust and DRF proxy counts to the actual proxy chain.
 
@@ -182,6 +183,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 
 - Run `npm run lint` for TypeScript compilation checks.
 - Run `npm run build` for production build verification.
+- Run `npm run audit:security` to fail on any npm advisory at low severity or higher, and inspect `npm ls vite tsx esbuild --all` after build-tool updates to catch invalid or duplicated dependency trees.
 - Production security tests must compare report-only and enforced CSP directives, reject permissive script sources, and inspect emitted artifacts for source maps and inline entry scripts.
 - Route-level code-splitting changes must keep all routed module screens lazy-loaded from `App.tsx`, avoid raising `chunkSizeWarningLimit`, and preserve the split vendor chunks in `vite.config.ts`.
 - Run focused frontend route helper tests with `npx tsx src/constants/routes.test.ts` and `npx tsx src/utils/workflowTracking.test.ts` when navigation behavior changes.

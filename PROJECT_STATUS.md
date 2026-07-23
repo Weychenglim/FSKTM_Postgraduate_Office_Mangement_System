@@ -2,6 +2,7 @@
 
 ## Completed
 
+- Removed duplicate runtime Vite ownership, updated the development toolchain to Vite 6.4.3 and `tsx` 4.23.1 with nested `esbuild` 0.28.1, and added a low-threshold frontend security audit command.
 - Added a same-origin Nginx production template with HTTPS redirect, Django API/Admin proxying, collected Admin static serving, the 12 MB body limit, staged HSTS, and frontend security headers.
 - Added equivalent report-only and enforced CSP includes that keep scripts and connections same-origin, prohibit inline scripts and active embedding, and narrowly allowlist Google Fonts and Unsplash.
 - Explicitly disabled Vite production source maps, expanded production artifact scanning, and removed inline scripting from generated letter documents while preserving print behavior through trusted bundle listeners.
@@ -330,6 +331,7 @@
 - Fail-closed production settings verification passes all 6 focused subprocess tests and all 118 Django regression tests across Accounts, Announcements, Appointments, Dashboard, Marks, and Letters. `python manage.py check` and a strict production `python manage.py check --deploy` report no issues, and the migration dry run reports no changes.
 - JWT session lifecycle verification passes all 126 Django tests across two serial groups (38 Accounts/Announcements and 88 Appointments/Dashboard/Marks/Letters), all 22 frontend `.test.ts` files, TypeScript lint, the production build, Django checks, migration dry run, and strict production deployment checks. Live HTTP cookie-session smoke passes login, bearer identity, two refresh rotations, restoration, logout, and post-logout rejection for Office Staff/Admin, Programme Coordinator, Lecturer, and Student. The in-app browser connector could not initialize, so no automated UI browser-smoke pass is claimed for this slice.
 - Production CSP verification passes all 126 Django tests, all 23 frontend `.test.ts` files, TypeScript lint, the production build, Django checks, migration dry run, strict production deployment checks, and the Django `collectstatic` dry run. The production guard verifies policy parity, required Nginx routing and headers, `.map` denial, script-free letter output, and bundles without maps, source-map references, inline entry scripts, demo credentials, or testing-console content. Native Nginx is unavailable, Docker Desktop is stopped, and the browser connector could not initialize, so `nginx -t` and automated report-only/enforced UI smoke are not claimed.
+- Frontend tooling remediation passes all 23 `.test.ts` files, the named production-security build guard, TypeScript lint, and the production build. `npm run audit:security` reports zero vulnerabilities, and `npm ls vite tsx esbuild --all` confirms Vite 6.4.3, `tsx` 4.23.1, nested `esbuild` 0.28.1, and direct/Vite `esbuild` 0.25.12 without invalid or duplicate tree errors.
 - A fresh headless browser smoke rerun remains incomplete because the temporary Chrome/Vite DevTools target did not attach to the app reliably. No browser-smoke pass is claimed; role routing, anonymous access, throttling, and valid/rejected timeline uploads remain covered by the automated suites, and the existing user-run development servers were not modified.
 - Announcements/Notifications remain teammate-owned and behaviorally unchanged. Known deferred risks are cross-sender modification, draft/attachment visibility authorization, and missing authoritative announcement attachment size/content validation.
 - Previously committed demo passwords and realistic fixture data remain in Git history until the repository is made private and a collaborator-coordinated `git filter-repo` rewrite is completed; rewritten branches and tags will require force-pushes and fresh clones.
@@ -340,7 +342,6 @@
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The previous Vite default 500 kB chunk warning has been resolved through route-level lazy loading and vendor chunking.
 - Git commands from this environment report a parent repository ownership mismatch, so git metadata may need local safe-directory configuration before commits can be made.
-- `npm install react-router-dom` reports 2 npm audit findings (1 low, 1 high); these are not resolved in the routing pass.
 
 ## Next Steps
 
