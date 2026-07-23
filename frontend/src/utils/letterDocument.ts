@@ -357,15 +357,6 @@ export function buildLetterHtml(data: LetterData): string {
     </div>
   </div>
 
-  <script>
-    // Print once the logo image has loaded so it never prints blank.
-    window.addEventListener('load', function () {
-      window.focus();
-      window.print();
-    });
-    // Close the helper window after the print dialog is dismissed.
-    window.addEventListener('afterprint', function () { window.close(); });
-  </script>
 </body>
 </html>`;
 }
@@ -380,6 +371,17 @@ export function openLetterDocument(data: LetterData): boolean {
   if (!win) return false;
   win.document.open();
   win.document.write(buildLetterHtml(data));
+  // Register from the trusted application bundle so the generated document
+  // needs no inline script under the production Content Security Policy.
+  win.addEventListener(
+    'load',
+    () => {
+      win.focus();
+      win.print();
+    },
+    { once: true },
+  );
+  win.addEventListener('afterprint', () => win.close(), { once: true });
   win.document.close();
   return true;
 }

@@ -36,6 +36,7 @@ payload = {{
     "jwtAccessSeconds": int(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()),
     "jwtRefreshSeconds": int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
     "jwtRefreshCookieSecure": settings.JWT_REFRESH_COOKIE_SECURE,
+    "staticRoot": str(settings.STATIC_ROOT),
 }}
 print({SETTINGS_MARKER!r} + json.dumps(payload))
 """
@@ -156,6 +157,7 @@ class ProductionSettingsTests(SimpleTestCase):
         for setting, expected_value in expected_settings.items():
             with self.subTest(setting=setting):
                 self.assertEqual(payload[setting], expected_value)
+        self.assertTrue(payload["staticRoot"].replace("\\", "/").endswith("/backend/staticfiles"))
 
     def test_hsts_and_trusted_proxy_controls_are_environment_configurable(self):
         completed, payload = self.load_settings(

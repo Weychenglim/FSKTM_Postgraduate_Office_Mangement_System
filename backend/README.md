@@ -41,6 +41,9 @@ python manage.py runserver 8000
 ```
 
 The frontend (`npm run dev`, port 3000) proxies `/api` to `http://localhost:8000`.
+For production, follow [`deploy/nginx/README.md`](../deploy/nginx/README.md) to
+build the frontend, collect Django Admin static files, and roll the same-origin
+Content Security Policy from report-only mode to enforcement.
 
 ## Auth endpoints (`/api/auth/`)
 

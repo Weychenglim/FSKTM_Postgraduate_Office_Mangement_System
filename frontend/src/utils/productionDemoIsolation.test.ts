@@ -22,12 +22,28 @@ async function collectBundleText(directory: string): Promise<string> {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       contents.push(await collectBundleText(entryPath));
-    } else if (/\.(?:html|js)$/u.test(entry.name)) {
+    } else if (/\.(?:css|html|js)$/u.test(entry.name)) {
       contents.push(await readFile(entryPath, 'utf8'));
     }
   }
 
   return contents.join('\n');
+}
+
+async function collectBundlePaths(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const paths: string[] = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      paths.push(...await collectBundlePaths(entryPath));
+    } else {
+      paths.push(entryPath);
+    }
+  }
+
+  return paths;
 }
 
 const outputDirectory = await mkdtemp(path.join(tmpdir(), 'fsktm-production-security-'));
@@ -59,6 +75,7 @@ try {
   });
 
   const bundleText = await collectBundleText(outputDirectory);
+  const bundlePaths = await collectBundlePaths(outputDirectory);
   for (const canary of Object.values(canaries)) {
     assert.equal(bundleText.includes(canary), false, `production bundle contains ${canary}`);
   }
@@ -66,6 +83,19 @@ try {
   assert.equal(bundleText.includes('Portal Testing Console'), false);
   assert.equal(bundleText.includes('click any character role'), false);
   assert.equal(bundleText.includes('DEMO-STUDENT-001'), false);
+  assert.equal(
+    bundlePaths.some((filePath) => filePath.endsWith('.map')),
+    false,
+    'production bundle contains source-map files',
+  );
+  assert.doesNotMatch(bundleText, /sourceMappingURL/iu);
+
+  const indexHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8');
+  assert.doesNotMatch(
+    indexHtml,
+    /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/iu,
+    'production index contains an inline executable script',
+  );
 } finally {
   for (const [name, value] of Object.entries(previousEnvironment)) {
     if (value === undefined) {
