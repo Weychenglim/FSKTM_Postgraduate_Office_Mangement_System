@@ -145,6 +145,10 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Production settings enable HTTPS redirection, secure strict cookies, nosniff, same-origin referrers, frame denial, and a staged HSTS policy. Development keeps local HTTP defaults and does not enable those production transport controls.
 - HSTS is environment-controlled with a 3,600-second initial duration and disabled subdomain/preload flags. Deployment may move to one year, subdomain coverage, and preload only after HTTPS validation for the full domain tree.
 - `SECURE_PROXY_SSL_HEADER` is configured only when `DJANGO_TRUST_X_FORWARDED_PROTO=True`. The terminating proxy must discard inbound client `X-Forwarded-Proto` values and set an authoritative value before this opt-in is safe.
+- SimpleJWT issues 15-minute access tokens for normal bearer-header authentication and 7-day refresh tokens tracked by its `token_blacklist` app. Refresh values are never serialized to frontend JavaScript; `accounts.session_tokens` sets them in an HttpOnly, strict, `/api/auth/` cookie and records explicit password-reset revocations.
+- `accounts.authentication.RefreshCookieAuthentication` is limited to refresh and logout. It validates expiry, blacklist state, active-user state, and SimpleJWT's password-hash revocation claim before those endpoints rotate or revoke a session.
+- `frontend/src/services/authSession.ts` owns the in-memory access token, one shared refresh promise, credentialed cookie exchange, and one-time `401` retry. JSON, multipart, and blob helpers all use this boundary; application startup refreshes before requesting `/auth/me/`.
+- Login, refresh, and logout reject non-JSON requests. JSON content type forces cross-origin browser callers through the explicit CORS policy, while the strict cookie adds a second request-origin boundary. Application APIs do not accept the refresh cookie as authorization.
 
 ## Supervisor, Workflow Audit, Marks, and Dashboard Completion
 

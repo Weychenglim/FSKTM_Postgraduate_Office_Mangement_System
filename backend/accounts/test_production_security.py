@@ -32,6 +32,10 @@ payload = {{
     "referrerPolicy": getattr(settings, "SECURE_REFERRER_POLICY", "same-origin"),
     "xFrameOptions": getattr(settings, "X_FRAME_OPTIONS", "DENY"),
     "proxySslHeader": getattr(settings, "SECURE_PROXY_SSL_HEADER", None),
+    "corsAllowCredentials": settings.CORS_ALLOW_CREDENTIALS,
+    "jwtAccessSeconds": int(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()),
+    "jwtRefreshSeconds": int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+    "jwtRefreshCookieSecure": settings.JWT_REFRESH_COOKIE_SECURE,
 }}
 print({SETTINGS_MARKER!r} + json.dumps(payload))
 """
@@ -144,6 +148,10 @@ class ProductionSettingsTests(SimpleTestCase):
             "referrerPolicy": "same-origin",
             "xFrameOptions": "DENY",
             "proxySslHeader": None,
+            "corsAllowCredentials": True,
+            "jwtAccessSeconds": 900,
+            "jwtRefreshSeconds": 604800,
+            "jwtRefreshCookieSecure": True,
         }
         for setting, expected_value in expected_settings.items():
             with self.subTest(setting=setting):
@@ -185,3 +193,4 @@ class ProductionSettingsTests(SimpleTestCase):
         self.assertEqual(payload["secureHstsSeconds"], 0)
         self.assertIs(payload["sessionCookieSecure"], False)
         self.assertIs(payload["csrfCookieSecure"], False)
+        self.assertIs(payload["jwtRefreshCookieSecure"], False)

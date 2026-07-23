@@ -46,7 +46,7 @@ import {
 } from './constants/routes';
 import { canAccessModule } from './auth/permissions';
 import * as authApi from './services/authApi';
-import { clearAuthToken, getAuthToken } from './services/apiClient';
+import { clearAuthToken } from './services/apiClient';
 import { getEvaluationPeriods } from './services/marksApi';
 import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
@@ -132,7 +132,7 @@ export default function App() {
   // Authentication session tracking
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
 
-  // True while we restore an existing session from a stored token on first load.
+  // True while we restore an existing session from the refresh cookie on first load.
   // Prevents the login page from flashing on refresh before /auth/me/ resolves.
   const [isRestoringSession, setIsRestoringSession] = useState(true);
 
@@ -143,18 +143,20 @@ export default function App() {
     return uid && token ? { uid, token } : null;
   })();
 
-  // On first load, restore the session from the stored JWT so a page refresh
-  // (or a new tab) does not bounce the user back to the login screen.
+  // On first load, exchange the HttpOnly refresh cookie for an in-memory access
+  // token before loading the current user.
   useEffect(() => {
-    let cancelled = false;
-    if (!getAuthToken()) {
+    if (pathname === APP_ROUTES.resetPassword) {
+      clearAuthToken();
       setIsRestoringSession(false);
       return;
     }
+
+    let cancelled = false;
     authApi
-      .getCurrentUser()
+      .restoreSession()
       .then((user) => {
-        if (!cancelled) setCurrentUser(user);
+        if (!cancelled && user) setCurrentUser(user);
       })
       .catch(() => {
         // Token is missing/expired/invalid — drop it and show login.
@@ -309,7 +311,7 @@ export default function App() {
     navigate(APP_ROUTES.login, { replace: true });
   };
 
-  // While restoring a session from a stored token, hold a neutral loading screen
+  // While restoring a session from the refresh cookie, hold a neutral loading screen
   // instead of flashing the login page (skip it for the reset-password link flow).
   if (isRestoringSession && pathname !== APP_ROUTES.resetPassword) {
     return (

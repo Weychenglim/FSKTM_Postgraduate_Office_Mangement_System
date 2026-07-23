@@ -182,7 +182,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Production frontend builds must not contain demo passwords, testing-console markup, or testing-console copy even when demo environment variables are supplied to the build process.
 - Refreshing or renaming local demo accounts must preserve existing account identities and their audit, timeline, and appointment history through an optional validated legacy-email mapping.
 - Django REST APIs must require authenticated access by default. Only login, password-reset request, and password-reset confirmation may explicitly allow anonymous DRF requests; `/api/health/` remains a minimal public Django health check.
-- Logout must require a valid authenticated session token.
+- Logout must require a valid authenticated refresh session, blacklist that refresh token, and delete its cookie.
 - Backend role and record scoping is authoritative: students may access only their own records, lecturers only assigned workflow records, Programme Coordinators only their managed programme, and Office Staff/Admin-only monitoring must reject every other role.
 - Letter templates are readable by every authenticated role and writable only by Office Staff/Admin or Programme Coordinator users.
 - Announcements and Notifications are teammate-owned and excluded from behavioral security changes in the current core-API hardening slice.
@@ -192,6 +192,10 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Production requests must use HTTPS redirection, secure HttpOnly `SameSite=Strict` session and CSRF cookies, content-type sniffing protection, a same-origin referrer policy, and frame denial. Local `DEBUG=True` HTTP hosts, CORS origins, and the development secret fallback must remain available.
 - Production HSTS must begin with a staged one-hour duration without subdomain coverage or preload. Raising it to one year and enabling `includeSubDomains` or preload requires verified HTTPS coverage across all subdomains.
 - Forwarded-protocol trust must remain disabled by default and may be enabled only when a trusted reverse proxy strips untrusted client forwarding headers and sets `X-Forwarded-Proto` itself.
+- Access tokens must default to 15 minutes, remain only in frontend memory, and authenticate normal APIs through the bearer header. They must never be stored in browser storage, URLs, or logs.
+- Refresh tokens must default to 7 days, rotate on every renewal, blacklist the replaced token, and remain only in an HttpOnly `SameSite=Strict` cookie scoped to `/api/auth/`; production refresh cookies must be Secure.
+- Login, refresh, and logout must require JSON requests; refresh and logout additionally require a valid refresh cookie. Missing, malformed, expired, replayed, password-invalidated, or inactive-user refresh sessions must return `401` without exposing refresh-token values.
+- Password resets and account deactivation must invalidate existing access and refresh sessions. Application startup and a single authenticated `401` retry may renew through the refresh cookie without converting normal APIs to cookie authentication.
 
 ## Student Module Requirements
 

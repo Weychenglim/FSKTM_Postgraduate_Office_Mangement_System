@@ -101,6 +101,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # third-party
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     # local
     "accounts",
@@ -203,10 +204,22 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=max(env_int("JWT_ACCESS_TOKEN_MINUTES", 15), 1)
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=max(env_int("JWT_REFRESH_TOKEN_DAYS", 7), 1)
+    ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "CHECK_REVOKE_TOKEN": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+JWT_REFRESH_COOKIE_NAME = "fsktm_refresh_token"
+JWT_REFRESH_COOKIE_PATH = "/api/auth/"
+JWT_REFRESH_COOKIE_SECURE = not DEBUG
+CORS_ALLOW_CREDENTIALS = True
 
 # ── Email (real SMTP when creds are set, console backend otherwise) ──────────
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
