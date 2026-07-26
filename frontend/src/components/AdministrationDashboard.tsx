@@ -4,15 +4,13 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  ChevronRight
-} from 'lucide-react';
+import { BarChart3, ChevronRight } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { getDashboardSummary, getPanelWorkloads } from '../services';
 import { DashboardAttentionRow, DashboardSummary, DashboardTask } from '../types';
-import { sidebarItemForPath } from '../constants/routes';
+import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { MarkRecordStatusTab } from '../utils/markRecords';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 
@@ -135,6 +133,15 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       <PageHeader
         title="Administration Dashboard"
         subtitle="Overview administrative status, timeline intervals, and records requiring office review."
+        actions={(
+          <PortalButton
+            variant="secondary"
+            icon={BarChart3}
+            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+          >
+            View Workflow Reports
+          </PortalButton>
+        )}
       />
 
       {/* 1. Semester Timeline Section */}

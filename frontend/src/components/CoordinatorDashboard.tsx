@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Award, ChevronRight, Clock3, ShieldAlert } from 'lucide-react';
+import { Award, BarChart3, ChevronRight, Clock3, ShieldAlert } from 'lucide-react';
 import { getCoordinatorPanelWorkspace, getDashboardSummary } from '../services';
 import { CoordinatorPanelWorkspace, DashboardSummary, DashboardTask } from '../types';
-import { sidebarItemForPath } from '../constants/routes';
+import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { ErrorState, LoadingState } from './StateViews';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 
 interface CoordinatorDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -122,6 +122,15 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
         subtitle={hasProgramme
           ? `Monitor semester actions and final approvals for ${workspace?.programme}.`
           : 'Monitor semester actions and programme approval responsibilities.'}
+        actions={(
+          <PortalButton
+            variant="secondary"
+            icon={BarChart3}
+            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+          >
+            View Workflow Reports
+          </PortalButton>
+        )}
       />
 
       <DashboardTimeline

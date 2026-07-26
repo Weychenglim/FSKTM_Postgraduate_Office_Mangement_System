@@ -14,6 +14,7 @@ from marks.services import ensure_active_period_tasks
 from .actions import build_dashboard_tasks
 from .excel import build_template_workbook, parse_timeline_workbook
 from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
+from .reports import build_workflow_report, build_workflow_report_workbook
 from .serializers import (
     TimelineAuditLogSerializer,
     TimelineEntryCreateSerializer,
@@ -366,3 +367,25 @@ def dashboard_summary_view(request):
     ).exclude(pk__in=submitted_task_ids).count()
 
     return Response(summary)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_report_view(request):
+    return Response(build_workflow_report(request.user, request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_report_export_view(request):
+    report = build_workflow_report(request.user, request.query_params)
+    response = HttpResponse(
+        build_workflow_report_workbook(report),
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    response["Content-Disposition"] = (
+        'attachment; filename="workflow_analytics_report.xlsx"'
+    )
+    return response

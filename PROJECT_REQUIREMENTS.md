@@ -178,6 +178,16 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Student Panel payloads and actions must use `FACULTY_PROCESSING` and must not expose the selected panel, coordinator stage, recommendation ID, or internal workflow timestamps. Students without an active recommendation receive null Panel ageing metadata.
 - Office Supervisor and Panel monitoring lists must provide an optional Longest waiting order while retaining their normal default order. Lecturer and Programme Coordinator approval queues default to oldest waiting first.
 - Existing Supervisor and Panel CSV exports must include waiting metadata. Marks records and Lecturer Marks tasks must display persisted deadline metadata; no separate reporting subsystem is introduced.
+
+## Workflow Analytics and Reporting Requirements
+
+- Authenticated Office Staff/Admin, Programme Coordinator, and Lecturer users must have a read-only workflow analytics workspace at `/dashboard/reports`; Students must not receive this administrative reporting surface.
+- Reports must aggregate only records already authorized for the requesting role. Office Staff/Admin may report across all programmes or one selected programme, Programme Coordinators remain restricted to their managed programme, and Lecturers remain restricted to assigned Supervisor, selected-panel, Marks, and Lecturer-targeted Timeline records.
+- Optional `startDate` and `endDate` filters must use ISO dates and reject malformed or reversed ranges. Supervisor uses submission date, Panel uses submission date with creation fallback, Marks uses evaluation-period closing date with assignment fallback, and Timeline uses deadline start date.
+- Supervisor and Panel reporting must include lifecycle, waiting-owner, informational age-band, and longest-waiting summaries. Age bands are descriptive calendar-day groupings and must not be presented as service levels, due-soon states, or overdue states.
+- Marks reporting must retain its tracking-only model and summarize task status, deadline state, evaluator role, completion, and authorized overdue tasks. Timeline reporting must summarize current status, P1/P2 level, and target role.
+- JSON reports and XLSX exports must use the same role-scoped reporting service and active filters. Export workbooks must contain only sections the requesting role can access and must not persist generated files or database records.
+- Reports show the current persisted state of records selected by their reporting date; they do not reconstruct historical point-in-time snapshots or trend lines.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.

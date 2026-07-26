@@ -12,4 +12,6 @@ urlpatterns = [
     path("timeline/entries/<int:pk>/", views.timeline_entry_detail_view),
     path("tasks/", views.dashboard_tasks_view),
     path("summary/", views.dashboard_summary_view),
+    path("reports/", views.workflow_report_view),
+    path("reports/export/", views.workflow_report_export_view),
 ]

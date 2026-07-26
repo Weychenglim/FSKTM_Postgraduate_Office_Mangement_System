@@ -17,3 +17,4 @@ export * from './announcementsApi';
 export * from './notificationsApi';
 export * from './timelineApi';
 export * from './lettersApi';
+export * from './workflowReportsApi';

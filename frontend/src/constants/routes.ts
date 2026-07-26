@@ -7,6 +7,7 @@ export const APP_ROUTES = {
   resetPassword: '/reset-password',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
+  dashboardReports: '/dashboard/reports',
   registry: '/registry',
   faq: '/faq',
   files: '/files',
@@ -65,6 +66,8 @@ export const routeForSidebarItem = (item: SidebarItemId | string): string =>
 
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 
+export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
+
 export const routeForMarkRecord = (recordId: string): string =>
   `${APP_ROUTES.marksRecords}/${encodeURIComponent(recordId)}`;
 
@@ -116,7 +119,11 @@ export const isKnownAppPath = (pathname: string): boolean => {
   }
 
   if (pathname === APP_ROUTES.dashboard || pathname.startsWith(`${APP_ROUTES.dashboard}/`)) {
-    return pathname === APP_ROUTES.dashboard || pathname === APP_ROUTES.dashboardTimeline;
+    return (
+      pathname === APP_ROUTES.dashboard
+      || pathname === APP_ROUTES.dashboardTimeline
+      || pathname === APP_ROUTES.dashboardReports
+    );
   }
 
   if (pathname === APP_ROUTES.supervisorAppointments || pathname.startsWith(`${APP_ROUTES.supervisorAppointments}/`)) {

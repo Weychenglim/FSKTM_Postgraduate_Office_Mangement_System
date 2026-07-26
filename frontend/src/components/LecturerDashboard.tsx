@@ -4,13 +4,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Award, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
+import { Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { getDashboardSummary } from '../services';
 import { DashboardSummary, DashboardTask } from '../types';
-import { sidebarItemForPath } from '../constants/routes';
+import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 
 interface LecturerDashboardProps {
@@ -103,6 +103,15 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
       <PageHeader
         title="Lecturer Dashboard"
         subtitle="Track your semester timeline, supervisee records, panel appointments, and upcoming academic actions."
+        actions={(
+          <PortalButton
+            variant="secondary"
+            icon={BarChart3}
+            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+          >
+            View Workflow Reports
+          </PortalButton>
+        )}
       />
 
       <DashboardTimeline

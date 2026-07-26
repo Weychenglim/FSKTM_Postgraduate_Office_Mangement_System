@@ -86,6 +86,7 @@ const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
+const WorkflowReports = lazyNamed('WorkflowReports', () => import('./components/WorkflowReports'));
 const CoordinatorSupervisorApprovals = lazyNamed('CoordinatorSupervisorApprovals', () => import('./components/CoordinatorSupervisorApprovals'));
 const StudentSupervisorAppointment = lazyNamed('StudentSupervisorAppointment', () => import('./components/StudentSupervisorAppointment'));
 const StudentPanelAppointment = lazyNamed('StudentPanelAppointment', () => import('./components/StudentPanelAppointment'));
@@ -209,6 +210,7 @@ export default function App() {
   const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
   const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
+  const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
   const isStudentUnsupportedSupervisorRoute =
     isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
   const isLecturerUnsupportedSupervisorRoute =
@@ -605,7 +607,15 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              isDashboardReportsRoute && isStudentWorkspace ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardReportsRoute ? (
+                <WorkflowReports
+                  currentUserRole={currentUser.role}
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onNavigateToRoute={navigate}
+                />
+              ) : isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isStudentWorkspace ? (
                 <StudentDashboard
