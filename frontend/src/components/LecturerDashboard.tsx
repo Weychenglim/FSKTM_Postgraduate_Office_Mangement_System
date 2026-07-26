@@ -6,13 +6,16 @@
 import React, { useEffect, useState } from 'react';
 import { Award, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
-import { TimelineNextActions } from './TimelineNextActions';
+import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { getDashboardSummary } from '../services';
-import { DashboardSummary } from '../types';
+import { DashboardSummary, DashboardTask } from '../types';
+import { sidebarItemForPath } from '../constants/routes';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 
 interface LecturerDashboardProps {
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
 }
 
 interface LecturerSummaryCardProps {
@@ -68,7 +71,10 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
   </button>
 );
 
-export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigateToTab }) => {
+export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
+  onNavigateToTab,
+  onNavigateToRoute,
+}) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
@@ -79,6 +85,15 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigate
   const triggerToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
   };
 
   return (
@@ -129,10 +144,9 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigate
         />
       </div>
 
-      <TimelineNextActions
-        title="Next Lecturer Actions"
-        visibleRoles={['LECTURER']}
-        onNavigateToTab={onNavigateToTab}
+      <MonitoringTasksCard
+        title="Lecturer Action Centre"
+        onTaskClick={navigateToAction}
       />
     </div>
   );

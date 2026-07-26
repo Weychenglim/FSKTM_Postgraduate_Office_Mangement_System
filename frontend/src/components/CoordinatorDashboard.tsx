@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Award, ChevronRight, Clock3, ShieldAlert } from 'lucide-react';
 import { getCoordinatorPanelWorkspace, getDashboardSummary } from '../services';
-import { CoordinatorPanelWorkspace, DashboardSummary } from '../types';
+import { CoordinatorPanelWorkspace, DashboardSummary, DashboardTask } from '../types';
+import { sidebarItemForPath } from '../constants/routes';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { DashboardTimeline } from './DashboardTimeline';
-import { TimelineNextActions } from './TimelineNextActions';
+import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 
 interface CoordinatorDashboardProps {
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
 }
 
 interface CoordinatorCardProps {
@@ -70,7 +73,10 @@ const CoordinatorCard: React.FC<CoordinatorCardProps> = ({
   </button>
 );
 
-export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ onNavigateToTab }) => {
+export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
+  onNavigateToTab,
+  onNavigateToRoute,
+}) => {
   const [workspace, setWorkspace] = useState<CoordinatorPanelWorkspace | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +105,14 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ onNa
   };
 
   const hasProgramme = Boolean(workspace?.programme);
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
+  };
 
   return (
     <div id="coordinator-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
@@ -151,10 +165,9 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({ onNa
         </div>
       )}
 
-      <TimelineNextActions
-        title="Next Coordinator Actions"
-        visibleRoles={['LECTURER']}
-        onNavigateToTab={onNavigateToTab}
+      <MonitoringTasksCard
+        title="Coordinator Action Centre"
+        onTaskClick={navigateToAction}
       />
     </div>
   );

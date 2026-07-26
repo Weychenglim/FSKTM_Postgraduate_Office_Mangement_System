@@ -2,6 +2,11 @@
 
 ## Completed
 
+- Added deterministic, migration-free workflow ageing for pending Supervisor and Panel stages, including workflow-event/update fallbacks, future-date clamping, and null terminal metadata.
+- Added Marks deadline metadata from evaluation-period close dates and date-derived Timeline action metadata without introducing a Marks approval stage or recurring workflow audit events.
+- Replaced hardcoded dashboard task content with a shared persisted action centre across Office Staff/Admin, Programme Coordinator, Lecturer, and Student dashboards, including role scoping, priority ordering, a 20-action cap, and exact module/record navigation.
+- Added Waiting columns and longest-waiting ordering to Office Supervisor/Panel monitoring, oldest-first Lecturer/Coordinator approval queues, generic student wait labels, Marks deadline displays, and waiting metadata in existing Supervisor/Panel CSV exports.
+- Kept student Panel processing declassified as `FACULTY_PROCESSING`; recommendation IDs, internal decision stages, and internal workflow timestamps remain absent from student payloads.
 - Removed duplicate runtime Vite ownership, updated the development toolchain to Vite 6.4.3 and `tsx` 4.23.1 with nested `esbuild` 0.28.1, and added a low-threshold frontend security audit command.
 - Added a same-origin Nginx production template with HTTPS redirect, Django API/Admin proxying, collected Admin static serving, the 12 MB body limit, staged HSTS, and frontend security headers.
 - Added equivalent report-only and enforced CSP includes that keep scripts and connections same-origin, prohibit inline scripts and active embedding, and narrowly allowlist Google Fonts and Unsplash.
@@ -137,6 +142,9 @@
 
 ## Current Testing Status
 
+- Workflow ageing/deadline verification passes `python manage.py test appointments dashboard marks --keepdb` (104 tests), `python manage.py check`, and `python manage.py makemigrations --check --dry-run`; all 28 frontend `.test.ts` files, `npm run lint`, `npm run build`, and `npm run test:production-security` also pass.
+- The latest `npm run audit:security` now reports three high-severity findings in `postcss` and `react-router`. Dependency remediation is tracked separately so the workflow feature commit does not mix application behavior with package upgrades.
+- Browser smoke testing on local Django/Vite (`8001`/`3001`) confirms Office Staff/Admin, Lecturer, Programme Coordinator, and Student dashboards/action centres render without console errors. Office Supervisor/Panel monitoring exposes Waiting and optional longest-waiting ordering, Lecturer/Coordinator Panel queues expose Waiting, Marks tables expose Deadline, and Student Panel processing remains generic without internal stage or recommendation identifiers.
 - Focused route helper, role permission, and workflow notification route tests pass after adding clean URL routing.
 - `npm run lint` passes after adding clean URL routing and the missing Overdue status label.
 - `npm run build` passes after adding clean URL routing; the existing large bundle chunk warning remains.
@@ -321,6 +329,7 @@
 
 ## Known Issues and Notes
 
+- Supervisor and Panel waiting ages are informational calendar-day values only. No SLA, due-soon, or overdue classification will be added until the faculty supplies an approved turnaround policy.
 - The enforced CSP must not replace the report-only include until every owned role flow is free of browser-console violations. Inline styles remain temporarily allowed for dynamic React layout, while inline scripts are prohibited.
 - Production HSTS intentionally remains staged at one hour without `includeSubDomains` or preload until HTTPS is verified across every deployment subdomain.
 - Production deployments behind TLS-terminating proxies must enable `DJANGO_TRUST_X_FORWARDED_PROTO` only after configuring the proxy to strip untrusted forwarded-protocol headers.
@@ -345,8 +354,8 @@
 
 ## Next Steps
 
-- Browser smoke-test the expanded office-staff, lecturer, and student modules through the sidebar.
-- Browser smoke-test the completed Supervisor, Panel, Marks, Dashboard, and coordinator flows against a migrated local database.
+- Obtain an approved faculty turnaround policy before introducing any Supervisor or Panel SLA thresholds or overdue labels.
+- Review and update the newly reported vulnerable `postcss` and `react-router` dependency paths in a separate security commit, then rerun the production artifact guards.
 - Wire the Settings module (contact details, password change, notification preferences) to backend endpoints; today the forms validate and toast but do not persist.
 - Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.
 - Decide a single source of truth for Programme Coordinator (it currently exists both as a `User.role` value and as a `Coordinator` profile table).

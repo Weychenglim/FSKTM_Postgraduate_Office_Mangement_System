@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
+from .actions import build_dashboard_tasks
 from .excel import build_template_workbook, parse_timeline_workbook
 from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
 from .serializers import (
@@ -280,37 +281,8 @@ def timeline_audit_logs_view(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_tasks_view(request):
-    tasks = []
-    if is_office_admin(request.user):
-        tasks.append(
-            {
-                "id": "task_upload",
-                "name": "Upload semester timeline",
-                "status": "critical",
-                "statusText": "Required before dashboard timeline is available",
-                "target": "Timeline Management",
-            }
-        )
-        timeline = get_active_timeline()
-        if timeline:
-            owner_entries = timeline.entries.filter(target_roles__contains=["OFFICE_STAFF"])
-            office_named_entries = timeline.entries.filter(action_owner__icontains="office")
-            tdit_entries = timeline.entries.filter(action_owner__icontains="tdit")
-            seen = set()
-            for entry in [*owner_entries, *office_named_entries, *tdit_entries]:
-                if entry.pk in seen:
-                    continue
-                seen.add(entry.pk)
-                tasks.append(
-                    {
-                        "id": f"timeline_{entry.pk}",
-                        "name": entry.title or entry.detail,
-                        "status": derive_entry_status(entry.deadline_start, entry.deadline_end).lower(),
-                        "statusText": entry.week_label or derive_entry_status(entry.deadline_start, entry.deadline_end),
-                        "target": "Timeline Management",
-                    }
-                )
-    return Response({"tasks": tasks})
+    ensure_active_period_tasks()
+    return Response({"tasks": build_dashboard_tasks(request.user)})
 
 
 @api_view(["GET"])

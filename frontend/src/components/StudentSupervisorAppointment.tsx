@@ -27,6 +27,7 @@ import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApp
 import { StudentSupervisorApplication, SupervisorApplicationRecord } from '../types';
 import {
   cancelSupervisorApplication,
+  formatSupervisorWaiting,
   getMySupervisorApplications,
   toStudentSupervisorApplication,
 } from '../services';
@@ -102,6 +103,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       date: app.date,
       submittedDate: app.date,
       step1Date: app.date,
+      waitingSince: app.waitingSince,
+      waitingDays: app.waitingDays,
+      waitingOn: app.waitingOn,
     });
   }, [applications, initialApplicationId]);
 
@@ -341,13 +345,14 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
         {/* Data Table implementation */}
         <div className="overflow-x-auto">
-              <table className="data-table min-w-[700px] text-xs">
+              <table className="data-table min-w-[820px] text-xs">
             <thead>
               <tr className="border-b border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none bg-slate-50/20">
                 <th className="py-4 px-6 w-32">Application ID</th>
                 <th className="py-4 px-4 w-2/5">Research Title</th>
                 <th className="py-4 px-4">Proposed Supervisor</th>
                 <th className="py-4 px-4 w-28">Submitted Date</th>
+                <th className="py-4 px-4 w-44">Waiting</th>
                 <th className="py-4 px-4 w-32 text-center">Status</th>
                 <th className="py-4 px-6 w-20 text-center">Action</th>
               </tr>
@@ -370,6 +375,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   {/* Date */}
                   <td className="py-4.5 px-4 font-semibold text-slate-500 font-mono">
                     {app.date}
+                  </td>
+                  <td className="py-4.5 px-4 font-semibold text-slate-500">
+                    {formatSupervisorWaiting(app)}
                   </td>
                   {/* Status chip badge */}
                   <td className="py-4.5 px-4 text-center">
@@ -423,16 +431,16 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           </p>
         </div>
 
-        {/* Card 2: Review Timeline */}
+        {/* Card 2: Review Progress */}
         <div className="bg-[#f3e8ff]/40 border border-[#e9d5ff]/70 rounded-2xl p-5 shadow-3xs">
           <div className="w-10 h-10 rounded-xl bg-purple-100/70 border border-purple-200/40 flex items-center justify-center text-purple-600 mb-4">
             <Clock className="w-5 h-5 stroke-[2.3]" />
           </div>
           <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Review Timeline
+            Review Progress
           </h4>
           <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-            Applications are typically reviewed within <strong className="text-slate-800 font-extrabold">7-10 working days</strong> by the Postgraduate Academic Committee.
+            Review progress follows the recorded faculty workflow. No formal turnaround target is currently configured.
           </p>
         </div>
 
@@ -532,6 +540,15 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">Submitted Date</span>
                     <span className="text-xs font-bold text-slate-700 block font-mono">
                       {activeDetailAp.submittedDate || '15 Nov 2025'}
+                    </span>
+                  </div>
+
+                  <div className="h-[1px] bg-slate-200/50" />
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">Waiting</span>
+                    <span className="text-xs font-bold text-slate-700 block">
+                      {formatSupervisorWaiting(activeDetailAp)}
                     </span>
                   </div>
                 </div>

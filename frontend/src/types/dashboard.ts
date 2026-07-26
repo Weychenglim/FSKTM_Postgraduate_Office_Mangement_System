@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { WorkflowAgeingMetadata } from './appointment';
+import type { DeadlineMetadata } from './marks';
+
 export interface DashboardAttentionRow {
   id: string;
   type: string;
@@ -22,7 +25,20 @@ export interface StudentNextAction {
   iconKey: StudentActionIconKey;
 }
 
-export interface DashboardTask {
+export type DashboardTaskTargetModule =
+  | 'DASHBOARD'
+  | 'SUPERVISOR_APPOINTMENTS'
+  | 'PANEL_APPOINTMENTS'
+  | 'MARKS';
+
+export interface DashboardTaskTargetMetadata {
+  targetModule?: DashboardTaskTargetModule | null;
+  recordType?: string | null;
+  recordId?: string | null;
+}
+
+export interface DashboardTask
+  extends WorkflowAgeingMetadata, DeadlineMetadata, DashboardTaskTargetMetadata {
   id: string;
   name: string;
   status: string;

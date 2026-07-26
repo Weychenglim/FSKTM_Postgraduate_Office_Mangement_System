@@ -4,6 +4,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -665,6 +666,8 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(audit_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_office_staff_tasks_include_timeline_owner_tasks(self):
+        from dashboard.models import SemesterTimelineEntry
+
         self.authenticate(self.admin)
         upload = self.client.post(
             "/api/dashboard/timeline/upload/",
@@ -672,6 +675,12 @@ class DashboardTimelineApiTests(APITestCase):
             format="multipart",
         )
         self.assertEqual(upload.status_code, status.HTTP_201_CREATED)
+        active_entry = SemesterTimelineEntry.objects.get(
+            title="Step 2 decision notice",
+        )
+        active_entry.deadline_start = timezone.localdate()
+        active_entry.deadline_end = timezone.localdate()
+        active_entry.save(update_fields=["deadline_start", "deadline_end"])
 
         response = self.client.get("/api/dashboard/tasks/")
 

@@ -613,14 +613,17 @@ export default function App() {
                   studentId={currentUser.studentId}
                   programme={currentUser.department}
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                  onNavigateToRoute={navigate}
                 />
               ) : isCoordinatorWorkspace ? (
                 <CoordinatorDashboard
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                  onNavigateToRoute={navigate}
                 />
               ) : isLecturerWorkspace ? (
                 <LecturerDashboard
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
+                  onNavigateToRoute={navigate}
                 />
               ) : isDashboardTimelineRoute ? (
                 <TimelineManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
@@ -629,6 +632,7 @@ export default function App() {
                   onNavigateToTab={(tab) => {
                     navigate(routeForSidebarItem(tab));
                   }}
+                  onNavigateToRoute={navigate}
                   onNavigateToMarksRecords={openMarkRecords}
                   onShowModal={setActivePortalModal}
                   onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}

@@ -29,8 +29,14 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from '.
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorRecord } from '../types';
-import { getSupervisorAppointments } from '../services';
+import {
+  formatSupervisorWaiting,
+  getSupervisorAppointments,
+  getSupervisorRecordSummary,
+  orderSupervisorQueueOldestFirst,
+} from '../services';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
+import { downloadCsv } from '../utils/csvExport';
 
 // SupervisorRecord now lives in src/types.
 
@@ -87,6 +93,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [appliedSearch, setAppliedSearch] = useState('');
   const [appliedProg, setAppliedProg] = useState('All Programmes');
   const [appliedSem, setAppliedSem] = useState('All Semesters');
+  const [sortOrder, setSortOrder] = useState<'default' | 'longestWaiting'>('default');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +115,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setAppliedProg('All Programmes');
     setAppliedSem('All Semesters');
     setActiveTab('All Records');
+    setSortOrder('default');
     setCurrentPage(1);
     showToast("Filters reset to default.");
   };
@@ -133,13 +141,24 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     });
   }, [records, appliedSearch, appliedProg, activeTab]);
 
+  const orderedFilteredRecords = useMemo(
+    () => sortOrder === 'longestWaiting'
+      ? orderSupervisorQueueOldestFirst(filteredRecords)
+      : filteredRecords,
+    [filteredRecords, sortOrder],
+  );
+
   // Paginated records helper
   const paginatedRecords = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
-    return filteredRecords.slice(startIdx, startIdx + itemsPerPage);
-  }, [filteredRecords, currentPage]);
+    return orderedFilteredRecords.slice(startIdx, startIdx + itemsPerPage);
+  }, [orderedFilteredRecords, currentPage]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  const recordSummary = useMemo(() => getSupervisorRecordSummary(records), [records]);
+  const longestWaitingText = recordSummary.longestWaiting
+    ? formatSupervisorWaiting(recordSummary.longestWaiting)
+    : '-';
   const selectedRouteRecord = useMemo(
     () => findSupervisorRecordByRouteKey(records, routeRecordId),
     [records, routeRecordId],
@@ -148,7 +167,18 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
   // Handles export interaction
   const handleExportData = () => {
-    showToast("Downloading supervisor_appointments_report.csv");
+    downloadCsv('supervisor_appointments_report.csv', orderedFilteredRecords, [
+      { header: 'Student ID', value: (record) => record.studentId },
+      { header: 'Student Name', value: (record) => record.studentName },
+      { header: 'Programme', value: (record) => record.programme },
+      { header: 'Supervisor', value: (record) => record.supervisor },
+      { header: 'Status', value: (record) => record.status },
+      { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
+      { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
+      { header: 'Waiting On', value: (record) => record.waitingOn || '' },
+      { header: 'Updated Date', value: (record) => record.updatedDate },
+    ]);
+    showToast(`Downloaded supervisor_appointments_report.csv with ${orderedFilteredRecords.length} records.`);
   };
 
   if (routeView === 'workload') {
@@ -575,7 +605,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Students Without Supervisor
             </span>
             <span className="text-3xl font-black text-brand-navy block pt-1">
-              12
+              {recordSummary.withoutSupervisor}
             </span>
             <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="danger" pulse />
@@ -594,7 +624,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Pending Records
             </span>
             <span className="text-3xl font-black text-brand-navy block pt-1">
-              8
+              {recordSummary.pending}
             </span>
             <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="info" />
@@ -613,7 +643,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Approved Supervisors
             </span>
             <span className="text-3xl font-black text-slate-850 block pt-1">
-              126
+              {recordSummary.approved}
             </span>
             <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="success" />
@@ -632,7 +662,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Workload Alerts
             </span>
             <span className="text-3xl font-black text-amber-500 block pt-1">
-              3
+              {recordSummary.workloadAlerts}
             </span>
             <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="warning" pulse />
@@ -774,7 +804,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
           {/* Supervisor Appointment Records Card Table */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
                   Supervisor Appointment Records
@@ -784,17 +814,35 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </span>
               </div>
 
-              <button
-                onClick={handleExportData}
-                className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Export Data</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Sort</span>
+                  <select
+                    value={sortOrder}
+                    onChange={(event) => {
+                      setSortOrder(event.target.value as 'default' | 'longestWaiting');
+                      setCurrentPage(1);
+                    }}
+                    className="form-control form-control-sm min-w-36 normal-case"
+                    aria-label="Sort supervisor appointment records"
+                  >
+                    <option value="default">Default order</option>
+                    <option value="longestWaiting">Longest waiting</option>
+                  </select>
+                </label>
+                <button
+                  onClick={handleExportData}
+                  className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export Data</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="data-table min-w-[700px] text-xs">
+              <table className="data-table min-w-[820px] text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
                     <th className="data-th">Student ID</th>
@@ -802,6 +850,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     <th className="data-th">Programme</th>
                     <th className="data-th">Supervisor</th>
                     <th className="data-th text-center">Status</th>
+                    <th className="data-th">Waiting</th>
                     <th className="data-th">Updated Date</th>
                     <th className="data-th text-center">Action</th>
                   </tr>
@@ -809,13 +858,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <LoadingState message="Loading supervisor appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -876,6 +925,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                           </div>
                         </td>
 
+                        <td className="data-td font-semibold text-slate-500">
+                          {formatSupervisorWaiting(r)}
+                        </td>
+
                         {/* Updated Date */}
                         <td className="data-td">
                           {r.updatedDate}
@@ -898,7 +951,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
                         No supervisor records found matching the applied criteria.
                       </td>
                     </tr>
@@ -973,7 +1026,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Students without approved supervisor
                   </h4>
                   <span className="text-[10px] font-bold text-rose-600">
-                    12 records outstanding
+                    {recordSummary.withoutSupervisor} records outstanding
                   </span>
                 </div>
                 <button
@@ -991,11 +1044,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
                   <h4 className="font-extrabold text-brand-navy text-xs">
-                    Supervisor records pending over 7 days
+                    Supervisor records awaiting workflow action
                   </h4>
-                  <span className="text-[10px] font-bold text-amber-600">
-                    4 records in queue
-                  </span>
+                  <div className="text-[10px] font-bold text-amber-600 space-y-0.5">
+                    <span className="block">{recordSummary.pending} records in queue</span>
+                    <span className="block">Longest waiting: {longestWaitingText}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -1015,7 +1069,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Lecturers near workload limit
                   </h4>
                   <span className="text-[10px] font-bold text-amber-600">
-                    3 lecturers identified
+                    {recordSummary.workloadAlerts} workload alert records
                   </span>
                 </div>
                 <button

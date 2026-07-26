@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
+from .deadlines import mark_deadline_metadata
 from .models import EvaluationTask, MarkEntry, MarkScore
 
 
@@ -36,6 +37,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
     submittedDate = serializers.SerializerMethodField()
     components = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    dueAt = serializers.SerializerMethodField()
+    daysUntilDue = serializers.SerializerMethodField()
+    deadlineState = serializers.SerializerMethodField()
 
     class Meta:
         model = EvaluationTask
@@ -54,6 +58,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             "submittedDate",
             "components",
             "comments",
+            "dueAt",
+            "daysUntilDue",
+            "deadlineState",
         ]
 
     def get_initials(self, obj):
@@ -84,6 +91,30 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             return obj.mark_entry.comments
         except MarkEntry.DoesNotExist:
             return ""
+
+    def get_deadline_metadata(self, obj):
+        cache = getattr(self, "_deadline_metadata_cache", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+        try:
+            is_submitted = obj.mark_entry.status == MarkEntry.Status.SUBMITTED
+        except MarkEntry.DoesNotExist:
+            is_submitted = False
+        cache[obj.pk] = mark_deadline_metadata(
+            obj.period.closes_at,
+            is_submitted=is_submitted,
+        )
+        self._deadline_metadata_cache = cache
+        return cache[obj.pk]
+
+    def get_dueAt(self, obj):
+        return self.get_deadline_metadata(obj)["dueAt"]
+
+    def get_daysUntilDue(self, obj):
+        return self.get_deadline_metadata(obj)["daysUntilDue"]
+
+    def get_deadlineState(self, obj):
+        return self.get_deadline_metadata(obj)["deadlineState"]
 
     def get_components(self, obj):
         try:

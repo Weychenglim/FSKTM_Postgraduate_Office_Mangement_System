@@ -85,12 +85,12 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Administration Dashboard must not show the old status legend or `View Full Timeline` action below the semester timeline calendar.
 - Administration Dashboard must not show the four placeholder summary cards for students without supervisor, supervisor records, panel records, and mark entry setup.
 - Records Needing Attention must remove the redundant Status column, show zero impact for unfinished dependency rows, omit mark-entry task generation rows for now, and calculate the lecturer panel workload impact count from the persisted panel workload data.
-- Office Monitoring Tasks must show Upload Semester Timeline as done, remove Monitor Mark Submission Status, and mark the remaining mark setup tasks as required action.
+- The shared Dashboard Action Centre must load persisted, role-scoped actions from `/api/dashboard/tasks/`; it must provide loading, error/retry, and empty states and navigate using the returned module, record type, and record ID.
 - `Manage Timeline` must behave as a direct button that navigates to Timeline Management.
 - Dashboard page-level routing must support only `/dashboard` and Office Staff/Admin-only `/dashboard/timeline`; unsupported Dashboard nested URLs must redirect authenticated users back to `/dashboard`.
 - All authenticated users must be able to retrieve the active semester timeline for Dashboard Overview.
 - Student and Lecturer dashboard timeline views must only display entries targeted to their role; Office Staff/Admin dashboard and management views may display all timeline entries.
-- Student and Lecturer dashboard next-action lists must be driven by active semester timeline events filtered by target role, and must show a clear empty state when no active timeline or no role-specific events are available.
+- Student and Lecturer dashboards must retain their role-scoped semester timeline visualization and use the shared persisted Dashboard Action Centre for workflow, Marks, and timeline actions.
 - If no active semester timeline is available, the dashboard must display `No timeline available at now` while keeping the rest of the dashboard available.
 - Office Staff/Admin users must be able to download the official structured Excel timeline template, upload a completed `.xlsx` timeline, replace the active semester timeline, edit individual timeline entries, and trigger audit logging.
 - Office Staff/Admin users must be able to add individual timeline entries to the active timeline, move entries between Research Project 1 and Research Project 2, delete obsolete entries, and see those changes reflected in the schedule, entries table, dashboards, and audit log.
@@ -120,7 +120,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Lecturer Dashboard Overview must show the role-scoped read-only semester timeline without the office-staff Manage Timeline action.
 - Lecturer Dashboard Overview must not show office-staff Records Needing Attention or Office Monitoring Tasks.
 - Lecturer Dashboard Overview must show two dashboard cards: Students Under Supervision and Panel Appointment for Students.
-- Lecturer Dashboard Overview must reuse the shared semester-timeline next-actions list for timeline events targeted to Lecturer.
+- Lecturer Dashboard Overview must reuse the shared persisted Dashboard Action Centre for assigned Supervisor requests, selected-panel reviews, Marks tasks, and Lecturer-targeted timeline actions.
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
 - Lecturer Supervisor Appointments must expose request history and active supervisee detail as page-level routes at `/supervisor-appointments/history` and `/supervisor-appointments/supervisees/<studentId>`, while keeping review drawers, filters, pagination, and toasts local to the component.
 - Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
@@ -146,7 +146,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Panel recommendation review actions must be role-gated: selected panel members may decide only recommendations submitted to them, and Programme Coordinators may decide only recommendations that have passed selected-panel acceptance.
 - Panel recommendation role-gating must be enforced by the backend API and database workflow, not only by frontend button visibility.
 - Programme Coordinator panel appointment confirmation must use the existing separate `Programme Coordinator` login role.
-- Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, read-only Lecturer-scoped semester timeline, and timeline-driven next actions.
+- Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, a read-only Lecturer-scoped semester timeline, and a persisted action centre limited to Supervisor and Panel approvals in the managed programme.
 - Programme Coordinator dashboard cards must show live supervisor and panel approval counts from persisted backend workflow state, scoped to the coordinator's managed programme.
 - Programme Coordinator panel queues, records, dashboard counts, and decision permissions must be restricted to `Coordinator.programme_managed`.
 - A Programme Coordinator without an assigned managed programme must see an explicit no-programme state, no protected panel records, and no approval actions.
@@ -163,6 +163,21 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Panel workload validation must count confirmed active panel appointments plus submitted/pending nominations, and the UI must explain that this reserved workload is used before submission.
 - Panel appointment APIs must keep the frontend response contract stable while resolving lecturer staff numbers, departments, and student matric numbers from the normalized role-profile tables.
 - Lecturer Marks Entry must support mark-entry task review, mark-entry form access, history review, and submitted mark detail review.
+
+## Workflow Ageing and Deadline Requirements
+
+- Pending Supervisor and Panel approvals must expose derived `waitingSince`, `waitingDays`, and `waitingOn` metadata without storing recurring ageing records or changing immutable workflow audit events.
+- Supervisor submissions wait on `SUPERVISOR` from submission; accepted Supervisor applications wait on `PROGRAMME_COORDINATOR` from the Supervisor decision.
+- Panel submissions wait on `SELECTED_PANEL` from submission; accepted nominations wait on `PROGRAMME_COORDINATOR` from the selected-panel decision.
+- Historical records missing a stage timestamp must fall back to the matching workflow transition and then the record update timestamp. Future or malformed waiting timestamps must display zero elapsed calendar days.
+- Approved, rejected, cancelled, completed, and otherwise terminal workflow records must return null waiting metadata. Approval ageing is informational and must not be described as an SLA, due-soon state, or overdue state.
+- Marks tasks and monitoring records must derive `dueAt`, `daysUntilDue`, and `deadlineState` from `EvaluationPeriod.closes_at`. The supported states are `NO_DEADLINE`, `UPCOMING`, `DUE_TODAY`, `OVERDUE`, and `COMPLETE`; submitted Marks remain locked and do not gain an approval stage.
+- Timeline action metadata must be derived from persisted entry start/end dates without changing timeline persistence or audit behavior.
+- `/api/dashboard/tasks/` must return at most 20 role-scoped actions while retaining its existing fields. Priority order is overdue deadlines, due-today deadlines, oldest waiting approvals, active timeline entries, then upcoming deadlines nearest first.
+- Office Staff/Admin may see actions across all five owned modules. Programme Coordinators may see only managed-programme Supervisor and Panel approvals. Lecturers may see only assigned Supervisor requests, selected-panel reviews, their Marks tasks, and Lecturer timeline entries. Students may see only their own Supervisor wait, generic faculty Panel processing, and Student timeline entries.
+- Student Panel payloads and actions must use `FACULTY_PROCESSING` and must not expose the selected panel, coordinator stage, recommendation ID, or internal workflow timestamps. Students without an active recommendation receive null Panel ageing metadata.
+- Office Supervisor and Panel monitoring lists must provide an optional Longest waiting order while retaining their normal default order. Lecturer and Programme Coordinator approval queues default to oldest waiting first.
+- Existing Supervisor and Panel CSV exports must include waiting metadata. Marks records and Lecturer Marks tasks must display persisted deadline metadata; no separate reporting subsystem is introduced.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.

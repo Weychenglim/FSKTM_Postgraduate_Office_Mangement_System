@@ -43,9 +43,11 @@ import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
 import {
   acceptSupervisorApplication,
+  formatSupervisorWaiting,
   getSupervisorApplication,
   getSupervisorRequests,
   getActiveSupervisees,
+  orderSupervisorQueueOldestFirst,
   rejectSupervisorApplication,
 } from '../services';
 
@@ -546,15 +548,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 // ==================== SPECIFIC PORTAL COMPONENT PARTS ====================
 
 interface RequestCardProps {
-  request: {
-    studentId: string;
-    studentName: string;
-    programme: string;
-    proposedTopic: string;
-    submittedDate: string;
-    receivedTime: string;
-    status: string;
-  };
+  request: SupervisorRequest;
   onOpen: () => void;
   onViewHistory: () => void;
 }
@@ -592,6 +586,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
               </p>
               <p className="text-[10px] text-slate-400 font-bold mt-0.5">
                 Submitted: {request.submittedDate}
+              </p>
+              <p className="text-[10px] text-amber-700 font-bold mt-1">
+                {formatSupervisorWaiting(request)}
               </p>
             </div>
           </div>
@@ -783,7 +780,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     setError(null);
     Promise.all([getSupervisorRequests(), getActiveSupervisees()])
       .then(([requests, active]) => {
-        setRequestsList(requests);
+        setRequestsList(orderSupervisorQueueOldestFirst(requests));
         setSupervisees(active);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
@@ -956,7 +953,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
             <SummaryCard
               title="Pending Requests"
               value={`${requestsList.length} New`}
-              subtext="Requires review within 7 days."
+              subtext="Awaiting your review."
               badge={requestsList.length > 0 ? "Needs Review" : "Up-To-Date"}
               badgeType={requestsList.length > 0 ? 'warning' : 'success'}
             />

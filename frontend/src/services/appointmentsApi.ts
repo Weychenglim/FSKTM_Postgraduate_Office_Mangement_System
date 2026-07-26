@@ -22,6 +22,7 @@ import {
   SupervisorApplicationRecord,
   SupervisorCandidate,
   SupervisorRequestHistoryRow,
+  WorkflowAgeingMetadata,
 } from '../types';
 import {
   MOCK_SUPERVISOR_APPOINTMENTS,
@@ -34,6 +35,7 @@ import {
   MOCK_SUPERVISOR_REQUEST_HISTORY,
   MOCK_SUPERVISOR_CANDIDATES,
 } from '../mocks/appointments';
+import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 import { USE_MOCKS, mockResponse, request } from './apiClient';
 
 const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
@@ -45,6 +47,47 @@ const USE_PANEL_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_PANEL_BACKEND
 const USE_PANEL_MOCKS = USE_MOCKS && !USE_PANEL_BACKEND;
 const USE_SUPERVISOR_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_SUPERVISOR_BACKEND, true);
 const USE_SUPERVISOR_MOCKS = USE_MOCKS && !USE_SUPERVISOR_BACKEND;
+
+const ACTIVE_SUPERVISOR_WAITING_STATUSES = new Set([
+  'Pending',
+  'Pending Review',
+  'PENDING REVIEW',
+  'SUBMITTED_TO_SUPERVISOR',
+  'PENDING_COORDINATOR',
+]);
+
+type SupervisorWaitingRecord = WorkflowAgeingMetadata & { status: string };
+
+export function formatSupervisorWaiting(record: SupervisorWaitingRecord): string {
+  const hasWaitingMetadata =
+    record.waitingDays !== null && record.waitingDays !== undefined
+    || Boolean(record.waitingSince)
+    || Boolean(record.waitingOn);
+
+  if (!ACTIVE_SUPERVISOR_WAITING_STATUSES.has(record.status) || !hasWaitingMetadata) {
+    return '-';
+  }
+
+  return formatWaitingText(record);
+}
+
+export function orderSupervisorQueueOldestFirst<
+  T extends Pick<WorkflowAgeingMetadata, 'waitingDays'>,
+>(records: readonly T[]): T[] {
+  return [...records].sort(compareLongestWaiting);
+}
+
+export function getSupervisorRecordSummary(records: readonly SupervisorRecord[]) {
+  const pendingRecords = records.filter((record) => record.status === 'Pending');
+
+  return {
+    withoutSupervisor: records.filter((record) => record.status === 'No Supervisor').length,
+    pending: pendingRecords.length,
+    approved: records.filter((record) => record.status === 'Approved').length,
+    workloadAlerts: records.filter((record) => record.status === 'Workload Alert').length,
+    longestWaiting: orderSupervisorQueueOldestFirst(pendingRecords)[0] ?? null,
+  };
+}
 
 export async function getSupervisorAppointments(): Promise<SupervisorRecord[]> {
   if (USE_SUPERVISOR_MOCKS) return mockResponse(MOCK_SUPERVISOR_APPOINTMENTS);
@@ -236,6 +279,9 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     cancelledAt: r.cancelledAt,
     cancellationReason: r.cancellationReason,
     workflow: r.workflow,
+    waitingSince: r.waitingSince,
+    waitingDays: r.waitingDays,
+    waitingOn: r.waitingOn,
   }));
 }
 
@@ -507,5 +553,8 @@ export function toStudentSupervisorApplication(
     workflow: record.workflow,
     cancellationReason: record.cancellationReason,
     cancelledAt: record.cancelledAt,
+    waitingSince: record.waitingSince,
+    waitingDays: record.waitingDays,
+    waitingOn: record.waitingOn,
   };
 }

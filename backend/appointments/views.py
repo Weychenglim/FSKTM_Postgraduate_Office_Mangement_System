@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from announcements.models import Notification
 
+from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
     AppointmentWorkflowEvent,
     PanelAppointment,
@@ -75,6 +76,7 @@ def panel_record_from_appointment(appointment):
         ).data,
         "status": "Approved",
         "updatedDate": appointment.updated_at.strftime("%d %b %Y"),
+        **panel_waiting_metadata(recommendation),
     }
 
 
@@ -129,6 +131,7 @@ def panel_record_from_recommendation(recommendation):
         ).data,
         "status": display_status,
         "updatedDate": recommendation.updated_at.strftime("%d %b %Y"),
+        **panel_waiting_metadata(recommendation),
     }
 
 
@@ -158,6 +161,9 @@ def panel_record_from_profile(profile):
         "workflow": [],
         "status": "No Panel",
         "updatedDate": profile.updated_at.strftime("%d %b %Y"),
+        "waitingSince": None,
+        "waitingDays": None,
+        "waitingOn": None,
     }
 
 
@@ -1025,6 +1031,7 @@ def supervisor_requests_view(request):
             "receivedTime": application.submitted_at.isoformat(),
             "status": "Pending Review",
             "abstract": application.research_abstract,
+            **supervisor_waiting_metadata(application),
         }
         for application in applications
     ]
@@ -1423,6 +1430,7 @@ def supervisor_records_view(request):
                     application.workflow_events.all(),
                     many=True,
                 ).data,
+                **supervisor_waiting_metadata(application),
             }
             for application in applications
         ]

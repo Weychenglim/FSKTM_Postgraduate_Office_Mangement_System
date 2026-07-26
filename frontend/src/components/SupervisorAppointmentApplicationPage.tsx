@@ -493,7 +493,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             Review Process
           </h4>
           <p className="text-slate-500 text-xs font-semibold leading-relaxed font-sans">
-            Applications are reviewed within <strong className="text-slate-800">7-10 working days</strong> by the Departmental Research Committee.
+            Review progress follows the recorded faculty workflow. No formal turnaround target is currently configured.
           </p>
         </div>
 

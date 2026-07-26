@@ -75,6 +75,7 @@ import {
 } from '../utils/panelRecommendationWorkflow';
 import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTable';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
@@ -666,6 +667,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         cancelledAt: r.cancelledAt,
         cancellationReason: r.cancellationReason,
         workflow: r.workflow,
+        waitingSince: r.waitingSince,
+        waitingDays: r.waitingDays,
+        waitingOn: r.waitingOn,
       }));
 
     const seen = new Set<string>();
@@ -738,7 +742,11 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   // Use workloadLimit from panelCandidates if current user is found, otherwise default to 10.
   const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.fullName);
   const workloadLimit = currentUserCandidate ? currentUserCandidate.workloadLimit : 10;
-  const activeReviewQueue = isCoordinator ? coordinatorReviewQueue : panelReviewQueue;
+  const activeReviewQueue = useMemo(
+    () => [...(isCoordinator ? coordinatorReviewQueue : panelReviewQueue)]
+      .sort(compareLongestWaiting),
+    [coordinatorReviewQueue, isCoordinator, panelReviewQueue],
+  );
   const activeReviewRole: PanelRecommendationReviewerRole = isCoordinator
     ? 'PROGRAMME_COORDINATOR'
     : 'SELECTED_PANEL';
@@ -1127,31 +1135,32 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs">
               <div className="overflow-x-auto">
-                <table className="data-table min-w-[760px] text-xs">
+                <table className="data-table min-w-[860px] text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
                       <th className="py-4 px-6">Student</th>
                       <th className="py-4 px-6">Selected Panel</th>
                       <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6">Waiting</th>
                       <th className="py-4 px-6 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-brand-navy">
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="p-0">
+                        <td colSpan={5} className="p-0">
                           <LoadingState message="Loading review queue…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={4} className="p-0">
+                        <td colSpan={5} className="p-0">
                           <ErrorState message={error} onRetry={loadData} />
                         </td>
                       </tr>
                     ) : activeReviewQueue.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
+                        <td colSpan={5} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
                           No panel recommendations require your decision right now.
                         </td>
                       </tr>
@@ -1182,6 +1191,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                             >
                               {PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]}
                             </StatusBadge>
+                          </td>
+                          <td className="py-5 px-6 text-[11px] font-bold text-slate-500">
+                            {formatWaitingText(recommendation)}
                           </td>
                           <td className="py-5 px-6 text-center">
                             <button

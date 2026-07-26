@@ -7,7 +7,20 @@
 
 export type MarkStatus = 'Submitted' | 'Draft' | 'Not Started' | 'Overdue' | 'Closed';
 
-export interface MarkRecord {
+export type DeadlineState =
+  | 'NO_DEADLINE'
+  | 'UPCOMING'
+  | 'DUE_TODAY'
+  | 'OVERDUE'
+  | 'COMPLETE';
+
+export interface DeadlineMetadata {
+  dueAt?: string | null;
+  daysUntilDue?: number | null;
+  deadlineState?: DeadlineState | null;
+}
+
+export interface MarkRecord extends DeadlineMetadata {
   id: string; // Record ID e.g. "MRK-2025-021"
   studentId: string;
   studentName: string;
@@ -91,7 +104,7 @@ export interface MarksAssignmentLecturerOption {
   email: string;
 }
 
-export interface EvaluationPreviewTask {
+export interface EvaluationPreviewTask extends DeadlineMetadata {
   taskId?: number;
   id: string;
   periodId?: number;
@@ -127,7 +140,7 @@ export interface EvaluationTaskComponent {
   feedback: string;
 }
 
-export interface EvaluationTask {
+export interface EvaluationTask extends DeadlineMetadata {
   id?: number;
   studentId: string;
   studentName: string;

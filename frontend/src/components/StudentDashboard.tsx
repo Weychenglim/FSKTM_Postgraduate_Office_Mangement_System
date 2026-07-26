@@ -6,14 +6,18 @@
 import React, { useState } from 'react';
 import { Award, ChevronRight, UserCheck } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
-import { TimelineNextActions } from './TimelineNextActions';
+import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import type { DashboardTask } from '../types';
+import { sidebarItemForPath } from '../constants/routes';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 
 interface StudentDashboardProps {
   studentName: string;
   studentId?: string;
   programme?: string;
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
 }
 
 interface StatusCardProps {
@@ -70,13 +74,23 @@ const StatusCard: React.FC<StatusCardProps> = ({
 );
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
-  onNavigateToTab
+  onNavigateToTab,
+  onNavigateToRoute,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
   };
 
   return (
@@ -117,10 +131,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         />
       </div>
 
-      <TimelineNextActions
-        title="Next Student Actions"
-        visibleRoles={['STUDENT']}
-        onNavigateToTab={onNavigateToTab}
+      <MonitoringTasksCard
+        title="Student Action Centre"
+        onTaskClick={navigateToAction}
       />
     </div>
   );

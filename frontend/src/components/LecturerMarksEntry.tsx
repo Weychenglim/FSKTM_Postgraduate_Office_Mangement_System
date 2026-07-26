@@ -28,6 +28,7 @@ import { MarksEntryHistory } from './MarksEntryHistory';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
+import { formatDeadlineText } from '../utils/workflowAgeing';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
 
@@ -395,7 +396,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                       </tr>
                     ) : filteredTasks.length > 0 ? (
                       filteredTasks.map((task) => {
-                        const isOverdue = task.status !== 'SUBMITTED' && task.deadline === '10 Dec 2025';
+                        const isOverdue = task.deadlineState === 'OVERDUE';
                         
                         return (
                           <tr key={`${task.id ?? task.studentId}-${task.evaluatorRole ?? 'task'}`} className="hover:bg-slate-50/20 transition-colors">
@@ -431,7 +432,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                             </td>
                             {/* Deadline */}
                             <td className={`py-4.5 pr-2 font-extrabold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
-                              {task.deadline}
+                              <span className="block">{task.deadline}</span>
+                              <span className="text-[10px] font-bold block mt-1">
+                                {formatDeadlineText(task)}
+                              </span>
                             </td>
                             {/* Status */}
                             <td className="py-4.5 pr-2">

@@ -5,6 +5,18 @@
 
 // Supervisor & Panel Appointment domain models (UC10–UC23).
 
+export type WorkflowWaitingOn =
+  | 'SUPERVISOR'
+  | 'SELECTED_PANEL'
+  | 'PROGRAMME_COORDINATOR'
+  | 'FACULTY_PROCESSING';
+
+export interface WorkflowAgeingMetadata {
+  waitingSince?: string | null;
+  waitingDays?: number | null;
+  waitingOn?: WorkflowWaitingOn | null;
+}
+
 export type SupervisorAppointmentStatus =
   | 'Approved'
   | 'Pending'
@@ -13,7 +25,7 @@ export type SupervisorAppointmentStatus =
   | 'Rejected'
   | 'Cancelled';
 
-export interface SupervisorRecord {
+export interface SupervisorRecord extends WorkflowAgeingMetadata {
   studentId: string;
   studentName: string;
   programme: string;
@@ -42,7 +54,7 @@ export type PanelAppointmentStatus =
   | 'Rejected'
   | 'Cancelled';
 
-export interface PanelRecord {
+export interface PanelRecord extends WorkflowAgeingMetadata {
   recordId: string;
   id: string; // student ID, e.g. "MEA2301184"
   studentName: string;
@@ -73,7 +85,7 @@ export interface PanelRecord {
 
 // ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
 // A pending supervisor appointment request shown to a lecturer to review.
-export interface SupervisorRequest {
+export interface SupervisorRequest extends WorkflowAgeingMetadata {
   applicationId?: number;
   studentId: string;
   studentName: string;
@@ -96,7 +108,7 @@ export interface ActiveSuperviseeRow {
 
 // ── Lecturer-facing panel appointment views (UC20–UC23) ──
 // A student assigned to a lecturer acting as panel member.
-export interface PanelAssignment {
+export interface PanelAssignment extends WorkflowAgeingMetadata {
   studentId: string;
   studentName: string;
   researchTitle: string;
@@ -126,7 +138,7 @@ export type PanelRecommendationStatus =
   | 'CANCELLED_BY_SUPERVISOR';
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
-export interface PanelRecommendationDraft {
+export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
   id?: number | string;
   studentId: string;
   studentName: string;
@@ -205,7 +217,7 @@ export interface PanelWorkloadRecord {
   workloadItems: PanelWorkloadItem[];
 }
 
-export interface StudentPanelAppointmentView {
+export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
   status: 'PENDING' | 'CONFIRMED';
   studentName: string;
   studentId: string;
@@ -221,7 +233,7 @@ export interface StudentPanelAppointmentView {
 }
 
 // A submitted panel recommendation record shown in the history list.
-export interface SubmittedRecommendation {
+export interface SubmittedRecommendation extends WorkflowAgeingMetadata {
   id: string;
   recommendationId?: number | string;
   studentName: string;
@@ -282,7 +294,7 @@ export type StudentSupervisorApplicationStatus =
   | 'CANCELLED'
   | 'APPROVED';
 
-export interface StudentSupervisorApplication {
+export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
   applicationId?: number;
   id: string;
   title: string;
@@ -314,7 +326,7 @@ export interface SupervisorWorkflowEvent {
   createdAt: string;
 }
 
-export interface SupervisorApplicationRecord {
+export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   id: number;
   studentId: string;
   studentName: string;

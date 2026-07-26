@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
+from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
     PANEL_WORKLOAD_LIMIT,
     PanelAppointment,
@@ -162,6 +163,9 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
     selectedPanelDecision = serializers.SerializerMethodField()
     workflow = serializers.SerializerMethodField()
+    waitingSince = serializers.SerializerMethodField()
+    waitingDays = serializers.SerializerMethodField()
+    waitingOn = serializers.SerializerMethodField()
 
     class Meta:
         model = PanelRecommendation
@@ -189,6 +193,9 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             "updatedAt",
             "selectedPanelDecision",
             "workflow",
+            "waitingSince",
+            "waitingDays",
+            "waitingOn",
         ]
 
     def get_submittedDate(self, obj):
@@ -209,6 +216,22 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             obj.workflow_events.all(),
             many=True,
         ).data
+
+    def _waiting_metadata(self, obj):
+        cache = getattr(self, "_waiting_metadata_cache", {})
+        if obj.pk not in cache:
+            cache[obj.pk] = panel_waiting_metadata(obj)
+            self._waiting_metadata_cache = cache
+        return cache[obj.pk]
+
+    def get_waitingSince(self, obj):
+        return self._waiting_metadata(obj)["waitingSince"]
+
+    def get_waitingDays(self, obj):
+        return self._waiting_metadata(obj)["waitingDays"]
+
+    def get_waitingOn(self, obj):
+        return self._waiting_metadata(obj)["waitingOn"]
 
 
 class PanelRecommendationCreateSerializer(serializers.Serializer):
@@ -339,6 +362,9 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+    waitingSince = serializers.SerializerMethodField()
+    waitingDays = serializers.SerializerMethodField()
+    waitingOn = serializers.SerializerMethodField()
 
     class Meta:
         model = SupervisorApplication
@@ -361,10 +387,29 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "cancellationReason",
             "documents",
             "workflow",
+            "waitingSince",
+            "waitingDays",
+            "waitingOn",
         ]
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
+
+    def _waiting_metadata(self, obj):
+        cache = getattr(self, "_waiting_metadata_cache", {})
+        if obj.pk not in cache:
+            cache[obj.pk] = supervisor_waiting_metadata(obj)
+            self._waiting_metadata_cache = cache
+        return cache[obj.pk]
+
+    def get_waitingSince(self, obj):
+        return self._waiting_metadata(obj)["waitingSince"]
+
+    def get_waitingDays(self, obj):
+        return self._waiting_metadata(obj)["waitingDays"]
+
+    def get_waitingOn(self, obj):
+        return self._waiting_metadata(obj)["waitingOn"]
 
 
 class SupervisorApplicationCreateSerializer(serializers.Serializer):
@@ -520,6 +565,9 @@ class StudentPanelAppointmentSerializer(serializers.Serializer):
     panelMemberDepartment = serializers.CharField(allow_blank=True, allow_null=True)
     panelMemberEmail = serializers.EmailField(allow_null=True)
     appointmentDate = serializers.CharField(allow_blank=True, allow_null=True)
+    waitingSince = serializers.DateTimeField(allow_null=True)
+    waitingDays = serializers.IntegerField(allow_null=True)
+    waitingOn = serializers.CharField(allow_null=True)
 
 
 def student_panel_appointment_payload(profile):
@@ -544,8 +592,24 @@ def student_panel_appointment_payload(profile):
         "panelMemberDepartment": None,
         "panelMemberEmail": None,
         "appointmentDate": None,
+        "waitingSince": None,
+        "waitingDays": None,
+        "waitingOn": None,
     }
     if not appointment:
+        recommendation = (
+            profile.panel_recommendations.filter(
+                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+            )
+            .prefetch_related("workflow_events")
+            .order_by("-updated_at", "-id")
+            .first()
+        )
+        if recommendation:
+            return {
+                **base,
+                **panel_waiting_metadata(recommendation, public=True),
+            }
         return base
 
     panel_member = appointment.panel_member
@@ -574,4 +638,7 @@ def pending_student_panel_payload_from_user(user):
         "panelMemberDepartment": None,
         "panelMemberEmail": None,
         "appointmentDate": None,
+        "waitingSince": None,
+        "waitingDays": None,
+        "waitingOn": None,
     }

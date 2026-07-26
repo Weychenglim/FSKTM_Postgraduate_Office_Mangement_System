@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
   approveSupervisorApplicationByCoordinator,
+  formatSupervisorWaiting,
   getCoordinatorSupervisorQueue,
+  orderSupervisorQueueOldestFirst,
   rejectSupervisorApplicationByCoordinator,
 } from '../services';
 import { SupervisorApplicationRecord } from '../types';
@@ -29,7 +31,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
     setLoading(true);
     setError(null);
     getCoordinatorSupervisorQueue()
-      .then(setRecords)
+      .then((queue) => setRecords(orderSupervisorQueueOldestFirst(queue)))
       .catch((reason) => setError(
         reason instanceof Error ? reason.message : 'Failed to load supervisor approvals.',
       ))
@@ -121,6 +123,9 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   <p className="text-xs font-bold text-slate-700">{record.researchTitle}</p>
                   <p className="text-[11px] text-slate-500">
                     Proposed supervisor: <strong>{record.proposedSupervisor}</strong>
+                  </p>
+                  <p className="text-[11px] font-bold text-amber-700">
+                    {formatSupervisorWaiting(record)}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">

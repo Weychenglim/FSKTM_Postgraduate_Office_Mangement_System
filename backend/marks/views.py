@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from appointments.models import StudentResearchProfile
 
+from .deadlines import mark_deadline_metadata
 from .models import EvaluationPeriod, EvaluationTask, MarkEntry, RubricComponent
 from .serializers import (
     EvaluationTaskSerializer,
@@ -94,6 +95,7 @@ def period_payload(period):
 
 
 def task_option_payload(task):
+    entry = task_entry_or_none(task)
     return {
         "taskId": task.pk,
         "id": f"EVT-{task.pk:05d}",
@@ -107,6 +109,12 @@ def task_option_payload(task):
         "evaluatorRoleLabel": task.get_evaluator_role_display(),
         "semester": task.period.semester,
         "status": task_display_status(task),
+        **mark_deadline_metadata(
+            task.period.closes_at,
+            is_submitted=bool(
+                entry and entry.status == MarkEntry.Status.SUBMITTED
+            ),
+        ),
     }
 
 
@@ -267,6 +275,12 @@ def mark_records_view(request):
         except MarkEntry.DoesNotExist:
             entry = None
         display_status = mark_record_display_status(task, entry)
+        deadline_metadata = mark_deadline_metadata(
+            task.period.closes_at,
+            is_submitted=bool(
+                entry and entry.status == MarkEntry.Status.SUBMITTED
+            ),
+        )
         records.append(
             {
                 "id": f"MRK-{task.pk:05d}",
@@ -294,6 +308,7 @@ def mark_records_view(request):
                     if entry and entry.submitted_at
                     else "-"
                 ),
+                **deadline_metadata,
             }
         )
     return Response(records)

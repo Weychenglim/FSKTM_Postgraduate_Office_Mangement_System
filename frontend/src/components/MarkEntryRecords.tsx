@@ -31,6 +31,7 @@ import {
   getMarkRecordSummary,
   MarkRecordStatusTab,
 } from '../utils/markRecords';
+import { formatDeadlineText } from '../utils/workflowAgeing';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -411,7 +412,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
         ) : (
         <>
         <div className="overflow-x-auto">
-          <table className="data-table min-w-[950px]">
+          <table className="data-table min-w-[1050px]">
             <thead>
               <tr className="data-thead bg-slate-50/30">
                 <th className="data-th">Record ID</th>
@@ -419,6 +420,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                 <th className="data-th">Research Title</th>
                 <th className="data-th">Panel Member</th>
                 <th className="data-th">Semester</th>
+                <th className="data-th">Deadline</th>
                 <th className="data-th text-center">Total Mark</th>
                 <th className="data-th text-center">Status</th>
                 <th className="data-th text-center">Submitted Date</th>
@@ -470,6 +472,15 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     {/* Academic semester */}
                     <td className="data-td">
                       {rec.semester}
+                    </td>
+
+                    <td className={`data-td ${rec.deadlineState === 'OVERDUE' ? 'text-rose-600' : ''}`}>
+                      <span className="font-bold block">{formatDeadlineText(rec)}</span>
+                      {rec.dueAt && (
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          {new Date(rec.dueAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </td>
 
                     {/* Total Mark weighting */}
@@ -536,7 +547,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-xs font-bold text-slate-400 font-sans">
+                  <td colSpan={10} className="py-10 text-center text-xs font-bold text-slate-400 font-sans">
                     No matching postgrad evaluation registry records found.
                   </td>
                 </tr>

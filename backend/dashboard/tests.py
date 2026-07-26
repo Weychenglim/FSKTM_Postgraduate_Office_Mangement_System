@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -9,6 +11,8 @@ from appointments.models import (
     SupervisorApplication,
 )
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
+from dashboard.models import SemesterTimeline, SemesterTimelineEntry
+from dashboard.actions import _sort_key
 
 
 User = get_user_model()
@@ -143,3 +147,217 @@ class DashboardSummaryTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["pendingPanelApprovals"], 1)
         self.assertEqual(response.data["pendingSupervisorApprovals"], 0)
+
+    def test_office_action_feed_contains_persisted_owned_module_actions(self):
+        self.authenticate(self.office)
+
+        response = self.client.get("/api/dashboard/tasks/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        modules = {task["targetModule"] for task in response.data["tasks"]}
+        self.assertIn("SUPERVISOR_APPOINTMENTS", modules)
+        self.assertIn("PANEL_APPOINTMENTS", modules)
+        self.assertIn("MARKS", modules)
+        self.assertTrue(all("waitingDays" in task for task in response.data["tasks"]))
+        self.assertTrue(all("deadlineState" in task for task in response.data["tasks"]))
+
+    def test_coordinator_action_feed_contains_only_managed_programme_approvals(self):
+        foreign_student_user = User.objects.create_user(
+            email="summary-foreign-student@example.test",
+            password="password123",
+            full_name="Summary Foreign Student",
+            role=User.Role.STUDENT,
+        )
+        foreign_student = Student.objects.create(
+            user=foreign_student_user,
+            matric_no="MEA-DASH-FOREIGN",
+            programme="MASTER OF DATA SCIENCE",
+        )
+        foreign_application = SupervisorApplication.objects.create(
+            student=foreign_student,
+            proposed_supervisor=self.supervisor,
+            research_title="Foreign programme",
+            research_abstract="Must remain hidden",
+            status=SupervisorApplication.Status.PENDING_COORDINATOR,
+            supervisor_decided_at=timezone.now(),
+        )
+        self.authenticate(self.coordinator)
+
+        response = self.client.get("/api/dashboard/tasks/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tasks = response.data["tasks"]
+        self.assertTrue(tasks)
+        self.assertTrue(
+            all(
+                task["targetModule"]
+                in {"SUPERVISOR_APPOINTMENTS", "PANEL_APPOINTMENTS"}
+                for task in tasks
+            )
+        )
+        self.assertNotIn(
+            str(foreign_application.pk),
+            {task["recordId"] for task in tasks},
+        )
+
+    def test_student_action_feed_uses_generic_panel_processing_metadata(self):
+        foreign_student_user = User.objects.create(
+            email="summary-hidden-student@example.test",
+            password="!unused",
+            full_name="Summary Hidden Student",
+            role=User.Role.STUDENT,
+        )
+        foreign_student = Student.objects.create(
+            user=foreign_student_user,
+            matric_no="MEA-DASH-HIDDEN",
+            programme=self.student_user.student.programme,
+        )
+        foreign_profile = StudentResearchProfile.objects.create(
+            student=foreign_student_user,
+            matric_no=foreign_student.matric_no,
+            student_name=foreign_student_user.full_name,
+            programme=foreign_student.programme,
+            semester="Sem 1 2025/2026",
+            proposed_topic="Hidden panel workflow",
+            supervisor=self.supervisor,
+        )
+        PanelRecommendation.objects.create(
+            profile=foreign_profile,
+            supervisor=self.supervisor,
+            recommended_member=self.panel,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+        self.authenticate(self.student_user)
+
+        response = self.client.get("/api/dashboard/tasks/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        panel_tasks = [
+            task
+            for task in response.data["tasks"]
+            if task["targetModule"] == "PANEL_APPOINTMENTS"
+        ]
+        self.assertEqual(len(panel_tasks), 1)
+        panel_task = panel_tasks[0]
+        self.assertEqual(panel_task["waitingOn"], "FACULTY_PROCESSING")
+        self.assertIsNone(panel_task["recordId"])
+        self.assertNotIn("Programme Coordinator", panel_task["statusText"])
+        self.assertNotIn("selected panel", panel_task["statusText"].lower())
+
+    def test_lecturer_action_feed_contains_only_assigned_work(self):
+        self.authenticate(self.supervisor)
+
+        response = self.client.get("/api/dashboard/tasks/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tasks = response.data["tasks"]
+        self.assertTrue(tasks)
+        self.assertEqual(
+            {task["targetModule"] for task in tasks},
+            {"SUPERVISOR_APPOINTMENTS"},
+        )
+        self.assertTrue(
+            all(task["waitingOn"] == "SUPERVISOR" for task in tasks)
+        )
+
+    def test_action_feed_limits_results_to_twenty(self):
+        timeline = SemesterTimeline.objects.create(
+            semester="Semester 1",
+            session="2026/2027",
+            is_active=True,
+            uploaded_by=self.office,
+        )
+        today = timezone.localdate()
+        for index in range(25):
+            SemesterTimelineEntry.objects.create(
+                timeline=timeline,
+                level=SemesterTimelineEntry.Level.P1,
+                step=index + 1,
+                title=f"Timeline action {index + 1}",
+                detail=f"Timeline detail {index + 1}",
+                action_owner="Office Staff",
+                deadline_start=today,
+                deadline_end=today,
+                target_roles=["OFFICE_STAFF"],
+                display_order=index,
+            )
+        self.authenticate(self.office)
+
+        response = self.client.get("/api/dashboard/tasks/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["tasks"]), 20)
+
+
+class DashboardActionOrderingTests(SimpleTestCase):
+    def test_action_priority_orders_deadlines_waiting_and_timeline(self):
+        tasks = [
+            {
+                "id": "upcoming",
+                "dueAt": "2026-07-30",
+                "deadlineState": "UPCOMING",
+                "waitingDays": None,
+                "waitingSince": None,
+                "targetModule": "MARKS",
+                "status": "upcoming",
+            },
+            {
+                "id": "active",
+                "dueAt": "2026-07-28",
+                "deadlineState": "UPCOMING",
+                "waitingDays": None,
+                "waitingSince": None,
+                "targetModule": "DASHBOARD",
+                "status": "active",
+            },
+            {
+                "id": "waiting-new",
+                "dueAt": None,
+                "deadlineState": None,
+                "waitingDays": 2,
+                "waitingSince": "2026-07-21T00:00:00+08:00",
+                "targetModule": "PANEL_APPOINTMENTS",
+                "status": "pending",
+            },
+            {
+                "id": "waiting-old",
+                "dueAt": None,
+                "deadlineState": None,
+                "waitingDays": 8,
+                "waitingSince": "2026-07-15T00:00:00+08:00",
+                "targetModule": "SUPERVISOR_APPOINTMENTS",
+                "status": "pending",
+            },
+            {
+                "id": "due-today",
+                "dueAt": "2026-07-23",
+                "deadlineState": "DUE_TODAY",
+                "waitingDays": None,
+                "waitingSince": None,
+                "targetModule": "MARKS",
+                "status": "deadline",
+            },
+            {
+                "id": "overdue",
+                "dueAt": "2026-07-20",
+                "deadlineState": "OVERDUE",
+                "waitingDays": None,
+                "waitingSince": None,
+                "targetModule": "MARKS",
+                "status": "overdue",
+            },
+        ]
+
+        ordered = sorted(tasks, key=_sort_key)
+
+        self.assertEqual(
+            [task["id"] for task in ordered],
+            [
+                "overdue",
+                "due-today",
+                "waiting-old",
+                "waiting-new",
+                "active",
+                "upcoming",
+            ],
+        )

@@ -47,6 +47,7 @@ import { downloadCsv } from '../utils/csvExport';
 import { filterPanelRecordsByStatusTab, getPanelRecordSummary, PanelRecordStatusTab } from '../utils/panelAppointmentRecords';
 import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
+import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface AttentionItem {
@@ -107,6 +108,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   const [searchQuery, setSearchQuery] = useState('');
   const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
+  const [recordOrder, setRecordOrder] = useState<'default' | 'longest'>('default');
 
   // Interactive pill filter selection
   const [activeTab, setActiveTab] = useState<PanelRecordStatusTab>('All Records');
@@ -183,8 +185,11 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
       return matchSearch && matchProg && matchSem;
     });
-    return filterPanelRecordsByStatusTab(recordsMatchingFields, activeTab);
-  }, [records, appliedFilters, activeTab]);
+    const statusFilteredRecords = filterPanelRecordsByStatusTab(recordsMatchingFields, activeTab);
+    return recordOrder === 'longest'
+      ? [...statusFilteredRecords].sort(compareLongestWaiting)
+      : statusFilteredRecords;
+  }, [records, appliedFilters, activeTab, recordOrder]);
 
   // Paginated chunk
   const paginatedRecords = useMemo(
@@ -232,6 +237,9 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       { header: 'Rejection Stage', value: (record) => record.rejectionStage || '' },
       { header: 'Rejection Reason', value: (record) => record.rejectionReason || '' },
       { header: 'Cancellation Reason', value: (record) => record.cancellationReason || '' },
+      { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
+      { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
+      { header: 'Waiting On', value: (record) => record.waitingOn || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
     showToast(`Downloaded panel_appointments_report.csv with ${filteredRecords.length} records.`);
@@ -440,7 +448,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                 </div>
 
                 {/* Dropdowns side-by-side row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
                   {/* Programme Selection */}
                   <div>
@@ -478,6 +486,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                         {semesterOptions.map((semester) => (
                           <option key={semester}>{semester}</option>
                         ))}
+                      </select>
+                      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="panel-record-order" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Order
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="panel-record-order"
+                        value={recordOrder}
+                        onChange={(event) => {
+                          setRecordOrder(event.target.value as 'default' | 'longest');
+                          setCurrentPage(1);
+                        }}
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
+                      >
+                        <option value="default">Default order</option>
+                        <option value="longest">Longest waiting</option>
                       </select>
                       <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
                     </div>
@@ -560,26 +589,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               <table className="data-table table-fixed text-[11px]">
                 <thead>
                   <tr className="data-thead bg-slate-50">
-                    <th className="data-th px-3 w-[17%]">Student ID / Name</th>
-                    <th className="data-th px-3 w-[18%]">Programme / Sem</th>
-                    <th className="data-th px-3 w-[14%]">Supervisor</th>
-                    <th className="data-th px-3 w-[18%]">Panel Member</th>
-                    <th className="data-th px-3 w-[14%]">Status</th>
-                    <th className="data-th px-3 w-[10%]">Updated</th>
-                    <th className="data-th px-3 w-[9%] text-right">Action</th>
+                    <th className="data-th px-3 w-[15%]">Student ID / Name</th>
+                    <th className="data-th px-3 w-[16%]">Programme / Sem</th>
+                    <th className="data-th px-3 w-[12%]">Supervisor</th>
+                    <th className="data-th px-3 w-[15%]">Panel Member</th>
+                    <th className="data-th px-3 w-[12%]">Status</th>
+                    <th className="data-th px-3 w-[14%]">Waiting</th>
+                    <th className="data-th px-3 w-[9%]">Updated</th>
+                    <th className="data-th px-3 w-[7%] text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
 
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <LoadingState message="Loading panel appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -657,6 +687,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           )}
                         </td>
 
+                        <td className="data-td px-3 align-top text-[10px] font-bold text-slate-500 leading-relaxed">
+                          {formatWaitingText(rec)}
+                        </td>
+
                         {/* Action date */}
                         <td className="data-td px-3 align-top font-bold text-slate-500 font-mono text-[10px] whitespace-normal">
                           {rec.updatedDate}
@@ -676,7 +710,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-bold whitespace-nowrap">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-bold whitespace-nowrap">
                         No panel appointment records meet the applied search and status parameters.
                       </td>
                     </tr>
