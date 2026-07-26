@@ -20,6 +20,7 @@ import {
   reportLabel,
   resolveWorkflowReportRecordRoute,
 } from '../utils/workflowReports';
+import { routeForStudentProgress } from '../constants/routes';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import {
   PageHeader,
@@ -314,13 +315,22 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                             : `Overdue - ${item.dueAt ?? 'No date'}`}
                         </td>
                         <td className="data-td text-right">
-                          <PortalButton
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onNavigateToRoute(resolveWorkflowReportRecordRoute(item))}
-                          >
-                            Open
-                          </PortalButton>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <PortalButton
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onNavigateToRoute(routeForStudentProgress(item.studentId))}
+                            >
+                              View Dossier
+                            </PortalButton>
+                            <PortalButton
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onNavigateToRoute(resolveWorkflowReportRecordRoute(item))}
+                            >
+                              Open
+                            </PortalButton>
+                          </div>
                         </td>
                       </tr>
                     ))}

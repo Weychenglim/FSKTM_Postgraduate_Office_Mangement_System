@@ -57,6 +57,7 @@ export interface WorkflowReportAttentionItem {
   kind: 'WAITING' | 'DEADLINE';
   recordType: string;
   recordId: string;
+  studentId: string;
   label: string;
   programme: string;
   waitingDays: number | null;

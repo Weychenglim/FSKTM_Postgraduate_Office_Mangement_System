@@ -36,12 +36,14 @@ import { formatDeadlineText } from '../utils/workflowAgeing';
 interface MarkEntryRecordsProps {
   onBack: () => void;
   onViewRecordDetail?: (recordId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
   initialStatusTab?: MarkRecordStatusTab;
 }
 
 export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   onBack,
   onViewRecordDetail,
+  onNavigateToDossier,
   initialStatusTab = 'All Records',
 }) => {
   // Records are loaded from marksApi (mock-backed today). Loading / error states
@@ -535,12 +537,20 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
                     {/* Row inspection trigger button */}
                     <td className="py-4 px-5 text-right">
-                      <button
-                        onClick={() => onViewRecordDetail ? onViewRecordDetail(rec.id) : setSelectedInspectRecord(rec)}
-                        className="py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
-                      >
-                        View
-                      </button>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <button
+                          onClick={() => onNavigateToDossier?.(rec.studentId)}
+                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                        >
+                          View Dossier
+                        </button>
+                        <button
+                          onClick={() => onViewRecordDetail ? onViewRecordDetail(rec.id) : setSelectedInspectRecord(rec)}
+                          className="py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
+                        >
+                          View
+                        </button>
+                      </div>
                     </td>
 
                   </tr>

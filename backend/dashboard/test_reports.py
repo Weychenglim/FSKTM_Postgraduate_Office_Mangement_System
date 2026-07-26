@@ -198,6 +198,9 @@ class WorkflowReportTests(APITestCase):
         self.assertEqual(response.data["overview"]["overdueMarks"], 1)
         self.assertEqual(response.data["supervisor"]["ageBands"]["4-7"], 1)
         self.assertEqual(response.data["panel"]["ageBands"]["8-14"], 1)
+        self.assertTrue(
+            all(item["studentId"] for item in response.data["attention"])
+        )
         self.assertIn(PROGRAMME, response.data["filters"]["availableProgrammes"])
         self.assertIn(
             FOREIGN_PROGRAMME, response.data["filters"]["availableProgrammes"]

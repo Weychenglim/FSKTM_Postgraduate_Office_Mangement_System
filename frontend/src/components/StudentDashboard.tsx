@@ -4,12 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Award, ChevronRight, UserCheck } from 'lucide-react';
+import { Award, ChevronRight, Files, UserCheck } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import type { DashboardTask } from '../types';
-import { sidebarItemForPath } from '../constants/routes';
+import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 
 interface StudentDashboardProps {
@@ -74,6 +74,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
 );
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
+  studentId,
   onNavigateToTab,
   onNavigateToRoute,
 }) => {
@@ -100,6 +101,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       <PageHeader
         title="Student Dashboard"
         subtitle="Track your semester timeline, appointment status, submissions, and official document requests."
+        actions={studentId && onNavigateToRoute ? (
+          <PortalButton
+            variant="primary"
+            icon={Files}
+            onClick={() => onNavigateToRoute(routeForStudentProgress())}
+          >
+            View My Progress
+          </PortalButton>
+        ) : undefined}
       />
 
       <DashboardTimeline

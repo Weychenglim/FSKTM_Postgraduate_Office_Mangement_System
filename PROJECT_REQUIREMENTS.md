@@ -188,6 +188,18 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Marks reporting must retain its tracking-only model and summarize task status, deadline state, evaluator role, completion, and authorized overdue tasks. Timeline reporting must summarize current status, P1/P2 level, and target role.
 - JSON reports and XLSX exports must use the same role-scoped reporting service and active filters. Export workbooks must contain only sections the requesting role can access and must not persist generated files or database records.
 - Reports show the current persisted state of records selected by their reporting date; they do not reconstruct historical point-in-time snapshots or trend lines.
+
+## Student Progress Dossier Requirements
+
+- The system must provide a read-only progress dossier that aggregates persisted Supervisor, Panel, Marks, active Student-targeted Timeline, and workflow-audit data without creating dossier records or changing workflow state.
+- Office Staff/Admin may view every student and all dossier sections. Programme Coordinators may view managed-programme students with Supervisor, Panel, and Timeline sections only. Lecturers may view only connected students, and each Supervisor, Panel, or Marks section must contain only records assigned to that lecturer.
+- Students may open only their own dossier. Unauthorized and nonexistent matric numbers must return the same `404` response so the endpoint does not disclose whether another student exists.
+- Student dossier payloads must omit internal Panel stages, recommendation identifiers, pending selected-panel identity, evaluator identity, marks, comments, and staff audit actors. Pending Panel work is represented only as `FACULTY_PROCESSING`.
+- Dossiers must show current records before newest-first lifecycle history, reuse existing waiting/deadline derivations, and return null waiting metadata for terminal workflows.
+- Dossier attention must order overdue authorized Marks tasks first, active workflow waits by longest age second, and active/upcoming Student Timeline milestones third.
+- Dossier navigation metadata must use existing module, record type, and record identifier fields. Approval, rejection, cancellation, submission, printing, and export remain in their owning modules.
+- Staff dossier routes use `/dashboard/progress/:studentId`; the Student self-view uses `/dashboard/progress`. The workspace remains outside the sidebar and is opened from existing workflow tables, report attention rows, and the Student Dashboard.
+- Students without a research profile must still receive available Supervisor and Timeline information with empty Panel and Marks sections.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.

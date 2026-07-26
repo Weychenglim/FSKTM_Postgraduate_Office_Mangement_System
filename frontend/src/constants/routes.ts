@@ -8,6 +8,7 @@ export const APP_ROUTES = {
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
   dashboardReports: '/dashboard/reports',
+  dashboardProgress: '/dashboard/progress',
   registry: '/registry',
   faq: '/faq',
   files: '/files',
@@ -68,6 +69,11 @@ export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimel
 
 export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
 
+export const routeForStudentProgress = (studentId?: string): string =>
+  studentId
+    ? `${APP_ROUTES.dashboardProgress}/${encodeURIComponent(studentId)}`
+    : APP_ROUTES.dashboardProgress;
+
 export const routeForMarkRecord = (recordId: string): string =>
   `${APP_ROUTES.marksRecords}/${encodeURIComponent(recordId)}`;
 
@@ -123,6 +129,8 @@ export const isKnownAppPath = (pathname: string): boolean => {
       pathname === APP_ROUTES.dashboard
       || pathname === APP_ROUTES.dashboardTimeline
       || pathname === APP_ROUTES.dashboardReports
+      || pathname === APP_ROUTES.dashboardProgress
+      || /^\/dashboard\/progress\/[^/]+$/.test(pathname)
     );
   }
 

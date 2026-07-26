@@ -48,6 +48,7 @@ const evaluatorRoleLabel = (task: EvaluationTask): string =>
 
 interface LecturerMarksEntryProps {
   onBackToDashboard?: () => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 // Helper: Calculate grade based on score
@@ -111,7 +112,10 @@ export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({
 
 // ==================== MAIN COMPONENT ====================
 
-export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackToDashboard }) => {
+export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
+  onBackToDashboard,
+  onNavigateToDossier,
+}) => {
   // 1. Core State — evaluation tasks loaded from marksApi (mock-backed today).
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -443,23 +447,32 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({ onBackTo
                             </td>
                             {/* Action Button */}
                             <td className="py-4.5 text-center">
-                              {task.status === 'SUBMITTED' ? (
+                              <div className="flex flex-col items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenForm(task)}
-                                  className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider block mx-auto cursor-pointer"
+                                  onClick={() => onNavigateToDossier?.(task.studentId)}
+                                  className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                                 >
-                                  View
+                                  View Dossier
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenForm(task)}
-                                  className="bg-brand-navy hover:bg-slate-800 text-white px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider block mx-auto cursor-pointer shadow-3xs"
-                                >
-                                  Open
-                                </button>
-                              )}
+                                {task.status === 'SUBMITTED' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenForm(task)}
+                                    className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider cursor-pointer"
+                                  >
+                                    View
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenForm(task)}
+                                    className="bg-brand-navy hover:bg-slate-800 text-white px-4 py-1.5 rounded-lg text-xs font-extrabold transition uppercase tracking-wider cursor-pointer shadow-3xs"
+                                  >
+                                    Open
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );

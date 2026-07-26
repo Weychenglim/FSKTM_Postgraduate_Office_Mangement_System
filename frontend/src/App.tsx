@@ -36,6 +36,7 @@ import {
   routeForPanelReviewedRequests,
   routeForPanelSubmittedRecommendations,
   routeForPanelWorkload,
+  routeForStudentProgress,
   routeForSupervisorApplication,
   routeForSupervisorHistory,
   routeForSupervisorNewApplication,
@@ -87,6 +88,7 @@ const StudentDashboard = lazyNamed('StudentDashboard', () => import('./component
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
 const WorkflowReports = lazyNamed('WorkflowReports', () => import('./components/WorkflowReports'));
+const StudentProgressDossier = lazyNamed('StudentProgressDossier', () => import('./components/StudentProgressDossier'));
 const CoordinatorSupervisorApprovals = lazyNamed('CoordinatorSupervisorApprovals', () => import('./components/CoordinatorSupervisorApprovals'));
 const StudentSupervisorAppointment = lazyNamed('StudentSupervisorAppointment', () => import('./components/StudentSupervisorAppointment'));
 const StudentPanelAppointment = lazyNamed('StudentPanelAppointment', () => import('./components/StudentPanelAppointment'));
@@ -211,6 +213,16 @@ export default function App() {
   const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
+  const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
+  const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
+  const isStudentOtherDossierRoute = Boolean(
+    isStudentWorkspace
+    && dashboardProgressMatch?.params.studentId
+    && dashboardProgressMatch.params.studentId !== currentUser?.studentId,
+  );
+  const dossierStudentId = isStudentWorkspace
+    ? currentUser?.studentId
+    : dashboardProgressMatch?.params.studentId;
   const isStudentUnsupportedSupervisorRoute =
     isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
   const isLecturerUnsupportedSupervisorRoute =
@@ -408,7 +420,10 @@ export default function App() {
           <React.Suspense fallback={<ModuleLoadingFallback />}>
             {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
               isLecturerWorkspace ? (
-                <LecturerMarksEntry onBackToDashboard={() => navigate(APP_ROUTES.dashboard)} />
+                <LecturerMarksEntry
+                  onBackToDashboard={() => navigate(APP_ROUTES.dashboard)}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                />
               ) : isMarksConfigRoute ? (
                 <MarkEntryPeriodConfig onBack={() => navigate(APP_ROUTES.marks)} />
               ) : isMarksRubricsRoute ? (
@@ -420,6 +435,7 @@ export default function App() {
                   onBack={() => navigate(APP_ROUTES.marks)}
                   initialStatusTab={marksRecordStatusTab}
                   onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId))}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               ) : markRecordId ? (
                 <MarkEntryRecordDetail
@@ -536,6 +552,7 @@ export default function App() {
                   onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
                   onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
                   onNavigateToAssignment={(studentId) => navigate(routeForPanelAssignment(studentId))}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               ) : (
                 <PanelAppointmentManagement
@@ -550,6 +567,7 @@ export default function App() {
                   onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
                   onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
                   onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
@@ -569,6 +587,7 @@ export default function App() {
               ) : isCoordinatorWorkspace ? (
                 <CoordinatorSupervisorApprovals
                   initialApplicationId={supervisorApplicationId}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               ) : isLecturerUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
@@ -586,6 +605,7 @@ export default function App() {
                   onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
                   onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
                   onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               ) : isOfficeUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
@@ -602,12 +622,24 @@ export default function App() {
                   onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
                   onNavigateToWorkload={() => navigate(routeForSupervisorWorkload())}
                   onNavigateToRecord={(recordId) => navigate(routeForSupervisorApplication(recordId))}
+                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardReportsRoute && isStudentWorkspace ? (
+              isStudentOtherDossierRoute ? (
+                <Navigate to={APP_ROUTES.dashboardProgress} replace />
+              ) : isDashboardProgressRoute && !dossierStudentId ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardProgressRoute ? (
+                <StudentProgressDossier
+                  studentId={dossierStudentId}
+                  currentUserRole={currentUser.role}
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onNavigateToRoute={navigate}
+                />
+              ) : isDashboardReportsRoute && isStudentWorkspace ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardReportsRoute ? (
                 <WorkflowReports

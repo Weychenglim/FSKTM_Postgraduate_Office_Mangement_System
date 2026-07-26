@@ -475,6 +475,7 @@ interface LecturerPanelAppointmentsProps {
   onNavigateToSubmitted?: () => void;
   onNavigateToReviewed?: () => void;
   onNavigateToAssignment?: (studentId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
@@ -486,6 +487,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   onNavigateToSubmitted,
   onNavigateToReviewed,
   onNavigateToAssignment,
+  onNavigateToDossier,
 }) => {
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
@@ -1196,18 +1198,27 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                             {formatWaitingText(recommendation)}
                           </td>
                           <td className="py-5 px-6 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedReviewerRole(activeReviewRole);
-                                setSelectedRecommendationReadOnly(false);
-                                setSelectedRecommendation(recommendation);
-                              }}
-                              className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Review</span>
-                            </button>
+                            <div className="flex flex-col items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToDossier?.(recommendation.studentId)}
+                                className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                              >
+                                View Dossier
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedReviewerRole(activeReviewRole);
+                                  setSelectedRecommendationReadOnly(false);
+                                  setSelectedRecommendation(recommendation);
+                                }}
+                                className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Review</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1226,6 +1237,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                 : 'No programme records can be displayed until a managed programme is assigned.'}
               records={coordinatorWorkspace?.records ?? []}
               showSupervisor
+              onViewDossier={(recommendation) => onNavigateToDossier?.(recommendation.studentId)}
               onView={(recommendation) => {
                 setSelectedReviewerRole('PROGRAMME_COORDINATOR');
                 setSelectedRecommendationReadOnly(true);
@@ -1325,12 +1337,21 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                           </span>
                         </td>
                         <td className="py-5 px-6 text-center">
-                          <button
-                            onClick={() => onNavigateToAssignment?.(asg.studentId)}
-                            className="inline-flex items-center gap-1 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
-                          >
-                            <span>View Assignment</span>
-                          </button>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onNavigateToDossier?.(asg.studentId)}
+                              className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => onNavigateToAssignment?.(asg.studentId)}
+                              className="inline-flex items-center gap-1 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
+                            >
+                              <span>View Assignment</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       ))
@@ -1369,6 +1390,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             title="Reviewed Requests"
             subtitle="Use this page as your read-only history for selected-panel decisions already made."
             records={reviewedRequests}
+            onViewDossier={(recommendation) => onNavigateToDossier?.(recommendation.studentId)}
             onView={(recommendation) => {
               setSelectedReviewerRole('SELECTED_PANEL');
               setSelectedRecommendationReadOnly(true);

@@ -65,6 +65,7 @@ interface PanelAppointmentManagementProps {
   onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
@@ -73,6 +74,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
+  onNavigateToDossier,
 }) => {
 
   // Panel records loaded from appointmentsApi (mock-backed today).
@@ -698,12 +700,20 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
                         {/* Action button trigger View detail */}
                         <td className="data-td px-3 align-top text-right">
-                          <button
-                            onClick={() => handleViewDetail(rec)}
-                            className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
-                          >
-                            View
-                          </button>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <button
+                              onClick={() => onNavigateToDossier?.(rec.id)}
+                              className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => handleViewDetail(rec)}
+                              className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
 
                       </tr>

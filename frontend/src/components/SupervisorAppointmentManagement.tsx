@@ -46,6 +46,7 @@ interface SupervisorAppointmentManagementProps {
   onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
@@ -54,6 +55,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
+  onNavigateToDossier,
 }) => {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -222,9 +224,14 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           }}
           subtitleClassName="leading-relaxed"
           actions={(
-            <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-              SESSION 2024/2025
-            </div>
+            <>
+              <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
+                View Dossier
+              </PortalButton>
+              <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+                SESSION 2024/2025
+              </div>
+            </>
           )}
         />
 
@@ -936,15 +943,23 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                         {/* Action - View Button */}
                         <td className="data-td text-center">
-                          <button
-                            onClick={() => {
-                              onNavigateToRecord?.(supervisorRecordRouteKey(r));
-                              showToast(`Loaded supervisor details for ${r.studentName}`);
-                            }}
-                            className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
-                          >
-                            View
-                          </button>
+                          <div className="flex flex-wrap justify-center gap-2">
+                            <button
+                              onClick={() => onNavigateToDossier?.(r.studentId)}
+                              className="px-3 py-1.5 border border-slate-200 bg-white text-blue-700 font-extrabold text-[10px] uppercase rounded-lg"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => {
+                                onNavigateToRecord?.(supervisorRecordRouteKey(r));
+                                showToast(`Loaded supervisor details for ${r.studentName}`);
+                              }}
+                              className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
 
                       </tr>

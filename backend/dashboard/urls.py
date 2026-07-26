@@ -14,4 +14,8 @@ urlpatterns = [
     path("summary/", views.dashboard_summary_view),
     path("reports/", views.workflow_report_view),
     path("reports/export/", views.workflow_report_export_view),
+    path(
+        "progress/<str:student_id>/",
+        views.student_progress_dossier_view,
+    ),
 ]

@@ -15,10 +15,12 @@ import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface CoordinatorSupervisorApprovalsProps {
   initialApplicationId?: string;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorApprovalsProps> = ({
   initialApplicationId,
+  onNavigateToDossier,
 }) => {
   const [records, setRecords] = useState<SupervisorApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +131,12 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <PortalButton
+                    variant="ghost"
+                    onClick={() => onNavigateToDossier?.(record.studentId)}
+                  >
+                    View Dossier
+                  </PortalButton>
                   <PortalButton
                     variant="secondary"
                     icon={XCircle}

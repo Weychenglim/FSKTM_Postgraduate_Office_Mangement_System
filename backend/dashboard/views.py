@@ -12,6 +12,7 @@ from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
 from .actions import build_dashboard_tasks
+from .dossiers import build_student_progress_dossier
 from .excel import build_template_workbook, parse_timeline_workbook
 from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
 from .reports import build_workflow_report, build_workflow_report_workbook
@@ -389,3 +390,14 @@ def workflow_report_export_view(request):
         'attachment; filename="workflow_analytics_report.xlsx"'
     )
     return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_progress_dossier_view(request, student_id):
+    return Response(
+        build_student_progress_dossier(
+            request.user,
+            student_id,
+        )
+    )

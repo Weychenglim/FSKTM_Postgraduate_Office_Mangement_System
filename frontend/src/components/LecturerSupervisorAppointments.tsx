@@ -550,7 +550,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 interface RequestCardProps {
   request: SupervisorRequest;
   onOpen: () => void;
-  onViewHistory: () => void;
+  onViewDossier: () => void;
 }
 
 /**
@@ -559,7 +559,7 @@ interface RequestCardProps {
 export const RequestCard: React.FC<RequestCardProps> = ({
   request,
   onOpen,
-  onViewHistory
+  onViewDossier,
 }) => {
   const initials = request.studentName
     .split(' ')
@@ -615,6 +615,13 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       <div className="mt-6 pt-1 flex flex-col gap-3">
         <button
           type="button"
+          onClick={onViewDossier}
+          className="w-full py-2 text-center text-blue-700 font-black uppercase text-[10px] tracking-wider hover:underline"
+        >
+          View Dossier
+        </button>
+        <button
+          type="button"
           onClick={onOpen}
           className="w-full py-3 text-center border border-brand-navy text-brand-navy font-black uppercase text-[10px] tracking-wider rounded-xl hover:bg-slate-50 transition-all duration-200 cursor-pointer"
         >
@@ -646,6 +653,7 @@ export const EmptyStateCard: React.FC = () => {
 interface DataTableProps {
   data: ActiveSuperviseeRow[];
   onOpenRow: (row: ActiveSuperviseeRow) => void;
+  onViewDossier: (studentId: string) => void;
   onFilterClick: () => void;
 }
 
@@ -655,6 +663,7 @@ interface DataTableProps {
 export const DataTable: React.FC<DataTableProps> = ({
   data,
   onOpenRow,
+  onViewDossier,
   onFilterClick
 }) => {
   return (
@@ -726,12 +735,21 @@ export const DataTable: React.FC<DataTableProps> = ({
                       <StatusChip status={row.status} />
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <button
-                        onClick={() => onOpenRow(row)}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onViewDossier(row.studentId)}
+                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                        >
+                          View Dossier
+                        </button>
+                        <button
+                          onClick={() => onOpenRow(row)}
                         className="px-4.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
-                      >
-                        Open
-                      </button>
+                        >
+                          Open
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -754,6 +772,7 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToList?: () => void;
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
@@ -764,6 +783,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToList,
   onNavigateToHistory,
   onNavigateToSupervisee,
+  onNavigateToDossier,
 }) => {
   // Supervisory load counter (workload widget). Stays local UI state: it tracks
   // remaining slots and is nudged as the lecturer approves/rejects requests.
@@ -988,7 +1008,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                   <RequestCard
                     request={req}
                     onOpen={() => handleOpenRequest(req)}
-                    onViewHistory={() => alert("Routing to appointment records.")}
+                    onViewDossier={() => onNavigateToDossier?.(req.studentId)}
                   />
                 </div>
               ))}
@@ -1009,6 +1029,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           <DataTable
             data={supervisees}
             onOpenRow={handleOpenSupervisee}
+            onViewDossier={(studentId) => onNavigateToDossier?.(studentId)}
             onFilterClick={() => showToast("Filters initialized. Click on candidate rows to begin edit updates.")}
           />
 
