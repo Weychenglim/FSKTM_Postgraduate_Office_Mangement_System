@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Navigate, matchPath, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, matchPath, useLocation, useNavigate } from 'react-router';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
 import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';

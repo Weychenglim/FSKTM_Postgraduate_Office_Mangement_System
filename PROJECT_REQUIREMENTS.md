@@ -217,6 +217,8 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Production Vite builds must explicitly disable source maps and fail their security guard if emitted files contain `.map`, `sourceMappingURL`, inline executable entry scripts, demo credentials, or testing-console content. Nginx must return `404` for all `.map` paths, including maps present in collected third-party static packages.
 - Inline styles remain temporarily permitted for current React dynamic layout behavior, but generated letter documents must register print behavior from the trusted application bundle instead of embedding inline scripts.
 - Frontend build tooling must keep Vite in `devDependencies` only on the patched 6.x line, keep `tsx` and its transitive `esbuild` on advisory-free versions, and provide an `npm run audit:security` command that fails on any known low-or-higher vulnerability.
+- Frontend routing must use patched `react-router` 8.3.0 or newer with React/React DOM 19.2.7 or newer and Node.js 22.22.0 or newer. The removed `react-router-dom` compatibility package must not be reintroduced.
+- All frontend dependency paths must resolve PostCSS to 8.5.18 or newer through the package-level npm override.
 
 ## Student Module Requirements
 
