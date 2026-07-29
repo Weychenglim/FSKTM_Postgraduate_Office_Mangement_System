@@ -39,26 +39,48 @@ export interface MarkRecord extends DeadlineMetadata {
 
 // Rubric components (UC26).
 export interface RubricComponent {
-  id: string;
+  id: number | string;
+  code?: string;
   name: string;
   description: string;
-  maxMarks: number;
+  maxMarks: number | string;
   required: boolean;
   status: 'ACTIVE' | 'INACTIVE';
+  isActive?: boolean;
   displayOrder?: number;
 }
 
-export interface EditableRubricWeight {
+export type EvaluationPeriodLifecycle = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
+export type EvaluationPeriodEffectiveStatus = 'DRAFT' | 'SCHEDULED' | 'OPEN' | 'CLOSED' | 'ARCHIVED';
+
+export interface MarksConfigurationAuditEvent {
   id: number;
-  name: string;
-  weight: number;
+  entityType: 'RUBRIC' | 'PERIOD';
+  entityId: number;
+  action: string;
+  actorName: string;
+  actorRole: string;
+  reason: string;
+  beforeValues: Record<string, unknown>;
+  afterValues: Record<string, unknown>;
+  createdAt: string;
 }
 
-export interface MarkRubricBreakdownRow {
-  component: string;
-  maxMarks: number;
-  marksAwarded: number;
-  feedback: string;
+export interface RubricVersion {
+  id: number;
+  familyCode: string;
+  code: string;
+  name: string;
+  description: string;
+  version: number;
+  targetMark: string;
+  componentTotal: string;
+  isReady: boolean;
+  isLocked: boolean;
+  isActive: boolean;
+  supersedesId: number | null;
+  components: RubricComponent[];
+  auditEvents?: MarksConfigurationAuditEvent[];
 }
 
 // Evaluation task assignment preview rows (UC25).
@@ -84,7 +106,86 @@ export interface EvaluationPeriodOption {
   opensAt: string | null;
   closesAt: string | null;
   isOpen: boolean;
+  lifecycleStatus: EvaluationPeriodLifecycle;
+  effectiveStatus: EvaluationPeriodEffectiveStatus;
+  publishedAt?: string | null;
+  closedAt?: string | null;
+  archivedAt?: string | null;
+  rubric?: RubricVersion;
+  auditEvents?: MarksConfigurationAuditEvent[];
   taskTotals: EvaluationTaskTotals;
+}
+
+export interface MarkRecordDetail extends DeadlineMetadata {
+  recordId: string;
+  taskId: number;
+  student: {
+    studentId: string;
+    name: string;
+    programme: string;
+    semester: string;
+    researchTitle: string;
+  };
+  evaluator: {
+    userId: number;
+    name: string;
+    email: string;
+    staffId: string;
+    department: string;
+    role: EvaluationTaskRole;
+    roleLabel: string;
+  };
+  assignment: {
+    assignedAt: string;
+    assignedBy: string | null;
+  };
+  period: DeadlineMetadata & {
+    id: number;
+    name: string;
+    semester: string;
+    opensAt: string | null;
+    closesAt: string | null;
+    lifecycleStatus: EvaluationPeriodLifecycle;
+    effectiveStatus: EvaluationPeriodEffectiveStatus;
+  };
+  rubric: {
+    id: number;
+    familyCode: string;
+    name: string;
+    version: number;
+    targetMark: string;
+    componentTotal: string;
+    components: Array<RubricComponent & {
+      marksAwarded: string | null;
+      feedback: string;
+    }>;
+  };
+  entry: {
+    status: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
+    totalMark: string | null;
+    comments: string;
+    submittedAt: string | null;
+    updatedAt: string | null;
+    isLocked: boolean;
+  };
+  overrideHistory: Array<{
+    id: number;
+    actorName: string;
+    originalEvaluator: string | null;
+    newEvaluator: string;
+    reason: string;
+    createdAt: string;
+  }>;
+  correctionHistory: Array<{
+    id: number;
+    action: 'CORRECT' | 'REOPEN';
+    actorName: string;
+    actorRole: string;
+    reason: string;
+    beforeValues: Record<string, unknown>;
+    afterValues: Record<string, unknown>;
+    createdAt: string;
+  }>;
 }
 
 export interface MarksAssignmentStudentOption {

@@ -289,3 +289,21 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Authorized Office Staff/Admin users may correct or reopen submitted marks through Django Admin with a mandatory reason and before/after audit values.
 - Mark totals must be recalculated by the backend and component marks must not exceed configured maximums.
 - Dashboard summaries must use live Supervisor, Panel, and Marks data with role and programme scoping.
+
+## Production Marks Management
+
+- Marks configuration is faculty-wide and persisted. Office Staff/Admin is the only portal role allowed to create or change rubric versions, rubric components, and evaluation periods.
+- Every rubric belongs to a stable version family, has a sequential version number and configurable target mark, and may reference the version it supersedes. A published-period or task-referenced version is immutable and must be cloned before further changes.
+- A rubric version is ready for publication only when it has active components and their maximum marks total exactly the configured target. Components are deactivated rather than physically deleted.
+- Evaluation periods follow `DRAFT`, `PUBLISHED`, `CLOSED`, and `ARCHIVED` lifecycle states. The UI derives `DRAFT`, `SCHEDULED`, `OPEN`, `CLOSED`, or `ARCHIVED` from lifecycle state and Kuala Lumpur timestamps.
+- Draft periods permit configuration changes. Published periods lock their name, semester, and rubric; only a closing-time extension with a mandatory reason is permitted. Closed periods may be archived and archived periods are hidden by default.
+- Publishing requires a ready rubric, a valid opening/closing range, and a unique non-archived faculty-wide name and semester. Evaluation and backup tasks may be created only for published periods that have not ended.
+- Every configuration mutation records an immutable actor, action, entity, reason, before value, after value, and timestamp audit.
+- Lecturer drafts and submissions are accepted only while a period is published and open. Submitted entries remain locked, duplicate submissions conflict, and authoritative totals are recalculated only from persisted component scores.
+- Draft updates remove persisted optional scores omitted from the request. Submission rejects duplicate, unknown, negative, over-maximum, or missing required component scores.
+- State conflicts, locked configuration, duplicate submission, and illegal lifecycle transitions return `409`; malformed input and score validation return `400`.
+- Office Staff/Admin Mark Record Detail must load one persisted record by stable record ID and show assignment, student/research summary, deadline, rubric version, component scores, comments, total, lock state, overrides, and read-only correction history.
+- Office Marks administration routes must fail closed in the frontend for Programme Coordinator, Lecturer, and Student users in addition to backend endpoint authorization.
+- Submitted-mark reopening and direct score or comment corrections remain restricted to audited Django Admin actions. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
+- Marks production screens must not ship mock records, browser-local period/rubric mutations, simulated sync controls, unsupported mark-sheet/PDF downloads, fake supporting documents, or notification dispatch behavior.
+- Marks remains tracking-only with `Not Started`, `Draft`, and `Submitted`; no approval or grade-classification stage is introduced.

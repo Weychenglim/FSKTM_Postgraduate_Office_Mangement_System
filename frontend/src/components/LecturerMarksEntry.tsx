@@ -4,13 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
+import {
   CheckSquare, 
   Clock, 
   Mail, 
   CheckCircle, 
   Search, 
-  FileDown, 
   AlertTriangle, 
   HelpCircle,
   ArrowLeft,
@@ -29,6 +28,7 @@ import { SubmittedMarkDetail } from './SubmittedMarkDetail';
 import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { formatDeadlineText } from '../utils/workflowAgeing';
+import { replaceEvaluationTask } from '../utils/marksProductionManagement';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
 
@@ -50,18 +50,6 @@ interface LecturerMarksEntryProps {
   onBackToDashboard?: () => void;
   onNavigateToDossier?: (studentId: string) => void;
 }
-
-// Helper: Calculate grade based on score
-const calculateGrade = (score: number): { grade: string; color: string } => {
-  if (score >= 80) return { grade: 'A', color: 'text-emerald-600' };
-  if (score >= 75) return { grade: 'A-', color: 'text-emerald-500' };
-  if (score >= 70) return { grade: 'B+', color: 'text-blue-600' };
-  if (score >= 65) return { grade: 'B', color: 'text-blue-500' };
-  if (score >= 60) return { grade: 'B-', color: 'text-indigo-500' };
-  if (score >= 55) return { grade: 'C+', color: 'text-amber-600' };
-  if (score >= 50) return { grade: 'C', color: 'text-amber-500' };
-  return { grade: 'F', color: 'text-rose-600 font-extrabold' };
-};
 
 // ==================== SUB-COMPONENTS ====================
 
@@ -116,7 +104,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   onBackToDashboard,
   onNavigateToDossier,
 }) => {
-  // 1. Core State — evaluation tasks loaded from marksApi (mock-backed today).
+  // Evaluation tasks are loaded from the persisted lecturer assignment API.
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,11 +177,6 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   // 4. Form controller actions
   const handleOpenForm = (task: EvaluationTask) => {
     setActiveFormTask(task);
-  };
-
-  const handleExportPDF = () => {
-    alert("Generating consolidated PDF export for your assigned entry tasks...");
-    triggerToast("PDF Marks export initialized. Download will start shortly.");
   };
 
   // Status Chip Component matching screenshot styling
@@ -360,13 +343,6 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                     <span>View Marks Entry History</span>
                   </button>
 
-                  <button
-                    onClick={handleExportPDF}
-                    className="inline-flex items-center gap-1.5 border border-slate-200 hover:bg-slate-50 py-2 px-3.5 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-3xs"
-                  >
-                    <FileDown className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Export PDF</span>
-                  </button>
                 </div>
               </div>
 
@@ -520,7 +496,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
               
               {/* Important Notice */}
-              <div className="lg:col-span-8 bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs hover:shadow-3xs transition text-left flex gap-4 items-start font-sans">
+              <div className="lg:col-span-12 bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs hover:shadow-3xs transition text-left flex gap-4 items-start font-sans">
                 <div className="w-[38px] h-[38px] rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
                   <Info className="w-4.5 h-4.5 text-blue-600 stroke-[2.3]" />
                 </div>
@@ -531,33 +507,6 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   <p className="text-slate-500 text-xs font-semibold leading-relaxed">
                     Please ensure all marks follow the configured rubric. Submission locks the record immediately; contact Office Staff if a correction requires reopening.
                   </p>
-                </div>
-              </div>
-
-              {/* Need Support? */}
-              <div className="lg:col-span-4 bg-brand-navy rounded-2xl p-5 shadow-sm text-left text-white flex flex-col justify-between space-y-4 relative overflow-hidden group">
-                <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-indigo-500/5 select-none pointer-events-none" />
-                
-                <div className="space-y-1 z-10">
-                  <h4 className="text-xs font-black uppercase text-indigo-300 tracking-wider">
-                    Need Support?
-                  </h4>
-                  <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
-                    Contact the technical helpdesk for issues regarding rubric calculations or submission errors.
-                  </p>
-                </div>
-
-                <div className="pt-1.5 z-10">
-                  <a
-                    href="#helpdesk"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert("Connecting to Helpdesk Support Ticket queue...");
-                    }}
-                    className="inline-block text-xs font-extrabold text-[#eff6ff] hover:text-indigo-200 underline underline-offset-4 decoration-indigo-400 select-all"
-                  >
-                    Contact Helpdesk
-                  </a>
                 </div>
               </div>
 
@@ -576,9 +525,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             onSave={async (updatedTask) => {
               try {
                 const savedTask = await saveMarkDraft(updatedTask);
-                setTasks((current) => current.map(
-                  (task) => task.studentId === savedTask.studentId ? savedTask : task,
-                ));
+                setTasks((current) => replaceEvaluationTask(current, savedTask));
                 setActiveFormTask(null);
                 triggerToast(`Draft saved successfully for ${savedTask.studentName}!`);
               } catch (reason) {
@@ -588,9 +535,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             onSubmit={async (updatedTask) => {
               try {
                 const submittedTask = await submitMarkEntry(updatedTask);
-                setTasks((current) => current.map(
-                  (task) => task.studentId === submittedTask.studentId ? submittedTask : task,
-                ));
+                setTasks((current) => replaceEvaluationTask(current, submittedTask));
                 setActiveFormTask(null);
                 triggerToast(`Marks finalized and submitted for ${submittedTask.studentName}!`);
               } catch (reason) {

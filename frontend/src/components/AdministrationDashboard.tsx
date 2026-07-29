@@ -18,7 +18,6 @@ interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
   onNavigateToRoute?: (route: string) => void;
   onNavigateToMarksRecords?: (statusTab?: MarkRecordStatusTab) => void;
-  onShowModal?: (modalType: 'period' | 'rubric' | 'generate' | 'help') => void;
   onNavigateToTimeline?: () => void;
 }
 
@@ -26,7 +25,6 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
   onNavigateToTab,
   onNavigateToRoute,
   onNavigateToMarksRecords,
-  onShowModal,
   onNavigateToTimeline
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);

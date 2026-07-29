@@ -1,466 +1,290 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  ChevronLeft,
-  Printer,
-  FileDown,
-  Lock,
-  FileText,
-  Clock,
-  ExternalLink,
-  Mail,
-  AlertCircle,
-  HelpCircle,
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  CalendarClock,
   CheckCircle2,
-  ChevronRight
+  ClipboardCheck,
+  History,
+  Lock,
+  UserRound,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
-import { MOCK_MARK_RUBRIC_BREAKDOWN } from '../mocks/rubrics';
+
+import { getMarkRecordById } from '../services';
+import type { MarkRecordDetail } from '../types';
+import { formatDeadlineText } from '../utils/workflowAgeing';
+import {
+  PageHeader,
+  PortalCard,
+  StatusBadge,
+  getStatusBadgeTone,
+} from './PortalPrimitives';
+import { ErrorState, LoadingState } from './StateViews';
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
-  recordId?: string;
-  studentId?: string;
-  studentName?: string;
-  researchTitle?: string;
-  panelMember?: string;
-  semester?: string;
-  programme?: string;
-  totalMark?: number | null | 'Draft';
-  submittedDate?: string;
+  recordId: string;
 }
+
+const displayDateTime = (value: string | null) => {
+  if (!value) return 'Not available';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Not available';
+  return parsed.toLocaleString('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const entryStatusLabel = (status: MarkRecordDetail['entry']['status']) => ({
+  NOT_STARTED: 'Not Started',
+  DRAFT: 'Draft',
+  SUBMITTED: 'Submitted',
+})[status];
 
 export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   onBack,
-  recordId = 'MRK-2025-021',
-  studentId = 'MEA2400712',
-  studentName = 'Nur Aina Rahman',
-  researchTitle = 'Blockchain-Based Academic Record Verification System',
-  panelMember = 'Dr. Sarah Lim',
-  semester = 'Sem 1 2025/2026',
-  programme = 'MSc. Computer Science',
-  totalMark = 84 as number | null | 'Draft',
-  submittedDate = '12 Dec 2025'
+  recordId,
 }) => {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [record, setRecord] = useState<MarkRecordDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  const loadRecord = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRecord(await getMarkRecordById(recordId));
+    } catch (loadError) {
+      setRecord(null);
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Mark record could not be loaded.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [recordId]);
 
-  const handlePrint = () => {
-    showToast("Opening browser print layout interface for Mark Sheet Record...");
-    window.print();
-  };
+  useEffect(() => {
+    void loadRecord();
+  }, [loadRecord]);
 
-  const handleExportPDF = () => {
-    showToast(`Downloading certified administrative mark transcript for student ${studentName}`);
-  };
+  if (loading) {
+    return <LoadingState message="Loading mark record..." />;
+  }
 
-  const [rubricRows] = useState(() => [...MOCK_MARK_RUBRIC_BREAKDOWN]);
+  if (error || !record) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Mark Entry Record Detail"
+          backLabel="Back to Mark Entry Records"
+          onBack={onBack}
+        />
+        <ErrorState
+          message={error || 'Mark record was not found.'}
+          onRetry={loadRecord}
+        />
+      </div>
+    );
+  }
+
+  const statusLabel = entryStatusLabel(record.entry.status);
+  const totalMark = record.entry.totalMark || '—';
 
   return (
-    <div id="mark-entry-record-detail" className="space-y-8 animate-fade-in text-left relative font-sans">
-      
-      <PortalToast message={toastMessage} />
-
+    <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
       <PageHeader
         title="Mark Entry Record Detail"
-        subtitle="View submitted marks, rubric breakdown, panel member information, and related documents."
+        subtitle={`${record.recordId} · persisted evaluator submission and audit history`}
         backLabel="Back to Mark Entry Records"
         onBack={onBack}
-        subtitleClassName="leading-relaxed"
         actions={(
-          <div className="flex items-center gap-3.5 self-start lg:self-auto font-sans select-none">
-          <button
-            onClick={handlePrint}
-            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition shadow-3xs cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-slate-550" />
-            <span>Print Record</span>
-          </button>
-
-          <button
-            onClick={handleExportPDF}
-            className="px-4 py-2.5 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition shadow-xs cursor-pointer"
-          >
-            <FileDown className="w-4 h-4 text-blue-300" />
-            <span>Export PDF</span>
-          </button>
-          </div>
+          <StatusBadge tone={getStatusBadgeTone(statusLabel)} dot>
+            {statusLabel}
+          </StatusBadge>
         )}
       />
 
-      {/* Main Core Columns Desk Grid */}
-      <div id="record-detail-layout-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left Column Area: Student Summary, Metrics overview, Rubric Breakdown table */}
-        <div id="record-detail-primary-desk" className="lg:col-span-8 space-y-6">
-          
-          {/* Card 1: Student & Submission Summary */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-3xs overflow-hidden">
-            <div className="bg-slate-50 px-6 py-4.5 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <StatusDot tone="info" className="w-2.5 h-2.5" />
-                <h3 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-                  Student & Submission Summary
-                </h3>
-              </div>
-              <StatusBadge tone="success" dot>
-                Submitted
-              </StatusBadge>
-            </div>
-
-            <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 text-left font-sans text-xs">
-              
-              <div className="md:col-span-1">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Student Name & ID
-                </span>
-                <span className="font-extrabold text-brand-navy text-base font-sans block leading-snug">
-                  {studentName} 
-                </span>
-                <span className="font-mono text-xs text-blue-600 font-bold block mt-0.5">
-                  ({studentId})
-                </span>
-              </div>
-
-              <div className="md:col-span-1">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Programme
-                </span>
-                <span className="font-extrabold text-slate-700 text-sm block">
-                  {programme}
-                </span>
-              </div>
-
-              <div className="md:col-span-2 border-t border-slate-100 pt-5">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Research Title
-                </span>
-                <span className="font-bold text-slate-800 text-xs italic leading-relaxed block">
-                  "{researchTitle}"
-                </span>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Semester
-                </span>
-                <span className="font-bold text-slate-700">
-                  {semester}
-                </span>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Panel Member
-                </span>
-                <span className="font-extrabold text-brand-navy">
-                  {panelMember}
-                </span>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Submission Date
-                </span>
-                <span className="font-bold text-slate-600 block">
-                  {submittedDate}
-                </span>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Submitted By
-                </span>
-                <span className="font-extrabold text-brand-navy">
-                  {panelMember}
-                </span>
-              </div>
-
-            </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 border-y border-slate-200">
+        {[
+          ['Total mark', `${totalMark} / ${record.rubric.targetMark}`],
+          ['Deadline', formatDeadlineText(record.period)],
+          ['Rubric', `${record.rubric.name} v${record.rubric.version}`],
+          ['Evaluator role', record.evaluator.roleLabel],
+        ].map(([label, value]) => (
+          <div key={label} className="min-w-0 border-b border-r border-slate-200 p-4 last:border-r-0 lg:border-b-0">
+            <span className="block text-[10px] font-extrabold uppercase text-slate-400">{label}</span>
+            <span className="mt-1 block truncate text-sm font-extrabold text-brand-navy" title={value}>{value}</span>
           </div>
+        ))}
+      </div>
 
-          {/* Three Score Cards side-by-side row */}
-          <div id="scores-metrics-cards-row" className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            
-            {/* Total Marks */}
-            <div className="bg-brand-navy text-white rounded-2xl p-5 shadow-xs relative overflow-hidden flex flex-col justify-between h-[105px]">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
-                Total Marks
-              </span>
-              <div className="flex items-baseline gap-1 pt-1.5">
-                <span className="text-3xl font-black font-sans leading-none">
-                  {totalMark !== 'Draft' ? totalMark : '0'}
-                </span>
-                <span className="text-slate-400 text-xs font-bold">/ 100</span>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)] gap-6 items-start">
+        <div className="space-y-6">
+          <PortalCard padding="lg" className="rounded-lg">
+            <div className="mb-5 flex items-center gap-2">
+              <UserRound className="h-4 w-4 text-slate-500" />
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">
+                Student and assignment
+              </h2>
+            </div>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 text-xs">
+              <div>
+                <dt className="font-extrabold uppercase text-slate-400">Student</dt>
+                <dd className="mt-1 text-sm font-extrabold text-brand-navy">{record.student.name}</dd>
+                <dd className="mt-0.5 font-mono text-blue-700">{record.student.studentId}</dd>
               </div>
-            </div>
-
-            {/* Final Grade */}
-            <div className="bg-white border border-slate-205 rounded-2xl p-5 shadow-2xs flex flex-col justify-between h-[105px]">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block text-left">
-                Final Grade
-              </span>
-              <span className="text-blue-600 font-black text-3xl font-sans self-center py-1">
-                {totalMark !== 'Draft' && totalMark !== null ? (totalMark >= 80 ? 'A' : totalMark >= 75 ? 'A-' : totalMark >= 70 ? 'B+' : 'B') : '-'}
-              </span>
-            </div>
-
-            {/* Last Updated */}
-            <div className="bg-white border border-slate-205 rounded-2xl p-5 shadow-2xs flex flex-col justify-between h-[105px] text-left">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
-                Last Updated
-              </span>
-              <div className="flex flex-col text-left leading-tight py-1">
-                <span className="text-xs font-black text-brand-navy">
-                  {submittedDate}
-                </span>
-                <span className="text-[9px] text-slate-400 font-mono mt-1 font-bold">
-                  03:45 PM (GMT+8)
-                </span>
+              <div>
+                <dt className="font-extrabold uppercase text-slate-400">Programme</dt>
+                <dd className="mt-1 font-bold text-slate-700">{record.student.programme}</dd>
               </div>
-            </div>
+              <div className="md:col-span-2">
+                <dt className="font-extrabold uppercase text-slate-400">Research title</dt>
+                <dd className="mt-1 font-bold leading-relaxed text-slate-700">{record.student.researchTitle}</dd>
+              </div>
+              <div>
+                <dt className="font-extrabold uppercase text-slate-400">Evaluator</dt>
+                <dd className="mt-1 font-extrabold text-slate-800">{record.evaluator.name}</dd>
+                <dd className="mt-0.5 text-slate-500">{record.evaluator.staffId || record.evaluator.email}</dd>
+              </div>
+              <div>
+                <dt className="font-extrabold uppercase text-slate-400">Assigned</dt>
+                <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.assignment.assignedAt)}</dd>
+                <dd className="mt-0.5 text-slate-500">By {record.assignment.assignedBy || 'automatic assignment'}</dd>
+              </div>
+            </dl>
+          </PortalCard>
 
-          </div>
-
-          {/* Card 3: Rubric Breakdown Table */}
-          <div className="bg-white rounded-2xl border border-slate-200/95 shadow-3xs overflow-hidden">
-            
-            <div className="bg-slate-50 px-6 py-4.5 border-b border-white flex items-center justify-between">
+          <PortalCard padding="none" className="overflow-hidden rounded-lg">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-500" />
-                <h3 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-                  Rubric Breakdown
-                </h3>
+                <ClipboardCheck className="h-4 w-4 text-slate-500" />
+                <h2 className="text-xs font-extrabold uppercase text-slate-600">
+                  Rubric breakdown
+                </h2>
               </div>
-
-              {/* Read Only lock badge */}
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-black tracking-widest uppercase rounded">
-                <Lock className="w-2.5 h-2.5 text-slate-400" />
-                <span>Read-Only</span>
-              </span>
+              {record.entry.isLocked ? (
+                <StatusBadge tone="neutral" icon={Lock}>Read-only</StatusBadge>
+              ) : null}
             </div>
-
-            {/* Rubric metrics list */}
             <div className="overflow-x-auto">
-              <table className="data-table min-w-[650px]">
+              <table className="data-table min-w-[700px]">
                 <thead>
-                  <tr className="data-thead bg-[#f8fafc]">
+                  <tr className="data-thead">
                     <th className="data-th">Component</th>
-                    <th className="data-th text-center">Max Marks</th>
-                    <th className="data-th text-center">Marks Awarded</th>
+                    <th className="data-th text-center">Maximum</th>
+                    <th className="data-th text-center">Awarded</th>
                     <th className="data-th">Feedback</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-sans">
-                  {rubricRows.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/40 transition">
-                      
-                      {/* Component label */}
-                      <td className="data-td-strong">
-                        {row.component}
+                <tbody>
+                  {record.rubric.components.map((component) => (
+                    <tr key={component.id}>
+                      <td className="data-td">
+                        <span className="block font-extrabold text-slate-800">{component.name}</span>
+                        {component.description ? <span className="mt-1 block text-[10px] text-slate-500">{component.description}</span> : null}
                       </td>
-
-                      {/* Weight marks */}
-                      <td className="data-td text-center">
-                        {row.maxMarks}
-                      </td>
-
-                      {/* Marks awarded */}
-                      <td className="data-td-strong text-center">
-                        {row.marksAwarded}
-                      </td>
-
-                      {/* Qualitative Comments / Feedback */}
-                      <td className="data-td italic">
-                        "{row.feedback}"
-                      </td>
-
+                      <td className="data-td text-center font-bold">{component.maxMarks}</td>
+                      <td className="data-td text-center font-extrabold text-brand-navy">{component.marksAwarded ?? '—'}</td>
+                      <td className="data-td">{component.feedback || 'No component feedback'}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-slate-50">
+                    <td className="px-4 py-3 text-xs font-extrabold text-slate-700">Calculated total</td>
+                    <td className="px-4 py-3 text-center text-xs font-bold text-slate-600">{record.rubric.targetMark}</td>
+                    <td className="px-4 py-3 text-center text-sm font-black text-brand-navy">{totalMark}</td>
+                    <td />
+                  </tr>
+                </tfoot>
               </table>
             </div>
+          </PortalCard>
 
-            {/* Large banner text summary total score display aligned perfectly with screenshot bottom */}
-            <div className="bg-slate-50/50 p-6 border-t border-slate-100 flex items-center justify-between px-8">
-              <div className="text-slate-700 font-bold text-sm tracking-tight font-sans">
-                Total Score:
-              </div>
-              <div className="flex items-baseline gap-1.5 text-blue-600">
-                <span className="font-black text-2xl md:text-3xl font-sans tracking-tight">
-                  84
-                </span>
-                <span className="text-sm font-bold text-blue-400">/ 100</span>
-              </div>
-            </div>
-
-          </div>
-
+          <PortalCard padding="lg" className="rounded-lg">
+            <h2 className="text-xs font-extrabold uppercase text-slate-600">Overall comments</h2>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+              {record.entry.comments || 'No overall comments were entered.'}
+            </p>
+          </PortalCard>
         </div>
 
-        {/* Right Column Area: Related documents, Record Status, Notice informative card, Assistance */}
-        <div id="record-detail-aside" className="lg:col-span-4 space-y-6">
-
-          {/* 1. Related Documents Card */}
-          <div className="bg-white rounded-2xl border border-slate-205 p-5 text-left shadow-2xs">
-            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-slate-400" />
-              <span>Related Documents</span>
-            </h4>
-
-            <ul className="space-y-4">
-              <li className="flex items-center justify-between text-xs font-sans">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="w-4.5 h-4.5 text-red-500/80 shrink-0" />
-                  <span className="font-bold text-slate-700 truncate max-w-[170px] cursor-help" title="Proposal description sheet candidate">
-                    Proposal.pdf
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => showToast("Opening document: Proposal.pdf...")}
-                  className="text-blue-600 text-[10px] font-extrabold tracking-wide uppercase hover:underline cursor-pointer"
-                >
-                  View
-                </button>
-              </li>
-
-              <li className="flex items-center justify-between text-xs font-sans">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="w-4.5 h-4.5 text-[#0d226a]/80 shrink-0" />
-                  <span className="font-bold text-slate-700 truncate max-w-[170px]" title="Evaluation Rubric template configured">
-                    Evaluation Rubric.pdf
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => showToast("Opening document: Evaluation Rubric.pdf...")}
-                  className="text-blue-600 text-[10px] font-extrabold tracking-wide uppercase hover:underline cursor-pointer"
-                >
-                  View
-                </button>
-              </li>
-
-              <li className="flex items-center justify-between text-xs font-sans">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="w-4.5 h-4.5 text-amber-500/80 shrink-0" />
-                  <span className="font-bold text-slate-700 truncate max-w-[170px]" title="Presentation slides draft uploaded">
-                    Presentation Slides.pdf
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => showToast("Opening document: Presentation Slides.pdf...")}
-                  className="text-blue-600 text-[10px] font-extrabold tracking-wide uppercase hover:underline cursor-pointer"
-                >
-                  View
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* 2. Record Status Diagnosis Tracking */}
-          <div className="bg-white rounded-2xl border border-slate-205 p-5 text-left shadow-2xs text-xs font-sans">
-            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-slate-400" />
-              <span>Record Status</span>
-            </h4>
-
-            <div className="space-y-4 font-sans">
-              
+        <aside className="space-y-6">
+          <PortalCard padding="lg" className="rounded-lg">
+            <div className="mb-5 flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-slate-500" />
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">Period status</h2>
+            </div>
+            <dl className="space-y-4 text-xs">
               <div>
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Mark Entry Period
-                </span>
-                <span className="font-bold text-slate-700 block text-xs">
-                  01 Dec - 10 Dec 2025
-                </span>
+                <dt className="font-extrabold uppercase text-slate-400">Period</dt>
+                <dd className="mt-1 font-bold text-slate-700">{record.period.name}</dd>
               </div>
-
               <div>
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Submission Status
-                </span>
-                <span className="font-extrabold text-emerald-600 text-xs block">
-                  Submitted
-                </span>
+                <dt className="font-extrabold uppercase text-slate-400">Window</dt>
+                <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.period.opensAt)}</dd>
+                <dd className="mt-0.5 font-bold text-slate-700">{displayDateTime(record.period.closesAt)}</dd>
               </div>
-
               <div>
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">
-                  Verification Status
-                </span>
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-600 font-sans">
-                  <StatusDot tone="warning" pulse className="w-2.5 h-2.5" />
-                  <span>Pending Office Verification</span>
-                </div>
+                <dt className="font-extrabold uppercase text-slate-400">Submitted</dt>
+                <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.entry.submittedAt)}</dd>
               </div>
+              <div>
+                <dt className="font-extrabold uppercase text-slate-400">Last updated</dt>
+                <dd className="mt-1 font-bold text-slate-700">{displayDateTime(record.entry.updatedAt)}</dd>
+              </div>
+            </dl>
+          </PortalCard>
 
-              <div className="border-t border-slate-100 pt-3.5 mt-2">
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
-                  Last Updated By
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-black text-[9px]">
-                    SL
+          <PortalCard padding="lg" className="rounded-lg">
+            <div className="mb-5 flex items-center gap-2">
+              <History className="h-4 w-4 text-slate-500" />
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">Correction history</h2>
+            </div>
+            {record.correctionHistory.length === 0 ? (
+              <p className="text-xs font-medium text-slate-500">No corrections or reopening events.</p>
+            ) : (
+              <div className="space-y-4">
+                {record.correctionHistory.map((event) => (
+                  <div key={event.id} className="border-l-2 border-blue-200 pl-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="font-extrabold text-slate-700">{event.action}</span>
+                    </div>
+                    <p className="mt-1 font-semibold text-slate-600">{event.reason}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {displayDateTime(event.createdAt)}</p>
                   </div>
-                  <span className="text-xs font-bold text-slate-700">Dr. Sarah Lim</span>
-                </div>
+                ))}
               </div>
+            )}
+          </PortalCard>
 
-            </div>
-          </div>
-
-          {/* 3. Notice Blue Card with stylized icon */}
-          <div className="bg-[#eff6ff] rounded-2xl border border-blue-100 p-5 text-left relative overflow-hidden shadow-2xs">
-            <div className="flex items-start gap-4 z-10 relative">
-              <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-xs font-sans font-black text-sm">
-                i
+          {record.overrideHistory.length > 0 ? (
+            <PortalCard padding="lg" className="rounded-lg">
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">Evaluator overrides</h2>
+              <div className="mt-4 space-y-4">
+                {record.overrideHistory.map((event) => (
+                  <div key={event.id} className="text-xs">
+                    <p className="font-bold text-slate-700">{event.newEvaluator}</p>
+                    <p className="mt-1 text-slate-600">{event.reason}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">{displayDateTime(event.createdAt)}</p>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <h4 className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
-                  Notice
-                </h4>
-                <p className="text-blue-700 hover:text-blue-900 text-[11px] font-sans font-medium leading-relaxed">
-                  This page provides a read-only administrative view of the mark entry record. Office Staff/Admin can monitor submission status but cannot edit submitted marks.
-                </p>
-              </div>
-            </div>
-
-            {/* Giant elegant floating semi-transparent 'i' letter watermark */}
-            <div className="absolute right-[-15px] bottom-[-25px] text-blue-200/40 pointer-events-none select-none font-sans font-black text-9xl">
-              i
-            </div>
-          </div>
-
-          {/* 4. Support & Assistance Contact card */}
-          <div className="bg-white rounded-2xl border border-slate-205 p-4.5 text-left shadow-3xs flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 border border-blue-100/50">
-              <Mail className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-extrabold text-slate-450 uppercase tracking-widest block leading-none">
-                Support & Assistance
-              </span>
-              <span className="text-slate-800 font-extrabold text-xs block mt-1 pointer-events-auto select-all selection:bg-blue-200">
-                pg.fsktm@um.edu.my
-              </span>
-            </div>
-          </div>
-
-        </div>
-
+            </PortalCard>
+          ) : null}
+        </aside>
       </div>
-
     </div>
   );
 };

@@ -23,7 +23,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
-import type { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem } from './types';
+import type { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem, RubricVersion } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
 import {
   APP_ROUTES,
@@ -45,15 +45,21 @@ import {
   routeForSidebarItem,
   sidebarItemForPath,
 } from './constants/routes';
-import { canAccessModule } from './auth/permissions';
+import {
+  canAccessMarksAdministration,
+  canAccessModule,
+} from './auth/permissions';
 import * as authApi from './services/authApi';
 import { clearAuthToken } from './services/apiClient';
-import { getEvaluationPeriods } from './services/marksApi';
+import { getEvaluationPeriods, getRubricVersions } from './services/marksApi';
 import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
-import { MOCK_MARK_RECORDS } from './mocks/marks';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { MarkRecordStatusTab } from './utils/markRecords';
+import {
+  buildMarksSetupChecklist,
+  formatPeriodStatus,
+} from './utils/marksProductionManagement';
 
 const lazyNamed = (
   exportName: string,
@@ -99,22 +105,6 @@ const ModuleLoadingFallback = () => (
     Loading workspace...
   </div>
 );
-
-// Data mapper to pass true metadata dynamically into MarkEntryRecordDetail
-const getRecordDetails = (id: string) => {
-  const record = MOCK_MARK_RECORDS.find((r) => r.id === id) || MOCK_MARK_RECORDS[0];
-  return {
-    recordId: record.id,
-    studentId: record.studentId,
-    studentName: record.studentName,
-    researchTitle: record.researchTitle,
-    panelMember: record.panelMember,
-    semester: record.semester,
-    programme: record.programme,
-    totalMark: record.totalMark,
-    submittedDate: record.submittedDate,
-  };
-};
 
 const formatPeriodDate = (value?: string | null) => {
   if (!value) return '';
@@ -176,9 +166,10 @@ export default function App() {
   const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');
   const [marksDashboardSummary, setMarksDashboardSummary] = useState<DashboardSummary | null>(null);
   const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriodOption[]>([]);
+  const [rubricVersions, setRubricVersions] = useState<RubricVersion[]>([]);
 
   // Trigger states for modals in the main dashboard workspace
-  const [activePortalModal, setActivePortalModal] = useState<'period' | 'rubric' | 'generate' | 'help' | null>(null);
+  const [activePortalModal, setActivePortalModal] = useState<'help' | null>(null);
   const [appToastMessage, setAppToastMessage] = useState<string | null>(null);
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
@@ -211,6 +202,13 @@ export default function App() {
   const isMarksRubricsRoute = pathname === APP_ROUTES.marksRubrics;
   const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
   const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
+  const isMarksAdministrationRoute = (
+    isMarksConfigRoute
+    || isMarksRubricsRoute
+    || isMarksTasksRoute
+    || isMarksRecordsRoute
+    || Boolean(markRecordId)
+  );
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
@@ -245,20 +243,23 @@ export default function App() {
     if (currentUser?.role !== 'Office Staff/Admin') {
       setMarksDashboardSummary(null);
       setEvaluationPeriods([]);
+      setRubricVersions([]);
       return;
     }
 
     let cancelled = false;
-    Promise.all([getDashboardSummary(), getEvaluationPeriods()])
-      .then(([dashboardSummary, periods]) => {
+    Promise.all([getDashboardSummary(), getEvaluationPeriods(), getRubricVersions()])
+      .then(([dashboardSummary, periods, rubrics]) => {
         if (cancelled) return;
         setMarksDashboardSummary(dashboardSummary);
         setEvaluationPeriods(periods);
+        setRubricVersions(rubrics);
       })
       .catch(() => {
         if (cancelled) return;
         setMarksDashboardSummary(null);
         setEvaluationPeriods([]);
+        setRubricVersions([]);
       });
 
     return () => {
@@ -271,7 +272,15 @@ export default function App() {
     navigate(APP_ROUTES.marksRecords);
   };
 
-  const activeEvaluationPeriod = evaluationPeriods.find((period) => period.isOpen) || evaluationPeriods[0];
+  const activeEvaluationPeriod = (
+    evaluationPeriods.find((period) => period.effectiveStatus === 'OPEN')
+    || evaluationPeriods.find((period) => period.effectiveStatus === 'SCHEDULED')
+    || evaluationPeriods[0]
+  );
+  const activeRubric = (
+    rubricVersions.find((rubric) => rubric.id === activeEvaluationPeriod?.rubricId)
+    || rubricVersions.find((rubric) => rubric.isActive)
+  );
   const activePeriodDates = activeEvaluationPeriod
     ? [formatPeriodDate(activeEvaluationPeriod.opensAt), formatPeriodDate(activeEvaluationPeriod.closesAt)]
         .filter(Boolean)
@@ -285,22 +294,21 @@ export default function App() {
   const submittedMarkTasks = taskTotals?.submitted ?? marksDashboardSummary?.submittedMarkEntries ?? 0;
   const incompleteMarkTasks = taskTotals?.incomplete ?? marksDashboardSummary?.incompleteMarkEntries ?? 0;
 
-  // Setup checklist data
-  const checklistTasks: ChecklistItem[] = [
-    { id: '1', taskName: 'Configure mark entry period', status: 'COMPLETED', actionLabel: 'Open' },
-    { id: '2', taskName: 'Define rubric components', status: 'COMPLETED', actionLabel: 'View' },
-    { id: '3', taskName: 'Generate evaluation tasks', status: 'COMPLETED', actionLabel: 'View' },
-    { id: '4', taskName: 'Notify panel members', status: 'COMPLETED', actionLabel: 'View' }
-  ];
+  const checklistTasks: ChecklistItem[] = buildMarksSetupChecklist(
+    evaluationPeriods,
+    rubricVersions,
+  );
 
   // Handler when clicking checklist steps
   const handleChecklistAction = (item: ChecklistItem) => {
-    if (item.id === '1') {
+    if (item.id === 'period') {
       navigate(APP_ROUTES.marksConfig);
-    } else if (item.id === '2') {
+    } else if (item.id === 'rubric') {
       navigate(APP_ROUTES.marksRubrics);
-    } else if (item.id === '3' || item.id === '4') {
+    } else if (item.id === 'tasks') {
       navigate(APP_ROUTES.marksTasks);
+    } else {
+      navigate(APP_ROUTES.marksRecords);
     }
   };
 
@@ -396,6 +404,12 @@ export default function App() {
   if (!canAccessModule(currentUser.role, activeSidebarItem)) {
     return <Navigate to={defaultAuthenticatedRoute} replace />;
   }
+  if (
+    isMarksAdministrationRoute
+    && !canAccessMarksAdministration(currentUser.role)
+  ) {
+    return <Navigate to={defaultAuthenticatedRoute} replace />;
+  }
 
   return (
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
@@ -440,7 +454,7 @@ export default function App() {
               ) : markRecordId ? (
                 <MarkEntryRecordDetail
                   onBack={() => navigate(APP_ROUTES.marksRecords)}
-                  {...getRecordDetails(markRecordId)}
+                  recordId={markRecordId}
                 />
               ) : (
                 /* Main Dashboard Marks Entry View workspace */
@@ -460,7 +474,7 @@ export default function App() {
                   <div id="summary-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     <SummaryCard
                       title="Mark Entry Period"
-                      badgeText={activeEvaluationPeriod?.isOpen ? 'Active' : 'Configured'}
+                      badgeText={activeEvaluationPeriod ? formatPeriodStatus(activeEvaluationPeriod.effectiveStatus) : 'Not configured'}
                       badgeType={activeEvaluationPeriod?.isOpen ? 'active' : 'ready'}
                       subtext={activePeriodDates}
                       icon={Calendar}
@@ -468,9 +482,11 @@ export default function App() {
                     />
                     <SummaryCard
                       title="Rubric Components"
-                      badgeText="Ready"
-                      badgeType="ready"
-                      subtext="5 components, 100 marks"
+                      badgeText={activeRubric?.isReady ? 'Ready' : 'Needs work'}
+                      badgeType={activeRubric?.isReady ? 'ready' : 'generated'}
+                      subtext={activeRubric
+                        ? `${activeRubric.components.filter((component) => component.isActive ?? component.status === 'ACTIVE').length} components, ${activeRubric.componentTotal} / ${activeRubric.targetMark} marks`
+                        : 'No active rubric configured'}
                       icon={Sliders}
                       onClick={() => navigate(APP_ROUTES.marksRubrics)}
                     />
@@ -512,7 +528,12 @@ export default function App() {
                     <div id="right-column-layout" className="lg:col-span-4 space-y-8">
                       
                       {/* Attention Needed items */}
-                      <AlertListCard />
+                      <AlertListCard
+                        periods={evaluationPeriods}
+                        rubrics={rubricVersions}
+                        onViewRecords={openMarkRecords}
+                        onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)}
+                      />
 
                       {/* Quick Actions buttons with Database state indicators */}
                       <QuickActionsCard
@@ -676,7 +697,6 @@ export default function App() {
                   }}
                   onNavigateToRoute={navigate}
                   onNavigateToMarksRecords={openMarkRecords}
-                  onShowModal={setActivePortalModal}
                   onNavigateToTimeline={() => navigate(routeForDashboardTimeline())}
                 />
               )

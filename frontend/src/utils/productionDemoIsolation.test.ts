@@ -83,6 +83,18 @@ try {
   assert.equal(bundleText.includes('Portal Testing Console'), false);
   assert.equal(bundleText.includes('click any character role'), false);
   assert.equal(bundleText.includes('DEMO-STUDENT-001'), false);
+  for (const marksCanary of [
+    'MOCK_MARK_RECORDS',
+    'MOCK_MARK_RUBRIC_BREAKDOWN',
+    'VITE_USE_MARKS_BACKEND',
+    'Notify panel members',
+  ]) {
+    assert.equal(
+      bundleText.includes(marksCanary),
+      false,
+      `production bundle contains legacy Marks content: ${marksCanary}`,
+    );
+  }
   assert.equal(
     bundlePaths.some((filePath) => filePath.endsWith('.map')),
     false,

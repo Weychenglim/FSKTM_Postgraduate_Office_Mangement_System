@@ -1,377 +1,498 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { FormCard } from './FormCard';
-import { FormInput } from './FormInput';
-import { FormSelect } from './FormSelect';
-import { ToggleSwitch } from './ToggleSwitch';
-import { ValidationRulesCard } from './ValidationRulesCard';
-import { AuditLogCard } from './AuditLogCard';
-import { DataTable, TableRow } from './DataTable';
-import { SummaryCard } from './SummaryCard';
-import { ActionButton } from './ActionButton';
-import { ChevronLeft, Sliders, Calendar, AlertTriangle, Filter, Download } from 'lucide-react';
-import { motion } from 'motion/react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Archive,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  Plus,
+  Save,
+  XCircle,
+} from 'lucide-react';
+
+import {
+  archiveEvaluationPeriod,
+  closeEvaluationPeriod,
+  createEvaluationPeriod,
+  getEvaluationPeriod,
+  getEvaluationPeriods,
+  getRubricVersions,
+  publishEvaluationPeriod,
+  updateEvaluationPeriod,
+} from '../services';
+import type {
+  EvaluationPeriodOption,
+  RubricVersion,
+} from '../types';
+import {
+  formatPeriodStatus,
+  marksMutationErrorMessage,
+  toDateTimeLocalValue,
+} from '../utils/marksProductionManagement';
+import {
+  PageHeader,
+  PortalButton,
+  PortalCard,
+  PortalToast,
+  StatusBadge,
+  getStatusBadgeTone,
+} from './PortalPrimitives';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
 }
 
-export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({ onBack }) => {
-  // Existing periods mock state so we can let the user click 'Edit' or 'View' and modify them!
-  const [existingPeriods, setExistingPeriods] = useState<TableRow[]>([
-    {
-      id: '1',
-      semester: 'Sem 1 2025/2026',
-      evaluationStage: 'EE Evaluation',
-      startDate: '01 Dec 2025',
-      endDate: '10 Dec 2025',
-      deadline: '10 Dec 2025',
-      status: 'Active'
-    },
-    {
-      id: '2',
-      semester: 'Sem 1 2025/2026',
-      evaluationStage: 'Proposal Evaluation',
-      startDate: '15 Nov 2025',
-      endDate: '22 Nov 2025',
-      deadline: '22 Nov 2025',
-      status: 'Closed'
-    },
-    {
-      id: '3',
-      semester: 'Sem 2 2024/2025',
-      evaluationStage: 'EE Evaluation',
-      startDate: '01 May 2025',
-      endDate: '10 May 2025',
-      deadline: '10 May 2025',
-      status: 'Closed'
-    }
-  ]);
+type PeriodForm = {
+  name: string;
+  semester: string;
+  rubricId: string;
+  opensAt: string;
+  closesAt: string;
+};
 
-  // Form Fields states initialized with Row 1 data (Active configuration)
-  const [semester, setSemester] = useState('Sem 1 2025/2026');
-  const [evaluationStage, setEvaluationStage] = useState('EE Evaluation');
-  const [startDateStr, setStartDateStr] = useState('12/01/2025');
-  const [endDateStr, setEndDateStr] = useState('12/10/2025');
-  const [deadlineStr, setDeadlineStr] = useState('12/10/2025, 11:59 PM');
-  const [gracePeriodDays, setGracePeriodDays] = useState('2');
-  const [isActiveSubmission, setIsActiveSubmission] = useState(true);
+const EMPTY_FORM: PeriodForm = {
+  name: '',
+  semester: '',
+  rubricId: '',
+  opensAt: '',
+  closesAt: '',
+};
 
-  // For visual notification state on successful updating
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+const displayDateTime = (value: string | null) => {
+  if (!value) return 'Not configured';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Invalid date';
+  return parsed.toLocaleString('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
-  // Active Semester Card, Period Status Card, Start Date Card, End Date Card states
-  // We can derive or link them directly to the active form inputs!
-  const deriveSemester = semester;
-  const deriveStatusText = isActiveSubmission ? 'Active' : 'Closed';
-  
-  // Format summary dates nicely to read "01 Dec 2025" style
-  const formatDateDisplay = (dateSlash: string) => {
+export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
+  onBack,
+}) => {
+  const [periods, setPeriods] = useState<EvaluationPeriodOption[]>([]);
+  const [rubrics, setRubrics] = useState<RubricVersion[]>([]);
+  const [selected, setSelected] = useState<EvaluationPeriodOption | null>(null);
+  const [form, setForm] = useState<PeriodForm>(EMPTY_FORM);
+  const [reason, setReason] = useState('');
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3500);
+  };
+
+  const loadWorkspace = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const parts = dateSlash.split('/');
-      if (parts.length === 3) {
-        const monthNum = parseInt(parts[0], 10);
-        const day = parts[1].padStart(2, '0');
-        const year = parts[2];
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        if (monthNum >= 1 && monthNum <= 12) {
-          return `${day} ${months[monthNum - 1]} ${year}`;
+      const [periodRows, rubricRows] = await Promise.all([
+        getEvaluationPeriods(includeArchived),
+        getRubricVersions(),
+      ]);
+      setPeriods(periodRows);
+      setRubrics(rubricRows);
+      if (selected) {
+        const refreshed = periodRows.find((period) => period.id === selected.id);
+        if (!refreshed) {
+          setSelected(null);
+          setForm(EMPTY_FORM);
         }
       }
-    } catch (e) {
-      // fallback
+    } catch (loadError) {
+      setError(marksMutationErrorMessage(loadError));
+    } finally {
+      setLoading(false);
     }
-    return dateSlash;
+  }, [includeArchived, selected]);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [includeArchived]);
+
+  const readyRubrics = useMemo(
+    () => rubrics.filter((rubric) => rubric.isActive && rubric.isReady),
+    [rubrics],
+  );
+
+  const beginNew = () => {
+    setSelected(null);
+    setForm({
+      ...EMPTY_FORM,
+      rubricId: readyRubrics[0] ? String(readyRubrics[0].id) : '',
+    });
+    setReason('');
+    setError(null);
   };
 
-  const handleEditRow = (row: TableRow) => {
-    // Populate form with row values
-    setSemester(row.semester);
-    setEvaluationStage(row.evaluationStage);
-    
-    // convert human dates '01 Dec 2025' back into values if needed, or keep simple string copies
-    if (row.startDate === '01 Dec 2025') setStartDateStr('12/01/2025');
-    else if (row.startDate === '15 Nov 2025') setStartDateStr('11/15/2025');
-    else if (row.startDate === '01 May 2025') setStartDateStr('05/01/2025');
-    else setStartDateStr(row.startDate);
-
-    if (row.endDate === '10 Dec 2025') setEndDateStr('12/10/2025');
-    else if (row.endDate === '22 Nov 2025') setEndDateStr('11/22/2025');
-    else if (row.endDate === '10 May 2025') setEndDateStr('05/10/2025');
-    else setEndDateStr(row.endDate);
-
-    if (row.deadline === '10 Dec 2025') setDeadlineStr('12/10/2025, 11:59 PM');
-    else if (row.deadline === '22 Nov 2025') setDeadlineStr('11/22/2025, 11:59 PM');
-    else if (row.deadline === '10 May 2025') setDeadlineStr('05/10/2025, 11:59 PM');
-    else setDeadlineStr(row.deadline);
-
-    setGracePeriodDays('2');
-    setIsActiveSubmission(row.status.toLowerCase() === 'active');
-
-    // Show a small UI scroll notification
-    setToastMessage(`Loaded "${row.semester} - ${row.evaluationStage}" into the editor below.`);
-    setTimeout(() => setToastMessage(null), 3500);
-
-    // smooth scroll to editor
-    const editorEl = document.getElementById('config-editor-focus');
-    if (editorEl) {
-      editorEl.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleViewRow = (row: TableRow) => {
-    handleEditRow(row);
-  };
-
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmitConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    
-    setTimeout(() => {
-      setSaving(false);
-      
-      // Update table state dynamically
-      const updatedList = existingPeriods.map((p) => {
-        // match by semester and evaluationStage for simple mockup updates
-        if (p.semester === semester && p.evaluationStage === evaluationStage) {
-          return {
-            ...p,
-            startDate: formatDateDisplay(startDateStr),
-            endDate: formatDateDisplay(endDateStr),
-            deadline: formatDateDisplay(deadlineStr.split(',')[0]),
-            status: isActiveSubmission ? 'Active' : 'Closed'
-          };
-        }
-        return p;
+  const selectPeriod = async (period: EvaluationPeriodOption) => {
+    setError(null);
+    try {
+      const detail = await getEvaluationPeriod(period.id);
+      setSelected(detail);
+      setForm({
+        name: detail.name,
+        semester: detail.semester,
+        rubricId: String(detail.rubricId),
+        opensAt: toDateTimeLocalValue(detail.opensAt),
+        closesAt: toDateTimeLocalValue(detail.closesAt),
       });
-      setExistingPeriods(updatedList);
-
-      setToastMessage('Success: Administrative mark entry configuration applied successfully!');
-      setTimeout(() => setToastMessage(null), 4000);
-    }, 1000);
+      setReason('');
+    } catch (loadError) {
+      setError(marksMutationErrorMessage(loadError));
+    }
   };
 
-  const semesterOptions = [
-    { value: 'Sem 1 2025/2026', label: 'Sem 1 2025/2026' },
-    { value: 'Sem 2 2025/2026', label: 'Sem 2 2025/2026' },
-    { value: 'Sem 1 2024/2025', label: 'Sem 1 2024/2025' },
-    { value: 'Sem 2 2024/2025', label: 'Sem 2 2024/2025' }
-  ];
+  const replacePeriod = (updated: EvaluationPeriodOption) => {
+    setPeriods((current) => {
+      const exists = current.some((period) => period.id === updated.id);
+      return exists
+        ? current.map((period) => period.id === updated.id ? updated : period)
+        : [updated, ...current];
+    });
+    setSelected(updated);
+    setForm({
+      name: updated.name,
+      semester: updated.semester,
+      rubricId: String(updated.rubricId),
+      opensAt: toDateTimeLocalValue(updated.opensAt),
+      closesAt: toDateTimeLocalValue(updated.closesAt),
+    });
+  };
 
-  const stageOptions = [
-    { value: 'EE Evaluation', label: 'EE Evaluation' },
-    { value: 'Proposal Evaluation', label: 'Proposal Evaluation' },
-    { value: 'Viva Oral Defense', label: 'Viva Oral Defense' }
-  ];
+  const savePeriod = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        semester: form.semester.trim(),
+        rubricId: Number(form.rubricId),
+        opensAt: form.opensAt ? new Date(form.opensAt).toISOString() : null,
+        closesAt: form.closesAt ? new Date(form.closesAt).toISOString() : null,
+      };
+      const updated = selected
+        ? await updateEvaluationPeriod(
+            selected.id,
+            selected.lifecycleStatus === 'PUBLISHED'
+              ? { closesAt: payload.closesAt, reason }
+              : payload,
+          )
+        : await createEvaluationPeriod(payload);
+      replacePeriod(await getEvaluationPeriod(updated.id));
+      setReason('');
+      showToast(selected ? 'Period changes saved.' : 'Draft period created.');
+    } catch (saveError) {
+      setError(marksMutationErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runTransition = async (
+    action: 'publish' | 'close' | 'archive',
+  ) => {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = action === 'publish'
+        ? await publishEvaluationPeriod(selected.id)
+        : action === 'close'
+          ? await closeEvaluationPeriod(selected.id, reason)
+          : await archiveEvaluationPeriod(selected.id, reason);
+      replacePeriod(await getEvaluationPeriod(updated.id));
+      setReason('');
+      showToast(
+        action === 'publish'
+          ? 'Period published.'
+          : action === 'close'
+            ? 'Period closed.'
+            : 'Period archived.',
+      );
+      if (action === 'archive' && !includeArchived) {
+        setPeriods((current) => current.filter((period) => period.id !== updated.id));
+        setSelected(null);
+        setForm(EMPTY_FORM);
+      }
+    } catch (transitionError) {
+      setError(marksMutationErrorMessage(transitionError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const draftEditable = !selected || selected.lifecycleStatus === 'DRAFT';
+  const published = selected?.lifecycleStatus === 'PUBLISHED';
+  const closed = selected?.lifecycleStatus === 'CLOSED';
 
   return (
-    <div id="mark-entry-configuration-master" className="space-y-8 animate-fade-in relative">
-      
-      <PortalToast message={toastMessage} />
-
+    <div id="mark-entry-period-configuration" className="space-y-7 animate-fade-in">
+      <PortalToast message={toast} />
       <PageHeader
-        title="Mark Entry Period Configuration"
-        subtitle="Set mark entry start dates, end dates, and submission deadlines for evaluation tasks."
+        title="Mark Entry Periods"
+        subtitle="Configure faculty-wide evaluation windows and control when lecturers may save or submit marks."
         backLabel="Back to Marks & Evaluation Management"
         onBack={onBack}
-        subtitleClassName="leading-relaxed"
+        actions={(
+          <PortalButton icon={Plus} variant="primary" onClick={beginNew}>
+            New period
+          </PortalButton>
+        )}
       />
 
-      {/* Summary Cards Row */}
-      <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <SummaryCard
-          title="Active Semester"
-          badgeText={deriveSemester}
-          badgeType="active"
-          subtext="Postgraduate Division"
-          onClick={() => {}}
-        />
-        <SummaryCard
-          title="Entry Period Status"
-          badgeText={deriveStatusText}
-          badgeType={isActiveSubmission ? 'active' : 'ratio'}
-          subtext="System Access Level"
-          onClick={() => {}}
-        />
-        <SummaryCard
-          title="Start Date"
-          badgeText={formatDateDisplay(startDateStr)}
-          badgeType="ready"
-          subtext="Submission Release Window"
-          icon={Calendar}
-          onClick={() => {}}
-        />
-        <SummaryCard
-          title="End Date"
-          badgeText={formatDateDisplay(endDateStr)}
-          badgeType="ready"
-          subtext="Submission Closing Window"
-          icon={Calendar}
-          onClick={() => {}}
-        />
+      {error ? <ErrorState message={error} onRetry={loadWorkspace} /> : null}
+
+      <div className="flex items-center justify-between border-y border-slate-200 py-3">
+        <p className="text-xs font-semibold text-slate-500">
+          Archived periods are read-only and excluded from normal monitoring.
+        </p>
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(event) => setIncludeArchived(event.target.checked)}
+            className="h-4 w-4 accent-brand-navy"
+          />
+          Show archived
+        </label>
       </div>
 
-      {/* Split grid for configuration and rules/logs */}
-      <div id="config-columns-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left Column (Span 8): Configure Mark Entry Period Form */}
-        <div id="config-form-column" className="lg:col-span-8">
-          <FormCard
-            id="config-editor-focus"
-            title="Configure Mark Entry Period"
-            icon={<Sliders className="w-5.5 h-5.5 text-indigo-500" />}
-          >
-            <form onSubmit={handleSubmitConfig} className="space-y-6">
-              
-              {/* Semester & Evaluation Stage */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-0">
-                <FormSelect
-                  id="form-semester-select"
-                  label="Semester"
-                  options={semesterOptions}
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                />
+      {loading ? (
+        <LoadingState message="Loading evaluation periods..." />
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-6 items-start">
+          <section className="space-y-3" aria-label="Configured evaluation periods">
+            {periods.length === 0 ? (
+              <EmptyState
+                title="No evaluation periods"
+                description="Create a draft period and select a ready rubric version."
+              />
+            ) : periods.map((period) => (
+              <button
+                key={period.id}
+                type="button"
+                onClick={() => void selectPeriod(period)}
+                className={`w-full text-left border bg-white p-5 shadow-3xs transition-colors ${
+                  selected?.id === period.id
+                    ? 'border-brand-navy ring-2 ring-brand-navy/10'
+                    : 'border-slate-200 hover:border-slate-300'
+                } rounded-lg`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-extrabold text-brand-navy">{period.name}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {period.semester} · {period.rubricName}
+                    </p>
+                  </div>
+                  <StatusBadge tone={getStatusBadgeTone(period.effectiveStatus)} dot>
+                    {formatPeriodStatus(period.effectiveStatus)}
+                  </StatusBadge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase text-slate-400">Opens</span>
+                    <span className="font-semibold text-slate-700">{displayDateTime(period.opensAt)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase text-slate-400">Closes</span>
+                    <span className="font-semibold text-slate-700">{displayDateTime(period.closesAt)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase text-slate-400">Tasks</span>
+                    <span className="font-semibold text-slate-700">{period.taskTotals.total}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase text-slate-400">Submitted</span>
+                    <span className="font-semibold text-slate-700">{period.taskTotals.submitted}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </section>
 
-                <FormSelect
-                  id="form-stage-select"
-                  label="Evaluation Stage"
-                  options={stageOptions}
-                  value={evaluationStage}
-                  onChange={(e) => setEvaluationStage(e.target.value)}
+          <PortalCard padding="lg" className="rounded-lg">
+            <div className="mb-6 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-brand-navy">
+                  {selected ? 'Period configuration' : 'New draft period'}
+                </h2>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  Published periods lock their identity and rubric version.
+                </p>
+              </div>
+              {selected ? (
+                <StatusBadge tone={getStatusBadgeTone(selected.effectiveStatus)}>
+                  {formatPeriodStatus(selected.effectiveStatus)}
+                </StatusBadge>
+              ) : null}
+            </div>
+
+            <form onSubmit={savePeriod} className="space-y-4">
+              <label className="block text-xs font-bold text-slate-700">
+                Period name
+                <input
+                  required
+                  disabled={!draftEditable}
+                  value={form.name}
+                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
                 />
+              </label>
+              <label className="block text-xs font-bold text-slate-700">
+                Semester
+                <input
+                  required
+                  disabled={!draftEditable}
+                  value={form.semester}
+                  onChange={(event) => setForm((current) => ({ ...current, semester: event.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                />
+              </label>
+              <label className="block text-xs font-bold text-slate-700">
+                Rubric version
+                <select
+                  required
+                  disabled={!draftEditable}
+                  value={form.rubricId}
+                  onChange={(event) => setForm((current) => ({ ...current, rubricId: event.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                >
+                  <option value="">Select a ready rubric</option>
+                  {readyRubrics.map((rubric) => (
+                    <option key={rubric.id} value={rubric.id}>
+                      {rubric.name} · v{rubric.version} · {rubric.targetMark} marks
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="block text-xs font-bold text-slate-700">
+                  Opens at
+                  <input
+                    required
+                    type="datetime-local"
+                    disabled={!draftEditable}
+                    value={form.opensAt}
+                    onChange={(event) => setForm((current) => ({ ...current, opensAt: event.target.value }))}
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-slate-700">
+                  Closes at
+                  <input
+                    required
+                    type="datetime-local"
+                    disabled={Boolean(selected && !draftEditable && !published)}
+                    value={form.closesAt}
+                    onChange={(event) => setForm((current) => ({ ...current, closesAt: event.target.value }))}
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                  />
+                </label>
               </div>
 
-              {/* Start Date & End Date */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-0">
-                <FormInput
-                  id="form-start-date"
-                  label="Start Date"
-                  placeholder="MM/DD/YYYY"
-                  value={startDateStr}
-                  onChange={(e) => setStartDateStr(e.target.value)}
-                />
+              {published || closed ? (
+                <label className="block text-xs font-bold text-slate-700">
+                  Reason
+                  <textarea
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    rows={3}
+                    placeholder={published ? 'Required for an extension or early closure' : 'Required to archive this period'}
+                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5"
+                  />
+                </label>
+              ) : null}
 
-                <FormInput
-                  id="form-end-date"
-                  label="End Date"
-                  placeholder="MM/DD/YYYY"
-                  value={endDateStr}
-                  onChange={(e) => setEndDateStr(e.target.value)}
-                />
+              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-5">
+                {(draftEditable || published) ? (
+                  <PortalButton
+                    type="submit"
+                    icon={Save}
+                    variant="primary"
+                    isLoading={saving}
+                    disabled={!form.rubricId}
+                  >
+                    {selected ? 'Save changes' : 'Create draft'}
+                  </PortalButton>
+                ) : null}
+                {selected?.lifecycleStatus === 'DRAFT' ? (
+                  <PortalButton
+                    icon={CheckCircle2}
+                    variant="success"
+                    isLoading={saving}
+                    onClick={() => void runTransition('publish')}
+                  >
+                    Publish
+                  </PortalButton>
+                ) : null}
+                {published ? (
+                  <PortalButton
+                    icon={XCircle}
+                    variant="danger"
+                    isLoading={saving}
+                    disabled={!reason.trim()}
+                    onClick={() => void runTransition('close')}
+                  >
+                    Close period
+                  </PortalButton>
+                ) : null}
+                {closed ? (
+                  <PortalButton
+                    icon={Archive}
+                    variant="secondary"
+                    isLoading={saving}
+                    disabled={!reason.trim()}
+                    onClick={() => void runTransition('archive')}
+                  >
+                    Archive
+                  </PortalButton>
+                ) : null}
               </div>
+            </form>
 
-              {/* Submission Deadline & Grace Period */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-0">
-                <FormInput
-                  id="form-deadline"
-                  label="Submission Deadline"
-                  placeholder="MM/DD/YYYY, 11:59 PM"
-                  value={deadlineStr}
-                  onChange={(e) => setDeadlineStr(e.target.value)}
-                />
-
-                <FormInput
-                  id="form-grace-days"
-                  label="Grace Period (Days)"
-                  type="number"
-                  placeholder="2"
-                  value={gracePeriodDays}
-                  onChange={(e) => setGracePeriodDays(e.target.value)}
-                />
-              </div>
-
-              {/* Active Toggle */}
-              <div className="pt-2 pb-1 border-t border-slate-100 flex flex-col text-left">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-2">
-                  Status
-                </span>
-                <ToggleSwitch
-                  id="toggle-submission-active"
-                  checked={isActiveSubmission}
-                  onChange={setIsActiveSubmission}
-                  label="Active for Submission"
-                />
-              </div>
-
-              {/* Notice Banner box */}
-              <div id="portal-members-access-notice" className="flex items-start gap-3.5 p-4 bg-blue-50/80 border border-blue-100 rounded-2xl text-blue-900 text-left">
-                <AlertTriangle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <div className="flex flex-col text-xs font-semibold leading-relaxed">
-                  <span>Panel members can enter and submit marks only during the active mark entry period.</span>
+            {selected?.auditEvents?.length ? (
+              <div className="mt-7 border-t border-slate-100 pt-5">
+                <h3 className="flex items-center gap-2 text-xs font-extrabold uppercase text-slate-600">
+                  <Clock3 className="h-4 w-4" />
+                  Configuration history
+                </h3>
+                <div className="mt-3 space-y-3">
+                  {selected.auditEvents.map((event) => (
+                    <div key={event.id} className="border-l-2 border-slate-200 pl-3 text-xs">
+                      <p className="font-bold text-slate-700">{event.action}</p>
+                      <p className="mt-0.5 text-slate-500">
+                        {event.actorName} · {displayDateTime(event.createdAt)}
+                      </p>
+                      {event.reason ? <p className="mt-1 text-slate-600">{event.reason}</p> : null}
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              {/* Apply / Save configuration Button */}
-              <div className="pt-3">
-                <ActionButton
-                  type="submit"
-                  isLoading={saving}
-                  className="w-full text-center"
-                >
-                  Apply Configuration Parameters
-                </ActionButton>
-              </div>
-
-            </form>
-          </FormCard>
+            ) : null}
+          </PortalCard>
         </div>
+      )}
 
-        {/* Right Column (Span 4): Validation Rules and Audit Log */}
-        <div id="rules-logs-column" className="lg:col-span-4 space-y-8">
-          <ValidationRulesCard />
-          <AuditLogCard />
-        </div>
-
+      <div className="flex items-center gap-3 border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800 rounded-lg">
+        <CalendarClock className="h-4 w-4 shrink-0" />
+        Lecturers can save and submit marks only while a published period is open.
       </div>
-
-      {/* Existing Mark Entry Periods Table view (Bottom panel) */}
-      <div id="table-existing-periods-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
-        
-        {/* Table header bar */}
-        <div id="table-header-toolbar" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 id="table-heading" className="text-lg font-extrabold text-brand-navy tracking-tight">
-            Existing Mark Entry Periods
-          </h3>
-
-          {/* Action buttons (Filter / Export) */}
-          <div id="table-action-filters" className="flex items-center gap-2.5">
-            <button
-              onClick={() => alert("Filter Options: Selected postgraduate categories will be summarized.")}
-              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/95 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
-            >
-              <Filter className="w-4 h-4 text-slate-500" />
-              <span>Filter</span>
-            </button>
-
-            <button
-              onClick={() => {
-                alert("Generating Report: Academic Mark Entry Schedule printed successfully.");
-              }}
-              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/95 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
-            >
-              <Download className="w-4 h-4 text-slate-400" />
-              <span>Export PDF</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Custom DataTable Render component */}
-        <DataTable
-          data={existingPeriods}
-          onEdit={handleEditRow}
-          onView={handleViewRow}
-        />
-
-      </div>
-
     </div>
   );
 };

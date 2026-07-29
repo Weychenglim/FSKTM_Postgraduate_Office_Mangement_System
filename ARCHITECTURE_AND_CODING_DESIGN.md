@@ -182,20 +182,27 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `appointments.ageing` is a pure derivation layer with optional `now` injection. It maps pending Supervisor and Panel states to their current waiting owner, uses stage timestamp/workflow-transition/update fallbacks, clamps future timestamps to zero days, and returns null metadata for terminal records.
 - Panel acceptance transitions directly to `PENDING_COORDINATOR`; `ACCEPTED_BY_PANEL` has been removed from the current model and uniqueness constraint.
 - Workload limits come from `Supervisor.max_supervisees` and `Panel.max_appointments`.
-- The `marks` app owns configurable rubrics/components, evaluation periods/tasks, mark entries/scores, and correction audits.
-- Marks APIs support lecturer-scoped draft saving and immediate submission locking, plus office monitoring and task generation from active supervisor and panel appointments.
+- The `marks` app owns versioned rubric families/components, faculty-wide evaluation periods/tasks, mark entries/scores, immutable configuration audits, assignment overrides, and submitted-mark correction audits.
+- `Rubric.family_code`, `version`, `target_mark`, and `supersedes` form the version family. `Rubric.is_locked` is derived from published/closed/archived period references or task references; locked versions are cloned rather than edited.
+- `EvaluationPeriod.lifecycle_status` persists `DRAFT`, `PUBLISHED`, `CLOSED`, or `ARCHIVED`. `status_at()` derives the displayed scheduled/open/closed state from timezone-aware timestamps while the retained `is_open` field is synchronized only for compatibility.
+- Migration `marks.0003` assigns existing rubrics to version 1, uses their active-component total as target, normalizes active display order, and maps existing periods without changing configuration, task, entry, score, or foreign-key identifiers.
+- `marks.services` is the transactional configuration boundary. It uses row locks for version cloning, period transitions, and task creation, while draft/submission writes reload and lock the referenced period before validating its window so a concurrent close cannot race a lecturer write. Configuration mutations write immutable `MarksConfigurationAudit` snapshots.
+- Marks APIs support lecturer-scoped draft saving and immediate submission locking, plus Office monitoring and task generation from active Supervisor and Panel appointments. Domain-state conflicts are represented by `MarksStateConflict` and returned as HTTP `409`.
 - Office Staff/Admin Marks Assignment uses `/api/marks/periods/` and `/api/marks/assignment-options/` to populate production forms for task generation and backup evaluator assignment; raw database ID prompts are not part of the finished workflow.
 - Office Staff/Admin Marks overview combines `/api/marks/periods/`, `/api/marks/`, and `/api/dashboard/summary/` so period cards, submission monitoring, and Mark Entry Records use the same live task/record data.
 - Mark Entry Records accepts an initial status tab for dashboard and monitoring deep links; shared `src/utils/markRecords.ts` owns mark record summaries and status-tab filtering.
 - `/api/marks/` derives display status from task period timing, returning `Overdue` for unsubmitted tasks after `EvaluationPeriod.closes_at` without adding a database status.
 - `marks.deadlines` derives `dueAt`, `daysUntilDue`, and `deadlineState` from `EvaluationPeriod.closes_at`; submitted entries return `COMPLETE`, and the Marks workflow remains tracking-only.
 - `EvaluationTask.evaluator_role` distinguishes `SUPERVISOR`, `PANEL`, and `BACKUP` tasks; duplicate prevention includes the evaluator role so the same student/period can have separate supervisor and panel marks.
-- `marks.services.ensure_period_tasks()` is the shared generation path for manual Office Staff/Admin generation and active-period safety generation; backup/manual override tasks are audited by `EvaluationTaskOverrideAudit`.
-- Privileged mark correction/reopening lives in `marks.services` and is used by Django Admin with mandatory reasons and before/after snapshots.
-- The frontend dynamically renders backend-provided rubric components and retains the fixed form only for mock fallback data.
+- `marks.services.ensure_period_tasks()` is the shared generation path for manual Office Staff/Admin generation and active-period safety generation. It and backup/manual overrides require a published, non-ended period; backup assignments are audited by `EvaluationTaskOverrideAudit`.
+- Privileged mark correction/reopening lives in `marks.services` and is used by Django Admin with mandatory reasons and before/after snapshots. Submitted comments follow the same audited correction path as submitted component scores and cannot fall through to a normal model save.
+- Office configuration APIs are rooted at `/api/marks/rubrics/` and `/api/marks/periods/`; stable record details are loaded from `/api/marks/records/<recordId>/`. Configuration endpoints are Office Staff/Admin-only and expose archived periods only with `includeArchived=true`.
+- `canAccessMarksAdministration()` guards `/marks/config`, `/marks/rubrics`, `/marks/tasks`, `/marks/records`, and record-detail routes before mounting an Office screen. Django authorization remains authoritative and independently returns `403`.
+- The Marks frontend is backend-only. `marksApi.ts` has no mock switch, runtime mock imports, or committed period/rubric state; live API metadata drives lifecycle commands, readiness, overview attention, task totals, lecturer component forms, and Office record details.
+- Production artifact tests reject Marks mock canaries and legacy backend-switch content. Unsupported PDFs, mark sheets, simulated sync, fake documents, and notification commands remain absent until authoritative relationships and templates exist.
 - `/api/dashboard/summary/` aggregates role-scoped live Supervisor, Panel, and Marks counts, including mark-task counts split by evaluator role.
 - `/api/dashboard/tasks/` is the role-scoped action feed. Student Panel actions are deliberately declassified to `FACULTY_PROCESSING` with null record identifiers, while Office Staff/Admin, Lecturer, and Programme Coordinator actions retain only identifiers authorized for their existing module routes.
-- Completed modules can independently enable Django through `VITE_USE_SUPERVISOR_BACKEND`, `VITE_USE_PANEL_BACKEND`, `VITE_USE_MARKS_BACKEND`, and `VITE_USE_TIMELINE_BACKEND`.
+- Supervisor, Panel, and Timeline retain their existing service boundaries. Marks no longer uses `VITE_USE_MARKS_BACKEND`; its production service always calls Django.
 
 ## Testing Strategy
 

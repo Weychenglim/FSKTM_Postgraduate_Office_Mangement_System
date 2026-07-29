@@ -4,24 +4,11 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Search,
-  SlidersHorizontal,
-  Download,
-  Eye,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  Clock,
-  X,
-  User,
-  GraduationCap
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
@@ -35,7 +22,7 @@ import { formatDeadlineText } from '../utils/workflowAgeing';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
-  onViewRecordDetail?: (recordId: string) => void;
+  onViewRecordDetail: (recordId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
   initialStatusTab?: MarkRecordStatusTab;
 }
@@ -46,8 +33,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   onNavigateToDossier,
   initialStatusTab = 'All Records',
 }) => {
-  // Records are loaded from marksApi (mock-backed today). Loading / error states
-  // mirror what the real backend call will surface.
   const [records, setRecords] = useState<MarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,9 +59,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
   // Interactive pill filter selection mapping directly to Status Pill Buttons
   const [activeTab, setActiveTab] = useState<MarkRecordStatusTab>(initialStatusTab);
-
-  // Modal inspection target
-  const [selectedInspectRecord, setSelectedInspectRecord] = useState<MarkRecord | null>(null);
 
   // Active query parameters (applied on clicking 'Apply Filters')
   const [appliedFilters, setAppliedFilters] = useState({
@@ -185,10 +167,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredRecords, currentPage]);
-
-  const handleExport = () => {
-    triggerToast("Preparing export of postgraduate mark registry logs (PDF/CSV format)...");
-  };
 
   return (
     <div id="mark-entry-records-dashboard" className="space-y-8 animate-fade-in text-left relative">
@@ -437,7 +415,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     {/* Record ID styled code link */}
                     <td className="py-4 px-5 text-xs font-bold text-blue-600 font-mono">
                       <button 
-                        onClick={() => onViewRecordDetail ? onViewRecordDetail(rec.id) : setSelectedInspectRecord(rec)}
+                        onClick={() => onViewRecordDetail(rec.id)}
                         className="hover:underline text-left cursor-pointer focus:outline-none"
                       >
                         {rec.id}
@@ -492,14 +470,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                           Draft
                         </span>
                       ) : rec.totalMark !== null ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="text-xs font-black text-brand-navy">
-                            {rec.totalMark}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-bold">
-                            / 100
-                          </span>
-                        </div>
+                        <span className="text-xs font-black text-brand-navy">
+                          {rec.totalMark}
+                        </span>
                       ) : (
                         <span className="text-slate-300 text-xs block font-bold">-</span>
                       )}
@@ -545,7 +518,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                           View Dossier
                         </button>
                         <button
-                          onClick={() => onViewRecordDetail ? onViewRecordDetail(rec.id) : setSelectedInspectRecord(rec)}
+                          onClick={() => onViewRecordDetail(rec.id)}
                           className="py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-[10px] font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
                         >
                           View
@@ -608,157 +581,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
         )}
 
       </div>
-
-      {/* Global export records command underlay */}
-      <div id="global-bulk-export-bar" className="flex justify-end">
-        <button
-          onClick={handleExport}
-          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer shadow-sm flex items-center gap-2.5 select-none"
-        >
-          <Download className="w-4 h-4 text-indigo-300" />
-          <span>Export Records (PDF/CSV)</span>
-        </button>
-      </div>
-
-      {/* Interactive Modal to drill into evaluation details (View records details rule) */}
-      {createPortal(
-        <AnimatePresence>
-        {selectedInspectRecord && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="absolute inset-0" onClick={() => setSelectedInspectRecord(null)} />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl max-w-xl w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10 font-sans"
-            >
-              
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4.5 mb-5">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-indigo-500" />
-                  <h4 className="font-extrabold text-brand-navy text-sm tracking-tight">
-                    Evaluation Record Detail — {selectedInspectRecord.id}
-                  </h4>
-                </div>
-                <button
-                  onClick={() => setSelectedInspectRecord(null)}
-                  className="w-10 h-10 hover:bg-slate-50 border border-slate-205 rounded-xl flex items-center justify-center transition-colors text-slate-400 hover:text-slate-700"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div id="detail-modal-body" className="space-y-5">
-                {/* Visual student profile banner */}
-                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-black">
-                    {selectedInspectRecord.studentInitials}
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-sm">{selectedInspectRecord.studentName}</h5>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium font-mono mt-0.5">
-                      <span>ID: {selectedInspectRecord.studentId}</span>
-                      <span>&bull;</span>
-                      <span>{selectedInspectRecord.programme}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">
-                      Assigned Panel
-                    </span>
-                    <span className="font-extrabold text-brand-navy">
-                      {selectedInspectRecord.panelMember}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">
-                      Grading Session
-                    </span>
-                    <span className="font-bold text-slate-700">
-                      {selectedInspectRecord.semester}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1 text-xs">
-                    Research Topic Title
-                  </span>
-                  <p className="text-xs font-semibold text-slate-700 leading-relaxed italic border-l-3 border-indigo-400 pl-3">
-                    {selectedInspectRecord.researchTitle}
-                  </p>
-                </div>
-
-                {/* Score Breakdown display if submitted or draft */}
-                {selectedInspectRecord.status !== 'Not Started' && selectedInspectRecord.status !== 'Overdue' ? (
-                  <div className="space-y-3.5 border-t border-slate-100 pt-4">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
-                      Rubric Components Grade Weight breakdown
-                    </span>
-                    
-                    <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1">
-                      {selectedInspectRecord.rubricScores ? (
-                        Object.entries(selectedInspectRecord.rubricScores).map(([comp, score]) => (
-                          <div key={comp} className="flex items-center justify-between text-xs font-sans">
-                            <span className="text-slate-600 font-medium font-sans">{comp}</span>
-                            <span className="font-extrabold text-slate-800">{score} Marks</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center p-3 text-slate-400 font-bold text-xs">
-                          Generic marks calculated. Total score applied.
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between bg-blue-50/50 p-3.5 rounded-xl border border-blue-105/40 text-xs">
-                      <span className="font-bold text-blue-900">Aggregate Earned Score:</span>
-                      <span className="font-black text-blue-800 text-sm">
-                        {selectedInspectRecord.totalMark !== 'Draft' ? `${selectedInspectRecord.totalMark} / 100` : 'Draft Pending'}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-rose-50/40 border border-rose-100 rounded-2xl flex items-start gap-2.5 text-xs text-rose-700 leading-relaxed">
-                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                    <span>No evaluation score records exist. The panel examiner has not logged grading sheets for this student candidate yet.</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Action buttons drawer sticky line-footer */}
-              <div className="pt-6 border-t border-slate-100 flex items-center gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExport();
-                    setSelectedInspectRecord(null);
-                  }}
-                  disabled={selectedInspectRecord.status === 'Not Started' || selectedInspectRecord.status === 'Overdue'}
-                  className="flex-1 py-3 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Download sheet
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedInspectRecord(null)}
-                  className="flex-1 py-3 bg-brand-navy hover:bg-slate-850 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-sm"
-                >
-                  Done
-                </button>
-              </div>
-
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
 
     </div>
   );

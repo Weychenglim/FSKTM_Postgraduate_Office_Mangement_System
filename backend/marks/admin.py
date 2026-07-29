@@ -11,6 +11,7 @@ from .models import (
     MarkCorrectionAudit,
     MarkEntry,
     MarkScore,
+    MarksConfigurationAudit,
     Rubric,
     RubricComponent,
 )
@@ -20,21 +21,119 @@ from .services import correct_submitted_marks, reopen_submitted_marks
 class RubricComponentInline(admin.TabularInline):
     model = RubricComponent
     extra = 0
+    readonly_fields = (
+        "code",
+        "name",
+        "description",
+        "max_marks",
+        "is_required",
+        "is_active",
+        "display_order",
+    )
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Rubric)
 class RubricAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "maximum_mark", "is_active", "updated_at")
+    list_display = (
+        "code",
+        "name",
+        "version",
+        "maximum_mark",
+        "target_mark",
+        "is_active",
+        "updated_at",
+    )
     list_filter = ("is_active",)
     search_fields = ("code", "name")
     inlines = [RubricComponentInline]
+    readonly_fields = (
+        "name",
+        "code",
+        "family_code",
+        "version",
+        "target_mark",
+        "supersedes",
+        "description",
+        "is_active",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EvaluationPeriod)
 class EvaluationPeriodAdmin(admin.ModelAdmin):
-    list_display = ("name", "semester", "rubric", "is_open", "opens_at", "closes_at")
-    list_filter = ("is_open", "semester")
+    list_display = (
+        "name",
+        "semester",
+        "rubric",
+        "lifecycle_status",
+        "opens_at",
+        "closes_at",
+    )
+    list_filter = ("lifecycle_status", "semester")
     search_fields = ("name", "semester")
+    readonly_fields = (
+        "name",
+        "semester",
+        "rubric",
+        "opens_at",
+        "closes_at",
+        "lifecycle_status",
+        "is_open",
+        "published_at",
+        "closed_at",
+        "archived_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MarksConfigurationAudit)
+class MarksConfigurationAuditAdmin(admin.ModelAdmin):
+    list_display = (
+        "entity_type",
+        "entity_id",
+        "action",
+        "actor",
+        "created_at",
+    )
+    list_filter = ("entity_type", "action")
+    search_fields = ("actor__full_name", "reason")
+    readonly_fields = (
+        "entity_type",
+        "entity_id",
+        "action",
+        "actor",
+        "reason",
+        "before_values",
+        "after_values",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EvaluationTask)
@@ -116,12 +215,24 @@ class MarkCorrectionForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        comments_changed = "comments" in self.changed_data
+        submitted_comment_change = (
+            self.instance.status == MarkEntry.Status.SUBMITTED
+            and comments_changed
+        )
         if (
             cleaned.get("reopen_for_lecturer")
             or cleaned.get("corrected_scores")
+            or submitted_comment_change
         ) and not cleaned.get("correction_reason", "").strip():
             raise forms.ValidationError(
                 "A correction reason is required for submitted mark changes."
+            )
+        if cleaned.get("reopen_for_lecturer") and (
+            cleaned.get("corrected_scores") or comments_changed
+        ):
+            raise forms.ValidationError(
+                "Reopen the entry before changing scores or comments."
             )
         return cleaned
 
@@ -158,10 +269,27 @@ class MarkEntryAdmin(admin.ModelAdmin):
                     actor=request.user,
                     score_values=form.cleaned_data["corrected_scores"],
                     reason=reason,
+                    comments=form.cleaned_data["comments"],
                 )
                 self.message_user(
                     request,
                     "Submitted marks were corrected and audited.",
+                    messages.SUCCESS,
+                )
+            elif (
+                obj.status == MarkEntry.Status.SUBMITTED
+                and "comments" in form.changed_data
+            ):
+                correct_submitted_marks(
+                    entry=obj,
+                    actor=request.user,
+                    score_values={},
+                    reason=reason,
+                    comments=form.cleaned_data["comments"],
+                )
+                self.message_user(
+                    request,
+                    "Submitted comments were corrected and audited.",
                     messages.SUCCESS,
                 )
             else:

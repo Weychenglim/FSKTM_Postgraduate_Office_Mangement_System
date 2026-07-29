@@ -1,5 +1,17 @@
 # Project Status
 
+## Production Marks Management Completion
+
+- Added persisted versioned rubric families with configurable targets, sequential cloning, immutable locking once used, readiness checks, component deactivation, and migration of existing rubrics to version 1 without identifier changes.
+- Added faculty-wide evaluation-period lifecycle management for draft, publish, deadline extension, close, archive, archived filtering, timezone-derived display state, duplicate prevention, and immutable configuration audits.
+- Enforced published/open submission windows with period-row locking against concurrent closure, row-locked submission and configuration transitions, backend-only total calculation, required/optional component integrity, stale optional-score removal, and `409` responses for workflow conflicts.
+- Added the Office Staff/Admin-only persisted Mark Record Detail API with stable task/record identifiers, rubric scores, evaluator assignment, deadlines, lock state, override history, and correction/reopen audit history.
+- Replaced local Marks periods, rubrics, overview attention counts, record detail mappings, and runtime mock switches with Django APIs. Removed fake PDFs/documents, notification dispatch, export placeholders, simulated sync state, and fixed 100-mark UI assumptions.
+- Added focused model, migration, API, role-access, period-window, locking, score-integrity, submitted-comment audit, task-identity, and frontend production-source/artifact regression coverage.
+- Verification passes all 145 Dashboard/Appointments/Marks backend tests, all 33 frontend `.test.ts` files, `python manage.py check`, migration dry-run, TypeScript lint, production build, zero-vulnerability npm audit, and both production artifact guards.
+- Browser smoke confirms Office Staff/Admin can create and balance a rubric, create and publish a period, generate tasks, clone the locked rubric, and open the persisted Mark Record Detail. Lecturer Marks loads its role-scoped task surface, while Programme Coordinator and Student direct Marks-administration URLs redirect to Dashboard; the browser console remained clean.
+- The configured demo Lecturer had no generated task assignment, so browser submission was not mutated in local fixtures; open-window save/submit, closed-window rejection, duplicate locking, and correction history remain covered by backend tests. Clearly named browser-smoke records were removed after verification.
+
 ## Completed
 
 - Added a role-scoped, read-only Student Progress Dossier at `/dashboard/progress/:studentId` for authorized staff and `/dashboard/progress` for Student self-view.
