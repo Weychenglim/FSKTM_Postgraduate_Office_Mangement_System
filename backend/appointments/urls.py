@@ -5,6 +5,11 @@ from . import views
 
 urlpatterns = [
     path("supervisor/", views.supervisor_records_view),
+    path("supervisor/workload/", views.supervisor_workload_view),
+    path(
+        "supervisor/my-workload/",
+        views.own_supervisor_workload_view,
+    ),
     path("supervisor/candidates/", views.supervisor_candidates_view),
     path("supervisor/applications/", views.supervisor_applications_view),
     path(

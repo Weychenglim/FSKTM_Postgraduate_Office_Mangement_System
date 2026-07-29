@@ -56,7 +56,7 @@ Frontend paths in this section are relative to `frontend/`.
 - `src/context/NotificationsContext.tsx` is the shared notifications store; it feeds both the bell badge and the bell view.
 - `src/config/demoLogin.ts` owns fictional demo identifiers and the development-only credential assembly. It requires Vite development mode, an explicit enable flag, and all four role passwords before exporting a usable prefiller configuration; production dead-code elimination removes the console branch and password values.
 - Timeline add/edit drawers keep timeline classification limited to P1/P2 and do not submit status; the backend derives the displayed status from the selected date range.
-- `src/services/timelineApi.ts` connects the dashboard timeline UI to `/api/dashboard/timeline/active/`, `/api/dashboard/timeline/template/`, `/api/dashboard/timeline/upload/`, `/api/dashboard/timeline/entries/`, `/api/dashboard/timeline/entries/<id>/`, `/api/dashboard/timeline/audit-logs/`, and `/api/dashboard/tasks/`. It uses `VITE_USE_TIMELINE_BACKEND=true` by default so timeline management can persist to Django even while unfinished modules continue using global mock mode.
+- `src/services/timelineApi.ts` connects the dashboard timeline UI directly to `/api/dashboard/timeline/active/`, `/api/dashboard/timeline/template/`, `/api/dashboard/timeline/upload/`, `/api/dashboard/timeline/entries/`, `/api/dashboard/timeline/entries/<id>/`, `/api/dashboard/timeline/audit-logs/`, and `/api/dashboard/tasks/`. It has no mock branch or backend-selection flag.
 - Existing appointment and marks-entry modules remain in their own component files under `src/components`.
 
 ## Backend Data Model
@@ -77,8 +77,8 @@ Frontend paths in this section are relative to `frontend/`.
 - `src/components/PanelAssignmentDetail.tsx` renders the lecturer's backend panel assignment directly, derives the header session badge from the backend intake string, shows the shared full panel workflow status timeline from backend lifecycle timestamps, and uses concise no-records states for related documents and EE evaluation until those modules are connected.
 - `src/components/SubmittedRecommendationsPage.tsx` and `src/components/RecommendationDetailsDrawer.tsx` are the supervisor-facing panel recommendation tracking surface; the drawer renders the same confirmation route as the review drawer, uses backend workflow timestamps when available, and exposes cancellation only for the submitting supervisor while the workflow is `SUBMITTED_TO_PANEL`.
 - `src/components/StudentPanelAppointment.tsx` loads the authenticated student's panel appointment view and renders either generic faculty-processing age or confirmed appointed-panel details; it never names the internal selected-panel/coordinator stage while processing is pending.
-- `src/services/appointmentsApi.ts` connects the lecturer-side panel workflow to Django endpoints when `VITE_USE_MOCKS=false` while keeping mock mode available.
-- `src/services/appointmentsApi.ts` uses `VITE_USE_PANEL_BACKEND` so the panel workflow can persist to Django even when the broader frontend remains in mock mode.
+- `src/services/appointmentsApi.ts` connects every Supervisor and Panel workflow directly to Django regardless of the global mock setting.
+- Appointment services include Office supervisor workload at `/api/appointments/supervisor/workload/` and Lecturer self-workload at `/api/appointments/supervisor/my-workload/`; both are role-gated by Django.
 - `src/services/appointmentsApi.ts` exposes `getStudentPanelAppointment()` for the student panel view, with mock fallback available when panel backend mocks are enabled.
 - Backend `appointments` app owns `StudentResearchProfile`, `PanelRecommendation`, and `PanelAppointment` persistence plus role-gated DRF endpoints under `/api/appointments/panel/`.
 - `/api/appointments/panel/coordinator-workspace/` resolves `request.user.lecturer.coordinator.programme_managed` as the authoritative scope and returns the programme, pending count, final-approval queue, and newest-first full recommendation lifecycle records. Blank programme assignments return an empty protected workspace.
@@ -214,3 +214,12 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Run focused frontend route helper tests with `npx tsx src/constants/routes.test.ts` and `npx tsx src/utils/workflowTracking.test.ts` when navigation behavior changes.
 - Run `python manage.py test` for backend workflow and permission checks.
 - Start the Vite dev server and smoke-test Dashboard Overview plus each newly routed office-staff module after UI changes.
+## Backend-Only Owned Module Boundary
+
+- Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking form the production data boundary. Their frontend services import `request`/`requestBlob` only and never import mock datasets, inspect `USE_MOCKS`, or invoke `mockResponse`.
+- Global `VITE_USE_MOCKS` and mock latency remain in `apiClient.ts` solely for unfinished or teammate-owned services. The removed module-specific switches cannot override the owned boundary.
+- `appointmentsApi.ts` and `timelineApi.ts` preserve their Promise-based component contracts while propagating `ApiError` and network failures to screen-level loading/error/retry states.
+- Office supervisor workload is aggregated from active `SupervisorAppointment` rows and `Supervisor.max_supervisees`. Lecturer self-workload and enriched active-supervisee rows provide persisted capacity, identity, research, and appointment detail without local enrichment.
+- Supervisor acceptance reloads the backend queue and workload. The active appointment appears only after Programme Coordinator approval creates the persisted `SupervisorAppointment`.
+- Timeline upload requires explicit semester and academic session values from the UI. Add/edit drawers display the currently loaded timeline context and do not seed fixed dates.
+- Source guards inspect owned services and key workflow components; the production artifact guard builds with global mock mode and removed switches deliberately supplied, then rejects legacy exports, switches, fixture canaries, source maps, and demo-console content.

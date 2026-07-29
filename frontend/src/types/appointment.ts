@@ -99,11 +99,41 @@ export interface SupervisorRequest extends WorkflowAgeingMetadata {
 
 // A row in the lecturer's active supervisee roster.
 export interface ActiveSuperviseeRow {
+  appointmentId: number;
   studentId: string;
   studentName: string;
+  programme: string;
+  semester: string;
+  email: string;
   researchTitle: string;
+  researchAbstract: string;
+  supervisorName: string;
   appointmentDate: string;
   status: string;
+}
+
+export interface SupervisorWorkloadSummary {
+  currentStudents: number;
+  workloadLimit: number;
+  availableSlots: number;
+}
+
+export interface SupervisorWorkloadRecord {
+  lecturerId: string;
+  lecturerName: string;
+  department: string;
+  currentStudents: number;
+  workloadLimit: number;
+  availability: 'Available' | 'Near Limit' | 'Full Load';
+  email: string;
+  supervisees: Array<{
+    id: string;
+    name: string;
+    programme: string;
+    status: string;
+    topic: string;
+    appointmentDate: string;
+  }>;
 }
 
 // ── Lecturer-facing panel appointment views (UC20–UC23) ──

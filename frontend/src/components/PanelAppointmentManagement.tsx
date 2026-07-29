@@ -77,7 +77,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   onNavigateToDossier,
 }) => {
 
-  // Panel records loaded from appointmentsApi (mock-backed today).
+  // Panel records are loaded from the persisted Django API.
   const [records, setRecords] = useState<PanelRecord[]>([]);
   const [workloadRows, setWorkloadRows] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);

@@ -179,6 +179,46 @@ def panel_workload_availability(count, limit):
     return "Available"
 
 
+def supervisor_workload_row(lecturer):
+    active_appointments = list(
+        SupervisorAppointment.objects.filter(
+            supervisor=lecturer,
+            status=SupervisorAppointment.Status.ACTIVE,
+        ).select_related(
+            "student",
+            "student__user",
+            "application",
+        )
+    )
+    workload_count = len(active_appointments)
+    workload_limit = supervisor_workload_limit(lecturer)
+    return {
+        "lecturerId": staff_no_for_user(lecturer),
+        "lecturerName": lecturer.full_name,
+        "department": department_for_user(lecturer),
+        "currentStudents": workload_count,
+        "workloadLimit": workload_limit,
+        "availability": panel_workload_availability(
+            workload_count,
+            workload_limit,
+        ),
+        "email": lecturer.email,
+        "supervisees": [
+            {
+                "id": appointment.student.matric_no,
+                "name": appointment.student.user.full_name,
+                "programme": appointment.student.programme,
+                "status": "Approved",
+                "topic": appointment.application.research_title,
+                "appointmentDate": format_display_date(
+                    appointment.appointment_date
+                ),
+            }
+            for appointment in active_appointments
+        ],
+    }
+
+
 def panel_workload_row(lecturer):
     confirmed_appointments = list(
         PanelAppointment.objects.filter(
@@ -378,6 +418,47 @@ def panel_workload_view(request):
 
     lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).select_related("lecturer")
     return Response([panel_workload_row(lecturer) for lecturer in lecturers])
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def supervisor_workload_view(request):
+    if request.user.role != User.Role.OFFICE_ADMIN:
+        return error_response(
+            "Only Office Staff/Admin can view supervisor workload monitoring.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    lecturers = (
+        User.objects.filter(
+            role=User.Role.LECTURER,
+            is_active=True,
+            lecturer__supervisor__isnull=False,
+        )
+        .select_related("lecturer", "lecturer__supervisor")
+        .order_by("full_name")
+    )
+    return Response(
+        [supervisor_workload_row(lecturer) for lecturer in lecturers]
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def own_supervisor_workload_view(request):
+    if request.user.role != User.Role.LECTURER:
+        return error_response(
+            "Only lecturers can view their supervisor workload.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    current_students = count_supervisor_workload(request.user)
+    workload_limit = supervisor_workload_limit(request.user)
+    return Response(
+        {
+            "currentStudents": current_students,
+            "workloadLimit": workload_limit,
+            "availableSlots": max(workload_limit - current_students, 0),
+        }
+    )
 
 
 @api_view(["GET"])
@@ -1315,13 +1396,26 @@ def active_supervisees_view(request):
     appointments = SupervisorAppointment.objects.filter(
         supervisor=request.user,
         status=SupervisorAppointment.Status.ACTIVE,
-    ).select_related("student", "student__user", "application")
+    ).select_related(
+        "student",
+        "student__user",
+        "application",
+        "supervisor",
+    )
     return Response(
         [
             {
+                "appointmentId": appointment.pk,
                 "studentId": appointment.student.matric_no,
                 "studentName": appointment.student.user.full_name,
+                "programme": appointment.student.programme,
+                "semester": appointment.student.intake_semester,
+                "email": appointment.student.user.email,
                 "researchTitle": appointment.application.research_title,
+                "researchAbstract": (
+                    appointment.application.research_abstract
+                ),
+                "supervisorName": appointment.supervisor.full_name,
                 "appointmentDate": format_display_date(
                     appointment.appointment_date
                 ),

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Users, 
   Download, 
@@ -33,6 +33,7 @@ import {
 } from '../services';
 import { PageHeader, PortalButton, PortalConfirmModal, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 
@@ -69,15 +70,30 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 }) => {
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
+  const [loadingApplications, setLoadingApplications] = useState(true);
+  const [applicationsError, setApplicationsError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadApplications = useCallback(() => {
+    setLoadingApplications(true);
+    setApplicationsError(null);
     getMySupervisorApplications()
       .then((records) => {
         setApplications(records.map(toStudentSupervisorApplication));
         setApprovedApplication(records.find((record) => record.status === 'APPROVED') || null);
       })
-      .catch(() => setApplications([]));
+      .catch((reason) => {
+        setApplicationsError(
+          reason instanceof Error
+            ? reason.message
+            : 'Supervisor applications could not be loaded.',
+        );
+      })
+      .finally(() => setLoadingApplications(false));
   }, []);
+
+  useEffect(() => {
+    loadApplications();
+  }, [loadApplications]);
 
   const [activeDetailAp, setActiveDetailAp] = useState<SupervisorApplicationDetail | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
@@ -163,6 +179,19 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           setApplications(prev => [newApp, ...prev]);
           onNavigateToList?.();
         }}
+      />
+    );
+  }
+
+  if (loadingApplications) {
+    return <LoadingState message="Loading supervisor appointments..." />;
+  }
+
+  if (applicationsError) {
+    return (
+      <ErrorState
+        message={applicationsError}
+        onRetry={loadApplications}
       />
     );
   }

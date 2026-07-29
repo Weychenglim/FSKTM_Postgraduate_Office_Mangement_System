@@ -1,5 +1,18 @@
 # Project Status
 
+## Backend-Only Owned Module Cutover
+
+- Removed all Supervisor, Panel, and Timeline mock branches, simulated mutations, owned mock imports, and module-specific backend flags. The five owned modules now call Django under every environment combination while global mock support remains available to unfinished or teammate-owned modules.
+- Deleted the appointment and timeline mock datasets and added source and production-artifact guards against their exports, legacy switches, and fixture canaries.
+- Replaced static Office supervisor workload records with an Office-only persisted workload endpoint and live loading, retry, filtering, pagination, detail, utilization, and CSV states.
+- Added a Lecturer-only self-workload endpoint and enriched active-supervisee payload. The detail screen now renders persisted student, research, and appointment data instead of fabricated files, panel assignments, evaluation results, dates, and identities.
+- Corrected Lecturer Supervisor acceptance so it reloads Django after the first-stage decision and does not invent an active appointment before Programme Coordinator approval.
+- Removed panel recommendation fallback students/candidates, hidden fixture exclusions, invented history identifiers/semesters, and simulated drawer submission.
+- Removed fixed Timeline semester/session/date defaults. Upload now requires explicit semester/session values and add/edit drawers use the current persisted timeline context.
+- Added direct error-propagation coverage for `401`, `403`, `404`, `409`, `500`, and network failures without mock fallback, plus focused role/access and persisted workload contract tests.
+- Verification passes all 149 Dashboard/Appointments/Marks backend tests, all 35 frontend `.test.ts` files, `python manage.py check`, migration dry-run, TypeScript lint, production build, zero-vulnerability npm audit, and both production artifact/CSP guards.
+- Browser smoke confirms Office Staff/Admin persisted supervisor workload, Lecturer Supervisor/Panel views, Programme Coordinator Supervisor/Panel queues, and Student Supervisor/Panel status across direct routes. With Django deliberately stopped, the Student Supervisor candidate screen shows an inline `Couldn’t load data` state with Retry and no fabricated candidates or browser alert.
+
 ## Production Marks Management Completion
 
 - Added persisted versioned rubric families with configurable targets, sequential cloning, immutable locking once used, readiness checks, component deactivation, and migration of existing rubrics to version 1 without identifier changes.
@@ -373,7 +386,7 @@
 - Previously committed demo passwords and realistic fixture data remain in Git history until the repository is made private and a collaborator-coordinated `git filter-repo` rewrite is completed; rewritten branches and tags will require force-pushes and fresh clones.
 - Git commands still report a Windows safe-directory ownership mismatch for the project root in this environment; configure the project as a safe directory locally before committing.
 - A legacy generated metadata folder named `fsktm-postgraduate-administrative-portal1` remains at the root because the folder is locked by another process. It is not part of the runnable application after the reorganization.
-- Unfinished modules remain mock-backed by default, while Supervisor, Panel, Marks, and Timeline can independently use Django.
+- Unfinished or teammate-owned modules may remain mock-backed during development. Dashboard/Timeline, Supervisor, Panel, Marks, and Workflow/Approval Tracking are unconditionally Django-backed.
 - Backend integration is still pending for broader registry, file, FAQ, and some notification workflows.
 - Remaining component-local arrays are mostly UI control choices such as month labels, filter options, decorative step labels, file size units, avatar style options, and suggestion chips.
 - The previous Vite default 500 kB chunk warning has been resolved through route-level lazy loading and vendor chunking.

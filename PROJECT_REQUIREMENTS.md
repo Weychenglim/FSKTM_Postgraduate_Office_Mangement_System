@@ -208,10 +208,10 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Toast notifications should appear at the top-right of the viewport, below the sticky top header, and remain above app overlays.
 - Irreversible confirmations such as cancellation, deletion, and final mark submission must use the shared portal confirmation modal instead of browser-native `window.confirm()` dialogs.
 - Dashboard and panel appointment actions must use in-app portal toasts or inline validation instead of browser-default `alert()` popups.
-- Frontend API configuration must be driven by Vite environment variables so mock mode and backend base URL can change without code edits.
-- Lecturer-side panel appointment persistence must use the backend by default through `VITE_USE_PANEL_BACKEND=true`, even while unfinished modules continue using global mock mode.
-- Office Staff dashboard timeline persistence must use the backend by default through `VITE_USE_TIMELINE_BACKEND=true`, even while unfinished modules continue using global mock mode.
-- Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
+- Frontend API base configuration must be driven by Vite environment variables. Global mock mode may remain only for unfinished or teammate-owned modules.
+- Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking must always use Django. Their services and screens must not inspect global mock mode, use module-specific backend switches, or substitute demo records after an API error.
+- Owned workflow screens must expose their existing loading, retry, and authorization states when Django is unavailable or rejects a request.
+- Demo data for unfinished modules must remain outside owned-module services and runtime components.
 - Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
 - Demo accounts must use clearly fictional `example.test` emails, `DEMO-*` identifiers, and demonstration-only profile data with no national identity-number patterns.
 - Django demo seeding must require `DEBUG=True`, an explicit `ENABLE_DEMO_ACCOUNTS=true` opt-in, and non-blank per-role passwords supplied only through an ignored local environment file.
@@ -307,3 +307,11 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Submitted-mark reopening and direct score or comment corrections remain restricted to audited Django Admin actions. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
 - Marks production screens must not ship mock records, browser-local period/rubric mutations, simulated sync controls, unsupported mark-sheet/PDF downloads, fake supporting documents, or notification dispatch behavior.
 - Marks remains tracking-only with `Not Started`, `Draft`, and `Submitted`; no approval or grade-classification stage is introduced.
+
+## Backend-Only Owned Workflow Boundary
+
+- Appointment and Timeline service functions must call their Django endpoints directly under every Vite environment combination.
+- Supervisor workload monitoring must be derived from active persisted appointments and configured supervisor limits. A Lecturer's own workload must use an authenticated, role-scoped endpoint.
+- Lecturer acceptance of a Supervisor application must remain pending Programme Coordinator approval and must not create or display an active appointment until the backend creates one.
+- Active-supervisee detail, panel candidates, recommendation histories, timeline semester/session metadata, and timeline dates must come from persisted API responses or explicit user input; the UI must not invent fallback identities, records, dates, or files.
+- Appointment and Timeline mock datasets and legacy `VITE_USE_SUPERVISOR_BACKEND`, `VITE_USE_PANEL_BACKEND`, and `VITE_USE_TIMELINE_BACKEND` controls must not be present in source or production artifacts.

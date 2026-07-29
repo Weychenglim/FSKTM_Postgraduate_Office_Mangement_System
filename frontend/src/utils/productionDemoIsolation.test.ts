@@ -13,6 +13,12 @@ const canaries = {
   VITE_DEMO_LECTURER_PASSWORD: 'PRODUCTION-CANARY-LECT-7a26',
   VITE_DEMO_STUDENT_PASSWORD: 'PRODUCTION-CANARY-STUDENT-3d85',
 };
+const legacyOwnedBackendFlags = {
+  VITE_USE_MOCKS: 'true',
+  VITE_USE_SUPERVISOR_BACKEND: 'false',
+  VITE_USE_PANEL_BACKEND: 'false',
+  VITE_USE_TIMELINE_BACKEND: 'false',
+};
 
 async function collectBundleText(directory: string): Promise<string> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -48,7 +54,11 @@ async function collectBundlePaths(directory: string): Promise<string[]> {
 
 const outputDirectory = await mkdtemp(path.join(tmpdir(), 'fsktm-production-security-'));
 const previousEnvironment = Object.fromEntries(
-  ['VITE_ENABLE_DEMO_LOGIN', ...Object.keys(canaries)].map((name) => [
+  [
+    'VITE_ENABLE_DEMO_LOGIN',
+    ...Object.keys(canaries),
+    ...Object.keys(legacyOwnedBackendFlags),
+  ].map((name) => [
     name,
     process.env[name],
   ]),
@@ -57,6 +67,7 @@ const previousEnvironment = Object.fromEntries(
 try {
   process.env.VITE_ENABLE_DEMO_LOGIN = 'true';
   Object.assign(process.env, canaries);
+  Object.assign(process.env, legacyOwnedBackendFlags);
 
   const loadedEnvironment = loadEnv('production', frontendRoot, 'VITE_');
   for (const [name, canary] of Object.entries(canaries)) {
@@ -93,6 +104,21 @@ try {
       bundleText.includes(marksCanary),
       false,
       `production bundle contains legacy Marks content: ${marksCanary}`,
+    );
+  }
+  for (const ownedMockCanary of [
+    'MOCK_SUPERVISOR_APPOINTMENTS',
+    'MOCK_PANEL_APPOINTMENTS',
+    'MOCK_TIMELINE_ENTRIES',
+    'VITE_USE_SUPERVISOR_BACKEND',
+    'VITE_USE_PANEL_BACKEND',
+    'VITE_USE_TIMELINE_BACKEND',
+    'Download supervisor appointment forms and research intent',
+  ]) {
+    assert.equal(
+      bundleText.includes(ownedMockCanary),
+      false,
+      `production bundle contains owned-module mock content: ${ownedMockCanary}`,
     );
   }
   assert.equal(

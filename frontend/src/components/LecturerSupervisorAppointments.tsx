@@ -47,6 +47,7 @@ import {
   getSupervisorApplication,
   getSupervisorRequests,
   getActiveSupervisees,
+  getOwnSupervisorWorkload,
   orderSupervisorQueueOldestFirst,
   rejectSupervisorApplication,
 } from '../services';
@@ -76,6 +77,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   badgeType = 'success',
   progress
 }) => {
+  const utilization = progress && progress.max > 0
+    ? Math.min(100, Math.max(0, (progress.current / progress.max) * 100))
+    : 0;
+
   return (
     <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-auto relative overflow-hidden group hover:border-[#cbd5e1] transition-all duration-300">
       <div className="flex justify-between items-start">
@@ -116,11 +121,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
           <div className="w-full bg-[#f1f5f9] rounded-full h-2 overflow-hidden">
             <div 
               className="bg-brand-navy h-full rounded-full transition-all duration-500"
-              style={{ width: `${(progress.current / progress.max) * 100}%` }}
+              style={{ width: `${utilization}%` }}
             />
           </div>
           <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Progress Load: {Math.round((progress.current / progress.max) * 100)}%</span>
+            <span>Progress Load: {Math.round(utilization)}%</span>
             <span>Capacity</span>
           </div>
         </div>
@@ -785,11 +790,9 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToSupervisee,
   onNavigateToDossier,
 }) => {
-  // Supervisory load counter (workload widget). Stays local UI state: it tracks
-  // remaining slots and is nudged as the lecturer approves/rejects requests.
-  const [summaryLoad, setSummaryLoad] = useState({ current: 3, max: 5 });
+  const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
 
-  // Pending requests + active supervisees loaded from appointmentsApi (mock-backed today).
+  // Pending requests, active supervisees, and workload come from Django.
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
   const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -798,10 +801,18 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([getSupervisorRequests(), getActiveSupervisees()])
-      .then(([requests, active]) => {
+    Promise.all([
+      getSupervisorRequests(),
+      getActiveSupervisees(),
+      getOwnSupervisorWorkload(),
+    ])
+      .then(([requests, active, workload]) => {
         setRequestsList(orderSupervisorQueueOldestFirst(requests));
         setSupervisees(active);
+        setSummaryLoad({
+          current: workload.currentStudents,
+          max: workload.workloadLimit,
+        });
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
       .finally(() => setLoading(false));
@@ -865,22 +876,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
   };
 
-  const buildSuperviseeProfile = (supe: ActiveSuperviseeRow) => ({
-      ...supe,
-      programme: supe.studentId.startsWith('WEA') ? 'MSc. Computer Science' : 'MSc. Software Engineering',
-      email: `${supe.studentName.toLowerCase().replace(/\s+/g, '')}@um.edu.my`,
-      phone: '+60 3-7967 6300',
-      office: 'Block A, Level 3, Room 12',
-      coSupervisor: 'Assoc. Prof. Dr. Amina Malik',
-      progressReport: 'Satisfactory (Satisfactory achievement across Milestone 2 targets.)',
-      recentMilestone: 'Milestone 2 Defense Confirmed (Approved: Apr 2026)',
-      abstract: 'This dissertation investigates security paradigms and computational enhancements, testing deployment structures onto simulated container clusters inside Universiti Malaya’s computing infrastructure.'
-    });
-
   const selectedSupervisee = useMemo(() => {
     if (!routeSuperviseeStudentId) return null;
-    const supervisee = supervisees.find((item) => String(item.studentId) === String(routeSuperviseeStudentId));
-    return supervisee ? buildSuperviseeProfile(supervisee) : null;
+    return supervisees.find(
+      (item) => String(item.studentId) === String(routeSuperviseeStudentId),
+    ) ?? null;
   }, [supervisees, routeSuperviseeStudentId]);
 
   const navigateToList = onNavigateToList ?? (() => undefined);
@@ -901,16 +901,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         showToast(reason instanceof Error ? reason.message : 'Failed to accept supervisor request.');
         return;
       }
-      const newActive: ActiveSuperviseeRow = {
-        studentId: studentReq.studentId,
-        studentName: studentReq.studentName,
-        researchTitle: studentReq.proposedTopic,
-        appointmentDate: '28 May 2026', // Current mocked Date
-        status: 'Active'
-      };
-      setSupervisees(prev => [newActive, ...prev]);
-      setSummaryLoad(prev => ({ ...prev, current: Math.min(prev.max, prev.current + 1) }));
-      setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      await loadData();
       setDetailRejectReason('');
       showToast(`Appointment approved! ${studentReq.studentName} is now added to your supervisee roster.`);
       setIsDrawerOpen(false);
@@ -964,7 +955,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
             <SummaryCard
               title="Supervisory Load"
-              subtext="ACADEMIC YEAR 2024/2025"
+              subtext="Active persisted appointments"
               value=""
               badge="Available"
               badgeType="success"
@@ -1108,7 +1099,8 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                     REMAINING SEATS
                   </span>
                   <span className="text-xs font-extrabold text-[#00a15c] block mt-1">
-                    {summaryLoad.max - summaryLoad.current} / {summaryLoad.max} Slots Available
+                    {Math.max(summaryLoad.max - summaryLoad.current, 0)}
+                    {' '}/ {summaryLoad.max} Slots Available
                   </span>
                 </div>
               </div>
@@ -1195,8 +1187,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         >
           <ActiveSuperviseeDetail 
             onBack={navigateToList}
-            studentId={selectedSupervisee.studentId}
-            studentName={selectedSupervisee.studentName}
+            supervisee={selectedSupervisee}
           />
         </motion.div>
       )}

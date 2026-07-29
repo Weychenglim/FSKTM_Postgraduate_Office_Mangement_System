@@ -142,6 +142,117 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertEqual(notification.record_type, "SUPERVISOR_APPLICATION")
         self.assertEqual(notification.record_id, str(application.pk))
 
+    def test_office_staff_can_view_persisted_supervisor_workload(self):
+        application_id = self.submit_application().data["id"]
+        application = SupervisorApplication.objects.get(pk=application_id)
+        application.status = SupervisorApplication.Status.APPROVED
+        application.save(update_fields=["status"])
+        SupervisorAppointment.objects.create(
+            application=application,
+            student=self.student_user.student,
+            supervisor=self.supervisor_user,
+            approved_by=self.coordinator,
+        )
+        self.authenticate(self.office_admin)
+
+        response = self.client.get("/api/appointments/supervisor/workload/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        supervisor_row = next(
+            row for row in response.data if row["lecturerId"] == "SV1001"
+        )
+        self.assertEqual(supervisor_row["lecturerName"], "Dr. Requested Supervisor")
+        self.assertEqual(supervisor_row["currentStudents"], 1)
+        self.assertEqual(supervisor_row["workloadLimit"], 2)
+        self.assertEqual(supervisor_row["availability"], "Near Limit")
+        self.assertEqual(len(supervisor_row["supervisees"]), 1)
+        self.assertEqual(
+            supervisor_row["supervisees"][0]["id"],
+            "MEA-SUP-001",
+        )
+
+    def test_supervisor_workload_is_office_only(self):
+        for user in [
+            self.student_user,
+            self.supervisor_user,
+            self.coordinator,
+        ]:
+            self.authenticate(user)
+            response = self.client.get(
+                "/api/appointments/supervisor/workload/"
+            )
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+
+    def test_lecturer_can_view_own_persisted_workload_and_supervisee_details(self):
+        application_id = self.submit_application().data["id"]
+        application = SupervisorApplication.objects.get(pk=application_id)
+        application.status = SupervisorApplication.Status.APPROVED
+        application.save(update_fields=["status"])
+        appointment = SupervisorAppointment.objects.create(
+            application=application,
+            student=self.student_user.student,
+            supervisor=self.supervisor_user,
+            approved_by=self.coordinator,
+        )
+        self.authenticate(self.supervisor_user)
+
+        workload = self.client.get(
+            "/api/appointments/supervisor/my-workload/"
+        )
+        supervisees = self.client.get(
+            "/api/appointments/supervisor/supervisees/"
+        )
+
+        self.assertEqual(workload.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            workload.data,
+            {
+                "currentStudents": 1,
+                "workloadLimit": 2,
+                "availableSlots": 1,
+            },
+        )
+        self.assertEqual(supervisees.status_code, status.HTTP_200_OK)
+        self.assertEqual(supervisees.data[0]["appointmentId"], appointment.pk)
+        self.assertEqual(
+            supervisees.data[0]["programme"],
+            "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        self.assertEqual(
+            supervisees.data[0]["semester"],
+            "Sem 1 2025/2026",
+        )
+        self.assertEqual(
+            supervisees.data[0]["email"],
+            "student-supervisor@example.com",
+        )
+        self.assertEqual(
+            supervisees.data[0]["researchAbstract"],
+            "A sufficiently detailed research abstract.",
+        )
+        self.assertEqual(
+            supervisees.data[0]["supervisorName"],
+            "Dr. Requested Supervisor",
+        )
+
+    def test_own_supervisor_workload_is_lecturer_only(self):
+        for user in [
+            self.student_user,
+            self.coordinator,
+            self.office_admin,
+        ]:
+            self.authenticate(user)
+            response = self.client.get(
+                "/api/appointments/supervisor/my-workload/"
+            )
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+
     def test_student_can_cancel_pending_request_with_reason_and_resubmit(self):
         application_id = self.submit_application().data["id"]
 

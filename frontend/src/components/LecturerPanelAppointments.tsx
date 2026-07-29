@@ -82,19 +82,17 @@ import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgein
 // PanelAssignment, PanelRecommendationDraft and SubmittedRecommendation now
 // live in src/types.
 
-const RECOMMENDATION_STUDENT = {
-  studentId: 'MEA2209841',
-  studentName: 'Ahmad Luqman',
-  programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
-  intake: 'Sem 1 2025/2026',
-  supervisor: 'Dr. Siti Noor',
-  initials: 'AL',
-  proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
-  area: 'Artificial Intelligence',
-  abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources, aiming to enhance machine translation and speech recognition accuracy in indigenous contexts.',
-};
-
-type RecommendationStudent = typeof RECOMMENDATION_STUDENT;
+interface RecommendationStudent {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  intake: string;
+  supervisor: string;
+  initials: string;
+  proposedTopic: string;
+  area: string;
+  abstract: string;
+}
 
 const toRecommendationStudent = (student: PanelRecommendationSupervisee): RecommendationStudent => ({
   studentId: student.studentId,
@@ -508,7 +506,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   // Panel assignments, recommendation drafts, and the submitted-recommendation
-  // history loaded from appointmentsApi (mock-backed today).
+  // History is loaded from the persisted appointment API.
   const [assignments, setAssignments] = useState<PanelAssignment[]>([]);
   const [submittedRecs, setSubmittedRecs] = useState<PanelRecommendationDraft[]>([]);
   const [panelReviewQueue, setPanelReviewQueue] = useState<PanelRecommendationDraft[]>([]);
@@ -639,9 +637,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   // newly recommended items appear immediately at the top of the table.
   const combinedRecommendations = useMemo(() => {
     const customList = submittedRecs
-      .filter(r => r.studentId !== 'MEA2400712' && r.studentId !== '17204561')
-      .map((r, i) => ({
-        id: r.id !== undefined ? `REC-${String(r.id).padStart(4, '0')}` : `REC-2026-${String(100 + i).slice(1)}`,
+      .map((r) => ({
+        id: r.id !== undefined
+          ? `REC-${String(r.id).padStart(4, '0')}`
+          : `STUDENT-${r.studentId}`,
         recommendationId: r.id,
         studentName: r.studentName,
         studentId: r.studentId,
@@ -657,10 +656,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           ? 'Rejected'
           : 'Pending Approval') as SubmittedRecommendation['status'],
         workflowStatus: r.status,
-        semester: r.semester || 'Sem 1 2025/2026',
+        semester: r.semester || '',
         programme: r.programme,
         researchArea: r.researchArea,
-        abstract: r.abstract ?? recommendationStudent?.abstract ?? '',
+        abstract: r.abstract ?? '',
         justification: r.justification,
         rejectionReason: r.rejectionReason,
         submittedAt: r.submittedAt,
@@ -686,7 +685,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       seen.add(key);
       return true;
     });
-  }, [submittedRecs, panelRecommendations, recommendationStudent?.abstract]);
+  }, [submittedRecs, panelRecommendations]);
 
   const currentRecommendation = useMemo(
     () => recommendationStudent
@@ -864,7 +863,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                     Panel Workload
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 block pt-0.5 uppercase tracking-wider">
-                    Academic Year 2025/2026
+                    Persisted assignments and reservations
                   </span>
                 </div>
                 <StatusBadge tone="success" dot pulse className="px-3 py-1 text-[9px]">

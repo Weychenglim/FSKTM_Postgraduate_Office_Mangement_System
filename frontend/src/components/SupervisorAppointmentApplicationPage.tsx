@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -27,6 +27,7 @@ import {
   toStudentSupervisorApplication,
 } from '../services';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
+import { ErrorState, LoadingState } from './StateViews';
 
 interface SupervisorAppointmentApplicationPageProps {
   onBack: () => void;
@@ -55,15 +56,28 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [supervisors, setSupervisors] = useState<SupervisorCandidate[]>([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(true);
+  const [supervisorsError, setSupervisorsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadSupervisors = useCallback(() => {
+    setLoadingSupervisors(true);
+    setSupervisorsError(null);
     getSupervisorCandidates()
       .then(setSupervisors)
       .catch((reason) => {
-        alert(reason instanceof Error ? reason.message : 'Failed to load supervisor candidates.');
-      });
+        setSupervisorsError(
+          reason instanceof Error
+            ? reason.message
+            : 'Failed to load supervisor candidates.',
+        );
+      })
+      .finally(() => setLoadingSupervisors(false));
   }, []);
+
+  useEffect(() => {
+    loadSupervisors();
+  }, [loadSupervisors]);
 
   // Filtering based on search query
   const filteredSupervisors = supervisors.filter(sv => 
@@ -272,7 +286,14 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
             {/* Render matched supervisors lists */}
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-              {filteredSupervisors.length > 0 ? (
+              {loadingSupervisors ? (
+                <LoadingState message="Loading eligible supervisors..." />
+              ) : supervisorsError ? (
+                <ErrorState
+                  message={supervisorsError}
+                  onRetry={loadSupervisors}
+                />
+              ) : filteredSupervisors.length > 0 ? (
                 filteredSupervisors.map((sv) => {
                   const isSelected = selectedSupervisorId === sv.id;
                   const isFull = sv.filled >= sv.total;

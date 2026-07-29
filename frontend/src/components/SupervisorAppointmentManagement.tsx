@@ -65,7 +65,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Supervisor appointment records loaded from appointmentsApi (mock-backed today).
+  // Supervisor appointment records are loaded from the persisted Django API.
   const [records, setRecords] = useState<SupervisorRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -451,7 +451,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'AM'}
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Assoc. Prof. Dr. Amina Malik'}</h5>
+                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Not assigned'}</h5>
                     <p className="text-[10px] font-bold text-slate-400 mt-0.5">Internal Panel Member</p>
                   </div>
                 </div>
@@ -462,7 +462,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               </div>
 
               <button 
-                onClick={() => showToast(`Opening panel member record page for ${r.panelMemberName || 'Assoc. Prof. Dr. Amina Malik'}`)} 
+                onClick={() => showToast(`Opening panel member record page for ${r.panelMemberName || 'the assigned panel member'}`)}
                 className="w-full py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center font-sans font-bold"
               >
                 View Panel Record

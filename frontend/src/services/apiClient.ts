@@ -6,13 +6,9 @@
 /**
  * Thin API client shared by every *Api.ts service.
  *
- * Today the services return mock data through `mockResponse`, but they already
- * have the async (Promise) shape a real backend will use. When the backend is
- * ready:
- *   1. Set VITE_USE_MOCKS=false and VITE_API_BASE_URL to the backend URL.
- *   2. Replace the `mockResponse(...)` body of each service function with the
- *      matching `request(...)` call that is already stubbed alongside it.
- * Components calling the services do not change.
+ * Dashboard/Timeline, Supervisor, Panel, Marks, and Workflow services always
+ * call Django. `USE_MOCKS` remains available only to unfinished or
+ * teammate-owned modules while their persistence integrations are completed.
  */
 
 import { AuthSession } from './authSession';
@@ -28,15 +24,15 @@ const parseNumberEnv = (value: string | undefined, fallback: number): number => 
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
-export const USE_MOCKS = parseBooleanEnv(import.meta.env.VITE_USE_MOCKS, true);
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '/api';
+export const USE_MOCKS = parseBooleanEnv(import.meta.env?.VITE_USE_MOCKS, true);
+export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL?.trim() || '/api';
 const authSession = new AuthSession(
   (input, init) => fetch(input, init),
   `${API_BASE_URL}/auth/refresh/`,
 );
 
 // Simulated network latency for mock responses (ms).
-const MOCK_LATENCY_MS = parseNumberEnv(import.meta.env.VITE_MOCK_LATENCY_MS, 500);
+const MOCK_LATENCY_MS = parseNumberEnv(import.meta.env?.VITE_MOCK_LATENCY_MS, 500);
 
 export class ApiError extends Error {
   status?: number;

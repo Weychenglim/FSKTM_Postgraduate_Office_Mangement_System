@@ -51,7 +51,7 @@ const formatDisplayDate = (value?: string) => {
 
 const formatSessionTitle = (session?: string) => {
   const match = session?.match(/\d{4}\/\d{4}/);
-  return `Session ${match ? match[0] : session || '2025/2026'}`;
+  return match ? `Session ${match[0]}` : session || 'No active session';
 };
 
 const actionLabel = (action: TimelineAuditLog['action']) => {
@@ -651,6 +651,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         isOpen={addDrawerOpen}
         onClose={() => setAddDrawerOpen(false)}
         onSave={handleAddEntry}
+        timelineLabel={timeline?.available
+          ? `${timeline.semester} ${timeline.session}`
+          : 'the active timeline'}
       />
 
       {/* Edit Timeline Slide-in Drawer */}
@@ -662,13 +665,18 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         }}
         entry={editingEntry}
         onSave={handleEditEntry}
+        timelineLabel={timeline?.available
+          ? `${timeline.semester} ${timeline.session}`
+          : 'the active timeline'}
       />
 
       {/* Upload Timeline Slide-in Drawer */}
       <UploadTimelineDrawer 
         isOpen={uploadDrawerOpen} 
         onClose={() => setUploadDrawerOpen(false)} 
-        onImportSuccess={handleImportSuccess} 
+        onImportSuccess={handleImportSuccess}
+        defaultSemester={timeline?.available ? timeline.semester : ''}
+        defaultSession={timeline?.available ? timeline.session : ''}
       />
 
       {/* Delete Confirmation Modal */}
