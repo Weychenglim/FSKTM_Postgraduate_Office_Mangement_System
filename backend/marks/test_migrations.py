@@ -7,24 +7,34 @@ from django.utils import timezone
 
 
 class MarksConfigurationMigrationTests(TransactionTestCase):
-    migrate_from = (
-        "marks",
-        "0002_evaluationtask_evaluator_role_and_override_audit",
-    )
-    migrate_to = (
-        "marks",
-        "0003_marksconfigurationaudit_evaluationperiod_archived_at_and_more",
-    )
+    migrate_from = [
+        (
+            "marks",
+            "0002_evaluationtask_evaluator_role_and_override_audit",
+        ),
+        ("academics", "0001_initial"),
+    ]
+    migrate_to = [
+        (
+            "marks",
+            "0003_marksconfigurationaudit_evaluationperiod_archived_at_and_more",
+        ),
+        ("academics", "0001_initial"),
+    ]
 
     def setUp(self):
         super().setUp()
         executor = MigrationExecutor(connection)
-        executor.migrate([self.migrate_from])
-        old_apps = executor.loader.project_state([self.migrate_from]).apps
+        executor.migrate(self.migrate_from)
+        old_apps = executor.loader.project_state(self.migrate_from).apps
 
         Rubric = old_apps.get_model("marks", "Rubric")
         RubricComponent = old_apps.get_model("marks", "RubricComponent")
         EvaluationPeriod = old_apps.get_model("marks", "EvaluationPeriod")
+
+        EvaluationPeriod.objects.all().delete()
+        RubricComponent.objects.all().delete()
+        Rubric.objects.all().delete()
 
         self.rubric = Rubric.objects.create(
             name="Legacy Faculty Evaluation",
@@ -75,11 +85,12 @@ class MarksConfigurationMigrationTests(TransactionTestCase):
         )
 
         executor = MigrationExecutor(connection)
-        executor.migrate([self.migrate_to])
-        self.apps = executor.loader.project_state([self.migrate_to]).apps
+        executor.migrate(self.migrate_to)
+        self.apps = executor.loader.project_state(self.migrate_to).apps
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate([self.migrate_to])
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def test_existing_configuration_is_versioned_without_changing_ids(self):

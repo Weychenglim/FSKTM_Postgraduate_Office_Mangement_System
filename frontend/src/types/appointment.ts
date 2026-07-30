@@ -12,6 +12,8 @@ export type WorkflowWaitingOn =
   | 'FACULTY_PROCESSING';
 
 export interface WorkflowAgeingMetadata {
+  semesterId?: number | null;
+  semesterCode?: string | null;
   waitingSince?: string | null;
   waitingDays?: number | null;
   waitingOn?: WorkflowWaitingOn | null;

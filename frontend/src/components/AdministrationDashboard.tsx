@@ -13,6 +13,7 @@ import { DashboardAttentionRow, DashboardSummary, DashboardTask } from '../types
 import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { MarkRecordStatusTab } from '../utils/markRecords';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -140,6 +141,10 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
             View Workflow Reports
           </PortalButton>
         )}
+      />
+
+      <ActiveSemesterContext
+        onManage={() => onNavigateToRoute?.(APP_ROUTES.dashboardSemesters)}
       />
 
       {/* 1. Semester Timeline Section */}

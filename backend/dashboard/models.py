@@ -4,6 +4,13 @@ from django.db.models import Q
 
 
 class SemesterTimeline(models.Model):
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="timelines",
+        null=True,
+        blank=True,
+    )
     semester = models.CharField(max_length=128)
     session = models.CharField(max_length=64)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -22,9 +29,12 @@ class SemesterTimeline(models.Model):
         ordering = ["-uploaded_at", "-created_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="one_active_semester_timeline",
+                fields=["academic_semester"],
+                condition=Q(
+                    is_active=True,
+                    academic_semester__isnull=False,
+                ),
+                name="one_current_timeline_per_semester",
             )
         ]
 

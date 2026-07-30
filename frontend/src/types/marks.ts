@@ -101,6 +101,8 @@ export interface EvaluationPeriodOption {
   id: number;
   name: string;
   semester: string;
+  semesterId: number | null;
+  semesterCode: string | null;
   rubricId: number;
   rubricName: string;
   opensAt: string | null;

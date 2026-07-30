@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
+
+from academics.services import current_effective_semester
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
@@ -19,6 +22,14 @@ from .models import (
 
 
 User = get_user_model()
+
+
+class NoEffectiveSemester(APIException):
+    status_code = 409
+    default_detail = (
+        "No active academic semester is currently accepting new workflows."
+    )
+    default_code = "academic_semester_unavailable"
 
 
 def related_or_none(obj, attr):
@@ -146,7 +157,9 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     studentId = serializers.CharField(source="profile.matric_no", read_only=True)
     studentName = serializers.CharField(source="profile.student_name", read_only=True)
     programme = serializers.CharField(source="profile.programme", read_only=True)
-    semester = serializers.CharField(source="profile.semester", read_only=True)
+    semester = serializers.SerializerMethodField()
+    semesterId = serializers.SerializerMethodField()
+    semesterCode = serializers.SerializerMethodField()
     proposedTopic = serializers.CharField(source="profile.proposed_topic", read_only=True)
     researchArea = serializers.CharField(source="profile.research_area", read_only=True)
     abstract = serializers.CharField(source="profile.abstract", read_only=True)
@@ -175,6 +188,8 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             "studentName",
             "programme",
             "semester",
+            "semesterId",
+            "semesterCode",
             "proposedTopic",
             "researchArea",
             "abstract",
@@ -200,6 +215,19 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
 
     def get_submittedDate(self, obj):
         return format_display_date(obj.submitted_at or obj.created_at)
+
+    def get_semester(self, obj):
+        return (
+            obj.academic_semester.label
+            if obj.academic_semester_id
+            else "Legacy / Unassigned"
+        )
+
+    def get_semesterId(self, obj):
+        return obj.academic_semester_id
+
+    def get_semesterCode(self, obj):
+        return obj.academic_semester.code if obj.academic_semester_id else None
 
     def get_recommendedMemberId(self, obj):
         return staff_no_for_user(obj.recommended_member)
@@ -279,13 +307,18 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 "Selected panel lecturer has reached the panel workload limit. Please choose another panel member."
             )
 
+        academic_semester = current_effective_semester()
+        if academic_semester is None:
+            raise NoEffectiveSemester()
         attrs["profile"] = profile
         attrs["recommended_member"] = recommended_member
+        attrs["academic_semester"] = academic_semester
         return attrs
 
     def create(self, validated_data):
         recommendation = PanelRecommendation(
             profile=validated_data["profile"],
+            academic_semester=validated_data["academic_semester"],
             supervisor=self.context["request"].user,
             recommended_member=validated_data["recommended_member"],
             justification=validated_data.get("justification", ""),
@@ -333,7 +366,9 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
     studentId = serializers.CharField(source="student.matric_no", read_only=True)
     studentName = serializers.CharField(source="student.user.full_name", read_only=True)
     programme = serializers.CharField(source="student.programme", read_only=True)
-    semester = serializers.CharField(source="student.intake_semester", read_only=True)
+    semester = serializers.SerializerMethodField()
+    semesterId = serializers.SerializerMethodField()
+    semesterCode = serializers.SerializerMethodField()
     proposedSupervisor = serializers.CharField(
         source="proposed_supervisor.full_name",
         read_only=True,
@@ -374,6 +409,8 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "studentName",
             "programme",
             "semester",
+            "semesterId",
+            "semesterCode",
             "proposedSupervisor",
             "proposedSupervisorId",
             "researchTitle",
@@ -394,6 +431,19 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
+
+    def get_semester(self, obj):
+        return (
+            obj.academic_semester.label
+            if obj.academic_semester_id
+            else "Legacy / Unassigned"
+        )
+
+    def get_semesterId(self, obj):
+        return obj.academic_semester_id
+
+    def get_semesterCode(self, obj):
+        return obj.academic_semester.code if obj.academic_semester_id else None
 
     def _waiting_metadata(self, obj):
         cache = getattr(self, "_waiting_metadata_cache", {})
@@ -447,14 +497,19 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The selected supervisor was not found."
             ) from exc
+        academic_semester = current_effective_semester()
+        if academic_semester is None:
+            raise NoEffectiveSemester()
         attrs["student"] = student
         attrs["supervisor"] = supervisor
+        attrs["academic_semester"] = academic_semester
         return attrs
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         application = SupervisorApplication.objects.create(
             student=validated_data["student"],
+            academic_semester=validated_data["academic_semester"],
             proposed_supervisor=validated_data["supervisor"],
             research_title=validated_data["researchTitle"],
             research_abstract=validated_data["researchAbstract"],
@@ -512,7 +567,9 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
     supervisorEmail = serializers.EmailField(source="supervisor.email")
     appointmentDate = serializers.SerializerMethodField()
     programme = serializers.CharField(source="profile.programme")
-    intake = serializers.CharField(source="profile.semester")
+    intake = serializers.SerializerMethodField()
+    semesterId = serializers.SerializerMethodField()
+    semesterCode = serializers.SerializerMethodField()
     abstract = serializers.CharField(source="profile.abstract")
     initials = serializers.SerializerMethodField()
     recommendationSubmittedAt = serializers.DateTimeField(source="recommendation.submitted_at", read_only=True)
@@ -534,6 +591,8 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
             "status",
             "programme",
             "intake",
+            "semesterId",
+            "semesterCode",
             "abstract",
             "initials",
             "recommendationSubmittedAt",
@@ -544,6 +603,17 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
 
     def get_appointmentDate(self, obj):
         return format_display_date(obj.appointment_date)
+
+    def get_intake(self, obj):
+        semester = obj.recommendation.academic_semester
+        return semester.label if semester else "Legacy / Unassigned"
+
+    def get_semesterId(self, obj):
+        return obj.recommendation.academic_semester_id
+
+    def get_semesterCode(self, obj):
+        semester = obj.recommendation.academic_semester
+        return semester.code if semester else None
 
     def get_initials(self, obj):
         return "".join(part[0] for part in obj.profile.student_name.split()[:2]).upper()
@@ -558,6 +628,8 @@ class StudentPanelAppointmentSerializer(serializers.Serializer):
     studentId = serializers.CharField()
     programme = serializers.CharField()
     semester = serializers.CharField()
+    semesterId = serializers.IntegerField(allow_null=True)
+    semesterCode = serializers.CharField(allow_null=True)
     researchTitle = serializers.CharField()
     supervisorName = serializers.CharField()
     panelMemberName = serializers.CharField(allow_null=True)
@@ -576,7 +648,13 @@ def student_panel_appointment_payload(profile):
             profile=profile,
             status=PanelAppointment.Status.ACTIVE,
         )
-        .select_related("panel_member", "panel_member__lecturer", "supervisor")
+        .select_related(
+            "panel_member",
+            "panel_member__lecturer",
+            "supervisor",
+            "recommendation",
+            "recommendation__academic_semester",
+        )
         .first()
     )
     base = {
@@ -584,7 +662,9 @@ def student_panel_appointment_payload(profile):
         "studentName": profile.student_name,
         "studentId": profile.matric_no,
         "programme": profile.programme,
-        "semester": profile.semester,
+        "semester": "Legacy / Unassigned",
+        "semesterId": None,
+        "semesterCode": None,
         "researchTitle": profile.proposed_topic,
         "supervisorName": profile.supervisor.full_name,
         "panelMemberName": None,
@@ -602,12 +682,24 @@ def student_panel_appointment_payload(profile):
                 status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
             )
             .prefetch_related("workflow_events")
+            .select_related("academic_semester")
             .order_by("-updated_at", "-id")
             .first()
         )
         if recommendation:
             return {
                 **base,
+                "semester": (
+                    recommendation.academic_semester.label
+                    if recommendation.academic_semester_id
+                    else "Legacy / Unassigned"
+                ),
+                "semesterId": recommendation.academic_semester_id,
+                "semesterCode": (
+                    recommendation.academic_semester.code
+                    if recommendation.academic_semester_id
+                    else None
+                ),
                 **panel_waiting_metadata(recommendation, public=True),
             }
         return base
@@ -616,6 +708,17 @@ def student_panel_appointment_payload(profile):
     return {
         **base,
         "status": "CONFIRMED",
+        "semester": (
+            appointment.recommendation.academic_semester.label
+            if appointment.recommendation.academic_semester_id
+            else "Legacy / Unassigned"
+        ),
+        "semesterId": appointment.recommendation.academic_semester_id,
+        "semesterCode": (
+            appointment.recommendation.academic_semester.code
+            if appointment.recommendation.academic_semester_id
+            else None
+        ),
         "panelMemberName": panel_member.full_name,
         "panelMemberId": staff_no_for_user(panel_member),
         "panelMemberDepartment": department_for_user(panel_member),
@@ -631,6 +734,8 @@ def pending_student_panel_payload_from_user(user):
         "studentId": student_no_for_user(user),
         "programme": department_for_user(user),
         "semester": "Not available yet",
+        "semesterId": None,
+        "semesterCode": None,
         "researchTitle": "Not available yet",
         "supervisorName": "Not assigned yet",
         "panelMemberName": None,

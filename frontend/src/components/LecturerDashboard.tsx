@@ -12,6 +12,7 @@ import { getDashboardSummary } from '../services';
 import { DashboardSummary, DashboardTask } from '../types';
 import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface LecturerDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -113,6 +114,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
           </PortalButton>
         )}
       />
+
+      <ActiveSemesterContext />
 
       <DashboardTimeline
         showManageTimeline={false}

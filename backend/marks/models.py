@@ -121,6 +121,13 @@ class EvaluationPeriod(models.Model):
 
     name = models.CharField(max_length=255)
     semester = models.CharField(max_length=128)
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="evaluation_periods",
+        null=True,
+        blank=True,
+    )
     rubric = models.ForeignKey(
         Rubric,
         on_delete=models.PROTECT,
@@ -180,7 +187,11 @@ class EvaluationPeriod(models.Model):
 
     @property
     def accepts_submissions(self):
-        return self.effective_status == "OPEN"
+        return (
+            self.effective_status == "OPEN"
+            and self.academic_semester_id is not None
+            and self.academic_semester.is_active
+        )
 
 
 class MarksConfigurationAudit(models.Model):

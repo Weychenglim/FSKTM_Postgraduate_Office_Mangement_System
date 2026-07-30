@@ -17,6 +17,7 @@ const routeModules = [
   'LecturerSupervisorAppointments',
   'AdministrationDashboard',
   'TimelineManagement',
+  'AcademicSemesterManagement',
   'FileRepository',
   'StudentFileSubmission',
   'NotificationsAnnouncements',

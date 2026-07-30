@@ -92,8 +92,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   onNavigateToRoute,
 }) => {
   const [report, setReport] = useState<WorkflowReport | null>(null);
-  const [filters, setFilters] = useState<WorkflowReportFilters>({});
-  const [draftFilters, setDraftFilters] = useState<WorkflowReportFilters>({});
+  const [filters, setFilters] = useState<WorkflowReportFilters>({ semester: 'active' });
+  const [draftFilters, setDraftFilters] = useState<WorkflowReportFilters>({ semester: 'active' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -130,8 +130,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
   const resetFilters = () => {
     setValidationError(null);
-    setDraftFilters({});
-    setFilters({});
+    setDraftFilters({ semester: 'active' });
+    setFilters({ semester: 'active' });
   };
 
   const exportWorkbook = async () => {
@@ -183,7 +183,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           <CalendarDays className="w-4 h-4 text-blue-600" />
           <h2 className="text-xs font-black text-brand-navy">Report filters</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
           <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
             <span>Start date</span>
             <input
@@ -201,6 +201,23 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
               className="form-input w-full"
             />
+          </label>
+          <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
+            <span>Academic semester</span>
+            <select
+              value={draftFilters.semester ?? 'active'}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
+              className="form-input w-full"
+            >
+              <option value="active">Active semester</option>
+              <option value="all">All semesters</option>
+              <option value="unassigned">Legacy / Unassigned</option>
+              {report?.filters.availableSemesters.map((semester) => (
+                <option key={semester.semesterCode} value={semester.semesterCode}>
+                  {semester.semester}
+                </option>
+              ))}
+            </select>
           </label>
           {currentUserRole === 'Office Staff/Admin' && (
             <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">

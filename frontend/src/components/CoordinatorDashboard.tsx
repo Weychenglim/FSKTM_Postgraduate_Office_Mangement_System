@@ -8,6 +8,7 @@ import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface CoordinatorDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -132,6 +133,8 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
           </PortalButton>
         )}
       />
+
+      <ActiveSemesterContext />
 
       <DashboardTimeline
         showManageTimeline={false}

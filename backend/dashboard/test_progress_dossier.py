@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from academics.models import AcademicSemester
 from appointments.models import (
     AppointmentWorkflowEvent,
     PanelRecommendation,
@@ -33,6 +34,17 @@ class StudentProgressDossierTests(APITestCase):
             user=self.office,
             staff_no="DOSSIER-OFFICE",
             department="Postgraduate Office",
+        )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+            activated_at=self.now,
         )
         self.coordinator = self.create_lecturer(
             "dossier-coordinator@example.test",
@@ -154,6 +166,7 @@ class StudentProgressDossierTests(APITestCase):
         self.period = EvaluationPeriod.objects.create(
             name="Dossier Period",
             semester="Semester 1 2026/2027",
+            academic_semester=self.academic_semester,
             rubric=rubric,
             closes_at=self.now - timedelta(days=1),
             is_open=True,
@@ -183,6 +196,7 @@ class StudentProgressDossierTests(APITestCase):
         self.active_timeline = SemesterTimeline.objects.create(
             semester="Semester 1",
             session="2026/2027",
+            academic_semester=self.academic_semester,
             is_active=True,
             uploaded_by=self.office,
         )

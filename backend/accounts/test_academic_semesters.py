@@ -1,0 +1,299 @@
+from datetime import date, timedelta
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.test import TestCase
+from django.urls import reverse
+from rest_framework.test import APIClient
+
+from academics.models import AcademicSemester, AcademicSemesterAudit
+from marks.models import EvaluationPeriod, MarksConfigurationAudit, Rubric
+
+
+User = get_user_model()
+
+
+class AcademicSemesterModelTests(TestCase):
+    def test_semester_validates_session_and_exposes_stable_metadata(self):
+        actor = User.objects.create_user(
+            email="semester.model@example.test",
+            password="local-test-password",
+            full_name="Semester Model Actor",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        semester = AcademicSemester(
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 7, 1),
+            ends_on=date(2026, 12, 31),
+            created_by=actor,
+        )
+
+        semester.full_clean()
+
+        self.assertEqual(semester.code, "2026-2027-S1")
+        self.assertEqual(semester.label, "Semester I 2026/2027")
+        self.assertEqual(semester.effective_status, AcademicSemester.Lifecycle.DRAFT)
+
+    def test_semester_rejects_non_consecutive_session(self):
+        actor = User.objects.create_user(
+            email="semester.invalid@example.test",
+            password="local-test-password",
+            full_name="Semester Invalid Actor",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        semester = AcademicSemester(
+            academic_session="2026/2028",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 7, 1),
+            ends_on=date(2026, 12, 31),
+            created_by=actor,
+        )
+
+        with self.assertRaises(ValidationError):
+            semester.full_clean()
+
+    def test_non_archived_semesters_cannot_overlap(self):
+        actor = User.objects.create_user(
+            email="semester.overlap@example.test",
+            password="local-test-password",
+            full_name="Semester Overlap Actor",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        AcademicSemester.objects.create(
+            code="2026-2027-S1",
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 7, 1),
+            ends_on=date(2026, 12, 31),
+            created_by=actor,
+        )
+        overlapping = AcademicSemester(
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=date(2026, 12, 1),
+            ends_on=date(2027, 5, 31),
+            created_by=actor,
+        )
+
+        with self.assertRaises(ValidationError):
+            overlapping.full_clean()
+
+
+class AcademicSemesterApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.office = User.objects.create_user(
+            email="semester.office@example.test",
+            password="local-test-password",
+            full_name="Semester Office",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        self.student = User.objects.create_user(
+            email="semester.student@example.test",
+            password="local-test-password",
+            full_name="Semester Student",
+            role=User.Role.STUDENT,
+        )
+        self.client.force_authenticate(self.office)
+
+    def test_office_creates_draft_and_all_roles_read_active_context(self):
+        today = date.today()
+        response = self.client.post(
+            "/api/academics/semesters/",
+            {
+                "academicSession": f"{today.year}/{today.year + 1}",
+                "term": "SEMESTER_I",
+                "startsOn": (today - timedelta(days=10)).isoformat(),
+                "endsOn": (today + timedelta(days=100)).isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        semester_id = response.data["id"]
+
+        activated = self.client.post(
+            f"/api/academics/semesters/{semester_id}/activate/",
+            {"reason": "Start the configured faculty semester."},
+            format="json",
+        )
+        self.assertEqual(activated.status_code, 200)
+        self.assertEqual(activated.data["effectiveStatus"], "ACTIVE")
+
+        self.client.force_authenticate(self.student)
+        active = self.client.get("/api/academics/semesters/active/")
+        self.assertEqual(active.status_code, 200)
+        self.assertEqual(active.data["semester"]["id"], semester_id)
+
+    def test_student_cannot_manage_semesters(self):
+        self.client.force_authenticate(self.student)
+        response = self.client.get("/api/academics/semesters/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_office_receives_conflict_for_overlapping_semester(self):
+        today = date.today()
+        AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today,
+            ends_on=today + timedelta(days=100),
+            created_by=self.office,
+        )
+
+        response = self.client.post(
+            "/api/academics/semesters/",
+            {
+                "academicSession": f"{today.year}/{today.year + 1}",
+                "term": "SEMESTER_II",
+                "startsOn": (today + timedelta(days=90)).isoformat(),
+                "endsOn": (today + timedelta(days=180)).isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+
+    def test_expired_active_semester_is_not_effectively_available(self):
+        today = date.today()
+        AcademicSemester.objects.create(
+            code=f"{today.year - 1}-{today.year}-S1",
+            academic_session=f"{today.year - 1}/{today.year}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=100),
+            ends_on=today - timedelta(days=1),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+
+        response = self.client.get("/api/academics/semesters/active/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["available"])
+        self.assertEqual(response.data["semester"]["effectiveStatus"], "EXPIRED")
+
+    def test_active_semester_extension_requires_later_date_and_records_reason(self):
+        today = date.today()
+        semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=10),
+            ends_on=today + timedelta(days=20),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+        rejected = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/extend/",
+            {
+                "endsOn": semester.ends_on.isoformat(),
+                "reason": "No actual extension.",
+            },
+            format="json",
+        )
+        extended_end = semester.ends_on + timedelta(days=10)
+        accepted = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/extend/",
+            {
+                "endsOn": extended_end.isoformat(),
+                "reason": "Faculty approved a later semester end.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(rejected.status_code, 409)
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.data["endsOn"], extended_end.isoformat())
+        audit = semester.audits.get(action=AcademicSemesterAudit.Action.EXTEND)
+        self.assertEqual(audit.reason, "Faculty approved a later semester end.")
+        audit.reason = "Changed"
+        with self.assertRaises(ValidationError):
+            audit.save()
+
+    def test_closed_semester_cannot_be_reactivated_and_can_be_archived(self):
+        today = date.today()
+        semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=10),
+            ends_on=today + timedelta(days=20),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+        closed = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/close/",
+            {"reason": "Complete the current semester."},
+            format="json",
+        )
+        reactivate = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/activate/",
+            {"reason": "Attempt to reopen."},
+            format="json",
+        )
+        archived = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/archive/",
+            {"reason": "Retain as read-only history."},
+            format="json",
+        )
+
+        self.assertEqual(closed.status_code, 200)
+        self.assertEqual(reactivate.status_code, 409)
+        self.assertEqual(archived.status_code, 200)
+        self.assertEqual(archived.data["lifecycleStatus"], "ARCHIVED")
+
+    def test_activation_atomically_closes_previous_semester_and_marks_periods(self):
+        today = date.today()
+        previous = AcademicSemester.objects.create(
+            code=f"{today.year - 1}-{today.year}-S2",
+            academic_session=f"{today.year - 1}/{today.year}",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=today - timedelta(days=120),
+            ends_on=today - timedelta(days=1),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+        rubric = Rubric.objects.create(
+            name="Handover Rubric",
+            code="handover-rubric",
+        )
+        period = EvaluationPeriod.objects.create(
+            name="Handover Period",
+            semester=previous.label,
+            academic_semester=previous,
+            rubric=rubric,
+            lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+            is_open=True,
+        )
+        created = self.client.post(
+            "/api/academics/semesters/",
+            {
+                "academicSession": f"{today.year}/{today.year + 1}",
+                "term": "SEMESTER_I",
+                "startsOn": today.isoformat(),
+                "endsOn": (today + timedelta(days=100)).isoformat(),
+            },
+            format="json",
+        )
+
+        activated = self.client.post(
+            f"/api/academics/semesters/{created.data['id']}/activate/",
+            {"reason": "Begin the next faculty semester."},
+            format="json",
+        )
+
+        self.assertEqual(activated.status_code, 200)
+        previous.refresh_from_db()
+        period.refresh_from_db()
+        self.assertEqual(previous.lifecycle_status, "CLOSED")
+        self.assertEqual(period.lifecycle_status, "CLOSED")
+        self.assertFalse(period.is_open)
+        self.assertTrue(
+            previous.audits.filter(action="HANDOVER_CLOSE").exists()
+        )
+        self.assertTrue(
+            MarksConfigurationAudit.objects.filter(
+                entity_id=period.pk,
+                action="SEMESTER_CLOSE",
+            ).exists()
+        )

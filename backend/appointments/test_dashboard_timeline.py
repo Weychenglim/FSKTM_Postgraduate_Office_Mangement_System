@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import OfficeStaff, Student
+from academics.models import AcademicSemester
 from openpyxl import Workbook, load_workbook
 
 from dashboard.upload_security import (
@@ -101,6 +102,17 @@ class DashboardTimelineApiTests(APITestCase):
             role=User.Role.STUDENT,
         )
         Student.objects.create(user=self.student, matric_no="S10001", programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)")
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.admin,
+            activated_at=timezone.now(),
+        )
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -180,8 +192,7 @@ class DashboardTimelineApiTests(APITestCase):
         response = self.client.post(
             "/api/dashboard/timeline/upload/",
             {
-                "semester": "Semester II",
-                "session": "2025/2026",
+                "semesterId": self.academic_semester.pk,
                 "file": workbook_upload(self.valid_rows(), filename="sem2-timeline.xlsx"),
             },
             format="multipart",
@@ -189,8 +200,15 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["importedCount"], 3)
-        self.assertEqual(response.data["timeline"]["semester"], "Semester II")
-        self.assertEqual(response.data["timeline"]["session"], "2025/2026")
+        self.assertEqual(response.data["timeline"]["semester"], "Semester I")
+        self.assertEqual(
+            response.data["timeline"]["session"],
+            self.academic_semester.academic_session,
+        )
+        self.assertEqual(
+            response.data["timeline"]["semesterId"],
+            self.academic_semester.pk,
+        )
         self.assertEqual(response.data["timeline"]["levels"][0]["level"], "P1")
         self.assertEqual(len(response.data["timeline"]["levels"][0]["entries"]), 2)
         self.assertEqual(response.data["timeline"]["levels"][1]["level"], "P2")
@@ -475,7 +493,7 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(SemesterTimeline.objects.count(), 2)
         self.assertEqual(SemesterTimeline.objects.filter(is_active=True).count(), 1)
-        self.assertEqual(SemesterTimeline.objects.get(is_active=True).semester, "Semester II")
+        self.assertEqual(SemesterTimeline.objects.get(is_active=True).semester, "Semester I")
 
     def test_office_admin_can_patch_timeline_entry_and_audit_change(self):
         self.authenticate(self.admin)

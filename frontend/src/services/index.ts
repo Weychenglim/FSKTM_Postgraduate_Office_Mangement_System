@@ -19,3 +19,4 @@ export * from './timelineApi';
 export * from './lettersApi';
 export * from './workflowReportsApi';
 export * from './studentProgressApi';
+export * from './academicSemestersApi';

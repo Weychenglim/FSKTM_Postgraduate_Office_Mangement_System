@@ -6,6 +6,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from academics.models import AcademicSemester
+from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
 from .deadlines import mark_deadline_metadata
@@ -109,6 +111,12 @@ def period_payload(period):
         "id": period.pk,
         "name": period.name,
         "semester": period.semester,
+        "semesterId": period.academic_semester_id,
+        "semesterCode": (
+            period.academic_semester.code
+            if period.academic_semester_id
+            else None
+        ),
         "rubricId": period.rubric_id,
         "rubricName": period.rubric.name,
         "opensAt": period.opens_at.isoformat() if period.opens_at else None,
@@ -272,6 +280,22 @@ def evaluation_periods_view(request):
     if request.method == "POST":
         serializer = EvaluationPeriodCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        semester_id = serializer.validated_data.get("semesterId")
+        academic_semester = (
+            AcademicSemester.objects.filter(pk=semester_id).first()
+            if semester_id
+            else current_effective_semester()
+        )
+        if academic_semester is None:
+            return Response(
+                {
+                    "error": (
+                        "Select a Draft or Active academic semester before "
+                        "creating an evaluation period."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         rubric = Rubric.objects.filter(
             pk=serializer.validated_data["rubricId"]
         ).first()
@@ -284,19 +308,27 @@ def evaluation_periods_view(request):
             period = create_evaluation_period(
                 actor=request.user,
                 name=serializer.validated_data["name"],
-                semester=serializer.validated_data["semester"],
+                academic_semester=academic_semester,
                 rubric=rubric,
                 opens_at=serializer.validated_data.get("opensAt"),
                 closes_at=serializer.validated_data.get("closesAt"),
             )
+        except MarksStateConflict as exc:
+            return state_conflict_response(exc)
         except DjangoValidationError as exc:
             return django_validation_response(exc)
-        period = EvaluationPeriod.objects.select_related("rubric").get(
+        period = EvaluationPeriod.objects.select_related(
+            "rubric",
+            "academic_semester",
+        ).get(
             pk=period.pk
         )
         return Response(period_payload(period), status=status.HTTP_201_CREATED)
 
-    periods = EvaluationPeriod.objects.select_related("rubric")
+    periods = EvaluationPeriod.objects.select_related(
+        "rubric",
+        "academic_semester",
+    )
     if request.query_params.get("includeArchived", "").lower() != "true":
         periods = periods.exclude(
             lifecycle_status=EvaluationPeriod.Lifecycle.ARCHIVED
@@ -313,7 +345,10 @@ def evaluation_period_detail_view(request, pk):
             {"error": "Only Office Staff/Admin can manage evaluation periods."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    period = EvaluationPeriod.objects.select_related("rubric").filter(pk=pk).first()
+    period = EvaluationPeriod.objects.select_related(
+        "rubric",
+        "academic_semester",
+    ).filter(pk=pk).first()
     if period is None:
         return Response(
             {"error": "Evaluation period was not found."},
@@ -336,7 +371,6 @@ def evaluation_period_detail_view(request, pk):
     values = {}
     for source, target in (
         ("name", "name"),
-        ("semester", "semester"),
         ("opensAt", "opens_at"),
         ("closesAt", "closes_at"),
     ):
@@ -350,6 +384,16 @@ def evaluation_period_detail_view(request, pk):
                 status=status.HTTP_404_NOT_FOUND,
             )
         values["rubric"] = rubric
+    if "semesterId" in data:
+        academic_semester = AcademicSemester.objects.filter(
+            pk=data["semesterId"]
+        ).first()
+        if academic_semester is None:
+            return Response(
+                {"error": "Academic semester was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        values["academic_semester"] = academic_semester
     try:
         period = update_evaluation_period(
             period=period,

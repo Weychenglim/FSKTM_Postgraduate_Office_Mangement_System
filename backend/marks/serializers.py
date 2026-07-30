@@ -83,7 +83,8 @@ class RubricComponentInputSerializer(serializers.Serializer):
 
 class EvaluationPeriodCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
-    semester = serializers.CharField(max_length=128)
+    semester = serializers.CharField(max_length=128, required=False)
+    semesterId = serializers.IntegerField(min_value=1, required=False)
     rubricId = serializers.IntegerField(min_value=1)
     opensAt = serializers.DateTimeField(required=False, allow_null=True)
     closesAt = serializers.DateTimeField(required=False, allow_null=True)
@@ -92,6 +93,7 @@ class EvaluationPeriodCreateSerializer(serializers.Serializer):
 class EvaluationPeriodUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False)
     semester = serializers.CharField(max_length=128, required=False)
+    semesterId = serializers.IntegerField(min_value=1, required=False)
     rubricId = serializers.IntegerField(min_value=1, required=False)
     opensAt = serializers.DateTimeField(required=False, allow_null=True)
     closesAt = serializers.DateTimeField(required=False, allow_null=True)

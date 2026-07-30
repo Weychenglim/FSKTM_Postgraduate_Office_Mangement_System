@@ -4,6 +4,7 @@ export interface WorkflowReportFilters {
   startDate?: string;
   endDate?: string;
   programme?: string;
+  semester?: string;
 }
 
 export interface WorkflowReportRecord {
@@ -15,6 +16,9 @@ export interface WorkflowReportRecord {
   assignee?: string;
   status: string;
   reportDate: string;
+  semesterId?: number | null;
+  semesterCode?: string | null;
+  semester?: string;
   waitingSince?: string | null;
   waitingDays?: number | null;
   waitingOn?: string | null;
@@ -77,6 +81,19 @@ export interface WorkflowReport {
     endDate: string | null;
     programme: string | null;
     availableProgrammes: string[];
+    semester: string;
+    selectedSemester: {
+      semesterId: number;
+      semesterCode: string;
+      semester: string;
+    } | null;
+    availableSemesters: Array<{
+      semesterId: number;
+      semesterCode: string;
+      semester: string;
+      lifecycleStatus: string;
+      effectiveStatus: string;
+    }>;
   };
   overview: {
     totalRecords: number;

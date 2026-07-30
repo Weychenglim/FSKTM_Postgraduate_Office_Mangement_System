@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from academics.models import AcademicSemester
 from appointments.models import (
     PanelAppointment,
     StudentResearchProfile,
@@ -37,6 +38,8 @@ def _assert_period_allows_task_creation(period):
     if (
         period.lifecycle_status != EvaluationPeriod.Lifecycle.PUBLISHED
         or (period.closes_at and period.closes_at < timezone.now())
+        or period.academic_semester_id is None
+        or not period.academic_semester.is_active
     ):
         raise MarksStateConflict(
             "Evaluation tasks can only be created for a published period "
@@ -53,6 +56,9 @@ def _active_periods():
     now = timezone.now()
     return EvaluationPeriod.objects.filter(
         lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+        academic_semester__lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+        academic_semester__starts_on__lte=timezone.localdate(),
+        academic_semester__ends_on__gte=timezone.localdate(),
     ).filter(
         Q(opens_at__isnull=True) | Q(opens_at__lte=now),
         Q(closes_at__isnull=True) | Q(closes_at__gte=now),
@@ -91,6 +97,12 @@ def _period_snapshot(period):
         "id": period.pk,
         "name": period.name,
         "semester": period.semester,
+        "semesterId": period.academic_semester_id,
+        "semesterCode": (
+            period.academic_semester.code
+            if period.academic_semester_id
+            else None
+        ),
         "rubricId": period.rubric_id,
         "opensAt": period.opens_at.isoformat() if period.opens_at else None,
         "closesAt": period.closes_at.isoformat() if period.closes_at else None,
@@ -237,6 +249,27 @@ def _validate_component_order(rubric, display_order, *, exclude_id=None):
         raise ValidationError("Display order must be unique within the rubric.")
 
 
+def _validate_period_dates(academic_semester, opens_at, closes_at):
+    for value, label in (
+        (opens_at, "Opening timestamp"),
+        (closes_at, "Closing timestamp"),
+    ):
+        if value is None:
+            continue
+        local_date = (
+            timezone.localtime(value).date()
+            if timezone.is_aware(value)
+            else value.date()
+        )
+        if (
+            local_date < academic_semester.starts_on
+            or local_date > academic_semester.ends_on
+        ):
+            raise ValidationError(
+                f"{label} must fall within the academic semester dates."
+            )
+
+
 @transaction.atomic
 def create_rubric_component(*, rubric, actor, values):
     _assert_office_admin(actor)
@@ -312,7 +345,7 @@ def create_evaluation_period(
     *,
     actor,
     name,
-    semester,
+    academic_semester,
     rubric,
     opens_at,
     closes_at,
@@ -320,9 +353,18 @@ def create_evaluation_period(
     _assert_office_admin(actor)
     if opens_at and closes_at and opens_at >= closes_at:
         raise ValidationError("Opening timestamp must be before closing timestamp.")
+    if academic_semester.lifecycle_status not in {
+        AcademicSemester.Lifecycle.DRAFT,
+        AcademicSemester.Lifecycle.ACTIVE,
+    }:
+        raise MarksStateConflict(
+            "Evaluation periods can only be prepared for Draft or Active semesters."
+        )
+    _validate_period_dates(academic_semester, opens_at, closes_at)
     period = EvaluationPeriod.objects.create(
         name=str(name).strip(),
-        semester=str(semester).strip(),
+        semester=academic_semester.label,
+        academic_semester=academic_semester,
         rubric=rubric,
         opens_at=opens_at,
         closes_at=closes_at,
@@ -348,9 +390,32 @@ def update_evaluation_period(*, period, actor, values, reason=""):
     )
     before = _period_snapshot(period)
     if period.lifecycle_status == EvaluationPeriod.Lifecycle.DRAFT:
-        for field in ("name", "semester", "rubric", "opens_at", "closes_at"):
+        for field in (
+            "name",
+            "academic_semester",
+            "rubric",
+            "opens_at",
+            "closes_at",
+        ):
             if field in values:
                 setattr(period, field, values[field])
+        if period.academic_semester_id is None:
+            raise MarksStateConflict(
+                "Select a Draft or Active academic semester."
+            )
+        if period.academic_semester.lifecycle_status not in {
+            AcademicSemester.Lifecycle.DRAFT,
+            AcademicSemester.Lifecycle.ACTIVE,
+        }:
+            raise MarksStateConflict(
+                "Evaluation periods can only use Draft or Active semesters."
+            )
+        period.semester = period.academic_semester.label
+        _validate_period_dates(
+            period.academic_semester,
+            period.opens_at,
+            period.closes_at,
+        )
         if (
             period.opens_at
             and period.closes_at
@@ -378,6 +443,11 @@ def update_evaluation_period(*, period, actor, values, reason=""):
                 "The new closing timestamp must extend the current deadline."
             )
         period.closes_at = closes_at
+        _validate_period_dates(
+            period.academic_semester,
+            period.opens_at,
+            period.closes_at,
+        )
         action = "EXTEND"
     else:
         raise MarksStateConflict("Closed or archived periods cannot be edited.")
@@ -404,6 +474,10 @@ def publish_evaluation_period(*, period, actor):
     )
     if period.lifecycle_status != EvaluationPeriod.Lifecycle.DRAFT:
         raise ValidationError("Only draft evaluation periods can be published.")
+    if period.academic_semester_id is None or not period.academic_semester.is_active:
+        raise MarksStateConflict(
+            "Evaluation periods can only be published for the active academic semester."
+        )
     if not period.opens_at or not period.closes_at:
         raise ValidationError("Opening and closing timestamps are required.")
     if period.opens_at >= period.closes_at:

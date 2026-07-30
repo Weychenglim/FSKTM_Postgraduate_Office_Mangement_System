@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import OfficeStaff
+from academics.models import AcademicSemester
 
 from .models import (
     EvaluationPeriod,
@@ -34,6 +35,17 @@ class MarksConfigurationModelTests(TestCase):
             user=self.office_admin,
             staff_no="DEMO-MARKS-ADMIN",
             department="Postgraduate Office",
+        )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timezone.timedelta(days=30),
+            ends_on=today + timezone.timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office_admin,
+            activated_at=timezone.now(),
         )
         self.rubric = Rubric.objects.create(
             name="Research Evaluation",
@@ -72,6 +84,7 @@ class MarksConfigurationModelTests(TestCase):
         EvaluationPeriod.objects.create(
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
+            academic_semester=self.academic_semester,
             rubric=self.rubric,
             lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
             opens_at=timezone.now() - timezone.timedelta(hours=1),
@@ -107,6 +120,7 @@ class MarksConfigurationModelTests(TestCase):
         period = EvaluationPeriod.objects.create(
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
+            academic_semester=self.academic_semester,
             rubric=self.rubric,
             lifecycle_status=EvaluationPeriod.Lifecycle.DRAFT,
             opens_at=timezone.now() - timezone.timedelta(hours=1),
@@ -136,6 +150,7 @@ class MarksConfigurationModelTests(TestCase):
         period = EvaluationPeriod.objects.create(
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
+            academic_semester=self.academic_semester,
             rubric=self.rubric,
             lifecycle_status=EvaluationPeriod.Lifecycle.DRAFT,
             opens_at=timezone.now(),
@@ -171,6 +186,7 @@ class MarksConfigurationModelTests(TestCase):
         period = EvaluationPeriod.objects.create(
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
+            academic_semester=self.academic_semester,
             rubric=self.rubric,
             lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
             opens_at=timezone.now() - timezone.timedelta(hours=1),
@@ -235,6 +251,17 @@ class MarksConfigurationApiTests(APITestCase):
             role=User.Role.STUDENT,
         )
         self.client.force_authenticate(self.office_admin)
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timezone.timedelta(days=30),
+            ends_on=today + timezone.timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office_admin,
+            activated_at=timezone.now(),
+        )
 
     def create_ready_rubric(self):
         created = self.client.post(
@@ -275,7 +302,7 @@ class MarksConfigurationApiTests(APITestCase):
             "/api/marks/periods/",
             {
                 "name": "Semester 1 Evaluation",
-                "semester": "Sem 1 2026/2027",
+                "semesterId": self.academic_semester.pk,
                 "rubricId": rubric_id,
                 "opensAt": (now - timezone.timedelta(hours=1)).isoformat(),
                 "closesAt": (now + timezone.timedelta(days=7)).isoformat(),
@@ -283,6 +310,8 @@ class MarksConfigurationApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["semesterId"], self.academic_semester.pk)
+        self.assertEqual(response.data["semester"], self.academic_semester.label)
         return response
 
     def test_office_can_create_rubric_and_components(self):

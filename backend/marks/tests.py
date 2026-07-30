@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Lecturer, OfficeStaff, Student
+from academics.models import AcademicSemester
 from appointments.models import (
     PanelAppointment,
     PanelRecommendation,
@@ -72,6 +73,17 @@ class MarkEntryWorkflowTests(APITestCase):
             staff_no="MO1001",
             department="Postgraduate Office",
         )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timezone.timedelta(days=30),
+            ends_on=today + timezone.timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office_admin,
+            activated_at=timezone.now(),
+        )
         self.student_user = User.objects.create_user(
             email="marks-student@example.com",
             password="password123",
@@ -115,6 +127,7 @@ class MarkEntryWorkflowTests(APITestCase):
         self.period = EvaluationPeriod.objects.create(
             name="Semester 1 Evaluation",
             semester="Sem 1 2025/2026",
+            academic_semester=self.academic_semester,
             rubric=self.rubric,
             is_open=True,
             opens_at=timezone.now() - timezone.timedelta(days=1),

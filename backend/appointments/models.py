@@ -67,6 +67,13 @@ class PanelRecommendation(models.Model):
         on_delete=models.PROTECT,
         related_name="panel_recommendations",
     )
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="panel_recommendations",
+        null=True,
+        blank=True,
+    )
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -201,6 +208,13 @@ class SupervisorApplication(models.Model):
         "accounts.Student",
         on_delete=models.PROTECT,
         related_name="supervisor_applications",
+    )
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="supervisor_applications",
+        null=True,
+        blank=True,
     )
     proposed_supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -66,18 +66,17 @@ export async function getTimelineEntries(): Promise<TimelineEntry[]> {
   return timeline.levels.flatMap((group) => group.entries.map(timelineEntryToLegacy));
 }
 
-export async function getActiveTimeline(): Promise<ActiveSemesterTimeline> {
-  return request<ActiveSemesterTimeline>('/dashboard/timeline/active/');
+export async function getActiveTimeline(semesterId?: number): Promise<ActiveSemesterTimeline> {
+  const query = semesterId ? `?semesterId=${semesterId}` : '';
+  return request<ActiveSemesterTimeline>(`/dashboard/timeline/active/${query}`);
 }
 
 export async function uploadTimelineFile(
   file: File,
-  semester: string,
-  session: string,
+  semesterId: number,
 ): Promise<TimelineUploadResult> {
   const body = new FormData();
-  body.append('semester', semester);
-  body.append('session', session);
+  body.append('semesterId', String(semesterId));
   body.append('file', file);
   return request<TimelineUploadResult>('/dashboard/timeline/upload/', {
     method: 'POST',
@@ -87,6 +86,7 @@ export async function uploadTimelineFile(
 
 export async function createTimelineEntry(
   entry: Omit<TimelineEntry, 'id' | 'status'>,
+  semesterId?: number,
 ): Promise<SemesterTimelineEntry> {
   return request<SemesterTimelineEntry>('/dashboard/timeline/entries/', {
     method: 'POST',
@@ -98,6 +98,7 @@ export async function createTimelineEntry(
       deadlineStart: toIsoDate(entry.startDate),
       deadlineEnd: toIsoDate(entry.endDate),
       targetRoles: entry.targetRole,
+      ...(semesterId ? { semesterId } : {}),
     }),
   });
 }
@@ -126,8 +127,9 @@ export async function deleteTimelineEntry(id: string): Promise<void> {
   });
 }
 
-export async function getTimelineAuditLogs(): Promise<TimelineAuditLog[]> {
-  const result = await request<{ logs: TimelineAuditLog[] }>('/dashboard/timeline/audit-logs/');
+export async function getTimelineAuditLogs(semesterId?: number): Promise<TimelineAuditLog[]> {
+  const query = semesterId ? `?semesterId=${semesterId}` : '';
+  const result = await request<{ logs: TimelineAuditLog[] }>(`/dashboard/timeline/audit-logs/${query}`);
   return result.logs;
 }
 

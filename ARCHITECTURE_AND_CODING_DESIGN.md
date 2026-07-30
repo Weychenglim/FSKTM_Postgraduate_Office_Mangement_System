@@ -221,5 +221,18 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `appointmentsApi.ts` and `timelineApi.ts` preserve their Promise-based component contracts while propagating `ApiError` and network failures to screen-level loading/error/retry states.
 - Office supervisor workload is aggregated from active `SupervisorAppointment` rows and `Supervisor.max_supervisees`. Lecturer self-workload and enriched active-supervisee rows provide persisted capacity, identity, research, and appointment detail without local enrichment.
 - Supervisor acceptance reloads the backend queue and workload. The active appointment appears only after Programme Coordinator approval creates the persisted `SupervisorAppointment`.
-- Timeline upload requires explicit semester and academic session values from the UI. Add/edit drawers display the currently loaded timeline context and do not seed fixed dates.
+- Timeline upload and entry creation submit a persisted `semesterId`; term and session labels are derived by Django. Add/edit drawers display the selected Draft or Active timeline context and never accept free-text semester identity.
 - Source guards inspect owned services and key workflow components; the production artifact guard builds with global mock mode and removed switches deliberately supplied, then rejects legacy exports, switches, fixture canaries, source maps, and demo-console content.
+
+## Central Academic Semester Architecture
+
+- The `academics` Django app owns `AcademicSemester`, immutable `AcademicSemesterAudit`, validation, lifecycle transitions, and the `/api/academics/semesters/` API boundary. Its service layer is the only writer for lifecycle changes.
+- Database constraints enforce unique session-term combinations, valid date ordering, and at most one persisted `ACTIVE` row. Service validation additionally rejects overlapping non-archived ranges and invalid Kuala Lumpur effective dates.
+- Activation uses a transaction and row locks. When another semester is active, the service closes that semester, closes its published Marks periods, activates the replacement, and records both semester audits before commit.
+- Nullable foreign keys connect `SupervisorApplication`, `PanelRecommendation`, `SemesterTimeline`, and `EvaluationPeriod` to the authority. Appointment and Marks descendants inherit the semester through their source workflow or period instead of duplicating mutable relationships.
+- Legacy semester text remains intentionally separate from the nullable relationship. Migration does not infer links from student intake or research-profile fields; serializers expose null IDs and `Legacy / Unassigned` labels when the relationship is absent.
+- `current_effective_semester()` is the shared write guard. New appointment workflows, Marks publishing, and Marks task generation require an `ACTIVE` row whose dates include the Kuala Lumpur local date; existing decisions continue through their source record.
+- Timeline version uniqueness is scoped by academic semester. Dashboard timeline reads resolve only the effective active semester, while Office management can query a selected Draft or Active semester by stable ID.
+- Marks periods persist the academic-semester foreign key and validate opening/closing timestamps against its date range. Semester handover closes old published periods; extension deliberately leaves their deadlines unchanged.
+- Dashboard action feeds retain unresolved carryover Supervisor and Panel items while Timeline and Marks actions are active-semester scoped. Reports resolve `active`, `all`, `unassigned`, or stable code selectors before applying role/programme authorization.
+- The React `academicSemestersApi` is the central client. `/dashboard/semesters` is lazy-loaded and Office-only, while `ActiveSemesterContext` supplies a minimal read-only band to every role dashboard. Timeline and Marks configuration use server-provided semester options rather than local labels.

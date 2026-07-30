@@ -314,4 +314,17 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Supervisor workload monitoring must be derived from active persisted appointments and configured supervisor limits. A Lecturer's own workload must use an authenticated, role-scoped endpoint.
 - Lecturer acceptance of a Supervisor application must remain pending Programme Coordinator approval and must not create or display an active appointment until the backend creates one.
 - Active-supervisee detail, panel candidates, recommendation histories, timeline semester/session metadata, and timeline dates must come from persisted API responses or explicit user input; the UI must not invent fallback identities, records, dates, or files.
+
+## Central Academic Semester Requirements
+
+- Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking must share one faculty-wide academic-semester authority. At most one semester may have the persisted `ACTIVE` lifecycle at a time.
+- Academic sessions use consecutive-year values such as `2026/2027`; terms are limited to Semester I, Semester II, or Special Semester. Non-archived semester date ranges must not overlap.
+- Office Staff/Admin alone may create, edit, activate, extend, close, archive, or audit semesters. Every authenticated role may read the minimal active-semester context displayed on its dashboard.
+- Semester lifecycle transitions are one-way: Draft may become Active or Archived, Active may become Closed, and Closed may become Archived. Activation, handover, extension, closure, and archival require immutable audit records and mandatory operational reasons.
+- Activating a replacement semester must atomically close the previous active semester and its published Marks periods. An active semester past its end date is effectively expired and blocks new Supervisor, Panel, and Marks workflows until Office Staff closes or replaces it.
+- New Supervisor applications and Panel recommendations bind to the effective active semester on the server. Clients cannot select or override this relationship; unresolved prior-semester approvals and cancellations remain actionable and are labelled as carryover records.
+- Timeline versions belong to a persisted semester. Office Staff may prepare the current Timeline version for a Draft or Active semester; Closed and Archived semester Timelines are read-only. Role dashboards render only the effective active semester's current Timeline.
+- Marks draft periods may be prepared for Draft or Active semesters. Publishing and task generation require the effective active semester, and the evaluation window must remain within its dates. Extending a semester never changes Marks deadlines automatically.
+- Workflow Reports default to the active semester and permit authorized `all`, `unassigned`, or stable semester-code history filters. Progress dossiers retain authorized complete history.
+- Historical workflow strings remain available for display, but records that cannot be linked without guessing must keep a null semester relationship and display `Legacy / Unassigned`.
 - Appointment and Timeline mock datasets and legacy `VITE_USE_SUPERVISOR_BACKEND`, `VITE_USE_PANEL_BACKEND`, and `VITE_USE_TIMELINE_BACKEND` controls must not be present in source or production artifacts.

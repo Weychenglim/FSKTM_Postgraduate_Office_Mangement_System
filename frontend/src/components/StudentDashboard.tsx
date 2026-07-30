@@ -11,6 +11,7 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrim
 import type { DashboardTask } from '../types';
 import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface StudentDashboardProps {
   studentName: string;
@@ -111,6 +112,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </PortalButton>
         ) : undefined}
       />
+
+      <ActiveSemesterContext />
 
       <DashboardTimeline
         showManageTimeline={false}

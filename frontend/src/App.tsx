@@ -81,6 +81,7 @@ const LecturerPanelAppointments = lazyNamed('LecturerPanelAppointments', () => i
 const LecturerSupervisorAppointments = lazyNamed('LecturerSupervisorAppointments', () => import('./components/LecturerSupervisorAppointments'));
 const AdministrationDashboard = lazyNamed('AdministrationDashboard', () => import('./components/AdministrationDashboard'));
 const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
+const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
@@ -210,6 +211,7 @@ export default function App() {
     || Boolean(markRecordId)
   );
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
+  const isDashboardSemestersRoute = pathname === APP_ROUTES.dashboardSemesters;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
   const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
@@ -439,7 +441,10 @@ export default function App() {
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                 />
               ) : isMarksConfigRoute ? (
-                <MarkEntryPeriodConfig onBack={() => navigate(APP_ROUTES.marks)} />
+                <MarkEntryPeriodConfig
+                  onBack={() => navigate(APP_ROUTES.marks)}
+                  onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)}
+                />
               ) : isMarksRubricsRoute ? (
                 <RubricsManagementView onBack={() => navigate(APP_ROUTES.marks)} />
               ) : isMarksTasksRoute ? (
@@ -668,7 +673,7 @@ export default function App() {
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToRoute={navigate}
                 />
-              ) : isDashboardTimelineRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              ) : (isDashboardTimelineRoute || isDashboardSemestersRoute) && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isStudentWorkspace ? (
                 <StudentDashboard
@@ -688,8 +693,13 @@ export default function App() {
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
                   onNavigateToRoute={navigate}
                 />
+              ) : isDashboardSemestersRoute ? (
+                <AcademicSemesterManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
               ) : isDashboardTimelineRoute ? (
-                <TimelineManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+                <TimelineManagement
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)}
+                />
               ) : (
                 <AdministrationDashboard 
                   onNavigateToTab={(tab) => {

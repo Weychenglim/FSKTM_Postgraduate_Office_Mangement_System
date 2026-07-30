@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
+from academics.services import current_effective_semester
 from appointments.ageing import (
     panel_waiting_metadata,
     supervisor_waiting_metadata,
@@ -31,6 +32,8 @@ def _empty_task_fields():
         "dueAt": None,
         "daysUntilDue": None,
         "deadlineState": None,
+        "semester": None,
+        "semesterCode": None,
     }
 
 
@@ -105,6 +108,7 @@ def _supervisor_actions(user, now):
         "student",
         "student__user",
         "proposed_supervisor",
+        "academic_semester",
     ).prefetch_related("workflow_events")
     return [
         _task(
@@ -116,6 +120,16 @@ def _supervisor_actions(user, now):
             targetModule="SUPERVISOR_APPOINTMENTS",
             recordType="SUPERVISOR_APPLICATION",
             recordId=str(application.pk),
+            semester=(
+                application.academic_semester.label
+                if application.academic_semester_id
+                else "Legacy / Unassigned"
+            ),
+            semesterCode=(
+                application.academic_semester.code
+                if application.academic_semester_id
+                else None
+            ),
             **metadata,
         )
         for application in applications
@@ -153,6 +167,7 @@ def _panel_actions(user, now):
     recommendations = recommendations.select_related(
         "profile",
         "recommended_member",
+        "academic_semester",
     ).prefetch_related("workflow_events")
     return [
         _task(
@@ -168,6 +183,16 @@ def _panel_actions(user, now):
             targetModule="PANEL_APPOINTMENTS",
             recordType="PANEL_RECOMMENDATION" if not public else None,
             recordId=str(recommendation.pk) if not public else None,
+            semester=(
+                recommendation.academic_semester.label
+                if recommendation.academic_semester_id
+                else "Legacy / Unassigned"
+            ),
+            semesterCode=(
+                recommendation.academic_semester.code
+                if recommendation.academic_semester_id
+                else None
+            ),
             **metadata,
         )
         for recommendation in recommendations
@@ -178,9 +203,12 @@ def _panel_actions(user, now):
 
 
 def _mark_actions(user, now):
+    semester = current_effective_semester()
+    if semester is None:
+        return []
     tasks = EvaluationTask.objects.exclude(
         mark_entry__status=MarkEntry.Status.SUBMITTED,
-    )
+    ).filter(period__academic_semester=semester)
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
     elif user.role != User.Role.OFFICE_ADMIN:
@@ -190,6 +218,7 @@ def _mark_actions(user, now):
         "profile",
         "evaluator",
         "period",
+        "period__academic_semester",
         "mark_entry",
     )
     actions = []
@@ -215,6 +244,8 @@ def _mark_actions(user, now):
                 targetModule="MARKS",
                 recordType="EVALUATION_TASK",
                 recordId=str(task.pk),
+                semester=task.period.academic_semester.label,
+                semesterCode=task.period.academic_semester.code,
                 **metadata,
             )
         )
@@ -222,6 +253,9 @@ def _mark_actions(user, now):
 
 
 def _timeline_actions(user, now):
+    semester = current_effective_semester()
+    if semester is None:
+        return []
     role = {
         User.Role.OFFICE_ADMIN: "OFFICE_STAFF",
         User.Role.LECTURER: "LECTURER",
@@ -232,6 +266,7 @@ def _timeline_actions(user, now):
 
     entries = SemesterTimelineEntry.objects.filter(
         timeline__is_active=True,
+        timeline__academic_semester=semester,
         target_roles__contains=[role],
     ).select_related("timeline")
     today = timezone.localdate(now)
@@ -287,7 +322,15 @@ def _sort_key(task):
 
 def build_dashboard_tasks(user, *, now=None):
     now = now or timezone.now()
-    active_timeline = SemesterTimeline.objects.filter(is_active=True).first()
+    semester = current_effective_semester()
+    active_timeline = (
+        SemesterTimeline.objects.filter(
+            is_active=True,
+            academic_semester=semester,
+        ).first()
+        if semester
+        else None
+    )
     tasks = [
         *_supervisor_actions(user, now),
         *_panel_actions(user, now),

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, 
   UploadCloud, 
@@ -30,16 +30,16 @@ interface UploadTimelineDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onImportSuccess?: (events: TimelineEntry[], importedCount?: number) => void;
-  defaultSemester: string;
-  defaultSession: string;
+  semesterId: number;
+  semesterLabel: string;
 }
 
 export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   isOpen,
   onClose,
   onImportSuccess,
-  defaultSemester,
-  defaultSession,
+  semesterId,
+  semesterLabel,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
@@ -52,8 +52,6 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   const [validationCompleted, setValidationCompleted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
-  const [semester, setSemester] = useState(defaultSemester);
-  const [session, setSession] = useState(defaultSession);
   
   // Checklist verification states (empty circle = 'pending', green check = 'success', red X = 'fail')
   const [checklist, setChecklist] = useState({
@@ -65,12 +63,6 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setSemester(defaultSemester);
-    setSession(defaultSession);
-  }, [defaultSemester, defaultSession, isOpen]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -156,10 +148,6 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   };
 
   const handleValidateAndUpload = () => {
-    if (!semester.trim() || !session.trim()) {
-      triggerToast('Error: Semester and academic session are required.');
-      return;
-    }
     if (!uploadedFile) {
       triggerToast('Error: Please select or drop an Excel timeline file first.');
       return;
@@ -176,7 +164,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     });
     triggerToast('Uploading timeline file for backend validation...');
 
-    uploadTimelineFile(uploadedFile, semester.trim(), session.trim())
+    uploadTimelineFile(uploadedFile, semesterId)
       .then((result) => {
         const importedEntries = result.timeline.levels.flatMap((group) =>
           group.entries.map(timelineEntryToLegacy)
@@ -232,13 +220,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
       triggerToast('Error: Please select or drop an Excel timeline file first.');
       return;
     }
-    if (!semester.trim() || !session.trim()) {
-      triggerToast('Error: Semester and academic session are required.');
-      return;
-    }
-
     setIsImporting(true);
-    uploadTimelineFile(uploadedFile, semester.trim(), session.trim())
+    uploadTimelineFile(uploadedFile, semesterId)
       .then((result) => {
         const importedEntries = result.timeline.levels.flatMap((group) =>
           group.entries.map(timelineEntryToLegacy)
@@ -336,27 +319,9 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                 id="drawer-target-semester-card"
                 className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4.5 space-y-3.5"
               >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="space-y-1.5">
-                    <span className="form-label block">Target semester</span>
-                    <input
-                      className="form-control form-control-sm"
-                      value={semester}
-                      onChange={(event) => setSemester(event.target.value)}
-                      placeholder="e.g. Semester I"
-                      required
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="form-label block">Academic session</span>
-                    <input
-                      className="form-control form-control-sm"
-                      value={session}
-                      onChange={(event) => setSession(event.target.value)}
-                      placeholder="e.g. 2026/2027"
-                      required
-                    />
-                  </label>
+                <div>
+                  <span className="form-label block">Target semester</span>
+                  <p className="mt-1 text-sm font-black text-brand-navy">{semesterLabel}</p>
                 </div>
 
                 <div className="grid grid-cols-12 gap-1 items-baseline pt-3 border-t border-slate-100">

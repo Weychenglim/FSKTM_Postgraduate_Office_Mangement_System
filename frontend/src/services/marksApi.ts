@@ -43,7 +43,7 @@ export async function getEvaluationPeriod(
 
 export type EvaluationPeriodPayload = {
   name: string;
-  semester: string;
+  semesterId: number;
   rubricId: number;
   opensAt: string | null;
   closesAt: string | null;

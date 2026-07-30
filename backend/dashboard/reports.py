@@ -11,6 +11,7 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from academics.models import AcademicSemester
 from appointments.ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.deadlines import mark_deadline_metadata
@@ -93,6 +94,48 @@ def _counts(values):
     return dict(sorted(Counter(values).items()))
 
 
+def _resolve_semester_filter(params):
+    selector = str(params.get("semester") or "active").strip()
+    available = list(AcademicSemester.objects.order_by("-starts_on", "-id"))
+    if selector in {"all", "unassigned"}:
+        return selector, None, available
+    if selector == "active":
+        semester = next(
+            (
+                item
+                for item in available
+                if item.lifecycle_status == AcademicSemester.Lifecycle.ACTIVE
+                and item.is_active
+            ),
+            None,
+        )
+        return selector, semester, available
+    semester = next((item for item in available if item.code == selector), None)
+    if semester is None:
+        raise ValidationError(
+            {"semester": "Select active, all, unassigned, or a valid semester code."}
+        )
+    return selector, semester, available
+
+
+def _filter_semester(queryset, lookup, selector, semester):
+    if selector == "all":
+        return queryset
+    if selector == "unassigned":
+        return queryset.filter(**{f"{lookup}__isnull": True})
+    if semester is None:
+        return queryset.none()
+    return queryset.filter(**{lookup: semester})
+
+
+def _semester_row(semester):
+    return {
+        "semesterId": semester.pk if semester else None,
+        "semesterCode": semester.code if semester else None,
+        "semester": semester.label if semester else "Legacy / Unassigned",
+    }
+
+
 def _module_summary(records):
     waiting_records = [record for record in records if record["waitingDays"] is not None]
     return {
@@ -109,39 +152,72 @@ def _module_summary(records):
     }
 
 
-def _scope_supervisor_records(user, programme):
+def _scope_supervisor_records(user, programme, selector, semester):
     records = SupervisorApplication.objects.select_related(
         "student",
         "student__user",
         "proposed_supervisor",
+        "academic_semester",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
-        return records.filter(student__programme=programme) if programme else records.none()
-    if user.role == User.Role.LECTURER:
-        return records.filter(proposed_supervisor=user)
-    if programme:
-        return records.filter(student__programme=programme)
-    return records
+        records = (
+            records.filter(student__programme=programme)
+            if programme
+            else records.none()
+        )
+    elif user.role == User.Role.LECTURER:
+        records = records.filter(proposed_supervisor=user)
+    elif programme:
+        records = records.filter(student__programme=programme)
+    return _filter_semester(
+        records,
+        "academic_semester",
+        selector,
+        semester,
+    )
 
 
-def _scope_panel_records(user, programme):
+def _scope_panel_records(user, programme, selector, semester):
     records = PanelRecommendation.objects.select_related(
         "profile",
         "supervisor",
         "recommended_member",
+        "academic_semester",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
-        return records.filter(profile__programme=programme) if programme else records.none()
-    if user.role == User.Role.LECTURER:
-        return records.filter(recommended_member=user)
-    if programme:
-        return records.filter(profile__programme=programme)
-    return records
+        records = (
+            records.filter(profile__programme=programme)
+            if programme
+            else records.none()
+        )
+    elif user.role == User.Role.LECTURER:
+        records = records.filter(recommended_member=user)
+    elif programme:
+        records = records.filter(profile__programme=programme)
+    return _filter_semester(
+        records,
+        "academic_semester",
+        selector,
+        semester,
+    )
 
 
-def _supervisor_rows(user, programme, start_date, end_date, now):
+def _supervisor_rows(
+    user,
+    programme,
+    start_date,
+    end_date,
+    now,
+    selector,
+    semester,
+):
     rows = []
-    for application in _scope_supervisor_records(user, programme):
+    for application in _scope_supervisor_records(
+        user,
+        programme,
+        selector,
+        semester,
+    ):
         if not _within_range(application.submitted_at, start_date, end_date):
             continue
         waiting = supervisor_waiting_metadata(application, now=now)
@@ -159,14 +235,28 @@ def _supervisor_rows(user, programme, start_date, end_date, now):
                 "waitingDays": waiting["waitingDays"],
                 "waitingOn": waiting["waitingOn"],
                 "ageBand": _age_band(waiting["waitingDays"]),
+                **_semester_row(application.academic_semester),
             }
         )
     return rows
 
 
-def _panel_rows(user, programme, start_date, end_date, now):
+def _panel_rows(
+    user,
+    programme,
+    start_date,
+    end_date,
+    now,
+    selector,
+    semester,
+):
     rows = []
-    for recommendation in _scope_panel_records(user, programme):
+    for recommendation in _scope_panel_records(
+        user,
+        programme,
+        selector,
+        semester,
+    ):
         report_date = recommendation.submitted_at or recommendation.created_at
         if not _within_range(report_date, start_date, end_date):
             continue
@@ -185,24 +275,40 @@ def _panel_rows(user, programme, start_date, end_date, now):
                 "waitingDays": waiting["waitingDays"],
                 "waitingOn": waiting["waitingOn"],
                 "ageBand": _age_band(waiting["waitingDays"]),
+                **_semester_row(recommendation.academic_semester),
             }
         )
     return rows
 
 
-def _mark_rows(user, programme, start_date, end_date, now):
+def _mark_rows(
+    user,
+    programme,
+    start_date,
+    end_date,
+    now,
+    selector,
+    semester,
+):
     if user.role == User.Role.COORDINATOR:
         return None
     tasks = EvaluationTask.objects.select_related(
         "profile",
         "evaluator",
         "period",
+        "period__academic_semester",
         "mark_entry",
     )
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
     elif programme:
         tasks = tasks.filter(profile__programme=programme)
+    tasks = _filter_semester(
+        tasks,
+        "period__academic_semester",
+        selector,
+        semester,
+    )
 
     rows = []
     for task in tasks:
@@ -230,6 +336,7 @@ def _mark_rows(user, programme, start_date, end_date, now):
                 "status": entry_status,
                 "evaluatorRole": task.evaluator_role,
                 "reportDate": _iso(report_date),
+                **_semester_row(task.period.academic_semester),
                 **deadline,
                 "dueAt": _iso(deadline["dueAt"]),
             }
@@ -247,12 +354,28 @@ def _timeline_status(entry, today):
     return "ACTIVE"
 
 
-def _timeline_rows(user, start_date, end_date, today):
+def _timeline_rows(
+    user,
+    start_date,
+    end_date,
+    today,
+    selector,
+    semester,
+):
     if user.role == User.Role.COORDINATOR:
         return None
     rows = []
-    entries = SemesterTimelineEntry.objects.select_related("timeline").filter(
-        timeline__is_active=True
+    entries = SemesterTimelineEntry.objects.select_related(
+        "timeline",
+        "timeline__academic_semester",
+    ).filter(
+        timeline__is_active=True,
+    )
+    entries = _filter_semester(
+        entries,
+        "timeline__academic_semester",
+        selector,
+        semester,
     )
     for entry in entries:
         if user.role == User.Role.LECTURER and "LECTURER" not in entry.target_roles:
@@ -269,6 +392,7 @@ def _timeline_rows(user, start_date, end_date, today):
                 "targetRoles": entry.target_roles,
                 "reportDate": entry.deadline_start.isoformat(),
                 "dueAt": entry.deadline_end.isoformat(),
+                **_semester_row(entry.timeline.academic_semester),
             }
         )
     return rows
@@ -360,6 +484,9 @@ def build_workflow_report(user, query_params=None, now=None):
         raise ValidationError({"endDate": "endDate must be on or after startDate."})
 
     now = now or timezone.now()
+    semester_selector, selected_semester, available_semesters = (
+        _resolve_semester_filter(params)
+    )
     programme = None
     if user.role == User.Role.COORDINATOR:
         programme = _coordinator_programme(user)
@@ -389,12 +516,39 @@ def build_workflow_report(user, query_params=None, now=None):
     ) if user.role == User.Role.OFFICE_ADMIN else ([programme] if programme else [])
 
     supervisor_rows = _supervisor_rows(
-        user, programme, start_date, end_date, now
+        user,
+        programme,
+        start_date,
+        end_date,
+        now,
+        semester_selector,
+        selected_semester,
     )
-    panel_rows = _panel_rows(user, programme, start_date, end_date, now)
-    mark_rows = _mark_rows(user, programme, start_date, end_date, now)
+    panel_rows = _panel_rows(
+        user,
+        programme,
+        start_date,
+        end_date,
+        now,
+        semester_selector,
+        selected_semester,
+    )
+    mark_rows = _mark_rows(
+        user,
+        programme,
+        start_date,
+        end_date,
+        now,
+        semester_selector,
+        selected_semester,
+    )
     timeline_rows = _timeline_rows(
-        user, start_date, end_date, timezone.localtime(now).date()
+        user,
+        start_date,
+        end_date,
+        timezone.localtime(now).date(),
+        semester_selector,
+        selected_semester,
     )
     waiting_days = [
         row["waitingDays"]
@@ -419,6 +573,20 @@ def build_workflow_report(user, query_params=None, now=None):
             "endDate": end_date.isoformat() if end_date else None,
             "programme": programme,
             "availableProgrammes": available_programmes,
+            "semester": semester_selector,
+            "selectedSemester": (
+                _semester_row(selected_semester)
+                if selected_semester
+                else None
+            ),
+            "availableSemesters": [
+                {
+                    **_semester_row(item),
+                    "lifecycleStatus": item.lifecycle_status,
+                    "effectiveStatus": item.effective_status,
+                }
+                for item in available_semesters
+            ],
         },
         "overview": {
             "totalRecords": sum(len(section) for section in all_sections),
@@ -485,6 +653,7 @@ def build_workflow_report_workbook(report):
         ("Programme", report["scope"]["programme"] or "All authorised programmes"),
         ("Start Date", report["filters"]["startDate"] or "All"),
         ("End Date", report["filters"]["endDate"] or "All"),
+        ("Semester", report["filters"]["semester"]),
     ] + [
         (key, value) for key, value in report["overview"].items()
     ]
@@ -496,6 +665,9 @@ def build_workflow_report_workbook(report):
 
     workflow_headers = [
         ("recordId", "Record ID"),
+        ("semesterId", "Semester ID"),
+        ("semesterCode", "Semester Code"),
+        ("semester", "Semester"),
         ("studentId", "Student ID"),
         ("studentName", "Student Name"),
         ("programme", "Programme"),
@@ -525,6 +697,9 @@ def build_workflow_report_workbook(report):
             "Marks",
             [
                 ("recordId", "Record ID"),
+                ("semesterId", "Semester ID"),
+                ("semesterCode", "Semester Code"),
+                ("semester", "Semester"),
                 ("studentId", "Student ID"),
                 ("studentName", "Student Name"),
                 ("programme", "Programme"),
@@ -547,6 +722,9 @@ def build_workflow_report_workbook(report):
             "Timeline",
             [
                 ("recordId", "Record ID"),
+                ("semesterId", "Semester ID"),
+                ("semesterCode", "Semester Code"),
+                ("semester", "Semester"),
                 ("title", "Title"),
                 ("level", "Level"),
                 ("status", "Status"),

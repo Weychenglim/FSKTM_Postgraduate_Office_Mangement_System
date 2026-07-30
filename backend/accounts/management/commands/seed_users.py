@@ -6,11 +6,13 @@ ignored local environment.
 """
 
 import json
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from accounts.models import (
     Coordinator,
@@ -23,6 +25,8 @@ from accounts.models import (
     User,
 )
 from appointments.models import StudentResearchProfile
+from academics.models import AcademicSemester
+from academics.services import activate_semester, create_semester
 
 
 DEMO_USERS = [
@@ -379,6 +383,29 @@ class Command(BaseCommand):
             verb = "Created" if created else "Updated"
             self.stdout.write(
                 self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}")
+            )
+
+        if not AcademicSemester.objects.exists():
+            today = timezone.localdate()
+            office = User.objects.get(
+                email="demo.office.admin@example.test"
+            )
+            semester = create_semester(
+                actor=office,
+                academic_session=f"{today.year}/{today.year + 1}",
+                term=AcademicSemester.Term.SEMESTER_I,
+                starts_on=today - timedelta(days=30),
+                ends_on=today + timedelta(days=120),
+            )
+            activate_semester(
+                semester,
+                actor=office,
+                reason="Create guarded fictional development semester.",
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "  Created fictional active academic semester"
+                )
             )
 
         self.stdout.write(self.style.SUCCESS("\nDemo accounts + role profiles ready."))

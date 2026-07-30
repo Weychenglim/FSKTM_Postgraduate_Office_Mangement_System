@@ -11,6 +11,7 @@ export const buildWorkflowReportQuery = (filters: WorkflowReportFilters): string
   if (filters.startDate?.trim()) params.set('startDate', filters.startDate.trim());
   if (filters.endDate?.trim()) params.set('endDate', filters.endDate.trim());
   if (filters.programme?.trim()) params.set('programme', filters.programme.trim());
+  if (filters.semester?.trim()) params.set('semester', filters.semester.trim());
   const query = params.toString();
   return query ? `?${query}` : '';
 };

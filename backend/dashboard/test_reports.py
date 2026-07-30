@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from academics.models import AcademicSemester
 from appointments.models import (
     PanelRecommendation,
     StudentResearchProfile,
@@ -32,6 +33,17 @@ class WorkflowReportTests(APITestCase):
             user=self.office,
             staff_no="REPORT-OFFICE",
             department="Postgraduate Office",
+        )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+            activated_at=self.now,
         )
         self.supervisor = self._lecturer(
             "report-supervisor@example.test", "Report Supervisor", "REPORT-SUP"
@@ -80,6 +92,7 @@ class WorkflowReportTests(APITestCase):
         )
 
         self.pending_supervisor = SupervisorApplication.objects.create(
+            academic_semester=self.academic_semester,
             student=self.student,
             proposed_supervisor=self.supervisor,
             research_title="Owned supervisor request",
@@ -88,6 +101,7 @@ class WorkflowReportTests(APITestCase):
             submitted_at=self.now - timedelta(days=5),
         )
         self.approved_supervisor = SupervisorApplication.objects.create(
+            academic_semester=self.academic_semester,
             student=self.foreign_student,
             proposed_supervisor=self.supervisor,
             research_title="Foreign approved request",
@@ -97,6 +111,7 @@ class WorkflowReportTests(APITestCase):
             coordinator_decided_at=self.now - timedelta(days=2),
         )
         self.pending_panel = PanelRecommendation.objects.create(
+            academic_semester=self.academic_semester,
             profile=self.profile,
             supervisor=self.supervisor,
             recommended_member=self.panel,
@@ -104,6 +119,7 @@ class WorkflowReportTests(APITestCase):
             submitted_at=self.now - timedelta(days=8),
         )
         self.foreign_panel_record = PanelRecommendation.objects.create(
+            academic_semester=self.academic_semester,
             profile=self.foreign_profile,
             supervisor=self.supervisor,
             recommended_member=self.foreign_panel,
@@ -114,6 +130,7 @@ class WorkflowReportTests(APITestCase):
 
         rubric = Rubric.objects.create(name="Report Rubric", code="report-rubric")
         self.period = EvaluationPeriod.objects.create(
+            academic_semester=self.academic_semester,
             name="Report Period",
             semester="Semester 1 2026/2027",
             rubric=rubric,
@@ -129,6 +146,7 @@ class WorkflowReportTests(APITestCase):
         MarkEntry.objects.create(task=self.mark_task, status=MarkEntry.Status.DRAFT)
 
         timeline = SemesterTimeline.objects.create(
+            academic_semester=self.academic_semester,
             semester="Semester 1",
             session="2026/2027",
             is_active=True,
@@ -232,6 +250,37 @@ class WorkflowReportTests(APITestCase):
         self.assertEqual(filtered.data["filters"]["programme"], PROGRAMME)
         self.assertEqual(filtered.data["supervisor"]["total"], 1)
         self.assertEqual(filtered.data["panel"]["total"], 1)
+
+    def test_report_defaults_active_and_supports_all_and_unassigned(self):
+        SupervisorApplication.objects.create(
+            student=self.student,
+            proposed_supervisor=self.supervisor,
+            research_title="Legacy unassigned request",
+            research_abstract="Preserved without inferred semester.",
+            status=SupervisorApplication.Status.REJECTED_BY_SUPERVISOR,
+            submitted_at=self.now - timedelta(days=20),
+            supervisor_decided_at=self.now - timedelta(days=19),
+        )
+        self.authenticate(self.office)
+
+        active = self.client.get("/api/dashboard/reports/")
+        all_semesters = self.client.get(
+            "/api/dashboard/reports/",
+            {"semester": "all"},
+        )
+        unassigned = self.client.get(
+            "/api/dashboard/reports/",
+            {"semester": "unassigned"},
+        )
+
+        self.assertEqual(active.data["filters"]["semester"], "active")
+        self.assertEqual(active.data["supervisor"]["total"], 2)
+        self.assertEqual(all_semesters.data["supervisor"]["total"], 3)
+        self.assertEqual(unassigned.data["supervisor"]["total"], 1)
+        self.assertEqual(
+            unassigned.data["supervisor"]["records"][0]["semester"],
+            "Legacy / Unassigned",
+        )
 
     def test_coordinator_scope_cannot_be_widened_and_hides_marks(self):
         self.authenticate(self.coordinator)

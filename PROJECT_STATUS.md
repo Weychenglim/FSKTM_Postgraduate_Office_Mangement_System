@@ -1,5 +1,19 @@
 # Project Status
 
+## Central Academic Semester Management
+
+- Added the `academics` Django app with a faculty-wide `AcademicSemester`, immutable lifecycle audits, consecutive-session and date validation, non-overlap rules, effective-expiry handling, and database enforcement that permits at most one persisted Active semester.
+- Added Office Staff/Admin-only semester configuration and audit APIs plus a minimal authenticated active-semester endpoint for every portal role. Activation, handover, extension, closure, and archival are transactional, reasoned, and return lifecycle conflicts without deleting historical records.
+- Added nullable semester relationships to Supervisor applications, Panel recommendations, Timeline versions, and Marks evaluation periods. Existing identifiers and free-text history remain intact; records that cannot be linked safely display as `Legacy / Unassigned`.
+- Bound new Supervisor and Panel workflows to the effective active semester on the server, retained prior-semester approval handling, scoped role dashboards to the active Timeline, and restricted Timeline preparation to Draft or Active semesters.
+- Integrated Marks preparation, publishing, submission windows, task generation, and semester handover. Draft periods can target Draft or Active semesters, while publishing and generation require the effective active semester and windows contained within its dates.
+- Added active/all/unassigned/stable-code semester filters to Workflow Reports and XLSX output while retaining complete authorized dossier histories and unresolved carryover actions.
+- Added the Office-only `/dashboard/semesters` workspace, lifecycle controls with mandatory reasons, active-semester context on all role dashboards, and persisted semester selectors in Timeline, Marks, and Reports without adding a sixth sidebar module.
+- Guarded development seeding now creates one fictional active semester only when no semester exists and never replaces developer-created configuration.
+- Verification passes all 153 Academics/Appointments/Dashboard/Marks backend tests, the focused 10-test semester lifecycle and authorization suite, all 37 frontend `.test.ts` files, Django system and migration checks, TypeScript lint, production build, zero-vulnerability npm audit, and both production artifact/CSP guards.
+- Browser smoke covered desktop and mobile semester management plus Office Staff/Admin, Lecturer, Programme Coordinator, and Student dashboard context, active report filtering, Timeline selection, and Marks setup. The local mixed-host smoke configuration produced refresh-cookie logout warnings; it did not affect authenticated application flows.
+- Historical records remain intentionally unassigned unless a trustworthy relationship already exists. Announcements/Notifications, official templates, SLA rules, Registry persistence, and notification fan-out remain unchanged.
+
 ## Backend-Only Owned Module Cutover
 
 - Removed all Supervisor, Panel, and Timeline mock branches, simulated mutations, owned mock imports, and module-specific backend flags. The five owned modules now call Django under every environment combination while global mock support remains available to unfinished or teammate-owned modules.

@@ -45,6 +45,15 @@ from .serializers import (
 User = get_user_model()
 
 
+def workflow_semester_payload(record):
+    semester = getattr(record, "academic_semester", None)
+    return {
+        "semester": semester.label if semester else "Legacy / Unassigned",
+        "semesterId": semester.pk if semester else None,
+        "semesterCode": semester.code if semester else None,
+    }
+
+
 def panel_record_from_appointment(appointment):
     panel_member = appointment.panel_member
     recommendation = appointment.recommendation
@@ -54,7 +63,7 @@ def panel_record_from_appointment(appointment):
         "id": appointment.profile.matric_no,
         "studentName": appointment.profile.student_name,
         "programme": appointment.profile.programme,
-        "semester": appointment.profile.semester,
+        **workflow_semester_payload(recommendation),
         "researchTitle": appointment.profile.proposed_topic,
         "researchArea": appointment.profile.research_area,
         "abstract": appointment.profile.abstract,
@@ -107,7 +116,7 @@ def panel_record_from_recommendation(recommendation):
         "id": recommendation.profile.matric_no,
         "studentName": recommendation.profile.student_name,
         "programme": recommendation.profile.programme,
-        "semester": recommendation.profile.semester,
+        **workflow_semester_payload(recommendation),
         "researchTitle": recommendation.profile.proposed_topic,
         "researchArea": recommendation.profile.research_area,
         "abstract": recommendation.profile.abstract,
@@ -142,7 +151,9 @@ def panel_record_from_profile(profile):
         "id": profile.matric_no,
         "studentName": profile.student_name,
         "programme": profile.programme,
-        "semester": profile.semester,
+        "semester": "Legacy / Unassigned",
+        "semesterId": None,
+        "semesterCode": None,
         "researchTitle": profile.proposed_topic,
         "researchArea": profile.research_area,
         "abstract": profile.abstract,
@@ -1409,7 +1420,7 @@ def active_supervisees_view(request):
                 "studentId": appointment.student.matric_no,
                 "studentName": appointment.student.user.full_name,
                 "programme": appointment.student.programme,
-                "semester": appointment.student.intake_semester,
+                **workflow_semester_payload(appointment.application),
                 "email": appointment.student.user.email,
                 "researchTitle": appointment.application.research_title,
                 "researchAbstract": (
@@ -1458,7 +1469,7 @@ def supervisor_request_history_view(request):
                     == SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
                     else "Approved"
                 ),
-                "semester": application.student.intake_semester,
+                **workflow_semester_payload(application),
                 "abstract": application.research_abstract,
                 "decisionReason": (
                     application.cancellation_reason
@@ -1507,7 +1518,7 @@ def supervisor_records_view(request):
                 "status": display_status(application),
                 "updatedDate": format_display_date(application.updated_at),
                 "email": application.student.user.email,
-                "semester": application.student.intake_semester,
+                **workflow_semester_payload(application),
                 "researchTopic": application.research_title,
                 "abstract": application.research_abstract,
                 "appointmentId": f"SV-APP-{application.pk:05d}",

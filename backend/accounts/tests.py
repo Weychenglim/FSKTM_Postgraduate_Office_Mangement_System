@@ -5,8 +5,10 @@ from io import StringIO
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from appointments.models import StudentResearchProfile
+from academics.models import AcademicSemester
 from dashboard.models import SemesterTimeline
 
 from .models import OfficeStaff, StudentRegistry, User
@@ -197,3 +199,19 @@ class SeedUsersCommandTests(TestCase):
             ),
             initial_profile_ids,
         )
+
+    def test_seeding_creates_semester_only_when_none_exists(self):
+        self.run_seed()
+        seeded = AcademicSemester.objects.get()
+        self.assertEqual(seeded.lifecycle_status, "ACTIVE")
+        self.assertTrue(seeded.label.startswith("Semester I "))
+
+        seeded.ends_on = seeded.ends_on + timezone.timedelta(days=1)
+        seeded.save(update_fields=["ends_on"])
+        preserved_end = seeded.ends_on
+
+        self.run_seed()
+
+        self.assertEqual(AcademicSemester.objects.count(), 1)
+        seeded.refresh_from_db()
+        self.assertEqual(seeded.ends_on, preserved_end)

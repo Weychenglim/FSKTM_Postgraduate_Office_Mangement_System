@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
 
+from academics.services import current_effective_semester
 from accounts.models import Student
 from appointments.ageing import (
     panel_waiting_metadata,
@@ -128,10 +129,22 @@ def _workflow(events):
     return AppointmentWorkflowEventSerializer(events, many=True).data
 
 
+def _semester_metadata(semester):
+    return {
+        "semester": semester.label if semester else "Legacy / Unassigned",
+        "semesterId": semester.pk if semester else None,
+        "semesterCode": semester.code if semester else None,
+    }
+
+
 def _supervisor_records(student, user, visibility, now):
     applications_query = (
         SupervisorApplication.objects.filter(student=student)
-        .select_related("proposed_supervisor", "appointment")
+        .select_related(
+            "proposed_supervisor",
+            "appointment",
+            "academic_semester",
+        )
         .prefetch_related("workflow_events__actor")
         .order_by("-updated_at", "-created_at", "-id")
     )
@@ -167,6 +180,7 @@ def _supervisor_records(student, user, visibility, now):
             "targetModule": "SUPERVISOR_APPOINTMENTS",
             "recordType": "SUPERVISOR_APPLICATION",
             "appointment": None,
+            **_semester_metadata(application.academic_semester),
         }
         try:
             appointment = application.appointment
@@ -216,7 +230,12 @@ def _panel_records(profile, user, visibility, now):
         return {"currentRecordId": None, "records": []}
     recommendations_query = (
         PanelRecommendation.objects.filter(profile=profile)
-        .select_related("supervisor", "recommended_member", "panel_appointment")
+        .select_related(
+            "supervisor",
+            "recommended_member",
+            "panel_appointment",
+            "academic_semester",
+        )
         .prefetch_related("workflow_events__actor")
         .order_by("-updated_at", "-created_at", "-id")
     )
@@ -263,6 +282,7 @@ def _panel_records(profile, user, visibility, now):
                 "waitingDays": waiting["waitingDays"],
                 "targetModule": "PANEL_APPOINTMENTS",
                 "recordType": "PANEL_RECOMMENDATION",
+                **_semester_metadata(recommendation.academic_semester),
             }
         else:
             record = {
@@ -284,6 +304,7 @@ def _panel_records(profile, user, visibility, now):
                 "targetModule": "PANEL_APPOINTMENTS",
                 "recordType": "PANEL_RECOMMENDATION",
                 "workflow": _workflow(recommendation.workflow_events.all()),
+                **_semester_metadata(recommendation.academic_semester),
             }
         try:
             appointment = recommendation.panel_appointment
@@ -330,7 +351,12 @@ def _marks_records(profile, user, visibility, now):
         return {"summaryStatus": None, "completionRate": None, "tasks": []}
     tasks = (
         EvaluationTask.objects.filter(profile=profile)
-        .select_related("evaluator", "period", "mark_entry")
+        .select_related(
+            "evaluator",
+            "period",
+            "period__academic_semester",
+            "mark_entry",
+        )
         .order_by("-period__closes_at", "-assigned_at", "-id")
     )
     if user.role == User.Role.LECTURER:
@@ -353,6 +379,12 @@ def _marks_records(profile, user, visibility, now):
                 "status": status,
                 "period": task.period.name,
                 "semester": task.period.semester,
+                "semesterId": task.period.academic_semester_id,
+                "semesterCode": (
+                    task.period.academic_semester.code
+                    if task.period.academic_semester_id
+                    else None
+                ),
                 "dueAt": _iso(deadline["dueAt"]),
                 "daysUntilDue": deadline["daysUntilDue"],
                 "deadlineState": deadline["deadlineState"],
@@ -365,6 +397,12 @@ def _marks_records(profile, user, visibility, now):
                 "status": status,
                 "period": task.period.name,
                 "semester": task.period.semester,
+                "semesterId": task.period.academic_semester_id,
+                "semesterCode": (
+                    task.period.academic_semester.code
+                    if task.period.academic_semester_id
+                    else None
+                ),
                 "evaluator": task.evaluator.full_name,
                 "evaluatorRole": task.evaluator_role,
                 "dueAt": _iso(deadline["dueAt"]),
@@ -405,8 +443,20 @@ def _timeline_status(entry, today):
 
 
 def _timeline_section(today):
+    academic_semester = current_effective_semester()
+    if academic_semester is None:
+        return {
+            "semester": None,
+            "session": None,
+            "semesterId": None,
+            "semesterCode": None,
+            "entries": [],
+        }
     timeline = (
-        SemesterTimeline.objects.filter(is_active=True)
+        SemesterTimeline.objects.filter(
+            is_active=True,
+            academic_semester=academic_semester,
+        )
         .prefetch_related("entries")
         .first()
     )
@@ -414,6 +464,8 @@ def _timeline_section(today):
         return {
             "semester": None,
             "session": None,
+            "semesterId": academic_semester.pk,
+            "semesterCode": academic_semester.code,
             "entries": [],
         }
     entries = [
@@ -434,6 +486,8 @@ def _timeline_section(today):
     return {
         "semester": timeline.semester,
         "session": timeline.session,
+        "semesterId": timeline.academic_semester_id,
+        "semesterCode": timeline.academic_semester.code,
         "entries": entries,
     }
 

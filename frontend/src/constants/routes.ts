@@ -7,6 +7,7 @@ export const APP_ROUTES = {
   resetPassword: '/reset-password',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
+  dashboardSemesters: '/dashboard/semesters',
   dashboardReports: '/dashboard/reports',
   dashboardProgress: '/dashboard/progress',
   registry: '/registry',
@@ -66,6 +67,8 @@ export const routeForSidebarItem = (item: SidebarItemId | string): string =>
   SIDEBAR_TO_ROUTE[item as SidebarItemId] ?? APP_ROUTES.dashboard;
 
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
+
+export const routeForDashboardSemesters = (): string => APP_ROUTES.dashboardSemesters;
 
 export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
 
@@ -128,6 +131,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
     return (
       pathname === APP_ROUTES.dashboard
       || pathname === APP_ROUTES.dashboardTimeline
+      || pathname === APP_ROUTES.dashboardSemesters
       || pathname === APP_ROUTES.dashboardReports
       || pathname === APP_ROUTES.dashboardProgress
       || /^\/dashboard\/progress\/[^/]+$/.test(pathname)

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status
@@ -5,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Panel, Student
 from announcements.models import Notification
+from academics.models import AcademicSemester
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -87,6 +90,17 @@ class PanelRecommendationWorkflowTests(APITestCase):
             abstract="Research abstract",
             supervisor=self.supervisor,
         )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office_admin,
+            activated_at=timezone.now(),
+        )
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -132,6 +146,31 @@ class PanelRecommendationWorkflowTests(APITestCase):
 
     def test_legacy_accepted_by_panel_status_is_removed(self):
         self.assertNotIn("ACCEPTED_BY_PANEL", PanelRecommendation.Status.values)
+
+    def test_submitted_recommendation_uses_active_semester(self):
+        payload = self.create_submitted_recommendation()
+        recommendation = PanelRecommendation.objects.get(pk=payload["id"])
+
+        self.assertEqual(recommendation.academic_semester, self.academic_semester)
+        self.assertEqual(payload["semesterId"], self.academic_semester.pk)
+        self.assertEqual(payload["semester"], self.academic_semester.label)
+
+    def test_recommendation_is_blocked_without_effective_semester(self):
+        self.academic_semester.delete()
+        self.authenticate(self.supervisor)
+
+        response = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.panel.lecturer.staff_no,
+                "justification": "No semester should reject this.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(PanelRecommendation.objects.exists())
 
     def reserve_panel_workload(self, panel_member, count):
         for index in range(count):

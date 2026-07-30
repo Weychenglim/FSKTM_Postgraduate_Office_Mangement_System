@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 from announcements.models import Notification
+from academics.models import AcademicSemester
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -87,6 +91,17 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             staff_no="OA1001",
             department="Postgraduate Office",
         )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office_admin,
+            activated_at=timezone.now(),
+        )
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -125,6 +140,9 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         response = self.submit_application()
 
         application = SupervisorApplication.objects.get()
+        self.assertEqual(application.academic_semester, self.academic_semester)
+        self.assertEqual(response.data["semesterId"], self.academic_semester.pk)
+        self.assertEqual(response.data["semester"], self.academic_semester.label)
         self.assertEqual(
             application.status,
             SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -141,6 +159,23 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertFalse(notification.is_announcement)
         self.assertEqual(notification.record_type, "SUPERVISOR_APPLICATION")
         self.assertEqual(notification.record_id, str(application.pk))
+
+    def test_student_submission_is_blocked_without_effective_semester(self):
+        self.academic_semester.delete()
+        self.authenticate(self.student_user)
+
+        response = self.client.post(
+            "/api/appointments/supervisor/applications/",
+            {
+                "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "researchTitle": "No active semester",
+                "researchAbstract": "This request must not be accepted.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(SupervisorApplication.objects.exists())
 
     def test_office_staff_can_view_persisted_supervisor_workload(self):
         application_id = self.submit_application().data["id"]
@@ -223,7 +258,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         )
         self.assertEqual(
             supervisees.data[0]["semester"],
-            "Sem 1 2025/2026",
+            self.academic_semester.label,
         )
         self.assertEqual(
             supervisees.data[0]["email"],

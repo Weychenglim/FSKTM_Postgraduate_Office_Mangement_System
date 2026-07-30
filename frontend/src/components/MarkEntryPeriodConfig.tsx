@@ -11,6 +11,7 @@ import {
   Clock3,
   Plus,
   Save,
+  Settings2,
   XCircle,
 } from 'lucide-react';
 
@@ -20,12 +21,14 @@ import {
   createEvaluationPeriod,
   getEvaluationPeriod,
   getEvaluationPeriods,
+  getAcademicSemesters,
   getRubricVersions,
   publishEvaluationPeriod,
   updateEvaluationPeriod,
 } from '../services';
 import type {
   EvaluationPeriodOption,
+  AcademicSemester,
   RubricVersion,
 } from '../types';
 import {
@@ -45,11 +48,12 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
+  onManageSemesters: () => void;
 }
 
 type PeriodForm = {
   name: string;
-  semester: string;
+  semesterId: string;
   rubricId: string;
   opensAt: string;
   closesAt: string;
@@ -57,7 +61,7 @@ type PeriodForm = {
 
 const EMPTY_FORM: PeriodForm = {
   name: '',
-  semester: '',
+  semesterId: '',
   rubricId: '',
   opensAt: '',
   closesAt: '',
@@ -78,9 +82,11 @@ const displayDateTime = (value: string | null) => {
 
 export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   onBack,
+  onManageSemesters,
 }) => {
   const [periods, setPeriods] = useState<EvaluationPeriodOption[]>([]);
   const [rubrics, setRubrics] = useState<RubricVersion[]>([]);
+  const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
   const [selected, setSelected] = useState<EvaluationPeriodOption | null>(null);
   const [form, setForm] = useState<PeriodForm>(EMPTY_FORM);
   const [reason, setReason] = useState('');
@@ -99,12 +105,29 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const [periodRows, rubricRows] = await Promise.all([
+      const [periodRows, rubricRows, semesterRows] = await Promise.all([
         getEvaluationPeriods(includeArchived),
         getRubricVersions(),
+        getAcademicSemesters(),
       ]);
       setPeriods(periodRows);
       setRubrics(rubricRows);
+      const editableSemesters = semesterRows.filter((semester) => (
+        semester.lifecycleStatus === 'DRAFT' || semester.lifecycleStatus === 'ACTIVE'
+      ));
+      setSemesters(editableSemesters);
+      setForm((current) => (
+        current.semesterId
+          ? current
+          : {
+              ...current,
+              semesterId: String(
+                editableSemesters.find((semester) => semester.effectiveStatus === 'ACTIVE')?.id
+                ?? editableSemesters[0]?.id
+                ?? '',
+              ),
+            }
+      ));
       if (selected) {
         const refreshed = periodRows.find((period) => period.id === selected.id);
         if (!refreshed) {
@@ -132,6 +155,11 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     setSelected(null);
     setForm({
       ...EMPTY_FORM,
+      semesterId: String(
+        semesters.find((semester) => semester.effectiveStatus === 'ACTIVE')?.id
+        ?? semesters[0]?.id
+        ?? '',
+      ),
       rubricId: readyRubrics[0] ? String(readyRubrics[0].id) : '',
     });
     setReason('');
@@ -145,7 +173,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       setSelected(detail);
       setForm({
         name: detail.name,
-        semester: detail.semester,
+        semesterId: detail.semesterId ? String(detail.semesterId) : '',
         rubricId: String(detail.rubricId),
         opensAt: toDateTimeLocalValue(detail.opensAt),
         closesAt: toDateTimeLocalValue(detail.closesAt),
@@ -166,7 +194,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     setSelected(updated);
     setForm({
       name: updated.name,
-      semester: updated.semester,
+      semesterId: updated.semesterId ? String(updated.semesterId) : '',
       rubricId: String(updated.rubricId),
       opensAt: toDateTimeLocalValue(updated.opensAt),
       closesAt: toDateTimeLocalValue(updated.closesAt),
@@ -180,7 +208,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     try {
       const payload = {
         name: form.name.trim(),
-        semester: form.semester.trim(),
+        semesterId: Number(form.semesterId),
         rubricId: Number(form.rubricId),
         opensAt: form.opensAt ? new Date(form.opensAt).toISOString() : null,
         closesAt: form.closesAt ? new Date(form.closesAt).toISOString() : null,
@@ -249,9 +277,18 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
         backLabel="Back to Marks & Evaluation Management"
         onBack={onBack}
         actions={(
-          <PortalButton icon={Plus} variant="primary" onClick={beginNew}>
-            New period
-          </PortalButton>
+          <>
+            <PortalButton
+              icon={Settings2}
+              variant="secondary"
+              onClick={onManageSemesters}
+            >
+              Manage semesters
+            </PortalButton>
+            <PortalButton icon={Plus} variant="primary" onClick={beginNew}>
+              New period
+            </PortalButton>
+          </>
         )}
       />
 
@@ -355,14 +392,21 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                 />
               </label>
               <label className="block text-xs font-bold text-slate-700">
-                Semester
-                <input
+                Academic semester
+                <select
                   required
                   disabled={!draftEditable}
-                  value={form.semester}
-                  onChange={(event) => setForm((current) => ({ ...current, semester: event.target.value }))}
+                  value={form.semesterId}
+                  onChange={(event) => setForm((current) => ({ ...current, semesterId: event.target.value }))}
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
-                />
+                >
+                  <option value="">Select a Draft or Active semester</option>
+                  {semesters.map((semester) => (
+                    <option key={semester.id} value={semester.id}>
+                      {semester.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="block text-xs font-bold text-slate-700">
                 Rubric version
