@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Q
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -16,7 +19,10 @@ from .models import (
     PanelRecommendation,
     StudentResearchProfile,
     SupervisorApplication,
+    SupervisorApplicationDocument,
     SupervisorAppointment,
+    SupervisorDocumentRequirement,
+    SupervisorDocumentRequirementAudit,
     count_supervisor_workload,
     panel_workload_limit,
     supervisor_workload_limit,
@@ -30,8 +36,12 @@ from .serializers import (
     ReasonSerializer,
     AppointmentWorkflowEventSerializer,
     SupervisorApplicationCreateSerializer,
+    SupervisorApplicationDocumentSerializer,
     SupervisorApplicationSerializer,
     SupervisorCandidateSerializer,
+    SupervisorDocumentRequirementSerializer,
+    SupervisorDocumentRequirementUpdateSerializer,
+    SupervisorDocumentRequirementWriteSerializer,
     StudentPanelAppointmentSerializer,
     StudentResearchProfileSerializer,
     department_for_user,
@@ -39,6 +49,12 @@ from .serializers import (
     pending_student_panel_payload_from_user,
     staff_no_for_user,
     student_panel_appointment_payload,
+)
+from .supervisor_documents import (
+    DocumentRequirementsNotConfigured,
+    create_requirement,
+    update_requirement,
+    validate_application_documents,
 )
 
 
@@ -951,6 +967,140 @@ def can_view_supervisor_application(user, application):
     )
 
 
+def _django_validation_error_response(exc):
+    messages = getattr(exc, "messages", None) or [str(exc)]
+    return error_response(messages[0], status.HTTP_400_BAD_REQUEST)
+
+
+def _office_requirement_access(request):
+    if request.user.role == User.Role.OFFICE_ADMIN:
+        return None
+    return error_response(
+        "Only Office Staff/Admin can manage supervisor document requirements.",
+        status.HTTP_403_FORBIDDEN,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def active_supervisor_document_requirements_view(_request):
+    requirements = SupervisorDocumentRequirement.objects.filter(is_active=True)
+    return Response(SupervisorDocumentRequirementSerializer(requirements, many=True).data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def supervisor_document_requirements_view(request):
+    denied = _office_requirement_access(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        requirements = SupervisorDocumentRequirement.objects.all()
+        return Response(
+            SupervisorDocumentRequirementSerializer(requirements, many=True).data
+        )
+
+    serializer = SupervisorDocumentRequirementWriteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        requirement = create_requirement(
+            actor=request.user,
+            values=serializer.service_values(),
+        )
+    except DjangoValidationError as exc:
+        return _django_validation_error_response(exc)
+    return Response(
+        SupervisorDocumentRequirementSerializer(requirement).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def supervisor_document_requirement_detail_view(request, pk):
+    denied = _office_requirement_access(request)
+    if denied:
+        return denied
+    try:
+        requirement = SupervisorDocumentRequirement.objects.get(pk=pk)
+    except SupervisorDocumentRequirement.DoesNotExist:
+        return error_response(
+            "Supervisor document requirement was not found.",
+            status.HTTP_404_NOT_FOUND,
+        )
+    serializer = SupervisorDocumentRequirementUpdateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        requirement = update_requirement(
+            requirement,
+            actor=request.user,
+            values=serializer.service_values(),
+            reason=serializer.validated_data["reason"],
+        )
+    except DjangoValidationError as exc:
+        return _django_validation_error_response(exc)
+    return Response(SupervisorDocumentRequirementSerializer(requirement).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def supervisor_document_requirement_audits_view(request):
+    denied = _office_requirement_access(request)
+    if denied:
+        return denied
+    audits = SupervisorDocumentRequirementAudit.objects.select_related(
+        "requirement", "actor"
+    )
+    return Response(
+        [
+            {
+                "id": audit.pk,
+                "requirementId": audit.requirement_id,
+                "requirementCode": audit.requirement.code,
+                "requirementLabel": audit.requirement.label,
+                "actorName": audit.actor.full_name,
+                "actorRole": audit.actor.role,
+                "action": audit.action,
+                "reason": audit.reason,
+                "beforeValues": audit.before_values,
+                "afterValues": audit.after_values,
+                "createdAt": audit.created_at,
+            }
+            for audit in audits
+        ]
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def supervisor_application_document_download_view(request, pk, document_pk):
+    try:
+        document = SupervisorApplicationDocument.objects.select_related(
+            "application",
+            "application__student",
+            "application__student__user",
+            "application__proposed_supervisor",
+        ).get(pk=document_pk, application_id=pk)
+    except SupervisorApplicationDocument.DoesNotExist:
+        return error_response("Document was not found.", status.HTTP_404_NOT_FOUND)
+    if not can_view_supervisor_application(request.user, document.application):
+        return error_response("Document was not found.", status.HTTP_404_NOT_FOUND)
+    if not document.file:
+        return error_response("Document was not found.", status.HTTP_404_NOT_FOUND)
+    try:
+        handle = document.file.open("rb")
+    except (FileNotFoundError, OSError):
+        return error_response("Document was not found.", status.HTTP_404_NOT_FOUND)
+    response = FileResponse(
+        handle,
+        as_attachment=True,
+        filename=document.name,
+        content_type=document.content_type or "application/octet-stream",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def supervisor_candidates_view(request):
@@ -991,28 +1141,50 @@ def supervisor_applications_view(request):
         context={"request": request},
     )
     serializer.is_valid(raise_exception=True)
-    with transaction.atomic():
-        application = serializer.save()
-        record_workflow_event(
-            actor=request.user,
-            action="SUBMIT",
-            previous_status="",
-            new_status=application.status,
-            supervisor_application=application,
+    files = request.FILES.getlist("documents")
+    if hasattr(request.data, "getlist"):
+        requirement_codes = request.data.getlist("requirementCodes")
+    else:
+        requirement_codes = request.data.get("requirementCodes", [])
+        if isinstance(requirement_codes, str):
+            requirement_codes = [requirement_codes]
+    try:
+        validated_documents = validate_application_documents(
+            files,
+            requirement_codes,
         )
-        notify_workflow(
-            recipients=[application.proposed_supervisor],
-            actor=request.user,
-            event_key=f"supervisor:{application.pk}:submit",
-            title="Supervisor request requires your review",
-            summary=f"{application.student.user.full_name} requested you as supervisor.",
-            message="Open Supervisor Appointments to accept or reject this request.",
-            module_label="Supervisor Appointment",
-            target_module="SUPERVISOR_APPOINTMENTS",
-            record_type="SUPERVISOR_APPLICATION",
-            record_id=application.pk,
-            priority=Notification.Priority.MEDIUM,
-        )
+    except DocumentRequirementsNotConfigured as exc:
+        return error_response(str(exc), status.HTTP_409_CONFLICT)
+    except DjangoValidationError as exc:
+        return _django_validation_error_response(exc)
+
+    try:
+        with transaction.atomic():
+            application = serializer.save(validated_documents=validated_documents)
+            record_workflow_event(
+                actor=request.user,
+                action="SUBMIT",
+                previous_status="",
+                new_status=application.status,
+                supervisor_application=application,
+            )
+            notify_workflow(
+                recipients=[application.proposed_supervisor],
+                actor=request.user,
+                event_key=f"supervisor:{application.pk}:submit",
+                title="Supervisor request requires your review",
+                summary=f"{application.student.user.full_name} requested you as supervisor.",
+                message="Open Supervisor Appointments to accept or reject this request.",
+                module_label="Supervisor Appointment",
+                target_module="SUPERVISOR_APPOINTMENTS",
+                record_type="SUPERVISOR_APPLICATION",
+                record_id=application.pk,
+                priority=Notification.Priority.MEDIUM,
+            )
+    except Exception:
+        for name in getattr(serializer, "saved_file_names", []):
+            default_storage.delete(name)
+        raise
     application = get_supervisor_application(application.pk)
     return Response(
         SupervisorApplicationSerializer(application).data,
@@ -1494,7 +1666,7 @@ def supervisor_records_view(request):
         "student__user",
         "proposed_supervisor",
         "proposed_supervisor__lecturer",
-    ).prefetch_related("workflow_events__actor")
+    ).prefetch_related("documents", "workflow_events__actor")
 
     def display_status(application):
         if application.status == SupervisorApplication.Status.APPROVED:
@@ -1512,6 +1684,7 @@ def supervisor_records_view(request):
         [
             {
                 "studentId": application.student.matric_no,
+                "applicationId": application.pk,
                 "studentName": application.student.user.full_name,
                 "programme": application.student.programme,
                 "supervisor": application.proposed_supervisor.full_name,
@@ -1533,6 +1706,10 @@ def supervisor_records_view(request):
                 "cancellationReason": application.cancellation_reason,
                 "workflow": AppointmentWorkflowEventSerializer(
                     application.workflow_events.all(),
+                    many=True,
+                ).data,
+                "documents": SupervisorApplicationDocumentSerializer(
+                    application.documents.all(),
                     many=True,
                 ).data,
                 **supervisor_waiting_metadata(application),

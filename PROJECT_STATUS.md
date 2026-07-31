@@ -1,5 +1,17 @@
 # Project Status
 
+## Secure Supervisor Application Documents
+
+- Added private, persisted PDF/DOCX files to Supervisor applications with requirement snapshots, validated MIME type, SHA-256 checksum, legacy metadata availability, server-generated storage names, and one-file-per-requirement integrity.
+- Added Office Staff/Admin requirement configuration and immutable audits, including stable codes, active/inactive ordering, mandatory update reasons, no physical deletion, and guarded fictional seeding only when no requirements exist.
+- Changed Student Supervisor application creation to atomic multipart submission with requirement completeness, five-file and 10 MB limits, duplicate-content rejection, PDF active-action checks, bounded DOCX package validation, and storage cleanup after transaction failure.
+- Added private attachment downloads scoped to the owning Student, proposed Supervisor, managed-programme Coordinator, and Office Staff/Admin with indistinguishable not-found responses and safe attachment headers.
+- Added the Office-only `/supervisor-appointments/requirements` workspace, requirement-driven drag-and-drop Student intake, combined-size and completeness feedback, shared authenticated document downloads, and legacy `Unavailable` rendering.
+- Replaced fabricated supporting files, fallback research content, eligibility claims, timestamps, feedback, and appointment-letter controls in Student, Lecturer, Coordinator, and Office Supervisor surfaces with persisted fields and workflow audits.
+- Reports and CSV remain metadata-only; Progress Dossiers continue linking to authorized Supervisor details. Official templates, CGPA policy, antivirus scanning, file replacement, Notifications/Announcements, and File Repository integration remain deferred.
+- Verification passes all 164 Accounts/Appointments/Dashboard backend tests, the focused 29-test Supervisor document/workflow suite, all 39 frontend `.test.ts` files, Django system and migration checks, TypeScript lint, production build, zero-vulnerability npm audit, and both production artifact/CSP guards.
+- Browser smoke covered Office required/optional configuration and private download, Student missing-required blocking and valid upload, Lecturer review/download, Coordinator cross-programme isolation and temporary managed-programme visibility, and error-free role rendering. Clearly named smoke records, files, notifications, requirements, and temporary programme alignment were removed afterward.
+
 ## Central Academic Semester Management
 
 - Added the `academics` Django app with a faculty-wide `AcademicSemester`, immutable lifecycle audits, consecutive-session and date validation, non-overlap rules, effective-expiry handling, and database enforcement that permits at most one persisted Active semester.

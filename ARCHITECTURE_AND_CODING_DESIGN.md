@@ -173,9 +173,19 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 
 ## Supervisor, Workflow Audit, Marks, and Dashboard Completion
 
-- The `appointments` app owns supervisor applications, document metadata/requirements, final appointments, and shared `AppointmentWorkflowEvent` audit records.
+- The `appointments` app owns supervisor applications, private document persistence and requirements, final appointments, and shared `AppointmentWorkflowEvent` audit records.
 - Supervisor applications follow `SUBMITTED_TO_SUPERVISOR -> PENDING_COORDINATOR -> APPROVED`, with rejection states at either decision stage and conditional uniqueness for active student applications.
 - Supervisor and Panel state-changing endpoints write immutable workflow events referencing exactly one workflow record.
+
+### Private Supervisor Application Documents
+
+- `SupervisorDocumentRequirement` is the Office-configured intake checklist. Its stable code is server-generated and immutable, requirements are deactivated rather than deleted, and `SupervisorDocumentRequirementAudit` stores immutable actor, action, reason, before, after, and timestamp values.
+- `SupervisorApplicationDocument` stores a private `FileField`, validated content type, byte size, SHA-256 checksum, requirement relationship, and immutable code/label snapshots. The nullable file and requirement fields preserve pre-cutover metadata rows as non-downloadable `LEGACY_METADATA`.
+- Student creation uses one atomic multipart request. `appointments.supervisor_documents` validates all active requirements and all files before model or storage persistence, caps intake at five files and 10 MB combined, derives MIME types from validated PDF/DOCX structure, and removes saved storage objects if the surrounding transaction fails.
+- DOCX validation bounds archive entries and expansion, checks required Open Packaging Convention parts and CRC integrity, and rejects encryption, traversal or drive paths, symbolic links, and macro payloads. PDF validation rejects malformed boundaries and active JavaScript, launch, or embedded-file actions.
+- Files use server-generated storage names under an application-specific private prefix. No serializer returns a media URL. `/api/appointments/supervisor/applications/<applicationId>/documents/<documentId>/download/` streams an attachment with `nosniff` only after object-level Student, Supervisor, Coordinator-programme, or Office authorization; denied and missing records share `404` behavior.
+- `frontend/src/utils/supervisorDocuments.ts` owns browser convenience checks and multipart construction. Django remains authoritative. `SupervisorDocumentsList` centralizes authenticated Blob downloads and legacy availability labels across all role surfaces.
+- `/supervisor-appointments/requirements` is an Office-only nested workspace rather than a sidebar module. The wider File Repository and Notifications/Announcements retain their existing ownership and behavior.
 - Supervisor requests support terminal student cancellation from `SUBMITTED_TO_SUPERVISOR` through `/api/appointments/supervisor/applications/<id>/cancel/`, with row locking, mandatory reason, timestamp, audit event, and replacement eligibility.
 - Protected Supervisor and Panel detail endpoints return complete workflow events only to involved users, programme-scoped coordinators, and Office Staff/Admin. Student users do not receive internal Panel recommendation history.
 - Workflow and Approval Tracking owns persisted audit events, role-gated queues, dashboard counts, and stable module/record identifiers. Notification-center fan-out is a separate integration concern; appointment transitions expose the metadata needed for that module without making Notifications/Announcements part of this module's UI scope.

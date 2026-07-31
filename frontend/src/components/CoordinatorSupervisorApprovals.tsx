@@ -11,6 +11,7 @@ import { SupervisorApplicationRecord } from '../types';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 
 
 interface CoordinatorSupervisorApprovalsProps {
@@ -195,6 +196,13 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   </div>
                 </div>
               )}
+              <div className="mt-4">
+                <SupervisorDocumentsList
+                  applicationId={record.id}
+                  documents={record.documents}
+                  compact
+                />
+              </div>
               <div className="mt-4">
                 <WorkflowAuditLog events={record.workflow} />
               </div>

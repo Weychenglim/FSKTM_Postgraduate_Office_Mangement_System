@@ -11,10 +11,30 @@ urlpatterns = [
         views.own_supervisor_workload_view,
     ),
     path("supervisor/candidates/", views.supervisor_candidates_view),
+    path(
+        "supervisor/document-requirements/active/",
+        views.active_supervisor_document_requirements_view,
+    ),
+    path(
+        "supervisor/document-requirements/audits/",
+        views.supervisor_document_requirement_audits_view,
+    ),
+    path(
+        "supervisor/document-requirements/",
+        views.supervisor_document_requirements_view,
+    ),
+    path(
+        "supervisor/document-requirements/<int:pk>/",
+        views.supervisor_document_requirement_detail_view,
+    ),
     path("supervisor/applications/", views.supervisor_applications_view),
     path(
         "supervisor/applications/<int:pk>/",
         views.supervisor_application_detail_view,
+    ),
+    path(
+        "supervisor/applications/<int:pk>/documents/<int:document_pk>/download/",
+        views.supervisor_application_document_download_view,
     ),
     path(
         "supervisor/applications/<int:pk>/cancel/",

@@ -9,7 +9,6 @@ import {
   Clock, 
   CheckCircle, 
   ChevronRight, 
-  FileText, 
   SlidersHorizontal,
   Mail, 
   Phone,
@@ -30,8 +29,7 @@ import {
   LayoutDashboard,
   Filter,
   Check,
-  Building,
-  Download
+  Building
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -40,6 +38,7 @@ import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
 import {
   acceptSupervisorApplication,
@@ -258,92 +257,6 @@ export const InfoCard: React.FC<InfoCardProps> = ({
   );
 };
 
-interface DocumentCardProps {
-  fileName: string;
-  onDownload?: () => void;
-}
-
-export const DocumentCard: React.FC<DocumentCardProps> = ({
-  fileName,
-  onDownload
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-white hover:border-slate-305 transition-colors select-none">
-      <div className="flex items-center gap-2.5">
-        <FileText className="w-4.5 h-4.5 text-rose-500 stroke-[2]" />
-        <span className="text-xs font-bold text-slate-700">{fileName}</span>
-      </div>
-      <button 
-        onClick={onDownload}
-        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer group"
-        title="Download File"
-      >
-        <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-650 transition-colors" />
-      </button>
-    </div>
-  );
-};
-
-interface ProgressTimelineItem {
-  id: string;
-  label: string;
-  subtext?: string;
-  status: 'completed' | 'active' | 'pending';
-}
-
-interface ProgressTimelineProps {
-  items: ProgressTimelineItem[];
-}
-
-export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({ items }) => {
-  return (
-    <div className="space-y-4">
-      {items.map((item, index) => {
-        const isLast = index === items.length - 1;
-        return (
-          <div key={item.id} className="relative flex gap-4 text-left group">
-            {/* Left Timeline Indicator node */}
-            <div className="flex flex-col items-center shrink-0">
-              <div className={`z-10 w-6 h-6 rounded-full flex items-center justify-center border font-sans text-[10px] font-bold ${
-                item.status === 'completed'
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  : item.status === 'active'
-                  ? 'bg-brand-navy text-white border-brand-navy ring-4 ring-slate-100'
-                  : 'bg-white text-slate-300 border-slate-200'
-              }`}>
-                {item.status === 'completed' ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3.5]" />
-                ) : item.status === 'active' ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-white block animate-pulse" />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-200 block" />
-                )}
-              </div>
-              {!isLast && (
-                <div className={`w-[2px] h-10 -mb-4 mt-1 grow ${
-                  item.status === 'completed' ? 'bg-emerald-100' : 'bg-slate-100'
-                }`} />
-              )}
-            </div>
-
-            {/* Timeline Content right */}
-            <div className="pt-0.5 space-y-0.5 select-none">
-              <h5 className={`text-xs font-extrabold ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
-                {item.label}
-              </h5>
-              {item.subtext && (
-                <p className={`text-[10px] font-bold ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
-                  {item.subtext}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 interface FormTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
 }
@@ -446,64 +359,16 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             {/* Research Abstract */}
             <InfoCard label="RESEARCH ABSTRACT">
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
-                {request.abstract || "This research aims to investigate the efficiency of Federated Learning (FL) architectures in heterogeneous healthcare environments. The study will focus on developing a secure model aggregation protocol that maintains differential privacy without significantly sacrificing predictive accuracy..."}
+                {request.abstract || 'No research abstract was provided with this application.'}
               </div>
             </InfoCard>
 
-            {/* Proposed Area & Eligibility indicators side-by-side matches perfect layout */}
-            <div className="grid grid-cols-2 gap-4 border-b border-slate-100 pb-5 select-none text-left">
-              <InfoCard label="PROPOSED AREA">
-                <span className="text-xs font-extrabold text-brand-navy">
-                  Distributed Systems & Security
-                </span>
-              </InfoCard>
-
-              <InfoCard label="ELIGIBILITY">
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#00a15c]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00a15c] animate-pulse" />
-                  Verified
-                </span>
-              </InfoCard>
-            </div>
-
             {/* Supporting Documents Section */}
-            <InfoCard label="DOCUMENTS">
-              <DocumentCard 
-                fileName="Detailed_Proposal.pdf" 
-                onDownload={() => alert("Downloading Detailed_Proposal.pdf file archive.")}
-              />
-            </InfoCard>
-
-            {/* Request Progress Timeline */}
-            <InfoCard label="REQUEST PROGRESS">
-              <ProgressTimeline 
-                items={[
-                  {
-                    id: 'submitted',
-                    label: 'Application Submitted',
-                    subtext: '14 May 2024, 09:30 AM',
-                    status: 'completed'
-                  },
-                  {
-                    id: 'review',
-                    label: 'Supervisor Review',
-                    subtext: 'Awaiting your decision',
-                    status: 'active'
-                  },
-                  {
-                    id: 'approval',
-                    label: 'Programme Coordinator Approval',
-                    subtext: 'Pending action',
-                    status: 'pending'
-                  },
-                  {
-                    id: 'letter',
-                    label: 'Confirmation Letter Generated',
-                    status: 'pending'
-                  }
-                ]}
-              />
-            </InfoCard>
+            <SupervisorDocumentsList
+              applicationId={request.id}
+              documents={request.documents}
+              compact
+            />
 
             <WorkflowAuditLog events={request.workflow} />
 
@@ -903,7 +768,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       }
       await loadData();
       setDetailRejectReason('');
-      showToast(`Appointment approved! ${studentReq.studentName} is now added to your supervisee roster.`);
+      showToast(`${studentReq.studentName}'s request was forwarded to the Programme Coordinator.`);
       setIsDrawerOpen(false);
       navigateToList();
     }

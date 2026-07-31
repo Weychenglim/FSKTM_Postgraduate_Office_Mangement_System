@@ -13,6 +13,7 @@ import {
   routeForPanelWorkload,
   routeForSupervisorHistory,
   routeForSupervisorNewApplication,
+  routeForSupervisorRequirements,
   routeForSupervisorSupervisee,
   routeForSupervisorWorkload,
   routeForSidebarItem,
@@ -50,6 +51,7 @@ assert.equal(isKnownAppPath('/dashboard/unknown'), false);
 assert.equal(isKnownAppPath('/supervisor-appointments/workload'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/new'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/history'), true);
+assert.equal(isKnownAppPath('/supervisor-appointments/requirements'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/supervisees/MEA2209841'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/42'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/unknown/path'), false);
@@ -58,6 +60,7 @@ assert.equal(isKnownAppPath('/not-a-real-route'), false);
 assert.equal(routeForSupervisorWorkload(), '/supervisor-appointments/workload');
 assert.equal(routeForSupervisorNewApplication(), '/supervisor-appointments/new');
 assert.equal(routeForSupervisorHistory(), '/supervisor-appointments/history');
+assert.equal(routeForSupervisorRequirements(), '/supervisor-appointments/requirements');
 assert.equal(routeForSupervisorSupervisee('MEA2209841'), '/supervisor-appointments/supervisees/MEA2209841');
 assert.equal(routeForPanelRecord('appointment-42'), '/panel-appointments/records/appointment-42');
 assert.equal(routeForPanelWorkload(), '/panel-appointments/workload');

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -13,6 +14,7 @@ from .models import (
     AppointmentWorkflowEvent,
     SupervisorApplication,
     SupervisorAppointment,
+    SupervisorDocumentRequirement,
 )
 
 
@@ -102,6 +104,14 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             created_by=self.office_admin,
             activated_at=timezone.now(),
         )
+        SupervisorDocumentRequirement.objects.create(
+            code="research-proposal",
+            label="Research Proposal",
+            description="Upload the current research proposal.",
+            is_required=True,
+            is_active=True,
+            display_order=1,
+        )
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -117,15 +127,15 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "researchTitle": "Configurable postgraduate workflow",
                 "researchAbstract": "A sufficiently detailed research abstract.",
                 "documents": [
-                    {
-                        "name": "proposal.pdf",
-                        "category": "RESEARCH_PROPOSAL",
-                        "contentType": "application/pdf",
-                        "size": 1024,
-                    }
+                    SimpleUploadedFile(
+                        "proposal.pdf",
+                        b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
+                        content_type="application/pdf",
+                    )
                 ],
+                "requirementCodes": ["research-proposal"],
             },
-            format="json",
+            format="multipart",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         return response

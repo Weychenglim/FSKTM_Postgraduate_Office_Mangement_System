@@ -28,6 +28,7 @@ export type SupervisorAppointmentStatus =
   | 'Cancelled';
 
 export interface SupervisorRecord extends WorkflowAgeingMetadata {
+  applicationId?: number;
   studentId: string;
   studentName: string;
   programme: string;
@@ -46,6 +47,7 @@ export interface SupervisorRecord extends WorkflowAgeingMetadata {
   panelMemberName?: string;
   panelAssignedDate?: string;
   workflow?: SupervisorWorkflowEvent[];
+  documents?: SupervisorApplicationDocument[];
 }
 
 export type PanelAppointmentStatus =
@@ -337,6 +339,8 @@ export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
   workflow?: SupervisorWorkflowEvent[];
   cancellationReason?: string;
   cancelledAt?: string | null;
+  rejectionReason?: string;
+  documents?: SupervisorApplicationDocument[];
 }
 
 export type SupervisorApplicationWorkflowStatus =
@@ -375,7 +379,48 @@ export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   coordinatorDecisionAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string;
+  documents?: SupervisorApplicationDocument[];
   workflow: SupervisorWorkflowEvent[];
+}
+
+export interface SupervisorDocumentRequirement {
+  id: number;
+  code: string;
+  label: string;
+  description: string;
+  isRequired: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  isUsed: boolean;
+}
+
+export interface SupervisorApplicationDocument {
+  id: number;
+  requirementCode: string | null;
+  requirementLabel: string;
+  name: string;
+  contentType:
+    | 'application/pdf'
+    | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    | null;
+  size: number;
+  checksum: string | null;
+  availability: 'AVAILABLE' | 'LEGACY_METADATA';
+  uploadedAt: string;
+}
+
+export interface SupervisorDocumentRequirementAudit {
+  id: number;
+  requirementId: number;
+  requirementCode: string;
+  requirementLabel: string;
+  actorName: string;
+  actorRole: string;
+  action: 'CREATE' | 'UPDATE';
+  reason: string;
+  beforeValues: Record<string, unknown>;
+  afterValues: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface SupervisorCandidate {

@@ -22,12 +22,15 @@ import {
   StudentSupervisorApplication,
   SubmittedRecommendation,
   SupervisorApplicationRecord,
+  SupervisorApplicationDocument,
   SupervisorCandidate,
+  SupervisorDocumentRequirement,
+  SupervisorDocumentRequirementAudit,
   SupervisorRequestHistoryRow,
   WorkflowAgeingMetadata,
 } from '../types';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
-import { request } from './apiClient';
+import { request, requestBlob, requestMultipart } from './apiClient';
 
 const ACTIVE_SUPERVISOR_WAITING_STATUSES = new Set([
   'Pending',
@@ -255,21 +258,63 @@ export async function getSupervisorApplication(
   );
 }
 
-export async function createSupervisorApplication(payload: {
-  proposedSupervisorId: string;
-  researchTitle: string;
-  researchAbstract: string;
-  documents: Array<{
-    name: string;
-    category: string;
-    contentType: string;
-    size: number;
-  }>;
-}): Promise<SupervisorApplicationRecord> {
-  return request<SupervisorApplicationRecord>('/appointments/supervisor/applications/', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+export async function createSupervisorApplication(
+  payload: FormData,
+): Promise<SupervisorApplicationRecord> {
+  return requestMultipart<SupervisorApplicationRecord>(
+    '/appointments/supervisor/applications/',
+    payload,
+  );
+}
+
+export async function getActiveSupervisorDocumentRequirements(): Promise<SupervisorDocumentRequirement[]> {
+  return request<SupervisorDocumentRequirement[]>(
+    '/appointments/supervisor/document-requirements/active/',
+  );
+}
+
+export async function getSupervisorDocumentRequirements(): Promise<SupervisorDocumentRequirement[]> {
+  return request<SupervisorDocumentRequirement[]>(
+    '/appointments/supervisor/document-requirements/',
+  );
+}
+
+export async function createSupervisorDocumentRequirement(payload: {
+  label: string;
+  description: string;
+  isRequired: boolean;
+  isActive: boolean;
+  displayOrder: number;
+}): Promise<SupervisorDocumentRequirement> {
+  return request<SupervisorDocumentRequirement>(
+    '/appointments/supervisor/document-requirements/',
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function updateSupervisorDocumentRequirement(
+  id: number,
+  payload: Partial<Pick<SupervisorDocumentRequirement, 'label' | 'description' | 'isRequired' | 'isActive' | 'displayOrder'>> & { reason: string },
+): Promise<SupervisorDocumentRequirement> {
+  return request<SupervisorDocumentRequirement>(
+    `/appointments/supervisor/document-requirements/${id}/`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
+}
+
+export async function getSupervisorDocumentRequirementAudits(): Promise<SupervisorDocumentRequirementAudit[]> {
+  return request<SupervisorDocumentRequirementAudit[]>(
+    '/appointments/supervisor/document-requirements/audits/',
+  );
+}
+
+export async function downloadSupervisorApplicationDocument(
+  applicationId: number | string,
+  document: Pick<SupervisorApplicationDocument, 'id'>,
+): Promise<Blob> {
+  return requestBlob(
+    `/appointments/supervisor/applications/${applicationId}/documents/${document.id}/download/`,
+  );
 }
 
 export async function cancelSupervisorApplication(
@@ -361,6 +406,8 @@ export function toStudentSupervisorApplication(
     workflow: record.workflow,
     cancellationReason: record.cancellationReason,
     cancelledAt: record.cancelledAt,
+    rejectionReason: record.rejectionReason,
+    documents: record.documents ?? [],
     waitingSince: record.waitingSince,
     waitingDays: record.waitingDays,
     waitingOn: record.waitingOn,

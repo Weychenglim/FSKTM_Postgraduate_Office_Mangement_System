@@ -40,6 +40,7 @@ import {
   routeForSupervisorApplication,
   routeForSupervisorHistory,
   routeForSupervisorNewApplication,
+  routeForSupervisorRequirements,
   routeForSupervisorSupervisee,
   routeForSupervisorWorkload,
   routeForSidebarItem,
@@ -76,6 +77,7 @@ const MarkEntryRecords = lazyNamed('MarkEntryRecords', () => import('./component
 const MarkEntryRecordDetail = lazyNamed('MarkEntryRecordDetail', () => import('./components/MarkEntryRecordDetail'));
 const PanelAppointmentManagement = lazyNamed('PanelAppointmentManagement', () => import('./components/PanelAppointmentManagement'));
 const SupervisorAppointmentManagement = lazyNamed('SupervisorAppointmentManagement', () => import('./components/SupervisorAppointmentManagement'));
+const SupervisorDocumentRequirements = lazyNamed('SupervisorDocumentRequirements', () => import('./components/SupervisorDocumentRequirements'));
 const LecturerMarksEntry = lazyNamed('LecturerMarksEntry', () => import('./components/LecturerMarksEntry'));
 const LecturerPanelAppointments = lazyNamed('LecturerPanelAppointments', () => import('./components/LecturerPanelAppointments'));
 const LecturerSupervisorAppointments = lazyNamed('LecturerSupervisorAppointments', () => import('./components/LecturerSupervisorAppointments'));
@@ -180,12 +182,14 @@ export default function App() {
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
+  const isSupervisorRequirementsRoute = pathname === APP_ROUTES.supervisorAppointmentRequirements;
   const supervisorSuperviseeMatch = matchPath(`${APP_ROUTES.supervisorAppointmentSupervisees}/:studentId`, pathname);
   const supervisorSuperviseeStudentId = supervisorSuperviseeMatch?.params.studentId;
   const isSupervisorFixedRoute = (
     isSupervisorWorkloadRoute
     || isSupervisorNewRoute
     || isSupervisorHistoryRoute
+    || isSupervisorRequirementsRoute
     || Boolean(supervisorSuperviseeStudentId)
   );
   const supervisorApplicationMatch = isSupervisorFixedRoute
@@ -224,14 +228,19 @@ export default function App() {
     ? currentUser?.studentId
     : dashboardProgressMatch?.params.studentId;
   const isStudentUnsupportedSupervisorRoute =
-    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
+    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || isSupervisorRequirementsRoute || Boolean(supervisorSuperviseeStudentId));
   const isLecturerUnsupportedSupervisorRoute =
-    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute);
+    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute || isSupervisorRequirementsRoute);
   const isCoordinatorUnsupportedSupervisorRoute =
     isCoordinatorWorkspace && isSupervisorFixedRoute;
   const isOfficeUnsupportedSupervisorRoute =
     currentUser?.role === 'Office Staff/Admin'
     && (isSupervisorNewRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
+  const isUnauthorizedSupervisorRequirementsRoute = Boolean(
+    isSupervisorRequirementsRoute
+    && currentUser
+    && currentUser.role !== 'Office Staff/Admin'
+  );
   const isPanelNestedRoute = pathname !== APP_ROUTES.panelAppointments && activeSidebarItem === SIDEBAR_ITEMS.PANEL_APPOINTMENTS;
   const isCoordinatorUnsupportedPanelRoute =
     isCoordinatorWorkspace &&
@@ -439,6 +448,7 @@ export default function App() {
                 <LecturerMarksEntry
                   onBackToDashboard={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToRequirements={() => navigate(routeForSupervisorRequirements())}
                 />
               ) : isMarksConfigRoute ? (
                 <MarkEntryPeriodConfig
@@ -597,7 +607,13 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
-              isStudentUnsupportedSupervisorRoute ? (
+              isUnauthorizedSupervisorRequirementsRoute ? (
+                <Navigate to={APP_ROUTES.supervisorAppointments} replace />
+              ) : isSupervisorRequirementsRoute ? (
+                <SupervisorDocumentRequirements
+                  onBack={() => navigate(APP_ROUTES.supervisorAppointments)}
+                />
+              ) : isStudentUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isStudentWorkspace ? (
                 <StudentSupervisorAppointment

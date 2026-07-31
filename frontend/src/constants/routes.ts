@@ -17,6 +17,7 @@ export const APP_ROUTES = {
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',
   supervisorAppointmentHistory: '/supervisor-appointments/history',
+  supervisorAppointmentRequirements: '/supervisor-appointments/requirements',
   supervisorAppointmentSupervisees: '/supervisor-appointments/supervisees',
   letters: '/letters',
   announcements: '/announcements',
@@ -92,6 +93,9 @@ export const routeForSupervisorNewApplication = (): string =>
 export const routeForSupervisorHistory = (): string =>
   APP_ROUTES.supervisorAppointmentHistory;
 
+export const routeForSupervisorRequirements = (): string =>
+  APP_ROUTES.supervisorAppointmentRequirements;
+
 export const routeForSupervisorSupervisee = (studentId: string): string =>
   `${APP_ROUTES.supervisorAppointmentSupervisees}/${encodeURIComponent(studentId)}`;
 
@@ -145,6 +149,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
       || pathname === APP_ROUTES.supervisorAppointmentWorkload
       || pathname === APP_ROUTES.supervisorAppointmentNew
       || pathname === APP_ROUTES.supervisorAppointmentHistory
+      || pathname === APP_ROUTES.supervisorAppointmentRequirements
       || /^supervisees\/[^/]+$/.test(supervisorSubpath)
       || /^[^/]+$/.test(supervisorSubpath)
     );

@@ -24,7 +24,8 @@ from accounts.models import (
     Supervisor,
     User,
 )
-from appointments.models import StudentResearchProfile
+from appointments.models import StudentResearchProfile, SupervisorDocumentRequirement
+from appointments.supervisor_documents import create_requirement
 from academics.models import AcademicSemester
 from academics.services import activate_semester, create_semester
 
@@ -405,6 +406,26 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     "  Created fictional active academic semester"
+                )
+            )
+
+        if not SupervisorDocumentRequirement.objects.exists():
+            office = User.objects.get(email="demo.office.admin@example.test")
+            create_requirement(
+                actor=office,
+                values={
+                    "label": "Research Proposal",
+                    "description": (
+                        "Upload the current demonstration research proposal."
+                    ),
+                    "is_required": True,
+                    "is_active": True,
+                    "display_order": 1,
+                },
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "  Created fictional supervisor document requirement"
                 )
             )
 

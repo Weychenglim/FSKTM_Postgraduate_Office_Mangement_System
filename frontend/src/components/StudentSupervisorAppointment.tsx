@@ -6,14 +6,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Users, 
-  Download, 
   Eye, 
   Plus, 
   HelpCircle, 
   CheckCircle, 
   Clock, 
   AlertTriangle,
-  Mail,
   Award,
   BookOpen,
   Calendar,
@@ -36,6 +34,7 @@ import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -58,6 +57,8 @@ type SupervisorApplicationDetail = StudentSupervisorApplication & {
   workflowStatus?: SupervisorApplicationWorkflowStatus;
   workflow?: SupervisorWorkflowEvent[];
   cancellationReason?: string;
+  rejectionReason?: string;
+  documents: StudentSupervisorApplication['documents'];
 };
 
 export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = ({
@@ -112,6 +113,8 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       workflowStatus: app.workflowStatus,
       workflow: app.workflow,
       cancellationReason: app.cancellationReason,
+      rejectionReason: app.rejectionReason,
+      documents: app.documents,
       id: app.id,
       supervisor: app.supervisor,
       title: app.title,
@@ -154,10 +157,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
     }
     setCancellationError(null);
     setIsCancelConfirmOpen(true);
-  };
-
-  const handleDownloadLetter = (docName: string) => {
-    alert(`Downloading Official Confirmation Letter: ${docName}`);
   };
 
   const handleCreateNewApplication = () => {
@@ -318,23 +317,11 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           <PortalButton
             type="button"
             disabled={!approvedApplication}
-            onClick={() => handleDownloadLetter(`Supervisor_Appointment_${approvedApplication?.proposedSupervisorId}.pdf`)}
-            variant="primary"
-            size="md"
-            icon={Download}
-            fullWidth
-          >
-            Download Letter
-          </PortalButton>
-          
-          <PortalButton
-            type="button"
-            disabled={!approvedApplication}
             onClick={() => {
               if (!approvedApplication) return;
               onNavigateToApplication?.(String(approvedApplication.id));
             }}
-            variant="secondary"
+            variant="primary"
             size="md"
             icon={Eye}
             fullWidth
@@ -453,10 +440,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             <Key className="w-5 h-5 stroke-[2.3]" />
           </div>
           <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Eligibility Status
+            Submission prerequisites
           </h4>
           <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-            Your current Credit hours and CGPA meet the minimum faculty requirements for supervisor appointment.
+            New applications require an active semester, supervisor capacity, and the configured supporting documents.
           </p>
         </div>
 
@@ -568,7 +555,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">Submitted Date</span>
                     <span className="text-xs font-bold text-slate-700 block font-mono">
-                      {activeDetailAp.submittedDate || '15 Nov 2025'}
+                      {activeDetailAp.submittedDate || 'Not available'}
                     </span>
                   </div>
 
@@ -582,157 +569,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   </div>
                 </div>
 
-                {/* Workflow Timeline Section */}
-                <div className="space-y-4">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mt-1 select-none">
-                    Progress Timeline
-                  </span>
-
-                  <div className="relative pl-7 space-y-8 py-2">
-                    {/* Continuous vertical timeline connector line */}
-                    <div className="absolute left-3 top-4 bottom-4 w-[2px] bg-slate-200" />
-
-                    {/* Timeline Step 1: Application Submitted */}
-                    <div className="relative text-left">
-                      {/* Step Indicator status icon inside timeline */}
-                      <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xs z-10">
-                        <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-slate-800 leading-tight">
-                          Application Submitted
-                        </h4>
-                        <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5 select-all">
-                          {activeDetailAp.step1Date || '15 Nov 2025, 09:30 AM'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Timeline Step 2: Supervisor Review */}
-                    <div className="relative text-left">
-                      {/* State-dependent styling for Step 2 */}
-                      {activeDetailAp.status === 'APPROVED' ? (
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xs z-10">
-                          <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : activeDetailAp.status === 'RETURNED' ? (
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xs z-10">
-                          <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : (
-                        /* Pending review (Active Highlighted Step) */
-                        <div className="absolute -left-[29px] top bg-white -mt-0.5 w-6 h-6 rounded-full border-4 border-brand-navy flex items-center justify-center shadow-xs z-10">
-                          <StatusDot tone="brand" className="w-2 h-2 bg-brand-navy" />
-                        </div>
-                      )}
-
-                      <div className="pl-0.5">
-                        <h4 className={`text-xs font-black leading-tight ${
-                          activeDetailAp.status === 'PENDING REVIEW' ? 'text-slate-800' : 'text-slate-800'
-                        }`}>
-                          Supervisor Review
-                        </h4>
-                        <p className={`text-[11px] font-medium mt-0.5 leading-normal ${
-                          activeDetailAp.status === 'PENDING REVIEW' 
-                            ? 'text-slate-500' 
-                            : 'text-slate-500'
-                        }`}>
-                          {activeDetailAp.status === 'APPROVED' ? (
-                            <span>Approved by {activeDetailAp.supervisor}</span>
-                          ) : activeDetailAp.status === 'RETURNED' ? (
-                            <span>Reviewed by {activeDetailAp.supervisor}</span>
-                          ) : (
-                            <span>Awaiting response from {activeDetailAp.supervisor}</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Timeline Step 3: Programme Coordinator Approval */}
-                    <div className="relative text-left">
-                      {/* State-dependent styling for Step 3 */}
-                      {activeDetailAp.status === 'APPROVED' ? (
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xs z-10">
-                          <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : activeDetailAp.status === 'RETURNED' ? (
-                        /* Current point of friction: Returned with feedback comments */
-                        <div className="absolute -left-[29px] top bg-white -mt-0.5 w-6 h-6 rounded-full border-4 border-orange-500 flex items-center justify-center shadow-xs z-10">
-                          <StatusDot tone="warning" className="w-2 h-2 bg-orange-500" />
-                        </div>
-                      ) : (
-                        /* Muted future Pending indicator */
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-[#f0f5ff] text-[#a5b4fc] border border-slate-200/60 flex items-center justify-center text-[10px] font-black z-10 select-none">
-                          3
-                        </div>
-                      )}
-
-                      <div>
-                        <h4 className={`text-xs font-black leading-tight ${
-                          activeDetailAp.status === 'APPROVED' ? 'text-slate-800' :
-                          activeDetailAp.status === 'RETURNED' ? 'text-orange-600' : 'text-slate-400'
-                        }`}>
-                          Programme Coordinator Approval
-                        </h4>
-                        <p className={`text-[11px] font-medium mt-0.5 leading-normal ${
-                          activeDetailAp.status === 'APPROVED' ? 'text-slate-500' :
-                          activeDetailAp.status === 'RETURNED' ? 'text-slate-500' : 'text-slate-400'
-                        }`}>
-                          {activeDetailAp.status === 'APPROVED' ? (
-                            <span>Approved by Postgraduate Coordinator</span>
-                          ) : activeDetailAp.status === 'RETURNED' ? (
-                            <span>Returned: &ldquo;Please restructure the research scope section and select standard methodologies.&rdquo;</span>
-                          ) : (
-                            <span>Pending</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Timeline Step 4: Letter Generated */}
-                    <div className="relative text-left">
-                      {/* State-dependent styling for Step 4 */}
-                      {activeDetailAp.status === 'APPROVED' ? (
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xs z-10">
-                          <svg className="w-3 h-3 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      ) : (
-                        /* Muted future Pending indicator */
-                        <div className="absolute -left-7 top-0.5 w-[18px] h-[18px] rounded-full bg-[#f0f5ff] text-[#a5b4fc] border border-slate-200/60 flex items-center justify-center text-[10px] font-black z-10 select-none">
-                          4
-                        </div>
-                      )}
-
-                      <div>
-                        <h4 className={`text-xs font-black leading-tight ${
-                          activeDetailAp.status === 'APPROVED' ? 'text-slate-800' : 'text-slate-400'
-                        }`}>
-                          Letter Generated
-                        </h4>
-                        <p className={`text-[11px] font-medium mt-0.5 leading-normal ${
-                          activeDetailAp.status === 'APPROVED' ? 'text-slate-500' : 'text-slate-400'
-                        }`}>
-                          {activeDetailAp.status === 'APPROVED' ? (
-                            <span>Official appointment letter generated &amp; signed off</span>
-                          ) : (
-                            <span>Pending</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
+                {activeDetailAp.rejectionReason && (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-rose-700">Decision reason</p>
+                    <p className="mt-1 text-xs font-semibold text-rose-800">{activeDetailAp.rejectionReason}</p>
                   </div>
-                </div>
+                )}
+
+                <SupervisorDocumentsList
+                  applicationId={activeDetailAp.applicationId}
+                  documents={activeDetailAp.documents}
+                  compact
+                />
 
                 <WorkflowAuditLog events={activeDetailAp.workflow} />
 
@@ -773,37 +621,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   </div>
                 )}
 
-              </div>
-
-              {/* Drawer Sticky Footer Actions Block */}
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-2 shrink-0 select-none">
-                <PortalButton
-                  type="button"
-                  onClick={() => alert(`Downloading documents package for: ${activeDetailAp.id}`)}
-                  variant="secondary"
-                  size="md"
-                  icon={Download}
-                  fullWidth
-                >
-                  Download Submitted Documents
-                </PortalButton>
-
-                <PortalButton
-                  type="button"
-                  onClick={() => {
-                    if (activeDetailAp.status === 'RETURNED') {
-                      alert('Feedback comments:\n"Returned on 15 Oct 2025. Reason: The research proposal title requires a simplified scope. Consider focus on modern evaluation schemas rather than standard database pipelines alone."');
-                    } else {
-                      alert('Feedback comments:\n"No active system discrepancies found. Approved automatically upon coordinator review."');
-                    }
-                  }}
-                  variant="secondary"
-                  size="md"
-                  icon={Mail}
-                  fullWidth
-                >
-                  View Comments
-                </PortalButton>
               </div>
 
             </motion.div>

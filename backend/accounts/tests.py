@@ -7,7 +7,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from appointments.models import StudentResearchProfile
+from appointments.models import StudentResearchProfile, SupervisorDocumentRequirement
 from academics.models import AcademicSemester
 from dashboard.models import SemesterTimeline
 
@@ -93,6 +93,23 @@ class SeedUsersCommandTests(TestCase):
                 DEMO_SETTINGS["DEMO_STUDENT_PASSWORD"]
             )
         )
+
+    def test_creates_one_generic_supervisor_document_requirement_without_replacing_configuration(self):
+        self.run_seed()
+
+        requirement = SupervisorDocumentRequirement.objects.get()
+        self.assertEqual(requirement.code, "research-proposal")
+        self.assertEqual(requirement.label, "Research Proposal")
+        self.assertTrue(requirement.is_required)
+        self.assertTrue(requirement.is_active)
+
+        requirement.label = "Office Configured Proposal"
+        requirement.save(update_fields=["label"])
+        self.run_seed()
+
+        self.assertEqual(SupervisorDocumentRequirement.objects.count(), 1)
+        requirement.refresh_from_db()
+        self.assertEqual(requirement.label, "Office Configured Proposal")
 
     def test_uses_only_clearly_fictional_demo_identities(self):
         self.run_seed()

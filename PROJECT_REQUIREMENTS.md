@@ -271,12 +271,19 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 
 ## Five-Module Completion Requirements
 
-- Supervisor Appointment applications must persist project details, proposed supervisor, supporting-document metadata, decisions, reasons, and timestamps.
+- Supervisor Appointment applications must persist project details, proposed supervisor, private supporting-document files and immutable metadata snapshots, decisions, reasons, and timestamps.
 - A student may have only one active supervisor application; rejected applications may be followed by a new application.
 - The requested supervisor decides first, followed by final Programme Coordinator approval scoped to the managed programme.
 - Supervisor and Panel decisions must enforce each lecturer's configured workload limit.
 - Supervisor and Panel workflows must audit actor, role, action, previous status, new status, reason, and timestamp.
 - Supervisor document requirements, workload limits, rubrics, and mark components must remain configurable until official rules are received.
+- Office Staff/Admin must configure Supervisor application document requirements without physical deletion. Requirement codes are immutable; activation, deactivation, ordering, and content changes require audited configuration records, while each submitted application retains the code and label used at submission time.
+- New Supervisor applications must fail closed when no active document requirements exist and must atomically submit multipart research data with at most one file per selected requirement, five files total, and 10 MB combined.
+- Supervisor application documents accept PDF and DOCX only. Django must validate file signatures and package integrity, reject unsafe PDF actions and encrypted, traversing, macro-enabled, oversized, or malformed DOCX content, and prevent duplicate file content within one application.
+- Private Supervisor files must never expose storage URLs. Authenticated attachment downloads are limited to the owning Student, proposed Supervisor, managed-programme Coordinator, and Office Staff/Admin; unauthorized and unknown files return the same not-found response.
+- Historical document metadata without stored content must remain visible as `Legacy Metadata` without a download action. Rejected and cancelled applications retain their immutable documents and workflow history.
+- Student, Lecturer, Coordinator, and Office Supervisor views must render only persisted application fields and documents. They must not fabricate eligibility decisions, supporting files, research content, timestamps, feedback, or appointment letters.
+- Official faculty templates, academic eligibility thresholds, antivirus scanning, post-submission file replacement, Notifications/Announcements, and File Repository integration remain outside Supervisor intake until authoritative rules or teammate-owned interfaces are available.
 - Evaluation task generation must create role-specific mark-entry tasks for both active Supervisor Appointments and active Panel Appointments.
 - Marks Assignment must provide production Office Staff/Admin controls for selecting evaluation periods, generating missing tasks, filtering tasks by role/status, and assigning backup evaluators without raw ID prompts.
 - Office Staff/Admin may add a backup/manual-override evaluator only for exception cases, with a mandatory reason and audit trail; this must not change the official supervisor or panel appointment.

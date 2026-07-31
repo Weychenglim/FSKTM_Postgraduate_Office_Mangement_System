@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.base import ContentFile
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
@@ -14,6 +15,7 @@ from .models import (
     StudentResearchProfile,
     SupervisorApplication,
     SupervisorApplicationDocument,
+    SupervisorDocumentRequirement,
     count_panel_workload,
     count_supervisor_workload,
     panel_workload_limit,
@@ -334,11 +336,104 @@ class ReasonSerializer(serializers.Serializer):
 
 
 class SupervisorApplicationDocumentSerializer(serializers.ModelSerializer):
-    contentType = serializers.CharField(source="content_type", allow_blank=True)
+    requirementCode = serializers.CharField(source="requirement_code", read_only=True)
+    requirementLabel = serializers.SerializerMethodField()
+    contentType = serializers.SerializerMethodField()
+    checksum = serializers.CharField(source="checksum_sha256", read_only=True)
+    availability = serializers.SerializerMethodField()
+    uploadedAt = serializers.DateTimeField(source="uploaded_at", read_only=True)
 
     class Meta:
         model = SupervisorApplicationDocument
-        fields = ["id", "name", "category", "contentType", "size", "uploaded_at"]
+        fields = [
+            "id",
+            "requirementCode",
+            "requirementLabel",
+            "name",
+            "contentType",
+            "size",
+            "checksum",
+            "availability",
+            "uploadedAt",
+        ]
+
+    def get_requirementLabel(self, obj):
+        return obj.requirement_label or obj.category or "Supporting document"
+
+    def get_contentType(self, obj):
+        return obj.content_type if obj.file else None
+
+    def get_availability(self, obj):
+        return "AVAILABLE" if obj.file else "LEGACY_METADATA"
+
+
+class SupervisorDocumentRequirementSerializer(serializers.ModelSerializer):
+    isRequired = serializers.BooleanField(source="is_required")
+    isActive = serializers.BooleanField(source="is_active")
+    displayOrder = serializers.IntegerField(source="display_order")
+    isUsed = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupervisorDocumentRequirement
+        fields = [
+            "id",
+            "code",
+            "label",
+            "description",
+            "isRequired",
+            "isActive",
+            "displayOrder",
+            "isUsed",
+        ]
+
+    def get_isUsed(self, obj):
+        return obj.application_documents.exists()
+
+
+class SupervisorDocumentRequirementWriteSerializer(serializers.Serializer):
+    label = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True)
+    isRequired = serializers.BooleanField(required=False, default=True)
+    isActive = serializers.BooleanField(required=False, default=True)
+    displayOrder = serializers.IntegerField(required=False, min_value=0, default=0)
+
+    def service_values(self):
+        data = self.validated_data
+        return {
+            "label": data["label"],
+            "description": data.get("description", ""),
+            "is_required": data.get("isRequired", True),
+            "is_active": data.get("isActive", True),
+            "display_order": data.get("displayOrder", 0),
+        }
+
+
+class SupervisorDocumentRequirementUpdateSerializer(serializers.Serializer):
+    label = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    isRequired = serializers.BooleanField(required=False)
+    isActive = serializers.BooleanField(required=False)
+    displayOrder = serializers.IntegerField(required=False, min_value=0)
+    reason = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+    def validate(self, attrs):
+        if not set(attrs) - {"reason"}:
+            raise serializers.ValidationError("At least one requirement field must change.")
+        return attrs
+
+    def service_values(self):
+        mapping = {
+            "label": "label",
+            "description": "description",
+            "isRequired": "is_required",
+            "isActive": "is_active",
+            "displayOrder": "display_order",
+        }
+        return {
+            target: self.validated_data[source]
+            for source, target in mapping.items()
+            if source in self.validated_data
+        }
 
 
 class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
@@ -466,7 +561,6 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
     proposedSupervisorId = serializers.CharField()
     researchTitle = serializers.CharField(max_length=500)
     researchAbstract = serializers.CharField()
-    documents = SupervisorApplicationDocumentSerializer(many=True, required=False)
 
     def validate(self, attrs):
         request = self.context["request"]
@@ -506,7 +600,8 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        documents = validated_data.pop("documents", [])
+        documents = validated_data.pop("validated_documents", [])
+        self.saved_file_names = []
         application = SupervisorApplication.objects.create(
             student=validated_data["student"],
             academic_semester=validated_data["academic_semester"],
@@ -514,18 +609,25 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             research_title=validated_data["researchTitle"],
             research_abstract=validated_data["researchAbstract"],
         )
-        SupervisorApplicationDocument.objects.bulk_create(
-            [
-                SupervisorApplicationDocument(
-                    application=application,
-                    name=document["name"],
-                    category=document["category"],
-                    content_type=document.get("content_type", ""),
-                    size=document.get("size", 0),
-                )
-                for document in documents
-            ]
-        )
+        for document in documents:
+            record = SupervisorApplicationDocument(
+                application=application,
+                requirement=document.requirement,
+                name=document.original_name,
+                category=document.requirement.code.upper().replace("-", "_"),
+                content_type=document.content_type,
+                size=document.size,
+                requirement_code=document.requirement.code,
+                requirement_label=document.requirement.label,
+                checksum_sha256=document.checksum,
+            )
+            record.file.save(
+                document.original_name,
+                ContentFile(document.content),
+                save=False,
+            )
+            self.saved_file_names.append(record.file.name)
+            record.save()
         return application
 
 

@@ -1,4 +1,8 @@
+import uuid
+from pathlib import Path
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -266,22 +270,61 @@ class SupervisorApplication(models.Model):
         return f"{self.student.matric_no} -> {self.proposed_supervisor}"
 
 
+def supervisor_document_upload_path(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return (
+        f"supervisor-applications/{instance.application_id}/"
+        f"{uuid.uuid4().hex}{extension}"
+    )
+
+
 class SupervisorApplicationDocument(models.Model):
-    """Metadata for documents supplied with a supervisor request."""
+    """Immutable private document supplied with a supervisor request."""
 
     application = models.ForeignKey(
         SupervisorApplication,
         on_delete=models.CASCADE,
         related_name="documents",
     )
+    requirement = models.ForeignKey(
+        "SupervisorDocumentRequirement",
+        on_delete=models.PROTECT,
+        related_name="application_documents",
+        null=True,
+        blank=True,
+    )
+    file = models.FileField(
+        upload_to=supervisor_document_upload_path,
+        max_length=500,
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=64)
     content_type = models.CharField(max_length=128, blank=True)
     size = models.PositiveBigIntegerField(default=0)
+    requirement_code = models.SlugField(max_length=64, blank=True)
+    requirement_label = models.CharField(max_length=255, blank=True)
+    checksum_sha256 = models.CharField(max_length=64, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["uploaded_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["application", "requirement"],
+                condition=Q(requirement__isnull=False),
+                name="one_supervisor_document_per_requirement",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Submitted supervisor application documents are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Submitted supervisor application documents are immutable.")
 
 
 class SupervisorDocumentRequirement(models.Model):
@@ -296,6 +339,49 @@ class SupervisorDocumentRequirement(models.Model):
 
     class Meta:
         ordering = ["display_order", "label"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            persisted_code = type(self).objects.only("code").get(pk=self.pk).code
+            if self.code != persisted_code:
+                raise ValidationError("Document requirement codes are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Document requirements cannot be deleted; deactivate them instead.")
+
+
+class SupervisorDocumentRequirementAudit(models.Model):
+    class Action(models.TextChoices):
+        CREATE = "CREATE", "Create"
+        UPDATE = "UPDATE", "Update"
+
+    requirement = models.ForeignKey(
+        SupervisorDocumentRequirement,
+        on_delete=models.PROTECT,
+        related_name="audits",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="supervisor_document_requirement_audits",
+    )
+    action = models.CharField(max_length=16, choices=Action.choices)
+    reason = models.TextField(blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Supervisor document requirement audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Supervisor document requirement audits are immutable.")
 
 
 class SupervisorAppointment(models.Model):
