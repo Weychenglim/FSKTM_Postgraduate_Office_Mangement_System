@@ -7,7 +7,12 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from appointments.models import StudentResearchProfile, SupervisorDocumentRequirement
+from appointments.models import (
+    StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorAppointment,
+    SupervisorDocumentRequirement,
+)
 from academics.models import AcademicSemester
 from dashboard.models import SemesterTimeline
 
@@ -216,6 +221,22 @@ class SeedUsersCommandTests(TestCase):
             ),
             initial_profile_ids,
         )
+
+    def test_panel_demo_profiles_have_confirmed_supervisor_handoffs(self):
+        self.run_seed()
+
+        for profile in StudentResearchProfile.objects.select_related("student"):
+            application = SupervisorApplication.objects.get(
+                student__user=profile.student,
+                status=SupervisorApplication.Status.APPROVED,
+            )
+            appointment = SupervisorAppointment.objects.get(
+                application=application,
+                status=SupervisorAppointment.Status.ACTIVE,
+            )
+            self.assertEqual(appointment.supervisor, profile.supervisor)
+            self.assertEqual(application.research_title, profile.proposed_topic)
+            self.assertEqual(application.research_area, profile.research_area)
 
     def test_seeding_creates_semester_only_when_none_exists(self):
         self.run_seed()

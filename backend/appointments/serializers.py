@@ -15,6 +15,7 @@ from .models import (
     StudentResearchProfile,
     SupervisorApplication,
     SupervisorApplicationDocument,
+    SupervisorAppointment,
     SupervisorDocumentRequirement,
     count_panel_workload,
     count_supervisor_workload,
@@ -32,6 +33,14 @@ class NoEffectiveSemester(APIException):
         "No active academic semester is currently accepting new workflows."
     )
     default_code = "academic_semester_unavailable"
+
+
+class NoActiveSupervisorAppointment(APIException):
+    status_code = 409
+    default_detail = (
+        "An active approved supervisor appointment is required before a panel recommendation can be submitted."
+    )
+    default_code = "active_supervisor_appointment_required"
 
 
 def related_or_none(obj, attr):
@@ -84,6 +93,10 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
     researchArea = serializers.CharField(source="research_area")
     supervisorName = serializers.CharField(source="supervisor.full_name")
     supervisorId = serializers.SerializerMethodField()
+    supervisorAppointmentId = serializers.IntegerField(
+        source="active_supervisor_appointment_id",
+        read_only=True,
+    )
     canRecommend = serializers.SerializerMethodField()
 
     class Meta:
@@ -98,6 +111,7 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
             "abstract",
             "supervisorName",
             "supervisorId",
+            "supervisorAppointmentId",
             "canRecommend",
         ]
 
@@ -289,6 +303,13 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         except StudentResearchProfile.DoesNotExist as exc:
             raise serializers.ValidationError("This student is not assigned to you as supervisor.") from exc
 
+        if not SupervisorAppointment.objects.filter(
+            student_id=profile.student_id,
+            supervisor=user,
+            status=SupervisorAppointment.Status.ACTIVE,
+        ).exists():
+            raise NoActiveSupervisorAppointment()
+
         try:
             recommended_member = User.objects.get(
                 lecturer__staff_no__iexact=attrs["recommendedMemberId"],
@@ -470,7 +491,9 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
     )
     proposedSupervisorId = serializers.SerializerMethodField()
     researchTitle = serializers.CharField(source="research_title", read_only=True)
+    researchArea = serializers.CharField(source="research_area", read_only=True)
     researchAbstract = serializers.CharField(source="research_abstract", read_only=True)
+    researchProfileReady = serializers.SerializerMethodField()
     rejectionReason = serializers.CharField(source="rejection_reason", read_only=True)
     submittedAt = serializers.DateTimeField(source="submitted_at", read_only=True)
     supervisorDecisionAt = serializers.DateTimeField(
@@ -509,7 +532,9 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "proposedSupervisor",
             "proposedSupervisorId",
             "researchTitle",
+            "researchArea",
             "researchAbstract",
+            "researchProfileReady",
             "status",
             "rejectionReason",
             "submittedAt",
@@ -526,6 +551,20 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
+
+    def get_researchProfileReady(self, obj):
+        if obj.status != SupervisorApplication.Status.APPROVED:
+            return False
+        return (
+            SupervisorAppointment.objects.filter(
+                application=obj,
+                status=SupervisorAppointment.Status.ACTIVE,
+            ).exists()
+            and StudentResearchProfile.objects.filter(
+                student=obj.student.user,
+                supervisor=obj.proposed_supervisor,
+            ).exists()
+        )
 
     def get_semester(self, obj):
         return (
@@ -560,6 +599,7 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 class SupervisorApplicationCreateSerializer(serializers.Serializer):
     proposedSupervisorId = serializers.CharField()
     researchTitle = serializers.CharField(max_length=500)
+    researchArea = serializers.CharField(max_length=255, allow_blank=False)
     researchAbstract = serializers.CharField()
 
     def validate(self, attrs):
@@ -607,6 +647,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             academic_semester=validated_data["academic_semester"],
             proposed_supervisor=validated_data["supervisor"],
             research_title=validated_data["researchTitle"],
+            research_area=validated_data["researchArea"],
             research_abstract=validated_data["researchAbstract"],
         )
         for document in documents:
@@ -726,6 +767,7 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
 
 class StudentPanelAppointmentSerializer(serializers.Serializer):
     status = serializers.CharField()
+    readinessState = serializers.CharField()
     studentName = serializers.CharField()
     studentId = serializers.CharField()
     programme = serializers.CharField()
@@ -761,6 +803,7 @@ def student_panel_appointment_payload(profile):
     )
     base = {
         "status": "PENDING",
+        "readinessState": "READY_FOR_PANEL_RECOMMENDATION",
         "studentName": profile.student_name,
         "studentId": profile.matric_no,
         "programme": profile.programme,
@@ -791,6 +834,7 @@ def student_panel_appointment_payload(profile):
         if recommendation:
             return {
                 **base,
+                "readinessState": "FACULTY_PROCESSING",
                 "semester": (
                     recommendation.academic_semester.label
                     if recommendation.academic_semester_id
@@ -810,6 +854,7 @@ def student_panel_appointment_payload(profile):
     return {
         **base,
         "status": "CONFIRMED",
+        "readinessState": "CONFIRMED",
         "semester": (
             appointment.recommendation.academic_semester.label
             if appointment.recommendation.academic_semester_id
@@ -830,16 +875,44 @@ def student_panel_appointment_payload(profile):
 
 
 def pending_student_panel_payload_from_user(user):
+    application = (
+        SupervisorApplication.objects.filter(student__user=user)
+        .select_related("academic_semester", "proposed_supervisor")
+        .order_by("-updated_at", "-pk")
+        .first()
+    )
+    if application and application.status in {
+        SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
+        SupervisorApplication.Status.PENDING_COORDINATOR,
+    }:
+        readiness_state = "SUPERVISOR_APPROVAL_PENDING"
+    elif application and application.status == SupervisorApplication.Status.APPROVED:
+        readiness_state = "FACULTY_PROCESSING"
+    else:
+        readiness_state = "SUPERVISOR_REQUIRED"
     return {
         "status": "PENDING",
+        "readinessState": readiness_state,
         "studentName": user.full_name,
         "studentId": student_no_for_user(user),
         "programme": department_for_user(user),
-        "semester": "Not available yet",
-        "semesterId": None,
-        "semesterCode": None,
-        "researchTitle": "Not available yet",
-        "supervisorName": "Not assigned yet",
+        "semester": (
+            application.academic_semester.label
+            if application and application.academic_semester_id
+            else "Not available yet"
+        ),
+        "semesterId": application.academic_semester_id if application else None,
+        "semesterCode": (
+            application.academic_semester.code
+            if application and application.academic_semester_id
+            else None
+        ),
+        "researchTitle": application.research_title if application else "Not available yet",
+        "supervisorName": (
+            application.proposed_supervisor.full_name
+            if application
+            else "Not assigned yet"
+        ),
         "panelMemberName": None,
         "panelMemberId": None,
         "panelMemberDepartment": None,

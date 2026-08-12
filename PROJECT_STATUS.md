@@ -426,3 +426,16 @@
 - Populate the Notifications tab once the supervisor-appointment and letter modules emit non-announcement notifications (`is_announcement=False`); they will appear automatically and feed the bell badge.
 - Decide a single source of truth for Programme Coordinator (it currently exists both as a `User.role` value and as a `Coordinator` profile table).
 - Keep current configurable demo defaults for rubrics, supervisor document requirements, mark components, and workload values until official office rules/templates are received; then seed the official values without changing the core five-module workflow code.
+
+## Supervisor-to-Panel Handoff Completion
+
+- Added required Research Area capture for new multipart Supervisor applications while preserving blank historical records.
+- Moved final Programme Coordinator approval into an atomic service that provisions or safely reuses the research profile, creates the active Supervisor appointment, and records the approval event without partial state.
+- Added conflict handling for ambiguous profiles and downstream-used profiles owned by another Supervisor; these cases return `409` and leave the application pending.
+- Restricted Panel eligibility and recommendation creation to students with an active approved Supervisor appointment belonging to the authenticated Lecturer.
+- Added public Student Panel readiness states, persisted Research Area rendering, profile-ready approval feedback, and an active-supervisee deep action into the existing Panel recommendation drawer.
+- Updated guarded demo seeding with realistic approved Supervisor applications and appointments for seeded Panel profiles while preserving idempotency.
+- Added migration coverage for primary-key-preserving legacy backfill and an end-to-end Supervisor approval to Panel approval to Marks task-generation regression.
+- Verification: the full Accounts/Appointments/Dashboard/Marks suite passes 226 tests after the focused handoff, conflict, migration, eligibility, readiness, seed, downstream-history, and end-to-end tests. All 40 frontend `.test.ts` files, TypeScript lint, the production build, and both production artifact guards pass. Django checks and migration dry-run pass, and the development database has applied `appointments.0009`.
+- A newly published transitive `nanoid <3.3.17` advisory appeared during verification. The lockfile now resolves `nanoid 3.3.18`; `npm run audit:security` reports zero vulnerabilities and the dependency-only lock update is kept in a separate security commit.
+- The local Django and Vite servers started successfully at `127.0.0.1:8002` and `127.0.0.1:3000`. The in-app browser loaded the Vite document but did not execute its module bundle, so no automated UI browser-smoke pass is claimed for this slice.

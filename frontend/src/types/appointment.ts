@@ -95,6 +95,7 @@ export interface SupervisorRequest extends WorkflowAgeingMetadata {
   studentName: string;
   programme: string;
   proposedTopic: string;
+  researchArea: string;
   submittedDate: string;
   receivedTime: string;
   status: string;
@@ -110,6 +111,7 @@ export interface ActiveSuperviseeRow {
   semester: string;
   email: string;
   researchTitle: string;
+  researchArea: string;
   researchAbstract: string;
   supervisorName: string;
   appointmentDate: string;
@@ -216,6 +218,7 @@ export interface PanelRecommendationSupervisee {
   abstract: string;
   supervisorName: string;
   supervisorId: string;
+  supervisorAppointmentId: number;
   canRecommend: boolean;
 }
 
@@ -253,6 +256,12 @@ export interface PanelWorkloadRecord {
 
 export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
   status: 'PENDING' | 'CONFIRMED';
+  readinessState:
+    | 'SUPERVISOR_REQUIRED'
+    | 'SUPERVISOR_APPROVAL_PENDING'
+    | 'READY_FOR_PANEL_RECOMMENDATION'
+    | 'FACULTY_PROCESSING'
+    | 'CONFIRMED';
   studentName: string;
   studentId: string;
   programme: string;
@@ -332,6 +341,7 @@ export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
   applicationId?: number;
   id: string;
   title: string;
+  researchArea: string;
   supervisor: string;
   date: string;
   status: StudentSupervisorApplicationStatus;
@@ -371,7 +381,9 @@ export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   proposedSupervisor: string;
   proposedSupervisorId: string;
   researchTitle: string;
+  researchArea: string;
   researchAbstract: string;
+  researchProfileReady: boolean;
   status: SupervisorApplicationWorkflowStatus;
   rejectionReason: string;
   submittedAt: string;

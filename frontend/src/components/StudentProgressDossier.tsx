@@ -139,6 +139,9 @@ const SupervisorRecord: React.FC<{
         <p className="mt-1 text-xs font-semibold text-slate-500">
           Proposed supervisor: {record.proposedSupervisor}
         </p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">
+          Research area: {record.researchArea || 'Not recorded'}
+        </p>
       </div>
       {internal && <RecordAction target={record} onNavigate={onNavigate} />}
     </div>

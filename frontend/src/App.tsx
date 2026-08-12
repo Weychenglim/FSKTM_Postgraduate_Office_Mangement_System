@@ -33,6 +33,7 @@ import {
   routeForNotificationTarget,
   routeForPanelAssignment,
   routeForPanelRecord,
+  routeForPanelRecommendationStart,
   routeForPanelReviewedRequests,
   routeForPanelSubmittedRecommendations,
   routeForPanelWorkload,
@@ -203,6 +204,7 @@ export default function App() {
   const panelRecommendationId = panelRecommendationMatch?.params.recommendationId;
   const panelRecordId = panelRecordMatch?.params.recordId;
   const panelAssignmentStudentId = panelAssignmentMatch?.params.studentId;
+  const panelRecommendationStudentId = new URLSearchParams(location.search).get('student') ?? undefined;
   const isMarksConfigRoute = pathname === APP_ROUTES.marksConfig;
   const isMarksRubricsRoute = pathname === APP_ROUTES.marksRubrics;
   const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
@@ -574,6 +576,7 @@ export default function App() {
                 <LecturerPanelAppointments
                   currentUser={currentUser}
                   initialRecommendationId={panelRecommendationId}
+                  initialSuperviseeId={panelRecommendationStudentId}
                   routeView={
                     pathname === APP_ROUTES.panelAppointmentSubmitted
                       ? 'submitted'
@@ -648,6 +651,7 @@ export default function App() {
                   onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
                   onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToPanelRecommendation={(studentId) => navigate(routeForPanelRecommendationStart(studentId))}
                 />
               ) : isOfficeUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />

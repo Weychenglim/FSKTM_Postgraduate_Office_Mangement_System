@@ -49,6 +49,7 @@ export function buildSupervisorApplicationFormData(
   fields: {
     proposedSupervisorId: string;
     researchTitle: string;
+    researchArea: string;
     researchAbstract: string;
   },
   files: Map<string, File>,
@@ -56,6 +57,7 @@ export function buildSupervisorApplicationFormData(
   const body = new FormData();
   body.append('proposedSupervisorId', fields.proposedSupervisorId);
   body.append('researchTitle', fields.researchTitle);
+  body.append('researchArea', fields.researchArea);
   body.append('researchAbstract', fields.researchAbstract);
   for (const [requirementCode, file] of files) {
     body.append('documents', file);

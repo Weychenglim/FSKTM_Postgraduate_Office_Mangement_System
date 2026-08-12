@@ -137,6 +137,17 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `Sidebar` filters visible navigation items by active role while preserving the responsive drawer behavior from the current app shell.
 - Production hosts must serve `index.html` for unknown frontend paths so direct refresh works with clean URLs.
 
+## Supervisor-to-Panel Handoff Design
+
+- `appointments.supervisor_handoff.approve_supervisor_application()` owns final Supervisor approval. It runs in one database transaction, locks the application row, rechecks coordinator programme scope, pending state, and Supervisor workload, then resolves the research profile before creating the appointment and immutable workflow event.
+- Profile resolution queries both the linked Student user and exact matric number under row locks. Two different matches are a fail-closed conflict. A single legacy matric match is linked in place so its primary key and downstream foreign keys remain stable.
+- A profile is considered downstream-used when it has Panel recommendations, Panel appointments, or Marks evaluation tasks. Used profiles preserve populated historical content; assigning one to a different Supervisor is rejected rather than rewritten.
+- The `appointments.0009_supervisorapplication_research_area` migration adds the legacy-compatible field and backfills only approved applications that already have confirmed Supervisor appointments. Ambiguous legacy matches remain untouched for operational resolution.
+- `GET /api/appointments/panel/eligible-supervisees/` scopes profiles through active `SupervisorAppointment` rows and annotates the appointment identifier. The Panel recommendation serializer repeats that check during creation, so frontend query state cannot grant eligibility.
+- Student Panel readiness is derived server-side from the authenticated student's Supervisor application, research profile, Panel recommendation, and active Panel appointment. The response deliberately collapses internal pending stages into `FACULTY_PROCESSING`.
+- The frontend route helper encodes the student matric number as `/panel-appointments?student=...`. `App.tsx` passes that identifier to the existing Lecturer Panel workspace, which selects the authorized supervisee and opens the recommendation drawer only when the backend says a new recommendation is allowed.
+- Reports and progress dossiers expose persisted Research Area text within their existing role scopes. No profile mutation is available from either read-only aggregation surface.
+
 ## Coding Conventions
 
 - Components are functional React components.

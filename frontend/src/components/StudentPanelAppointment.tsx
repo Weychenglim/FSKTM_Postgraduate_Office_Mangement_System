@@ -16,6 +16,7 @@ import { ErrorState, LoadingState } from './StateViews';
 import { getStudentPanelAppointment } from '../services';
 import { StudentPanelAppointmentView } from '../types';
 import { formatWaitingText } from '../utils/workflowAgeing';
+import { getPanelReadinessCopy } from '../utils/panelReadiness';
 
 interface StudentPanelAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -65,6 +66,9 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
   }, [loadAppointment]);
 
   const isConfirmed = appointment?.status === 'CONFIRMED';
+  const readinessCopy = appointment
+    ? getPanelReadinessCopy(appointment.readinessState)
+    : null;
   const panelInitials = useMemo(
     () => getInitials(appointment?.panelMemberName),
     [appointment?.panelMemberName],
@@ -114,10 +118,10 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
 
               <div className="space-y-2 text-left">
                 <h2 className="text-xl md:text-2xl font-black text-brand-navy tracking-tight">
-                  Your panel appointment is not available yet.
+                  {readinessCopy?.title}
                 </h2>
                 <p className="text-slate-500 text-xs md:text-sm font-semibold leading-relaxed max-w-2xl">
-                  Your panel appointment is being processed by the faculty. Confirmed appointment details will appear here when processing is complete.
+                  {readinessCopy?.detail}
                 </p>
               </div>
 

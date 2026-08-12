@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status
@@ -55,6 +55,11 @@ from .supervisor_documents import (
     create_requirement,
     update_requirement,
     validate_application_documents,
+)
+from .supervisor_handoff import (
+    SupervisorApprovalConflict,
+    SupervisorApprovalForbidden,
+    approve_supervisor_application,
 )
 
 
@@ -493,8 +498,24 @@ def own_supervisor_workload_view(request):
 def eligible_supervisees_view(request):
     if request.user.role != User.Role.LECTURER:
         return error_response("Only lecturers can view eligible supervisees.", status.HTTP_403_FORBIDDEN)
-    profiles = StudentResearchProfile.objects.filter(supervisor=request.user).select_related(
-        "supervisor", "supervisor__lecturer"
+    active_appointment = SupervisorAppointment.objects.filter(
+        student_id=OuterRef("student_id"),
+        supervisor=request.user,
+        status=SupervisorAppointment.Status.ACTIVE,
+    ).order_by("-appointment_date", "-pk")
+    profiles = (
+        StudentResearchProfile.objects.filter(
+            supervisor=request.user,
+            student__student__supervisor_appointments__supervisor=request.user,
+            student__student__supervisor_appointments__status=SupervisorAppointment.Status.ACTIVE,
+        )
+        .annotate(
+            active_supervisor_appointment_id=Subquery(
+                active_appointment.values("pk")[:1]
+            )
+        )
+        .select_related("supervisor", "supervisor__lecturer")
+        .distinct()
     )
     return Response(StudentResearchProfileSerializer(profiles, many=True).data)
 
@@ -1291,6 +1312,7 @@ def supervisor_requests_view(request):
             "studentName": application.student.user.full_name,
             "programme": application.student.programme,
             "proposedTopic": application.research_title,
+            "researchArea": application.research_area,
             "submittedDate": format_display_date(application.submitted_at),
             "receivedTime": application.submitted_at.isoformat(),
             "status": "Pending Review",
@@ -1440,67 +1462,37 @@ def supervisor_coordinator_queue_view(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def supervisor_coordinator_approve_view(request, pk):
-    application = get_supervisor_application(pk)
-    if application is None:
+    try:
+        application, transitioned = approve_supervisor_application(
+            application_id=pk,
+            actor=request.user,
+        )
+    except SupervisorApplication.DoesNotExist:
         return error_response(
             "Supervisor application was not found.",
             status.HTTP_404_NOT_FOUND,
         )
-    if request.user.role != User.Role.COORDINATOR:
-        return error_response(
-            "Only Programme Coordinators can approve supervisor applications.",
-            status.HTTP_403_FORBIDDEN,
-        )
-    if not supervisor_programme_access(request.user, application):
-        return error_response(
-            "This application is outside your managed programme.",
-            status.HTTP_403_FORBIDDEN,
-        )
-    if application.status != SupervisorApplication.Status.PENDING_COORDINATOR:
-        return error_response(
-            "This application is not awaiting Programme Coordinator review."
-        )
-    if count_supervisor_workload(
-        application.proposed_supervisor
-    ) >= supervisor_workload_limit(application.proposed_supervisor):
-        return error_response(
-            "This supervisor has reached the configured workload limit."
-        )
+    except SupervisorApprovalForbidden as exc:
+        return error_response(str(exc), status.HTTP_403_FORBIDDEN)
+    except SupervisorApprovalConflict as exc:
+        return error_response(str(exc), status.HTTP_409_CONFLICT)
 
-    with transaction.atomic():
-        previous_status = application.status
-        application.status = SupervisorApplication.Status.APPROVED
-        application.coordinator_decided_at = timezone.now()
-        application.save(
-            update_fields=["status", "coordinator_decided_at", "updated_at"]
-        )
-        SupervisorAppointment.objects.get_or_create(
-            application=application,
-            defaults={
-                "student": application.student,
-                "supervisor": application.proposed_supervisor,
-                "approved_by": request.user,
-            },
-        )
-        record_workflow_event(
-            actor=request.user,
-            action="COORDINATOR_APPROVE",
-            previous_status=previous_status,
-            new_status=application.status,
-            supervisor_application=application,
-        )
-        notify_workflow(
-            recipients=[application.student.user, application.proposed_supervisor],
-            actor=request.user,
-            event_key=f"supervisor:{application.pk}:coordinator-approve",
-            title="Supervisor appointment approved",
-            summary=f"The supervisor appointment for {application.student.user.full_name} was approved.",
-            message="The Programme Coordinator confirmed the supervisor appointment.",
-            module_label="Supervisor Appointment",
-            target_module="SUPERVISOR_APPOINTMENTS",
-            record_type="SUPERVISOR_APPLICATION",
-            record_id=application.pk,
-        )
+    if transitioned:
+        with transaction.atomic():
+            application = get_supervisor_application(application.pk)
+            notify_workflow(
+                recipients=[application.student.user, application.proposed_supervisor],
+                actor=request.user,
+                event_key=f"supervisor:{application.pk}:coordinator-approve",
+                title="Supervisor appointment approved",
+                summary=f"The supervisor appointment for {application.student.user.full_name} was approved.",
+                message="The Programme Coordinator confirmed the supervisor appointment.",
+                module_label="Supervisor Appointment",
+                target_module="SUPERVISOR_APPOINTMENTS",
+                record_type="SUPERVISOR_APPLICATION",
+                record_id=application.pk,
+            )
+    application = get_supervisor_application(application.pk)
     return Response(SupervisorApplicationSerializer(application).data)
 
 
@@ -1595,6 +1587,7 @@ def active_supervisees_view(request):
                 **workflow_semester_payload(appointment.application),
                 "email": appointment.student.user.email,
                 "researchTitle": appointment.application.research_title,
+                "researchArea": appointment.application.research_area,
                 "researchAbstract": (
                     appointment.application.research_abstract
                 ),
@@ -1693,6 +1686,7 @@ def supervisor_records_view(request):
                 "email": application.student.user.email,
                 **workflow_semester_payload(application),
                 "researchTopic": application.research_title,
+                "researchArea": application.research_area,
                 "abstract": application.research_abstract,
                 "appointmentId": f"SV-APP-{application.pk:05d}",
                 "workloadLimit": (

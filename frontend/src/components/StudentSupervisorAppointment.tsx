@@ -118,6 +118,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       id: app.id,
       supervisor: app.supervisor,
       title: app.title,
+      researchArea: app.researchArea,
       status: app.status,
       date: app.date,
       submittedDate: app.date,
@@ -275,7 +276,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               <span>Research Area</span>
             </span>
             <span className="text-xs font-extrabold text-slate-800 block">
-              {approvedApplication ? 'Approved research supervision' : 'Awaiting appointment'}
+              {approvedApplication?.researchArea || (approvedApplication ? 'Not recorded' : 'Awaiting appointment')}
             </span>
           </div>
 
@@ -547,6 +548,15 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">Research Title</span>
                     <span className="text-xs font-bold text-slate-800 italic leading-snug block">
                       &ldquo;{activeDetailAp.title}&rdquo;
+                    </span>
+                  </div>
+
+                  <div className="h-[1px] bg-slate-200/50" />
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">Research Area</span>
+                    <span className="text-xs font-bold text-slate-700 block">
+                      {activeDetailAp.researchArea || 'Not recorded'}
                     </span>
                   </div>
 

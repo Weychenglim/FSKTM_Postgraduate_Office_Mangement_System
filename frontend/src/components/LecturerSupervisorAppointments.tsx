@@ -363,6 +363,12 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
               </div>
             </InfoCard>
 
+            <InfoCard label="RESEARCH AREA">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
+                {request.researchArea || 'Not recorded'}
+              </div>
+            </InfoCard>
+
             {/* Supporting Documents Section */}
             <SupervisorDocumentsList
               applicationId={request.id}
@@ -643,6 +649,7 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
+  onNavigateToPanelRecommendation?: (studentId: string) => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
@@ -654,6 +661,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToHistory,
   onNavigateToSupervisee,
   onNavigateToDossier,
+  onNavigateToPanelRecommendation,
 }) => {
   const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
 
@@ -704,6 +712,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           ...request,
           ...detail,
           proposedTopic: detail.researchTitle,
+          researchArea: detail.researchArea,
           abstract: detail.researchAbstract,
           submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
         });
@@ -1052,6 +1061,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         >
           <ActiveSuperviseeDetail 
             onBack={navigateToList}
+            onRecommendPanel={onNavigateToPanelRecommendation}
             supervisee={selectedSupervisee}
           />
         </motion.div>

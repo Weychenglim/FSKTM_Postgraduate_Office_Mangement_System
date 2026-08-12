@@ -24,7 +24,12 @@ from accounts.models import (
     Supervisor,
     User,
 )
-from appointments.models import StudentResearchProfile, SupervisorDocumentRequirement
+from appointments.models import (
+    StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorAppointment,
+    SupervisorDocumentRequirement,
+)
 from appointments.supervisor_documents import create_requirement
 from academics.models import AcademicSemester
 from academics.services import activate_semester, create_semester
@@ -407,6 +412,46 @@ class Command(BaseCommand):
                 self.style.SUCCESS(
                     "  Created fictional active academic semester"
                 )
+            )
+
+        demo_semester = (
+            AcademicSemester.objects.filter(
+                lifecycle_status=AcademicSemester.Lifecycle.ACTIVE
+            ).first()
+            or AcademicSemester.objects.order_by("-starts_on", "-pk").first()
+        )
+        demo_coordinator = User.objects.get(
+            email="demo.coordinator@example.test"
+        )
+        for profile in StudentResearchProfile.objects.filter(
+            student__email__in=[
+                item["student_email"] for item in PANEL_RESEARCH_PROFILES
+            ]
+        ).select_related("student", "student__student", "supervisor"):
+            student = profile.student.student
+            if SupervisorAppointment.objects.filter(
+                student=student,
+                status=SupervisorAppointment.Status.ACTIVE,
+            ).exists():
+                continue
+            if SupervisorApplication.objects.filter(student=student).exists():
+                continue
+            application = SupervisorApplication.objects.create(
+                student=student,
+                academic_semester=demo_semester,
+                proposed_supervisor=profile.supervisor,
+                research_title=profile.proposed_topic,
+                research_area=profile.research_area,
+                research_abstract=profile.abstract,
+                status=SupervisorApplication.Status.APPROVED,
+                supervisor_decided_at=timezone.now(),
+                coordinator_decided_at=timezone.now(),
+            )
+            SupervisorAppointment.objects.create(
+                application=application,
+                student=student,
+                supervisor=profile.supervisor,
+                approved_by=demo_coordinator,
             )
 
         if not SupervisorDocumentRequirement.objects.exists():

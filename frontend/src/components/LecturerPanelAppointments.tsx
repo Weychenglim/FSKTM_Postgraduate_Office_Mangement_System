@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   Users, 
   Clock, 
@@ -467,6 +467,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 interface LecturerPanelAppointmentsProps {
   currentUser?: DemoUser | null;
   initialRecommendationId?: string;
+  initialSuperviseeId?: string;
   routeView?: 'list' | 'submitted' | 'reviewed' | 'assignmentDetail';
   routeAssignmentStudentId?: string;
   onNavigateToList?: () => void;
@@ -479,6 +480,7 @@ interface LecturerPanelAppointmentsProps {
 export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
   currentUser,
   initialRecommendationId,
+  initialSuperviseeId,
   routeView = 'list',
   routeAssignmentStudentId,
   onNavigateToList,
@@ -489,6 +491,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 }) => {
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
+  const openedInitialSupervisee = useRef<string | null>(null);
   
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
@@ -571,6 +574,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         setReviewedRequests(history);
         setEligibleSupervisees(eligibleSupervisees);
         setSelectedSuperviseeId((currentId) => {
+          if (
+            initialSuperviseeId
+            && eligibleSupervisees.some((student) => student.studentId === initialSuperviseeId)
+          ) {
+            return initialSuperviseeId;
+          }
           if (currentId && eligibleSupervisees.some((student) => student.studentId === currentId)) {
             return currentId;
           }
@@ -581,7 +590,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
       .finally(() => setLoading(false));
-  }, [isCoordinator]);
+  }, [initialSuperviseeId, isCoordinator]);
 
   useEffect(() => {
     loadData();
@@ -706,6 +715,23 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const canRecommendForStudent = recommendationStudent
     ? canCreatePanelRecommendation(submittedRecs, recommendationStudent.studentId)
     : false;
+
+  useEffect(() => {
+    if (
+      routeView !== 'list'
+      || !initialSuperviseeId
+      || recommendationStudent?.studentId !== initialSuperviseeId
+      || !canRecommendForStudent
+      || openedInitialSupervisee.current === initialSuperviseeId
+    ) return;
+    openedInitialSupervisee.current = initialSuperviseeId;
+    setIsRecommendDrawerOpen(true);
+  }, [
+    canRecommendForStudent,
+    initialSuperviseeId,
+    recommendationStudent?.studentId,
+    routeView,
+  ]);
 
   const createRecommendation = async (
     notes: string,

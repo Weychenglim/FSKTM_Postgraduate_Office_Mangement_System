@@ -52,13 +52,17 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
 
   const approve = async (record: SupervisorApplicationRecord) => {
     try {
-      await approveSupervisorApplicationByCoordinator(record.id);
+      const approved = await approveSupervisorApplicationByCoordinator(record.id);
       setRecords((current) => current.filter((item) => item.id !== record.id));
       if (String(rejectingRecordId) === String(record.id)) {
         setRejectingRecordId(null);
         setRejectionReason('');
       }
-      notify(`Supervisor appointment approved for ${record.studentName}.`);
+      notify(
+        approved.researchProfileReady
+          ? `Supervisor appointment approved for ${record.studentName}. The research profile is ready for Panel recommendation.`
+          : `Supervisor appointment approved for ${record.studentName}.`,
+      );
     } catch (reason) {
       notify(reason instanceof Error ? reason.message : 'Approval failed.');
     }
@@ -124,6 +128,9 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                     {record.studentId} · {record.programme}
                   </p>
                   <p className="text-xs font-bold text-slate-700">{record.researchTitle}</p>
+                  <p className="text-[11px] font-semibold text-slate-500">
+                    Research area: <strong>{record.researchArea || 'Not recorded'}</strong>
+                  </p>
                   <p className="text-[11px] text-slate-500">
                     Proposed supervisor: <strong>{record.proposedSupervisor}</strong>
                   </p>

@@ -167,6 +167,7 @@ def _supervisor_records(student, user, visibility, now):
             "recordId": str(application.pk),
             "status": application.status,
             "researchTitle": application.research_title,
+            "researchArea": application.research_area,
             "proposedSupervisor": application.proposed_supervisor.full_name,
             "submittedAt": _iso(application.submitted_at),
             "supervisorDecisionAt": _iso(application.supervisor_decided_at),

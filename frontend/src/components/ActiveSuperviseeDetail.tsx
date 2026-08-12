@@ -4,13 +4,14 @@
  */
 
 import React from 'react';
-import { BookOpen, Calendar, Info, Mail, User } from 'lucide-react';
+import { BookOpen, Calendar, Info, Mail, Send, User } from 'lucide-react';
 
 import type { ActiveSuperviseeRow } from '../types';
-import { PageHeader, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 
 interface ActiveSuperviseeDetailProps {
   onBack: () => void;
+  onRecommendPanel?: (studentId: string) => void;
   supervisee: ActiveSuperviseeRow;
 }
 
@@ -40,7 +41,7 @@ const DetailField: React.FC<{
 
 export const ActiveSuperviseeDetail: React.FC<
   ActiveSuperviseeDetailProps
-> = ({ onBack, supervisee }) => (
+> = ({ onBack, onRecommendPanel, supervisee }) => (
   <div
     id="active-supervisee-detail-page"
     className="space-y-6 animate-fade-in text-left"
@@ -51,9 +52,18 @@ export const ActiveSuperviseeDetail: React.FC<
       backLabel="Back to Supervisor Appointments"
       onBack={onBack}
       actions={(
-        <StatusBadge tone="info" dot>
-          {supervisee.status}
-        </StatusBadge>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone="info" dot>
+            {supervisee.status}
+          </StatusBadge>
+          <PortalButton
+            variant="primary"
+            icon={Send}
+            onClick={() => onRecommendPanel?.(supervisee.studentId)}
+          >
+            Recommend Panel
+          </PortalButton>
+        </div>
       )}
     />
 
@@ -108,6 +118,10 @@ export const ActiveSuperviseeDetail: React.FC<
           <DetailField
             label="Research title"
             value={supervisee.researchTitle}
+          />
+          <DetailField
+            label="Research area"
+            value={supervisee.researchArea}
           />
           <DetailField
             label="Research abstract"

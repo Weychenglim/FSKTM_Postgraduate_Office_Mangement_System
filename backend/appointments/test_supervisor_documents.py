@@ -162,6 +162,7 @@ class SupervisorDocumentTests(APITestCase):
         data = {
             "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
             "researchTitle": "Secure postgraduate document workflows",
+            "researchArea": "Secure Software Engineering",
             "researchAbstract": "A persisted and permission-checked document workflow.",
         }
         if file is not None:
@@ -359,6 +360,7 @@ class SupervisorDocumentTests(APITestCase):
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
                 "researchTitle": "Duplicate content",
+                "researchArea": "Secure Software Engineering",
                 "researchAbstract": "Duplicate content must be rejected.",
                 "documents": [duplicate_one, duplicate_two],
                 "requirementCodes": ["research-proposal", "supporting-evidence"],

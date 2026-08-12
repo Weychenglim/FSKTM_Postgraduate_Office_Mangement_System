@@ -335,3 +335,15 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Workflow Reports default to the active semester and permit authorized `all`, `unassigned`, or stable semester-code history filters. Progress dossiers retain authorized complete history.
 - Historical workflow strings remain available for display, but records that cannot be linked without guessing must keep a null semester relationship and display `Legacy / Unassigned`.
 - Appointment and Timeline mock datasets and legacy `VITE_USE_SUPERVISOR_BACKEND`, `VITE_USE_PANEL_BACKEND`, and `VITE_USE_TIMELINE_BACKEND` controls must not be present in source or production artifacts.
+
+## Supervisor-to-Panel Research Profile Handoff
+
+- New Supervisor applications require a persisted free-text Research Area in addition to the research title and abstract. Historical applications may retain a blank legacy value.
+- Final Programme Coordinator approval is the authoritative point at which the system must atomically create or connect the student's research profile and create the active Supervisor appointment.
+- Research profiles provisioned by approval use the Student account's matric number, name, and programme; the approved application's title, abstract, Research Area, and academic-semester label; and the approved Supervisor appointment.
+- Matching unassigned legacy profiles must retain their primary keys. Unused profiles may be refreshed from the approved application, while profiles with Panel or Marks history must not have populated historical research data silently overwritten.
+- Separate user-linked and matric-linked profiles, or downstream-used profiles assigned to a different Supervisor, must fail final approval with `409 Conflict` and no partial appointment, profile, approval event, or state transition.
+- Panel-eligible supervisees require an active approved Supervisor appointment for the authenticated Lecturer. Panel recommendation submission must revalidate that relationship server-side and reject crafted student identifiers.
+- Student Panel status must expose only public readiness states: Supervisor required, Supervisor approval pending, ready for Panel recommendation, faculty processing, or confirmed. Pending internal Panel actors and stages remain private.
+- Marks task generation must resolve the profile created by Supervisor approval and continue producing separate Supervisor and Panel evaluator tasks after the respective appointments become active.
+- Active-supervisee detail must provide a deep action into the existing Panel recommendation workspace with the eligible student preselected; no additional sidebar module is introduced.

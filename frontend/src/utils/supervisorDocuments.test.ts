@@ -57,11 +57,13 @@ const body = buildSupervisorApplicationFormData(
   {
     proposedSupervisorId: 'DEMO-LECT-001',
     researchTitle: 'Private document persistence',
+    researchArea: 'Secure Software Engineering',
     researchAbstract: 'A complete research abstract.',
   },
   new Map([['research-proposal', proposal]]),
 );
 assert.equal(body.get('proposedSupervisorId'), 'DEMO-LECT-001');
+assert.equal(body.get('researchArea'), 'Secure Software Engineering');
 assert.deepEqual(body.getAll('requirementCodes'), ['research-proposal']);
 assert.equal((body.getAll('documents')[0] as File).name, 'proposal.pdf');
 

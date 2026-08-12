@@ -102,6 +102,9 @@ export const routeForSupervisorSupervisee = (studentId: string): string =>
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
 
+export const routeForPanelRecommendationStart = (studentId: string): string =>
+  `${APP_ROUTES.panelAppointments}?student=${encodeURIComponent(studentId)}`;
+
 export const routeForPanelRecord = (recordId: string): string =>
   `${APP_ROUTES.panelAppointmentRecords}/${encodeURIComponent(recordId)}`;
 

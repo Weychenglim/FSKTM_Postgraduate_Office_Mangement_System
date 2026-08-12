@@ -395,6 +395,7 @@ export function toStudentSupervisorApplication(
     applicationId: record.id,
     id: `SV-APP-${String(record.id).padStart(5, '0')}`,
     title: record.researchTitle,
+    researchArea: record.researchArea,
     supervisor: record.proposedSupervisor,
     date: new Date(record.submittedAt).toLocaleDateString('en-GB', {
       day: '2-digit',

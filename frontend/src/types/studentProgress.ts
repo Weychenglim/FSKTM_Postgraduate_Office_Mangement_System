@@ -28,6 +28,7 @@ export interface SupervisorDossierRecord extends StudentProgressTarget {
   recordId: string;
   status: string;
   researchTitle: string;
+  researchArea: string;
   proposedSupervisor: string;
   submittedAt: string | null;
   supervisorDecisionAt: string | null;

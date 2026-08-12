@@ -54,6 +54,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
   // Form Fields
   const [researchTitle, setResearchTitle] = useState('');
+  const [researchArea, setResearchArea] = useState('');
   const [researchAbstract, setResearchAbstract] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
@@ -139,6 +140,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       setFormError("Provide your proposed research title.");
       return;
     }
+    if (!researchArea.trim()) {
+      setFormError("Provide your research area.");
+      return;
+    }
     if (!researchAbstract.trim()) {
       setFormError("Provide your research abstract.");
       return;
@@ -158,6 +163,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       const body = buildSupervisorApplicationFormData({
         proposedSupervisorId: selectedSupervisorId,
         researchTitle: researchTitle.trim(),
+        researchArea: researchArea.trim(),
         researchAbstract: researchAbstract.trim(),
       }, selectedFiles);
       const record = await createSupervisorApplication(body);
@@ -226,6 +232,21 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             onChange={(e) => setResearchTitle(e.target.value)}
             placeholder="Enter the full working title of your research"
             className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-805 text-slate-800 placeholder-slate-400 transition"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="research-area-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+            Research Area
+          </label>
+          <input
+            id="research-area-input"
+            type="text"
+            value={researchArea}
+            onChange={(e) => setResearchArea(e.target.value)}
+            placeholder="For example, Human-Centred Artificial Intelligence"
+            maxLength={255}
+            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 transition"
           />
         </div>
 
