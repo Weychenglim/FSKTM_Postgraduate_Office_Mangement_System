@@ -1,4 +1,4 @@
-import type { SupervisorWorkflowEvent } from './appointment';
+import type { AppointmentLifecycleEvent, SupervisorWorkflowEvent } from './appointment';
 
 export type StudentProgressVisibility = 'INTERNAL' | 'PUBLIC';
 export type StudentProgressSection = 'SUPERVISOR' | 'PANEL' | 'MARKS' | 'TIMELINE';
@@ -40,9 +40,16 @@ export interface SupervisorDossierRecord extends StudentProgressTarget {
   waitingDays: number | null;
   waitingOn: string | null;
   appointment: {
+    appointmentId?: number;
     appointmentDate: string;
     status: string;
     supervisor: string;
+    endOutcome?: string | null;
+    endReason?: string | null;
+    endedAt?: string | null;
+    endedBy?: string | null;
+    supersedesAppointmentId?: number | null;
+    lifecycle?: AppointmentLifecycleEvent[];
   } | null;
   workflow?: SupervisorWorkflowEvent[];
 }
@@ -68,9 +75,16 @@ export interface PanelDossierRecord extends StudentProgressTarget {
   waitingDays: number | null;
   waitingOn?: string | null;
   appointment: {
+    appointmentId?: number;
     appointmentDate: string;
     status: string;
     panelMember: string;
+    endOutcome?: string | null;
+    endReason?: string | null;
+    endedAt?: string | null;
+    endedBy?: string | null;
+    supersedesAppointmentId?: number | null;
+    lifecycle?: AppointmentLifecycleEvent[];
   } | null;
   workflow?: SupervisorWorkflowEvent[];
 }
@@ -90,6 +104,9 @@ export interface MarksDossierTask extends StudentProgressTarget {
   dueAt: string | null;
   daysUntilDue: number | null;
   deadlineState: string;
+  taskLifecycleStatus: 'ACTIVE' | 'RETIRED';
+  retiredAt?: string | null;
+  retirementReason?: string | null;
 }
 
 export interface MarksDossierSection {

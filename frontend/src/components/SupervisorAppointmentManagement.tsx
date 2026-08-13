@@ -34,7 +34,9 @@ import {
   getSupervisorAppointments,
   getSupervisorRecordSummary,
   orderSupervisorQueueOldestFirst,
+  endSupervisorAppointment,
 } from '../services';
+import { AppointmentEndControl } from './AppointmentEndControl';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
 import { downloadCsv } from '../utils/csvExport';
 
@@ -91,7 +93,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
   
   // Tab/status filter state
-  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
+  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Ended' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
 
   // Applied filter state
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -180,6 +182,15 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
       { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
       { header: 'Waiting On', value: (record) => record.waitingOn || '' },
+      { header: 'Appointment Status', value: (record) => record.appointmentLifecycle?.status || '' },
+      { header: 'End Outcome', value: (record) => record.appointmentLifecycle?.endOutcome || '' },
+      { header: 'End Reason', value: (record) => record.appointmentLifecycle?.endReason || '' },
+      { header: 'Ended At', value: (record) => record.appointmentLifecycle?.endedAt || '' },
+      { header: 'Ended By', value: (record) => record.appointmentLifecycle?.endedBy || '' },
+      { header: 'Supersedes Appointment ID', value: (record) => record.appointmentLifecycle?.supersedesAppointmentId ?? '' },
+      { header: 'Replacement Appointment ID', value: (record) => record.appointmentLifecycle?.replacementAppointmentId ?? '' },
+      { header: 'Requested Replacement Appointment ID', value: (record) => record.replacesAppointmentId ?? '' },
+      { header: 'Replacement Reason', value: (record) => record.replacementReason || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
     showToast(`Downloaded supervisor_appointments_report.csv with ${orderedFilteredRecords.length} records.`);
@@ -230,6 +241,20 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
                 View Dossier
               </PortalButton>
+              {r.appointmentLifecycle?.status === 'ACTIVE' && (
+                <AppointmentEndControl
+                  label="Supervisor Appointment"
+                  onSubmit={async (outcome, reason) => {
+                    await endSupervisorAppointment(
+                      r.appointmentLifecycle!.appointmentId,
+                      outcome,
+                      reason,
+                    );
+                    showToast('Supervisor appointment ended and workload released.');
+                    await loadRecords();
+                  }}
+                />
+              )}
               <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
                 {r.semester || 'Legacy / Unassigned'}
               </div>
@@ -283,7 +308,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Semester
                   </span>
                   <span className="text-xs font-bold text-brand-navy block mt-1">
-                    {r.semester || 'Sem 1 2024/2025'}
+                    {r.semester || 'Legacy / Unassigned'}
                   </span>
                 </div>
 
@@ -292,7 +317,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Email
                   </span>
                   <span className="text-xs font-semibold text-brand-navy hover:text-blue-600 block mt-1 break-all select-all">
-                    {r.email || `${r.studentName.toLowerCase().replace(/\s+/g, '')}@student.fsktm.edu.my`}
+                    {r.email || 'Not recorded'}
                   </span>
                 </div>
               </div>
@@ -311,7 +336,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Appointment ID</span>
                   <span className="font-mono font-black text-brand-navy">
-                    {r.appointmentId || 'SV-APT-2025-014'}
+                    {r.appointmentId || 'Not assigned'}
                   </span>
                 </div>
 
@@ -325,7 +350,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Workload</span>
                   <span className="font-black text-brand-navy">
-                    {r.status === 'No Supervisor' ? '4/5 Supervisees' : (r.workloadLimit || '4/5 Supervisees')}
+                    {r.workloadLimit || 'Not available'}
                   </span>
                 </div>
 
@@ -437,6 +462,38 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <p className="text-xs font-semibold text-slate-400">No workflow history recorded.</p>
               )}
             </div>
+
+            {r.appointmentLifecycle && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
+                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
+                  <Calendar className="w-4.5 h-4.5 text-brand-navy" />
+                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                    Appointment Lifecycle
+                  </span>
+                </div>
+                {r.appointmentLifecycle.endReason && (
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase text-slate-500">
+                      {r.appointmentLifecycle.endOutcome || 'Ended'}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-700">{r.appointmentLifecycle.endReason}</p>
+                  </div>
+                )}
+                {r.appointmentLifecycle.lifecycle?.length ? (
+                  <div className="space-y-4 border-l-2 border-slate-150 pl-4">
+                    {[...r.appointmentLifecycle.lifecycle].reverse().map((event) => (
+                      <div key={event.id}>
+                        <p className="text-xs font-extrabold text-brand-navy">{event.action.replaceAll('_', ' ')}</p>
+                        <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
+                        {event.reason && <p className="mt-1 text-[10px] font-semibold text-slate-600">{event.reason}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-400">No lifecycle events were recorded for this legacy appointment.</p>
+                )}
+              </div>
+            )}
 
             {/* Related Panel Status Card */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
@@ -680,7 +737,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 
                 <div className="flex flex-wrap gap-1.5">
-                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
+                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Ended', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
                     const isActive = activeTab === tab;
                     return (
                       <button

@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
     PanelAppointment,
     PanelRecommendation,
@@ -11,6 +12,33 @@ from .models import (
     SupervisorDocumentRequirement,
     SupervisorDocumentRequirementAudit,
 )
+
+
+@admin.register(AppointmentLifecycleEvent)
+class AppointmentLifecycleEventAdmin(admin.ModelAdmin):
+    list_display = ("action", "actor", "outcome", "created_at")
+    list_filter = ("action", "outcome", "created_at")
+    readonly_fields = (
+        "supervisor_appointment",
+        "panel_appointment",
+        "actor",
+        "actor_role",
+        "action",
+        "previous_status",
+        "new_status",
+        "outcome",
+        "reason",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(StudentResearchProfile)

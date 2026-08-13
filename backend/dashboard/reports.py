@@ -158,6 +158,8 @@ def _scope_supervisor_records(user, programme, selector, semester):
         "student__user",
         "proposed_supervisor",
         "academic_semester",
+        "appointment__ended_by",
+        "appointment__supersedes",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
         records = (
@@ -183,6 +185,8 @@ def _scope_panel_records(user, programme, selector, semester):
         "supervisor",
         "recommended_member",
         "academic_semester",
+        "panel_appointment__ended_by",
+        "panel_appointment__supersedes",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
         records = (
@@ -237,6 +241,43 @@ def _supervisor_rows(
                 "waitingDays": waiting["waitingDays"],
                 "waitingOn": waiting["waitingOn"],
                 "ageBand": _age_band(waiting["waitingDays"]),
+                "appointmentStatus": (
+                    application.appointment.status
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "appointmentOutcome": (
+                    application.appointment.end_outcome or None
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "appointmentEndedAt": (
+                    _iso(application.appointment.ended_at)
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "appointmentEndReason": (
+                    application.appointment.end_reason or None
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "appointmentEndedBy": (
+                    application.appointment.ended_by.full_name
+                    if hasattr(application, "appointment")
+                    and application.appointment.ended_by_id
+                    else None
+                ),
+                "supersedesAppointmentId": (
+                    application.appointment.supersedes_id
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "replacementAppointmentId": (
+                    application.appointment.replacement_appointment.pk
+                    if hasattr(application, "appointment")
+                    and hasattr(application.appointment, "replacement_appointment")
+                    else None
+                ),
                 **_semester_row(application.academic_semester),
             }
         )
@@ -279,6 +320,46 @@ def _panel_rows(
                 "waitingDays": waiting["waitingDays"],
                 "waitingOn": waiting["waitingOn"],
                 "ageBand": _age_band(waiting["waitingDays"]),
+                "appointmentStatus": (
+                    recommendation.panel_appointment.status
+                    if hasattr(recommendation, "panel_appointment")
+                    else None
+                ),
+                "appointmentOutcome": (
+                    recommendation.panel_appointment.end_outcome or None
+                    if hasattr(recommendation, "panel_appointment")
+                    else None
+                ),
+                "appointmentEndedAt": (
+                    _iso(recommendation.panel_appointment.ended_at)
+                    if hasattr(recommendation, "panel_appointment")
+                    else None
+                ),
+                "appointmentEndReason": (
+                    recommendation.panel_appointment.end_reason or None
+                    if hasattr(recommendation, "panel_appointment")
+                    else None
+                ),
+                "appointmentEndedBy": (
+                    recommendation.panel_appointment.ended_by.full_name
+                    if hasattr(recommendation, "panel_appointment")
+                    and recommendation.panel_appointment.ended_by_id
+                    else None
+                ),
+                "supersedesAppointmentId": (
+                    recommendation.panel_appointment.supersedes_id
+                    if hasattr(recommendation, "panel_appointment")
+                    else None
+                ),
+                "replacementAppointmentId": (
+                    recommendation.panel_appointment.replacement_appointment.pk
+                    if hasattr(recommendation, "panel_appointment")
+                    and hasattr(
+                        recommendation.panel_appointment,
+                        "replacement_appointment",
+                    )
+                    else None
+                ),
                 **_semester_row(recommendation.academic_semester),
             }
         )
@@ -296,7 +377,9 @@ def _mark_rows(
 ):
     if user.role == User.Role.COORDINATOR:
         return None
-    tasks = EvaluationTask.objects.select_related(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related(
         "profile",
         "evaluator",
         "period",
@@ -511,7 +594,9 @@ def build_workflow_report(user, query_params=None, now=None):
                 )
             )
             + list(
-                EvaluationTask.objects.values_list(
+                EvaluationTask.objects.filter(
+                    lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+                ).values_list(
                     "profile__programme", flat=True
                 )
             )
@@ -684,6 +769,13 @@ def build_workflow_report_workbook(report):
         ("waitingDays", "Waiting Days"),
         ("waitingOn", "Waiting On"),
         ("ageBand", "Age Band"),
+        ("appointmentStatus", "Appointment Status"),
+        ("appointmentOutcome", "Appointment Outcome"),
+        ("appointmentEndedAt", "Appointment Ended At"),
+        ("appointmentEndReason", "Appointment End Reason"),
+        ("appointmentEndedBy", "Appointment Ended By"),
+        ("supersedesAppointmentId", "Supersedes Appointment ID"),
+        ("replacementAppointmentId", "Replacement Appointment ID"),
     ]
     _append_sheet(
         workbook,

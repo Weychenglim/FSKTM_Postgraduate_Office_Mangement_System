@@ -1,7 +1,7 @@
 import { SupervisorRecord } from '../types';
 
 export const supervisorRecordRouteKey = (record: SupervisorRecord): string =>
-  record.appointmentId || record.studentId;
+  String(record.appointmentId || record.studentId);
 
 export const findSupervisorRecordByRouteKey = (
   records: SupervisorRecord[],
@@ -9,6 +9,6 @@ export const findSupervisorRecordByRouteKey = (
 ): SupervisorRecord | null => {
   if (!routeKey) return null;
   return records.find((record) =>
-    record.appointmentId === routeKey || record.studentId === routeKey
+    String(record.appointmentId) === routeKey || record.studentId === routeKey
   ) ?? null;
 };

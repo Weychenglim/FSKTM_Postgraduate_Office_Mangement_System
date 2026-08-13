@@ -52,6 +52,7 @@ const getSupervisorRecordSummary = appointmentsApi.getSupervisorRecordSummary as
   withoutSupervisor: number;
   pending: number;
   approved: number;
+  ended: number;
   workloadAlerts: number;
   longestWaiting: SupervisorRecord | null;
 };
@@ -173,6 +174,14 @@ const officeRecords: SupervisorRecord[] = [
     status: 'Workload Alert',
     updatedDate: '17 Jul 2026',
   },
+  {
+    studentId: 'DEMO-6',
+    studentName: 'Demo Six',
+    programme: 'Demo Programme',
+    supervisor: 'Former Supervisor',
+    status: 'Ended',
+    updatedDate: '17 Jul 2026',
+  },
 ];
 const summary = getSupervisorRecordSummary(officeRecords);
 assert.deepEqual(
@@ -180,6 +189,7 @@ assert.deepEqual(
     withoutSupervisor: summary.withoutSupervisor,
     pending: summary.pending,
     approved: summary.approved,
+    ended: summary.ended,
     workloadAlerts: summary.workloadAlerts,
     longestWaitingStudentId: summary.longestWaiting?.studentId,
   },
@@ -187,6 +197,7 @@ assert.deepEqual(
     withoutSupervisor: 1,
     pending: 2,
     approved: 1,
+    ended: 1,
     workloadAlerts: 1,
     longestWaitingStudentId: 'DEMO-3',
   },

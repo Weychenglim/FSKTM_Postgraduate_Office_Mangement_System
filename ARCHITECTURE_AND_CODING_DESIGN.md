@@ -257,3 +257,15 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Marks periods persist the academic-semester foreign key and validate opening/closing timestamps against its date range. Semester handover closes old published periods; extension deliberately leaves their deadlines unchanged.
 - Dashboard action feeds retain unresolved carryover Supervisor and Panel items while Timeline and Marks actions are active-semester scoped. Reports resolve `active`, `all`, `unassigned`, or stable code selectors before applying role/programme authorization.
 - The React `academicSemestersApi` is the central client. `/dashboard/semesters` is lazy-loaded and Office-only, while `ActiveSemesterContext` supplies a minimal read-only band to every role dashboard. Timeline and Marks configuration use server-provided semester options rather than local labels.
+
+## Appointment Lifecycle and Reassignment Architecture
+
+- `SupervisorAppointment` and `PanelAppointment` own normalized lifecycle state and closure metadata. Conditional unique constraints enforce one active appointment per Student/profile, while nullable self `supersedes` links preserve handover lineage.
+- `AppointmentLifecycleEvent` is append-only and references exactly one appointment through a database check constraint. Approval events remain in `AppointmentWorkflowEvent`; lifecycle activation/closure events are a separate audit stream.
+- `appointments.appointment_lifecycle` is the transaction boundary for direct closure and approved handover. It locks referenced and active appointment rows, validates actor scope and lineage, retires dependent Marks tasks, applies transitions, and converts uniqueness races into `409` conflicts.
+- Supervisor final approval continues through `supervisor_handoff.approve_supervisor_application`. That transaction provisions the research profile, invokes lifecycle handover, cancels outgoing in-flight Panel recommendations, and appends the approval event as one unit.
+- Panel final approval locks the recommendation and invokes the same handover service. Replacement serializers validate ownership, incumbent IDs, different evaluators, reasons, active workflow uniqueness, workload, and semester availability.
+- `EvaluationTask` has an active/retired lifecycle and active-only uniqueness constraint. Immutable `EvaluationTaskHandoverAudit` rows store outgoing draft snapshots and optional replacement tasks while preserving historical evaluator attribution.
+- Operational Marks, dashboard-action, report, workload, and completion queries filter active appointments/tasks. Office Marks records and authorized dossiers include retired history explicitly.
+- Role UI reuses `AppointmentEndControl`, existing Supervisor application forms, and the Panel recommendation drawer. Coordinator Supervisor history has a dedicated programme-scoped endpoint instead of broadening Office monitoring.
+- Migrations `appointments.0010` and `marks.0005`/`0006` add lifecycle state, lineage, audits, and conditional constraints without fabricating legacy closure dates or reasons.

@@ -192,9 +192,38 @@ def _supervisor_records(student, user, visibility, now):
                 "appointmentDate": appointment.appointment_date.isoformat(),
                 "status": appointment.status,
                 "supervisor": appointment.supervisor.full_name,
+                "endOutcome": appointment.end_outcome or None,
+                "endReason": appointment.end_reason or None,
+                "endedAt": _iso(appointment.ended_at),
             }
         if visibility == "INTERNAL":
             record["workflow"] = _workflow(application.workflow_events.all())
+            if appointment:
+                record["appointment"].update(
+                    {
+                        "appointmentId": appointment.pk,
+                        "endedBy": (
+                            appointment.ended_by.full_name
+                            if appointment.ended_by_id
+                            else None
+                        ),
+                        "supersedesAppointmentId": appointment.supersedes_id,
+                    }
+                )
+                record["appointment"]["lifecycle"] = [
+                    {
+                        "id": event.pk,
+                        "action": event.action,
+                        "actorName": event.actor.full_name,
+                        "actorRole": event.actor_role,
+                        "previousStatus": event.previous_status,
+                        "newStatus": event.new_status,
+                        "outcome": event.outcome or None,
+                        "reason": event.reason or None,
+                        "createdAt": _iso(event.created_at),
+                    }
+                    for event in appointment.lifecycle_events.select_related("actor")
+                ]
         records.append(record)
 
     current = next(
@@ -316,7 +345,36 @@ def _panel_records(profile, user, visibility, now):
                 "appointmentDate": appointment.appointment_date.isoformat(),
                 "status": appointment.status,
                 "panelMember": appointment.panel_member.full_name,
+                "endOutcome": appointment.end_outcome or None,
+                "endReason": appointment.end_reason or None,
+                "endedAt": _iso(appointment.ended_at),
             }
+            if visibility == "INTERNAL":
+                record["appointment"].update(
+                    {
+                        "appointmentId": appointment.pk,
+                        "endedBy": (
+                            appointment.ended_by.full_name
+                            if appointment.ended_by_id
+                            else None
+                        ),
+                        "supersedesAppointmentId": appointment.supersedes_id,
+                    }
+                )
+                record["appointment"]["lifecycle"] = [
+                    {
+                        "id": event.pk,
+                        "action": event.action,
+                        "actorName": event.actor.full_name,
+                        "actorRole": event.actor_role,
+                        "previousStatus": event.previous_status,
+                        "newStatus": event.new_status,
+                        "outcome": event.outcome or None,
+                        "reason": event.reason or None,
+                        "createdAt": _iso(event.created_at),
+                    }
+                    for event in appointment.lifecycle_events.select_related("actor")
+                ]
         else:
             record["appointment"] = None
         records.append(record)
@@ -351,7 +409,9 @@ def _marks_records(profile, user, visibility, now):
     if profile is None:
         return {"summaryStatus": None, "completionRate": None, "tasks": []}
     tasks = (
-        EvaluationTask.objects.filter(profile=profile)
+        EvaluationTask.objects.filter(
+            profile=profile,
+        )
         .select_related(
             "evaluator",
             "period",
@@ -375,6 +435,8 @@ def _marks_records(profile, user, visibility, now):
             now=now,
         )
         status = _task_status(entry, deadline["deadlineState"])
+        if task.lifecycle_status == EvaluationTask.Lifecycle.RETIRED:
+            status = "RETIRED"
         if visibility == "PUBLIC":
             row = {
                 "status": status,
@@ -391,6 +453,7 @@ def _marks_records(profile, user, visibility, now):
                 "deadlineState": deadline["deadlineState"],
                 "targetModule": "MARKS",
                 "recordType": "MARK_TASK",
+                "taskLifecycleStatus": task.lifecycle_status,
             }
         else:
             row = {
@@ -411,24 +474,32 @@ def _marks_records(profile, user, visibility, now):
                 "deadlineState": deadline["deadlineState"],
                 "targetModule": "MARKS",
                 "recordType": "MARK_TASK",
+                "taskLifecycleStatus": task.lifecycle_status,
+                "retiredAt": _iso(task.retired_at),
+                "retirementReason": task.retirement_reason or None,
             }
         rows.append(row)
 
-    submitted = sum(row["status"] == "SUBMITTED" for row in rows)
-    statuses = {row["status"] for row in rows}
+    active_rows = [
+        row for row in rows if row["taskLifecycleStatus"] == EvaluationTask.Lifecycle.ACTIVE
+    ]
+    submitted = sum(row["status"] == "SUBMITTED" for row in active_rows)
+    statuses = {row["status"] for row in active_rows}
     if "OVERDUE" in statuses:
         summary_status = "OVERDUE"
     elif "DRAFT" in statuses:
         summary_status = "DRAFT"
     elif "NOT_STARTED" in statuses:
         summary_status = "NOT_STARTED"
-    elif rows:
+    elif active_rows:
         summary_status = "SUBMITTED"
     else:
         summary_status = None
     return {
         "summaryStatus": summary_status,
-        "completionRate": round((submitted / len(rows)) * 100, 1) if rows else None,
+        "completionRate": (
+            round((submitted / len(active_rows)) * 100, 1) if active_rows else None
+        ),
         "tasks": rows,
     }
 

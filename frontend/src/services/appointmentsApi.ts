@@ -28,6 +28,8 @@ import {
   SupervisorDocumentRequirementAudit,
   SupervisorRequestHistoryRow,
   WorkflowAgeingMetadata,
+  AppointmentEndOutcome,
+  AppointmentLifecycle,
 } from '../types';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 import { request, requestBlob, requestMultipart } from './apiClient';
@@ -68,6 +70,7 @@ export function getSupervisorRecordSummary(records: readonly SupervisorRecord[])
     withoutSupervisor: records.filter((record) => record.status === 'No Supervisor').length,
     pending: pendingRecords.length,
     approved: records.filter((record) => record.status === 'Approved').length,
+    ended: records.filter((record) => record.status === 'Ended').length,
     workloadAlerts: records.filter((record) => record.status === 'Workload Alert').length,
     longestWaiting: orderSupervisorQueueOldestFirst(pendingRecords)[0] ?? null,
   };
@@ -87,6 +90,28 @@ export async function getOwnSupervisorWorkload(): Promise<SupervisorWorkloadSumm
 
 export async function getPanelAppointments(): Promise<PanelRecord[]> {
   return request<PanelRecord[]>('/appointments/panel/');
+}
+
+export async function endSupervisorAppointment(
+  appointmentId: number,
+  outcome: Exclude<AppointmentEndOutcome, 'REPLACED'>,
+  reason: string,
+): Promise<AppointmentLifecycle> {
+  return request<AppointmentLifecycle>(
+    `/appointments/supervisor/appointments/${appointmentId}/end/`,
+    { method: 'POST', body: JSON.stringify({ outcome, reason }) },
+  );
+}
+
+export async function endPanelAppointment(
+  appointmentId: number,
+  outcome: Exclude<AppointmentEndOutcome, 'REPLACED'>,
+  reason: string,
+): Promise<AppointmentLifecycle> {
+  return request<AppointmentLifecycle>(
+    `/appointments/panel/appointments/${appointmentId}/end/`,
+    { method: 'POST', body: JSON.stringify({ outcome, reason }) },
+  );
 }
 
 // Lecturer-facing: pending supervisor requests awaiting the lecturer's review.
@@ -160,6 +185,8 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     waitingSince: r.waitingSince,
     waitingDays: r.waitingDays,
     waitingOn: r.waitingOn,
+    replacesAppointmentId: r.replacesAppointmentId,
+    replacementReason: r.replacementReason,
   }));
 }
 
@@ -169,6 +196,8 @@ export async function createPanelRecommendation(
     recommendedMemberId: string;
     justification: string;
     status: PanelRecommendationDraft['status'];
+    replacesAppointmentId?: number | null;
+    replacementReason?: string;
   },
 ): Promise<PanelRecommendationDraft> {
   return request<PanelRecommendationDraft>('/appointments/panel/recommendations/', {
@@ -361,6 +390,10 @@ export async function getCoordinatorSupervisorQueue(): Promise<SupervisorApplica
   return request<SupervisorApplicationRecord[]>('/appointments/supervisor/coordinator-queue/');
 }
 
+export async function getCoordinatorSupervisorRecords(): Promise<SupervisorApplicationRecord[]> {
+  return request<SupervisorApplicationRecord[]>('/appointments/supervisor/coordinator-records/');
+}
+
 export async function approveSupervisorApplicationByCoordinator(
   id: number | string,
 ): Promise<SupervisorApplicationRecord> {
@@ -409,6 +442,9 @@ export function toStudentSupervisorApplication(
     cancelledAt: record.cancelledAt,
     rejectionReason: record.rejectionReason,
     documents: record.documents ?? [],
+    appointmentLifecycle: record.appointmentLifecycle,
+    replacesAppointmentId: record.replacesAppointmentId,
+    replacementReason: record.replacementReason,
     waitingSince: record.waitingSince,
     waitingDays: record.waitingDays,
     waitingOn: record.waitingOn,

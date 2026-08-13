@@ -223,6 +223,10 @@ class MarksConfigurationAudit(models.Model):
 
 
 class EvaluationTask(models.Model):
+    class Lifecycle(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        RETIRED = "RETIRED", "Retired"
+
     class EvaluatorRole(models.TextChoices):
         SUPERVISOR = "SUPERVISOR", "Supervisor"
         PANEL = "PANEL", "Panel"
@@ -257,12 +261,28 @@ class EvaluationTask(models.Model):
         blank=True,
     )
     assigned_at = models.DateTimeField(auto_now_add=True)
+    lifecycle_status = models.CharField(
+        max_length=16,
+        choices=Lifecycle.choices,
+        default=Lifecycle.ACTIVE,
+        db_index=True,
+    )
+    retired_at = models.DateTimeField(null=True, blank=True)
+    retired_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="retired_evaluation_tasks",
+        null=True,
+        blank=True,
+    )
+    retirement_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ["profile__student_name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["profile", "evaluator", "period", "evaluator_role"],
+                condition=Q(lifecycle_status="ACTIVE"),
                 name="unique_evaluation_task_assignment",
             )
         ]
@@ -302,6 +322,46 @@ class EvaluationTaskOverrideAudit(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class EvaluationTaskHandoverAudit(models.Model):
+    """Immutable snapshot produced when an official evaluator appointment ends."""
+
+    task = models.ForeignKey(
+        EvaluationTask,
+        on_delete=models.PROTECT,
+        related_name="handover_audits",
+    )
+    replacement_task = models.ForeignKey(
+        EvaluationTask,
+        on_delete=models.PROTECT,
+        related_name="replacement_handover_audits",
+        null=True,
+        blank=True,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="evaluation_task_handover_audits",
+    )
+    reason = models.TextField()
+    draft_snapshot = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError("Evaluation task handover audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        raise ValidationError("Evaluation task handover audits are immutable.")
 
 
 class MarkEntry(models.Model):

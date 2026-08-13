@@ -84,7 +84,10 @@ def mark_record_display_status(task, entry):
 
 
 def period_task_totals(period):
-    tasks = EvaluationTask.objects.filter(period=period).select_related("mark_entry")
+    tasks = EvaluationTask.objects.filter(
+        period=period,
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related("mark_entry")
     total = tasks.count()
     submitted = tasks.filter(mark_entry__status=MarkEntry.Status.SUBMITTED).count()
     return {
@@ -259,7 +262,11 @@ def lecturer_task_or_none(user, pk):
     if user.role != User.Role.LECTURER:
         return None
     return (
-        EvaluationTask.objects.filter(pk=pk, evaluator=user)
+        EvaluationTask.objects.filter(
+            pk=pk,
+            evaluator=user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
         .select_related("profile", "period", "period__rubric", "mark_entry")
         .prefetch_related(
             "period__rubric__components",
@@ -643,7 +650,9 @@ def assignment_options_view(request):
         role=User.Role.LECTURER,
         is_active=True,
     ).select_related("lecturer").order_by("full_name")
-    tasks = EvaluationTask.objects.select_related(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related(
         "profile",
         "evaluator",
         "period",
@@ -695,7 +704,10 @@ def my_evaluation_tasks_view(request):
         )
     ensure_active_period_tasks()
     tasks = (
-        EvaluationTask.objects.filter(evaluator=request.user)
+        EvaluationTask.objects.filter(
+            evaluator=request.user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
         .select_related("profile", "period", "period__rubric", "mark_entry")
         .prefetch_related(
             "period__rubric__components",
@@ -793,6 +805,9 @@ def mark_records_view(request):
                     else None
                 ),
                 "status": display_status,
+                "taskLifecycleStatus": task.lifecycle_status,
+                "retiredAt": task.retired_at,
+                "retirementReason": task.retirement_reason or None,
                 "submittedDate": (
                     entry.submitted_at.strftime("%d %b %Y")
                     if entry and entry.submitted_at
@@ -824,6 +839,7 @@ def mark_record_detail_view(request, record_id):
             "evaluator",
             "evaluator__lecturer",
             "assigned_by",
+            "retired_by",
             "period",
             "period__rubric",
             "mark_entry",
@@ -835,6 +851,8 @@ def mark_record_detail_view(request, record_id):
             "override_audits__actor",
             "override_audits__original_evaluator",
             "override_audits__new_evaluator",
+            "handover_audits__actor",
+            "handover_audits__replacement_task",
         )
         .first()
     )
@@ -881,6 +899,14 @@ def mark_record_detail_view(request, record_id):
                 "assignedBy": (
                     task.assigned_by.full_name if task.assigned_by else None
                 ),
+                "lifecycleStatus": task.lifecycle_status,
+                "retiredAt": (
+                    task.retired_at.isoformat() if task.retired_at else None
+                ),
+                "retiredBy": (
+                    task.retired_by.full_name if task.retired_by else None
+                ),
+                "retirementReason": task.retirement_reason or None,
             },
             "period": {
                 "id": task.period_id,
@@ -976,6 +1002,19 @@ def mark_record_detail_view(request, record_id):
                     entry.correction_audits.all() if entry else []
                 )
             ],
+            "handoverHistory": [
+                {
+                    "id": audit.pk,
+                    "replacementTaskId": audit.replacement_task_id,
+                    "actorName": audit.actor.full_name,
+                    "reason": audit.reason,
+                    "draftSnapshot": audit.draft_snapshot,
+                    "createdAt": audit.created_at.isoformat(),
+                }
+                for audit in task.handover_audits.select_related(
+                    "actor", "replacement_task"
+                )
+            ],
         }
     )
 
@@ -1015,7 +1054,9 @@ def evaluation_preview_tasks_view(request):
             {"error": "Only Office Staff/Admin can view evaluation assignments."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    tasks = EvaluationTask.objects.select_related(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related(
         "profile",
         "evaluator",
         "period",

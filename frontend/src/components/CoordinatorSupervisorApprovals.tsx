@@ -3,15 +3,18 @@ import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
   approveSupervisorApplicationByCoordinator,
   formatSupervisorWaiting,
+  getCoordinatorSupervisorRecords,
   getCoordinatorSupervisorQueue,
   orderSupervisorQueueOldestFirst,
   rejectSupervisorApplicationByCoordinator,
+  endSupervisorAppointment,
 } from '../services';
 import { SupervisorApplicationRecord } from '../types';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
+import { AppointmentEndControl } from './AppointmentEndControl';
 
 
 interface CoordinatorSupervisorApprovalsProps {
@@ -24,6 +27,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   onNavigateToDossier,
 }) => {
   const [records, setRecords] = useState<SupervisorApplicationRecord[]>([]);
+  const [appointmentRecords, setAppointmentRecords] = useState<SupervisorApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -33,8 +37,14 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   const loadRecords = useCallback(() => {
     setLoading(true);
     setError(null);
-    getCoordinatorSupervisorQueue()
-      .then((queue) => setRecords(orderSupervisorQueueOldestFirst(queue)))
+    Promise.all([
+      getCoordinatorSupervisorQueue(),
+      getCoordinatorSupervisorRecords(),
+    ])
+      .then(([queue, history]) => {
+        setRecords(orderSupervisorQueueOldestFirst(queue));
+        setAppointmentRecords(history);
+      })
       .catch((reason) => setError(
         reason instanceof Error ? reason.message : 'Failed to load supervisor approvals.',
       ))
@@ -217,6 +227,58 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
             );
           })}
         </div>
+      )}
+
+      {!loading && !error && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-black text-brand-navy uppercase tracking-wider">Programme Appointment Records</h2>
+            <p className="text-[11px] font-semibold text-slate-400 mt-1">
+              Active and ended Supervisor appointments in your managed programme.
+            </p>
+          </div>
+          {appointmentRecords.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-xs font-semibold text-slate-400">
+              No approved Supervisor appointments are recorded for this programme.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {appointmentRecords.map((record) => (
+                <div key={`appointment-${record.id}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-black text-brand-navy">{record.studentName}</p>
+                      <StatusBadge tone={record.appointmentLifecycle?.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                        {record.appointmentLifecycle?.status === 'ACTIVE' ? 'Active' : record.appointmentLifecycle?.endOutcome || 'Ended'}
+                      </StatusBadge>
+                    </div>
+                    <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                      {record.studentId} · {record.proposedSupervisor}
+                    </p>
+                    {record.appointmentLifecycle?.endReason && (
+                      <p className="text-[11px] text-slate-500 mt-2">{record.appointmentLifecycle.endReason}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <PortalButton variant="ghost" onClick={() => onNavigateToDossier?.(record.studentId)}>
+                      View Dossier
+                    </PortalButton>
+                    {record.appointmentLifecycle?.status === 'ACTIVE' && (
+                      <AppointmentEndControl
+                        label="Supervisor appointment"
+                        onSubmit={async (outcome, reason) => {
+                          await endSupervisorAppointment(record.appointmentLifecycle!.appointmentId, outcome, reason);
+                          await loadRecords();
+                          notify(`Supervisor appointment ended for ${record.studentName}.`);
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

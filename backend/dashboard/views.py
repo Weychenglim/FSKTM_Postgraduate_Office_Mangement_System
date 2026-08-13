@@ -406,7 +406,9 @@ def dashboard_summary_view(request):
         summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
             status=PanelRecommendation.Status.PENDING_COORDINATOR
         ).count()
-        all_tasks = EvaluationTask.objects.all()
+        all_tasks = EvaluationTask.objects.filter(
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
     elif request.user.role == User.Role.COORDINATOR:
         try:
             programme = request.user.lecturer.coordinator.programme_managed.strip()
@@ -431,7 +433,10 @@ def dashboard_summary_view(request):
             recommended_member=request.user,
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         ).count()
-        all_tasks = EvaluationTask.objects.filter(evaluator=request.user)
+        all_tasks = EvaluationTask.objects.filter(
+            evaluator=request.user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
     else:
         all_tasks = EvaluationTask.objects.none()
 

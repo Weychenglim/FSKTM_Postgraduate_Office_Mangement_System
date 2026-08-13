@@ -66,6 +66,7 @@ import {
   getPanelReviewHistory,
   rejectPanelRecommendation,
   rejectPanelRecommendationByCoordinator,
+  endPanelAppointment,
 } from '../services';
 import {
   PANEL_RECOMMENDATION_STATUS_LABELS,
@@ -76,6 +77,7 @@ import {
 import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTable';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
+import { AppointmentEndControl } from './AppointmentEndControl';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
@@ -263,6 +265,7 @@ interface PanelRecommendationReviewDrawerProps {
   onAccept?: (recommendation: PanelRecommendationDraft) => void;
   onReject?: (recommendation: PanelRecommendationDraft, reason: string) => void;
   readOnly?: boolean;
+  onAppointmentEnded?: () => Promise<void>;
 }
 
 const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
@@ -273,6 +276,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   onAccept,
   onReject,
   readOnly = false,
+  onAppointmentEnded,
 }) => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
@@ -413,6 +417,22 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
             </div>
 
             <WorkflowAuditLog events={recommendation.workflow} />
+
+            {reviewerRole === 'PROGRAMME_COORDINATOR'
+              && recommendation.appointmentLifecycle?.status === 'ACTIVE'
+              && (
+                <AppointmentEndControl
+                  label="Panel appointment"
+                  onSubmit={async (outcome, reason) => {
+                    await endPanelAppointment(
+                      recommendation.appointmentLifecycle!.appointmentId,
+                      outcome,
+                      reason,
+                    );
+                    await onAppointmentEnded?.();
+                  }}
+                />
+              )}
 
             {canAct && (
               <div className="space-y-4">
@@ -641,6 +661,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     () => selectedSupervisee ? toRecommendationStudent(selectedSupervisee) : null,
     [selectedSupervisee],
   );
+  const replacementAssignment = selectedSupervisee?.panelAppointmentId
+    ? selectedSupervisee
+    : null;
 
   // Merge the lecturer's own drafts with the submitted-recommendation history so
   // newly recommended items appear immediately at the top of the table.
@@ -712,9 +735,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
   const navigateToList = onNavigateToList ?? (() => undefined);
 
-  const canRecommendForStudent = recommendationStudent
-    ? canCreatePanelRecommendation(submittedRecs, recommendationStudent.studentId)
-    : false;
+  const canRecommendForStudent = Boolean(
+    recommendationStudent && selectedSupervisee?.canRecommend,
+  );
 
   useEffect(() => {
     if (
@@ -736,6 +759,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const createRecommendation = async (
     notes: string,
     candidateId: string,
+    replacementReason: string,
   ) => {
     if (!recommendationStudent) {
       triggerToast('No supervisee is available for panel recommendation.');
@@ -753,6 +777,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         recommendedMemberId: candidateId,
         justification: notes,
         status: 'SUBMITTED_TO_PANEL',
+        replacesAppointmentId: replacementAssignment?.panelAppointmentId ?? null,
+        replacementReason: replacementAssignment ? replacementReason : null,
       });
 
       setSubmittedRecs([newRec, ...submittedRecs]);
@@ -985,6 +1011,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                     const recommendation = submittedRecs.find((item) => item.studentId === student.studentId);
                     const statusText = recommendation
                       ? PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]
+                      : student.panelAppointmentId
+                      ? 'Panel Active'
                       : student.canRecommend
                       ? 'Recommendation Needed'
                       : 'Recommendation Active';
@@ -1115,7 +1143,11 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                   disabled={!canRecommendForStudent}
                   className="w-full mt-6 py-3.5 bg-brand-navy text-white hover:bg-slate-800 disabled:bg-slate-400 disabled:cursor-not-allowed rounded-xl text-xs font-black tracking-widest uppercase transition-all shadow-sm select-none cursor-pointer text-center"
                 >
-                  {canRecommendForStudent ? 'Recommend Panel Member' : 'Recommendation Already Active'}
+                      {canRecommendForStudent
+                        ? replacementAssignment
+                          ? 'Replace Panel Member'
+                          : 'Recommend Panel Member'
+                        : 'Recommendation Already Active'}
                 </button>
               </div>
 
@@ -1459,9 +1491,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           isOpen={isRecommendDrawerOpen}
           onClose={() => setIsRecommendDrawerOpen(false)}
           student={recommendationStudent}
-          candidates={panelCandidates}
-          onSubmit={(notes, candidateId) => {
-            createRecommendation(notes, candidateId);
+          candidates={panelCandidates.filter(
+            (candidate) => candidate.staffId !== replacementAssignment?.currentPanelMemberId,
+          )}
+          replacementMember={replacementAssignment?.currentPanelMember}
+          onSubmit={(notes, candidateId, replacementReason) => {
+            createRecommendation(notes, candidateId, replacementReason);
           }}
         />
       )}
@@ -1477,6 +1512,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         onAccept={handleReviewAccept}
         onReject={handleReviewReject}
         readOnly={selectedRecommendationReadOnly}
+        onAppointmentEnded={async () => {
+          setSelectedRecommendation(null);
+          setSelectedRecommendationReadOnly(false);
+          await loadData();
+          triggerToast('Panel appointment ended. Workload and records were refreshed.');
+        }}
       />
 
     </div>

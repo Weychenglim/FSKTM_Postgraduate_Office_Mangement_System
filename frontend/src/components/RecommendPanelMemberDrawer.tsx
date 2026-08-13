@@ -36,7 +36,8 @@ interface RecommendPanelMemberDrawerProps {
   onClose: () => void;
   student: StudentData;
   candidates: PanelCandidate[];
-  onSubmit: (notes: string, candidateId: string) => void;
+  replacementMember?: string | null;
+  onSubmit: (notes: string, candidateId: string, replacementReason: string) => void;
 }
 
 export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = ({
@@ -44,6 +45,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   onClose,
   student,
   candidates,
+  replacementMember,
   onSubmit,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +53,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const [selectedLecturer, setSelectedLecturer] =
     useState<PanelCandidate | null>(candidates[0] ?? null);
   const [recommendationNotes, setRecommendationNotes] = useState('');
+  const [replacementReason, setReplacementReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -93,8 +96,10 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
 
   const isSupervisorSelected = selectedLecturer?.name === student.supervisor;
   const hasRecommendationNotes = recommendationNotes.trim().length > 0;
+  const hasReplacementReason = !replacementMember || replacementReason.trim().length > 0;
   const canSubmitRecommendation = selectedLecturer !== null
     && selectedLecturer.canSubmit
+    && hasReplacementReason
     && canSubmitPanelCandidate({
       workloadCount: selectedLecturer.workloadCount,
       workloadLimit: selectedLecturer.workloadLimit,
@@ -116,7 +121,11 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     e.preventDefault();
     setSubmitAttempted(true);
     if (!canSubmitRecommendation || !selectedLecturer) return;
-    onSubmit(recommendationNotes.trim(), selectedLecturer.staffId);
+    onSubmit(
+      recommendationNotes.trim(),
+      selectedLecturer.staffId,
+      replacementReason.trim(),
+    );
   };
 
   return (
@@ -148,7 +157,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
               className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0"
             >
               <h2 id="drawer-main-title" className="text-lg font-bold text-brand-navy font-sans tracking-tight">
-                Recommend Panel Member
+                {replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'}
               </h2>
               <button
                 id="drawer-close-btn"
@@ -265,6 +274,29 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                   </div>
                 </div>
               </div>
+
+              {replacementMember && (
+                <div className="space-y-2">
+                  <label htmlFor="panel-replacement-reason" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Replacement reason
+                  </label>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    The current appointment with {replacementMember} remains active until final coordinator approval.
+                  </p>
+                  <textarea
+                    id="panel-replacement-reason"
+                    value={replacementReason}
+                    onChange={(event) => setReplacementReason(event.target.value)}
+                    rows={3}
+                    required
+                    placeholder="Explain why a different panel member is required"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                  />
+                  {submitAttempted && !hasReplacementReason && (
+                    <p className="text-[11px] font-bold text-rose-600">A panel replacement reason is required.</p>
+                  )}
+                </div>
+              )}
 
               {/* SECTION C: Select Panel Member Section */}
               <div id="recommend-select-member" className="space-y-4">

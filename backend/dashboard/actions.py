@@ -206,7 +206,9 @@ def _mark_actions(user, now):
     semester = current_effective_semester()
     if semester is None:
         return []
-    tasks = EvaluationTask.objects.exclude(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).exclude(
         mark_entry__status=MarkEntry.Status.SUBMITTED,
     ).filter(period__academic_semester=semester)
     if user.role == User.Role.LECTURER:

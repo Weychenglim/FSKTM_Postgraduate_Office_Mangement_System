@@ -155,7 +155,13 @@ const SupervisorRecord: React.FC<{
         {record.rejectionReason || record.cancellationReason}
       </p>
     )}
+    {record.appointment?.endReason && (
+      <p className="mt-4 border-l-2 border-slate-300 pl-3 text-[11px] font-semibold text-slate-600">
+        {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
+      </p>
+    )}
     <AuditTrail events={record.workflow} />
+    {internal && <AuditTrail events={record.appointment?.lifecycle} />}
   </PortalCard>
 );
 
@@ -192,7 +198,13 @@ const PanelRecord: React.FC<{
         {record.rejectionReason || record.cancellationReason}
       </p>
     )}
+    {record.appointment?.endReason && (
+      <p className="mt-4 border-l-2 border-slate-300 pl-3 text-[11px] font-semibold text-slate-600">
+        {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
+      </p>
+    )}
     <AuditTrail events={record.workflow} />
+    {internal && <AuditTrail events={record.appointment?.lifecycle} />}
   </PortalCard>
 );
 
@@ -446,7 +458,14 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
                   {dossier.marks.tasks.map((task, index) => (
                     <tr key={task.taskId ?? `${task.period}-${index}`} className="data-row">
                       <td className="data-td-strong">{task.period}<span className="block text-[9px] text-slate-400">{task.semester}</span></td>
-                      <td className="data-td"><StatusBadge tone={statusTone(task.status)}>{formatProgressStatus(task.status)}</StatusBadge></td>
+                      <td className="data-td">
+                        <StatusBadge tone={task.taskLifecycleStatus === 'RETIRED' ? 'neutral' : statusTone(task.status)}>
+                          {task.taskLifecycleStatus === 'RETIRED' ? 'Retired' : formatProgressStatus(task.status)}
+                        </StatusBadge>
+                        {internal && task.retirementReason && (
+                          <span className="block mt-1 text-[9px] text-slate-400">{task.retirementReason}</span>
+                        )}
+                      </td>
                       {internal && <td className="data-td">{task.evaluator}<span className="block text-[9px] text-slate-400">{formatProgressStatus(task.evaluatorRole)}</span></td>}
                       <td className="data-td">{dateText(task.dueAt)}<span className="block text-[9px] text-slate-400">{formatProgressStatus(task.deadlineState)}</span></td>
                       {internal && (
