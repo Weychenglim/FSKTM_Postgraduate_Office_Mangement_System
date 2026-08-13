@@ -5,11 +5,16 @@ from django.utils import timezone
 
 from .models import (
     AppointmentWorkflowEvent,
+    PanelRecommendation,
     StudentResearchProfile,
     SupervisorApplication,
     SupervisorAppointment,
     count_supervisor_workload,
     supervisor_workload_limit,
+)
+from .appointment_lifecycle import (
+    AppointmentLifecycleConflict,
+    activate_replacement,
 )
 
 
@@ -82,14 +87,25 @@ def _resolve_research_profile(application):
         )
 
     has_history = _profile_has_downstream_history(profile)
-    if has_history and profile.supervisor_id != application.proposed_supervisor_id:
+    is_replacement = application.replaces_appointment_id is not None
+    if (
+        has_history
+        and profile.supervisor_id != application.proposed_supervisor_id
+        and not is_replacement
+    ):
         raise SupervisorApprovalConflict(
             "The existing research profile has downstream records for another supervisor and cannot be changed automatically."
         )
     if has_history:
+        update_fields = []
         if profile.student_id is None:
             profile.student = student_user
-            profile.save(update_fields=["student", "updated_at"])
+            update_fields.append("student")
+        if is_replacement:
+            profile.supervisor = application.proposed_supervisor
+            update_fields.append("supervisor")
+        if update_fields:
+            profile.save(update_fields=[*update_fields, "updated_at"])
         return profile
 
     for field, value in values.items():
@@ -101,7 +117,7 @@ def _resolve_research_profile(application):
 @transaction.atomic
 def approve_supervisor_application(*, application_id, actor):
     application = (
-        SupervisorApplication.objects.select_for_update()
+        SupervisorApplication.objects.select_for_update(of=("self",))
         .select_related(
             "student",
             "student__user",
@@ -152,12 +168,51 @@ def approve_supervisor_application(*, application_id, actor):
     application.save(
         update_fields=["status", "coordinator_decided_at", "updated_at"]
     )
-    SupervisorAppointment.objects.create(
-        application=application,
-        student=application.student,
-        supervisor=application.proposed_supervisor,
-        approved_by=actor,
-    )
+    try:
+        appointment = activate_replacement(
+            model=SupervisorAppointment,
+            replacement_source=application,
+            actor=actor,
+            create_values={
+                "application": application,
+                "student": application.student,
+                "supervisor": application.proposed_supervisor,
+                "approved_by": actor,
+            },
+        )
+    except AppointmentLifecycleConflict as exc:
+        raise SupervisorApprovalConflict(str(exc)) from exc
+    if application.replaces_appointment_id:
+        now = timezone.now()
+        pending_recommendations = PanelRecommendation.objects.select_for_update().filter(
+            profile__student=application.student.user,
+            supervisor=application.replaces_appointment.supervisor,
+            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+        )
+        for recommendation in pending_recommendations:
+            previous_panel_status = recommendation.status
+            recommendation.status = PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR
+            recommendation.cancellation_reason = (
+                "Automatically cancelled because the Supervisor appointment was replaced."
+            )
+            recommendation.cancelled_at = now
+            recommendation.save(
+                update_fields=[
+                    "status",
+                    "cancellation_reason",
+                    "cancelled_at",
+                    "updated_at",
+                ]
+            )
+            AppointmentWorkflowEvent.objects.create(
+                actor=actor,
+                actor_role=actor.role,
+                action="SYSTEM_CANCEL_SUPERVISOR_REPLACED",
+                previous_status=previous_panel_status,
+                new_status=recommendation.status,
+                reason=recommendation.cancellation_reason,
+                panel_recommendation=recommendation,
+            )
     AppointmentWorkflowEvent.objects.create(
         actor=actor,
         actor_role=actor.role,

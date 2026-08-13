@@ -29,6 +29,10 @@ urlpatterns = [
     ),
     path("supervisor/applications/", views.supervisor_applications_view),
     path(
+        "supervisor/appointments/<int:pk>/end/",
+        views.end_supervisor_appointment_view,
+    ),
+    path(
         "supervisor/applications/<int:pk>/",
         views.supervisor_application_detail_view,
     ),
@@ -44,6 +48,7 @@ urlpatterns = [
     path("supervisor/supervisees/", views.active_supervisees_view),
     path("supervisor/request-history/", views.supervisor_request_history_view),
     path("supervisor/coordinator-queue/", views.supervisor_coordinator_queue_view),
+    path("supervisor/coordinator-records/", views.supervisor_coordinator_records_view),
     path(
         "supervisor/applications/<int:pk>/supervisor-accept/",
         views.supervisor_accept_view,
@@ -61,6 +66,10 @@ urlpatterns = [
         views.supervisor_coordinator_reject_view,
     ),
     path("panel/", views.panel_records_view),
+    path(
+        "panel/appointments/<int:pk>/end/",
+        views.end_panel_appointment_view,
+    ),
     path("panel/workload/", views.panel_workload_view),
     path("panel/eligible-supervisees/", views.eligible_supervisees_view),
     path("panel/candidates/", views.panel_candidates_view),

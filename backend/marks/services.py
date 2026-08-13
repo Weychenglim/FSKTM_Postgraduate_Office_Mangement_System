@@ -17,6 +17,7 @@ from appointments.models import (
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
+    EvaluationTaskHandoverAudit,
     EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
@@ -602,6 +603,7 @@ def ensure_period_tasks(period, *, actor=None):
             evaluator=appointment.supervisor,
             period=period,
             evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
             defaults={"assigned_by": actor},
         )
         created["supervisor"] += int(was_created)
@@ -615,12 +617,16 @@ def ensure_period_tasks(period, *, actor=None):
             evaluator=appointment.panel_member,
             period=period,
             evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
             defaults={"assigned_by": actor},
         )
         created["panel"] += int(was_created)
 
     created["total"] = created["supervisor"] + created["panel"]
-    created["period_total"] = EvaluationTask.objects.filter(period=period).count()
+    created["period_total"] = EvaluationTask.objects.filter(
+        period=period,
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).count()
     return created
 
 
@@ -662,6 +668,148 @@ def create_backup_evaluation_task(
         reason=reason,
     )
     return task
+
+
+def _draft_snapshot(task):
+    try:
+        entry = task.mark_entry
+    except MarkEntry.DoesNotExist:
+        return {}
+    if entry.status == MarkEntry.Status.SUBMITTED:
+        return {}
+    return entry_snapshot(entry)
+
+
+@transaction.atomic
+def retire_official_evaluation_tasks(
+    *,
+    profile,
+    evaluator,
+    evaluator_role,
+    actor,
+    reason,
+    replacement_evaluator=None,
+):
+    tasks = (
+        EvaluationTask.objects.select_for_update(of=("self",))
+        .filter(
+            profile=profile,
+            evaluator=evaluator,
+            evaluator_role=evaluator_role,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+            period__lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+        )
+        .select_related("period", "mark_entry")
+    )
+    retired = []
+    for task in tasks:
+        try:
+            entry = task.mark_entry
+        except MarkEntry.DoesNotExist:
+            entry = None
+        if entry and entry.status == MarkEntry.Status.SUBMITTED:
+            continue
+        if task.period.status_at() not in {"SCHEDULED", "OPEN"}:
+            continue
+        snapshot = _draft_snapshot(task)
+        task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
+        task.retired_at = timezone.now()
+        task.retired_by = actor
+        task.retirement_reason = reason
+        task.save(
+            update_fields=[
+                "lifecycle_status",
+                "retired_at",
+                "retired_by",
+                "retirement_reason",
+            ]
+        )
+        replacement_task = None
+        if replacement_evaluator is not None:
+            replacement_task, _ = EvaluationTask.objects.get_or_create(
+                profile=profile,
+                evaluator=replacement_evaluator,
+                period=task.period,
+                evaluator_role=evaluator_role,
+                lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+                defaults={"assigned_by": actor},
+            )
+        EvaluationTaskHandoverAudit.objects.create(
+            task=task,
+            replacement_task=replacement_task,
+            actor=actor,
+            reason=reason,
+            draft_snapshot=snapshot,
+        )
+        retired.append(task)
+    return retired
+
+
+def ensure_replacement_evaluation_tasks(
+    *, old_appointment, replacement_appointment, actor, reason
+):
+    from appointments.models import SupervisorAppointment
+
+    if isinstance(old_appointment, SupervisorAppointment):
+        profile = old_appointment.student.user.research_profile
+        evaluator = old_appointment.supervisor
+        replacement_evaluator = replacement_appointment.supervisor
+        evaluator_role = EvaluationTask.EvaluatorRole.SUPERVISOR
+    else:
+        profile = old_appointment.profile
+        evaluator = old_appointment.panel_member
+        replacement_evaluator = replacement_appointment.panel_member
+        evaluator_role = EvaluationTask.EvaluatorRole.PANEL
+    retired = retire_official_evaluation_tasks(
+        profile=profile,
+        evaluator=evaluator,
+        evaluator_role=evaluator_role,
+        actor=actor,
+        reason=reason,
+        replacement_evaluator=replacement_evaluator,
+    )
+    eligible_tasks = (
+        EvaluationTask.objects.filter(
+            profile=profile,
+            evaluator=evaluator,
+            evaluator_role=evaluator_role,
+            period__lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+        )
+        .select_related("period", "mark_entry")
+        .order_by("period_id", "pk")
+    )
+    for old_task in eligible_tasks:
+        try:
+            old_entry = old_task.mark_entry
+        except MarkEntry.DoesNotExist:
+            old_entry = None
+        if old_entry and old_entry.status == MarkEntry.Status.SUBMITTED:
+            continue
+        if old_task.period.status_at() not in {"SCHEDULED", "OPEN"}:
+            continue
+        replacement_task, created = EvaluationTask.objects.get_or_create(
+            profile=profile,
+            evaluator=replacement_evaluator,
+            period=old_task.period,
+            evaluator_role=evaluator_role,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+            defaults={"assigned_by": actor},
+        )
+        if created or not old_task.handover_audits.filter(
+            replacement_task=replacement_task
+        ).exists():
+            EvaluationTaskHandoverAudit.objects.create(
+                task=old_task,
+                replacement_task=replacement_task,
+                actor=actor,
+                reason=reason,
+                draft_snapshot=(
+                    _draft_snapshot(old_task)
+                    if old_task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE
+                    else {}
+                ),
+            )
+    return retired
 
 
 def entry_snapshot(entry):

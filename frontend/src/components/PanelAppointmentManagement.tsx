@@ -163,7 +163,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
     [records],
   );
 
-  const statusTabs: PanelRecordStatusTab[] = ['All Records', 'No Panel', 'Pending', 'Approved', 'Rejected', 'Cancelled'];
+  const statusTabs: PanelRecordStatusTab[] = ['All Records', 'No Panel', 'Pending', 'Approved', 'Ended', 'Rejected', 'Cancelled'];
 
   // Status-tab quick filtering
   const filteredRecords = useMemo(() => {
@@ -239,6 +239,13 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       { header: 'Rejection Stage', value: (record) => record.rejectionStage || '' },
       { header: 'Rejection Reason', value: (record) => record.rejectionReason || '' },
       { header: 'Cancellation Reason', value: (record) => record.cancellationReason || '' },
+      { header: 'Appointment Status', value: (record) => record.appointmentLifecycle?.status || '' },
+      { header: 'End Outcome', value: (record) => record.appointmentLifecycle?.endOutcome || '' },
+      { header: 'End Reason', value: (record) => record.appointmentLifecycle?.endReason || '' },
+      { header: 'Ended At', value: (record) => record.appointmentLifecycle?.endedAt || '' },
+      { header: 'Ended By', value: (record) => record.appointmentLifecycle?.endedBy || '' },
+      { header: 'Supersedes Appointment ID', value: (record) => record.appointmentLifecycle?.supersedesAppointmentId ?? '' },
+      { header: 'Replacement Appointment ID', value: (record) => record.appointmentLifecycle?.replacementAppointmentId ?? '' },
       { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
       { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
       { header: 'Waiting On', value: (record) => record.waitingOn || '' },
@@ -278,6 +285,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
           <PanelAppointmentDetail
             onBack={navigateToList}
             record={selectedRouteRecord}
+            onLifecycleChanged={loadRecords}
           />
         ) : (
           <EmptyState

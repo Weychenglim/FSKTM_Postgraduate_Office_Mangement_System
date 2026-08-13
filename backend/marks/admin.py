@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
+    EvaluationTaskHandoverAudit,
     EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
@@ -138,8 +139,15 @@ class MarksConfigurationAuditAdmin(admin.ModelAdmin):
 
 @admin.register(EvaluationTask)
 class EvaluationTaskAdmin(admin.ModelAdmin):
-    list_display = ("profile", "evaluator", "evaluator_role", "period", "assigned_at")
-    list_filter = ("period", "evaluator_role")
+    list_display = (
+        "profile",
+        "evaluator",
+        "evaluator_role",
+        "period",
+        "lifecycle_status",
+        "assigned_at",
+    )
+    list_filter = ("period", "evaluator_role", "lifecycle_status")
     search_fields = (
         "profile__matric_no",
         "profile__student_name",
@@ -169,6 +177,28 @@ class EvaluationTaskOverrideAuditAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(EvaluationTaskHandoverAudit)
+class EvaluationTaskHandoverAuditAdmin(admin.ModelAdmin):
+    list_display = ("task", "replacement_task", "actor", "created_at")
+    readonly_fields = (
+        "task",
+        "replacement_task",
+        "actor",
+        "reason",
+        "draft_snapshot",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 

@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { StudentSupervisorApplication, SupervisorCandidate, SupervisorDocumentRequirement } from '../types';
+import { StudentSupervisorApplication, SupervisorApplicationRecord, SupervisorCandidate, SupervisorDocumentRequirement } from '../types';
 import {
   createSupervisorApplication,
   getActiveSupervisorDocumentRequirements,
@@ -39,11 +39,13 @@ import { ErrorState, LoadingState } from './StateViews';
 interface SupervisorAppointmentApplicationPageProps {
   onBack: () => void;
   onSuccess: (newApplication: StudentSupervisorApplication) => void;
+  replacementApplication?: SupervisorApplicationRecord | null;
 }
 
 export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmentApplicationPageProps> = ({
   onBack,
-  onSuccess
+  onSuccess,
+  replacementApplication,
 }) => {
   // Stepper tracking - decorative/informational as matched in screenshots
   const steps = [
@@ -53,9 +55,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   ];
 
   // Form Fields
-  const [researchTitle, setResearchTitle] = useState('');
-  const [researchArea, setResearchArea] = useState('');
-  const [researchAbstract, setResearchAbstract] = useState('');
+  const [researchTitle, setResearchTitle] = useState(replacementApplication?.researchTitle || '');
+  const [researchArea, setResearchArea] = useState(replacementApplication?.researchArea || '');
+  const [researchAbstract, setResearchAbstract] = useState(replacementApplication?.researchAbstract || '');
+  const [replacementReason, setReplacementReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
   const [requirements, setRequirements] = useState<SupervisorDocumentRequirement[]>([]);
@@ -152,6 +155,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       setFormError("Choose a proposed research supervisor.");
       return;
     }
+    if (replacementApplication && !replacementReason.trim()) {
+      setFormError('Provide a reason for changing Supervisor.');
+      return;
+    }
     const documentError = validateSupervisorDocumentSelection(requirements, selectedFiles);
     if (documentError) {
       setFormError(documentError);
@@ -165,6 +172,8 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         researchTitle: researchTitle.trim(),
         researchArea: researchArea.trim(),
         researchAbstract: researchAbstract.trim(),
+        replacesAppointmentId: replacementApplication?.appointmentLifecycle?.appointmentId,
+        replacementReason: replacementReason.trim(),
       }, selectedFiles);
       const record = await createSupervisorApplication(body);
       onSuccess(toStudentSupervisorApplication(record));
@@ -179,8 +188,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     <form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
       
       <PageHeader
-        title="Supervisor Appointment Application"
-        subtitle="Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty's research pillars."
+        title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'}
+        subtitle={replacementApplication
+          ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
+          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'}
         backLabel="Back to Supervisor Appointments"
         onBack={onBack}
         subtitleClassName="max-w-4xl leading-relaxed"
@@ -219,6 +230,22 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[11px] font-black">1</span>
           Research Project Details
         </h3>
+
+        {replacementApplication && (
+          <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <label htmlFor="replacement-reason-input" className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+              Replacement reason
+            </label>
+            <textarea
+              id="replacement-reason-input"
+              rows={3}
+              value={replacementReason}
+              onChange={(event) => setReplacementReason(event.target.value)}
+              placeholder="Explain why a different Supervisor is requested"
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800"
+            />
+          </div>
+        )}
 
         {/* Input Field: Research Title */}
         <div className="space-y-1.5">

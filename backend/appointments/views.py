@@ -14,6 +14,7 @@ from announcements.models import Notification
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
+    AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
     PanelAppointment,
     PanelRecommendation,
@@ -26,6 +27,12 @@ from .models import (
     count_supervisor_workload,
     panel_workload_limit,
     supervisor_workload_limit,
+)
+from .appointment_lifecycle import (
+    AppointmentLifecycleConflict,
+    AppointmentLifecycleForbidden,
+    activate_replacement,
+    end_appointment,
 )
 from .notifications import publish_workflow_notification
 from .serializers import (
@@ -104,8 +111,9 @@ def panel_record_from_appointment(appointment):
             appointment.recommendation.workflow_events.all(),
             many=True,
         ).data,
-        "status": "Approved",
+        "status": "Approved" if appointment.status == PanelAppointment.Status.ACTIVE else "Ended",
         "updatedDate": appointment.updated_at.strftime("%d %b %Y"),
+        "appointmentLifecycle": appointment_lifecycle_payload(appointment),
         **panel_waiting_metadata(recommendation),
     }
 
@@ -301,6 +309,81 @@ def panel_workload_row(lecturer):
 
 def error_response(message, response_status=status.HTTP_400_BAD_REQUEST):
     return Response({"error": message}, status=response_status)
+
+
+def lifecycle_event_payload(event):
+    return {
+        "id": event.pk,
+        "action": event.action,
+        "actorName": event.actor.full_name,
+        "actorRole": event.actor_role,
+        "previousStatus": event.previous_status,
+        "newStatus": event.new_status,
+        "outcome": event.outcome or None,
+        "reason": event.reason or None,
+        "createdAt": event.created_at,
+    }
+
+
+def appointment_lifecycle_payload(appointment):
+    replacement = getattr(appointment, "replacement_appointment", None)
+    return {
+        "appointmentId": appointment.pk,
+        "status": appointment.status,
+        "endOutcome": appointment.end_outcome or None,
+        "endReason": appointment.end_reason or None,
+        "endedAt": appointment.ended_at,
+        "endedBy": appointment.ended_by.full_name if appointment.ended_by else None,
+        "supersedesAppointmentId": appointment.supersedes_id,
+        "replacementAppointmentId": replacement.pk if replacement else None,
+        "lifecycle": [
+            lifecycle_event_payload(event)
+            for event in appointment.lifecycle_events.select_related("actor")
+        ],
+    }
+
+
+def _end_appointment_response(request, pk, model):
+    outcome = str(request.data.get("outcome") or "").strip().upper()
+    reason = str(request.data.get("reason") or "").strip()
+    try:
+        appointment = end_appointment(
+            model=model,
+            appointment_id=pk,
+            actor=request.user,
+            outcome=outcome,
+            reason=reason,
+        )
+    except model.DoesNotExist:
+        return error_response("Appointment was not found.", status.HTTP_404_NOT_FOUND)
+    except AppointmentLifecycleForbidden as exc:
+        return error_response(str(exc), status.HTTP_403_FORBIDDEN)
+    except AppointmentLifecycleConflict as exc:
+        valid_direct_outcomes = {
+            model.EndOutcome.COMPLETED,
+            model.EndOutcome.WITHDRAWN,
+            model.EndOutcome.OTHER,
+        }
+        response_status = (
+            status.HTTP_400_BAD_REQUEST
+            if outcome not in valid_direct_outcomes or not reason
+            else status.HTTP_409_CONFLICT
+        )
+        return error_response(str(exc), response_status)
+    appointment.refresh_from_db()
+    return Response(appointment_lifecycle_payload(appointment))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def end_supervisor_appointment_view(request, pk):
+    return _end_appointment_response(request, pk, SupervisorAppointment)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def end_panel_appointment_view(request, pk):
+    return _end_appointment_response(request, pk, PanelAppointment)
 
 
 def record_workflow_event(
@@ -856,19 +939,37 @@ def coordinator_approve_view(request, pk):
         return error_response("This recommendation is not awaiting Programme Coordinator review.")
 
     with transaction.atomic():
+        recommendation = (
+            PanelRecommendation.objects.select_for_update(of=("self",))
+            .select_related(
+                "profile",
+                "profile__student",
+                "supervisor",
+                "recommended_member",
+                "replaces_appointment",
+            )
+            .get(pk=recommendation.pk)
+        )
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.APPROVED
         recommendation.coordinator_decided_at = timezone.now()
         recommendation.save(update_fields=["status", "coordinator_decided_at", "updated_at"])
-        PanelAppointment.objects.get_or_create(
-            recommendation=recommendation,
-            defaults={
+        try:
+            activate_replacement(
+                model=PanelAppointment,
+                replacement_source=recommendation,
+                actor=request.user,
+                create_values={
+                    "recommendation": recommendation,
                 "profile": recommendation.profile,
                 "supervisor": recommendation.supervisor,
                 "panel_member": recommendation.recommended_member,
                 "approved_by": request.user,
-            },
-        )
+                },
+            )
+        except AppointmentLifecycleConflict as exc:
+            transaction.set_rollback(True)
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         record_workflow_event(
             actor=request.user,
             action="COORDINATOR_APPROVE",
@@ -1459,6 +1560,40 @@ def supervisor_coordinator_queue_view(request):
     return Response(SupervisorApplicationSerializer(applications, many=True).data)
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def supervisor_coordinator_records_view(request):
+    if request.user.role != User.Role.COORDINATOR:
+        return error_response(
+            "Only Programme Coordinators can view supervisor appointment records.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    programme = coordinator_programme(request.user)
+    if not programme:
+        return Response([])
+    applications = (
+        SupervisorApplication.objects.filter(
+            student__programme=programme,
+            status=SupervisorApplication.Status.APPROVED,
+            appointment__isnull=False,
+        )
+        .select_related(
+            "student",
+            "student__user",
+            "proposed_supervisor",
+            "appointment__ended_by",
+            "appointment__supersedes",
+        )
+        .prefetch_related(
+            "documents",
+            "workflow_events__actor",
+            "appointment__lifecycle_events__actor",
+        )
+        .order_by("-coordinator_decided_at", "-pk")
+    )
+    return Response(SupervisorApplicationSerializer(applications, many=True).data)
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def supervisor_coordinator_approve_view(request, pk):
@@ -1659,11 +1794,21 @@ def supervisor_records_view(request):
         "student__user",
         "proposed_supervisor",
         "proposed_supervisor__lecturer",
+        "appointment__ended_by",
+        "appointment__supersedes",
     ).prefetch_related("documents", "workflow_events__actor")
 
     def display_status(application):
         if application.status == SupervisorApplication.Status.APPROVED:
-            return "Approved"
+            try:
+                return (
+                    "Approved"
+                    if application.appointment.status
+                    == SupervisorAppointment.Status.ACTIVE
+                    else "Ended"
+                )
+            except SupervisorAppointment.DoesNotExist:
+                return "Approved"
         if application.status in [
             SupervisorApplication.Status.REJECTED_BY_SUPERVISOR,
             SupervisorApplication.Status.REJECTED_BY_COORDINATOR,
@@ -1688,7 +1833,11 @@ def supervisor_records_view(request):
                 "researchTopic": application.research_title,
                 "researchArea": application.research_area,
                 "abstract": application.research_abstract,
-                "appointmentId": f"SV-APP-{application.pk:05d}",
+                "appointmentId": (
+                    application.appointment.pk
+                    if hasattr(application, "appointment")
+                    else None
+                ),
                 "workloadLimit": (
                     f"{count_supervisor_workload(application.proposed_supervisor)}/"
                     f"{supervisor_workload_limit(application.proposed_supervisor)} Supervisees"
@@ -1706,6 +1855,13 @@ def supervisor_records_view(request):
                     application.documents.all(),
                     many=True,
                 ).data,
+                "appointmentLifecycle": (
+                    appointment_lifecycle_payload(application.appointment)
+                    if hasattr(application, "appointment")
+                    else None
+                ),
+                "replacesAppointmentId": application.replaces_appointment_id,
+                "replacementReason": application.replacement_reason or None,
                 **supervisor_waiting_metadata(application),
             }
             for application in applications

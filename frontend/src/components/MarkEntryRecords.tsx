@@ -100,7 +100,12 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   };
 
   // Calculated Stats
-  const summary = useMemo(() => getMarkRecordSummary(records), [records]);
+  const summary = useMemo(
+    () => getMarkRecordSummary(
+      records.filter((record) => record.taskLifecycleStatus !== 'RETIRED'),
+    ),
+    [records],
+  );
   const totalRecordCount = summary.total;
   const submittedCount = summary.submitted;
   const draftSavedCount = summary.draft;
@@ -480,7 +485,11 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
                     {/* Styled Status badge */}
                     <td className="py-4 px-5 text-center">
-                      {rec.status === 'Submitted' ? (
+                      {rec.taskLifecycleStatus === 'RETIRED' ? (
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
+                          Retired
+                        </span>
+                      ) : rec.status === 'Submitted' ? (
                         <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-[9px] font-extrabold tracking-wider text-emerald-600 uppercase border border-emerald-100">
                           Submitted
                         </span>

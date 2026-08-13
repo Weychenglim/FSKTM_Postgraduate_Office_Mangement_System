@@ -35,6 +35,9 @@ export interface MarkRecord extends DeadlineMetadata {
   status: MarkStatus;
   submittedDate: string; // "12 Dec 2025" or "-"
   rubricScores?: Record<string, number>;
+  taskLifecycleStatus?: 'ACTIVE' | 'RETIRED';
+  retiredAt?: string | null;
+  retirementReason?: string | null;
 }
 
 // Rubric components (UC26).
@@ -140,6 +143,10 @@ export interface MarkRecordDetail extends DeadlineMetadata {
   assignment: {
     assignedAt: string;
     assignedBy: string | null;
+    lifecycleStatus: 'ACTIVE' | 'RETIRED';
+    retiredAt: string | null;
+    retiredBy: string | null;
+    retirementReason: string | null;
   };
   period: DeadlineMetadata & {
     id: number;
@@ -186,6 +193,14 @@ export interface MarkRecordDetail extends DeadlineMetadata {
     reason: string;
     beforeValues: Record<string, unknown>;
     afterValues: Record<string, unknown>;
+    createdAt: string;
+  }>;
+  handoverHistory: Array<{
+    id: number;
+    replacementTaskId: number | null;
+    actorName: string;
+    reason: string;
+    draftSnapshot: Record<string, unknown>;
     createdAt: string;
   }>;
 }

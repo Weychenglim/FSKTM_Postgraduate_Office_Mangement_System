@@ -71,6 +71,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 }) => {
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
+  const [replacementApplication, setReplacementApplication] = useState<SupervisorApplicationRecord | null>(null);
   const [loadingApplications, setLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
 
@@ -80,7 +81,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
     getMySupervisorApplications()
       .then((records) => {
         setApplications(records.map(toStudentSupervisorApplication));
-        setApprovedApplication(records.find((record) => record.status === 'APPROVED') || null);
+        setApprovedApplication(records.find(
+          (record) => record.status === 'APPROVED'
+            && record.appointmentLifecycle?.status === 'ACTIVE',
+        ) || null);
       })
       .catch((reason) => {
         setApplicationsError(
@@ -179,6 +183,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           setApplications(prev => [newApp, ...prev]);
           onNavigateToList?.();
         }}
+        replacementApplication={replacementApplication}
       />
     );
   }
@@ -329,6 +334,20 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
           >
             View Details
           </PortalButton>
+          {approvedApplication && (
+            <PortalButton
+              type="button"
+              variant="secondary"
+              icon={Users}
+              fullWidth
+              onClick={() => {
+                setReplacementApplication(approvedApplication);
+                onNavigateToNewApplication?.();
+              }}
+            >
+              Change Supervisor
+            </PortalButton>
+          )}
         </div>
 
       </div>
@@ -349,15 +368,20 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             </p>
           </div>
 
-          <PortalButton
-            type="button"
-            onClick={handleCreateNewApplication}
-            variant="primary"
-            size="md"
-            icon={Plus}
-          >
-            New Application
-          </PortalButton>
+          {!approvedApplication && (
+            <PortalButton
+              type="button"
+              onClick={() => {
+                setReplacementApplication(null);
+                handleCreateNewApplication();
+              }}
+              variant="primary"
+              size="md"
+              icon={Plus}
+            >
+              New Application
+            </PortalButton>
+          )}
         </div>
 
         {/* Data Table implementation */}

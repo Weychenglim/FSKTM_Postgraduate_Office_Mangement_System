@@ -439,3 +439,13 @@
 - Verification: the full Accounts/Appointments/Dashboard/Marks suite passes 226 tests after the focused handoff, conflict, migration, eligibility, readiness, seed, downstream-history, and end-to-end tests. All 40 frontend `.test.ts` files, TypeScript lint, the production build, and both production artifact guards pass. Django checks and migration dry-run pass, and the development database has applied `appointments.0009`.
 - A newly published transitive `nanoid <3.3.17` advisory appeared during verification. The lockfile now resolves `nanoid 3.3.18`; `npm run audit:security` reports zero vulnerabilities and the dependency-only lock update is kept in a separate security commit.
 - The local Django and Vite servers started successfully at `127.0.0.1:8002` and `127.0.0.1:3000`. The in-app browser loaded the Vite document but did not execute its module bundle, so no automated UI browser-smoke pass is claimed for this slice.
+
+## Appointment Closure and Reassignment
+
+- Implemented persisted Supervisor/Panel closure, immutable lifecycle events, active uniqueness constraints, replacement lineage, direct Office/Coordinator closure, and atomic approval-chain handovers.
+- Added Student Supervisor replacement with fresh documents and Lecturer Panel-member replacement through existing role queues.
+- Added outgoing Panel-recommendation cancellation during Supervisor handover and immediate workload release after closure.
+- Added Marks-task retirement, draft snapshot audits, clean replacement tasks, submitted-history preservation, active-query filtering, and authorized retired-task history/detail rendering.
+- Extended monitoring, Coordinator records, CSV/report metadata, dossiers, and lifecycle detail views; removed fabricated Office Supervisor detail identifiers.
+- Added focused backend and frontend lifecycle tests. The focused lifecycle suite passes 8 tests, including replacement after an earlier direct closure; the final lifecycle/report/dossier regression suite passes 23 tests.
+- The complete Appointments/Dashboard/Marks backend suite passes 184 tests, and the affected lifecycle/report/dossier/Marks suite passes 74 tests. All 41 frontend `.test.ts` files, TypeScript lint, production build, dependency audit, production artifact guards, Django checks, migration dry-run, and diff checks pass. No browser-smoke result is claimed for this slice.

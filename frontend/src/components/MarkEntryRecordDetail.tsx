@@ -108,8 +108,8 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         backLabel="Back to Mark Entry Records"
         onBack={onBack}
         actions={(
-          <StatusBadge tone={getStatusBadgeTone(statusLabel)} dot>
-            {statusLabel}
+          <StatusBadge tone={record.assignment.lifecycleStatus === 'RETIRED' ? 'neutral' : getStatusBadgeTone(statusLabel)} dot>
+            {record.assignment.lifecycleStatus === 'RETIRED' ? 'Retired' : statusLabel}
           </StatusBadge>
         )}
       />
@@ -163,6 +163,18 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
               </div>
             </dl>
           </PortalCard>
+
+          {record.assignment.lifecycleStatus === 'RETIRED' ? (
+            <PortalCard padding="lg" className="rounded-lg border-slate-300 bg-slate-50">
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">Retired evaluation task</h2>
+              <p className="mt-2 text-xs font-semibold text-slate-600">
+                {record.assignment.retirementReason || 'The evaluator appointment ended.'}
+              </p>
+              <p className="mt-2 text-[10px] text-slate-400">
+                {record.assignment.retiredBy || 'System'} · {displayDateTime(record.assignment.retiredAt)}
+              </p>
+            </PortalCard>
+          ) : null}
 
           <PortalCard padding="none" className="overflow-hidden rounded-lg">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
@@ -278,6 +290,25 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                     <p className="font-bold text-slate-700">{event.newEvaluator}</p>
                     <p className="mt-1 text-slate-600">{event.reason}</p>
                     <p className="mt-1 text-[10px] text-slate-400">{displayDateTime(event.createdAt)}</p>
+                  </div>
+                ))}
+              </div>
+            </PortalCard>
+          ) : null}
+
+          {record.handoverHistory.length > 0 ? (
+            <PortalCard padding="lg" className="rounded-lg">
+              <h2 className="text-xs font-extrabold uppercase text-slate-600">Appointment handover audit</h2>
+              <div className="mt-4 space-y-4">
+                {record.handoverHistory.map((event) => (
+                  <div key={event.id} className="text-xs border-l-2 border-slate-200 pl-3">
+                    <p className="font-bold text-slate-700">{event.reason}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {displayDateTime(event.createdAt)}</p>
+                    {Object.keys(event.draftSnapshot).length > 0 && (
+                      <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[10px] text-slate-600 whitespace-pre-wrap">
+                        {JSON.stringify(event.draftSnapshot, null, 2)}
+                      </pre>
+                    )}
                   </div>
                 ))}
               </div>

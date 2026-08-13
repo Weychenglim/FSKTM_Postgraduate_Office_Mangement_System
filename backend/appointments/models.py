@@ -78,6 +78,14 @@ class PanelRecommendation(models.Model):
         null=True,
         blank=True,
     )
+    replaces_appointment = models.ForeignKey(
+        "PanelAppointment",
+        on_delete=models.PROTECT,
+        related_name="replacement_recommendations",
+        null=True,
+        blank=True,
+    )
+    replacement_reason = models.TextField(blank=True)
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -114,7 +122,6 @@ class PanelRecommendation(models.Model):
                     status__in=[
                         "SUBMITTED_TO_PANEL",
                         "PENDING_COORDINATOR",
-                        "APPROVED",
                     ]
                 ),
                 name="one_active_panel_recommendation_per_student",
@@ -138,7 +145,14 @@ class PanelAppointment(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
+        ENDED = "ENDED", "Ended"
         COMPLETED = "COMPLETED", "Completed"
+
+    class EndOutcome(models.TextChoices):
+        COMPLETED = "COMPLETED", "Completed"
+        REPLACED = "REPLACED", "Replaced"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+        OTHER = "OTHER", "Other"
 
     recommendation = models.OneToOneField(
         PanelRecommendation,
@@ -165,15 +179,43 @@ class PanelAppointment(models.Model):
         on_delete=models.PROTECT,
         related_name="approved_panel_appointments",
     )
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="replacement_appointment",
+        null=True,
+        blank=True,
+    )
     appointment_date = models.DateField(default=timezone.localdate)
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE
+    )
+    end_outcome = models.CharField(
+        max_length=16,
+        choices=EndOutcome.choices,
+        blank=True,
+    )
+    end_reason = models.TextField(blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ended_panel_appointments",
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-appointment_date", "profile__student_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile"],
+                condition=Q(status="ACTIVE"),
+                name="one_active_panel_appointment_per_profile",
+            )
+        ]
 
     def __str__(self):
         return f"{self.profile.matric_no} panel: {self.panel_member}"
@@ -220,6 +262,14 @@ class SupervisorApplication(models.Model):
         null=True,
         blank=True,
     )
+    replaces_appointment = models.ForeignKey(
+        "SupervisorAppointment",
+        on_delete=models.PROTECT,
+        related_name="replacement_applications",
+        null=True,
+        blank=True,
+    )
+    replacement_reason = models.TextField(blank=True)
     proposed_supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -253,7 +303,6 @@ class SupervisorApplication(models.Model):
                     status__in=[
                         "SUBMITTED_TO_SUPERVISOR",
                         "PENDING_COORDINATOR",
-                        "APPROVED",
                     ]
                 ),
                 name="one_active_supervisor_application_per_student",
@@ -392,6 +441,12 @@ class SupervisorAppointment(models.Model):
         ACTIVE = "ACTIVE", "Active"
         ENDED = "ENDED", "Ended"
 
+    class EndOutcome(models.TextChoices):
+        COMPLETED = "COMPLETED", "Completed"
+        REPLACED = "REPLACED", "Replaced"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+        OTHER = "OTHER", "Other"
+
     application = models.OneToOneField(
         SupervisorApplication,
         on_delete=models.PROTECT,
@@ -412,6 +467,13 @@ class SupervisorAppointment(models.Model):
         on_delete=models.PROTECT,
         related_name="approved_supervisor_appointments",
     )
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="replacement_appointment",
+        null=True,
+        blank=True,
+    )
     appointment_date = models.DateField(default=timezone.localdate)
     status = models.CharField(
         max_length=16,
@@ -419,11 +481,94 @@ class SupervisorAppointment(models.Model):
         default=Status.ACTIVE,
         db_index=True,
     )
+    end_outcome = models.CharField(
+        max_length=16,
+        choices=EndOutcome.choices,
+        blank=True,
+    )
+    end_reason = models.TextField(blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ended_supervisor_appointments",
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-appointment_date", "student__matric_no"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=Q(status="ACTIVE"),
+                name="one_active_supervisor_appointment_per_student",
+            )
+        ]
+
+
+class AppointmentLifecycleEvent(models.Model):
+    """Immutable audit for appointment activation, closure, and handover."""
+
+    class Action(models.TextChoices):
+        ACTIVATED = "ACTIVATED", "Activated"
+        ENDED = "ENDED", "Ended"
+        REPLACED = "REPLACED", "Replaced"
+
+    supervisor_appointment = models.ForeignKey(
+        SupervisorAppointment,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_events",
+        null=True,
+        blank=True,
+    )
+    panel_appointment = models.ForeignKey(
+        PanelAppointment,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_events",
+        null=True,
+        blank=True,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="appointment_lifecycle_events",
+    )
+    actor_role = models.CharField(max_length=64)
+    action = models.CharField(max_length=16, choices=Action.choices)
+    previous_status = models.CharField(max_length=16, blank=True)
+    new_status = models.CharField(max_length=16)
+    outcome = models.CharField(max_length=16, blank=True)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        supervisor_appointment__isnull=False,
+                        panel_appointment__isnull=True,
+                    )
+                    | Q(
+                        supervisor_appointment__isnull=True,
+                        panel_appointment__isnull=False,
+                    )
+                ),
+                name="lifecycle_event_has_exactly_one_appointment",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Appointment lifecycle events are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Appointment lifecycle events are immutable.")
 
 
 class AppointmentWorkflowEvent(models.Model):

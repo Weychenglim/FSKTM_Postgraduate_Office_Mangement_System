@@ -51,6 +51,8 @@ export function buildSupervisorApplicationFormData(
     researchTitle: string;
     researchArea: string;
     researchAbstract: string;
+    replacesAppointmentId?: number | null;
+    replacementReason?: string;
   },
   files: Map<string, File>,
 ): FormData {
@@ -59,6 +61,12 @@ export function buildSupervisorApplicationFormData(
   body.append('researchTitle', fields.researchTitle);
   body.append('researchArea', fields.researchArea);
   body.append('researchAbstract', fields.researchAbstract);
+  if (fields.replacesAppointmentId) {
+    body.append('replacesAppointmentId', String(fields.replacesAppointmentId));
+  }
+  if (fields.replacementReason?.trim()) {
+    body.append('replacementReason', fields.replacementReason.trim());
+  }
   for (const [requirementCode, file] of files) {
     body.append('documents', file);
     body.append('requirementCodes', requirementCode);
