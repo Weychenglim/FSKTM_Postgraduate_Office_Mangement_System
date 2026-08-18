@@ -299,6 +299,20 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
             </div>
           )}
 
+          {report.participantLifecycle && (
+            <PortalCard padding="md" className="rounded-lg">
+              <h3 className="mb-5 text-sm font-black text-brand-navy">Participant Lifecycle</h3>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+                {Object.entries(report.participantLifecycle).map(([label, value]) => (
+                  <div key={label} className="rounded-md bg-slate-50 p-3">
+                    <span className="block text-[9px] font-black uppercase text-slate-500">{reportLabel(label)}</span>
+                    <strong className="mt-1 block text-lg text-brand-navy">{value}</strong>
+                  </div>
+                ))}
+              </div>
+            </PortalCard>
+          )}
+
           <PortalCard padding="none" className="rounded-lg overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
               <Clock3 className="w-4 h-4 text-amber-600" />
@@ -329,17 +343,21 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                         <td className="data-td">
                           {item.kind === 'WAITING'
                             ? `${item.waitingDays ?? 0} days - ${reportLabel(item.waitingOn ?? 'Waiting')}`
-                            : `Overdue - ${item.dueAt ?? 'No date'}`}
+                            : item.kind === 'PARTICIPANT_LIFECYCLE'
+                              ? reportLabel(item.participantStatus ?? 'Lifecycle review')
+                              : `Overdue - ${item.dueAt ?? 'No date'}`}
                         </td>
                         <td className="data-td text-right">
                           <div className="flex flex-wrap justify-end gap-2">
-                            <PortalButton
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => onNavigateToRoute(routeForStudentProgress(item.studentId))}
-                            >
-                              View Dossier
-                            </PortalButton>
+                            {item.studentId && (
+                              <PortalButton
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => onNavigateToRoute(routeForStudentProgress(item.studentId ?? undefined))}
+                              >
+                                View Dossier
+                              </PortalButton>
+                            )}
                             <PortalButton
                               size="sm"
                               variant="ghost"

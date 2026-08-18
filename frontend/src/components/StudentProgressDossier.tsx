@@ -10,6 +10,7 @@ import {
   History,
   PanelTop,
   UserRound,
+  UsersRound,
 } from 'lucide-react';
 
 import type {
@@ -24,6 +25,7 @@ import type {
 } from '../types';
 import { getStudentProgressDossier } from '../services';
 import { ApiError } from '../services/apiClient';
+import { APP_ROUTES } from '../constants/routes';
 import {
   formatProgressStatus,
   resolveStudentProgressRecordRoute,
@@ -287,6 +289,11 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
           : 'Your current research progress, deadlines, and faculty processing status.'}
         backLabel="Back"
         onBack={onBack}
+        actions={internal && currentUserRole === 'Office Staff/Admin' ? (
+          <PortalButton icon={UsersRound} onClick={() => onNavigateToRoute(APP_ROUTES.dashboardParticipantLifecycle)}>
+            Manage Participant
+          </PortalButton>
+        ) : undefined}
       />
 
       <PortalCard padding="md" className="border-t-4 border-t-brand-navy rounded-lg">

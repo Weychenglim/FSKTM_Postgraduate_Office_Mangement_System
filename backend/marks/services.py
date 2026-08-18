@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from academics.models import AcademicSemester
+from accounts.models import Lecturer, Student
 from appointments.models import (
     PanelAppointment,
     StudentResearchProfile,
@@ -18,6 +19,7 @@ from .models import (
     EvaluationPeriod,
     EvaluationTask,
     EvaluationTaskHandoverAudit,
+    EvaluationTaskLifecycleAudit,
     EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
@@ -590,9 +592,21 @@ def ensure_period_tasks(period, *, actor=None):
         "panel": 0,
     }
     supervisor_appointments = SupervisorAppointment.objects.filter(
-        status=SupervisorAppointment.Status.ACTIVE
+        status=SupervisorAppointment.Status.ACTIVE,
+        student__status=Student.Status.ACTIVE,
+        supervisor__is_active=True,
+        supervisor__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
     ).select_related("student", "student__user", "supervisor")
     for appointment in supervisor_appointments:
+        student = Student.objects.select_for_update().get(pk=appointment.student_id)
+        lecturer = Lecturer.objects.select_for_update().get(
+            pk=appointment.supervisor_id
+        )
+        if (
+            student.status != Student.Status.ACTIVE
+            or lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE
+        ):
+            continue
         profile = StudentResearchProfile.objects.filter(
             matric_no=appointment.student.matric_no
         ).first()
@@ -609,9 +623,25 @@ def ensure_period_tasks(period, *, actor=None):
         created["supervisor"] += int(was_created)
 
     panel_appointments = PanelAppointment.objects.filter(
-        status=PanelAppointment.Status.ACTIVE
+        status=PanelAppointment.Status.ACTIVE,
+        panel_member__is_active=True,
+        panel_member__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+    ).filter(
+        Q(profile__student__isnull=True)
+        | Q(profile__student__student__status=Student.Status.ACTIVE)
     ).select_related("profile", "panel_member")
     for appointment in panel_appointments:
+        if appointment.profile.student_id:
+            student = Student.objects.select_for_update().get(
+                pk=appointment.profile.student_id
+            )
+            if student.status != Student.Status.ACTIVE:
+                continue
+        lecturer = Lecturer.objects.select_for_update().get(
+            pk=appointment.panel_member_id
+        )
+        if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
+            continue
         _, was_created = EvaluationTask.objects.get_or_create(
             profile=appointment.profile,
             evaluator=appointment.panel_member,
@@ -653,6 +683,25 @@ def create_backup_evaluation_task(
         raise ValidationError("A manual override reason is required.")
     if evaluator.role != User.Role.LECTURER:
         raise ValidationError("Backup evaluator must be a lecturer.")
+    from accounts.eligibility import (
+        profile_student_is_workflow_eligible,
+        user_is_assignable_lecturer,
+    )
+    if not user_is_assignable_lecturer(evaluator):
+        raise ValidationError("Backup evaluator is not available for new assignments.")
+    if not profile_student_is_workflow_eligible(profile):
+        raise ValidationError(
+            "The student's lifecycle status does not permit a new evaluation task."
+        )
+    if profile.student_id:
+        student = Student.objects.select_for_update().get(pk=profile.student_id)
+        if student.status != Student.Status.ACTIVE:
+            raise ValidationError(
+                "The student's lifecycle status does not permit a new evaluation task."
+            )
+    lecturer = Lecturer.objects.select_for_update().get(pk=evaluator.pk)
+    if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
+        raise ValidationError("Backup evaluator is no longer available.")
     task, _ = EvaluationTask.objects.get_or_create(
         profile=profile,
         evaluator=evaluator,
@@ -741,6 +790,13 @@ def retire_official_evaluation_tasks(
             reason=reason,
             draft_snapshot=snapshot,
         )
+        EvaluationTaskLifecycleAudit.objects.create(
+            task=task,
+            actor=actor,
+            action=EvaluationTaskLifecycleAudit.Action.RETIRED,
+            reason=reason,
+            entry_snapshot=snapshot,
+        )
         retired.append(task)
     return retired
 
@@ -826,6 +882,166 @@ def entry_snapshot(entry):
             for score in scores
         },
     }
+
+
+def _task_entry_snapshot(task):
+    try:
+        entry = task.mark_entry
+    except MarkEntry.DoesNotExist:
+        return {}
+    return entry_snapshot(entry)
+
+
+def _task_is_submitted(task):
+    try:
+        return task.mark_entry.status == MarkEntry.Status.SUBMITTED
+    except MarkEntry.DoesNotExist:
+        return False
+
+
+@transaction.atomic
+def pause_student_evaluation_tasks(*, profile, actor, reason):
+    tasks = EvaluationTask.objects.select_for_update(of=("self",)).filter(
+        profile=profile,
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related("mark_entry")
+    paused = []
+    for task in tasks:
+        if _task_is_submitted(task):
+            continue
+        snapshot = _task_entry_snapshot(task)
+        task.lifecycle_status = EvaluationTask.Lifecycle.PAUSED
+        task.paused_at = timezone.now()
+        task.paused_by = actor
+        task.pause_reason = reason
+        task.save(
+            update_fields=[
+                "lifecycle_status",
+                "paused_at",
+                "paused_by",
+                "pause_reason",
+            ]
+        )
+        EvaluationTaskLifecycleAudit.objects.create(
+            task=task,
+            actor=actor,
+            action=EvaluationTaskLifecycleAudit.Action.PAUSED,
+            reason=reason,
+            entry_snapshot=snapshot,
+        )
+        paused.append(task)
+    return paused
+
+
+def _task_appointment_is_active(task):
+    if task.evaluator_role == EvaluationTask.EvaluatorRole.SUPERVISOR:
+        return SupervisorAppointment.objects.filter(
+            student__matric_no=task.profile.matric_no,
+            supervisor=task.evaluator,
+            status=SupervisorAppointment.Status.ACTIVE,
+        ).exists()
+    if task.evaluator_role == EvaluationTask.EvaluatorRole.PANEL:
+        return PanelAppointment.objects.filter(
+            profile=task.profile,
+            panel_member=task.evaluator,
+            status=PanelAppointment.Status.ACTIVE,
+        ).exists()
+    lecturer = getattr(task.evaluator, "lecturer", None)
+    return bool(
+        task.evaluator.is_active
+        and lecturer
+        and lecturer.lifecycle_status == lecturer.Lifecycle.ACTIVE
+    )
+
+
+@transaction.atomic
+def resume_student_evaluation_tasks(*, profile, actor, reason):
+    tasks = EvaluationTask.objects.select_for_update(of=("self",)).filter(
+        profile=profile,
+        lifecycle_status=EvaluationTask.Lifecycle.PAUSED,
+    ).select_related("period", "mark_entry", "evaluator__lecturer")
+    resumed = []
+    retired = []
+    for task in tasks:
+        snapshot = _task_entry_snapshot(task)
+        if task.period.accepts_submissions and _task_appointment_is_active(task):
+            task.lifecycle_status = EvaluationTask.Lifecycle.ACTIVE
+            action = EvaluationTaskLifecycleAudit.Action.RESUMED
+            task.paused_at = None
+            task.paused_by = None
+            task.pause_reason = ""
+            task.save(
+                update_fields=[
+                    "lifecycle_status",
+                    "paused_at",
+                    "paused_by",
+                    "pause_reason",
+                ]
+            )
+            resumed.append(task)
+        else:
+            task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
+            action = EvaluationTaskLifecycleAudit.Action.RETIRED
+            task.retired_at = timezone.now()
+            task.retired_by = actor
+            task.retirement_reason = (
+                "Student returned after the evaluation period or appointment ended. "
+                + reason
+            )
+            task.save(
+                update_fields=[
+                    "lifecycle_status",
+                    "retired_at",
+                    "retired_by",
+                    "retirement_reason",
+                ]
+            )
+            retired.append(task)
+        EvaluationTaskLifecycleAudit.objects.create(
+            task=task,
+            actor=actor,
+            action=action,
+            reason=reason,
+            entry_snapshot=snapshot,
+        )
+    return {"resumed": resumed, "retired": retired}
+
+
+@transaction.atomic
+def retire_participant_evaluation_tasks(*, tasks, actor, reason):
+    locked = EvaluationTask.objects.select_for_update(of=("self",)).filter(
+        pk__in=tasks.values_list("pk", flat=True),
+        lifecycle_status__in=[
+            EvaluationTask.Lifecycle.ACTIVE,
+            EvaluationTask.Lifecycle.PAUSED,
+        ],
+    ).select_related("mark_entry")
+    retired = []
+    for task in locked:
+        if _task_is_submitted(task):
+            continue
+        snapshot = _task_entry_snapshot(task)
+        task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
+        task.retired_at = timezone.now()
+        task.retired_by = actor
+        task.retirement_reason = reason
+        task.save(
+            update_fields=[
+                "lifecycle_status",
+                "retired_at",
+                "retired_by",
+                "retirement_reason",
+            ]
+        )
+        EvaluationTaskLifecycleAudit.objects.create(
+            task=task,
+            actor=actor,
+            action=EvaluationTaskLifecycleAudit.Action.RETIRED,
+            reason=reason,
+            entry_snapshot=snapshot,
+        )
+        retired.append(task)
+    return retired
 
 
 @transaction.atomic

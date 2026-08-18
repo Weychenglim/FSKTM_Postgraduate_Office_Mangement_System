@@ -1,6 +1,14 @@
-# FSKTM Postgraduate Management System
+# A Web-Based Postgraduate Administrative Workflow, Appointment, and Project Evaluation Management System for FSKTM Coursework Programmes
 
-Full-stack postgraduate management portal for FSKTM administrative, lecturer, and student workflows.
+Full-stack portal for role-scoped postgraduate administrative workflow, appointment, timeline, and project-evaluation management.
+
+## Owned Scope and Measurable Outputs
+
+The five owned modules are Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking. They provide measurable persisted outputs: current role-scoped workflow state, elapsed waiting days and responsible approval stage, deadline and Marks completion status, immutable decision/lifecycle audit coverage, participant eligibility enforcement, and authorized analytics/XLSX exports.
+
+Course registration, enrolment, credit accumulation, course scheduling, and general coursework results are outside these five modules. Notifications/Announcements, Registry Management, and the wider File Repository retain their separate ownership boundaries.
+
+`docs/Functional Requirements.pdf` and `docs/Use Case Description.pdf` remain reference binaries. Their older scope wording and confirmation-letter content must be revised later from the editable academic source files; this repository does not modify those PDFs in place.
 
 ## Project Layout
 

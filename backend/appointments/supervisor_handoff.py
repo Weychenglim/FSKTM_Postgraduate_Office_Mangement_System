@@ -3,6 +3,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 
+from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
+
 from .models import (
     AppointmentWorkflowEvent,
     PanelRecommendation,
@@ -116,6 +118,12 @@ def _resolve_research_profile(application):
 
 @transaction.atomic
 def approve_supervisor_application(*, application_id, actor):
+    student_id = SupervisorApplication.objects.only("student_id").get(
+        pk=application_id
+    ).student_id
+    from accounts.models import Student
+
+    Student.objects.select_for_update().get(pk=student_id)
     application = (
         SupervisorApplication.objects.select_for_update(of=("self",))
         .select_related(
@@ -153,6 +161,14 @@ def approve_supervisor_application(*, application_id, actor):
     if application.status != SupervisorApplication.Status.PENDING_COORDINATOR:
         raise SupervisorApprovalConflict(
             "This application is not awaiting Programme Coordinator review."
+        )
+    if not student_is_workflow_eligible(application.student):
+        raise SupervisorApprovalConflict(
+            "The student's lifecycle status does not permit final approval."
+        )
+    if not user_is_assignable_lecturer(application.proposed_supervisor):
+        raise SupervisorApprovalConflict(
+            "The proposed supervisor is not eligible for a new appointment."
         )
     if count_supervisor_workload(
         application.proposed_supervisor

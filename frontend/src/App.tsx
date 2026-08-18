@@ -85,6 +85,7 @@ const LecturerSupervisorAppointments = lazyNamed('LecturerSupervisorAppointments
 const AdministrationDashboard = lazyNamed('AdministrationDashboard', () => import('./components/AdministrationDashboard'));
 const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
 const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
+const ParticipantLifecycleManagement = lazyNamed('ParticipantLifecycleManagement', () => import('./components/ParticipantLifecycleManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
@@ -219,6 +220,7 @@ export default function App() {
   const isDashboardTimelineRoute = pathname === APP_ROUTES.dashboardTimeline;
   const isDashboardSemestersRoute = pathname === APP_ROUTES.dashboardSemesters;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
+  const isDashboardParticipantLifecycleRoute = pathname === APP_ROUTES.dashboardParticipantLifecycle;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
   const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
   const isStudentOtherDossierRoute = Boolean(
@@ -620,6 +622,7 @@ export default function App() {
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isStudentWorkspace ? (
                 <StudentSupervisorAppointment
+                  lifecycleStatus={currentUser.participantLifecycleStatus}
                   onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
                   initialApplicationId={supervisorApplicationId}
                   routeView={isSupervisorNewRoute ? 'newApplication' : 'overview'}
@@ -674,7 +677,11 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isStudentOtherDossierRoute ? (
+              isDashboardParticipantLifecycleRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardParticipantLifecycleRoute ? (
+                <ParticipantLifecycleManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+              ) : isStudentOtherDossierRoute ? (
                 <Navigate to={APP_ROUTES.dashboardProgress} replace />
               ) : isDashboardProgressRoute && !dossierStudentId ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
@@ -700,6 +707,7 @@ export default function App() {
                   studentName={currentUser.fullName}
                   studentId={currentUser.studentId}
                   programme={currentUser.department}
+                  lifecycleStatus={currentUser.participantLifecycleStatus}
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
                   onNavigateToRoute={navigate}
                 />
@@ -710,11 +718,15 @@ export default function App() {
                 />
               ) : isLecturerWorkspace ? (
                 <LecturerDashboard
+                  lifecycleStatus={currentUser.participantLifecycleStatus}
                   onNavigateToTab={(tab) => navigate(routeForSidebarItem(tab))}
                   onNavigateToRoute={navigate}
                 />
               ) : isDashboardSemestersRoute ? (
-                <AcademicSemesterManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+                <AcademicSemesterManagement
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onManageParticipants={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
+                />
               ) : isDashboardTimelineRoute ? (
                 <TimelineManagement
                   onBack={() => navigate(APP_ROUTES.dashboard)}

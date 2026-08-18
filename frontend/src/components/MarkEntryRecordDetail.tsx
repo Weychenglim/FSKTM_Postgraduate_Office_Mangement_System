@@ -108,8 +108,8 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         backLabel="Back to Mark Entry Records"
         onBack={onBack}
         actions={(
-          <StatusBadge tone={record.assignment.lifecycleStatus === 'RETIRED' ? 'neutral' : getStatusBadgeTone(statusLabel)} dot>
-            {record.assignment.lifecycleStatus === 'RETIRED' ? 'Retired' : statusLabel}
+          <StatusBadge tone={record.assignment.lifecycleStatus === 'ACTIVE' ? getStatusBadgeTone(statusLabel) : record.assignment.lifecycleStatus === 'PAUSED' ? 'warning' : 'neutral'} dot>
+            {record.assignment.lifecycleStatus === 'ACTIVE' ? statusLabel : record.assignment.lifecycleStatus === 'PAUSED' ? 'Paused' : 'Retired'}
           </StatusBadge>
         )}
       />
@@ -172,6 +172,16 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
               </p>
               <p className="mt-2 text-[10px] text-slate-400">
                 {record.assignment.retiredBy || 'System'} · {displayDateTime(record.assignment.retiredAt)}
+              </p>
+            </PortalCard>
+          ) : record.assignment.lifecycleStatus === 'PAUSED' ? (
+            <PortalCard padding="lg" className="rounded-lg border-amber-200 bg-amber-50">
+              <h2 className="text-xs font-extrabold uppercase text-amber-800">Paused evaluation task</h2>
+              <p className="mt-2 text-xs font-semibold text-amber-800">
+                {record.assignment.pauseReason || 'The Student is temporarily ineligible for evaluation activity.'}
+              </p>
+              <p className="mt-2 text-[10px] text-amber-700">
+                {record.assignment.pausedBy || 'System'} · {displayDateTime(record.assignment.pausedAt)}
               </p>
             </PortalCard>
           ) : null}

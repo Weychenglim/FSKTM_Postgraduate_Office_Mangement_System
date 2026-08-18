@@ -449,3 +449,14 @@
 - Extended monitoring, Coordinator records, CSV/report metadata, dossiers, and lifecycle detail views; removed fabricated Office Supervisor detail identifiers.
 - Added focused backend and frontend lifecycle tests. The focused lifecycle suite passes 8 tests, including replacement after an earlier direct closure; the final lifecycle/report/dossier regression suite passes 23 tests.
 - The complete Appointments/Dashboard/Marks backend suite passes 184 tests, and the affected lifecycle/report/dossier/Marks suite passes 74 tests. All 41 frontend `.test.ts` files, TypeScript lint, production build, dependency audit, production artifact guards, Django checks, migration dry-run, and diff checks pass. No browser-smoke result is claimed for this slice.
+## Academic Participant Lifecycle Management (2026-08-18)
+
+- Implemented authoritative Student and Lecturer lifecycle metadata, immutable participant audits, and three staged migrations across Accounts, Appointments, and Marks.
+- Added Office-only participant list/detail/transition/pending-cancellation APIs and the lazy `/dashboard/participant-lifecycle` operational workspace.
+- Implemented Deferred pause/reactivation behavior, Withdrawal cancellation/closure/retirement, Graduation blockers/completion, Retiring assignment exclusion, and terminal retirement with login disablement and refresh-session revocation.
+- Added Paused evaluation tasks and immutable task lifecycle snapshots while preserving submitted Marks and all historical identifiers.
+- Propagated lifecycle eligibility through Supervisor/Panel candidate lists, serializers, final approvals, Marks generation, backup assignment, Dashboard actions, Reports, and Progress Dossiers.
+- Added Student read-only and Lecturer Retiring dashboard banners, Office report lifecycle counts/attention, internal dossier audit history, and public dossier redaction.
+- Updated the FYP title and measurable owned-module outputs. Course registration, enrolment, credit accumulation, scheduling, and general coursework results remain explicitly out of scope.
+- `docs/Functional Requirements.pdf` and `docs/Use Case Description.pdf` were not edited because editable source files are unavailable; their older title/confirmation-letter wording remains an academic-document follow-up.
+- Verification: 10 focused lifecycle tests and all 244 Accounts/Appointments/Dashboard/Marks tests pass. All 42 frontend `.test.ts` files, TypeScript lint, production build, dependency audit, production demo/CSP artifact guards, Django checks, migration dry-run, and diff checks pass. No browser-smoke result is claimed for this slice.

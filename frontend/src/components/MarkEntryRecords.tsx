@@ -102,7 +102,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   // Calculated Stats
   const summary = useMemo(
     () => getMarkRecordSummary(
-      records.filter((record) => record.taskLifecycleStatus !== 'RETIRED'),
+      records.filter((record) => record.taskLifecycleStatus === 'ACTIVE'),
     ),
     [records],
   );
@@ -488,6 +488,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                       {rec.taskLifecycleStatus === 'RETIRED' ? (
                         <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
                           Retired
+                        </span>
+                      ) : rec.taskLifecycleStatus === 'PAUSED' ? (
+                        <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-50 text-[9px] font-extrabold tracking-wider text-amber-700 uppercase border border-amber-200" title={rec.pauseReason || undefined}>
+                          Paused
                         </span>
                       ) : rec.status === 'Submitted' ? (
                         <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-[9px] font-extrabold tracking-wider text-emerald-600 uppercase border border-emerald-100">

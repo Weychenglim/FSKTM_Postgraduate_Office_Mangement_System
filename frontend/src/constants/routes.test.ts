@@ -5,6 +5,7 @@ import {
   isKnownAppPath,
   routeForDashboardSemesters,
   routeForDashboardTimeline,
+  routeForParticipantLifecycle,
   routeForPanelAssignment,
   routeForPanelRecord,
   routeForNotificationTarget,
@@ -26,6 +27,7 @@ assert.equal(routeForSidebarItem(SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS), APP_ROU
 
 assert.equal(routeForDashboardTimeline(), '/dashboard/timeline');
 assert.equal(routeForDashboardSemesters(), '/dashboard/semesters');
+assert.equal(routeForParticipantLifecycle(), '/dashboard/participant-lifecycle');
 assert.equal(sidebarItemForPath('/marks/records/MARK-001'), SIDEBAR_ITEMS.MARKS_ENTRY);
 assert.equal(sidebarItemForPath('/dashboard/timeline'), SIDEBAR_ITEMS.DASHBOARD);
 assert.equal(sidebarItemForPath('/supervisor-appointments/workload'), SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS);
@@ -47,6 +49,7 @@ assert.equal(isKnownAppPath('/panel-appointments/assignments/MEA2209841'), true)
 assert.equal(isKnownAppPath('/dashboard'), true);
 assert.equal(isKnownAppPath('/dashboard/timeline'), true);
 assert.equal(isKnownAppPath('/dashboard/semesters'), true);
+assert.equal(isKnownAppPath('/dashboard/participant-lifecycle'), true);
 assert.equal(isKnownAppPath('/dashboard/unknown'), false);
 assert.equal(isKnownAppPath('/supervisor-appointments/workload'), true);
 assert.equal(isKnownAppPath('/supervisor-appointments/new'), true);

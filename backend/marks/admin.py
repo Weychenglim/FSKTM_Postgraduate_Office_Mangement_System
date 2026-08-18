@@ -8,6 +8,7 @@ from .models import (
     EvaluationPeriod,
     EvaluationTask,
     EvaluationTaskHandoverAudit,
+    EvaluationTaskLifecycleAudit,
     EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
@@ -153,6 +154,39 @@ class EvaluationTaskAdmin(admin.ModelAdmin):
         "profile__student_name",
         "evaluator__full_name",
     )
+    readonly_fields = (
+        "lifecycle_status",
+        "paused_at",
+        "paused_by",
+        "pause_reason",
+        "retired_at",
+        "retired_by",
+        "retirement_reason",
+    )
+
+
+@admin.register(EvaluationTaskLifecycleAudit)
+class EvaluationTaskLifecycleAuditAdmin(admin.ModelAdmin):
+    list_display = ("task", "action", "actor", "created_at")
+    list_filter = ("action", "created_at")
+    search_fields = ("task__profile__matric_no", "actor__full_name", "reason")
+    readonly_fields = (
+        "task",
+        "action",
+        "actor",
+        "reason",
+        "entry_snapshot",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return bool(obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EvaluationTaskOverrideAudit)

@@ -54,6 +54,7 @@ class PanelRecommendation(models.Model):
             "CANCELLED_BY_SUPERVISOR",
             "Cancelled by Supervisor",
         )
+        CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
     ACTIVE_STATUSES = (
@@ -242,6 +243,7 @@ class SupervisorApplication(models.Model):
             "CANCELLED_BY_STUDENT",
             "Cancelled by Student",
         )
+        CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
     ACTIVE_STATUSES = (

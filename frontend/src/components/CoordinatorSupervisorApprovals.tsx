@@ -158,6 +158,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   <PortalButton
                     variant="secondary"
                     icon={XCircle}
+                    disabled={record.participantEligible === false}
                     onClick={() => {
                       setRejectingRecordId(isRejecting ? null : record.id);
                       setRejectionReason('');
@@ -168,13 +169,18 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   <PortalButton
                     variant="primary"
                     icon={Clock3}
-                    disabled={isRejecting}
+                    disabled={isRejecting || record.participantEligible === false}
                     onClick={() => approve(record)}
                   >
                     Approve
                   </PortalButton>
                 </div>
               </div>
+              {record.participantEligible === false && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                  This Student is {record.participantLifecycleStatus?.toLowerCase()}; the approval remains visible but is non-actionable until eligible.
+                </p>
+              )}
               {isRejecting && (
                 <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/70 p-4">
                   <label

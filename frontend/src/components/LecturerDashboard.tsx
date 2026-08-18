@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
+import { AlertTriangle, Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
@@ -15,6 +15,7 @@ import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface LecturerDashboardProps {
+  lifecycleStatus?: string | null;
   onNavigateToTab: (tabName: string) => void;
   onNavigateToRoute?: (route: string) => void;
 }
@@ -73,6 +74,7 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
 );
 
 export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
+  lifecycleStatus,
   onNavigateToTab,
   onNavigateToRoute,
 }) => {
@@ -114,6 +116,16 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
           </PortalButton>
         )}
       />
+
+      {lifecycleStatus === 'RETIRING' && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <strong className="block">Retirement transition in progress</strong>
+            <p className="mt-1 text-[11px]">You may resolve existing decisions, but new Supervisor, Panel, and Marks assignments are unavailable.</p>
+          </div>
+        </div>
+      )}
 
       <ActiveSemesterContext />
 

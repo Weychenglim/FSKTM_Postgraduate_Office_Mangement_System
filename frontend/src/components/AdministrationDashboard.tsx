@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, ChevronRight } from 'lucide-react';
+import { BarChart3, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
@@ -133,13 +133,22 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         title="Administration Dashboard"
         subtitle="Overview administrative status, timeline intervals, and records requiring office review."
         actions={(
-          <PortalButton
-            variant="secondary"
-            icon={BarChart3}
-            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
-          >
-            View Workflow Reports
-          </PortalButton>
+          <>
+            <PortalButton
+              variant="secondary"
+              icon={UsersRound}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardParticipantLifecycle)}
+            >
+              Manage Participants
+            </PortalButton>
+            <PortalButton
+              variant="secondary"
+              icon={BarChart3}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+            >
+              View Workflow Reports
+            </PortalButton>
+          </>
         )}
       />
 

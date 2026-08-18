@@ -269,3 +269,16 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Operational Marks, dashboard-action, report, workload, and completion queries filter active appointments/tasks. Office Marks records and authorized dossiers include retired history explicitly.
 - Role UI reuses `AppointmentEndControl`, existing Supervisor application forms, and the Panel recommendation drawer. Coordinator Supervisor history has a dedicated programme-scoped endpoint instead of broadening Office monitoring.
 - Migrations `appointments.0010` and `marks.0005`/`0006` add lifecycle state, lineage, audits, and conditional constraints without fabricating legacy closure dates or reasons.
+
+## Academic Participant Lifecycle Architecture
+
+- `accounts.Student` retains its existing business states and adds authoritative transition timestamp, Office actor, and reason. `accounts.Lecturer` adds `ACTIVE`, `RETIRING`, and `RETIRED` plus equivalent transition metadata.
+- `ParticipantLifecycleAudit` is append-only, references exactly one Student or Lecturer through a database constraint, and stores previous/new state, actor, reason, affected record identifiers, and server time.
+- `accounts.participant_lifecycle` is the transactional orchestration boundary. It row-locks participants, calculates blockers, delegates appointment closure to `appointments.appointment_lifecycle`, delegates task pause/resume/retirement to `marks.services`, writes workflow/lifecycle audits, and disables/revokes retired Lecturer sessions before commit.
+- `accounts.eligibility` is a dependency-light shared policy used by appointment serializers/views and Marks generation. Candidate query filtering is paired with mutation-time validation so stale clients and crafted participant IDs cannot widen eligibility.
+- `EvaluationTask` adds `PAUSED`; `EvaluationTaskLifecycleAudit` stores immutable pause/resume/retirement reasons and draft score/comment snapshots. Active-only operational queries naturally omit Paused and Retired history, while Office records and dossiers continue to query every lifecycle state.
+- `/api/accounts/participants/` is Office-only and returns summary counts, filtered Student/Lecturer rows, blocker counts, actionable pending record IDs, account access, and immutable audits. Transition conflicts return `409`; unknown records return `404`; malformed transitions return `400`.
+- `/dashboard/participant-lifecycle` is a lazy-loaded Office workspace under Dashboard routing. It provides filters, summary counts, blocker inspection, mandatory-reason transitions, individual pending-work cancellation, conflict/retry states, and audit history without a sidebar item.
+- The authenticated `/auth/me/` payload exposes only the current participant lifecycle status and account-access class needed for read-only Student and Retiring Lecturer dashboard banners. Backend authorization remains authoritative.
+- Workflow Reports append current participant lifecycle counts and attention records only for Office scope. Dossiers serialize reason, actor, and audits only for internal viewers; the public Student representation contains status and effective date only.
+- Ordinary Django Admin lifecycle fields are read-only to prevent bypassing transactional side effects. Audit models are registered as immutable inspection surfaces.

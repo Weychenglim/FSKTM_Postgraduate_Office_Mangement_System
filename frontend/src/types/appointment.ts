@@ -131,6 +131,8 @@ export interface SupervisorRequest extends WorkflowAgeingMetadata {
   submittedDate: string;
   receivedTime: string;
   status: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   abstract?: string;
 }
 
@@ -215,6 +217,8 @@ export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
   id?: number | string;
   studentId: string;
   studentName: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   programme: string;
   semester?: string;
   proposedTopic: string;
@@ -422,6 +426,8 @@ export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   id: number;
   studentId: string;
   studentName: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   programme: string;
   semester: string;
   proposedSupervisor: string;

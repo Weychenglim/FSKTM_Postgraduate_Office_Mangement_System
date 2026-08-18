@@ -16,6 +16,19 @@ export interface StudentProgressIdentity {
   programme: string;
   status: string;
   intakeSemester: string;
+  lifecycle: {
+    status: string;
+    effectiveAt: string | null;
+    reason?: string | null;
+    changedBy?: string | null;
+    audits?: Array<{
+      previousStatus: string;
+      newStatus: string;
+      reason: string;
+      actor: string;
+      createdAt: string;
+    }>;
+  };
   research: {
     semester: string;
     title: string;
