@@ -5,6 +5,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
 from academics.services import current_effective_semester
+from accounts.models import Lecturer, Student
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
@@ -227,6 +228,8 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelRecommendationSerializer(serializers.ModelSerializer):
+    participantLifecycleStatus = serializers.SerializerMethodField()
+    participantEligible = serializers.SerializerMethodField()
     studentId = serializers.CharField(source="profile.matric_no", read_only=True)
     studentName = serializers.CharField(source="profile.student_name", read_only=True)
     programme = serializers.CharField(source="profile.programme", read_only=True)
@@ -266,6 +269,8 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             "id",
             "studentId",
             "studentName",
+            "participantLifecycleStatus",
+            "participantEligible",
             "programme",
             "semester",
             "semesterId",
@@ -298,6 +303,17 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
 
     def get_submittedDate(self, obj):
         return format_display_date(obj.submitted_at or obj.created_at)
+
+    def get_participantLifecycleStatus(self, obj):
+        if not obj.profile.student_id:
+            return None
+        try:
+            return obj.profile.student.student.status.upper()
+        except ObjectDoesNotExist:
+            return None
+
+    def get_participantEligible(self, obj):
+        return self.get_participantLifecycleStatus(obj) in {None, "ACTIVE"}
 
     def get_semester(self, obj):
         return (
@@ -370,6 +386,14 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         user = request.user
         if user.role != User.Role.LECTURER:
             raise serializers.ValidationError("Only lecturers can submit panel recommendations.")
+        from accounts.eligibility import (
+            profile_student_is_workflow_eligible,
+            user_is_assignable_lecturer,
+        )
+        if not user_is_assignable_lecturer(user):
+            raise serializers.ValidationError(
+                "Retiring or retired lecturers cannot submit new panel recommendations."
+            )
 
         try:
             profile = StudentResearchProfile.objects.get(
@@ -378,6 +402,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             )
         except StudentResearchProfile.DoesNotExist as exc:
             raise serializers.ValidationError("This student is not assigned to you as supervisor.") from exc
+        if not profile_student_is_workflow_eligible(profile):
+            raise serializers.ValidationError(
+                "This student's lifecycle status does not permit a new panel recommendation."
+            )
 
         if not SupervisorAppointment.objects.filter(
             student_id=profile.student_id,
@@ -394,6 +422,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             )
         except User.DoesNotExist as exc:
             raise serializers.ValidationError("Selected panel lecturer was not found.") from exc
+        if not user_is_assignable_lecturer(recommended_member):
+            raise serializers.ValidationError(
+                "The selected panel lecturer is not available for new assignments."
+            )
 
         if recommended_member.pk == user.pk:
             raise serializers.ValidationError("A supervisor cannot recommend themself as panel member.")
@@ -458,8 +490,31 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
+        profile = validated_data["profile"]
+        if profile.student_id:
+            student = Student.objects.select_for_update().get(pk=profile.student_id)
+            if student.status != Student.Status.ACTIVE:
+                raise serializers.ValidationError(
+                    "This student's lifecycle status does not permit a new panel recommendation."
+                )
+        users = [self.context["request"].user, validated_data["recommended_member"]]
+        lecturers = {
+            row.pk: row
+            for row in Lecturer.objects.select_for_update()
+            .filter(pk__in=[user.pk for user in users])
+            .order_by("pk")
+        }
+        if any(
+            not user.is_active
+            or user.pk not in lecturers
+            or lecturers[user.pk].lifecycle_status != Lecturer.Lifecycle.ACTIVE
+            for user in users
+        ):
+            raise serializers.ValidationError(
+                "A selected Lecturer is no longer available for new assignments."
+            )
         recommendation = PanelRecommendation(
-            profile=validated_data["profile"],
+            profile=profile,
             academic_semester=validated_data["academic_semester"],
             supervisor=self.context["request"].user,
             recommended_member=validated_data["recommended_member"],
@@ -600,6 +655,8 @@ class AppointmentWorkflowEventSerializer(serializers.ModelSerializer):
 
 
 class SupervisorApplicationSerializer(serializers.ModelSerializer):
+    participantLifecycleStatus = serializers.SerializerMethodField()
+    participantEligible = serializers.SerializerMethodField()
     studentId = serializers.CharField(source="student.matric_no", read_only=True)
     studentName = serializers.CharField(source="student.user.full_name", read_only=True)
     programme = serializers.CharField(source="student.programme", read_only=True)
@@ -653,6 +710,8 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "id",
             "studentId",
             "studentName",
+            "participantLifecycleStatus",
+            "participantEligible",
             "programme",
             "semester",
             "semesterId",
@@ -682,6 +741,12 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
+
+    def get_participantLifecycleStatus(self, obj):
+        return obj.student.status.upper()
+
+    def get_participantEligible(self, obj):
+        return obj.student.status == Student.Status.ACTIVE
 
     def get_researchProfileReady(self, obj):
         if obj.status != SupervisorApplication.Status.APPROVED:
@@ -754,6 +819,11 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The student profile is not available."
             ) from exc
+        from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
+        if not student_is_workflow_eligible(student):
+            raise serializers.ValidationError(
+                "Your current lifecycle status does not permit a new supervisor application."
+            )
         if student.supervisor_applications.filter(
             status__in=[
                 SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -774,6 +844,10 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The selected supervisor was not found."
             ) from exc
+        if not user_is_assignable_lecturer(supervisor):
+            raise serializers.ValidationError(
+                "The selected supervisor is not available for new assignments."
+            )
         active_appointment = SupervisorAppointment.objects.filter(
             student=student,
             status=SupervisorAppointment.Status.ACTIVE,
@@ -825,8 +899,25 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         documents = validated_data.pop("validated_documents", [])
         self.saved_file_names = []
+        student = Student.objects.select_for_update().get(
+            pk=validated_data["student"].pk
+        )
+        lecturer = Lecturer.objects.select_for_update().get(
+            pk=validated_data["supervisor"].pk
+        )
+        if student.status != Student.Status.ACTIVE:
+            raise serializers.ValidationError(
+                "Your current lifecycle status does not permit a new supervisor application."
+            )
+        if (
+            lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE
+            or not validated_data["supervisor"].is_active
+        ):
+            raise serializers.ValidationError(
+                "The selected supervisor is no longer available for new assignments."
+            )
         application = SupervisorApplication.objects.create(
-            student=validated_data["student"],
+            student=student,
             academic_semester=validated_data["academic_semester"],
             proposed_supervisor=validated_data["supervisor"],
             research_title=validated_data["researchTitle"],

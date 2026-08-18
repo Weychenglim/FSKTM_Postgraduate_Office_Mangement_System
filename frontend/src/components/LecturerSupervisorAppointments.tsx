@@ -309,8 +309,11 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 
   if (!isOpen || !request) return null;
   const canAct =
-    request.status === 'SUBMITTED_TO_SUPERVISOR'
-    || request.status === 'Pending Review';
+    request.participantEligible !== false
+    && (
+      request.status === 'SUBMITTED_TO_SUPERVISOR'
+      || request.status === 'Pending Review'
+    );
 
   const handleRejectClick = () => {
     if (!rejectReason.trim()) {
@@ -377,6 +380,12 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             />
 
             <WorkflowAuditLog events={request.workflow} />
+
+            {request.participantEligible === false && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                This Student is {request.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
+              </p>
+            )}
 
             {canAct ? (
             <div className="pt-5 border-t border-slate-100 space-y-4">
@@ -1001,6 +1010,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               </div>
 
               {/* Action operations controls */}
+              {selectedRequest.participantEligible === false ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-[11px] font-bold text-amber-800">
+                  This Student is {selectedRequest.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
+                </p>
+              ) : (
               <div className="border-t border-slate-100 pt-6 space-y-4">
                 <FormTextarea
                   label="REASON FOR REJECTION"
@@ -1036,6 +1050,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                   </button>
                 </div>
               </div>
+              )}
 
             </div>
 

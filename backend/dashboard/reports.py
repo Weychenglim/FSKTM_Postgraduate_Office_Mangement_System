@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from academics.models import AcademicSemester
+from accounts.models import Lecturer, Student
 from appointments.ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.deadlines import mark_deadline_metadata
@@ -514,8 +515,8 @@ def _timeline_summary(rows):
     }
 
 
-def _attention(supervisor_rows, panel_rows, mark_rows):
-    items = []
+def _attention(supervisor_rows, panel_rows, mark_rows, lifecycle_items=None):
+    items = list(lifecycle_items or [])
     for row in [*supervisor_rows, *panel_rows]:
         if row["waitingDays"] is None:
             continue
@@ -558,6 +559,59 @@ def _attention(supervisor_rows, panel_rows, mark_rows):
             item["label"],
         ),
     )[:20]
+
+
+def _participant_lifecycle_summary(user, programme):
+    if user.role != User.Role.OFFICE_ADMIN:
+        return None, []
+    students = Student.objects.select_related("user")
+    if programme:
+        students = students.filter(programme__iexact=programme)
+    lecturers = Lecturer.objects.select_related("user")
+    counts = {
+        "activeStudents": students.filter(status=Student.Status.ACTIVE).count(),
+        "deferredStudents": students.filter(status=Student.Status.DEFERRED).count(),
+        "graduatedStudents": students.filter(status=Student.Status.GRADUATED).count(),
+        "withdrawnStudents": students.filter(status=Student.Status.WITHDRAWN).count(),
+        "activeLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
+        "retiringLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
+        "retiredLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),
+    }
+    attention = [
+        {
+            "kind": "PARTICIPANT_LIFECYCLE",
+            "recordType": "STUDENT_PARTICIPANT",
+            "recordId": student.matric_no,
+            "studentId": student.matric_no,
+            "label": f"{student.user.full_name} - Deferred",
+            "programme": student.programme,
+            "waitingDays": None,
+            "waitingOn": None,
+            "deadlineState": None,
+            "dueAt": None,
+            "participantStatus": "DEFERRED",
+            "targetModule": "DASHBOARD",
+        }
+        for student in students.filter(status=Student.Status.DEFERRED)
+    ]
+    attention.extend(
+        {
+            "kind": "PARTICIPANT_LIFECYCLE",
+            "recordType": "LECTURER_PARTICIPANT",
+            "recordId": lecturer.staff_no,
+            "studentId": None,
+            "label": f"{lecturer.user.full_name} - Retiring",
+            "programme": lecturer.department,
+            "waitingDays": None,
+            "waitingOn": None,
+            "deadlineState": None,
+            "dueAt": None,
+            "participantStatus": "RETIRING",
+            "targetModule": "DASHBOARD",
+        }
+        for lecturer in lecturers.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING)
+    )
+    return counts, attention
 
 
 def build_workflow_report(user, query_params=None, now=None):
@@ -650,6 +704,9 @@ def build_workflow_report(user, query_params=None, now=None):
         mark_rows or [],
         timeline_rows or [],
     ]
+    participant_lifecycle, participant_attention = _participant_lifecycle_summary(
+        user, programme
+    )
 
     return {
         "generatedAt": now.isoformat(),
@@ -703,7 +760,13 @@ def build_workflow_report(user, query_params=None, now=None):
         "panel": _module_summary(panel_rows),
         "marks": _marks_summary(mark_rows),
         "timeline": _timeline_summary(timeline_rows),
-        "attention": _attention(supervisor_rows, panel_rows, mark_rows),
+        "participantLifecycle": participant_lifecycle,
+        "attention": _attention(
+            supervisor_rows,
+            panel_rows,
+            mark_rows,
+            participant_attention,
+        ),
     }
 
 
@@ -746,6 +809,11 @@ def build_workflow_report_workbook(report):
     ] + [
         (key, value) for key, value in report["overview"].items()
     ]
+    if report.get("participantLifecycle"):
+        summary_rows.extend(
+            (f"Participant {key}", value)
+            for key, value in report["participantLifecycle"].items()
+        )
     for row in summary_rows:
         summary.append(row)
     summary["A1"].font = Font(bold=True)

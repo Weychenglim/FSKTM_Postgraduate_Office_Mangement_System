@@ -437,6 +437,8 @@ def _marks_records(profile, user, visibility, now):
         status = _task_status(entry, deadline["deadlineState"])
         if task.lifecycle_status == EvaluationTask.Lifecycle.RETIRED:
             status = "RETIRED"
+        elif task.lifecycle_status == EvaluationTask.Lifecycle.PAUSED:
+            status = "PAUSED"
         if visibility == "PUBLIC":
             row = {
                 "status": status,
@@ -567,6 +569,8 @@ def _timeline_section(today):
 def _attention(supervisor, panel, marks, timeline, visibility):
     items = []
     for task in marks["tasks"] if marks else []:
+        if task["taskLifecycleStatus"] != EvaluationTask.Lifecycle.ACTIVE:
+            continue
         if task["deadlineState"] == "OVERDUE":
             items.append(
                 {
@@ -719,6 +723,32 @@ def build_student_progress_dossier(user, student_id, now=None):
             "programme": student.programme,
             "status": student.status,
             "intakeSemester": student.intake_semester,
+            "lifecycle": {
+                "status": student.status.upper(),
+                "effectiveAt": _iso(student.status_changed_at),
+                **(
+                    {
+                        "reason": student.status_reason or None,
+                        "changedBy": (
+                            student.status_changed_by.full_name
+                            if student.status_changed_by_id
+                            else None
+                        ),
+                        "audits": [
+                            {
+                                "previousStatus": audit.previous_status,
+                                "newStatus": audit.new_status,
+                                "reason": audit.reason,
+                                "actor": audit.actor.full_name,
+                                "createdAt": _iso(audit.created_at),
+                            }
+                            for audit in student.lifecycle_audits.select_related("actor")
+                        ],
+                    }
+                    if visibility == "INTERNAL"
+                    else {}
+                ),
+            },
             "research": (
                 {
                     "semester": profile.semester,

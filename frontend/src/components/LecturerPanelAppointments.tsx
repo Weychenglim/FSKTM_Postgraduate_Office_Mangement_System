@@ -288,7 +288,9 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 
   if (!isOpen || !recommendation) return null;
 
-  const canAct = !readOnly && canReviewPanelRecommendation(recommendation.status, reviewerRole);
+  const canAct = !readOnly
+    && recommendation.participantEligible !== false
+    && canReviewPanelRecommendation(recommendation.status, reviewerRole);
   const reviewerLabel =
     readOnly
       ? 'Recommendation Record'
@@ -433,6 +435,12 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                   }}
                 />
               )}
+
+            {recommendation.participantEligible === false && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; the recommendation is retained as read-only until eligible.
+              </p>
+            )}
 
             {canAct && (
               <div className="space-y-4">

@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -7,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from academics.models import AcademicSemester
+from accounts.models import Lecturer, Student
 from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
@@ -645,10 +647,13 @@ def assignment_options_view(request):
         )
     students = StudentResearchProfile.objects.select_related("supervisor").order_by(
         "student_name",
+    ).filter(
+        Q(student__isnull=True) | Q(student__student__status=Student.Status.ACTIVE)
     )
     lecturers = User.objects.filter(
         role=User.Role.LECTURER,
         is_active=True,
+        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
     ).select_related("lecturer").order_by("full_name")
     tasks = EvaluationTask.objects.filter(
         lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
@@ -806,6 +811,8 @@ def mark_records_view(request):
                 ),
                 "status": display_status,
                 "taskLifecycleStatus": task.lifecycle_status,
+                "pausedAt": task.paused_at,
+                "pauseReason": task.pause_reason or None,
                 "retiredAt": task.retired_at,
                 "retirementReason": task.retirement_reason or None,
                 "submittedDate": (
@@ -900,6 +907,13 @@ def mark_record_detail_view(request, record_id):
                     task.assigned_by.full_name if task.assigned_by else None
                 ),
                 "lifecycleStatus": task.lifecycle_status,
+                "pausedAt": (
+                    task.paused_at.isoformat() if task.paused_at else None
+                ),
+                "pausedBy": (
+                    task.paused_by.full_name if task.paused_by else None
+                ),
+                "pauseReason": task.pause_reason or None,
                 "retiredAt": (
                     task.retired_at.isoformat() if task.retired_at else None
                 ),

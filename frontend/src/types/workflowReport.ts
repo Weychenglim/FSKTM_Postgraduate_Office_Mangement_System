@@ -58,16 +58,18 @@ export interface TimelineReportSummary {
 }
 
 export interface WorkflowReportAttentionItem {
-  kind: 'WAITING' | 'DEADLINE';
+  kind: 'WAITING' | 'DEADLINE' | 'PARTICIPANT_LIFECYCLE';
   recordType: string;
   recordId: string;
-  studentId: string;
+  studentId: string | null;
   label: string;
   programme: string;
   waitingDays: number | null;
   waitingOn: string | null;
   deadlineState: string | null;
   dueAt: string | null;
+  participantStatus?: string;
+  targetModule?: string;
 }
 
 export interface WorkflowReport {
@@ -108,5 +110,14 @@ export interface WorkflowReport {
   panel: ReportModuleSummary | null;
   marks: MarksReportSummary | null;
   timeline: TimelineReportSummary | null;
+  participantLifecycle: {
+    activeStudents: number;
+    deferredStudents: number;
+    graduatedStudents: number;
+    withdrawnStudents: number;
+    activeLecturers: number;
+    retiringLecturers: number;
+    retiredLecturers: number;
+  } | null;
   attention: WorkflowReportAttentionItem[];
 }

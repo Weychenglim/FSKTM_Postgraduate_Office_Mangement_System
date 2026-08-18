@@ -11,6 +11,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from announcements.models import Notification
+from accounts.eligibility import (
+    profile_student_is_workflow_eligible,
+    student_is_workflow_eligible,
+    user_is_assignable_lecturer,
+)
+from accounts.models import Lecturer, Student
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
@@ -71,6 +77,13 @@ from .supervisor_handoff import (
 
 
 User = get_user_model()
+
+
+def participant_ineligible_response():
+    return error_response(
+        "The student's lifecycle status temporarily prevents workflow decisions.",
+        status.HTTP_409_CONFLICT,
+    )
 
 
 def workflow_semester_payload(record):
@@ -581,6 +594,8 @@ def own_supervisor_workload_view(request):
 def eligible_supervisees_view(request):
     if request.user.role != User.Role.LECTURER:
         return error_response("Only lecturers can view eligible supervisees.", status.HTTP_403_FORBIDDEN)
+    if request.user.lecturer.lifecycle_status != request.user.lecturer.Lifecycle.ACTIVE:
+        return Response([])
     active_appointment = SupervisorAppointment.objects.filter(
         student_id=OuterRef("student_id"),
         supervisor=request.user,
@@ -589,6 +604,7 @@ def eligible_supervisees_view(request):
     profiles = (
         StudentResearchProfile.objects.filter(
             supervisor=request.user,
+            student__student__status=Student.Status.ACTIVE,
             student__student__supervisor_appointments__supervisor=request.user,
             student__student__supervisor_appointments__status=SupervisorAppointment.Status.ACTIVE,
         )
@@ -608,7 +624,11 @@ def eligible_supervisees_view(request):
 def panel_candidates_view(request):
     if request.user.role != User.Role.LECTURER:
         return error_response("Only lecturers can view panel candidates.", status.HTTP_403_FORBIDDEN)
-    lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).select_related(
+    lecturers = User.objects.filter(
+        role=User.Role.LECTURER,
+        is_active=True,
+        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+    ).select_related(
         "lecturer"
     ).exclude(pk=request.user.pk)
     return Response(PanelCandidateSerializer(lecturers, many=True).data)
@@ -796,6 +816,8 @@ def cancel_panel_recommendation_view(request, pk):
             return error_response(
                 "Only recommendations awaiting selected panel review can be cancelled."
             )
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
 
         reason_serializer = ReasonSerializer(data=request.data)
         reason_serializer.is_valid(raise_exception=True)
@@ -845,6 +867,8 @@ def panel_accept_view(request, pk):
         return error_response("Only the selected panel lecturer can accept this recommendation.", status.HTTP_403_FORBIDDEN)
     if recommendation.status != PanelRecommendation.Status.SUBMITTED_TO_PANEL:
         return error_response("This recommendation is not awaiting selected panel review.")
+    if not profile_student_is_workflow_eligible(recommendation.profile):
+        return participant_ineligible_response()
 
     with transaction.atomic():
         previous_status = recommendation.status
@@ -887,6 +911,8 @@ def panel_reject_view(request, pk):
         return error_response("Only the selected panel lecturer can reject this recommendation.", status.HTTP_403_FORBIDDEN)
     if recommendation.status != PanelRecommendation.Status.SUBMITTED_TO_PANEL:
         return error_response("This recommendation is not awaiting selected panel review.")
+    if not profile_student_is_workflow_eligible(recommendation.profile):
+        return participant_ineligible_response()
 
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
@@ -937,8 +963,16 @@ def coordinator_approve_view(request, pk):
         )
     if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
         return error_response("This recommendation is not awaiting Programme Coordinator review.")
+    if not profile_student_is_workflow_eligible(recommendation.profile):
+        return participant_ineligible_response()
 
     with transaction.atomic():
+        if recommendation.profile.student_id:
+            locked_student = Student.objects.select_for_update().get(
+                pk=recommendation.profile.student_id
+            )
+            if not student_is_workflow_eligible(locked_student):
+                return participant_ineligible_response()
         recommendation = (
             PanelRecommendation.objects.select_for_update(of=("self",))
             .select_related(
@@ -950,6 +984,13 @@ def coordinator_approve_view(request, pk):
             )
             .get(pk=recommendation.pk)
         )
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
+        if not user_is_assignable_lecturer(recommendation.recommended_member):
+            return error_response(
+                "The selected panel lecturer is not eligible for a new appointment.",
+                status.HTTP_409_CONFLICT,
+            )
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.APPROVED
         recommendation.coordinator_decided_at = timezone.now()
@@ -1011,6 +1052,8 @@ def coordinator_reject_view(request, pk):
         )
     if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
         return error_response("This recommendation is not awaiting Programme Coordinator review.")
+    if not profile_student_is_workflow_eligible(recommendation.profile):
+        return participant_ineligible_response()
 
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
@@ -1234,6 +1277,7 @@ def supervisor_candidates_view(request):
     candidates = User.objects.filter(
         role=User.Role.LECTURER,
         is_active=True,
+        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
         lecturer__supervisor__isnull=False,
     ).select_related("lecturer", "lecturer__supervisor")
     return Response(SupervisorCandidateSerializer(candidates, many=True).data)
@@ -1355,6 +1399,8 @@ def cancel_supervisor_application_view(request, pk):
             return error_response(
                 "Only requests awaiting supervisor review can be cancelled."
             )
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
 
         reason_serializer = ReasonSerializer(data=request.data)
         reason_serializer.is_valid(raise_exception=True)
@@ -1417,6 +1463,8 @@ def supervisor_requests_view(request):
             "submittedDate": format_display_date(application.submitted_at),
             "receivedTime": application.submitted_at.isoformat(),
             "status": "Pending Review",
+            "participantLifecycleStatus": application.student.status.upper(),
+            "participantEligible": student_is_workflow_eligible(application.student),
             "abstract": application.research_abstract,
             **supervisor_waiting_metadata(application),
         }
@@ -1443,6 +1491,8 @@ def supervisor_accept_view(request, pk):
         return error_response(
             "This application is not awaiting supervisor review."
         )
+    if not student_is_workflow_eligible(application.student):
+        return participant_ineligible_response()
     if count_supervisor_workload(request.user) >= supervisor_workload_limit(
         request.user
     ):
@@ -1501,6 +1551,8 @@ def supervisor_reject_view(request, pk):
         return error_response(
             "This application is not awaiting supervisor review."
         )
+    if not student_is_workflow_eligible(application.student):
+        return participant_ineligible_response()
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
@@ -1654,6 +1706,8 @@ def supervisor_coordinator_reject_view(request, pk):
         return error_response(
             "This application is not awaiting Programme Coordinator review."
         )
+    if not student_is_workflow_eligible(application.student):
+        return participant_ineligible_response()
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():

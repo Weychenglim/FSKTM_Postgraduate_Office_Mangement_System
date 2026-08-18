@@ -31,7 +31,7 @@ import {
 } from '../services';
 import { PageHeader, PortalButton, PortalConfirmModal, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
-import { ErrorState, LoadingState } from './StateViews';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -43,6 +43,7 @@ interface StudentSupervisorAppointmentProps {
   onNavigateToList?: () => void;
   onNavigateToNewApplication?: () => void;
   onNavigateToApplication?: (applicationId: string) => void;
+  lifecycleStatus?: string | null;
 }
 
 type SupervisorApplicationDetail = StudentSupervisorApplication & {
@@ -68,7 +69,9 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   onNavigateToList,
   onNavigateToNewApplication,
   onNavigateToApplication,
+  lifecycleStatus,
 }) => {
+  const workflowEligible = !lifecycleStatus || lifecycleStatus === 'ACTIVE';
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
   const [replacementApplication, setReplacementApplication] = useState<SupervisorApplicationRecord | null>(null);
@@ -176,6 +179,17 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   };
 
   if (routeView === 'newApplication') {
+    if (!workflowEligible) {
+      return (
+        <div className="space-y-6">
+          <PageHeader title="Supervisor Application" backLabel="Back" onBack={onNavigateToList} />
+          <EmptyState
+            title="Application unavailable"
+            description={`Your ${lifecycleStatus?.toLowerCase()} academic status keeps this workflow read-only.`}
+          />
+        </div>
+      );
+    }
     return (
       <SupervisorAppointmentApplicationPage
         onBack={onNavigateToList ?? (() => undefined)}
@@ -340,6 +354,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
               variant="secondary"
               icon={Users}
               fullWidth
+              disabled={!workflowEligible}
               onClick={() => {
                 setReplacementApplication(approvedApplication);
                 onNavigateToNewApplication?.();
@@ -368,7 +383,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             </p>
           </div>
 
-          {!approvedApplication && (
+          {!approvedApplication && workflowEligible && (
             <PortalButton
               type="button"
               onClick={() => {
@@ -619,6 +634,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                 <WorkflowAuditLog events={activeDetailAp.workflow} />
 
                 {activeDetailAp.workflowStatus
+                  && workflowEligible
                   && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus) && (
                   <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                     <div>

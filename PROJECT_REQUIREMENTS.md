@@ -2,7 +2,9 @@
 
 ## Product Scope
 
-The application is an FSKTM postgraduate management system frontend for postgraduate administrative workflows.
+The application is **A Web-Based Postgraduate Administrative Workflow, Appointment, and Project Evaluation Management System for FSKTM Coursework Programmes**.
+
+The owned product boundary covers Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking. Measurable outputs are persisted role-scoped workflow status; elapsed waiting duration and responsible stage; authoritative deadlines and Marks completion; immutable decision, appointment, and participant lifecycle audits; lifecycle eligibility enforcement; and role-scoped analytics and exports. Course registration, enrolment, credit accumulation, course scheduling, and general coursework results are explicitly outside this boundary.
 
 The five owned completion modules are Dashboard/Timeline, Supervisor Appointment, Panel Appointment, Marks Entry, and Workflow and Approval Tracking. Notifications/Announcements is a separate integration module owned outside this slice; these workflows may expose audit and routing metadata for it, but this module does not own notification-center behavior.
 
@@ -359,3 +361,17 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Closure retires unfinished official Marks tasks in scheduled/open periods. Draft values are retained in an immutable handover audit, submitted entries remain unchanged, and approved handovers create clean tasks for replacement evaluators.
 - Retired Marks tasks remain visible in authorized history but are excluded from lecturer queues, active totals, overdue totals, reports, dashboard actions, and completion denominators.
 - Monitoring, CSV, Workflow Reports, and Progress Dossiers expose authorized lifecycle metadata. Student Panel views remain redacted, and Notifications/Announcements behavior is unchanged.
+
+## Academic Participant Lifecycle Management
+
+- Office Staff/Admin must manage Student and Lecturer academic lifecycle through the nested `/dashboard/participant-lifecycle` workspace; no sixth sidebar module is introduced.
+- Student lifecycle states are Active, Deferred, Graduated, and Withdrawn. Lecturer lifecycle states are Active, Retiring, and Retired. Every transition requires a reason, server timestamp, Office actor, immutable audit, and transactional side effects.
+- Deferred Students retain active appointments and read-only historical access, cannot start or advance Supervisor/Panel workflows, and have unfinished Marks tasks paused and excluded from operational queues, reports, overdue counts, and completion denominators.
+- Reactivation resumes paused Marks tasks only when their original period still accepts submissions and the relevant appointment remains active; otherwise those tasks are retired with immutable draft/comment snapshots.
+- Withdrawal atomically cancels pending workflows, ends active appointments as Withdrawn, retires unfinished Marks tasks, and preserves submitted Marks and all history. Graduation is blocked by unresolved approvals or unfinished operational Marks tasks, then completes remaining active appointments and preserves read-only access.
+- Retiring Lecturers remain able to resolve existing decisions but are excluded from all new Supervisor, Panel, backup-evaluator, and Marks-task assignments in both candidate queries and direct-ID validation.
+- Final Lecturer retirement requires no active appointments, assigned pending decisions, or managed Programme Coordinator responsibility. It retires remaining unfinished tasks, disables login, revokes refresh sessions, and is terminal in the portal.
+- Student and Lecturer lifecycle fields cannot be edited through ordinary Django Admin forms because that would bypass domain side effects. Immutable lifecycle and task audits remain readable in Django Admin.
+- Office Workflow Reports include participant lifecycle counts and Deferred/Retiring attention records. Internal dossiers include full lifecycle reason/actor/audit data; Student self-view exposes only public status and effective date.
+- `docs/Functional Requirements.pdf` and `docs/Use Case Description.pdf` are unchanged binaries. Their confirmation-letter content and older scope wording require later revision from editable academic source files.
+- Co-supervisor support remains deferred until faculty rules define primary/co-supervisor approval, workload, Panel nomination, and Marks responsibilities.

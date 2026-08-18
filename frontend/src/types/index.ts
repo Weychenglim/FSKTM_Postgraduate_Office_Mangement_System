@@ -22,3 +22,4 @@ export * from './dashboard';
 export * from './workflowReport';
 export * from './studentProgress';
 export * from './academicSemester';
+export * from './participantLifecycle';

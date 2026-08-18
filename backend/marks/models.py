@@ -225,6 +225,7 @@ class MarksConfigurationAudit(models.Model):
 class EvaluationTask(models.Model):
     class Lifecycle(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
+        PAUSED = "PAUSED", "Paused"
         RETIRED = "RETIRED", "Retired"
 
     class EvaluatorRole(models.TextChoices):
@@ -276,6 +277,15 @@ class EvaluationTask(models.Model):
         blank=True,
     )
     retirement_reason = models.TextField(blank=True)
+    paused_at = models.DateTimeField(null=True, blank=True)
+    paused_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="paused_evaluation_tasks",
+        null=True,
+        blank=True,
+    )
+    pause_reason = models.TextField(blank=True)
 
     class Meta:
         ordering = ["profile__student_name"]
@@ -322,6 +332,43 @@ class EvaluationTaskOverrideAudit(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class EvaluationTaskLifecycleAudit(models.Model):
+    class Action(models.TextChoices):
+        PAUSED = "PAUSED", "Paused"
+        RESUMED = "RESUMED", "Resumed"
+        RETIRED = "RETIRED", "Retired"
+
+    task = models.ForeignKey(
+        EvaluationTask,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_audits",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="evaluation_task_lifecycle_audits",
+    )
+    action = models.CharField(max_length=16, choices=Action.choices)
+    reason = models.TextField()
+    entry_snapshot = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError("Evaluation task lifecycle audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        raise ValidationError("Evaluation task lifecycle audits are immutable.")
 
 
 class EvaluationTaskHandoverAudit(models.Model):

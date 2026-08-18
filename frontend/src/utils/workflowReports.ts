@@ -2,6 +2,7 @@ import type { UserRole, WorkflowReportAttentionItem, WorkflowReportFilters } fro
 import {
   APP_ROUTES,
   routeForDashboardTimeline,
+  routeForParticipantLifecycle,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
 } from '../constants/routes';
@@ -32,6 +33,9 @@ export const canAccessWorkflowReports = (role: UserRole): boolean =>
 export const resolveWorkflowReportRecordRoute = (
   item: Pick<WorkflowReportAttentionItem, 'recordType' | 'recordId'>,
 ): string => {
+  if (item.recordType === 'STUDENT_PARTICIPANT' || item.recordType === 'LECTURER_PARTICIPANT') {
+    return routeForParticipantLifecycle();
+  }
   if (item.recordType === 'SUPERVISOR_APPLICATION') {
     return routeForSupervisorApplication(item.recordId);
   }

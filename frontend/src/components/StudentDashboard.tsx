@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Award, ChevronRight, Files, UserCheck } from 'lucide-react';
+import { AlertTriangle, Award, ChevronRight, Files, UserCheck } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
@@ -17,6 +17,7 @@ interface StudentDashboardProps {
   studentName: string;
   studentId?: string;
   programme?: string;
+  lifecycleStatus?: string | null;
   onNavigateToTab: (tabName: string) => void;
   onNavigateToRoute?: (route: string) => void;
 }
@@ -76,6 +77,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   studentId,
+  lifecycleStatus,
   onNavigateToTab,
   onNavigateToRoute,
 }) => {
@@ -112,6 +114,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </PortalButton>
         ) : undefined}
       />
+
+      {lifecycleStatus && lifecycleStatus !== 'ACTIVE' && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <strong className="block">Academic status: {lifecycleStatus.charAt(0) + lifecycleStatus.slice(1).toLowerCase()}</strong>
+            <p className="mt-1 text-[11px]">Your historical records remain available, but new workflow submissions and academic decisions are currently read-only.</p>
+          </div>
+        </div>
+      )}
 
       <ActiveSemesterContext />
 
