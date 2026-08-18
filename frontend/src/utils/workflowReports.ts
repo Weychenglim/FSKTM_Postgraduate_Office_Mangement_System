@@ -3,6 +3,7 @@ import {
   APP_ROUTES,
   routeForDashboardTimeline,
   routeForParticipantLifecycle,
+  routeForWorkflowReconciliation,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
 } from '../constants/routes';
@@ -35,6 +36,9 @@ export const resolveWorkflowReportRecordRoute = (
 ): string => {
   if (item.recordType === 'STUDENT_PARTICIPANT' || item.recordType === 'LECTURER_PARTICIPANT') {
     return routeForParticipantLifecycle();
+  }
+  if (item.recordType === 'RECONCILIATION_ISSUE') {
+    return routeForWorkflowReconciliation();
   }
   if (item.recordType === 'SUPERVISOR_APPLICATION') {
     return routeForSupervisorApplication(item.recordId);

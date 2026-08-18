@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Save,
   UsersRound,
+  ShieldAlert,
   XCircle,
 } from 'lucide-react';
 
@@ -47,6 +48,7 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 interface AcademicSemesterManagementProps {
   onBack: () => void;
   onManageParticipants?: () => void;
+  onOpenReconciliation?: () => void;
 }
 
 type LifecycleFilter = 'ALL' | AcademicSemesterLifecycle;
@@ -68,6 +70,7 @@ const displayDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDat
 export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProps> = ({
   onBack,
   onManageParticipants,
+  onOpenReconciliation,
 }) => {
   const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
   const [filter, setFilter] = useState<LifecycleFilter>('ALL');
@@ -213,6 +216,11 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             {onManageParticipants && (
               <PortalButton icon={UsersRound} onClick={onManageParticipants}>
                 Manage participants
+              </PortalButton>
+            )}
+            {onOpenReconciliation && (
+              <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>
+                Reconcile Workflows
               </PortalButton>
             )}
             <PortalButton icon={Plus} variant="primary" onClick={beginCreate}>

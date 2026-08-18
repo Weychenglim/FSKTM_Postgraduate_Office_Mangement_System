@@ -23,3 +23,4 @@ export * from './workflowReport';
 export * from './studentProgress';
 export * from './academicSemester';
 export * from './participantLifecycle';
+export * from './workflowReconciliation';

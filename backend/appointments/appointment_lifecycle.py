@@ -3,6 +3,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from accounts.authorization import coordinator_programme
+
 from .models import (
     AppointmentLifecycleEvent,
     PanelAppointment,
@@ -21,13 +23,6 @@ class AppointmentLifecycleForbidden(Exception):
     pass
 
 
-def _coordinator_programme(actor):
-    try:
-        return actor.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, ObjectDoesNotExist):
-        return ""
-
-
 def _appointment_programme(appointment):
     if isinstance(appointment, SupervisorAppointment):
         return appointment.student.programme.strip()
@@ -39,7 +34,7 @@ def assert_can_manage_appointment(actor, appointment):
         return
     if (
         actor.role == User.Role.COORDINATOR
-        and _coordinator_programme(actor).casefold()
+        and coordinator_programme(actor).casefold()
         == _appointment_programme(appointment).casefold()
     ):
         return

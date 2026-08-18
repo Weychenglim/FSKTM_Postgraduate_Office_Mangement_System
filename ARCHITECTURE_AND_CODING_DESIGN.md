@@ -282,3 +282,15 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - The authenticated `/auth/me/` payload exposes only the current participant lifecycle status and account-access class needed for read-only Student and Retiring Lecturer dashboard banners. Backend authorization remains authoritative.
 - Workflow Reports append current participant lifecycle counts and attention records only for Office scope. Dossiers serialize reason, actor, and audits only for internal viewers; the public Student representation contains status and effective date only.
 - Ordinary Django Admin lifecycle fields are read-only to prevent bypassing transactional side effects. Audit models are registered as immutable inspection surfaces.
+
+## Workflow Reconciliation Architecture
+
+- `dashboard.reconciliation` is a live query/service boundary over Accounts, Academics, Appointments, Dashboard/Timeline, and Marks. Detectors return ephemeral issues; only successful repair audits are persisted.
+- Stable issue IDs combine detector, entity type, and entity ID. SHA-256 fingerprints cover current state and suggestion, providing preview/apply optimistic concurrency without mutable issue rows.
+- `/api/dashboard/reconciliation/` supports module, severity, repairability, programme, search, and pagination filters. Preview/apply rescan current state; audits are Office-only and append-only.
+- `accounts.authorization.coordinator_programme()` centralizes programme scope. User role is the portal gate and `Coordinator.programme_managed` is the sole authority used by Appointments, Dashboard actions, Reports, Dossiers, lifecycle services, and reconciliation.
+- Repairs use `transaction.atomic`, `select_for_update`, current eligibility/workload checks, and existing appointment/Marks services. Semester assignment preserves legacy strings; approved handoff repair retains original Coordinator attribution and decision date.
+- `marks.services.reconcile_evaluation_task()` performs one-task pause, resume, or retirement with submitted-entry rejection and immutable draft/comment snapshots. Missing tasks continue through idempotent `ensure_period_tasks()`.
+- `WorkflowReconciliationAudit` stores issue/entity/action, Office actor, mandatory reason, fingerprint, before/after JSON, affected identifiers, and timestamp. Updates and deletes are rejected.
+- The lazy Office-only React route uses typed list, preview, apply, and audit services with filters, pagination, current-state inspection, deep links, explicit confirmation, stale-conflict recovery, and no Apply control for review-required issues.
+- Dashboard tasks and Workflow Report attention rows link to reconciliation. Announcements/Notifications and unsafe history merges remain outside this boundary.

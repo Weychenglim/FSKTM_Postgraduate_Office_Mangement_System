@@ -108,9 +108,9 @@ export const compareLongestWaiting = <
 
 export const resolveDashboardTaskRoute = (task: DashboardTask): string => {
   if (task.targetModule === 'DASHBOARD') {
-    return task.recordType === 'TIMELINE_ENTRY'
-      ? routeForDashboardTimeline()
-      : APP_ROUTES.dashboard;
+    if (task.recordType === 'TIMELINE_ENTRY') return routeForDashboardTimeline();
+    if (task.recordType === 'RECONCILIATION_ISSUE') return APP_ROUTES.dashboardWorkflowReconciliation;
+    return APP_ROUTES.dashboard;
   }
 
   if (task.targetModule === 'SUPERVISOR_APPOINTMENTS') {

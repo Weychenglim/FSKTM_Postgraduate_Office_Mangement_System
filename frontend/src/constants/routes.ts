@@ -11,6 +11,7 @@ export const APP_ROUTES = {
   dashboardReports: '/dashboard/reports',
   dashboardProgress: '/dashboard/progress',
   dashboardParticipantLifecycle: '/dashboard/participant-lifecycle',
+  dashboardWorkflowReconciliation: '/dashboard/workflow-reconciliation',
   registry: '/registry',
   faq: '/faq',
   files: '/files',
@@ -75,6 +76,8 @@ export const routeForDashboardSemesters = (): string => APP_ROUTES.dashboardSeme
 export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
 
 export const routeForParticipantLifecycle = (): string => APP_ROUTES.dashboardParticipantLifecycle;
+
+export const routeForWorkflowReconciliation = (): string => APP_ROUTES.dashboardWorkflowReconciliation;
 
 export const routeForStudentProgress = (studentId?: string): string =>
   studentId
@@ -145,6 +148,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
       || pathname === APP_ROUTES.dashboardReports
       || pathname === APP_ROUTES.dashboardProgress
       || pathname === APP_ROUTES.dashboardParticipantLifecycle
+      || pathname === APP_ROUTES.dashboardWorkflowReconciliation
       || /^\/dashboard\/progress\/[^/]+$/.test(pathname)
     );
   }

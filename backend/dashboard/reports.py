@@ -3,7 +3,6 @@ from datetime import date, datetime
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from openpyxl import Workbook
@@ -12,6 +11,7 @@ from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from academics.models import AcademicSemester
+from accounts.authorization import coordinator_programme
 from accounts.models import Lecturer, Student
 from appointments.ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from appointments.models import PanelRecommendation, SupervisorApplication
@@ -19,6 +19,7 @@ from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimelineEntry
+from .reconciliation import detect_reconciliation_issues
 
 
 User = get_user_model()
@@ -33,13 +34,6 @@ REPORT_ROLE_NAMES = {
     User.Role.COORDINATOR: "COORDINATOR",
     User.Role.LECTURER: "LECTURER",
 }
-
-
-def _coordinator_programme(user):
-    try:
-        return user.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, ObjectDoesNotExist):
-        return ""
 
 
 def _parse_optional_date(value, field_name):
@@ -630,7 +624,7 @@ def build_workflow_report(user, query_params=None, now=None):
     )
     programme = None
     if user.role == User.Role.COORDINATOR:
-        programme = _coordinator_programme(user)
+        programme = coordinator_programme(user)
     elif user.role == User.Role.OFFICE_ADMIN:
         programme = str(params.get("programme") or "").strip() or None
 
@@ -707,6 +701,32 @@ def build_workflow_report(user, query_params=None, now=None):
     participant_lifecycle, participant_attention = _participant_lifecycle_summary(
         user, programme
     )
+    reconciliation_issues = (
+        detect_reconciliation_issues()
+        if user.role == User.Role.OFFICE_ADMIN
+        else []
+    )
+    reconciliation_summary = (
+        {
+            "total": len(reconciliation_issues),
+            "blocking": sum(
+                issue.severity == "BLOCKING" for issue in reconciliation_issues
+            ),
+            "warnings": sum(
+                issue.severity == "WARNING" for issue in reconciliation_issues
+            ),
+            "repairable": sum(
+                issue.repairability == "REPAIRABLE"
+                for issue in reconciliation_issues
+            ),
+            "reviewRequired": sum(
+                issue.repairability == "REVIEW_REQUIRED"
+                for issue in reconciliation_issues
+            ),
+        }
+        if user.role == User.Role.OFFICE_ADMIN
+        else None
+    )
 
     return {
         "generatedAt": now.isoformat(),
@@ -761,12 +781,30 @@ def build_workflow_report(user, query_params=None, now=None):
         "marks": _marks_summary(mark_rows),
         "timeline": _timeline_summary(timeline_rows),
         "participantLifecycle": participant_lifecycle,
+        "reconciliation": reconciliation_summary,
         "attention": _attention(
             supervisor_rows,
             panel_rows,
             mark_rows,
             participant_attention,
-        ),
+        )
+        + [
+            {
+                "kind": "RECONCILIATION",
+                "studentId": issue.student_id,
+                "label": issue.title,
+                "programme": issue.programme or "Faculty-wide",
+                "waitingDays": None,
+                "waitingOn": None,
+                "deadlineState": None,
+                "dueAt": None,
+                "targetModule": "DASHBOARD",
+                "recordType": "RECONCILIATION_ISSUE",
+                "recordId": issue.issue_id,
+            }
+            for issue in reconciliation_issues
+            if issue.severity == "BLOCKING"
+        ][:20],
     }
 
 

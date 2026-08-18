@@ -8,6 +8,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.authorization import coordinator_programme
+from accounts.models import Student
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
@@ -16,8 +18,22 @@ from academics.services import current_effective_semester
 from .actions import build_dashboard_tasks
 from .dossiers import build_student_progress_dossier
 from .excel import build_template_workbook, parse_timeline_workbook
-from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
+from .models import (
+    SemesterTimeline,
+    SemesterTimelineEntry,
+    TimelineAuditLog,
+    WorkflowReconciliationAudit,
+)
 from .reports import build_workflow_report, build_workflow_report_workbook
+from .reconciliation import (
+    ReconciliationConflict,
+    ReconciliationError,
+    allowed_resolutions,
+    apply_reconciliation_issue,
+    detect_reconciliation_issues,
+    filter_reconciliation_issues,
+    get_reconciliation_issue,
+)
 from .serializers import (
     TimelineAuditLogSerializer,
     TimelineEntryCreateSerializer,
@@ -42,6 +58,155 @@ def admin_required_response(user):
             status=status.HTTP_403_FORBIDDEN,
         )
     return None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_view(request):
+    denied = admin_required_response(request.user)
+    if denied:
+        return Response(
+            {"error": "Only Office Staff/Admin can access workflow reconciliation."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    issues = detect_reconciliation_issues()
+    filtered = filter_reconciliation_issues(issues, request.query_params)
+    try:
+        page = max(int(request.query_params.get("page", 1)), 1)
+        page_size = min(max(int(request.query_params.get("pageSize", 50)), 1), 100)
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "Page and page size must be valid integers."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    start = (page - 1) * page_size
+    summary = {
+        "total": len(issues),
+        "blocking": sum(issue.severity == "BLOCKING" for issue in issues),
+        "warnings": sum(issue.severity == "WARNING" for issue in issues),
+        "repairable": sum(issue.repairability == "REPAIRABLE" for issue in issues),
+        "reviewRequired": sum(
+            issue.repairability == "REVIEW_REQUIRED" for issue in issues
+        ),
+    }
+    programmes = sorted(
+        Student.objects.exclude(programme="")
+        .values_list("programme", flat=True)
+        .distinct()
+    )
+    return Response(
+        {
+            "summary": summary,
+            "count": len(filtered),
+            "page": page,
+            "pageSize": page_size,
+            "availableProgrammes": programmes,
+            "results": [
+                issue.to_dict() for issue in filtered[start : start + page_size]
+            ],
+        }
+    )
+
+
+def reconciliation_admin_required(request):
+    if is_office_admin(request.user):
+        return None
+    return Response(
+        {"error": "Only Office Staff/Admin can access workflow reconciliation."},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_preview_view(request, issue_id):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    issue = get_reconciliation_issue(issue_id)
+    if issue is None:
+        return Response(
+            {"error": "Reconciliation issue not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return Response(
+        {
+            "issue": issue.to_dict(),
+            "allowedResolutions": allowed_resolutions(issue),
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_apply_view(request, issue_id):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    expected_fingerprint = str(request.data.get("expectedFingerprint") or "").strip()
+    reason = str(request.data.get("reason") or "").strip()
+    resolution = request.data.get("resolution")
+    if len(expected_fingerprint) != 64:
+        return Response(
+            {"error": "A valid expectedFingerprint is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not reason:
+        return Response(
+            {"error": "A reason is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not isinstance(resolution, dict):
+        return Response(
+            {"error": "A resolution object is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        result = apply_reconciliation_issue(
+            issue_id=issue_id,
+            expected_fingerprint=expected_fingerprint,
+            reason=reason,
+            resolution=resolution,
+            actor=request.user,
+        )
+    except ReconciliationConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
+    except ReconciliationError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(result)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_audits_view(request):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    audits = WorkflowReconciliationAudit.objects.select_related("actor")[:200]
+    return Response(
+        {
+            "results": [
+                {
+                    "id": audit.pk,
+                    "issueType": audit.issue_type,
+                    "entityType": audit.entity_type,
+                    "entityId": audit.entity_id,
+                    "action": audit.action,
+                    "actor": {
+                        "id": audit.actor_id,
+                        "name": audit.actor.full_name,
+                    },
+                    "reason": audit.reason,
+                    "fingerprint": audit.fingerprint,
+                    "beforeValues": audit.before_values,
+                    "afterValues": audit.after_values,
+                    "affectedRecords": audit.affected_records,
+                    "createdAt": audit.created_at,
+                }
+                for audit in audits
+            ]
+        }
+    )
 
 
 def get_active_timeline():
@@ -391,9 +556,16 @@ def dashboard_summary_view(request):
         "panelMarkTasks": 0,
         "backupMarkTasks": 0,
         "submittedMarkEntries": 0,
+        "reconciliationIssues": 0,
+        "reconciliationBlocking": 0,
     }
 
     if request.user.role == User.Role.OFFICE_ADMIN:
+        reconciliation_issues = detect_reconciliation_issues()
+        summary["reconciliationIssues"] = len(reconciliation_issues)
+        summary["reconciliationBlocking"] = sum(
+            issue.severity == "BLOCKING" for issue in reconciliation_issues
+        )
         summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
             status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
         ).count()
@@ -410,10 +582,7 @@ def dashboard_summary_view(request):
             lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
         )
     elif request.user.role == User.Role.COORDINATOR:
-        try:
-            programme = request.user.lecturer.coordinator.programme_managed.strip()
-        except (AttributeError, User.lecturer.RelatedObjectDoesNotExist):
-            programme = ""
+        programme = coordinator_programme(request.user)
         if programme:
             summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
                 student__programme=programme,

@@ -86,6 +86,7 @@ const AdministrationDashboard = lazyNamed('AdministrationDashboard', () => impor
 const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
 const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
 const ParticipantLifecycleManagement = lazyNamed('ParticipantLifecycleManagement', () => import('./components/ParticipantLifecycleManagement'));
+const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', () => import('./components/WorkflowReconciliationCentre'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
@@ -221,6 +222,7 @@ export default function App() {
   const isDashboardSemestersRoute = pathname === APP_ROUTES.dashboardSemesters;
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
   const isDashboardParticipantLifecycleRoute = pathname === APP_ROUTES.dashboardParticipantLifecycle;
+  const isDashboardWorkflowReconciliationRoute = pathname === APP_ROUTES.dashboardWorkflowReconciliation;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
   const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
   const isStudentOtherDossierRoute = Boolean(
@@ -677,10 +679,20 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardParticipantLifecycleRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              isDashboardWorkflowReconciliationRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardWorkflowReconciliationRoute ? (
+                <WorkflowReconciliationCentre
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onNavigateToRoute={navigate}
+                />
+              ) : isDashboardParticipantLifecycleRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardParticipantLifecycleRoute ? (
-                <ParticipantLifecycleManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+                <ParticipantLifecycleManagement
+                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
+                />
               ) : isStudentOtherDossierRoute ? (
                 <Navigate to={APP_ROUTES.dashboardProgress} replace />
               ) : isDashboardProgressRoute && !dossierStudentId ? (
@@ -699,6 +711,7 @@ export default function App() {
                   currentUserRole={currentUser.role}
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToRoute={navigate}
+                  onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
                 />
               ) : (isDashboardTimelineRoute || isDashboardSemestersRoute) && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
@@ -726,6 +739,7 @@ export default function App() {
                 <AcademicSemesterManagement
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onManageParticipants={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
+                  onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
                 />
               ) : isDashboardTimelineRoute ? (
                 <TimelineManagement

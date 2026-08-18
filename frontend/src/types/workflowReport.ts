@@ -58,7 +58,7 @@ export interface TimelineReportSummary {
 }
 
 export interface WorkflowReportAttentionItem {
-  kind: 'WAITING' | 'DEADLINE' | 'PARTICIPANT_LIFECYCLE';
+  kind: 'WAITING' | 'DEADLINE' | 'PARTICIPANT_LIFECYCLE' | 'RECONCILIATION';
   recordType: string;
   recordId: string;
   studentId: string | null;
@@ -118,6 +118,13 @@ export interface WorkflowReport {
     activeLecturers: number;
     retiringLecturers: number;
     retiredLecturers: number;
+  } | null;
+  reconciliation: {
+    total: number;
+    blocking: number;
+    warnings: number;
+    repairable: number;
+    reviewRequired: number;
   } | null;
   attention: WorkflowReportAttentionItem[];
 }

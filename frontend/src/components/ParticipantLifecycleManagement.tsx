@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, History, RefreshCw, Search, ShieldCheck, UserRoundCheck } from 'lucide-react';
+import { AlertTriangle, History, RefreshCw, Search, ShieldAlert, ShieldCheck, UserRoundCheck } from 'lucide-react';
 import type {
   ParticipantLifecycleListResponse,
   ParticipantLifecycleRecord,
@@ -23,6 +23,7 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrim
 
 interface ParticipantLifecycleManagementProps {
   onBack: () => void;
+  onOpenReconciliation?: () => void;
 }
 
 const statusTone = (status: ParticipantLifecycleStatus) => {
@@ -38,6 +39,7 @@ const formatDateTime = (value: string | null) => value
 
 export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManagementProps> = ({
   onBack,
+  onOpenReconciliation,
 }) => {
   const [data, setData] = useState<ParticipantLifecycleListResponse | null>(null);
   const [selected, setSelected] = useState<ParticipantLifecycleRecord | null>(null);
@@ -147,7 +149,12 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
         subtitle="Manage academic eligibility while retaining complete workflow, appointment, and Marks history."
         backLabel="Back to Office Dashboard"
         onBack={onBack}
-        actions={<PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh</PortalButton>}
+        actions={(
+          <>
+            {onOpenReconciliation && <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>Reconcile Workflows</PortalButton>}
+            <PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh</PortalButton>
+          </>
+        )}
       />
 
       {summary && (

@@ -1045,6 +1045,82 @@ def retire_participant_evaluation_tasks(*, tasks, actor, reason):
 
 
 @transaction.atomic
+def reconcile_evaluation_task(*, task_id, action, actor, reason):
+    """Apply one audited repair without widening it to other profile tasks."""
+    task = (
+        EvaluationTask.objects.select_for_update(of=("self",))
+        .select_related("profile", "profile__student", "period", "mark_entry")
+        .get(pk=task_id)
+    )
+    if _task_is_submitted(task):
+        raise MarksStateConflict("Submitted Marks are immutable and cannot be reconciled.")
+    snapshot = _task_entry_snapshot(task)
+    if action == EvaluationTaskLifecycleAudit.Action.RETIRED:
+        if task.lifecycle_status not in {
+            EvaluationTask.Lifecycle.ACTIVE,
+            EvaluationTask.Lifecycle.PAUSED,
+        }:
+            raise MarksStateConflict("The evaluation task is no longer active or paused.")
+        task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
+        task.retired_at = timezone.now()
+        task.retired_by = actor
+        task.retirement_reason = reason
+        update_fields = [
+            "lifecycle_status",
+            "retired_at",
+            "retired_by",
+            "retirement_reason",
+        ]
+    elif action == EvaluationTaskLifecycleAudit.Action.PAUSED:
+        if task.lifecycle_status != EvaluationTask.Lifecycle.ACTIVE:
+            raise MarksStateConflict("Only an active evaluation task can be paused.")
+        task.lifecycle_status = EvaluationTask.Lifecycle.PAUSED
+        task.paused_at = timezone.now()
+        task.paused_by = actor
+        task.pause_reason = reason
+        update_fields = [
+            "lifecycle_status",
+            "paused_at",
+            "paused_by",
+            "pause_reason",
+        ]
+    elif action == EvaluationTaskLifecycleAudit.Action.RESUMED:
+        if task.lifecycle_status != EvaluationTask.Lifecycle.PAUSED:
+            raise MarksStateConflict("Only a paused evaluation task can be resumed.")
+        from accounts.eligibility import profile_student_is_workflow_eligible
+
+        if (
+            not profile_student_is_workflow_eligible(task.profile)
+            or not task.period.accepts_submissions
+            or not _task_appointment_is_active(task)
+        ):
+            raise MarksStateConflict(
+                "The participant, appointment, evaluator, or period is no longer eligible."
+            )
+        task.lifecycle_status = EvaluationTask.Lifecycle.ACTIVE
+        task.paused_at = None
+        task.paused_by = None
+        task.pause_reason = ""
+        update_fields = [
+            "lifecycle_status",
+            "paused_at",
+            "paused_by",
+            "pause_reason",
+        ]
+    else:
+        raise MarksStateConflict("Unsupported evaluation-task reconciliation action.")
+    task.save(update_fields=update_fields)
+    EvaluationTaskLifecycleAudit.objects.create(
+        task=task,
+        actor=actor,
+        action=action,
+        reason=reason,
+        entry_snapshot=snapshot,
+    )
+    return task
+
+
+@transaction.atomic
 def correct_submitted_marks(
     *,
     entry,

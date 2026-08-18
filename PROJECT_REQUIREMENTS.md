@@ -375,3 +375,16 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Office Workflow Reports include participant lifecycle counts and Deferred/Retiring attention records. Internal dossiers include full lifecycle reason/actor/audit data; Student self-view exposes only public status and effective date.
 - `docs/Functional Requirements.pdf` and `docs/Use Case Description.pdf` are unchanged binaries. Their confirmation-letter content and older scope wording require later revision from editable academic source files.
 - Co-supervisor support remains deferred until faculty rules define primary/co-supervisor approval, workload, Panel nomination, and Marks responsibilities.
+
+## Workflow Data Quality and Reconciliation Centre
+
+- Office Staff/Admin must have a live scan of persisted Dashboard/Timeline, Supervisor, Panel, Marks, and Workflow Tracking relationships at `/dashboard/workflow-reconciliation`; no issue-status table or sixth sidebar module is introduced.
+- Each issue has a stable identifier, current-state fingerprint, module, severity (`BLOCKING` or `WARNING`), repairability (`REPAIRABLE` or `REVIEW_REQUIRED`), affected identifiers, dependencies, and navigation metadata.
+- Every repair requires a fresh preview, matching fingerprint, explicit reason, individual confirmation, current-state validation, row locking, and one immutable audit containing actor, action, before/after values, fingerprint, and affected records. Changed or resolved issues return `409 Conflict`.
+- Coordinator scope comes only from `Coordinator.programme_managed` after the Coordinator role gate. A missing profile or blank programme may be repaired only for an existing Lecturer account with Coordinator access and a programme represented by persisted Students.
+- Legacy semester relationships may be assigned only when persisted labels and dates identify one non-conflicting semester. Historical free-text values remain unchanged; ambiguous records stay `Legacy / Unassigned`.
+- Exact-matric unassigned research profiles may be linked only without competing profiles or downstream Panel/Marks history. Profile Supervisor synchronization requires exactly one authoritative active Supervisor appointment.
+- Missing approved Supervisor or Panel handoffs require persisted Coordinator actor/date metadata and valid current identity, programme, semester, participant, workload, appointment, and uniqueness checks. Original approval attribution and date are retained while the present repair is audited separately.
+- Unfinished Marks tasks may be paused, resumed, retired with snapshots, or generated idempotently. Submitted Marks, evaluator attribution, immutable workflow events, and downstream histories must never be rewritten.
+- Role/profile mismatches, downstream-used identity conflicts, and appointment source/replacement-lineage inconsistencies are review-required and expose no Apply action.
+- Office Dashboard and Workflow Reports expose reconciliation counts and blocking attention links. Coordinator, Lecturer, and Student users cannot access reconciliation list, preview, apply, or audit endpoints.

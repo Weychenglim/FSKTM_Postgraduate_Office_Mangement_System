@@ -48,8 +48,8 @@ assert.match(
 const appSource = readFileSync(resolve('src/App.tsx'), 'utf8');
 assert.equal(
   (appSource.match(/onNavigateToRoute=\{navigate\}/g) ?? []).length,
-  dashboardFiles.length + 2,
-  'App should wire exact routes into every role dashboard, reports, and progress dossiers',
+  dashboardFiles.length + 3,
+  'App should wire exact routes into every role dashboard, reports, progress dossiers, and reconciliation',
 );
 
 console.log('Dashboard action-centre integration tests passed');

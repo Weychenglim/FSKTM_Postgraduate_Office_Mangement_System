@@ -1,9 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
+from accounts.authorization import coordinator_programme
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -29,13 +29,6 @@ class SupervisorApprovalConflict(Exception):
 
 class SupervisorApprovalForbidden(Exception):
     pass
-
-
-def _coordinator_programme(actor):
-    try:
-        return actor.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, ObjectDoesNotExist):
-        return ""
 
 
 def _profile_has_downstream_history(profile):
@@ -137,7 +130,7 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalForbidden(
             "Only Programme Coordinators can approve supervisor applications."
         )
-    programme = _coordinator_programme(actor)
+    programme = coordinator_programme(actor)
     if not programme or programme.casefold() != application.student.programme.strip().casefold():
         raise SupervisorApprovalForbidden(
             "This application is outside your managed programme."

@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from announcements.models import Notification
+from accounts.authorization import coordinator_programme
 from accounts.eligibility import (
     profile_student_is_workflow_eligible,
     student_is_workflow_eligible,
@@ -480,15 +481,6 @@ def can_view_panel_recommendation(user, recommendation):
         user.role == User.Role.COORDINATOR
         and coordinator_can_access_recommendation(user, recommendation)
     )
-
-
-def coordinator_programme(user):
-    if user.role != User.Role.COORDINATOR:
-        return None
-    try:
-        return user.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, User.lecturer.RelatedObjectDoesNotExist):
-        return ""
 
 
 def coordinator_can_access_recommendation(user, recommendation):

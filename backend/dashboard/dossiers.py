@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
 
 from academics.services import current_effective_semester
+from accounts.authorization import coordinator_programme
 from accounts.models import Student
 from appointments.ageing import (
     panel_waiting_metadata,
@@ -29,13 +29,6 @@ SECTION_SUPERVISOR = "SUPERVISOR"
 SECTION_PANEL = "PANEL"
 SECTION_MARKS = "MARKS"
 SECTION_TIMELINE = "TIMELINE"
-
-
-def _coordinator_programme(user):
-    try:
-        return user.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, ObjectDoesNotExist):
-        return ""
 
 
 def _research_profile(student):
@@ -94,7 +87,7 @@ def _resolve_access(user, student, profile):
             SECTION_TIMELINE,
         }
     if user.role == User.Role.COORDINATOR:
-        programme = _coordinator_programme(user)
+        programme = coordinator_programme(user)
         if not programme or student.programme != programme:
             raise Http404
         return "INTERNAL", {

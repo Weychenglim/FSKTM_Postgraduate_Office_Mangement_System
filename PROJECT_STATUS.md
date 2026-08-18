@@ -1,5 +1,17 @@
 # Project Status
 
+## Workflow Data Quality and Reconciliation Centre
+
+- Added an Office-only live scan across Coordinator authority, semesters, research-profile identity/Supervisor consistency, approved Supervisor/Panel handoffs, Marks task eligibility/generation, and appointment source/replacement lineage.
+- Added stable IDs, SHA-256 fingerprints, severity/repairability classification, filtered pagination, preview, stale-state `409` handling, and protected list/preview/apply/audit APIs.
+- Added transactional repairs for Coordinator profile/programme setup, exact-matric profile linking, Supervisor synchronization, uniquely evidenced semester assignment, approved handoff completion, and Marks task generation/pause/resume/retirement.
+- Added immutable `WorkflowReconciliationAudit` persistence and one-task Marks lifecycle repair with draft/comment snapshots. Submitted Marks, workflow events, identifiers, legacy strings, and downstream history remain unchanged.
+- Centralized Coordinator scope and replaced duplicated programme lookup across Appointments, Dashboard actions, Reports, Dossiers, and lifecycle services.
+- Added `/dashboard/workflow-reconciliation` with summary counts, filters, pagination, preview, mandatory reason/confirmation, audit history, retry/conflict states, and review-only explanations. Linked it from Office Dashboard, Semesters, Participant Lifecycle, Reports, and action feeds.
+- Verification passes all 253 Accounts/Academics/Appointments/Dashboard/Marks backend tests, all 43 frontend `.test.ts` files, Django system and migration checks, TypeScript lint, the production build, zero-vulnerability npm audit, and both production artifact/CSP guards.
+- Browser smoke covered Office discovery, review-only preview, confirmed semester repair with stale-state protection, immutable audit creation, count refresh, and direct Student/Lecturer/Coordinator route rejection. The temporary repair fixture and audit were removed afterward, and the browser console remained clean.
+- Ambiguous semesters, role/profile conflicts, downstream-used identity conflicts, and appointment lineage inconsistencies remain review-required. Bulk repair and history merging are intentionally excluded.
+
 ## Secure Supervisor Application Documents
 
 - Added private, persisted PDF/DOCX files to Supervisor applications with requirement snapshots, validated MIME type, SHA-256 checksum, legacy metadata availability, server-generated storage names, and one-file-per-requirement integrity.

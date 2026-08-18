@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
+from accounts.authorization import coordinator_programme
 from academics.services import current_effective_semester
 from appointments.ageing import (
     panel_waiting_metadata,
@@ -16,6 +17,7 @@ from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimeline, SemesterTimelineEntry
+from .reconciliation import detect_reconciliation_issues
 
 
 User = get_user_model()
@@ -70,13 +72,6 @@ def _deadline_text(metadata):
     return "No deadline configured"
 
 
-def _programme_for_coordinator(user):
-    try:
-        return user.lecturer.coordinator.programme_managed.strip()
-    except (AttributeError, ObjectDoesNotExist):
-        return ""
-
-
 def _supervisor_actions(user, now):
     pending_statuses = [
         SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -86,7 +81,7 @@ def _supervisor_actions(user, now):
         status__in=pending_statuses,
     )
     if user.role == User.Role.COORDINATOR:
-        programme = _programme_for_coordinator(user)
+        programme = coordinator_programme(user)
         applications = applications.filter(
             student__programme=programme,
             status=SupervisorApplication.Status.PENDING_COORDINATOR,
@@ -144,7 +139,7 @@ def _panel_actions(user, now):
     )
     public = user.role == User.Role.STUDENT
     if user.role == User.Role.COORDINATOR:
-        programme = _programme_for_coordinator(user)
+        programme = coordinator_programme(user)
         recommendations = recommendations.filter(
             profile__programme=programme,
             status=PanelRecommendation.Status.PENDING_COORDINATOR,
@@ -307,6 +302,29 @@ def _timeline_actions(user, now):
     return actions
 
 
+def _reconciliation_actions(user):
+    if user.role != User.Role.OFFICE_ADMIN:
+        return []
+    return [
+        _task(
+            id=f"reconciliation_{issue.issue_id}",
+            name=issue.title,
+            status="critical" if issue.severity == "BLOCKING" else "pending",
+            statusText=(
+                "Repair available"
+                if issue.repairability == "REPAIRABLE"
+                else "Review required"
+            ),
+            target="Workflow Reconciliation",
+            targetModule="DASHBOARD",
+            recordType="RECONCILIATION_ISSUE",
+            recordId=issue.issue_id,
+        )
+        for issue in detect_reconciliation_issues()
+        if issue.severity == "BLOCKING"
+    ]
+
+
 def _sort_key(task):
     due_value = str(task["dueAt"] or "")
     if task["deadlineState"] == "OVERDUE":
@@ -338,6 +356,7 @@ def build_dashboard_tasks(user, *, now=None):
         *_panel_actions(user, now),
         *_mark_actions(user, now),
         *_timeline_actions(user, now),
+        *_reconciliation_actions(user),
     ]
     if user.role == User.Role.OFFICE_ADMIN:
         tasks.append(

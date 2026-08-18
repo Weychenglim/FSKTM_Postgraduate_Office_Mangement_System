@@ -6,6 +6,7 @@ import {
   Download,
   FileSpreadsheet,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 
 import type {
@@ -34,6 +35,7 @@ interface WorkflowReportsProps {
   currentUserRole: UserRole;
   onBack: () => void;
   onNavigateToRoute: (route: string) => void;
+  onOpenReconciliation?: () => void;
 }
 
 const Distribution: React.FC<{
@@ -90,6 +92,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   currentUserRole,
   onBack,
   onNavigateToRoute,
+  onOpenReconciliation,
 }) => {
   const [report, setReport] = useState<WorkflowReport | null>(null);
   const [filters, setFilters] = useState<WorkflowReportFilters>({ semester: 'active' });
@@ -166,15 +169,22 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
         backLabel="Back to Dashboard"
         onBack={onBack}
         actions={(
-          <PortalButton
-            variant="primary"
-            icon={Download}
-            onClick={exportWorkbook}
-            isLoading={exporting}
-            disabled={!report}
-          >
-            Download XLSX
-          </PortalButton>
+          <>
+            {currentUserRole === 'Office Staff/Admin' && onOpenReconciliation && (
+              <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>
+                Reconcile Workflows
+              </PortalButton>
+            )}
+            <PortalButton
+              variant="primary"
+              icon={Download}
+              onClick={exportWorkbook}
+              isLoading={exporting}
+              disabled={!report}
+            >
+              Download XLSX
+            </PortalButton>
+          </>
         )}
       />
 
@@ -345,6 +355,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                             ? `${item.waitingDays ?? 0} days - ${reportLabel(item.waitingOn ?? 'Waiting')}`
                             : item.kind === 'PARTICIPANT_LIFECYCLE'
                               ? reportLabel(item.participantStatus ?? 'Lifecycle review')
+                              : item.kind === 'RECONCILIATION'
+                                ? 'Blocking data inconsistency'
                               : `Overdue - ${item.dueAt ?? 'No date'}`}
                         </td>
                         <td className="data-td text-right">
