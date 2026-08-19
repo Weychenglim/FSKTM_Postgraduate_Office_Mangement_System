@@ -219,6 +219,8 @@ class SemesterCapacityPlan(models.Model):
 
 
 class LecturerCapacityEntry(models.Model):
+    DRAFT_PLAN_REQUIRED_ERROR = "Capacity entries can only be changed on Draft plans."
+
     plan = models.ForeignKey(
         SemesterCapacityPlan,
         on_delete=models.PROTECT,
@@ -248,7 +250,15 @@ class LecturerCapacityEntry(models.Model):
             )
         ]
 
+    def _validate_draft_plan(self):
+        if self.plan_id and not SemesterCapacityPlan.objects.filter(
+            pk=self.plan_id,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
+        ).exists():
+            raise ValidationError({"plan": self.DRAFT_PLAN_REQUIRED_ERROR})
+
     def clean(self):
+        self._validate_draft_plan()
         if not self.lecturer_id:
             return
 
@@ -280,6 +290,10 @@ class LecturerCapacityEntry(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self._validate_draft_plan()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.lecturer} in {self.plan}"

@@ -1,12 +1,14 @@
 from datetime import date, timedelta
 
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
 from accounts.models import Lecturer, OfficeStaff, Panel, Supervisor
 
+from .admin import LecturerCapacityEntryAdmin
 from .models import (
     AcademicSemester,
     LecturerAvailabilityWindow,
@@ -106,6 +108,181 @@ class CapacityModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             invalid_entry.full_clean()
+
+    def test_entry_validation_rejects_non_draft_plans(self):
+        for version, lifecycle_status in (
+            (1, SemesterCapacityPlan.Lifecycle.PUBLISHED),
+            (2, SemesterCapacityPlan.Lifecycle.SUPERSEDED),
+        ):
+            with self.subTest(lifecycle_status=lifecycle_status):
+                entry = LecturerCapacityEntry(
+                    plan=self.create_plan(
+                        version=version,
+                        lifecycle_status=lifecycle_status,
+                    ),
+                    lecturer=self.lecturer,
+                    supervisor_limit=4,
+                    panel_limit=8,
+                    updated_by=self.office,
+                )
+
+                with self.assertRaises(ValidationError) as context:
+                    entry.full_clean()
+
+                self.assertIn("plan", context.exception.message_dict)
+
+    def test_entry_save_rejects_creation_against_a_published_plan(self):
+        published = self.create_plan(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.create(
+                plan=published,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            )
+
+    def test_entry_save_rejects_reassignment_to_a_published_plan(self):
+        draft = self.create_plan(version=1)
+        published = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        entry = LecturerCapacityEntry.objects.create(
+            plan=draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+
+        entry.plan = published
+        with self.assertRaises(ValidationError):
+            entry.save()
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, draft)
+
+    def test_admin_add_form_only_accepts_draft_plans(self):
+        draft = self.create_plan(version=1)
+        published = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        self.create_plan(
+            version=3,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.SUPERSEDED,
+        )
+        request = RequestFactory().get("/admin/academics/lecturercapacityentry/add/")
+        request.user = self.office
+        entry_admin = LecturerCapacityEntryAdmin(LecturerCapacityEntry, AdminSite())
+        form_class = entry_admin.get_form(request)
+
+        self.assertEqual(
+            list(form_class.base_fields["plan"].queryset.values_list("pk", flat=True)),
+            [draft.pk],
+        )
+        form = form_class(
+            data={
+                "plan": published.pk,
+                "lecturer": self.lecturer.pk,
+                "supervisor_limit": 4,
+                "panel_limit": 8,
+                "updated_by": self.office.pk,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("plan", form.errors)
+
+    def test_admin_change_form_blocks_reassignment_to_non_draft_plans(self):
+        draft = self.create_plan(version=1)
+        published = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        entry = LecturerCapacityEntry.objects.create(
+            plan=draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        request = RequestFactory().post(
+            f"/admin/academics/lecturercapacityentry/{entry.pk}/change/"
+        )
+        request.user = self.office
+        entry_admin = LecturerCapacityEntryAdmin(LecturerCapacityEntry, AdminSite())
+        form_class = entry_admin.get_form(request, obj=entry)
+        form = form_class(
+            data={
+                "plan": published.pk,
+                "lecturer": self.lecturer.pk,
+                "supervisor_limit": 4,
+                "panel_limit": 8,
+                "updated_by": self.office.pk,
+            },
+            instance=entry,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("plan", form.errors)
+
+    def test_negative_entry_limits_are_rejected(self):
+        plan = self.create_plan()
+
+        for field_name in ("supervisor_limit", "panel_limit"):
+            with self.subTest(field_name=field_name):
+                limits = {"supervisor_limit": 4, "panel_limit": 8}
+                limits[field_name] = -1
+                entry = LecturerCapacityEntry(
+                    plan=plan,
+                    lecturer=self.lecturer,
+                    updated_by=self.office,
+                    **limits,
+                )
+
+                with self.assertRaises(ValidationError) as context:
+                    entry.full_clean()
+
+                self.assertIn(field_name, context.exception.message_dict)
+
+    def test_zero_entry_limits_are_accepted(self):
+        entry = LecturerCapacityEntry(
+            plan=self.create_plan(),
+            lecturer=self.lecturer,
+            supervisor_limit=0,
+            panel_limit=0,
+            updated_by=self.office,
+        )
+
+        entry.full_clean()
+        entry.save()
+
+        self.assertEqual(entry.supervisor_limit, 0)
+        self.assertEqual(entry.panel_limit, 0)
+
+    def test_duplicate_plan_lecturer_entries_are_rejected(self):
+        plan = self.create_plan()
+        LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            LecturerCapacityEntry.objects.create(
+                plan=plan,
+                lecturer=self.lecturer,
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            )
 
     def test_availability_window_must_be_bounded_by_semester(self):
         invalid_ranges = (

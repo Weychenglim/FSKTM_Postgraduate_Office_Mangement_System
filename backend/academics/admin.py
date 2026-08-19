@@ -97,6 +97,13 @@ class LecturerCapacityEntryAdmin(admin.ModelAdmin):
     search_fields = ("lecturer__staff_no", "lecturer__user__full_name")
     readonly_fields = ("created_at", "updated_at")
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "plan":
+            kwargs["queryset"] = SemesterCapacityPlan.objects.filter(
+                lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.plan.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
             return _all_model_fields(self.model)
