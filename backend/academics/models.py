@@ -1,8 +1,9 @@
 import re
+from contextvars import ContextVar
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -218,8 +219,91 @@ class SemesterCapacityPlan(models.Model):
         return f"{self.academic_semester.code} capacity plan v{self.version}"
 
 
+CAPACITY_ENTRY_DRAFT_PLAN_ERROR = (
+    "Capacity entries can only be changed on Draft plans."
+)
+_capacity_bulk_update_validated = ContextVar(
+    "capacity_bulk_update_validated",
+    default=False,
+)
+
+
+class LecturerCapacityEntryQuerySet(models.QuerySet):
+    def _validate_plan_ids_are_draft(self, plan_ids):
+        plan_ids = set(plan_ids)
+        if not plan_ids:
+            return
+        if None in plan_ids:
+            raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
+
+        draft_plan_ids = set(
+            SemesterCapacityPlan.objects.using(self.db)
+            .select_for_update()
+            .filter(
+                pk__in=plan_ids,
+                lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
+            )
+            .values_list("pk", flat=True)
+        )
+        if draft_plan_ids != plan_ids:
+            raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
+
+    def _target_plan_ids(self, update_values):
+        target_plan_ids = set()
+        for field_name in ("plan", "plan_id"):
+            if field_name not in update_values:
+                continue
+            value = update_values[field_name]
+            if isinstance(value, SemesterCapacityPlan):
+                target_plan_ids.add(value.pk)
+            elif isinstance(value, models.F) and value.name in {"plan", "plan_id"}:
+                continue
+            elif hasattr(value, "resolve_expression"):
+                raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
+            else:
+                target_plan_ids.add(value)
+        return target_plan_ids
+
+    def bulk_create(self, objs, *args, **kwargs):
+        objs = list(objs)
+        with transaction.atomic(using=self.db):
+            self._validate_plan_ids_are_draft(obj.plan_id for obj in objs)
+            return super().bulk_create(objs, *args, **kwargs)
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        objs = tuple(objs)
+        object_pks = [obj.pk for obj in objs if obj.pk is not None]
+        field_names = {getattr(field, "name", field) for field in fields}
+
+        with transaction.atomic(using=self.db):
+            plan_ids = set(
+                self.filter(pk__in=object_pks).values_list("plan_id", flat=True)
+            )
+            if {"plan", "plan_id"} & field_names:
+                plan_ids.update(obj.plan_id for obj in objs)
+            self._validate_plan_ids_are_draft(plan_ids)
+
+            token = _capacity_bulk_update_validated.set(True)
+            try:
+                return super().bulk_update(objs, fields, batch_size=batch_size)
+            finally:
+                _capacity_bulk_update_validated.reset(token)
+
+    def update(self, **kwargs):
+        if _capacity_bulk_update_validated.get():
+            return super().update(**kwargs)
+
+        with transaction.atomic(using=self.db):
+            plan_ids = set(self.values_list("plan_id", flat=True))
+            plan_ids.update(self._target_plan_ids(kwargs))
+            self._validate_plan_ids_are_draft(plan_ids)
+            return super().update(**kwargs)
+
+
 class LecturerCapacityEntry(models.Model):
-    DRAFT_PLAN_REQUIRED_ERROR = "Capacity entries can only be changed on Draft plans."
+    DRAFT_PLAN_REQUIRED_ERROR = CAPACITY_ENTRY_DRAFT_PLAN_ERROR
+
+    objects = LecturerCapacityEntryQuerySet.as_manager()
 
     plan = models.ForeignKey(
         SemesterCapacityPlan,

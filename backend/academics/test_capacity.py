@@ -68,6 +68,22 @@ class CapacityModelTests(TestCase):
             created_by=self.office,
         )
 
+    def create_additional_lecturer(self, suffix):
+        user = User.objects.create_user(
+            email=f"capacity.lecturer.{suffix}@example.test",
+            password="local-test-password",
+            full_name=f"Capacity Lecturer {suffix}",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=user,
+            staff_no=f"CAP-LECT-{suffix}",
+            department="Computing",
+        )
+        Supervisor.objects.create(lecturer=lecturer, max_supervisees=5)
+        Panel.objects.create(lecturer=lecturer, max_appointments=10)
+        return lecturer
+
     def test_plan_version_is_unique_within_semester(self):
         self.create_plan(version=1)
 
@@ -283,6 +299,214 @@ class CapacityModelTests(TestCase):
                 panel_limit=9,
                 updated_by=self.office,
             )
+
+    def test_bulk_create_rejects_entries_for_non_draft_plans(self):
+        draft = self.create_plan(version=1)
+        published = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.bulk_create(
+                [
+                    LecturerCapacityEntry(
+                        plan=draft,
+                        lecturer=self.lecturer,
+                        supervisor_limit=4,
+                        panel_limit=8,
+                        updated_by=self.office,
+                    ),
+                    LecturerCapacityEntry(
+                        plan=published,
+                        lecturer=self.create_additional_lecturer("BULK-CREATE"),
+                        supervisor_limit=5,
+                        panel_limit=9,
+                        updated_by=self.office,
+                    ),
+                ]
+            )
+
+        self.assertFalse(LecturerCapacityEntry.objects.exists())
+
+    def test_bulk_create_preserves_draft_plan_entries(self):
+        draft = self.create_plan()
+        second_lecturer = self.create_additional_lecturer("DRAFT-CREATE")
+
+        created = LecturerCapacityEntry.objects.bulk_create(
+            [
+                LecturerCapacityEntry(
+                    plan=draft,
+                    lecturer=self.lecturer,
+                    supervisor_limit=4,
+                    panel_limit=8,
+                    updated_by=self.office,
+                ),
+                LecturerCapacityEntry(
+                    plan=draft,
+                    lecturer=second_lecturer,
+                    supervisor_limit=5,
+                    panel_limit=9,
+                    updated_by=self.office,
+                ),
+            ]
+        )
+
+        self.assertEqual(len(created), 2)
+        self.assertEqual(LecturerCapacityEntry.objects.filter(plan=draft).count(), 2)
+
+    def test_bulk_update_rejects_changes_to_non_draft_plan_entries(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.SUPERSEDED
+        )
+        entry.supervisor_limit = 2
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.bulk_update(
+                [entry],
+                ["supervisor_limit"],
+            )
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.supervisor_limit, 4)
+
+    def test_bulk_update_rejects_reassignment_to_a_non_draft_plan(self):
+        draft = self.create_plan(version=1)
+        published = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        entry = LecturerCapacityEntry.objects.create(
+            plan=draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        entry.plan = published
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.bulk_update([entry], ["plan"])
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, draft)
+
+    def test_bulk_update_preserves_draft_plan_changes_and_reassignment(self):
+        first_draft = self.create_plan(version=1)
+        second_draft = self.create_plan(version=2)
+        entry = LecturerCapacityEntry.objects.create(
+            plan=first_draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        entry.plan = second_draft
+        entry.supervisor_limit = 0
+        entry.panel_limit = 0
+
+        updated = LecturerCapacityEntry.objects.bulk_update(
+            [entry],
+            ["plan", "supervisor_limit", "panel_limit"],
+        )
+
+        self.assertEqual(updated, 1)
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, second_draft)
+        self.assertEqual(entry.supervisor_limit, 0)
+        self.assertEqual(entry.panel_limit, 0)
+
+    def test_queryset_update_rejects_changes_to_non_draft_plan_entries(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.filter(pk=entry.pk).update(panel_limit=1)
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.panel_limit, 8)
+
+    def test_queryset_update_rejects_reassignment_to_a_non_draft_plan(self):
+        draft = self.create_plan(version=1)
+        superseded = self.create_plan(
+            version=2,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.SUPERSEDED,
+        )
+        entry = LecturerCapacityEntry.objects.create(
+            plan=draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.filter(pk=entry.pk).update(
+                plan=superseded
+            )
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, draft)
+
+    def test_queryset_update_preserves_draft_plan_writes(self):
+        first_draft = self.create_plan(version=1)
+        second_draft = self.create_plan(version=2)
+        entry = LecturerCapacityEntry.objects.create(
+            plan=first_draft,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+
+        updated = LecturerCapacityEntry.objects.filter(pk=entry.pk).update(
+            plan=second_draft,
+            supervisor_limit=0,
+            panel_limit=0,
+        )
+
+        self.assertEqual(updated, 1)
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, second_draft)
+        self.assertEqual(entry.supervisor_limit, 0)
+        self.assertEqual(entry.panel_limit, 0)
+
+    def test_published_plan_entries_remain_readable(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+
+        historical = LecturerCapacityEntry.objects.select_related("plan").get(
+            pk=entry.pk
+        )
+
+        self.assertEqual(historical.plan.lifecycle_status, "PUBLISHED")
+        self.assertEqual(historical.supervisor_limit, 4)
 
     def test_availability_window_must_be_bounded_by_semester(self):
         invalid_ranges = (
