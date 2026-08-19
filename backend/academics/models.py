@@ -239,6 +239,35 @@ def capacity_plans_for_update(*, using):
     return _select_for_update_self(queryset)
 
 
+def _field_is_updated(field, update_fields):
+    return update_fields is None or (
+        field.name in update_fields or field.attname in update_fields
+    )
+
+
+def _projected_validation_instance(
+    instance,
+    *,
+    persisted_values,
+    update_fields,
+    using,
+):
+    if update_fields is None or persisted_values is None:
+        return instance
+
+    projected = instance.__class__()
+    for field in instance._meta.concrete_fields:
+        value = (
+            getattr(instance, field.attname)
+            if _field_is_updated(field, update_fields)
+            else persisted_values[field.attname]
+        )
+        setattr(projected, field.attname, value)
+    projected._state.adding = False
+    projected._state.db = using
+    return projected
+
+
 class LecturerCapacityEntryQuerySet(models.QuerySet):
     def _validate_plan_ids_are_draft(self, plan_ids):
         plan_ids = set(plan_ids)
@@ -313,6 +342,41 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
             plan_ids.update(self._target_plan_ids(kwargs))
             self._validate_plan_ids_are_draft(plan_ids)
             return super().update(**kwargs)
+
+    def _lock_and_validate_delete(self):
+        initial_rows = tuple(self.order_by("pk").values_list("pk", "plan_id"))
+        if not initial_rows:
+            return
+
+        initial_plan_ids = {plan_id for _, plan_id in initial_rows}
+        self._validate_plan_ids_are_draft(initial_plan_ids)
+        locked_rows = tuple(
+            _select_for_update_self(self.order_by("pk")).values_list(
+                "pk",
+                "plan_id",
+            )
+        )
+        if locked_rows != initial_rows:
+            raise ValidationError(
+                "Capacity entries changed concurrently; reload and retry."
+            )
+        self._validate_plan_ids_are_draft(
+            plan_id for _, plan_id in locked_rows
+        )
+
+    def delete(self):
+        with transaction.atomic(using=self.db):
+            self._lock_and_validate_delete()
+            return super().delete()
+
+    def _raw_delete(self, using):
+        queryset = self.using(using)
+        with transaction.atomic(using=using):
+            queryset._lock_and_validate_delete()
+            return super(
+                LecturerCapacityEntryQuerySet,
+                queryset,
+            )._raw_delete(using)
 
 
 class LecturerCapacityEntry(models.Model):
@@ -396,6 +460,10 @@ class LecturerCapacityEntry(models.Model):
             instance=self,
         )
         kwargs["using"] = using
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = frozenset(update_fields)
+            kwargs["update_fields"] = update_fields
 
         with transaction.atomic(using=using):
             persisted_plan_id = None
@@ -408,9 +476,13 @@ class LecturerCapacityEntry(models.Model):
                     .first()
                 )
 
+            destination_plan_id = self.plan_id
+            plan_field = self._meta.get_field("plan")
+            if not _field_is_updated(plan_field, update_fields):
+                destination_plan_id = persisted_plan_id
             plan_ids = {
                 plan_id
-                for plan_id in (persisted_plan_id, self.plan_id)
+                for plan_id in (persisted_plan_id, destination_plan_id)
                 if plan_id is not None
             }
             locked_plans = dict(
@@ -419,15 +491,20 @@ class LecturerCapacityEntry(models.Model):
                 .values_list("pk", "lifecycle_status")
             )
 
+            persisted_values = None
             if self.pk:
                 persisted_entry = _select_for_update_self(
                     LecturerCapacityEntry.objects.using(using)
                     .order_by()
                     .filter(pk=self.pk)
                 )
-                locked_source_plan_id = persisted_entry.values_list(
-                    "plan_id", flat=True
-                ).first()
+                persisted_fields = [
+                    field.attname for field in self._meta.concrete_fields
+                ]
+                persisted_values = persisted_entry.values(*persisted_fields).first()
+                locked_source_plan_id = (
+                    persisted_values["plan_id"] if persisted_values else None
+                )
                 if locked_source_plan_id != persisted_plan_id:
                     raise ValidationError(
                         {"plan": "Capacity entry changed concurrently; reload and retry."}
@@ -439,8 +516,26 @@ class LecturerCapacityEntry(models.Model):
             ):
                 raise ValidationError({"plan": self.DRAFT_PLAN_REQUIRED_ERROR})
 
-            self.full_clean()
+            validation_instance = _projected_validation_instance(
+                self,
+                persisted_values=persisted_values,
+                update_fields=update_fields,
+                using=using,
+            )
+            validation_instance.full_clean()
             return super().save(*args, **kwargs)
+
+    def delete(self, using=None, keep_parents=False):
+        using = using or router.db_for_write(self.__class__, instance=self)
+        pk = self.pk
+        if pk is None:
+            raise ValueError(
+                f"{self.__class__.__name__} object can't be deleted because its "
+                f"{self._meta.pk.attname} attribute is set to None."
+            )
+        result = self.__class__.objects.using(using).filter(pk=pk).delete()
+        setattr(self, self._meta.pk.attname, None)
+        return result
 
     def __str__(self):
         return f"{self.lecturer} in {self.plan}"
@@ -600,6 +695,10 @@ class LecturerAvailabilityWindow(models.Model):
             instance=self,
         )
         kwargs["using"] = using
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = frozenset(update_fields)
+            kwargs["update_fields"] = update_fields
 
         with transaction.atomic(using=using):
             persisted_semester_id = None
@@ -612,11 +711,15 @@ class LecturerAvailabilityWindow(models.Model):
                     .first()
                 )
 
+            destination_semester_id = self.academic_semester_id
+            semester_field = self._meta.get_field("academic_semester")
+            if not _field_is_updated(semester_field, update_fields):
+                destination_semester_id = persisted_semester_id
             semester_ids = {
                 semester_id
                 for semester_id in (
                     persisted_semester_id,
-                    self.academic_semester_id,
+                    destination_semester_id,
                 )
                 if semester_id is not None
             }
@@ -626,15 +729,22 @@ class LecturerAvailabilityWindow(models.Model):
                 .values_list("pk", flat=True)
             )
 
+            persisted_values = None
             if self.pk:
                 persisted_window = _select_for_update_self(
                     LecturerAvailabilityWindow.objects.using(using)
                     .order_by()
                     .filter(pk=self.pk)
                 )
-                locked_source_semester_id = persisted_window.values_list(
-                    "academic_semester_id", flat=True
-                ).first()
+                persisted_fields = [
+                    field.attname for field in self._meta.concrete_fields
+                ]
+                persisted_values = persisted_window.values(*persisted_fields).first()
+                locked_source_semester_id = (
+                    persisted_values["academic_semester_id"]
+                    if persisted_values
+                    else None
+                )
                 if locked_source_semester_id != persisted_semester_id:
                     raise ValidationError(
                         {
@@ -650,7 +760,13 @@ class LecturerAvailabilityWindow(models.Model):
                     {"academic_semester": "A valid academic semester is required."}
                 )
 
-            self.full_clean()
+            validation_instance = _projected_validation_instance(
+                self,
+                persisted_values=persisted_values,
+                update_fields=update_fields,
+                using=using,
+            )
+            validation_instance.full_clean()
             return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -667,6 +783,26 @@ CAPACITY_AUDIT_IMMUTABLE_ERROR = "Lecturer capacity audits are immutable."
 
 
 class LecturerCapacityAuditQuerySet(models.QuerySet):
+    def bulk_create(
+        self,
+        objs,
+        batch_size=None,
+        ignore_conflicts=False,
+        update_conflicts=False,
+        update_fields=None,
+        unique_fields=None,
+    ):
+        if update_conflicts or update_fields is not None:
+            raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
+        return super().bulk_create(
+            objs,
+            batch_size=batch_size,
+            ignore_conflicts=ignore_conflicts,
+            update_conflicts=update_conflicts,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+
     def update(self, **kwargs):
         raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
 

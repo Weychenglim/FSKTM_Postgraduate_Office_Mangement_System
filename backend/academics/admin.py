@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
+from django.db import router, transaction
 
 from .models import (
     AcademicSemester,
@@ -7,6 +9,7 @@ from .models import (
     LecturerCapacityAudit,
     LecturerCapacityEntry,
     SemesterCapacityPlan,
+    capacity_plans_for_update,
 )
 
 
@@ -86,23 +89,36 @@ class SemesterCapacityPlanAdmin(admin.ModelAdmin):
         return super().get_readonly_fields(request, obj)
 
     def save_model(self, request, obj, form, change):
-        if change:
-            persisted = SemesterCapacityPlan.objects.only(
-                "lifecycle_status",
-                "published_by_id",
-                "publication_reason",
-                "published_at",
-            ).get(pk=obj.pk)
-            obj.lifecycle_status = persisted.lifecycle_status
-            obj.published_by_id = persisted.published_by_id
-            obj.publication_reason = persisted.publication_reason
-            obj.published_at = persisted.published_at
-        else:
-            obj.lifecycle_status = SemesterCapacityPlan.Lifecycle.DRAFT
-            obj.published_by = None
-            obj.publication_reason = ""
-            obj.published_at = None
-        super().save_model(request, obj, form, change)
+        using = obj._state.db or router.db_for_write(self.model, instance=obj)
+        with transaction.atomic(using=using):
+            if change:
+                persisted = (
+                    capacity_plans_for_update(using=using)
+                    .only(
+                        "lifecycle_status",
+                        "published_by_id",
+                        "publication_reason",
+                        "published_at",
+                    )
+                    .get(pk=obj.pk)
+                )
+                if (
+                    persisted.lifecycle_status
+                    != SemesterCapacityPlan.Lifecycle.DRAFT
+                ):
+                    raise ValidationError(
+                        "Capacity plan is no longer Draft; reload and retry."
+                    )
+                obj.lifecycle_status = persisted.lifecycle_status
+                obj.published_by_id = persisted.published_by_id
+                obj.publication_reason = persisted.publication_reason
+                obj.published_at = persisted.published_at
+            else:
+                obj.lifecycle_status = SemesterCapacityPlan.Lifecycle.DRAFT
+                obj.published_by = None
+                obj.publication_reason = ""
+                obj.published_at = None
+            super().save_model(request, obj, form, change)
 
     def has_delete_permission(self, request, obj=None):
         return False

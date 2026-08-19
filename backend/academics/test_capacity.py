@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.query import QuerySet
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from accounts.models import Lecturer, OfficeStaff, Panel, Supervisor
 
@@ -300,6 +301,97 @@ class CapacityModelTests(TestCase):
         self.assertIn(SemesterCapacityPlan, locked_models)
         self.assertIn(LecturerCapacityEntry, locked_models)
 
+    def test_entry_partial_save_validates_the_projected_persisted_lecturer(self):
+        plan = self.create_plan()
+        supervisor_only = self.create_additional_lecturer("PROJECTED")
+        supervisor_only.panel.delete()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=supervisor_only,
+            supervisor_limit=4,
+            panel_limit=None,
+            updated_by=self.office,
+        )
+        entry.lecturer = self.lecturer
+        entry.panel_limit = 8
+
+        with self.assertRaises(ValidationError):
+            entry.save(update_fields=["panel_limit"])
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.lecturer, supervisor_only)
+        self.assertIsNone(entry.panel_limit)
+
+    def test_published_entry_instance_delete_is_rejected(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+
+        with self.assertRaises(ValidationError):
+            entry.delete()
+
+        self.assertTrue(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_published_entry_queryset_delete_is_rejected(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.filter(pk=entry.pk).delete()
+
+        self.assertTrue(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_superseded_entry_raw_delete_is_rejected(self):
+        plan = self.create_plan()
+        entry = LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.SUPERSEDED
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.filter(pk=entry.pk)._raw_delete(
+                using="default"
+            )
+
+        self.assertTrue(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_draft_entry_queryset_delete_remains_available(self):
+        entry = LecturerCapacityEntry.objects.create(
+            plan=self.create_plan(),
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+
+        deleted, _ = LecturerCapacityEntry.objects.filter(pk=entry.pk).delete()
+
+        self.assertEqual(deleted, 1)
+        self.assertFalse(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
+
     def test_plan_admin_keeps_publication_fields_read_only(self):
         draft = self.create_plan()
         request = RequestFactory().get("/admin/academics/semestercapacityplan/add/")
@@ -350,6 +442,31 @@ class CapacityModelTests(TestCase):
 
         plan.refresh_from_db()
         self.assertEqual(plan.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+
+    def test_plan_admin_rejects_a_stale_draft_edit_after_publication(self):
+        plan = self.create_plan()
+        stale_plan = SemesterCapacityPlan.objects.get(pk=plan.pk)
+        stale_plan.version = 99
+        stale_plan.origin = SemesterCapacityPlan.Origin.COPIED_FORWARD
+        SemesterCapacityPlan.objects.filter(pk=plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+        request = RequestFactory().post(
+            f"/admin/academics/semestercapacityplan/{plan.pk}/change/"
+        )
+        request.user = self.office
+        plan_admin = SemesterCapacityPlanAdmin(SemesterCapacityPlan, AdminSite())
+
+        with self.assertRaises(ValidationError):
+            plan_admin.save_model(request, stale_plan, form=None, change=True)
+
+        plan.refresh_from_db()
+        self.assertEqual(
+            plan.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        self.assertEqual(plan.version, 1)
+        self.assertEqual(plan.origin, SemesterCapacityPlan.Origin.CREATED)
 
     def test_capacity_audit_admin_selects_displayed_relations(self):
         audit_admin = LecturerCapacityAuditAdmin(
@@ -791,6 +908,62 @@ class CapacityModelTests(TestCase):
         self.assertIn(AcademicSemester, locked_models)
         self.assertIn(LecturerAvailabilityWindow, locked_models)
 
+    def test_availability_partial_save_validates_projected_cancellation_state(self):
+        blocker = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values()
+        )
+        window = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values(
+                starts_on=self.semester.starts_on + timedelta(days=10),
+                ends_on=self.semester.starts_on + timedelta(days=15),
+            )
+        )
+        original_dates = (window.starts_on, window.ends_on)
+        window.starts_on = blocker.starts_on + timedelta(days=1)
+        window.ends_on = blocker.ends_on + timedelta(days=1)
+        window.cancelled_at = timezone.now()
+        window.cancelled_by = self.office
+        window.cancellation_reason = "Cancelled after the form was loaded."
+
+        with self.assertRaises(ValidationError):
+            window.save(update_fields=["starts_on", "ends_on"])
+
+        window.refresh_from_db()
+        self.assertEqual((window.starts_on, window.ends_on), original_dates)
+        self.assertIsNone(window.cancelled_at)
+
+    def test_availability_partial_save_rejects_incomplete_cancellation_metadata(self):
+        window = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values()
+        )
+        window.cancelled_at = timezone.now()
+        window.cancelled_by = self.office
+        window.cancellation_reason = "Cancelled after review."
+
+        with self.assertRaises(ValidationError):
+            window.save(update_fields=["cancelled_at"])
+
+        window.refresh_from_db()
+        self.assertIsNone(window.cancelled_at)
+        self.assertIsNone(window.cancelled_by)
+        self.assertEqual(window.cancellation_reason, "")
+
+    def test_availability_full_save_accepts_complete_cancellation_metadata(self):
+        window = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values()
+        )
+        cancelled_at = timezone.now()
+        window.cancelled_at = cancelled_at
+        window.cancelled_by = self.office
+        window.cancellation_reason = "Cancelled after review."
+
+        window.save()
+
+        window.refresh_from_db()
+        self.assertEqual(window.cancelled_at, cancelled_at)
+        self.assertEqual(window.cancelled_by, self.office)
+        self.assertEqual(window.cancellation_reason, "Cancelled after review.")
+
     def test_availability_bulk_create_is_rejected(self):
         with self.assertRaises(ValidationError):
             LecturerAvailabilityWindow.objects.bulk_create(
@@ -915,3 +1088,28 @@ class CapacityModelTests(TestCase):
 
         self.assertEqual(len(audits), 1)
         self.assertEqual(LecturerCapacityAudit.objects.count(), 1)
+
+    def test_capacity_audit_bulk_upsert_is_rejected(self):
+        audit = self.create_audit()
+        replacement = LecturerCapacityAudit(
+            pk=audit.pk,
+            academic_semester=self.semester,
+            plan=audit.plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            action=LecturerCapacityAudit.Action.PLAN_CREATE,
+            reason="Attempted conflict update.",
+            before_values={},
+            after_values={"planId": audit.plan_id},
+        )
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityAudit.objects.bulk_create(
+                [replacement],
+                update_conflicts=True,
+                update_fields=["reason"],
+                unique_fields=["pk"],
+            )
+
+        audit.refresh_from_db()
+        self.assertEqual(audit.reason, "Capacity policy event.")

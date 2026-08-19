@@ -297,10 +297,12 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 
 ## Planned Lecturer Capacity Architecture
 
-- `SemesterCapacityPlan` versions belong to `AcademicSemester`; only one published version is authoritative per semester, and replacement publication atomically supersedes the previous version.
-- `LecturerCapacityEntry` snapshots independent Supervisor and Panel limits. `LecturerAvailabilityWindow` stores role-specific, semester-bounded operational restrictions without deleting or rewriting history.
+- `SemesterCapacityPlan` versions belong to `AcademicSemester`; only one published version is authoritative per semester. Task 1 persists the plan schema and reserves lifecycle transitions for a later transactional publication service.
+- `LecturerCapacityEntry` snapshots independent Supervisor and Panel limits. Model and QuerySet guards lock plans in deterministic order, permit writes and deletion only while every source and destination plan is Draft, and validate partial saves against projected persisted state.
+- `LecturerAvailabilityWindow` stores role-specific, semester-bounded operational restrictions without deleting or rewriting history. Individual saves lock the owning semester and validate projected persisted state; unsafe bulk mutation and physical deletion paths are disabled.
+- `LecturerCapacityAudit` is append-only across instance, QuerySet, bulk-update, deletion, and conflict-update paths. Ordinary inserts and non-updating bulk inserts remain available.
 - A shared capacity-resolution service will replace direct semester-bound reads of `Supervisor.max_supervisees` and `Panel.max_appointments` across candidate lists, final approvals, replacements, workload monitoring, Reports, and reconciliation.
 - Existing workload semantics remain intact: active Supervisor appointments consume Supervisor capacity, while active Panel appointments plus pending nominations reserve Panel capacity.
 - Semester activation will call a fail-closed readiness check for complete published coverage. Final approvals will re-resolve capacity and availability under transaction and row locks.
 - The planned lazy `/dashboard/lecturer-capacity` workspace is Office-only and outside the sidebar. Other roles receive only authorized derived capacity fields through existing module APIs.
-- The approved detailed design is recorded in `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`; implementation and migrations are not yet complete.
+- The approved detailed design is recorded in `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`; Task 1 model, admin, migration, and persistence safeguards are complete, while resolver, services, APIs, workflow integration, and UI work remain pending.
