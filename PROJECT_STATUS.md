@@ -1,5 +1,12 @@
 # Project Status
 
+## Planned Lecturer Capacity and Availability Management
+
+- Approved a semester-specific, versioned capacity design for independent Supervisor and Panel limits, date-ranged role availability, fail-closed semester activation, and immutable operational audits.
+- Existing appointments will remain valid when capacity is reduced or availability changes. Over-capacity and unavailable Lecturers will be blocked from new assignment activation without automatic workflow cancellation.
+- New semesters will copy the previous published plan into Draft for Office review. Existing global limits will seed documented cutover baselines only.
+- The approved specification is `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`. No models, migrations, APIs, UI behavior, or tests for this planned feature have been implemented yet.
+
 ## Workflow Data Quality and Reconciliation Centre
 
 - Added an Office-only live scan across Coordinator authority, semesters, research-profile identity/Supervisor consistency, approved Supervisor/Panel handoffs, Marks task eligibility/generation, and appointment source/replacement lineage.

@@ -388,3 +388,13 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Unfinished Marks tasks may be paused, resumed, retired with snapshots, or generated idempotently. Submitted Marks, evaluator attribution, immutable workflow events, and downstream histories must never be rewritten.
 - Role/profile mismatches, downstream-used identity conflicts, and appointment source/replacement-lineage inconsistencies are review-required and expose no Apply action.
 - Office Dashboard and Workflow Reports expose reconciliation counts and blocking attention links. Coordinator, Lecturer, and Student users cannot access reconciliation list, preview, apply, or audit endpoints.
+
+## Planned Lecturer Capacity and Availability Management
+
+- Supervisor and Panel capacity must become semester-specific, versioned, role-specific, and Office-configurable through a workspace outside the sidebar.
+- A semester cannot activate until one complete capacity plan is published for every lifecycle-Active Lecturer who holds a Supervisor or Panel role.
+- Published plans are immutable. Active-semester changes require a new Draft version and atomic publication/supersession with a mandatory reason and immutable audit.
+- Office may record separate Supervisor and Panel unavailability windows within semester dates. Existing appointments remain active; new submissions and final activation must respect effective availability.
+- Reducing capacity below current workload preserves existing appointments, exposes `OVER_CAPACITY`, and blocks new assignments until load falls below the limit.
+- Candidate queries and final mutation endpoints must use the same authoritative capacity resolver. Students receive only public selectability and availability-resumption dates.
+- New semesters may copy the previous published plan into Draft, but Office must review and publish it. Legacy global limits seed only documented migration baselines and are not authoritative for new semester-bound workflows.

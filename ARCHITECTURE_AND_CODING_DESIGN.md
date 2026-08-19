@@ -294,3 +294,13 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `WorkflowReconciliationAudit` stores issue/entity/action, Office actor, mandatory reason, fingerprint, before/after JSON, affected identifiers, and timestamp. Updates and deletes are rejected.
 - The lazy Office-only React route uses typed list, preview, apply, and audit services with filters, pagination, current-state inspection, deep links, explicit confirmation, stale-conflict recovery, and no Apply control for review-required issues.
 - Dashboard tasks and Workflow Report attention rows link to reconciliation. Announcements/Notifications and unsafe history merges remain outside this boundary.
+
+## Planned Lecturer Capacity Architecture
+
+- `SemesterCapacityPlan` versions belong to `AcademicSemester`; only one published version is authoritative per semester, and replacement publication atomically supersedes the previous version.
+- `LecturerCapacityEntry` snapshots independent Supervisor and Panel limits. `LecturerAvailabilityWindow` stores role-specific, semester-bounded operational restrictions without deleting or rewriting history.
+- A shared capacity-resolution service will replace direct semester-bound reads of `Supervisor.max_supervisees` and `Panel.max_appointments` across candidate lists, final approvals, replacements, workload monitoring, Reports, and reconciliation.
+- Existing workload semantics remain intact: active Supervisor appointments consume Supervisor capacity, while active Panel appointments plus pending nominations reserve Panel capacity.
+- Semester activation will call a fail-closed readiness check for complete published coverage. Final approvals will re-resolve capacity and availability under transaction and row locks.
+- The planned lazy `/dashboard/lecturer-capacity` workspace is Office-only and outside the sidebar. Other roles receive only authorized derived capacity fields through existing module APIs.
+- The approved detailed design is recorded in `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`; implementation and migrations are not yet complete.
