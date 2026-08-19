@@ -6,6 +6,7 @@
 - Existing appointments will remain valid when capacity is reduced or availability changes. Over-capacity and unavailable Lecturers will be blocked from new assignment activation without automatic workflow cancellation.
 - New semesters will copy the previous published plan into Draft for Office review. Existing global limits will seed documented cutover baselines only.
 - The approved specification is `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`. No models, migrations, APIs, UI behavior, or tests for this planned feature have been implemented yet.
+- The reviewed task-by-task implementation plan is `docs/superpowers/plans/2026-08-19-lecturer-capacity-availability.md`.
 
 ## Workflow Data Quality and Reconciliation Centre
 
