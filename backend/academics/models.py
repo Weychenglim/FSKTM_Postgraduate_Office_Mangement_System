@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import connections, models, router, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -228,6 +228,17 @@ _capacity_bulk_update_validated = ContextVar(
 )
 
 
+def _select_for_update_self(queryset):
+    if connections[queryset.db].features.has_select_for_update_of:
+        return queryset.select_for_update(of=("self",))
+    return queryset.select_for_update()
+
+
+def capacity_plans_for_update(*, using):
+    queryset = SemesterCapacityPlan.objects.using(using).order_by("pk")
+    return _select_for_update_self(queryset)
+
+
 class LecturerCapacityEntryQuerySet(models.QuerySet):
     def _validate_plan_ids_are_draft(self, plan_ids):
         plan_ids = set(plan_ids)
@@ -237,8 +248,7 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
             raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
 
         draft_plan_ids = set(
-            SemesterCapacityPlan.objects.using(self.db)
-            .select_for_update()
+            capacity_plans_for_update(using=self.db)
             .filter(
                 pk__in=plan_ids,
                 lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
@@ -277,7 +287,10 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
 
         with transaction.atomic(using=self.db):
             plan_ids = set(
-                self.filter(pk__in=object_pks).values_list("plan_id", flat=True)
+                self.order_by()
+                .filter(pk__in=object_pks)
+                .values_list("plan_id", flat=True)
+                .distinct()
             )
             if {"plan", "plan_id"} & field_names:
                 plan_ids.update(obj.plan_id for obj in objs)
@@ -294,7 +307,9 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
             return super().update(**kwargs)
 
         with transaction.atomic(using=self.db):
-            plan_ids = set(self.values_list("plan_id", flat=True))
+            plan_ids = set(
+                self.order_by().values_list("plan_id", flat=True).distinct()
+            )
             plan_ids.update(self._target_plan_ids(kwargs))
             self._validate_plan_ids_are_draft(plan_ids)
             return super().update(**kwargs)
@@ -376,17 +391,97 @@ class LecturerCapacityEntry(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        self._validate_draft_plan()
-        return super().save(*args, **kwargs)
+        using = kwargs.get("using") or router.db_for_write(
+            self.__class__,
+            instance=self,
+        )
+        kwargs["using"] = using
+
+        with transaction.atomic(using=using):
+            persisted_plan_id = None
+            if self.pk:
+                persisted_plan_id = (
+                    LecturerCapacityEntry.objects.using(using)
+                    .order_by()
+                    .filter(pk=self.pk)
+                    .values_list("plan_id", flat=True)
+                    .first()
+                )
+
+            plan_ids = {
+                plan_id
+                for plan_id in (persisted_plan_id, self.plan_id)
+                if plan_id is not None
+            }
+            locked_plans = dict(
+                capacity_plans_for_update(using=using)
+                .filter(pk__in=plan_ids)
+                .values_list("pk", "lifecycle_status")
+            )
+
+            if self.pk:
+                persisted_entry = _select_for_update_self(
+                    LecturerCapacityEntry.objects.using(using)
+                    .order_by()
+                    .filter(pk=self.pk)
+                )
+                locked_source_plan_id = persisted_entry.values_list(
+                    "plan_id", flat=True
+                ).first()
+                if locked_source_plan_id != persisted_plan_id:
+                    raise ValidationError(
+                        {"plan": "Capacity entry changed concurrently; reload and retry."}
+                    )
+
+            if set(locked_plans) != plan_ids or any(
+                status != SemesterCapacityPlan.Lifecycle.DRAFT
+                for status in locked_plans.values()
+            ):
+                raise ValidationError({"plan": self.DRAFT_PLAN_REQUIRED_ERROR})
+
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.lecturer} in {self.plan}"
+
+
+AVAILABILITY_BULK_WRITE_ERROR = (
+    "Availability windows must be changed through validated individual saves."
+)
+AVAILABILITY_DELETE_ERROR = (
+    "Availability windows cannot be deleted; cancel them instead."
+)
+
+
+class LecturerAvailabilityWindowQuerySet(models.QuerySet):
+    def bulk_create(self, objs, *args, **kwargs):
+        raise ValidationError(AVAILABILITY_BULK_WRITE_ERROR)
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError(AVAILABILITY_BULK_WRITE_ERROR)
+
+    def update(self, **kwargs):
+        raise ValidationError(AVAILABILITY_BULK_WRITE_ERROR)
+
+    def delete(self):
+        raise ValidationError(AVAILABILITY_DELETE_ERROR)
+
+    def _raw_delete(self, using):
+        raise ValidationError(AVAILABILITY_DELETE_ERROR)
+
+
+def _academic_semesters_for_update(*, using):
+    queryset = AcademicSemester.objects.using(using).order_by("pk")
+    return _select_for_update_self(queryset)
 
 
 class LecturerAvailabilityWindow(models.Model):
     class Role(models.TextChoices):
         SUPERVISOR = "SUPERVISOR", "Supervisor"
         PANEL = "PANEL", "Panel"
+
+    objects = LecturerAvailabilityWindowQuerySet.as_manager()
 
     academic_semester = models.ForeignKey(
         AcademicSemester,
@@ -466,12 +561,13 @@ class LecturerAvailabilityWindow(models.Model):
             if not role_exists:
                 errors["role"] = "The lecturer does not hold the selected role."
 
+        cancellation_reason = (self.cancellation_reason or "").strip()
         if self.cancelled_at:
             if not self.cancelled_by_id:
                 errors["cancelled_by"] = "A cancellation actor is required."
-            if not self.cancellation_reason.strip():
+            if not cancellation_reason:
                 errors["cancellation_reason"] = "A cancellation reason is required."
-        elif self.cancelled_by_id or self.cancellation_reason.strip():
+        elif self.cancelled_by_id or cancellation_reason:
             errors["cancelled_at"] = "A cancellation timestamp is required."
 
         if (
@@ -498,11 +594,90 @@ class LecturerAvailabilityWindow(models.Model):
         if errors:
             raise ValidationError(errors)
 
+    def save(self, *args, **kwargs):
+        using = kwargs.get("using") or router.db_for_write(
+            self.__class__,
+            instance=self,
+        )
+        kwargs["using"] = using
+
+        with transaction.atomic(using=using):
+            persisted_semester_id = None
+            if self.pk:
+                persisted_semester_id = (
+                    LecturerAvailabilityWindow.objects.using(using)
+                    .order_by()
+                    .filter(pk=self.pk)
+                    .values_list("academic_semester_id", flat=True)
+                    .first()
+                )
+
+            semester_ids = {
+                semester_id
+                for semester_id in (
+                    persisted_semester_id,
+                    self.academic_semester_id,
+                )
+                if semester_id is not None
+            }
+            locked_semester_ids = set(
+                _academic_semesters_for_update(using=using)
+                .filter(pk__in=semester_ids)
+                .values_list("pk", flat=True)
+            )
+
+            if self.pk:
+                persisted_window = _select_for_update_self(
+                    LecturerAvailabilityWindow.objects.using(using)
+                    .order_by()
+                    .filter(pk=self.pk)
+                )
+                locked_source_semester_id = persisted_window.values_list(
+                    "academic_semester_id", flat=True
+                ).first()
+                if locked_source_semester_id != persisted_semester_id:
+                    raise ValidationError(
+                        {
+                            "academic_semester": (
+                                "Availability window changed concurrently; "
+                                "reload and retry."
+                            )
+                        }
+                    )
+
+            if locked_semester_ids != semester_ids:
+                raise ValidationError(
+                    {"academic_semester": "A valid academic semester is required."}
+                )
+
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError(AVAILABILITY_DELETE_ERROR)
+
     def __str__(self):
         return (
             f"{self.lecturer} {self.get_role_display()} availability "
             f"{self.starts_on} to {self.ends_on}"
         )
+
+
+CAPACITY_AUDIT_IMMUTABLE_ERROR = "Lecturer capacity audits are immutable."
+
+
+class LecturerCapacityAuditQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
+
+    def delete(self):
+        raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
+
+    def _raw_delete(self, using):
+        raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
 
 
 class LecturerCapacityAudit(models.Model):
@@ -514,6 +689,8 @@ class LecturerCapacityAudit(models.Model):
         SUPERSEDE = "SUPERSEDE", "Supersede"
         AVAILABILITY_CREATE = "AVAILABILITY_CREATE", "Availability create"
         AVAILABILITY_CANCEL = "AVAILABILITY_CANCEL", "Availability cancel"
+
+    objects = LecturerCapacityAuditQuerySet.as_manager()
 
     academic_semester = models.ForeignKey(
         AcademicSemester,
@@ -557,9 +734,9 @@ class LecturerCapacityAudit(models.Model):
 
     def save(self, *args, **kwargs):
         if self.pk:
-            raise ValidationError("Lecturer capacity audits are immutable.")
+            raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        raise ValidationError("Lecturer capacity audits are immutable.")
+        raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
 

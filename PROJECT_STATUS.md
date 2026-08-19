@@ -5,7 +5,7 @@
 - Approved a semester-specific, versioned capacity design for independent Supervisor and Panel limits, date-ranged role availability, fail-closed semester activation, and immutable operational audits.
 - Existing appointments will remain valid when capacity is reduced or availability changes. Over-capacity and unavailable Lecturers will be blocked from new assignment activation without automatic workflow cancellation.
 - New semesters will copy the previous published plan into Draft for Office review. Existing global limits will seed documented cutover baselines only.
-- Task 1 now provides the four capacity-policy models, schema constraints and indexes, Draft-only capacity-entry writes across normal and bulk ORM operations and admin forms, append-only capacity audits, and focused model tests in academics migration `0002`. Capacity resolution, lifecycle services, APIs, workflow integration, and UI behavior remain planned.
+- Task 1 now provides the four capacity-policy models, schema constraints and indexes, lock-aware Draft-only entry writes across normal and bulk ORM operations, serialized validated availability saves, publication-safe admin forms, append-only audits across instance and queryset operations, and focused model tests in academics migration `0002`. Capacity resolution, lifecycle services, APIs, workflow integration, and UI behavior remain planned.
 - The approved specification is `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`.
 - The reviewed task-by-task implementation plan is `docs/superpowers/plans/2026-08-19-lecturer-capacity-availability.md`.
 

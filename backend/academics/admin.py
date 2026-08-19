@@ -72,12 +72,37 @@ class SemesterCapacityPlanAdmin(admin.ModelAdmin):
     )
     list_filter = ("lifecycle_status", "origin", "academic_semester")
     search_fields = ("academic_semester__code", "created_by__email")
-    readonly_fields = ("created_at", "published_at")
+    readonly_fields = (
+        "lifecycle_status",
+        "published_by",
+        "publication_reason",
+        "published_at",
+        "created_at",
+    )
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
             return _all_model_fields(self.model)
         return super().get_readonly_fields(request, obj)
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            persisted = SemesterCapacityPlan.objects.only(
+                "lifecycle_status",
+                "published_by_id",
+                "publication_reason",
+                "published_at",
+            ).get(pk=obj.pk)
+            obj.lifecycle_status = persisted.lifecycle_status
+            obj.published_by_id = persisted.published_by_id
+            obj.publication_reason = persisted.publication_reason
+            obj.published_at = persisted.published_at
+        else:
+            obj.lifecycle_status = SemesterCapacityPlan.Lifecycle.DRAFT
+            obj.published_by = None
+            obj.publication_reason = ""
+            obj.published_at = None
+        super().save_model(request, obj, form, change)
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -148,6 +173,7 @@ class LecturerCapacityAuditAdmin(admin.ModelAdmin):
     )
     list_filter = ("action", "academic_semester")
     search_fields = ("actor__email", "lecturer__staff_no", "reason")
+    list_select_related = ("academic_semester", "plan", "lecturer", "actor")
     readonly_fields = _all_model_fields(LecturerCapacityAudit)
 
     def has_add_permission(self, request):
