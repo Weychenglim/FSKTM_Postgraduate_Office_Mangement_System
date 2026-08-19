@@ -151,3 +151,317 @@ class AcademicSemesterAudit(models.Model):
     def delete(self, *args, **kwargs):
         raise ValidationError("Academic semester audits are immutable.")
 
+
+class SemesterCapacityPlan(models.Model):
+    class Lifecycle(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PUBLISHED = "PUBLISHED", "Published"
+        SUPERSEDED = "SUPERSEDED", "Superseded"
+
+    class Origin(models.TextChoices):
+        CREATED = "CREATED", "Created"
+        COPIED_FORWARD = "COPIED_FORWARD", "Copied forward"
+        MIGRATED_BASELINE = "MIGRATED_BASELINE", "Migrated baseline"
+
+    academic_semester = models.ForeignKey(
+        AcademicSemester,
+        on_delete=models.PROTECT,
+        related_name="capacity_plans",
+    )
+    version = models.PositiveIntegerField()
+    lifecycle_status = models.CharField(max_length=16, choices=Lifecycle.choices)
+    origin = models.CharField(max_length=24, choices=Origin.choices)
+    supersedes = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="successor_plans",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_capacity_plans",
+    )
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="published_capacity_plans",
+    )
+    publication_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["academic_semester", "-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["academic_semester", "version"],
+                name="unique_capacity_plan_semester_version",
+            ),
+            models.UniqueConstraint(
+                fields=["academic_semester"],
+                condition=Q(lifecycle_status="PUBLISHED"),
+                name="one_published_capacity_plan_per_semester",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["academic_semester", "lifecycle_status"],
+                name="cap_plan_sem_status_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.academic_semester.code} capacity plan v{self.version}"
+
+
+class LecturerCapacityEntry(models.Model):
+    plan = models.ForeignKey(
+        SemesterCapacityPlan,
+        on_delete=models.PROTECT,
+        related_name="entries",
+    )
+    lecturer = models.ForeignKey(
+        "accounts.Lecturer",
+        on_delete=models.PROTECT,
+        related_name="capacity_entries",
+    )
+    supervisor_limit = models.PositiveIntegerField(null=True, blank=True)
+    panel_limit = models.PositiveIntegerField(null=True, blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="updated_capacity_entries",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["lecturer__staff_no"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "lecturer"],
+                name="unique_capacity_entry_plan_lecturer",
+            )
+        ]
+
+    def clean(self):
+        if not self.lecturer_id:
+            return
+
+        from accounts.models import Panel, Supervisor
+
+        errors = {}
+        has_supervisor_role = Supervisor.objects.filter(
+            lecturer_id=self.lecturer_id
+        ).exists()
+        has_panel_role = Panel.objects.filter(lecturer_id=self.lecturer_id).exists()
+
+        if has_supervisor_role and self.supervisor_limit is None:
+            errors["supervisor_limit"] = (
+                "A Supervisor capacity limit is required for this lecturer."
+            )
+        elif not has_supervisor_role and self.supervisor_limit is not None:
+            errors["supervisor_limit"] = (
+                "A lecturer without the Supervisor role cannot have a Supervisor limit."
+            )
+
+        if has_panel_role and self.panel_limit is None:
+            errors["panel_limit"] = (
+                "A Panel capacity limit is required for this lecturer."
+            )
+        elif not has_panel_role and self.panel_limit is not None:
+            errors["panel_limit"] = (
+                "A lecturer without the Panel role cannot have a Panel limit."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f"{self.lecturer} in {self.plan}"
+
+
+class LecturerAvailabilityWindow(models.Model):
+    class Role(models.TextChoices):
+        SUPERVISOR = "SUPERVISOR", "Supervisor"
+        PANEL = "PANEL", "Panel"
+
+    academic_semester = models.ForeignKey(
+        AcademicSemester,
+        on_delete=models.PROTECT,
+        related_name="lecturer_availability_windows",
+    )
+    lecturer = models.ForeignKey(
+        "accounts.Lecturer",
+        on_delete=models.PROTECT,
+        related_name="availability_windows",
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    starts_on = models.DateField()
+    ends_on = models.DateField()
+    reason = models.TextField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_lecturer_availability_windows",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="cancelled_lecturer_availability_windows",
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["starts_on", "ends_on", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(role__in=["SUPERVISOR", "PANEL"]),
+                name="capacity_window_valid_role",
+            ),
+            models.CheckConstraint(
+                condition=Q(ends_on__gte=models.F("starts_on")),
+                name="cap_window_valid_date_range",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["lecturer", "role", "starts_on", "ends_on"],
+                name="cap_window_lect_role_dates_idx",
+            )
+        ]
+
+    def clean(self):
+        errors = {}
+        semester = None
+        if self.academic_semester_id:
+            semester = self.academic_semester
+
+        if self.starts_on and self.ends_on:
+            if self.ends_on < self.starts_on:
+                errors["ends_on"] = "End date must be on or after the start date."
+            if semester and self.starts_on < semester.starts_on:
+                errors["starts_on"] = (
+                    "Availability must start within the academic semester."
+                )
+            if semester and self.ends_on > semester.ends_on:
+                errors["ends_on"] = (
+                    "Availability must end within the academic semester."
+                )
+
+        if self.lecturer_id and self.role in self.Role.values:
+            from accounts.models import Panel, Supervisor
+
+            role_exists = (
+                Supervisor.objects.filter(lecturer_id=self.lecturer_id).exists()
+                if self.role == self.Role.SUPERVISOR
+                else Panel.objects.filter(lecturer_id=self.lecturer_id).exists()
+            )
+            if not role_exists:
+                errors["role"] = "The lecturer does not hold the selected role."
+
+        if self.cancelled_at:
+            if not self.cancelled_by_id:
+                errors["cancelled_by"] = "A cancellation actor is required."
+            if not self.cancellation_reason.strip():
+                errors["cancellation_reason"] = "A cancellation reason is required."
+        elif self.cancelled_by_id or self.cancellation_reason.strip():
+            errors["cancelled_at"] = "A cancellation timestamp is required."
+
+        if (
+            self.cancelled_at is None
+            and self.academic_semester_id
+            and self.lecturer_id
+            and self.role in self.Role.values
+            and self.starts_on
+            and self.ends_on
+        ):
+            overlapping = LecturerAvailabilityWindow.objects.exclude(pk=self.pk).filter(
+                academic_semester_id=self.academic_semester_id,
+                lecturer_id=self.lecturer_id,
+                role=self.role,
+                cancelled_at__isnull=True,
+                starts_on__lte=self.ends_on,
+                ends_on__gte=self.starts_on,
+            )
+            if overlapping.exists():
+                errors["starts_on"] = (
+                    "Availability overlaps an active window for this lecturer and role."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return (
+            f"{self.lecturer} {self.get_role_display()} availability "
+            f"{self.starts_on} to {self.ends_on}"
+        )
+
+
+class LecturerCapacityAudit(models.Model):
+    class Action(models.TextChoices):
+        PLAN_CREATE = "PLAN_CREATE", "Plan create"
+        PLAN_COPY = "PLAN_COPY", "Plan copy"
+        ENTRY_UPDATE = "ENTRY_UPDATE", "Entry update"
+        PUBLISH = "PUBLISH", "Publish"
+        SUPERSEDE = "SUPERSEDE", "Supersede"
+        AVAILABILITY_CREATE = "AVAILABILITY_CREATE", "Availability create"
+        AVAILABILITY_CANCEL = "AVAILABILITY_CANCEL", "Availability cancel"
+
+    academic_semester = models.ForeignKey(
+        AcademicSemester,
+        on_delete=models.PROTECT,
+        related_name="capacity_audits",
+    )
+    plan = models.ForeignKey(
+        SemesterCapacityPlan,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="audits",
+    )
+    lecturer = models.ForeignKey(
+        "accounts.Lecturer",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="capacity_audits",
+    )
+    availability_window = models.ForeignKey(
+        LecturerAvailabilityWindow,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="audits",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="lecturer_capacity_audits",
+    )
+    action = models.CharField(max_length=32, choices=Action.choices)
+    reason = models.TextField(blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Lecturer capacity audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Lecturer capacity audits are immutable.")
+
