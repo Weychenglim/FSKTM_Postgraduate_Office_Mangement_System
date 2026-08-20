@@ -146,12 +146,24 @@ CACHES = {
     }
 }
 
+# Announcement attachments are validated for size, extension, and magic bytes
+# before they are stored. Reverse proxies should cap request bodies slightly
+# above this so oversized uploads are rejected before reaching Django workers.
+ANNOUNCEMENT_MAX_ATTACHMENT_BYTES = env_int(
+    "ANNOUNCEMENT_MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
+)
+
 AUTH_LOGIN_THROTTLE_RATE = os.getenv("AUTH_LOGIN_THROTTLE_RATE", "10/minute")
 AUTH_PASSWORD_RESET_THROTTLE_RATE = os.getenv(
     "AUTH_PASSWORD_RESET_THROTTLE_RATE", "5/hour"
 )
 AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE = os.getenv(
     "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE", "10/hour"
+)
+# Signed-in password change. Separate scope from reset-confirm, and keyed on the
+# account rather than the IP, so shared networks cannot exhaust each other.
+AUTH_CHANGE_PASSWORD_THROTTLE_RATE = os.getenv(
+    "AUTH_CHANGE_PASSWORD_THROTTLE_RATE", "10/hour"
 )
 
 # ── Django REST Framework + SimpleJWT ────────────────────────────────────────

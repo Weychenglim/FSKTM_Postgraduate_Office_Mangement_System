@@ -278,3 +278,42 @@ class Panel(models.Model):
 
     def __str__(self):
         return f"Panel — {self.lecturer.user.full_name}"
+
+
+class NotificationPreference(models.Model):
+    """Per-user delivery preferences shown in the Settings module.
+
+    Created on demand rather than by signal, so existing accounts keep working
+    without a data migration; :meth:`for_user` returns the stored row or the
+    defaults below.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="notification_preference",
+    )
+    email_notifications = models.BooleanField(default=True)
+    announcement_alerts = models.BooleanField(default=True)
+    deadline_reminders = models.BooleanField(default=True)
+    weekly_summary = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    FIELD_MAP = {
+        "emailNotifications": "email_notifications",
+        "announcementAlerts": "announcement_alerts",
+        "deadlineReminders": "deadline_reminders",
+        "weeklySummary": "weekly_summary",
+    }
+
+    @classmethod
+    def for_user(cls, user):
+        preference, _ = cls.objects.get_or_create(user=user)
+        return preference
+
+    def to_public_dict(self):
+        return {key: getattr(self, field) for key, field in self.FIELD_MAP.items()}
+
+    def __str__(self):
+        return f"Notification preferences — {self.user.email}"
