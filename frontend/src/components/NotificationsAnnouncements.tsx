@@ -262,7 +262,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
   const openNotification = async (notification: NotificationItem) => {
     if (notification.isUnread) {
-      await markRead(notification.id, true);
+      // A retracted announcement's rows are deleted server-side, so an already
+      // loaded feed can hold an id that now 404s. Opening it must still work.
+      await markRead(notification.id, true).catch(() => undefined);
     }
     if (
       !notification.isAnnouncement

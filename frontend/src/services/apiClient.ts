@@ -44,6 +44,21 @@ export class ApiError extends Error {
 export const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Fired when the backend rejects our token, so the app can return to login. */
+export const SESSION_EXPIRED_EVENT = 'fsktm:session-expired';
+
+/**
+ * Whether a failed request may fall back to mock data.
+ *
+ * Only genuine transport failures qualify — the server being unreachable. A
+ * response that carried an HTTP status (401, 403, 404, 500…) is a real answer
+ * and must surface as an error: silently swapping in fixtures would render
+ * invented records as though they were live data.
+ */
+export function isTransportFailure(err: unknown): boolean {
+  return !(err instanceof ApiError) || err.status === undefined;
+}
+
 /**
  * Wrap mock data so callers get the same async shape (and a deep copy, so they
  * can't accidentally mutate the shared mock arrays) they will get from HTTP.
@@ -135,23 +150,35 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers,
   });
-  if (!res.ok) {
-    let message = `Request failed: ${res.status} ${res.statusText}`;
-    try {
-      const extracted = messageFromErrorBody(await res.json());
-      if (extracted) message = extracted;
-    } catch {
-      /* error body was not JSON — keep the status-based message */
-    }
-    throw new ApiError(message, res.status);
-  }
+  if (!res.ok) return raiseForStatus(res);
   // 204 No Content (or empty body) → nothing to parse.
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    // A 200 carrying HTML (proxy or SSO interstitial) is a server problem, not
+    // a transport failure — surface it as an ApiError so callers cannot mistake
+    // it for "offline" and quietly substitute mock data.
+    throw new ApiError('The server returned an unreadable response.', res.status);
+  }
+}
+
+/**
+ * An expired or invalid token means the stored session is worthless. Drop it and
+ * let the app root send the user back to login, rather than leaving every later
+ * call to fail with an opaque message.
+ */
+function handleUnauthorized(): void {
+  if (!_authToken) return;
+  clearAuthToken();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  }
 }
 
 /** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
 async function raiseForStatus(res: Response): Promise<never> {
+  if (res.status === 401) handleUnauthorized();
   let message = `Request failed: ${res.status} ${res.statusText}`;
   try {
     const extracted = messageFromErrorBody(await res.json());

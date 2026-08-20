@@ -53,16 +53,19 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // Live student details (incl. registry fields) fetched from the backend.
   const [details, setDetails] = useState<StudentLetterDetails | null>(null);
 
-  // Student details substituted into the template. These are read-only: they are
-  // taken from the logged-in student's record (live from the backend, with the
-  // passed-in props / demo values as a fallback) and the student cannot edit
-  // them, so the issued letter cannot be tampered with.
-  const studentName = details?.studentName ?? studentNameProp ?? 'Fatimah Al-Zahra';
-  const matricNumber = details?.matricNumber ?? studentIdProp ?? 'WEA200192';
-  const programName =
-    details?.programName ?? programmeProp ?? 'Master of Computer Science (By Coursework)';
-  const currentStatus = details?.currentStatus ?? 'Active';
+  // True once the backend has answered. Until then, and if it fails, the letter
+  // must not be generated: falling back to placeholder constants previously
+  // printed a demo matric number and an unconditional "Active" status onto an
+  // official document, so a withdrawn student could produce a letter stating
+  // they were enrolled.
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+
+  const studentName = details?.studentName ?? studentNameProp ?? '';
+  const matricNumber = details?.matricNumber ?? studentIdProp ?? '';
+  const programName = details?.programName ?? programmeProp ?? '';
+  const currentStatus = details?.currentStatus ?? '';
   const supervisorName = details?.supervisorName ?? '';
+  const canGenerate = details !== null && !detailsError;
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -86,16 +89,25 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   }, [loadTemplates]);
 
   // Load the logged-in student's letter details (name, matric, programme +
-  // registry fields). Failures are non-fatal: the letter still renders with the
-  // prop/demo fallbacks and blank fill-in lines for any missing registry fields.
+  // registry fields). A failure here is fatal for generation: an official letter
+  // must carry the student's real record or none at all.
   useEffect(() => {
     let cancelled = false;
     getMyLetterDetails()
       .then((data) => {
-        if (!cancelled) setDetails(data);
+        if (!cancelled) {
+          setDetails(data);
+          setDetailsError(null);
+        }
       })
-      .catch(() => {
-        /* keep fallbacks — registry fields render as blank fill-in lines */
+      .catch((e) => {
+        if (!cancelled) {
+          setDetailsError(
+            e instanceof Error
+              ? e.message
+              : 'Could not load your student record. Letter generation is unavailable.',
+          );
+        }
       });
     return () => {
       cancelled = true;
@@ -147,6 +159,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // both "Save as PDF" (download) and printing to a physical printer.
   const handleGeneratePDF = () => {
     if (!selectedTemplate) return;
+    if (!canGenerate) {
+      triggerToast(
+        detailsError ?? 'Your student record is still loading. Please try again.',
+      );
+      return;
+    }
     const opened = openLetterDocument(buildLetterData());
     triggerToast(
       opened
@@ -339,12 +357,19 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             </div>
 
             {/* Action bar */}
-            <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-end gap-4">
+            <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* The button is disabled when the record cannot load, so the
+                  reason has to be stated here rather than on click. */}
+              <p className="text-[11px] font-semibold text-rose-700 text-left md:pr-4">
+                {detailsError
+                  ? `${detailsError} Letter generation is unavailable until your record loads.`
+                  : ''}
+              </p>
               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
                 <button
                   type="button"
                   onClick={handleGeneratePDF}
-                  disabled={!selectedTemplate}
+                  disabled={!selectedTemplate || !canGenerate}
                   className="w-full sm:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-850 text-white font-black text-[10px] tracking-widest uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FileCheck className="w-3.5 h-3.5 stroke-[2.3]" />

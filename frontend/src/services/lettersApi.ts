@@ -10,7 +10,7 @@
 
 import { LetterTemplate } from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
-import { USE_MOCKS, mockResponse, request } from './apiClient';
+import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
 
 /** Payload for creating/updating a template (frontend field names). */
 export interface LetterTemplateInput {
@@ -52,7 +52,8 @@ export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/');
   } catch (err) {
-    if (USE_MOCKS) return mockResponse(MOCK_LETTER_TEMPLATES);
+    // Only a genuine transport failure may fall back; a 401/403 must surface.
+    if (USE_MOCKS && isTransportFailure(err)) return mockResponse(MOCK_LETTER_TEMPLATES);
     throw err;
   }
 }
@@ -62,7 +63,7 @@ export async function getStudentLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/?status=Active');
   } catch (err) {
-    if (USE_MOCKS) {
+    if (USE_MOCKS && isTransportFailure(err)) {
       return mockResponse(MOCK_LETTER_TEMPLATES.filter((t) => t.status === 'Active'));
     }
     throw err;

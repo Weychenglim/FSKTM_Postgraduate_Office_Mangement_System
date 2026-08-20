@@ -7,11 +7,11 @@
  * Settings module — account profile, contact details, password, and
  * notification preferences. Role-aware (labels adapt for Student vs staff).
  *
- * The forms are wired to local state with success toasts, matching the app's
- * current mock-first convention; the contact/password/preference writes still
- * need backend endpoints before they persist (see the data-services layer).
+ * Contact details, password, and notification preferences persist through
+ * `/api/auth/me/*`. The backend verifies the current password and owns the
+ * validation rules; this screen surfaces whatever it returns.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   User,
   Mail,
@@ -25,6 +25,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { DemoUser } from '../types';
+import * as authApi from '../services/authApi';
 import { FormInput } from './FormInput';
 import { ToggleSwitch } from './ToggleSwitch';
 import {
@@ -65,15 +66,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
   // ── Contact details ────────────────────────────────────────────────────────
   const [email, setEmail] = useState(currentUser.email);
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(currentUser.phone ?? '');
+  const [savingContact, setSavingContact] = useState(false);
 
-  const handleSaveContact = (e: React.FormEvent) => {
+  const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       showToast('Email cannot be empty.', 'danger');
       return;
     }
-    showToast('Contact details updated.');
+    setSavingContact(true);
+    try {
+      await authApi.updateContactDetails(phone.trim());
+      showToast('Contact details updated.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not save contact details.', 'danger');
+    } finally {
+      setSavingContact(false);
+    }
   };
 
   // ── Password ───────────────────────────────────────────────────────────────
@@ -81,8 +91,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwErrors, setPwErrors] = useState<{ current?: string; next?: string; confirm?: string }>({});
+  const [savingPassword, setSavingPassword] = useState(false);
 
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: typeof pwErrors = {};
     if (!currentPassword) errors.current = 'Enter your current password.';
@@ -91,21 +102,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     setPwErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    showToast('Password updated successfully.');
+    setSavingPassword(true);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('Password updated successfully.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not update password.';
+      // "Your current password is incorrect." belongs under Current Password,
+      // not New Password — anything else is a rule about the new value.
+      const isCurrentPasswordError = /current password/i.test(message);
+      setPwErrors(isCurrentPasswordError ? { current: message } : { next: message });
+      showToast(message, 'danger');
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   // ── Notification preferences ───────────────────────────────────────────────
-  const [prefs, setPrefs] = useState({
+  const [prefs, setPrefs] = useState<authApi.NotificationPreferences>({
     emailNotifications: true,
     announcementAlerts: true,
     deadlineReminders: true,
     weeklySummary: false,
   });
-  const setPref = (key: keyof typeof prefs) => (value: boolean) =>
+
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .getNotificationPreferences()
+      .then((loaded) => {
+        if (!cancelled) setPrefs(loaded);
+      })
+      .catch(() => {
+        /* keep the defaults on screen if the read fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Tracks which switches have a request in flight, so rapid toggling cannot
+  // interleave responses or revert an unrelated preference.
+  const [pendingPrefs, setPendingPrefs] = useState<
+    Partial<Record<keyof authApi.NotificationPreferences, boolean>>
+  >({});
+
+  const setPref = (key: keyof authApi.NotificationPreferences) => async (value: boolean) => {
+    // Ignore a second click while this switch's own write is in flight;
+    // otherwise two PATCHes race and the server keeps whichever lands last.
+    if (pendingPrefs[key]) return;
+    const restore = prefs[key];
+    setPendingPrefs((p) => ({ ...p, [key]: true }));
     setPrefs((p) => ({ ...p, [key]: value }));
+    try {
+      await authApi.updateNotificationPreferences({ [key]: value });
+    } catch (err) {
+      // Revert only this key — a snapshot of the whole object would also undo
+      // a different toggle that succeeded moments earlier.
+      setPrefs((p) => ({ ...p, [key]: restore }));
+      showToast(err instanceof Error ? err.message : 'Could not save preference.', 'danger');
+    } finally {
+      setPendingPrefs((p) => ({ ...p, [key]: false }));
+    }
+  };
 
   return (
     <div id="settings-workspace" className="space-y-6 md:space-y-8 animate-fade-in">
@@ -153,13 +215,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
             <form onSubmit={handleSaveContact} className="mt-5">
               <FormInput id="settings-full-name" label="Full Name" value={currentUser.fullName} disabled />
               <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
+                {/* Email is the login identifier and is office-controlled, so
+                    it is shown for reference but not self-editable. */}
                 <FormInput
                   id="settings-email"
                   label="Email Address"
                   type="email"
                   icon={Mail}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  disabled
                 />
                 <FormInput
                   id="settings-phone"
@@ -253,17 +317,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 id="pref-weekly"
               />
             </div>
-            <div className="flex justify-end mt-5">
-              <PortalButton
-                type="button"
-                variant="primary"
-                size="md"
-                icon={Save}
-                onClick={() => showToast('Notification preferences saved.')}
-              >
-                Save Preferences
-              </PortalButton>
-            </div>
+            {/* Each switch saves on change, so a separate Save button would
+                only ever report success it had not verified. */}
+            <p className="mt-5 text-xs font-semibold text-slate-500">
+              Preferences are saved automatically when you change a switch.
+            </p>
           </PortalCard>
         </div>
       </div>

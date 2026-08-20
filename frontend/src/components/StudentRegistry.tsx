@@ -36,27 +36,25 @@ import {
   Info,
   RefreshCw,
   HelpCircle,
-  FileDown,
-  Sparkle
+  FileDown
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
-import { StudentRecord } from '../types';
-import { getStudents } from '../services';
+import { StudentAcademicStatus, StudentAccountStatus, StudentRecord } from '../types';
+import { createStudent, getStudents, updateStudent } from '../services';
+import { PROGRAMME_OPTIONS } from '../constants/programmes';
+import {
+  CSV_TEMPLATE,
+  ParsedImportRow,
+  normaliseProgramme,
+  parseStudentCsv,
+  revalidateRows,
+} from '../utils/csvImport';
 
 // ==================== COMPONENT PATTERNS TYPES ====================
-
-interface ImportPreviewRecord {
-  id: string;
-  name: string;
-  programme: string;
-  status: 'Ready' | 'Missing Email' | 'ID Exists';
-  email: string;
-  phone: string;
-}
 
 // Reusable Summary Card component
 interface SummaryCardProps {
@@ -91,11 +89,18 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext,
 
 // Reusable Status Chip for Academic Status
 interface StatusChipProps {
-  status: 'Active' | 'Pending' | 'Graduated' | 'Suspended';
+  status: StudentAcademicStatus;
 }
 
+const ACADEMIC_TONE = {
+  Active: 'success',
+  Graduated: 'info',
+  Withdrawn: 'danger',
+  Deferred: 'warning',
+} as const;
+
 export const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
-  const tone = status === 'Active' ? 'success' : status === 'Graduated' ? 'info' : status === 'Suspended' ? 'danger' : 'warning';
+  const tone = ACADEMIC_TONE[status] ?? 'neutral';
   return <StatusBadge tone={tone} dot pulse={status === 'Active'}>{status}</StatusBadge>;
 };
 
@@ -123,14 +128,13 @@ export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
 
 // Reusable Account Status Indicator
 interface AccountStatusIndicatorProps {
-  status: 'Verified' | 'Unverified' | 'Archived';
+  status: StudentAccountStatus;
 }
 
 export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ status }) => {
   const dotTone = {
     Verified: 'success',
-    Unverified: 'warning',
-    Archived: 'neutral',
+    Suspended: 'danger',
   } as const;
 
   return (
@@ -168,6 +172,8 @@ export const StudentRegistry: React.FC = () => {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True while a write is in flight, so buttons cannot be double-submitted.
+  const [saving, setSaving] = useState(false);
 
   const loadStudents = useCallback(() => {
     setLoading(true);
@@ -227,12 +233,11 @@ export const StudentRegistry: React.FC = () => {
   const [showRequiredColumns, setShowRequiredColumns] = useState(false);
 
   // Dynamic CSV preview records
-  const [csvPreviewRecords, setCsvPreviewRecords] = useState<ImportPreviewRecord[]>([
-    { id: 'S23001', name: 'Ahmad Bin Daud', programme: 'Master of Data Science', status: 'Ready', email: 'ahmad.daud@mail.um.edu.my', phone: '+60 11-293-4902' },
-    { id: 'S23002', name: 'Sarah Tan', programme: 'PhD in Computer Science', status: 'Ready', email: 'sarah.tan@mail.um.edu.my', phone: '+60 17-382-1921' },
-    { id: 'S23003', name: 'John Doe', programme: 'Master of Software Eng.', status: 'Missing Email', email: '', phone: '+60 13-281-2290' },
-    { id: 'S22999', name: 'Jane Smith', programme: 'Master of Data Science', status: 'ID Exists', email: 'jane.smith@mail.um.edu.my', phone: '+60 14-883-9011' }
-  ]);
+  // Populated only by parsing an uploaded file — never pre-seeded, so nothing
+  // can be committed that did not come from the office's own CSV.
+  const [csvPreviewRecords, setCsvPreviewRecords] = useState<ParsedImportRow[]>([]);
+  const [csvFatalError, setCsvFatalError] = useState<string | null>(null);
+  const [csvProgress, setCsvProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Record being edited inside CSV preview list
   const [editingCsvRecordId, setEditingCsvRecordId] = useState<string | null>(null);
@@ -290,55 +295,68 @@ export const StudentRegistry: React.FC = () => {
   };
 
   // Bulk Action: Batch Verify
-  const handleBatchVerify = () => {
+  const handleBatchVerify = async () => {
     const selectedIds = Object.keys(selectedRowIds).filter(key => selectedRowIds[key]);
     if (selectedIds.length === 0) return;
-    
-    setStudents(prev => prev.map(s => {
-      if (selectedIds.includes(s.id)) {
-        return { ...s, accountStatus: 'Verified' };
-      }
-      return s;
-    }));
-    
+
+    setSaving(true);
+    const results = await Promise.allSettled(
+      selectedIds.map(id => updateStudent(id, { accountStatus: 'Verified' })),
+    );
+    setSaving(false);
+
+    const saved = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - saved;
+
+    // Reload rather than patching local state, so the table always shows what
+    // the database actually holds.
+    loadStudents();
     setSelectedRowIds({});
-    triggerToast(`Successfully verified credentials for ${selectedIds.length} selected student records!`);
+
+    if (failed === 0) {
+      triggerToast(`Successfully verified credentials for ${saved} selected student records!`);
+    } else {
+      triggerToast(`Verified ${saved} of ${results.length}. ${failed} could not be saved.`);
+    }
   };
 
   // Single Manual Registration Submit handler with robust validation and normalization
-  const handleRegisterManualSubmit = (e: React.FormEvent) => {
+  const handleRegisterManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualFormData.name || !manualFormData.id || !manualFormData.email) {
-      alert('Please fill in all required fields (Name, Student ID, and Email).');
+      triggerToast('Please fill in all required fields (Name, Student ID, and Email).');
       return;
     }
 
-    const initials = manualFormData.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    
-    // Map programme code nicely
-    let displayProg = 'PhD (CS)';
-    if (manualFormData.programme.includes('Software') || manualFormData.programme.includes('SE')) {
-      displayProg = 'Master (SE)';
-    } else if (manualFormData.programme.includes('Information') || manualFormData.programme.includes('IS') || manualFormData.programme.includes('Systems')) {
-      displayProg = 'PhD (IS)';
+    // Previously an untouched dropdown silently fell through to a hardcoded
+    // default, registering the student on a programme nobody chose.
+    const programme = normaliseProgramme(manualFormData.programme);
+    if (!programme) {
+      triggerToast('Please select the student’s programme.');
+      return;
     }
 
-    const newStudent: StudentRecord = {
-      id: manualFormData.id,
-      name: manualFormData.name,
-      avatarText: initials || 'ST',
-      avatarBg: 'bg-emerald-100 text-brand-navy border-slate-200',
-      programme: displayProg,
-      academicStatus: 'Active',
-      accountStatus: 'Verified',
-      semester: manualFormData.semester,
-      email: manualFormData.email,
-      phone: manualFormData.phone || '+60 1X-XXXXXXX',
-      supervisor: manualFormData.supervisor || 'Dr. Robert Chen',
-      intakeDate: 'May 2026',
-    };
+    setSaving(true);
+    try {
+      await createStudent({
+        id: manualFormData.id,
+        name: manualFormData.name,
+        email: manualFormData.email,
+        programme,
+        phone: manualFormData.phone,
+        semester: manualFormData.semester,
+        intakeDate: manualFormData.intakeBatch,
+        academicStatus: 'Active',
+      });
+    } catch (err) {
+      setSaving(false);
+      // Duplicate matric / duplicate email arrive here with the backend's wording.
+      triggerToast(err instanceof Error ? err.message : 'Could not register the student.');
+      return;
+    }
+    setSaving(false);
 
-    setStudents([newStudent, ...students]);
+    loadStudents();
     setCurrentView('list');
     triggerToast(`Registered new student "${manualFormData.name}" successfully!`);
 
@@ -375,7 +393,7 @@ export const StudentRegistry: React.FC = () => {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      simulateCsvVerify(file.name, `${(file.size / 1024).toFixed(1)} KB`);
+      void parseCsvFile(file);
     }
   };
 
@@ -383,7 +401,7 @@ export const StudentRegistry: React.FC = () => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      simulateCsvVerify(file.name, `${(file.size / 1024).toFixed(1)} KB`);
+      void parseCsvFile(file);
     }
   };
 
@@ -391,40 +409,36 @@ export const StudentRegistry: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const simulateCsvVerify = (name: string, size: string) => {
+  // Reads the uploaded file and stages its real contents. This previously
+  // ignored the file and staged four hardcoded demo students, which became
+  // dangerous once the commit button started writing to the database.
+  const parseCsvFile = async (file: File) => {
     setIsProcessingCsv(true);
-    setTimeout(() => {
-      setUploadedFile({ name, size });
-      setIsProcessingCsv(false);
-      // Reset preview records back to original set to show the mock state properly
-      setCsvPreviewRecords([
-        { id: 'S23001', name: 'Ahmad Bin Daud', programme: 'Master of Data Science', status: 'Ready', email: 'ahmad.daud@mail.um.edu.my', phone: '+60 11-293-4902' },
-        { id: 'S23002', name: 'Sarah Tan', programme: 'PhD in Computer Science', status: 'Ready', email: 'sarah.tan@mail.um.edu.my', phone: '+60 17-382-1921' },
-        { id: 'S23003', name: 'John Doe', programme: 'Master of Software Eng.', status: 'Missing Email', email: '', phone: '+60 13-281-2290' },
-        { id: 'S22999', name: 'Jane Smith', programme: 'Master of Data Science', status: 'ID Exists', email: 'jane.smith@mail.um.edu.my', phone: '+60 14-883-9011' }
-      ]);
-      triggerToast('CSV parsed and security validation routine completed!');
-    }, 1200);
-  };
-
-  // CSV Validation Error auto-resolver
-  const handleAutoResolveCsvIssues = () => {
-    setCsvPreviewRecords(prev => prev.map(rec => {
-      let updatedRec = { ...rec };
-      if (updatedRec.status === 'Missing Email') {
-        updatedRec.email = 'john.doe@mail.um.edu.my';
-        updatedRec.status = 'Ready';
-      } else if (updatedRec.status === 'ID Exists') {
-        updatedRec.id = 'S23004'; // Resolved duplicate student ID to unique one
-        updatedRec.status = 'Ready';
+    setCsvFatalError(null);
+    try {
+      const text = await file.text();
+      const { rows, fatal } = parseStudentCsv(text);
+      if (fatal) {
+        setCsvPreviewRecords([]);
+        setCsvFatalError(fatal);
+        setUploadedFile(null);
+        triggerToast(fatal);
+        return;
       }
-      return updatedRec;
-    }));
-    triggerToast('All file verification errors resolved automatically to system compliance!');
+      setCsvPreviewRecords(rows);
+      setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
+      const ready = rows.filter(r => r.status === 'Ready').length;
+      triggerToast(`Parsed ${rows.length} rows — ${ready} ready, ${rows.length - ready} need attention.`);
+    } catch {
+      setCsvFatalError('That file could not be read.');
+      triggerToast('That file could not be read.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
   };
 
   // Multi edit save handler inside CSV validation table
-  const handleStartEditingRow = (item: ImportPreviewRecord) => {
+  const handleStartEditingRow = (item: ParsedImportRow) => {
     setEditingCsvRecordId(item.id);
     setEditRowFields({
       name: item.name,
@@ -440,71 +454,80 @@ export const StudentRegistry: React.FC = () => {
       return;
     }
 
-    setCsvPreviewRecords(prev => prev.map(rec => {
-      if (rec.id === editingCsvRecordId) {
-        // Evaluate new status
-        let newStatus: 'Ready' | 'Missing Email' | 'ID Exists' = 'Ready';
-        if (!editRowFields.email) {
-          newStatus = 'Missing Email';
-        } else if (editRowFields.id === 'S22999') {
-          newStatus = 'ID Exists';
-        }
-
+    setCsvPreviewRecords(prev => {
+      const edited = prev.map(rec => {
+        if (rec.id !== editingCsvRecordId) return rec;
         return {
           ...rec,
-          id: editRowFields.id,
-          name: editRowFields.name,
-          programme: editRowFields.programme,
-          email: editRowFields.email,
-          status: newStatus
+          id: editRowFields.id.trim(),
+          name: editRowFields.name.trim(),
+          programme: editRowFields.programme.trim(),
+          email: editRowFields.email.trim(),
         };
-      }
-      return rec;
-    }));
+      });
+      // Re-run the real validator over the edited set rather than guessing a
+      // status here, so an edit cannot mark a still-invalid row as Ready.
+      return revalidateRows(edited);
+    });
 
     setEditingCsvRecordId(null);
     triggerToast('Review record credentials updated successfully.');
   };
 
   // Commit verified CSV records to registry database
-  const handleCommitVerifiedCsv = () => {
+  const handleCommitVerifiedCsv = async () => {
     const unreadyCount = csvPreviewRecords.filter(r => r.status !== 'Ready').length;
     if (unreadyCount > 0) {
-      alert(`There are still ${unreadyCount} records with validation failures. Please fix issues or use single student entry.`);
+      triggerToast(`There are still ${unreadyCount} records with validation failures. Please fix issues or use single student entry.`);
       return;
     }
 
-    // Map verified preview items to permanent student register layout and prepend
-    const readyItemsToCommit: StudentRecord[] = csvPreviewRecords.map((item, idx) => {
-      const initials = item.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-      const mappedProg = item.programme.includes('Data Science') || item.programme.includes('CS') ? 'PhD (CS)' : 'Master (SE)';
-      
-      return {
-        id: item.id,
-        name: item.name,
-        avatarText: initials || 'CD',
-        avatarBg: idx % 2 === 0 ? 'bg-indigo-100 text-indigo-850 border-indigo-200' : 'bg-blue-100 text-blue-850 border-blue-200',
-        programme: mappedProg,
-        academicStatus: 'Active' as const,
-        accountStatus: 'Verified' as const,
-        semester: 'Semester 1, 2025/2026',
-        email: item.email || `${item.id.toLowerCase()}@mail.um.edu.my`,
-        phone: item.phone || '+60 12-345-6789',
-        supervisor: idx % 2 === 0 ? 'Prof. Dr. Sarah Chen' : 'Assoc. Prof. Dr. Amina Malik',
-        intakeDate: 'Oct 2025'
-      };
-    });
+    setSaving(true);
+    setCsvProgress({ done: 0, total: csvPreviewRecords.length });
 
-    setStudents(prev => [...readyItemsToCommit, ...prev]);
-    setCurrentView('list');
-    setUploadedFile(null);
-    triggerToast(`Created ${readyItemsToCommit.length} accounts for ready student records successfully!`);
+    // Sequential: each row creates a login account, and one row's failure must
+    // not stop the rest. Committed rows are dropped from the preview as we go,
+    // so a retry after fixing a bad row does not re-submit the successes.
+    const failures: string[] = [];
+    let created = 0;
+    for (const item of csvPreviewRecords) {
+      try {
+        await createStudent({
+          id: item.id,
+          name: item.name,
+          email: item.email,
+          programme: item.programme,
+          phone: item.phone,
+          semester: '',
+          academicStatus: 'Active',
+        });
+        created += 1;
+        setCsvPreviewRecords(prev => prev.filter(r => r.id !== item.id));
+      } catch (err) {
+        failures.push(`line ${item.line} (${item.id}): ${err instanceof Error ? err.message : 'failed'}`);
+      }
+      setCsvProgress(p => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setSaving(false);
+    setCsvProgress(null);
+
+    loadStudents();
+    if (failures.length === 0) {
+      setCurrentView('list');
+      setUploadedFile(null);
+      triggerToast(`Created ${created} accounts for ready student records successfully!`);
+    } else {
+      // Keep the reviewer on this screen so the rejected rows can be corrected.
+      setCsvFatalError(`${failures.length} row(s) failed:\n${failures.join('\n')}`);
+      triggerToast(`Created ${created}. ${failures.length} row(s) failed — see the list below.`);
+    }
   };
 
   // CSV template generator downloder
   const downloadCsvTemplate = () => {
-    const csvContent = "student_id,full_name,programme_mapped,administrative_email,supervisor,academic_status\nS23010,Aidan Daniel,PhD (CS),aidan@mail.um.edu.my,Prof. Dr. Sarah Chen,Active\nS23011,Lim Wei Jie,Master (SE),weijie@mail.um.edu.my,Dr. Robert Chen,Active\n";
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Generated from the parser's own header list, so the template the office
+    // downloads is always the format the importer accepts.
+    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -533,7 +556,7 @@ export const StudentRegistry: React.FC = () => {
   const totalStudentsOverall = 1248 + (students.length - 6);
   const activeStudentsMetric = 982 + (students.length - 6);
   const inactiveStudentsMetric = 145;
-  const pendingStudentsMetric = 39 + students.filter(s => s.academicStatus === 'Pending').length;
+  const pendingStudentsMetric = 39 + students.filter(s => s.academicStatus === 'Deferred').length;
   const newThisSemesterMetric = 79 + (students.length - 6);
 
   // Paginated students records 
@@ -543,7 +566,7 @@ export const StudentRegistry: React.FC = () => {
   // Render variables for Bulk Indicators
   const readyCsvCount = csvPreviewRecords.filter(r => r.status === 'Ready').length;
   const warningCsvCount = csvPreviewRecords.filter(r => r.status === 'Missing Email').length;
-  const duplicateCsvCount = csvPreviewRecords.filter(r => r.status === 'ID Exists').length;
+  const duplicateCsvCount = csvPreviewRecords.filter(r => r.status === 'Duplicate In File').length;
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
@@ -739,9 +762,10 @@ export const StudentRegistry: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleBatchVerify}
-                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                    disabled={saving}
+                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Bulk Authorize Verify
+                    {saving ? 'Saving…' : 'Bulk Authorize Verify'}
                   </button>
                   <button
                     type="button"
@@ -1155,7 +1179,28 @@ export const StudentRegistry: React.FC = () => {
                           <span>{duplicateCsvCount} Duplicate</span>
                         </div>
 
+                        {/* Import progress — one account is created per row, so
+                            a large intake takes a visible amount of time. */}
+                        {csvProgress && (
+                          <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-blue-50 text-blue-700 border-blue-200">
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <span>Creating {csvProgress.done} / {csvProgress.total}</span>
+                          </div>
+                        )}
+
                       </div>
+
+                      {/* Parse failures and per-row commit failures */}
+                      {csvFatalError && (
+                        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
+                            Import problems
+                          </p>
+                          <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
+                            {csvFatalError}
+                          </pre>
+                        </div>
+                      )}
                     </div>
 
                     {/* PREVIEW DATATABLE MAP */}
@@ -1254,10 +1299,13 @@ export const StudentRegistry: React.FC = () => {
                                       <span>Missing Email</span>
                                     </span>
                                   )}
-                                  {item.status === 'ID Exists' && (
-                                    <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                  {item.status !== 'Ready' && item.status !== 'Missing Email' && (
+                                    <span
+                                      title={item.issue}
+                                      className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none"
+                                    >
                                       <AlertCircle className="w-3 h-3" />
-                                      <span>ID Exists</span>
+                                      <span>{item.status}</span>
                                     </span>
                                   )}
                                 </td>
@@ -1295,25 +1343,22 @@ export const StudentRegistry: React.FC = () => {
                       {/* Primary actions on right */}
                       <div className="flex items-center gap-3">
                         
-                        {/* Auto Resolve errors button */}
-                        <button
-                          type="button"
-                          onClick={handleAutoResolveCsvIssues}
-                          disabled={warningCsvCount === 0 && duplicateCsvCount === 0}
-                          className="px-4.5 py-2.5 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50/50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-black uppercase tracking-wide rounded-xl shadow-3xs transition cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Sparkle className="w-4 h-4 text-indigo-500" />
-                          <span>Fix Issues in CSV</span>
-                        </button>
+                        {/* Rows with problems are corrected individually via the
+                            Edit action on each row. Auto-filling an email or a
+                            matric number would attach a real account to the
+                            wrong person. */}
 
                         {/* Commit validated records to database */}
                         <button
                           type="button"
                           onClick={handleCommitVerifiedCsv}
-                          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
+                          disabled={saving || csvPreviewRecords.length === 0}
+                          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <UserCheck className="w-4 h-4 text-indigo-300" />
-                          <span>Create Accounts for Ready Records</span>
+                          <span>
+                            {saving ? 'Creating accounts…' : 'Create Accounts for Ready Records'}
+                          </span>
                         </button>
 
                       </div>
@@ -1440,9 +1485,9 @@ export const StudentRegistry: React.FC = () => {
                             className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
                           >
                             <option value="Select registered programme" disabled>Select registered programme</option>
-                            <option value="PhD (CS)">PhD (Computer Science)</option>
-                            <option value="Master (SE)">Master (Software Engineering)</option>
-                            <option value="PhD (IS)">PhD (Information Systems)</option>
+                            {PROGRAMME_OPTIONS.map((programme) => (
+                              <option key={programme} value={programme}>{programme}</option>
+                            ))}
                           </select>
                           <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-405">
                             <ChevronDown className="w-4 h-4" />
@@ -1534,7 +1579,8 @@ export const StudentRegistry: React.FC = () => {
                       <div id="notice-box-credentials" className="bg-[#f0f5ff] border border-[#d0e0ff] text-[#1e3a8a] rounded-2xl p-4 flex items-start gap-3">
                         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                         <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
-                          A temporary secure password will be automatically generated for this student upon registration.
+                          No password is created. The student receives an activation link and
+                          chooses their own password, so no credential is ever sent by email.
                         </p>
                       </div>
 
@@ -1542,10 +1588,11 @@ export const StudentRegistry: React.FC = () => {
                       <div className="border border-slate-200 rounded-2xl p-5 flex items-center justify-between bg-white shadow-3xs">
                         <div className="text-left space-y-1 pr-4">
                           <h4 className="text-xs font-extrabold text-slate-900">
-                            Send credentials immediately
+                            Send activation link immediately
                           </h4>
                           <p className="text-[11px] text-slate-500 font-medium leading-normal">
-                            Email login details to the student's official email address.
+                            Email the student a link to set their password. Leave off to register
+                            the account now and invite them later.
                           </p>
                         </div>
 
@@ -1584,10 +1631,13 @@ export const StudentRegistry: React.FC = () => {
                       {/* Register Submit btn */}
                       <button
                         type="submit"
-                        className="px-6 py-3.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans"
+                        disabled={saving}
+                        className="px-6 py-3.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <UserPlus className="w-4.5 h-4.5 text-indigo-300" />
-                        <span>Register Student and Create Account</span>
+                        <span>
+                          {saving ? 'Registering…' : 'Register Student and Create Account'}
+                        </span>
                       </button>
                     </div>
 
@@ -1943,23 +1993,31 @@ export const StudentRegistry: React.FC = () => {
 
                 <div className="flex gap-2">
                   
-                  {/* Approve verification credentials if unverified */}
-                  {viewingStudent.accountStatus === 'Unverified' && (
+                  {/* Reinstate a suspended account */}
+                  {viewingStudent.accountStatus === 'Suspended' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setStudents(prev => prev.map(s => {
-                          if (s.id === viewingStudent.id) {
-                            return { ...s, accountStatus: 'Verified' };
-                          }
-                          return s;
-                        }));
+                      disabled={saving}
+                      onClick={async () => {
+                        const student = viewingStudent;
+                        setSaving(true);
+                        try {
+                          await updateStudent(student.id, { accountStatus: 'Verified' });
+                        } catch (err) {
+                          setSaving(false);
+                          triggerToast(
+                            err instanceof Error ? err.message : 'Could not update this account.',
+                          );
+                          return;
+                        }
+                        setSaving(false);
+                        loadStudents();
                         setViewingStudent(null);
-                        triggerToast(`Student credentials for ${viewingStudent.name} verified successfully.`);
+                        triggerToast(`Student credentials for ${student.name} verified successfully.`);
                       }}
-                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer"
+                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
                     >
-                      Authorize Verify
+                      {saving ? 'Saving…' : 'Authorize Verify'}
                     </button>
                   )}
 

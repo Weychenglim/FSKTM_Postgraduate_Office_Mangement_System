@@ -46,7 +46,7 @@ import {
 } from './constants/routes';
 import { canAccessModule } from './auth/permissions';
 import * as authApi from './services/authApi';
-import { clearAuthToken, getAuthToken } from './services/apiClient';
+import { SESSION_EXPIRED_EVENT, clearAuthToken, getAuthToken } from './services/apiClient';
 import { getEvaluationPeriods } from './services/marksApi';
 import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
@@ -166,6 +166,15 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // The API client clears the token and fires this when the backend rejects it
+  // mid-session. Without a listener the user stays in an authenticated shell
+  // while every request fails, until they happen to reload.
+  useEffect(() => {
+    const handleExpiry = () => setCurrentUser(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
   }, []);
 
   const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');

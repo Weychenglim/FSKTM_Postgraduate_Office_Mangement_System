@@ -64,3 +64,45 @@ export async function confirmPasswordReset(
 export async function getCurrentUser(): Promise<DemoUser> {
   return request<DemoUser>('/auth/me/');
 }
+
+export interface NotificationPreferences {
+  emailNotifications: boolean;
+  announcementAlerts: boolean;
+  deadlineReminders: boolean;
+  weeklySummary: boolean;
+}
+
+/** Update the caller's own contact details. Only the phone number is writable. */
+export async function updateContactDetails(phone: string): Promise<DemoUser> {
+  return request<DemoUser>('/auth/me/', {
+    method: 'PATCH',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+/** Change the signed-in user's password (the backend verifies the current one). */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await request('/auth/me/change-password/', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return request<NotificationPreferences>('/auth/me/notification-preferences/');
+}
+
+export async function updateNotificationPreferences(
+  changes: Partial<NotificationPreferences>,
+): Promise<NotificationPreferences> {
+  return request<NotificationPreferences>('/auth/me/notification-preferences/', {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  });
+}
