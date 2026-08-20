@@ -20,12 +20,26 @@ from .serializers import LetterTemplateSerializer
 STAFF_ROLES = {"Office Staff/Admin", "Programme Coordinator"}
 
 
+def _is_staff(user):
+    # Keyed on the role, not ``is_staff`` — that flag only grants Django admin
+    # access and should not confer template-management rights on its own.
+    return bool(user.is_superuser or getattr(user, "role", None) in STAFF_ROLES)
+
+
 def _require_staff(request):
     """Raise 403 unless the caller may manage templates."""
-    user = request.user
-    if user.is_staff or user.is_superuser or getattr(user, "role", None) in STAFF_ROLES:
-        return
-    raise PermissionDenied("Only office staff can manage letter templates.")
+    if not _is_staff(request.user):
+        raise PermissionDenied("Only office staff can manage letter templates.")
+
+
+def _require_content(template):
+    """Error dict when an Active template has no body, otherwise None."""
+    if (
+        template.status == LetterTemplate.Status.ACTIVE
+        and not (template.content or "").strip()
+    ):
+        return {"content": "Letter content is required."}
+    return None
 
 
 def _actor(request):
@@ -39,6 +53,11 @@ def templates_list(request):
     """GET: list templates (optional ?status=Active). POST: create one (staff)."""
     if request.method == "GET":
         queryset = LetterTemplate.objects.all()
+        if not _is_staff(request.user):
+            # Unpublished wording is office-internal; students and lecturers
+            # only ever see live templates. Previously any authenticated user
+            # could read drafts by passing ?status=Draft.
+            queryset = queryset.filter(status=LetterTemplate.Status.ACTIVE)
         status_param = request.query_params.get("status")
         if status_param:
             queryset = queryset.filter(status__iexact=status_param)
@@ -58,13 +77,20 @@ def templates_list(request):
     return Response(template.to_public_dict(), status=status.HTTP_201_CREATED)
 
 
-@api_view(["GET", "PUT", "PATCH", "DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def templates_detail(request, pk):
-    """Retrieve, update (PUT/PATCH), or delete a single template."""
+    """Retrieve, update (PATCH), or delete a single template.
+
+    PUT is intentionally unsupported: every serializer field except ``name`` is
+    optional, so a PUT behaved identically to a PATCH rather than replacing the
+    record, which is misleading for callers.
+    """
     template = get_object_or_404(LetterTemplate, pk=pk)
 
     if request.method == "GET":
+        if not _is_staff(request.user) and template.status != LetterTemplate.Status.ACTIVE:
+            raise PermissionDenied("You cannot view this letter template.")
         return Response(template.to_public_dict())
 
     _require_staff(request)
@@ -73,11 +99,15 @@ def templates_detail(request, pk):
         template.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    partial = request.method == "PATCH"
-    serializer = LetterTemplateSerializer(data=request.data, partial=partial)
+    serializer = LetterTemplateSerializer(data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
     for field, value in serializer.to_model_kwargs().items():
         setattr(template, field, value)
+
+    invalid = _require_content(template)
+    if invalid:
+        return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
+
     template.modified_by = _actor(request)
     template.save()
     return Response(template.to_public_dict())
