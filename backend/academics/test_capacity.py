@@ -2960,6 +2960,41 @@ class CapacityApiTests(TestCase):
                     response = self.client.get(f"{endpoint}?{query}")
                     self.assertEqual(response.status_code, 400)
 
+    def test_capacity_history_pagination_bounds_large_offsets(self):
+        endpoints = (
+            (
+                f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+                SemesterCapacityPlan.objects.filter(
+                    academic_semester=self.semester
+                ).count(),
+            ),
+            (
+                f"/api/academics/semesters/{self.semester.pk}/capacity-audits/",
+                LecturerCapacityAudit.objects.filter(
+                    academic_semester=self.semester
+                ).count(),
+            ),
+            (
+                f"/api/academics/semesters/{self.semester.pk}/availability/",
+                LecturerAvailabilityWindow.objects.filter(
+                    academic_semester=self.semester
+                ).count(),
+            ),
+        )
+
+        for endpoint, total_count in endpoints:
+            with self.subTest(endpoint=endpoint, offset="over maximum"):
+                response = self.client.get(f"{endpoint}?offset=1000001")
+                self.assertEqual(response.status_code, 400)
+
+            with self.subTest(endpoint=endpoint, offset="maximum"):
+                response = self.client.get(f"{endpoint}?offset=1000000")
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data, [])
+                self.assertEqual(response["X-Limit"], "25")
+                self.assertEqual(response["X-Offset"], "1000000")
+                self.assertEqual(response["X-Total-Count"], str(total_count))
+
     def test_plan_create_and_clone_reject_unknown_fields_without_side_effects(self):
         plan_count = SemesterCapacityPlan.objects.count()
         audit_count = LecturerCapacityAudit.objects.count()

@@ -18,6 +18,8 @@ from .models import (
     SemesterCapacityPlan,
 )
 
+MAX_CAPACITY_HISTORY_OFFSET = 1_000_000
+
 
 class AcademicSemesterWriteSerializer(serializers.Serializer):
     academicSession = serializers.CharField(max_length=9)
@@ -129,6 +131,7 @@ class CapacityLimitOffsetSerializer(serializers.Serializer):
     )
     offset = serializers.IntegerField(
         min_value=0,
+        max_value=MAX_CAPACITY_HISTORY_OFFSET,
         required=False,
         default=0,
     )
