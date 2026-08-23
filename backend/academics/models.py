@@ -655,6 +655,29 @@ class LecturerAvailabilityWindow(models.Model):
             )
         ]
 
+    def _has_unchanged_persisted_identity(self):
+        if self._state.adding or not self.pk:
+            return False
+        using = self._state.db or router.db_for_read(
+            self.__class__,
+            instance=self,
+        )
+        persisted_identity = (
+            LecturerAvailabilityWindow.objects.using(using)
+            .filter(pk=self.pk)
+            .values_list(
+                "academic_semester_id",
+                "lecturer_id",
+                "role",
+            )
+            .first()
+        )
+        return persisted_identity == (
+            self.academic_semester_id,
+            self.lecturer_id,
+            self.role,
+        )
+
     def clean(self):
         errors = {}
         semester = None
@@ -677,11 +700,14 @@ class LecturerAvailabilityWindow(models.Model):
         cancellation_complete = bool(
             self.cancelled_at and self.cancelled_by_id and cancellation_reason
         )
+        historical_cancellation = (
+            cancellation_complete and self._has_unchanged_persisted_identity()
+        )
 
         if (
             self.lecturer_id
             and self.role in self.Role.values
-            and not cancellation_complete
+            and not historical_cancellation
         ):
             from accounts.models import Panel, Supervisor
 

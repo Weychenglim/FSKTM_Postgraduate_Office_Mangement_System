@@ -1418,6 +1418,79 @@ class CapacityModelTests(TestCase):
         self.assertEqual(window.cancelled_by, self.office)
         self.assertEqual(window.cancellation_reason, "Cancelled after review.")
 
+    def test_new_fully_cancelled_window_still_requires_selected_role(self):
+        lecturer_without_panel_role = self.create_additional_lecturer("NO-PANEL")
+        Panel.objects.filter(lecturer=lecturer_without_panel_role).delete()
+
+        with self.assertRaises(ValidationError):
+            LecturerAvailabilityWindow.objects.create(
+                **self.availability_values(
+                    lecturer=lecturer_without_panel_role,
+                    role=LecturerAvailabilityWindow.Role.PANEL,
+                    cancelled_by=self.office,
+                    cancelled_at=timezone.now(),
+                    cancellation_reason="Entered as already cancelled.",
+                )
+            )
+
+        self.assertFalse(
+            LecturerAvailabilityWindow.objects.filter(
+                lecturer=lecturer_without_panel_role
+            ).exists()
+        )
+
+    def test_cancelled_window_identity_reassignment_requires_selected_role(self):
+        window = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values()
+        )
+        window.cancelled_by = self.office
+        window.cancelled_at = timezone.now()
+        window.cancellation_reason = "Cancelled before identity edit."
+        window.save()
+        lecturer_without_supervisor_role = self.create_additional_lecturer(
+            "NO-SUPERVISOR"
+        )
+        Supervisor.objects.filter(
+            lecturer=lecturer_without_supervisor_role
+        ).delete()
+
+        window.lecturer = lecturer_without_supervisor_role
+        with self.assertRaises(ValidationError):
+            window.save(update_fields=["lecturer"])
+
+        window.refresh_from_db()
+        self.assertEqual(window.lecturer, self.lecturer)
+        self.assertIsNotNone(window.cancelled_at)
+
+    def test_unchanged_historical_window_can_cancel_after_role_removal(self):
+        window = LecturerAvailabilityWindow.objects.create(
+            **self.availability_values()
+        )
+        Supervisor.objects.filter(lecturer=self.lecturer).delete()
+        Lecturer.objects.filter(pk=self.lecturer.pk).update(
+            lifecycle_status=Lecturer.Lifecycle.RETIRED
+        )
+        cancelled_at = timezone.now()
+        window.cancelled_by = self.office
+        window.cancelled_at = cancelled_at
+        window.cancellation_reason = "Cancelled after role removal."
+
+        window.save(
+            update_fields=[
+                "cancelled_by",
+                "cancelled_at",
+                "cancellation_reason",
+            ]
+        )
+
+        window.refresh_from_db()
+        self.assertEqual(window.cancelled_at, cancelled_at)
+        self.assertEqual(window.cancelled_by, self.office)
+        self.assertEqual(
+            window.cancellation_reason,
+            "Cancelled after role removal.",
+        )
+
     def test_availability_bulk_create_is_rejected(self):
         with self.assertRaises(ValidationError):
             LecturerAvailabilityWindow.objects.bulk_create(

@@ -330,10 +330,14 @@ def test_publishing_replacement_supersedes_current_plan_atomically(self):
     update_capacity_entry(
         draft, lecturer=self.lecturer, actor=self.office,
         supervisor_limit=1, panel_limit=7,
+        expected_fingerprint=capacity_plan_content_fingerprint(draft),
     )
 
     published = publish_capacity_plan(
-        draft, actor=self.office, reason="Approved revised allocation."
+        draft,
+        actor=self.office,
+        reason="Approved revised allocation.",
+        expected_fingerprint=capacity_plan_content_fingerprint(draft),
     )
 
     current.refresh_from_db()
@@ -362,18 +366,20 @@ Expose these functions with `transaction.atomic` and `select_for_update`:
 def create_capacity_plan(*, semester, actor, copy_from=None): ...
 def clone_capacity_plan(plan, *, actor): ...
 def update_capacity_entry(
-    plan, *, lecturer, actor, supervisor_limit, panel_limit
+    plan, *, lecturer, actor, supervisor_limit, panel_limit,
+    expected_fingerprint
 ): ...
 def validate_capacity_plan_ready(plan) -> list[str]: ...
-def publish_capacity_plan(plan, *, actor, reason): ...
+def publish_capacity_plan(plan, *, actor, reason, expected_fingerprint): ...
 def create_availability_window(
     *, semester, lecturer, role, starts_on, ends_on, actor, reason
 ): ...
 def cancel_availability_window(window, *, actor, reason): ...
+def capacity_plan_content_fingerprint(plan) -> str: ...
 def capacity_plan_snapshot(plan) -> dict: ...
 ```
 
-Lock the semester and all same-semester plans during publication. Recheck Draft state, expected version, eligible-Lecturer coverage, role/limit alignment, and availability overlap inside the transaction. Write one immutable audit per affected entity; supersession and publication share the same reason.
+Lock the semester and all same-semester plans during publication, then lock all same-semester plan entries in deterministic order. Entry edits and publication require a valid expected fingerprint, recompute it after locking, and raise `CapacityPlanConflict` on a mismatch before mutation or audit. Recheck Draft state, persisted version identity, eligible-Lecturer coverage, role/limit alignment, and availability overlap inside the transaction. Write one immutable audit per affected entity; supersession and publication share the same reason.
 
 - [ ] **Step 4: Run lifecycle and concurrency tests**
 
@@ -418,7 +424,12 @@ def test_office_publishes_complete_plan_and_student_cannot_manage_it(self):
     self.client.force_authenticate(self.student_user)
     denied = self.client.post(
         f"/api/academics/capacity-plans/{plan_id}/publish/",
-        {"reason": "Unauthorized publication."}, format="json",
+        {
+            "reason": "Unauthorized publication.",
+            "expectedVersion": 1,
+            "expectedFingerprint": "0" * 64,
+        },
+        format="json",
     )
     self.assertEqual(denied.status_code, 403)
 ```
@@ -441,6 +452,8 @@ Add serializers with exact camelCase fields:
 class CapacityEntryWriteSerializer(serializers.Serializer):
     supervisorLimit = serializers.IntegerField(min_value=0, allow_null=True)
     panelLimit = serializers.IntegerField(min_value=0, allow_null=True)
+    expectedVersion = serializers.IntegerField(min_value=1)
+    expectedFingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
 
 class AvailabilityWriteSerializer(serializers.Serializer):
     lecturerId = serializers.IntegerField()
@@ -452,13 +465,14 @@ class AvailabilityWriteSerializer(serializers.Serializer):
 class CapacityPlanCommandSerializer(serializers.Serializer):
     reason = serializers.CharField(allow_blank=False)
     expectedVersion = serializers.IntegerField(min_value=1)
+    expectedFingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
 ```
 
-Plan payloads include completeness errors, current published flag, entries, version lineage, origin, actors, and timestamps. Availability payloads include internal reasons only on Office endpoints.
+Plan payloads include `contentFingerprint`, completeness errors, current published flag, entries, version lineage, origin, actors, and timestamps. Entry-update and publish commands pass `expectedFingerprint` to the required `expected_fingerprint` service argument alongside their existing `expectedVersion` stale-identity check. Availability payloads include internal reasons only on Office endpoints.
 
 - [ ] **Step 4: Implement routes and views**
 
-Add the approved URL set from the design. Reuse `_office_denied`, `get_object_or_404`, and the existing validation response style. Map domain validation to `400`, authorization to `403`, unknown IDs to `404`, and `CapacityPlanConflict`/`CapacityConflict` to `409`.
+Add the approved URL set from the design. Reuse `_office_denied`, `get_object_or_404`, and the existing validation response style. Map domain validation to `400`, authorization to `403`, unknown IDs to `404`, and the base `CapacityLifecycleConflict` plus resolver `CapacityConflict` to `409` so all capacity lifecycle subclasses are covered.
 
 - [ ] **Step 5: Run API tests and commit**
 
@@ -550,9 +564,13 @@ def publish_test_capacity_plan(semester, actor, *, lecturers=None):
                 lecturer.panel.max_appointments
                 if hasattr(lecturer, "panel") else None
             ),
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
     return publish_capacity_plan(
-        plan, actor=actor, reason="Test capacity baseline."
+        plan,
+        actor=actor,
+        reason="Test capacity baseline.",
+        expected_fingerprint=capacity_plan_content_fingerprint(plan),
     )
 ```
 
