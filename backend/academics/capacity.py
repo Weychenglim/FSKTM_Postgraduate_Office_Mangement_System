@@ -89,6 +89,57 @@ def _is_eligible(*, user, lecturer, role):
     return role_model.objects.filter(lecturer_id=lecturer.pk).exists()
 
 
+def derive_capacity_resolution(
+    *,
+    semester_id,
+    plan_id,
+    plan_version,
+    role,
+    limit,
+    active_load,
+    reserved_load,
+    eligible,
+    unavailable_until,
+):
+    """Apply the shared capacity-state precedence to caller-loaded values."""
+    role = CapacityRole(role)
+    active_load = _non_negative(active_load)
+    reserved_load = _non_negative(reserved_load)
+    limit = _non_negative(limit) if limit is not None else None
+    total_load = active_load + reserved_load
+    available_slots = max(limit - total_load, 0) if limit is not None else 0
+
+    if not eligible:
+        state = CapacityState.INELIGIBLE
+    elif plan_id is None or limit is None:
+        state = CapacityState.NOT_CONFIGURED
+    elif unavailable_until is not None:
+        state = CapacityState.TEMPORARILY_UNAVAILABLE
+    elif total_load > limit:
+        state = CapacityState.OVER_CAPACITY
+    elif total_load == limit:
+        state = CapacityState.FULL
+    else:
+        state = CapacityState.AVAILABLE
+
+    return CapacityResolution(
+        semester_id=semester_id,
+        plan_id=plan_id,
+        plan_version=plan_version,
+        role=role,
+        limit=limit,
+        active_load=active_load,
+        reserved_load=reserved_load,
+        available_slots=available_slots,
+        state=state,
+        unavailable_until=(
+            unavailable_until
+            if state == CapacityState.TEMPORARILY_UNAVAILABLE
+            else None
+        ),
+    )
+
+
 def resolve_lecturer_capacity(
     *,
     user,
@@ -132,20 +183,10 @@ def resolve_lecturer_capacity(
         )
 
     limit_field = (
-        "supervisor_limit"
-        if role == CapacityRole.SUPERVISOR
-        else "panel_limit"
+        "supervisor_limit" if role == CapacityRole.SUPERVISOR else "panel_limit"
     )
-    configured_limit = (
-        entry_values[limit_field]
-        if entry_values is not None
-        else None
-    )
-    limit = (
-        _non_negative(configured_limit)
-        if configured_limit is not None
-        else None
-    )
+    configured_limit = entry_values[limit_field] if entry_values is not None else None
+    limit = _non_negative(configured_limit) if configured_limit is not None else None
 
     matched_window_end = None
     if lecturer is not None:
@@ -163,27 +204,7 @@ def resolve_lecturer_capacity(
             .first()
         )
 
-    total_load = _non_negative(active_load) + _non_negative(reserved_load)
-    available_slots = (
-        max(limit - total_load, 0)
-        if limit is not None
-        else 0
-    )
-
-    if not eligible:
-        state = CapacityState.INELIGIBLE
-    elif plan is None or entry_values is None or configured_limit is None:
-        state = CapacityState.NOT_CONFIGURED
-    elif matched_window_end is not None:
-        state = CapacityState.TEMPORARILY_UNAVAILABLE
-    elif total_load > limit:
-        state = CapacityState.OVER_CAPACITY
-    elif total_load == limit:
-        state = CapacityState.FULL
-    else:
-        state = CapacityState.AVAILABLE
-
-    return CapacityResolution(
+    return derive_capacity_resolution(
         semester_id=semester.pk,
         plan_id=plan.pk if plan is not None else None,
         plan_version=plan.version if plan is not None else None,
@@ -191,13 +212,8 @@ def resolve_lecturer_capacity(
         limit=limit,
         active_load=active_load,
         reserved_load=reserved_load,
-        available_slots=available_slots,
-        state=state,
-        unavailable_until=(
-            matched_window_end
-            if state == CapacityState.TEMPORARILY_UNAVAILABLE
-            else None
-        ),
+        eligible=eligible,
+        unavailable_until=matched_window_end,
     )
 
 

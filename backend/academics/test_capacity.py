@@ -15,6 +15,7 @@ from django.db.models.signals import post_delete, pre_delete
 from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from accounts.models import Lecturer, OfficeStaff, Panel, Student, Supervisor
 from appointments.models import (
@@ -65,7 +66,6 @@ from .models import (
     SemesterCapacityPlan,
 )
 
-
 User = get_user_model()
 
 
@@ -109,9 +109,7 @@ class CapacityModelTests(TestCase):
         return SemesterCapacityPlan.objects.create(
             academic_semester=self.semester,
             version=version,
-            lifecycle_status=(
-                lifecycle_status or SemesterCapacityPlan.Lifecycle.DRAFT
-            ),
+            lifecycle_status=(lifecycle_status or SemesterCapacityPlan.Lifecycle.DRAFT),
             origin=SemesterCapacityPlan.Origin.CREATED,
             created_by=self.office,
         )
@@ -159,10 +157,7 @@ class CapacityModelTests(TestCase):
         return values
 
     def capacity_entry_persistence_states(self, entries):
-        return [
-            (entry.pk, entry._state.adding, entry._state.db)
-            for entry in entries
-        ]
+        return [(entry.pk, entry._state.adding, entry._state.db) for entry in entries]
 
     def delete_capacity_entries_after_related_predicate_expands(self, *, raw):
         draft_plan = self.create_plan()
@@ -218,11 +213,7 @@ class CapacityModelTests(TestCase):
             "_lock_and_validate_delete",
             expand_predicate_after_validation,
         ):
-            result = (
-                queryset._raw_delete(using="default")
-                if raw
-                else queryset.delete()
-            )
+            result = queryset._raw_delete(using="default") if raw else queryset.delete()
 
         self.assertTrue(predicate_expanded)
         self.assertTrue(
@@ -493,9 +484,7 @@ class CapacityModelTests(TestCase):
             deleted_by_model,
             {LecturerCapacityEntry._meta.label: 1},
         )
-        self.assertFalse(
-            LecturerCapacityEntry.objects.filter(pk=entry_pk).exists()
-        )
+        self.assertFalse(LecturerCapacityEntry.objects.filter(pk=entry_pk).exists())
         self.assertEqual(len(deletion_events), 2)
         for signal_instance, origin in deletion_events:
             self.assertIs(signal_instance, entry)
@@ -565,9 +554,7 @@ class CapacityModelTests(TestCase):
         )
 
     def test_raw_delete_uses_locked_pks_if_related_predicate_expands(self):
-        deleted = self.delete_capacity_entries_after_related_predicate_expands(
-            raw=True
-        )
+        deleted = self.delete_capacity_entries_after_related_predicate_expands(raw=True)
 
         self.assertEqual(deleted, 2)
 
@@ -599,9 +586,7 @@ class CapacityModelTests(TestCase):
         )
 
     def test_plan_admin_add_creates_a_draft_from_configuration_fields(self):
-        request = RequestFactory().post(
-            "/admin/academics/semestercapacityplan/add/"
-        )
+        request = RequestFactory().post("/admin/academics/semestercapacityplan/add/")
         request.user = self.office
         plan_admin = SemesterCapacityPlanAdmin(SemesterCapacityPlan, AdminSite())
         form_class = plan_admin.get_form(request)
@@ -660,9 +645,7 @@ class CapacityModelTests(TestCase):
                 "lecturer",
                 "lecturer__user",
                 "actor",
-            }.issubset(
-                set(audit_admin.list_select_related or ())
-            )
+            }.issubset(set(audit_admin.list_select_related or ()))
         )
 
     def test_admin_add_form_only_accepts_draft_plans(self):
@@ -1207,9 +1190,7 @@ class CapacityModelTests(TestCase):
         )
 
         with self.assertRaises(ValidationError):
-            LecturerCapacityEntry.objects.filter(pk=entry.pk).update(
-                plan=superseded
-            )
+            LecturerCapacityEntry.objects.filter(pk=entry.pk).update(plan=superseded)
 
         entry.refresh_from_db()
         self.assertEqual(entry.plan, draft)
@@ -1341,9 +1322,7 @@ class CapacityModelTests(TestCase):
         self.assertFalse(LecturerAvailabilityWindow.objects.exists())
 
     def test_availability_save_locks_semester_and_current_row(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         locked_models = []
         original_select_for_update = QuerySet.select_for_update
 
@@ -1387,9 +1366,7 @@ class CapacityModelTests(TestCase):
         self.assertIsNone(window.cancelled_at)
 
     def test_availability_partial_save_rejects_incomplete_cancellation_metadata(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         window.cancelled_at = timezone.now()
         window.cancelled_by = self.office
         window.cancellation_reason = "Cancelled after review."
@@ -1403,9 +1380,7 @@ class CapacityModelTests(TestCase):
         self.assertEqual(window.cancellation_reason, "")
 
     def test_availability_full_save_accepts_complete_cancellation_metadata(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         cancelled_at = timezone.now()
         window.cancelled_at = cancelled_at
         window.cancelled_by = self.office
@@ -1440,9 +1415,7 @@ class CapacityModelTests(TestCase):
         )
 
     def test_cancelled_window_identity_reassignment_requires_selected_role(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         window.cancelled_by = self.office
         window.cancelled_at = timezone.now()
         window.cancellation_reason = "Cancelled before identity edit."
@@ -1450,9 +1423,7 @@ class CapacityModelTests(TestCase):
         lecturer_without_supervisor_role = self.create_additional_lecturer(
             "NO-SUPERVISOR"
         )
-        Supervisor.objects.filter(
-            lecturer=lecturer_without_supervisor_role
-        ).delete()
+        Supervisor.objects.filter(lecturer=lecturer_without_supervisor_role).delete()
 
         window.lecturer = lecturer_without_supervisor_role
         with self.assertRaises(ValidationError):
@@ -1463,9 +1434,7 @@ class CapacityModelTests(TestCase):
         self.assertIsNotNone(window.cancelled_at)
 
     def test_unchanged_historical_window_can_cancel_after_role_removal(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         Supervisor.objects.filter(lecturer=self.lecturer).delete()
         Lecturer.objects.filter(pk=self.lecturer.pk).update(
             lifecycle_status=Lecturer.Lifecycle.RETIRED
@@ -1500,9 +1469,7 @@ class CapacityModelTests(TestCase):
         self.assertFalse(LecturerAvailabilityWindow.objects.exists())
 
     def test_availability_bulk_update_is_rejected(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
         window.reason = "Attempted bulk rewrite."
 
         with self.assertRaises(ValidationError):
@@ -1512,9 +1479,7 @@ class CapacityModelTests(TestCase):
         self.assertEqual(window.reason, "Approved research leave.")
 
     def test_availability_queryset_update_is_rejected(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
 
         with self.assertRaises(ValidationError):
             LecturerAvailabilityWindow.objects.filter(pk=window.pk).update(
@@ -1525,9 +1490,7 @@ class CapacityModelTests(TestCase):
         self.assertEqual(window.reason, "Approved research leave.")
 
     def test_availability_deletion_paths_are_rejected(self):
-        window = LecturerAvailabilityWindow.objects.create(
-            **self.availability_values()
-        )
+        window = LecturerAvailabilityWindow.objects.create(**self.availability_values())
 
         with self.assertRaises(ValidationError):
             LecturerAvailabilityWindow.objects.filter(pk=window.pk).delete()
@@ -2269,9 +2232,7 @@ class CapacityLifecycleTests(TestCase):
         current = self.publish_complete_plan(version=1)
         draft = clone_capacity_plan(current, actor=self.office)
         expected_locked_rows = list(
-            LecturerCapacityEntry.objects.filter(
-                plan_id__in=[current.pk, draft.pk]
-            )
+            LecturerCapacityEntry.objects.filter(plan_id__in=[current.pk, draft.pk])
             .order_by("plan_id", "lecturer_id", "pk")
             .values_list("plan_id", "lecturer_id", "pk")
         )
@@ -2305,9 +2266,7 @@ class CapacityLifecycleTests(TestCase):
         self.assertEqual(locked_entry_batches, [expected_locked_rows])
         self.assertTrue(
             prior_entry_ids.isdisjoint(
-                entry_id
-                for batch in locked_entry_batches
-                for _, _, entry_id in batch
+                entry_id for batch in locked_entry_batches for _, _, entry_id in batch
             )
         )
 
@@ -2696,6 +2655,556 @@ class CapacityLifecycleTests(TestCase):
         )
         encoded = json.dumps(first, sort_keys=True)
         self.assertEqual(json.loads(encoded), first)
+
+
+class CapacityApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.office = User.objects.create_user(
+            email="capacity.api.office@example.test",
+            password="local-test-password",
+            full_name="Capacity API Office",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        OfficeStaff.objects.create(
+            user=cls.office,
+            staff_no="CAP-API-OFFICE",
+            department="Postgraduate Office",
+        )
+        cls.student_user = User.objects.create_user(
+            email="capacity.api.student@example.test",
+            password="local-test-password",
+            full_name="Capacity API Student",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=cls.student_user,
+            matric_no="CAP-API-STUDENT",
+            programme="Master of Computer Science",
+        )
+        cls.supervisor_only = cls._create_lecturer(
+            "001",
+            supervisor=True,
+            panel=False,
+        )
+        cls.dual_role = cls._create_lecturer(
+            "002",
+            supervisor=True,
+            panel=True,
+        )
+        cls.prior_semester = AcademicSemester.objects.create(
+            code="2025-2026-S2-API",
+            academic_session="2025/2026",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=date(2026, 2, 1),
+            ends_on=date(2026, 6, 30),
+            created_by=cls.office,
+        )
+        cls.semester = AcademicSemester.objects.create(
+            code="2026-2027-S1-API",
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 9, 1),
+            ends_on=date(2027, 1, 31),
+            created_by=cls.office,
+        )
+
+    @classmethod
+    def _create_lecturer(cls, suffix, *, supervisor, panel):
+        user = User.objects.create_user(
+            email=f"capacity.api.lecturer.{suffix}@example.test",
+            password="local-test-password",
+            full_name=f"Capacity API Lecturer {suffix}",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=user,
+            staff_no=f"CAP-API-LECT-{suffix}",
+            department="Computing",
+        )
+        if supervisor:
+            Supervisor.objects.create(lecturer=lecturer, max_supervisees=5)
+        if panel:
+            Panel.objects.create(lecturer=lecturer, max_appointments=10)
+        return lecturer
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(self.office)
+
+    def create_plan(self, *, semester=None, copy_from_plan_id=None):
+        semester = semester or self.semester
+        response = self.client.post(
+            f"/api/academics/semesters/{semester.pk}/capacity-plans/",
+            {"copyFromPlanId": copy_from_plan_id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return response
+
+    def update_entry(
+        self,
+        plan_payload,
+        lecturer,
+        *,
+        supervisor_limit,
+        panel_limit,
+    ):
+        response = self.client.patch(
+            (
+                f"/api/academics/capacity-plans/{plan_payload['id']}"
+                f"/lecturers/{lecturer.pk}/"
+            ),
+            {
+                "supervisorLimit": supervisor_limit,
+                "panelLimit": panel_limit,
+                "expectedVersion": plan_payload["version"],
+                "expectedFingerprint": plan_payload["contentFingerprint"],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data
+
+    def complete_plan(self, *, semester=None, copy_from_plan_id=None):
+        plan = self.create_plan(
+            semester=semester,
+            copy_from_plan_id=copy_from_plan_id,
+        ).data
+        if copy_from_plan_id is None:
+            plan = self.update_entry(
+                plan,
+                self.supervisor_only,
+                supervisor_limit=4,
+                panel_limit=None,
+            )
+            plan = self.update_entry(
+                plan,
+                self.dual_role,
+                supervisor_limit=5,
+                panel_limit=8,
+            )
+        return plan
+
+    def publish_plan(self, plan, *, reason="Approved capacity policy."):
+        response = self.client.post(
+            f"/api/academics/capacity-plans/{plan['id']}/publish/",
+            {
+                "reason": reason,
+                "expectedVersion": plan["version"],
+                "expectedFingerprint": plan["contentFingerprint"],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data
+
+    def test_office_lists_creates_and_reads_deterministic_plan_payloads(self):
+        created = self.create_plan().data
+
+        self.assertEqual(created["semesterId"], self.semester.pk)
+        self.assertEqual(created["semesterCode"], self.semester.code)
+        self.assertEqual(created["semesterLabel"], self.semester.label)
+        self.assertEqual(created["version"], 1)
+        self.assertEqual(created["lifecycleStatus"], "DRAFT")
+        self.assertEqual(created["origin"], "CREATED")
+        self.assertIsNone(created["supersedesId"])
+        self.assertFalse(created["isComplete"])
+        self.assertFalse(created["isCurrentPublished"])
+        self.assertTrue(created["readinessErrors"])
+        self.assertRegex(created["contentFingerprint"], r"^[0-9a-f]{64}$")
+        self.assertEqual(created["entries"], [])
+        self.assertEqual(created["createdBy"]["id"], self.office.pk)
+        self.assertEqual(created["createdBy"]["name"], self.office.full_name)
+        self.assertIn("createdAt", created)
+        self.assertIsNone(created["publishedBy"])
+        self.assertIsNone(created["publishedAt"])
+
+        listed = self.client.get(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/"
+        )
+        detail = self.client.get(f"/api/academics/capacity-plans/{created['id']}/")
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual([row["id"] for row in listed.data], [created["id"]])
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.data, listed.data[0])
+
+    def test_plan_entry_write_requires_both_stale_tokens_and_maps_errors(self):
+        plan = self.create_plan().data
+        endpoint = (
+            f"/api/academics/capacity-plans/{plan['id']}"
+            f"/lecturers/{self.supervisor_only.pk}/"
+        )
+        values = {
+            "supervisorLimit": 4,
+            "panelLimit": None,
+            "expectedVersion": plan["version"],
+            "expectedFingerprint": plan["contentFingerprint"],
+        }
+
+        missing_version = self.client.patch(
+            endpoint,
+            {key: value for key, value in values.items() if key != "expectedVersion"},
+            format="json",
+        )
+        missing_fingerprint = self.client.patch(
+            endpoint,
+            {
+                key: value
+                for key, value in values.items()
+                if key != "expectedFingerprint"
+            },
+            format="json",
+        )
+        malformed = self.client.patch(
+            endpoint,
+            {**values, "expectedFingerprint": "not-a-fingerprint"},
+            format="json",
+        )
+        negative = self.client.patch(
+            endpoint,
+            {**values, "supervisorLimit": -1},
+            format="json",
+        )
+
+        self.assertEqual(missing_version.status_code, 400)
+        self.assertEqual(missing_fingerprint.status_code, 400)
+        self.assertEqual(malformed.status_code, 400)
+        self.assertEqual(negative.status_code, 400)
+
+        saved = self.client.patch(endpoint, values, format="json")
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(
+            saved.data["entries"][0]["lecturerId"], self.supervisor_only.pk
+        )
+        self.assertEqual(saved.data["entries"][0]["supervisorLimit"], 4)
+        self.assertIsNone(saved.data["entries"][0]["panel"])
+        self.assertEqual(saved.data["entries"][0]["supervisor"]["activeLoad"], 0)
+        self.assertNotEqual(
+            saved.data["contentFingerprint"],
+            plan["contentFingerprint"],
+        )
+
+        stale_version = self.client.patch(
+            endpoint,
+            {**values, "expectedVersion": plan["version"] + 1},
+            format="json",
+        )
+        stale_fingerprint = self.client.patch(endpoint, values, format="json")
+        unknown_plan = self.client.patch(
+            (
+                "/api/academics/capacity-plans/999999"
+                f"/lecturers/{self.supervisor_only.pk}/"
+            ),
+            values,
+            format="json",
+        )
+        unknown_lecturer = self.client.patch(
+            f"/api/academics/capacity-plans/{plan['id']}/lecturers/999999/",
+            values,
+            format="json",
+        )
+
+        self.assertEqual(stale_version.status_code, 409)
+        self.assertEqual(stale_fingerprint.status_code, 409)
+        self.assertEqual(unknown_plan.status_code, 404)
+        self.assertEqual(unknown_lecturer.status_code, 404)
+
+    def test_plan_detail_patch_uses_the_same_entry_write_contract(self):
+        plan = self.create_plan().data
+        response = self.client.patch(
+            f"/api/academics/capacity-plans/{plan['id']}/",
+            {
+                "lecturerId": self.supervisor_only.pk,
+                "supervisorLimit": 3,
+                "panelLimit": None,
+                "expectedVersion": plan["version"],
+                "expectedFingerprint": plan["contentFingerprint"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["entries"][0]["supervisorLimit"], 3)
+
+    def test_plan_detail_query_count_is_bounded_across_role_entries(self):
+        plan = self.complete_plan()
+        for suffix in ("QUERY-003", "QUERY-004", "QUERY-005"):
+            lecturer = self._create_lecturer(
+                suffix,
+                supervisor=True,
+                panel=True,
+            )
+            plan = self.update_entry(
+                plan,
+                lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+            )
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(f"/api/academics/capacity-plans/{plan['id']}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["entries"]), 5)
+        self.assertLessEqual(len(captured), 20)
+
+    def test_office_publishes_complete_plan_and_lifecycle_conflicts_are_409(self):
+        incomplete = self.create_plan().data
+        incomplete_response = self.client.post(
+            f"/api/academics/capacity-plans/{incomplete['id']}/publish/",
+            {
+                "reason": "Incomplete publication attempt.",
+                "expectedVersion": incomplete["version"],
+                "expectedFingerprint": incomplete["contentFingerprint"],
+            },
+            format="json",
+        )
+        self.assertEqual(incomplete_response.status_code, 409)
+
+        plan = self.complete_plan()
+        published = self.publish_plan(plan)
+
+        self.assertEqual(published["lifecycleStatus"], "PUBLISHED")
+        self.assertTrue(published["isComplete"])
+        self.assertTrue(published["isCurrentPublished"])
+        self.assertEqual(published["publishedBy"]["id"], self.office.pk)
+        self.assertEqual(published["publicationReason"], "Approved capacity policy.")
+        self.assertIsNotNone(published["publishedAt"])
+
+        repeated = self.client.post(
+            f"/api/academics/capacity-plans/{published['id']}/publish/",
+            {
+                "reason": "Repeated publication.",
+                "expectedVersion": published["version"],
+                "expectedFingerprint": published["contentFingerprint"],
+            },
+            format="json",
+        )
+        self.assertEqual(repeated.status_code, 409)
+
+    def test_office_copies_and_clones_plans_with_stable_lineage(self):
+        prior = self.publish_plan(
+            self.complete_plan(semester=self.prior_semester),
+            reason="Approved prior policy.",
+        )
+
+        copied = self.create_plan(
+            copy_from_plan_id=prior["id"],
+        ).data
+        published_copied = self.publish_plan(
+            copied,
+            reason="Approved copied policy.",
+        )
+        cloned = self.client.post(
+            f"/api/academics/capacity-plans/{published_copied['id']}/clone/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(copied["origin"], "COPIED_FORWARD")
+        self.assertEqual(copied["supersedesId"], prior["id"])
+        self.assertEqual(len(copied["entries"]), 2)
+        self.assertEqual(cloned.status_code, 201, cloned.data)
+        self.assertEqual(cloned.data["version"], copied["version"] + 1)
+        self.assertEqual(cloned.data["supersedesId"], published_copied["id"])
+        self.assertEqual(
+            cloned.data["entries"],
+            sorted(
+                cloned.data["entries"],
+                key=lambda entry: (entry["staffNo"], entry["lecturerId"]),
+            ),
+        )
+
+        unknown_copy = self.client.post(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+            {"copyFromPlanId": 999999},
+            format="json",
+        )
+        malformed_copy = self.client.post(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+            {"copyFromPlanId": "invalid"},
+            format="json",
+        )
+        unknown_clone = self.client.post(
+            "/api/academics/capacity-plans/999999/clone/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(unknown_copy.status_code, 404)
+        self.assertEqual(malformed_copy.status_code, 400)
+        self.assertEqual(unknown_clone.status_code, 404)
+
+    def test_office_manages_availability_with_internal_reason_and_history(self):
+        endpoint = f"/api/academics/semesters/{self.semester.pk}/availability/"
+        payload = {
+            "lecturerId": self.dual_role.pk,
+            "role": "SUPERVISOR",
+            "startsOn": "2026-09-10",
+            "endsOn": "2026-09-20",
+            "reason": "Internal approved research leave.",
+        }
+        created = self.client.post(endpoint, payload, format="json")
+
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["reason"], payload["reason"])
+        self.assertEqual(created.data["lecturerId"], self.dual_role.pk)
+        self.assertFalse(created.data["isCancelled"])
+        self.assertEqual(created.data["createdBy"]["id"], self.office.pk)
+
+        listed = self.client.get(endpoint)
+        overlap = self.client.post(
+            endpoint,
+            {**payload, "startsOn": "2026-09-20", "endsOn": "2026-09-21"},
+            format="json",
+        )
+        malformed = self.client.post(
+            endpoint,
+            {**payload, "role": "UNSUPPORTED"},
+            format="json",
+        )
+        unknown_lecturer = self.client.post(
+            endpoint,
+            {**payload, "lecturerId": 999999},
+            format="json",
+        )
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.data, [created.data])
+        self.assertEqual(overlap.status_code, 409)
+        self.assertEqual(malformed.status_code, 400)
+        self.assertEqual(unknown_lecturer.status_code, 404)
+
+        cancelled = self.client.post(
+            f"/api/academics/availability/{created.data['id']}/cancel/",
+            {"reason": "Leave was withdrawn."},
+            format="json",
+        )
+        self.assertEqual(cancelled.status_code, 200, cancelled.data)
+        self.assertTrue(cancelled.data["isCancelled"])
+        self.assertEqual(cancelled.data["cancellationReason"], "Leave was withdrawn.")
+        self.assertEqual(cancelled.data["cancelledBy"]["id"], self.office.pk)
+
+        repeated = self.client.post(
+            f"/api/academics/availability/{created.data['id']}/cancel/",
+            {"reason": "Repeated cancellation."},
+            format="json",
+        )
+        unknown_window = self.client.post(
+            "/api/academics/availability/999999/cancel/",
+            {"reason": "Unknown window."},
+            format="json",
+        )
+        unknown_semester = self.client.get(
+            "/api/academics/semesters/999999/availability/"
+        )
+
+        self.assertEqual(repeated.status_code, 409)
+        self.assertEqual(unknown_window.status_code, 404)
+        self.assertEqual(unknown_semester.status_code, 404)
+
+    def test_capacity_audits_are_office_only_and_deterministic(self):
+        plan = self.complete_plan()
+        self.publish_plan(plan)
+        response = self.client.get(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-audits/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.data), 4)
+        self.assertEqual(
+            [row["id"] for row in response.data],
+            sorted([row["id"] for row in response.data], reverse=True),
+        )
+        self.assertEqual(response.data[0]["actor"]["id"], self.office.pk)
+        self.assertIn("beforeValues", response.data[0])
+        self.assertIn("afterValues", response.data[0])
+        self.assertIn("createdAt", response.data[0])
+
+        unknown = self.client.get("/api/academics/semesters/999999/capacity-audits/")
+        self.assertEqual(unknown.status_code, 404)
+
+        self.client.force_authenticate(self.student_user)
+        denied = self.client.get(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-audits/"
+        )
+        self.assertEqual(denied.status_code, 403)
+
+    def test_non_office_users_cannot_probe_capacity_management_objects(self):
+        plan = self.create_plan().data
+        availability = self.client.post(
+            f"/api/academics/semesters/{self.semester.pk}/availability/",
+            {
+                "lecturerId": self.dual_role.pk,
+                "role": "PANEL",
+                "startsOn": "2026-10-01",
+                "endsOn": "2026-10-02",
+                "reason": "Private availability reason.",
+            },
+            format="json",
+        ).data
+        self.client.force_authenticate(self.student_user)
+
+        requests = (
+            self.client.get(
+                f"/api/academics/semesters/{self.semester.pk}/capacity-plans/"
+            ),
+            self.client.post(
+                f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+                {"copyFromPlanId": None},
+                format="json",
+            ),
+            self.client.get(f"/api/academics/capacity-plans/{plan['id']}/"),
+            self.client.patch(
+                f"/api/academics/capacity-plans/{plan['id']}/",
+                {},
+                format="json",
+            ),
+            self.client.post(
+                f"/api/academics/capacity-plans/{plan['id']}/clone/",
+                {},
+                format="json",
+            ),
+            self.client.post(
+                f"/api/academics/capacity-plans/{plan['id']}/publish/",
+                {
+                    "reason": "Unauthorized publication.",
+                    "expectedVersion": plan["version"],
+                    "expectedFingerprint": plan["contentFingerprint"],
+                },
+                format="json",
+            ),
+            self.client.patch(
+                (
+                    f"/api/academics/capacity-plans/{plan['id']}"
+                    f"/lecturers/{self.dual_role.pk}/"
+                ),
+                {},
+                format="json",
+            ),
+            self.client.get(
+                f"/api/academics/semesters/{self.semester.pk}/availability/"
+            ),
+            self.client.post(
+                f"/api/academics/semesters/{self.semester.pk}/availability/",
+                {},
+                format="json",
+            ),
+            self.client.post(
+                f"/api/academics/availability/{availability['id']}/cancel/",
+                {"reason": "Unauthorized cancellation."},
+                format="json",
+            ),
+            self.client.get(
+                f"/api/academics/semesters/{self.semester.pk}/capacity-audits/"
+            ),
+        )
+
+        for response in requests:
+            self.assertEqual(response.status_code, 403)
 
 
 @skipUnless(

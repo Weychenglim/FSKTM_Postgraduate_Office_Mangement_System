@@ -97,13 +97,14 @@ def _capacity_plan_content_fingerprint(plan, entries):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def capacity_plan_content_fingerprint(plan) -> str:
-    entries = list(
-        LecturerCapacityEntry.objects.filter(plan_id=plan.pk).order_by(
-            "lecturer_id",
-            "pk",
+def capacity_plan_content_fingerprint(plan, *, entries=None) -> str:
+    if entries is None:
+        entries = list(
+            LecturerCapacityEntry.objects.filter(plan_id=plan.pk).order_by(
+                "lecturer_id",
+                "pk",
+            )
         )
-    )
     return _capacity_plan_content_fingerprint(plan, entries)
 
 
@@ -628,6 +629,11 @@ def validate_capacity_plan_ready(plan) -> list[str]:
     if plan.pk is None or not SemesterCapacityPlan.objects.filter(pk=plan.pk).exists():
         return ["Capacity plan does not exist."]
     return _capacity_plan_readiness_errors(plan)
+
+
+def capacity_plan_readiness_errors(plan, *, entries):
+    """Derive readiness from caller-loaded entries for read-only API payloads."""
+    return _capacity_plan_readiness_errors(plan, entries=entries)
 
 
 def _publish_capacity_plan_atomic(plan, *, actor, reason, expected_fingerprint):
