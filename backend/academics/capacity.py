@@ -147,9 +147,9 @@ def resolve_lecturer_capacity(
         else None
     )
 
-    unavailable_until = None
+    matched_window_end = None
     if lecturer is not None:
-        unavailable_until = (
+        matched_window_end = (
             LecturerAvailabilityWindow.objects.filter(
                 academic_semester_id=semester.pk,
                 lecturer_id=lecturer.pk,
@@ -174,7 +174,7 @@ def resolve_lecturer_capacity(
         state = CapacityState.INELIGIBLE
     elif plan is None or entry_values is None or configured_limit is None:
         state = CapacityState.NOT_CONFIGURED
-    elif unavailable_until is not None:
+    elif matched_window_end is not None:
         state = CapacityState.TEMPORARILY_UNAVAILABLE
     elif total_load > limit:
         state = CapacityState.OVER_CAPACITY
@@ -193,7 +193,11 @@ def resolve_lecturer_capacity(
         reserved_load=reserved_load,
         available_slots=available_slots,
         state=state,
-        unavailable_until=unavailable_until,
+        unavailable_until=(
+            matched_window_end
+            if state == CapacityState.TEMPORARILY_UNAVAILABLE
+            else None
+        ),
     )
 
 

@@ -1,14 +1,15 @@
 from dataclasses import asdict
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models.query import QuerySet
 from django.db.models.signals import post_delete, pre_delete
 from django.test import RequestFactory, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from accounts.models import Lecturer, OfficeStaff, Panel, Student, Supervisor
@@ -1845,7 +1846,7 @@ class CapacityResolverTests(TestCase):
         self.assertEqual(result.available_slots, 1)
         self.assertEqual(count_panel_workload(self.lecturer.user), 3)
 
-    def test_role_window_precedes_full_and_redacts_internal_reason(self):
+    def test_temporary_unavailability_exposes_latest_applicable_end_date(self):
         self.publish_plan(supervisor_limit=0, panel_limit=5)
         internal_reason = "Private medical leave details must never be public."
         window = LecturerAvailabilityWindow.objects.create(
@@ -1856,6 +1857,18 @@ class CapacityResolverTests(TestCase):
             ends_on=self.today + timedelta(days=4),
             reason=internal_reason,
             created_by=self.office,
+        )
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today,
+            ends_on=self.today + timedelta(days=8),
+            reason="Cancelled private staffing context.",
+            created_by=self.office,
+            cancelled_by=self.office,
+            cancelled_at=timezone.now(),
+            cancellation_reason="Availability restored.",
         )
 
         supervisor_result = resolve_lecturer_capacity(
@@ -1889,6 +1902,126 @@ class CapacityResolverTests(TestCase):
                 role=CapacityRole.SUPERVISOR,
                 on_date=self.today,
             )
+
+    def test_ineligible_state_redacts_active_window_end_date(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=5)
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today,
+            ends_on=self.today + timedelta(days=3),
+            reason="Internal lifecycle transition context.",
+            created_by=self.office,
+        )
+        self.lecturer.lifecycle_status = Lecturer.Lifecycle.RETIRED
+        self.lecturer.save(update_fields=["lifecycle_status"])
+
+        result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.INELIGIBLE)
+        self.assertIsNone(result.unavailable_until)
+
+    def test_non_effective_windows_do_not_expose_unavailability(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=5)
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today,
+            ends_on=self.today + timedelta(days=3),
+            reason="Cancelled internal availability reason.",
+            created_by=self.office,
+            cancelled_by=self.office,
+            cancelled_at=timezone.now(),
+            cancellation_reason="Availability restored.",
+        )
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today - timedelta(days=4),
+            ends_on=self.today - timedelta(days=1),
+            reason="Expired internal availability reason.",
+            created_by=self.office,
+        )
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today + timedelta(days=1),
+            ends_on=self.today + timedelta(days=4),
+            reason="Future internal availability reason.",
+            created_by=self.office,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.AVAILABLE)
+        self.assertIsNone(result.unavailable_until)
+
+    def test_default_date_uses_kuala_lumpur_local_date_at_midnight(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=5)
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today,
+            ends_on=self.today,
+            reason="Internal one-day availability reason.",
+            created_by=self.office,
+        )
+
+        with patch(
+            "academics.capacity.timezone.now",
+            return_value=datetime(2026, 10, 14, 15, 59, 59, tzinfo=UTC),
+        ):
+            before_midnight = resolve_lecturer_capacity(
+                user=self.lecturer.user,
+                semester=self.semester,
+                role=CapacityRole.SUPERVISOR,
+            )
+        with patch(
+            "academics.capacity.timezone.now",
+            return_value=datetime(2026, 10, 14, 16, 0, tzinfo=UTC),
+        ):
+            at_midnight = resolve_lecturer_capacity(
+                user=self.lecturer.user,
+                semester=self.semester,
+                role=CapacityRole.SUPERVISOR,
+            )
+
+        self.assertEqual(before_midnight.state, CapacityState.AVAILABLE)
+        self.assertIsNone(before_midnight.unavailable_until)
+        self.assertEqual(
+            at_midnight.state,
+            CapacityState.TEMPORARILY_UNAVAILABLE,
+        )
+        self.assertEqual(at_midnight.unavailable_until, self.today)
+
+    def test_available_supervisor_resolution_uses_bounded_queries(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=5)
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            result = resolve_lecturer_capacity(
+                user=self.lecturer.user,
+                semester=self.semester,
+                role=CapacityRole.SUPERVISOR,
+                on_date=self.today,
+            )
+
+        self.assertEqual(result.state, CapacityState.AVAILABLE)
+        self.assertLessEqual(len(captured_queries), 7)
 
     def test_not_configured_ignores_non_published_plans_and_missing_entries(self):
         for version, lifecycle_status in (
@@ -1937,11 +2070,13 @@ class CapacityResolverTests(TestCase):
             CapacityState.NOT_CONFIGURED,
         )
         self.assertIsNone(without_published_plan.plan_id)
+        self.assertIsNone(without_published_plan.unavailable_until)
         self.assertEqual(without_entry.state, CapacityState.NOT_CONFIGURED)
         self.assertEqual(without_entry.plan_id, published.pk)
         self.assertEqual(without_entry.plan_version, 3)
         self.assertIsNone(without_entry.limit)
         self.assertEqual(without_entry.available_slots, 0)
+        self.assertIsNone(without_entry.unavailable_until)
 
     def test_not_configured_when_new_role_has_no_published_limit(self):
         lecturer = self.create_lecturer("NEW-PANEL", panel=False)
