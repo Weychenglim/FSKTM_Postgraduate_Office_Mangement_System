@@ -227,6 +227,13 @@ CAPACITY_ENTRY_BULK_WRITE_ERROR = (
 CAPACITY_ENTRY_BULK_CREATE_OPTIONS_ERROR = (
     "Capacity entry bulk creation does not support batch or conflict options."
 )
+CAPACITY_ENTRY_BULK_CREATE_SINGLE_PLAN_ERROR = (
+    "Capacity entry bulk creation requires every entry to use the same plan."
+)
+CAPACITY_ENTRY_BULK_CREATE_DUPLICATE_ERROR = (
+    "Capacity entry bulk creation cannot contain duplicate plan and lecturer "
+    "pairs."
+)
 
 
 def _select_for_update_self(queryset):
@@ -307,11 +314,43 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
             raise ValidationError(CAPACITY_ENTRY_BULK_CREATE_OPTIONS_ERROR)
 
         objs = list(objs)
+        if not objs:
+            return objs
+
+        persistence_states = tuple(
+            (obj.pk, obj._state.adding, obj._state.db) for obj in objs
+        )
         self._for_write = True
         using = self.db
-        with transaction.atomic(using=using):
-            for obj in objs:
-                obj.save(using=using, force_insert=True)
+        try:
+            plan_ids = {obj.plan_id for obj in objs}
+            if len(plan_ids) != 1:
+                raise ValidationError(CAPACITY_ENTRY_BULK_CREATE_SINGLE_PLAN_ERROR)
+
+            with transaction.atomic(using=using):
+                self._validate_plan_ids_are_draft(plan_ids)
+
+                seen_plan_lecturer_pairs = set()
+                for obj in objs:
+                    obj.full_clean()
+                    plan_lecturer_pair = (obj.plan_id, obj.lecturer_id)
+                    if (
+                        None not in plan_lecturer_pair
+                        and plan_lecturer_pair in seen_plan_lecturer_pairs
+                    ):
+                        raise ValidationError(
+                            CAPACITY_ENTRY_BULK_CREATE_DUPLICATE_ERROR
+                        )
+                    seen_plan_lecturer_pairs.add(plan_lecturer_pair)
+
+                for obj in objs:
+                    obj.save(using=using, force_insert=True)
+        except Exception:
+            for obj, (pk, adding, db) in zip(objs, persistence_states):
+                setattr(obj, obj._meta.pk.attname, pk)
+                obj._state.adding = adding
+                obj._state.db = db
+            raise
         return objs
 
     def bulk_update(self, objs, fields, batch_size=None):

@@ -118,6 +118,12 @@ class CapacityModelTests(TestCase):
         values.update(overrides)
         return values
 
+    def capacity_entry_persistence_states(self, entries):
+        return [
+            (entry.pk, entry._state.adding, entry._state.db)
+            for entry in entries
+        ]
+
     def delete_capacity_entries_after_related_predicate_expands(self, *, raw):
         draft_plan = self.create_plan()
         second_draft_lecturer = self.create_additional_lecturer("DRAFT-DELETE")
@@ -738,17 +744,17 @@ class CapacityModelTests(TestCase):
             )
 
     def test_bulk_create_rejects_entries_for_non_draft_plans(self):
-        draft = self.create_plan(version=1)
         published = self.create_plan(
-            version=2,
+            version=1,
             lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
         )
+        second_lecturer = self.create_additional_lecturer("PUBLISHED-CREATE")
 
         with self.assertRaises(ValidationError):
             LecturerCapacityEntry.objects.bulk_create(
                 [
                     LecturerCapacityEntry(
-                        plan=draft,
+                        plan=published,
                         lecturer=self.lecturer,
                         supervisor_limit=4,
                         panel_limit=8,
@@ -756,7 +762,7 @@ class CapacityModelTests(TestCase):
                     ),
                     LecturerCapacityEntry(
                         plan=published,
-                        lecturer=self.create_additional_lecturer("BULK-CREATE"),
+                        lecturer=second_lecturer,
                         supervisor_limit=5,
                         panel_limit=9,
                         updated_by=self.office,
@@ -766,23 +772,70 @@ class CapacityModelTests(TestCase):
 
         self.assertFalse(LecturerCapacityEntry.objects.exists())
 
-    def test_bulk_create_rejects_role_mismatched_limits(self):
-        self.lecturer.panel.delete()
+    def test_bulk_create_rejects_mixed_plans_without_mutating_inputs(self):
+        first_plan = self.create_plan(version=1)
+        second_plan = self.create_plan(version=2)
+        entries = [
+            LecturerCapacityEntry(
+                plan=first_plan,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            ),
+            LecturerCapacityEntry(
+                plan=second_plan,
+                lecturer=self.create_additional_lecturer("MIXED-PLAN"),
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            ),
+        ]
+        original_states = self.capacity_entry_persistence_states(entries)
 
-        with self.assertRaises(ValidationError):
-            LecturerCapacityEntry.objects.bulk_create(
-                [
-                    LecturerCapacityEntry(
-                        plan=self.create_plan(),
-                        lecturer=self.lecturer,
-                        supervisor_limit=4,
-                        panel_limit=8,
-                        updated_by=self.office,
-                    )
-                ]
-            )
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Capacity entry bulk creation requires every entry to use the same "
+            "plan.",
+        ):
+            LecturerCapacityEntry.objects.bulk_create(entries)
 
         self.assertFalse(LecturerCapacityEntry.objects.exists())
+        self.assertEqual(
+            self.capacity_entry_persistence_states(entries),
+            original_states,
+        )
+
+    def test_bulk_create_rejects_role_mismatched_limits(self):
+        plan = self.create_plan()
+        invalid_lecturer = self.create_additional_lecturer("INVALID-ROLE")
+        invalid_lecturer.panel.delete()
+        entries = [
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            ),
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=invalid_lecturer,
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            ),
+        ]
+        original_states = self.capacity_entry_persistence_states(entries)
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.bulk_create(entries)
+
+        self.assertFalse(LecturerCapacityEntry.objects.exists())
+        self.assertEqual(
+            self.capacity_entry_persistence_states(entries),
+            original_states,
+        )
 
     def test_bulk_create_rejects_upsert_into_a_published_entry(self):
         published_plan = self.create_plan(version=1)
@@ -838,7 +891,92 @@ class CapacityModelTests(TestCase):
             ):
                 LecturerCapacityEntry.objects.bulk_create([], **options)
 
-    def test_bulk_create_preserves_draft_plan_entries(self):
+    def test_bulk_create_empty_batch_returns_an_empty_list(self):
+        created = LecturerCapacityEntry.objects.bulk_create(())
+
+        self.assertEqual(created, [])
+
+    def test_bulk_create_rejects_duplicate_input_without_mutating_inputs(self):
+        plan = self.create_plan()
+        entries = [
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            ),
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=self.lecturer,
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            ),
+        ]
+        original_states = self.capacity_entry_persistence_states(entries)
+
+        with self.assertRaises(ValidationError) as context:
+            LecturerCapacityEntry.objects.bulk_create(entries)
+
+        self.assertFalse(LecturerCapacityEntry.objects.exists())
+        self.assertEqual(
+            self.capacity_entry_persistence_states(entries),
+            original_states,
+        )
+        self.assertIn(
+            "Capacity entry bulk creation cannot contain duplicate plan and "
+            "lecturer pairs.",
+            context.exception.messages,
+        )
+
+    def test_bulk_create_restores_input_states_after_a_later_database_failure(self):
+        plan = self.create_plan()
+        entries = [
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            ),
+            LecturerCapacityEntry(
+                plan=plan,
+                lecturer=self.create_additional_lecturer("DATABASE-FAILURE"),
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            ),
+        ]
+        original_states = self.capacity_entry_persistence_states(entries)
+        original_save = LecturerCapacityEntry.save
+        save_call_count = 0
+
+        def fail_second_save(instance, *args, **kwargs):
+            nonlocal save_call_count
+            save_call_count += 1
+            if save_call_count == 2:
+                raise IntegrityError("Simulated later database failure.")
+            return original_save(instance, *args, **kwargs)
+
+        with patch.object(
+            LecturerCapacityEntry,
+            "save",
+            new=fail_second_save,
+        ), self.assertRaisesMessage(
+            IntegrityError,
+            "Simulated later database failure.",
+        ):
+            LecturerCapacityEntry.objects.bulk_create(entries)
+
+        self.assertEqual(save_call_count, 2)
+        self.assertFalse(LecturerCapacityEntry.objects.exists())
+        self.assertEqual(
+            self.capacity_entry_persistence_states(entries),
+            original_states,
+        )
+
+    def test_bulk_create_same_plan_valid_batch_succeeds(self):
         draft = self.create_plan()
         second_lecturer = self.create_additional_lecturer("DRAFT-CREATE")
 
