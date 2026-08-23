@@ -1,3 +1,4 @@
+import json
 from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
@@ -31,6 +32,18 @@ from .capacity import (
     assert_capacity_allows_assignment,
     capacity_conflict_message,
     resolve_lecturer_capacity,
+)
+from .capacity_services import (
+    AvailabilityConflict,
+    CapacityLifecycleConflict,
+    cancel_availability_window,
+    capacity_plan_snapshot,
+    clone_capacity_plan,
+    create_availability_window,
+    create_capacity_plan,
+    publish_capacity_plan,
+    update_capacity_entry,
+    validate_capacity_plan_ready,
 )
 
 from .admin import (
@@ -1548,6 +1561,698 @@ class CapacityModelTests(TestCase):
 
         audit.refresh_from_db()
         self.assertEqual(audit.reason, "Capacity policy event.")
+
+
+class CapacityLifecycleTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.office = User.objects.create_user(
+            email="capacity.lifecycle.office@example.test",
+            password="local-test-password",
+            full_name="Capacity Lifecycle Office",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        OfficeStaff.objects.create(
+            user=cls.office,
+            staff_no="CAP-LIFE-OFFICE",
+            department="Postgraduate Office",
+        )
+        cls.lecturer = cls.create_lecturer(
+            "002",
+            supervisor=True,
+            panel=True,
+        )
+        cls.supervisor_only = cls.create_lecturer(
+            "001",
+            supervisor=True,
+            panel=False,
+        )
+        cls.prior_semester = AcademicSemester.objects.create(
+            code="2025-2026-S2",
+            academic_session="2025/2026",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=date(2026, 2, 1),
+            ends_on=date(2026, 6, 30),
+            created_by=cls.office,
+        )
+        cls.semester = AcademicSemester.objects.create(
+            code="2026-2027-S1",
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 9, 1),
+            ends_on=date(2027, 1, 31),
+            created_by=cls.office,
+        )
+
+    @classmethod
+    def create_lecturer(cls, suffix, *, supervisor, panel):
+        user = User.objects.create_user(
+            email=f"capacity.lifecycle.{suffix}@example.test",
+            password="local-test-password",
+            full_name=f"Capacity Lifecycle Lecturer {suffix}",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=user,
+            staff_no=f"CAP-LIFE-LECT-{suffix}",
+            department="Computing",
+        )
+        if supervisor:
+            Supervisor.objects.create(lecturer=lecturer, max_supervisees=5)
+        if panel:
+            Panel.objects.create(lecturer=lecturer, max_appointments=10)
+        return lecturer
+
+    def complete_plan(self, plan=None, *, semester=None):
+        semester = semester or self.semester
+        plan = plan or create_capacity_plan(
+            semester=semester,
+            actor=self.office,
+        )
+        update_capacity_entry(
+            plan,
+            lecturer=self.supervisor_only,
+            actor=self.office,
+            supervisor_limit=4,
+            panel_limit=None,
+        )
+        update_capacity_entry(
+            plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=5,
+            panel_limit=8,
+        )
+        return plan
+
+    def publish_complete_plan(self, plan=None, *, semester=None, version=1):
+        plan = self.complete_plan(plan, semester=semester)
+        self.assertEqual(plan.version, version)
+        return publish_capacity_plan(
+            plan,
+            actor=self.office,
+            reason="Approved complete capacity allocation.",
+        )
+
+    def create_student_appointment(self):
+        student_user = User.objects.create_user(
+            email="capacity.lifecycle.student@example.test",
+            password="local-test-password",
+            full_name="Capacity Lifecycle Student",
+            role=User.Role.STUDENT,
+        )
+        student = Student.objects.create(
+            user=student_user,
+            matric_no="CAP-LIFE-STUDENT",
+            programme="Master of Computer Science",
+        )
+        application = SupervisorApplication.objects.create(
+            student=student,
+            academic_semester=self.semester,
+            proposed_supervisor=self.lecturer.user,
+            research_title="Capacity policy verification",
+            research_area="Software Engineering",
+            research_abstract="Capacity changes preserve active work.",
+            status=SupervisorApplication.Status.APPROVED,
+        )
+        return SupervisorAppointment.objects.create(
+            application=application,
+            student=student,
+            supervisor=self.lecturer.user,
+            approved_by=self.office,
+        )
+
+    def test_blank_plan_creation_starts_empty_draft_version(self):
+        plan = create_capacity_plan(semester=self.semester, actor=self.office)
+
+        self.assertEqual(plan.version, 1)
+        self.assertEqual(plan.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(plan.origin, SemesterCapacityPlan.Origin.CREATED)
+        self.assertIsNone(plan.supersedes_id)
+        self.assertFalse(plan.entries.exists())
+        audit = LecturerCapacityAudit.objects.get(
+            plan=plan,
+            action=LecturerCapacityAudit.Action.PLAN_CREATE,
+        )
+        self.assertEqual(audit.actor, self.office)
+        self.assertEqual(audit.after_values, capacity_plan_snapshot(plan))
+
+    def test_copy_from_prior_published_plan_uses_current_eligibility_only(self):
+        historical = self.create_lecturer(
+            "HISTORICAL",
+            supervisor=True,
+            panel=False,
+        )
+        source = create_capacity_plan(
+            semester=self.prior_semester,
+            actor=self.office,
+        )
+        self.complete_plan(source, semester=self.prior_semester)
+        update_capacity_entry(
+            source,
+            lecturer=historical,
+            actor=self.office,
+            supervisor_limit=3,
+            panel_limit=None,
+        )
+        source = publish_capacity_plan(
+            source,
+            actor=self.office,
+            reason="Approved prior-semester capacity allocation.",
+        )
+        Lecturer.objects.filter(pk=historical.pk).update(
+            lifecycle_status=Lecturer.Lifecycle.RETIRED
+        )
+        create_availability_window(
+            semester=self.prior_semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.prior_semester.starts_on,
+            ends_on=self.prior_semester.starts_on + timedelta(days=2),
+            actor=self.office,
+            reason="Approved prior-semester leave.",
+        )
+
+        copied = create_capacity_plan(
+            semester=self.semester,
+            actor=self.office,
+            copy_from=source,
+        )
+
+        self.assertEqual(copied.version, 1)
+        self.assertEqual(copied.origin, SemesterCapacityPlan.Origin.COPIED_FORWARD)
+        self.assertEqual(
+            list(copied.entries.values_list("lecturer__staff_no", flat=True)),
+            [self.supervisor_only.staff_no, self.lecturer.staff_no],
+        )
+        self.assertFalse(
+            LecturerAvailabilityWindow.objects.filter(
+                academic_semester=self.semester
+            ).exists()
+        )
+        self.assertTrue(
+            LecturerCapacityAudit.objects.filter(
+                plan=copied,
+                action=LecturerCapacityAudit.Action.PLAN_COPY,
+            ).exists()
+        )
+
+    def test_same_semester_clone_increments_version_and_records_source(self):
+        first = self.publish_complete_plan(version=1)
+        second = clone_capacity_plan(first, actor=self.office)
+        second = publish_capacity_plan(
+            second,
+            actor=self.office,
+            reason="Approved second capacity version.",
+        )
+
+        third = clone_capacity_plan(second, actor=self.office)
+
+        self.assertEqual(third.version, 3)
+        self.assertEqual(third.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(third.origin, SemesterCapacityPlan.Origin.COPIED_FORWARD)
+        self.assertEqual(third.supersedes_id, second.pk)
+        self.assertEqual(third.entries.count(), 2)
+
+    def test_same_semester_clone_can_restore_a_superseded_source_version(self):
+        first = self.publish_complete_plan(version=1)
+        second = clone_capacity_plan(first, actor=self.office)
+        publish_capacity_plan(
+            second,
+            actor=self.office,
+            reason="Approved second capacity version.",
+        )
+        first.refresh_from_db()
+
+        restored = clone_capacity_plan(first, actor=self.office)
+
+        self.assertEqual(restored.version, 3)
+        self.assertEqual(restored.supersedes_id, first.pk)
+        self.assertEqual(restored.entries.count(), 2)
+
+    def test_draft_entry_is_created_then_updated_with_before_after_audits(self):
+        plan = create_capacity_plan(semester=self.semester, actor=self.office)
+
+        created = update_capacity_entry(
+            plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=5,
+            panel_limit=8,
+        )
+        updated = update_capacity_entry(
+            plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=2,
+            panel_limit=6,
+        )
+
+        self.assertEqual(created.pk, updated.pk)
+        self.assertEqual(plan.entries.count(), 1)
+        self.assertEqual(updated.supervisor_limit, 2)
+        audits = list(
+            LecturerCapacityAudit.objects.filter(
+                plan=plan,
+                lecturer=self.lecturer,
+                action=LecturerCapacityAudit.Action.ENTRY_UPDATE,
+            ).order_by("pk")
+        )
+        self.assertEqual(len(audits), 2)
+        self.assertIsNone(audits[0].before_values["entry"])
+        self.assertEqual(audits[0].after_values["entry"]["supervisorLimit"], 5)
+        self.assertEqual(audits[1].before_values["entry"]["supervisorLimit"], 5)
+        self.assertEqual(audits[1].after_values["entry"]["supervisorLimit"], 2)
+
+    def test_readiness_requires_complete_current_lecturer_coverage(self):
+        plan = self.complete_plan()
+        self.assertEqual(validate_capacity_plan_ready(plan), [])
+        newly_eligible = self.create_lecturer(
+            "NEW",
+            supervisor=False,
+            panel=True,
+        )
+
+        errors = validate_capacity_plan_ready(plan)
+
+        self.assertTrue(any(newly_eligible.staff_no in error for error in errors))
+        with self.assertRaises(CapacityLifecycleConflict):
+            publish_capacity_plan(
+                plan,
+                actor=self.office,
+                reason="Incomplete allocation must not publish.",
+            )
+
+    def test_readiness_detects_role_limit_alignment_changes(self):
+        plan = self.complete_plan()
+        Panel.objects.filter(lecturer=self.lecturer).delete()
+
+        absent_role_errors = validate_capacity_plan_ready(plan)
+
+        self.assertTrue(
+            any("Panel limit must be empty" in error for error in absent_role_errors)
+        )
+        Panel.objects.create(lecturer=self.supervisor_only, max_appointments=10)
+        newly_required_errors = validate_capacity_plan_ready(plan)
+        self.assertTrue(
+            any(
+                self.supervisor_only.staff_no in error
+                and "Panel limit is required" in error
+                for error in newly_required_errors
+            )
+        )
+
+    def test_publish_with_no_current_plan_publishes_target(self):
+        draft = self.complete_plan()
+
+        published = publish_capacity_plan(
+            draft,
+            actor=self.office,
+            reason="Approved initial capacity plan.",
+        )
+
+        self.assertEqual(
+            published.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        self.assertEqual(published.published_by, self.office)
+        self.assertIsNotNone(published.published_at)
+        self.assertEqual(
+            published.publication_reason,
+            "Approved initial capacity plan.",
+        )
+
+    def test_publishing_replacement_supersedes_current_plan_atomically(self):
+        current = self.publish_complete_plan(version=1)
+        draft = clone_capacity_plan(current, actor=self.office)
+        update_capacity_entry(
+            draft,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=1,
+            panel_limit=7,
+        )
+        publish_audits_before = LecturerCapacityAudit.objects.filter(
+            action=LecturerCapacityAudit.Action.PUBLISH
+        ).count()
+
+        published = publish_capacity_plan(
+            draft,
+            actor=self.office,
+            reason="Approved revised allocation.",
+        )
+
+        current.refresh_from_db()
+        self.assertEqual(current.lifecycle_status, "SUPERSEDED")
+        self.assertEqual(published.lifecycle_status, "PUBLISHED")
+        self.assertEqual(
+            LecturerCapacityAudit.objects.filter(action="PUBLISH").count(),
+            publish_audits_before + 1,
+        )
+        replacement_audits = LecturerCapacityAudit.objects.filter(
+            reason="Approved revised allocation."
+        )
+        self.assertEqual(
+            set(replacement_audits.values_list("action", flat=True)),
+            {
+                LecturerCapacityAudit.Action.PUBLISH,
+                LecturerCapacityAudit.Action.SUPERSEDE,
+            },
+        )
+
+    def test_stale_and_non_draft_plan_mutations_are_conflicts(self):
+        draft = self.complete_plan()
+        stale = SemesterCapacityPlan.objects.get(pk=draft.pk)
+        published = publish_capacity_plan(
+            draft,
+            actor=self.office,
+            reason="Approved capacity plan.",
+        )
+
+        with self.assertRaises(CapacityLifecycleConflict):
+            publish_capacity_plan(
+                stale,
+                actor=self.office,
+                reason="Stale retry.",
+            )
+        with self.assertRaises(CapacityLifecycleConflict):
+            update_capacity_entry(
+                published,
+                lecturer=self.lecturer,
+                actor=self.office,
+                supervisor_limit=1,
+                panel_limit=1,
+            )
+
+    def test_concurrent_publication_integrity_failure_rolls_back_supersession(self):
+        current = self.publish_complete_plan()
+        draft = clone_capacity_plan(current, actor=self.office)
+        original_save = SemesterCapacityPlan.save
+
+        def fail_target_publication(instance, *args, **kwargs):
+            if (
+                instance.pk == draft.pk
+                and instance.lifecycle_status
+                == SemesterCapacityPlan.Lifecycle.PUBLISHED
+            ):
+                raise IntegrityError("simulated concurrent publication")
+            return original_save(instance, *args, **kwargs)
+
+        audit_count = LecturerCapacityAudit.objects.count()
+        with patch.object(
+            SemesterCapacityPlan,
+            "save",
+            fail_target_publication,
+        ):
+            with self.assertRaises(CapacityLifecycleConflict):
+                publish_capacity_plan(
+                    draft,
+                    actor=self.office,
+                    reason="Approved concurrent replacement.",
+                )
+
+        current.refresh_from_db()
+        draft.refresh_from_db()
+        self.assertEqual(
+            current.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        self.assertEqual(draft.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+    def test_publication_window_and_cancellation_reasons_are_mandatory(self):
+        plan = self.complete_plan()
+        with self.assertRaises(ValidationError):
+            publish_capacity_plan(plan, actor=self.office, reason="  ")
+        with self.assertRaises(ValidationError):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=self.semester.starts_on,
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="",
+            )
+        window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.semester.starts_on,
+            ends_on=self.semester.starts_on,
+            actor=self.office,
+            reason="Approved leave.",
+        )
+        with self.assertRaises(ValidationError):
+            cancel_availability_window(window, actor=self.office, reason="\t")
+
+    def test_capacity_reduction_below_load_preserves_active_appointment(self):
+        current = self.publish_complete_plan()
+        appointment = self.create_student_appointment()
+        draft = clone_capacity_plan(current, actor=self.office)
+
+        entry = update_capacity_entry(
+            draft,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=0,
+            panel_limit=8,
+        )
+        self.assertEqual(validate_capacity_plan_ready(draft), [])
+        published = publish_capacity_plan(
+            draft,
+            actor=self.office,
+            reason="Approved zero-capacity replacement.",
+        )
+
+        appointment.refresh_from_db()
+        self.assertEqual(entry.supervisor_limit, 0)
+        self.assertEqual(
+            published.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        self.assertEqual(appointment.status, SupervisorAppointment.Status.ACTIVE)
+
+    def test_availability_validates_bounds_roles_overlap_and_cancellation(self):
+        with self.assertRaises(ValidationError):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role="NOT_A_ROLE",
+                starts_on=self.semester.starts_on,
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Invalid role.",
+            )
+        with self.assertRaises(ValidationError):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=self.semester.starts_on - timedelta(days=1),
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Outside semester.",
+            )
+        with self.assertRaises(ValidationError):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=self.semester.starts_on + timedelta(days=1),
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Reversed dates.",
+            )
+        starts_on = self.semester.starts_on + timedelta(days=5)
+        ends_on = starts_on + timedelta(days=3)
+        supervisor_window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=starts_on,
+            ends_on=ends_on,
+            actor=self.office,
+            reason="Approved Supervisor leave.",
+        )
+        with self.assertRaises(AvailabilityConflict):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=ends_on,
+                ends_on=ends_on + timedelta(days=2),
+                actor=self.office,
+                reason="Overlapping Supervisor leave.",
+            )
+        panel_window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=starts_on,
+            ends_on=ends_on,
+            actor=self.office,
+            reason="Independent Panel leave.",
+        )
+        stale_window = LecturerAvailabilityWindow.objects.get(pk=supervisor_window.pk)
+
+        cancelled = cancel_availability_window(
+            supervisor_window,
+            actor=self.office,
+            reason="Lecturer returned early.",
+        )
+
+        self.assertIsNotNone(cancelled.cancelled_at)
+        self.assertEqual(cancelled.reason, "Approved Supervisor leave.")
+        self.assertEqual(cancelled.starts_on, starts_on)
+        self.assertIsNone(panel_window.cancelled_at)
+        with self.assertRaises(AvailabilityConflict):
+            cancel_availability_window(
+                stale_window,
+                actor=self.office,
+                reason="Stale cancellation.",
+            )
+        with self.assertRaises(AvailabilityConflict):
+            cancel_availability_window(
+                cancelled,
+                actor=self.office,
+                reason="Duplicate cancellation.",
+            )
+
+    def test_availability_requires_active_lecturer_with_requested_profile(self):
+        with self.assertRaises(CapacityLifecycleConflict):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.supervisor_only,
+                role=LecturerAvailabilityWindow.Role.PANEL,
+                starts_on=self.semester.starts_on,
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Unavailable for an absent role.",
+            )
+        Lecturer.objects.filter(pk=self.lecturer.pk).update(
+            lifecycle_status=Lecturer.Lifecycle.RETIRING
+        )
+        with self.assertRaises(CapacityLifecycleConflict):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=self.semester.starts_on,
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Inactive lecturer restriction.",
+            )
+
+    def test_window_cancellation_rolls_back_when_audit_creation_fails(self):
+        window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.semester.starts_on,
+            ends_on=self.semester.starts_on + timedelta(days=2),
+            actor=self.office,
+            reason="Approved leave.",
+        )
+
+        with patch(
+            "academics.capacity_services._audit",
+            side_effect=RuntimeError("simulated audit failure"),
+        ):
+            with self.assertRaises(RuntimeError):
+                cancel_availability_window(
+                    window,
+                    actor=self.office,
+                    reason="Cancelled after review.",
+                )
+
+        window.refresh_from_db()
+        self.assertIsNone(window.cancelled_at)
+        self.assertIsNone(window.cancelled_by_id)
+        self.assertEqual(window.cancellation_reason, "")
+
+    def test_service_audits_cover_every_action_with_json_safe_snapshots(self):
+        source = self.publish_complete_plan(
+            semester=self.prior_semester,
+            version=1,
+        )
+        copied = create_capacity_plan(
+            semester=self.semester,
+            actor=self.office,
+            copy_from=source,
+        )
+        update_capacity_entry(
+            copied,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=2,
+            panel_limit=7,
+        )
+        copied = publish_capacity_plan(
+            copied,
+            actor=self.office,
+            reason="Approved copied plan.",
+        )
+        replacement = clone_capacity_plan(copied, actor=self.office)
+        publish_capacity_plan(
+            replacement,
+            actor=self.office,
+            reason="Approved replacement plan.",
+        )
+        window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=self.semester.starts_on,
+            ends_on=self.semester.starts_on,
+            actor=self.office,
+            reason="Approved Panel leave.",
+        )
+        cancel_availability_window(
+            window,
+            actor=self.office,
+            reason="Panel leave cancelled.",
+        )
+
+        audits = LecturerCapacityAudit.objects.all()
+        self.assertEqual(
+            set(audits.values_list("action", flat=True)),
+            set(LecturerCapacityAudit.Action.values),
+        )
+        for audit in audits:
+            self.assertEqual(audit.actor, self.office)
+            self.assertTrue(audit.reason.strip())
+            json.dumps(audit.before_values, sort_keys=True)
+            json.dumps(audit.after_values, sort_keys=True)
+        self.assertTrue(
+            audits.filter(
+                action=LecturerCapacityAudit.Action.AVAILABILITY_CREATE,
+                availability_window=window,
+                lecturer=self.lecturer,
+            ).exists()
+        )
+        self.assertTrue(
+            audits.filter(
+                action=LecturerCapacityAudit.Action.SUPERSEDE,
+                plan=copied,
+                reason="Approved replacement plan.",
+            ).exists()
+        )
+
+    def test_capacity_plan_snapshot_is_deterministic_and_json_safe(self):
+        plan = self.complete_plan()
+
+        first = capacity_plan_snapshot(plan)
+        second = capacity_plan_snapshot(plan)
+
+        self.assertEqual(first, second)
+        self.assertEqual(
+            [entry["staffNo"] for entry in first["entries"]],
+            sorted([self.lecturer.staff_no, self.supervisor_only.staff_no]),
+        )
+        encoded = json.dumps(first, sort_keys=True)
+        self.assertEqual(json.loads(encoded), first)
 
 
 @override_settings(TIME_ZONE="Asia/Kuala_Lumpur")
