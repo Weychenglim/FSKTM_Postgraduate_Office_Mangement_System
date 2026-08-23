@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -7,10 +8,29 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.query import QuerySet
 from django.db.models.signals import post_delete, pre_delete
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
-from accounts.models import Lecturer, OfficeStaff, Panel, Supervisor
+from accounts.models import Lecturer, OfficeStaff, Panel, Student, Supervisor
+from appointments.models import (
+    PanelAppointment,
+    PanelRecommendation,
+    StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorAppointment,
+    count_panel_workload,
+    panel_workload_limit,
+    supervisor_workload_limit,
+)
+
+from .capacity import (
+    CapacityConflict,
+    CapacityRole,
+    CapacityState,
+    assert_capacity_allows_assignment,
+    capacity_conflict_message,
+    resolve_lecturer_capacity,
+)
 
 from .admin import (
     LecturerCapacityAuditAdmin,
@@ -1527,3 +1547,487 @@ class CapacityModelTests(TestCase):
 
         audit.refresh_from_db()
         self.assertEqual(audit.reason, "Capacity policy event.")
+
+
+@override_settings(TIME_ZONE="Asia/Kuala_Lumpur")
+class CapacityResolverTests(TestCase):
+    def setUp(self):
+        self.today = date(2026, 10, 15)
+        self.office = User.objects.create_user(
+            email="resolver.office@example.test",
+            password="local-test-password",
+            full_name="Resolver Office",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        OfficeStaff.objects.create(
+            user=self.office,
+            staff_no="RES-OFFICE-001",
+            department="Postgraduate Office",
+        )
+        self.lecturer = self.create_lecturer("PRIMARY")
+        self.semester = self.create_semester(
+            session_start=2026,
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 9, 1),
+            ends_on=date(2027, 1, 31),
+        )
+        self.other_semester = self.create_semester(
+            session_start=2025,
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=date(2026, 2, 1),
+            ends_on=date(2026, 6, 30),
+        )
+        self.record_index = 0
+
+    def create_lecturer(
+        self,
+        suffix,
+        *,
+        is_active=True,
+        lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+        supervisor=True,
+        panel=True,
+        supervisor_limit=8,
+        panel_limit=9,
+    ):
+        user = User.objects.create_user(
+            email=f"resolver.lecturer.{suffix.lower()}@example.test",
+            password="local-test-password",
+            full_name=f"Resolver Lecturer {suffix}",
+            role=User.Role.LECTURER,
+            is_active=is_active,
+        )
+        lecturer = Lecturer.objects.create(
+            user=user,
+            staff_no=f"RES-LECT-{suffix}",
+            department="Computing",
+            lifecycle_status=lifecycle_status,
+        )
+        if supervisor:
+            Supervisor.objects.create(
+                lecturer=lecturer,
+                max_supervisees=supervisor_limit,
+            )
+        if panel:
+            Panel.objects.create(
+                lecturer=lecturer,
+                max_appointments=panel_limit,
+            )
+        return lecturer
+
+    def create_semester(self, *, session_start, term, starts_on, ends_on):
+        return AcademicSemester.objects.create(
+            code=(
+                f"{session_start}-{session_start + 1}-"
+                f"{AcademicSemester.TERM_CODES[term]}"
+            ),
+            academic_session=f"{session_start}/{session_start + 1}",
+            term=term,
+            starts_on=starts_on,
+            ends_on=ends_on,
+            created_by=self.office,
+        )
+
+    def publish_plan(
+        self,
+        *,
+        lecturer=None,
+        semester=None,
+        supervisor_limit=5,
+        panel_limit=5,
+        version=1,
+    ):
+        lecturer = lecturer or self.lecturer
+        semester = semester or self.semester
+        plan = SemesterCapacityPlan.objects.create(
+            academic_semester=semester,
+            version=version,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
+            origin=SemesterCapacityPlan.Origin.CREATED,
+            created_by=self.office,
+        )
+        LecturerCapacityEntry.objects.create(
+            plan=plan,
+            lecturer=lecturer,
+            supervisor_limit=supervisor_limit,
+            panel_limit=panel_limit,
+            updated_by=self.office,
+        )
+        plan.lifecycle_status = SemesterCapacityPlan.Lifecycle.PUBLISHED
+        plan.published_by = self.office
+        plan.publication_reason = "Approved resolver test plan."
+        plan.published_at = timezone.now()
+        plan.save(
+            update_fields=(
+                "lifecycle_status",
+                "published_by",
+                "publication_reason",
+                "published_at",
+            )
+        )
+        return plan
+
+    def create_student(self):
+        self.record_index += 1
+        suffix = f"{self.record_index:03d}"
+        user = User.objects.create_user(
+            email=f"resolver.student.{suffix}@example.test",
+            password="local-test-password",
+            full_name=f"Resolver Student {suffix}",
+            role=User.Role.STUDENT,
+        )
+        return Student.objects.create(
+            user=user,
+            matric_no=f"RES-STUDENT-{suffix}",
+            programme="Master of Computing",
+        )
+
+    def create_active_supervisor_appointment(self, supervisor, *, semester=None):
+        student = self.create_student()
+        application = SupervisorApplication.objects.create(
+            student=student,
+            academic_semester=semester or self.semester,
+            proposed_supervisor=supervisor,
+            research_title=f"Resolver research {student.matric_no}",
+            research_abstract="Resolver workload fixture.",
+            status=SupervisorApplication.Status.APPROVED,
+        )
+        return SupervisorAppointment.objects.create(
+            application=application,
+            student=student,
+            supervisor=supervisor,
+            approved_by=self.office,
+            status=SupervisorAppointment.Status.ACTIVE,
+        )
+
+    def create_panel_recommendation(self, panel_member, *, status, semester=None):
+        student = self.create_student()
+        profile = StudentResearchProfile.objects.create(
+            student=student.user,
+            matric_no=student.matric_no,
+            student_name=student.user.full_name,
+            programme=student.programme,
+            semester=(semester or self.semester).label,
+            proposed_topic=f"Panel research {student.matric_no}",
+            supervisor=self.lecturer.user,
+        )
+        return PanelRecommendation.objects.create(
+            profile=profile,
+            academic_semester=semester or self.semester,
+            supervisor=self.lecturer.user,
+            recommended_member=panel_member,
+            status=status,
+            justification="Resolver workload fixture.",
+        )
+
+    def create_active_panel_appointment(self, panel_member, *, semester=None):
+        recommendation = self.create_panel_recommendation(
+            panel_member,
+            status=PanelRecommendation.Status.APPROVED,
+            semester=semester,
+        )
+        return PanelAppointment.objects.create(
+            recommendation=recommendation,
+            profile=recommendation.profile,
+            supervisor=recommendation.supervisor,
+            panel_member=panel_member,
+            approved_by=self.office,
+            status=PanelAppointment.Status.ACTIVE,
+        )
+
+    def test_resolver_returns_available_with_published_role_limit(self):
+        plan = self.publish_plan(supervisor_limit=2, panel_limit=4)
+
+        result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.semester_id, self.semester.pk)
+        self.assertEqual(result.plan_id, plan.pk)
+        self.assertEqual(result.plan_version, 1)
+        self.assertEqual(result.role, CapacityRole.SUPERVISOR)
+        self.assertEqual(result.limit, 2)
+        self.assertEqual(result.active_load, 0)
+        self.assertEqual(result.reserved_load, 0)
+        self.assertEqual(result.available_slots, 2)
+        self.assertEqual(result.state, CapacityState.AVAILABLE)
+        self.assertIsNone(result.unavailable_until)
+
+    def test_zero_limit_is_full_then_over_capacity_without_mutating_work(self):
+        self.publish_plan(supervisor_limit=0, panel_limit=5)
+
+        full = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+        appointment = self.create_active_supervisor_appointment(self.lecturer.user)
+        over_capacity = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(full.state, CapacityState.FULL)
+        self.assertEqual(full.available_slots, 0)
+        self.assertEqual(over_capacity.state, CapacityState.OVER_CAPACITY)
+        self.assertEqual(over_capacity.active_load, 1)
+        self.assertEqual(over_capacity.available_slots, 0)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, SupervisorAppointment.Status.ACTIVE)
+
+    def test_supervisor_active_load_is_global_across_semesters(self):
+        self.publish_plan(supervisor_limit=1, panel_limit=5)
+        first = self.create_active_supervisor_appointment(self.lecturer.user)
+        second = self.create_active_supervisor_appointment(
+            self.lecturer.user,
+            semester=self.other_semester,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.OVER_CAPACITY)
+        self.assertEqual(result.active_load, 2)
+        self.assertEqual(result.reserved_load, 0)
+        self.assertEqual(result.available_slots, 0)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, SupervisorAppointment.Status.ACTIVE)
+        self.assertEqual(second.status, SupervisorAppointment.Status.ACTIVE)
+
+    def test_panel_load_separates_active_appointments_and_reservations(self):
+        self.publish_plan(supervisor_limit=5, panel_limit=4)
+        self.create_active_panel_appointment(
+            self.lecturer.user,
+            semester=self.other_semester,
+        )
+        self.create_panel_recommendation(
+            self.lecturer.user,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+        self.create_panel_recommendation(
+            self.lecturer.user,
+            status=PanelRecommendation.Status.PENDING_COORDINATOR,
+            semester=self.other_semester,
+        )
+        for terminal_status in (
+            PanelRecommendation.Status.REJECTED_BY_PANEL,
+            PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
+            PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+            PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+        ):
+            self.create_panel_recommendation(
+                self.lecturer.user,
+                status=terminal_status,
+            )
+
+        result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.PANEL,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.AVAILABLE)
+        self.assertEqual(result.active_load, 1)
+        self.assertEqual(result.reserved_load, 2)
+        self.assertEqual(result.available_slots, 1)
+        self.assertEqual(count_panel_workload(self.lecturer.user), 3)
+
+    def test_role_window_precedes_full_and_redacts_internal_reason(self):
+        self.publish_plan(supervisor_limit=0, panel_limit=5)
+        internal_reason = "Private medical leave details must never be public."
+        window = LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today - timedelta(days=1),
+            ends_on=self.today + timedelta(days=4),
+            reason=internal_reason,
+            created_by=self.office,
+        )
+
+        supervisor_result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+        panel_result = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.PANEL,
+            on_date=self.today,
+        )
+        message = capacity_conflict_message(supervisor_result)
+
+        self.assertEqual(
+            supervisor_result.state,
+            CapacityState.TEMPORARILY_UNAVAILABLE,
+        )
+        self.assertEqual(supervisor_result.unavailable_until, window.ends_on)
+        self.assertEqual(panel_result.state, CapacityState.AVAILABLE)
+        self.assertNotIn("reason", asdict(supervisor_result))
+        self.assertNotIn(internal_reason, repr(supervisor_result))
+        self.assertNotIn(internal_reason, message)
+        self.assertIn(window.ends_on.isoformat(), message)
+        with self.assertRaisesMessage(CapacityConflict, message):
+            assert_capacity_allows_assignment(
+                user=self.lecturer.user,
+                semester=self.semester,
+                role=CapacityRole.SUPERVISOR,
+                on_date=self.today,
+            )
+
+    def test_not_configured_ignores_non_published_plans_and_missing_entries(self):
+        for version, lifecycle_status in (
+            (1, SemesterCapacityPlan.Lifecycle.DRAFT),
+            (2, SemesterCapacityPlan.Lifecycle.SUPERSEDED),
+        ):
+            SemesterCapacityPlan.objects.create(
+                academic_semester=self.semester,
+                version=version,
+                lifecycle_status=lifecycle_status,
+                origin=SemesterCapacityPlan.Origin.CREATED,
+                created_by=self.office,
+            )
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.today,
+            ends_on=self.today + timedelta(days=2),
+            reason="Internal operational reason.",
+            created_by=self.office,
+        )
+
+        without_published_plan = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+        published = SemesterCapacityPlan.objects.create(
+            academic_semester=self.semester,
+            version=3,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+            origin=SemesterCapacityPlan.Origin.CREATED,
+            created_by=self.office,
+        )
+        without_entry = resolve_lecturer_capacity(
+            user=self.lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(
+            without_published_plan.state,
+            CapacityState.NOT_CONFIGURED,
+        )
+        self.assertIsNone(without_published_plan.plan_id)
+        self.assertEqual(without_entry.state, CapacityState.NOT_CONFIGURED)
+        self.assertEqual(without_entry.plan_id, published.pk)
+        self.assertEqual(without_entry.plan_version, 3)
+        self.assertIsNone(without_entry.limit)
+        self.assertEqual(without_entry.available_slots, 0)
+
+    def test_not_configured_when_new_role_has_no_published_limit(self):
+        lecturer = self.create_lecturer("NEW-PANEL", panel=False)
+        self.publish_plan(
+            lecturer=lecturer,
+            supervisor_limit=3,
+            panel_limit=None,
+        )
+        Panel.objects.create(lecturer=lecturer, max_appointments=7)
+
+        result = resolve_lecturer_capacity(
+            user=lecturer.user,
+            semester=self.semester,
+            role=CapacityRole.PANEL,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.NOT_CONFIGURED)
+        self.assertIsNone(result.limit)
+
+    def test_ineligible_precedes_missing_configuration(self):
+        cases = (
+            self.create_lecturer("INACTIVE", is_active=False),
+            self.create_lecturer(
+                "RETIRED",
+                lifecycle_status=Lecturer.Lifecycle.RETIRED,
+            ),
+            self.create_lecturer("NO-SUPERVISOR", supervisor=False),
+        )
+
+        for lecturer in cases:
+            with self.subTest(lecturer=lecturer.staff_no):
+                result = resolve_lecturer_capacity(
+                    user=lecturer.user,
+                    semester=self.semester,
+                    role=CapacityRole.SUPERVISOR,
+                    on_date=self.today,
+                )
+                self.assertEqual(result.state, CapacityState.INELIGIBLE)
+                self.assertIsNone(result.plan_id)
+
+    def test_eligibility_uses_persisted_account_state(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=4)
+        stale_user = User.objects.get(pk=self.lecturer.user_id)
+        persisted_user = User.objects.get(pk=self.lecturer.user_id)
+        persisted_user.is_active = False
+        persisted_user.save(update_fields=["is_active"])
+        self.assertTrue(stale_user.is_active)
+
+        result = resolve_lecturer_capacity(
+            user=stale_user,
+            semester=self.semester,
+            role=CapacityRole.SUPERVISOR,
+            on_date=self.today,
+        )
+
+        self.assertEqual(result.state, CapacityState.INELIGIBLE)
+
+    def test_workload_limit_helpers_delegate_without_changing_legacy_paths(self):
+        self.publish_plan(supervisor_limit=3, panel_limit=4)
+
+        self.assertEqual(supervisor_workload_limit(self.lecturer.user), 8)
+        self.assertEqual(supervisor_workload_limit(self.lecturer.supervisor), 8)
+        self.assertEqual(panel_workload_limit(self.lecturer.user), 9)
+        self.assertEqual(panel_workload_limit(self.lecturer.panel), 9)
+        self.assertEqual(
+            supervisor_workload_limit(self.lecturer.user, self.semester),
+            3,
+        )
+        self.assertEqual(
+            supervisor_workload_limit(self.lecturer.supervisor, self.semester),
+            3,
+        )
+        self.assertEqual(
+            panel_workload_limit(self.lecturer.user, self.semester),
+            4,
+        )
+        self.assertEqual(
+            panel_workload_limit(self.lecturer.panel, self.semester),
+            4,
+        )
+
+        self.lecturer.user.is_active = False
+        self.lecturer.user.save(update_fields=["is_active"])
+        self.assertEqual(
+            supervisor_workload_limit(self.lecturer.user, self.semester),
+            0,
+        )
+        self.assertEqual(supervisor_workload_limit(self.lecturer.user), 8)

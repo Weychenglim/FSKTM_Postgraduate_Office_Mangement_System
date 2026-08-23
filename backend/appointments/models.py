@@ -628,7 +628,35 @@ def count_supervisor_workload(supervisor):
     ).count()
 
 
-def supervisor_workload_limit(supervisor):
+def _capacity_user(subject):
+    if hasattr(subject, "is_active") and hasattr(subject, "role"):
+        return subject
+    lecturer = getattr(subject, "lecturer", None)
+    if lecturer is not None:
+        return lecturer.user
+    return getattr(subject, "user", subject)
+
+
+def supervisor_workload_limit(supervisor, semester=None):
+    if semester is not None:
+        from academics.capacity import (
+            CapacityRole,
+            CapacityState,
+            resolve_lecturer_capacity,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=_capacity_user(supervisor),
+            semester=semester,
+            role=CapacityRole.SUPERVISOR,
+        )
+        if result.state in {
+            CapacityState.NOT_CONFIGURED,
+            CapacityState.INELIGIBLE,
+        }:
+            return 0
+        return result.limit
+
     try:
         return supervisor.lecturer.supervisor.max_supervisees
     except (AttributeError, models.ObjectDoesNotExist):
@@ -649,8 +677,27 @@ def count_panel_workload(panel_member):
     return active_appointments + pending_nominations
 
 
-def panel_workload_limit(panel_member):
+def panel_workload_limit(panel_member, semester=None):
     """Return the configured limit for a panel lecturer, with a safe default."""
+
+    if semester is not None:
+        from academics.capacity import (
+            CapacityRole,
+            CapacityState,
+            resolve_lecturer_capacity,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=_capacity_user(panel_member),
+            semester=semester,
+            role=CapacityRole.PANEL,
+        )
+        if result.state in {
+            CapacityState.NOT_CONFIGURED,
+            CapacityState.INELIGIBLE,
+        }:
+            return 0
+        return result.limit
 
     try:
         return panel_member.lecturer.panel.max_appointments
