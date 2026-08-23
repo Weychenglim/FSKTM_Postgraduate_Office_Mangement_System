@@ -189,7 +189,14 @@ class LecturerCapacityAuditAdmin(admin.ModelAdmin):
     )
     list_filter = ("action", "academic_semester")
     search_fields = ("actor__email", "lecturer__staff_no", "reason")
-    list_select_related = ("academic_semester", "plan", "lecturer", "actor")
+    list_select_related = (
+        "academic_semester",
+        "plan",
+        "plan__academic_semester",
+        "lecturer",
+        "lecturer__user",
+        "actor",
+    )
     readonly_fields = _all_model_fields(LecturerCapacityAudit)
 
     def has_add_permission(self, request):

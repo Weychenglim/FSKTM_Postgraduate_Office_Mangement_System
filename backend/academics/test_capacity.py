@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.query import QuerySet
+from django.db.models.signals import post_delete, pre_delete
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
@@ -153,15 +154,17 @@ class CapacityModelTests(TestCase):
         original_guard = queryset.__class__._lock_and_validate_delete
         guard_call_count = 0
         expansion_call = 1 if raw else 2
+        predicate_expanded = False
 
         def expand_predicate_after_validation(candidate_queryset):
-            nonlocal guard_call_count
+            nonlocal guard_call_count, predicate_expanded
             guard_call_count += 1
             captured_pks = original_guard(candidate_queryset)
             if guard_call_count == expansion_call:
                 Lecturer.objects.filter(pk=published_lecturer.pk).update(
                     department="Computing"
                 )
+                predicate_expanded = True
             return captured_pks
 
         with patch.object(
@@ -175,6 +178,7 @@ class CapacityModelTests(TestCase):
                 else queryset.delete()
             )
 
+        self.assertTrue(predicate_expanded)
         self.assertTrue(
             LecturerCapacityEntry.objects.filter(pk=published_entry.pk).exists()
         )
@@ -408,6 +412,49 @@ class CapacityModelTests(TestCase):
 
         self.assertTrue(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
 
+    def test_draft_entry_instance_delete_preserves_signal_instance_and_origin(self):
+        entry = LecturerCapacityEntry.objects.create(
+            plan=self.create_plan(),
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        entry_pk = entry.pk
+        deletion_events = []
+
+        def capture_delete(sender, instance, origin, **kwargs):
+            deletion_events.append((instance, origin))
+
+        pre_delete.connect(
+            capture_delete,
+            sender=LecturerCapacityEntry,
+            weak=False,
+        )
+        post_delete.connect(
+            capture_delete,
+            sender=LecturerCapacityEntry,
+            weak=False,
+        )
+        try:
+            deleted, deleted_by_model = entry.delete()
+        finally:
+            pre_delete.disconnect(capture_delete, sender=LecturerCapacityEntry)
+            post_delete.disconnect(capture_delete, sender=LecturerCapacityEntry)
+
+        self.assertEqual(deleted, 1)
+        self.assertEqual(
+            deleted_by_model,
+            {LecturerCapacityEntry._meta.label: 1},
+        )
+        self.assertFalse(
+            LecturerCapacityEntry.objects.filter(pk=entry_pk).exists()
+        )
+        self.assertEqual(len(deletion_events), 2)
+        for signal_instance, origin in deletion_events:
+            self.assertIs(signal_instance, entry)
+            self.assertIs(origin, entry)
+
     def test_published_entry_queryset_delete_is_rejected(self):
         plan = self.create_plan()
         entry = LecturerCapacityEntry.objects.create(
@@ -561,7 +608,13 @@ class CapacityModelTests(TestCase):
         )
 
         self.assertTrue(
-            {"plan", "lecturer", "actor"}.issubset(
+            {
+                "plan",
+                "plan__academic_semester",
+                "lecturer",
+                "lecturer__user",
+                "actor",
+            }.issubset(
                 set(audit_admin.list_select_related or ())
             )
         )
@@ -713,30 +766,105 @@ class CapacityModelTests(TestCase):
 
         self.assertFalse(LecturerCapacityEntry.objects.exists())
 
+    def test_bulk_create_rejects_role_mismatched_limits(self):
+        self.lecturer.panel.delete()
+
+        with self.assertRaises(ValidationError):
+            LecturerCapacityEntry.objects.bulk_create(
+                [
+                    LecturerCapacityEntry(
+                        plan=self.create_plan(),
+                        lecturer=self.lecturer,
+                        supervisor_limit=4,
+                        panel_limit=8,
+                        updated_by=self.office,
+                    )
+                ]
+            )
+
+        self.assertFalse(LecturerCapacityEntry.objects.exists())
+
+    def test_bulk_create_rejects_upsert_into_a_published_entry(self):
+        published_plan = self.create_plan(version=1)
+        published_entry = LecturerCapacityEntry.objects.create(
+            plan=published_plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=published_plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+        draft_plan = self.create_plan(version=2)
+        replacement = LecturerCapacityEntry(
+            pk=published_entry.pk,
+            plan=draft_plan,
+            lecturer=self.lecturer,
+            supervisor_limit=1,
+            panel_limit=2,
+            updated_by=self.office,
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Capacity entry bulk creation does not support batch or conflict "
+            "options.",
+        ):
+            LecturerCapacityEntry.objects.bulk_create(
+                [replacement],
+                update_conflicts=True,
+                update_fields=["supervisor_limit"],
+                unique_fields=["pk"],
+            )
+
+        published_entry.refresh_from_db()
+        self.assertEqual(published_entry.plan, published_plan)
+        self.assertEqual(published_entry.supervisor_limit, 4)
+
+    def test_bulk_create_rejects_unsupported_options(self):
+        option_sets = (
+            {"batch_size": 1},
+            {"ignore_conflicts": True},
+            {"update_fields": ["supervisor_limit"]},
+            {"unique_fields": ["pk"]},
+        )
+
+        for options in option_sets:
+            with self.subTest(options=options), self.assertRaisesMessage(
+                ValidationError,
+                "Capacity entry bulk creation does not support batch or conflict "
+                "options.",
+            ):
+                LecturerCapacityEntry.objects.bulk_create([], **options)
+
     def test_bulk_create_preserves_draft_plan_entries(self):
         draft = self.create_plan()
         second_lecturer = self.create_additional_lecturer("DRAFT-CREATE")
 
-        created = LecturerCapacityEntry.objects.bulk_create(
-            [
-                LecturerCapacityEntry(
-                    plan=draft,
-                    lecturer=self.lecturer,
-                    supervisor_limit=4,
-                    panel_limit=8,
-                    updated_by=self.office,
-                ),
-                LecturerCapacityEntry(
-                    plan=draft,
-                    lecturer=second_lecturer,
-                    supervisor_limit=5,
-                    panel_limit=9,
-                    updated_by=self.office,
-                ),
-            ]
-        )
+        entries = [
+            LecturerCapacityEntry(
+                plan=draft,
+                lecturer=self.lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            ),
+            LecturerCapacityEntry(
+                plan=draft,
+                lecturer=second_lecturer,
+                supervisor_limit=5,
+                panel_limit=9,
+                updated_by=self.office,
+            ),
+        ]
+
+        created = LecturerCapacityEntry.objects.bulk_create(entries)
 
         self.assertEqual(len(created), 2)
+        self.assertIs(created[0], entries[0])
+        self.assertIs(created[1], entries[1])
+        self.assertTrue(all(entry.pk is not None for entry in created))
         self.assertEqual(LecturerCapacityEntry.objects.filter(plan=draft).count(), 2)
 
     def test_bulk_update_rejects_changes_to_non_draft_plan_entries(self):
@@ -783,7 +911,7 @@ class CapacityModelTests(TestCase):
         entry.refresh_from_db()
         self.assertEqual(entry.plan, draft)
 
-    def test_bulk_update_preserves_draft_plan_changes_and_reassignment(self):
+    def test_bulk_update_rejects_draft_plan_changes_and_reassignment(self):
         first_draft = self.create_plan(version=1)
         second_draft = self.create_plan(version=2)
         entry = LecturerCapacityEntry.objects.create(
@@ -797,16 +925,75 @@ class CapacityModelTests(TestCase):
         entry.supervisor_limit = 0
         entry.panel_limit = 0
 
-        updated = LecturerCapacityEntry.objects.bulk_update(
-            [entry],
-            ["plan", "supervisor_limit", "panel_limit"],
-        )
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Capacity entries must be changed through validated individual saves.",
+        ):
+            LecturerCapacityEntry.objects.bulk_update(
+                [entry],
+                ["plan", "supervisor_limit", "panel_limit"],
+            )
 
-        self.assertEqual(updated, 1)
         entry.refresh_from_db()
-        self.assertEqual(entry.plan, second_draft)
-        self.assertEqual(entry.supervisor_limit, 0)
-        self.assertEqual(entry.panel_limit, 0)
+        self.assertEqual(entry.plan, first_draft)
+        self.assertEqual(entry.supervisor_limit, 4)
+        self.assertEqual(entry.panel_limit, 8)
+
+    def test_queryset_update_cannot_expand_a_related_predicate(self):
+        draft_plan = self.create_plan(version=1)
+        draft_entry = LecturerCapacityEntry.objects.create(
+            plan=draft_plan,
+            lecturer=self.lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        published_plan = self.create_plan(version=2)
+        published_lecturer = self.create_additional_lecturer("PUBLISHED-UPDATE")
+        Lecturer.objects.filter(pk=published_lecturer.pk).update(
+            department="Mathematics"
+        )
+        published_entry = LecturerCapacityEntry.objects.create(
+            plan=published_plan,
+            lecturer=published_lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=published_plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+        queryset = LecturerCapacityEntry.objects.filter(
+            lecturer__department="Computing"
+        )
+        original_validate = queryset.__class__._validate_plan_ids_are_draft
+
+        def validate_then_expand(candidate_queryset, plan_ids):
+            original_validate(candidate_queryset, plan_ids)
+            Lecturer.objects.filter(pk=published_lecturer.pk).update(
+                department="Computing"
+            )
+
+        mutation_error = None
+        with patch.object(
+            queryset.__class__,
+            "_validate_plan_ids_are_draft",
+            validate_then_expand,
+        ):
+            try:
+                queryset.update(panel_limit=1)
+            except ValidationError as error:
+                mutation_error = error
+
+        draft_entry.refresh_from_db()
+        published_entry.refresh_from_db()
+        self.assertEqual(published_entry.panel_limit, 8)
+        self.assertEqual(draft_entry.panel_limit, 8)
+        self.assertIsNotNone(mutation_error)
+        self.assertIn(
+            "Capacity entries must be changed through validated individual saves.",
+            mutation_error.messages,
+        )
 
     def test_queryset_update_rejects_changes_to_non_draft_plan_entries(self):
         plan = self.create_plan()
@@ -849,7 +1036,7 @@ class CapacityModelTests(TestCase):
         entry.refresh_from_db()
         self.assertEqual(entry.plan, draft)
 
-    def test_queryset_update_preserves_draft_plan_writes(self):
+    def test_queryset_update_rejects_draft_plan_writes(self):
         first_draft = self.create_plan(version=1)
         second_draft = self.create_plan(version=2)
         entry = LecturerCapacityEntry.objects.create(
@@ -860,17 +1047,20 @@ class CapacityModelTests(TestCase):
             updated_by=self.office,
         )
 
-        updated = LecturerCapacityEntry.objects.filter(pk=entry.pk).update(
-            plan=second_draft,
-            supervisor_limit=0,
-            panel_limit=0,
-        )
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Capacity entries must be changed through validated individual saves.",
+        ):
+            LecturerCapacityEntry.objects.filter(pk=entry.pk).update(
+                plan=second_draft,
+                supervisor_limit=0,
+                panel_limit=0,
+            )
 
-        self.assertEqual(updated, 1)
         entry.refresh_from_db()
-        self.assertEqual(entry.plan, second_draft)
-        self.assertEqual(entry.supervisor_limit, 0)
-        self.assertEqual(entry.panel_limit, 0)
+        self.assertEqual(entry.plan, first_draft)
+        self.assertEqual(entry.supervisor_limit, 4)
+        self.assertEqual(entry.panel_limit, 8)
 
     def test_published_plan_entries_remain_readable(self):
         plan = self.create_plan()

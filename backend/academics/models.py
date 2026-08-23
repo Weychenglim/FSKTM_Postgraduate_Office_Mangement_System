@@ -1,5 +1,4 @@
 import re
-from contextvars import ContextVar
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -222,9 +221,11 @@ class SemesterCapacityPlan(models.Model):
 CAPACITY_ENTRY_DRAFT_PLAN_ERROR = (
     "Capacity entries can only be changed on Draft plans."
 )
-_capacity_bulk_update_validated = ContextVar(
-    "capacity_bulk_update_validated",
-    default=False,
+CAPACITY_ENTRY_BULK_WRITE_ERROR = (
+    "Capacity entries must be changed through validated individual saves."
+)
+CAPACITY_ENTRY_BULK_CREATE_OPTIONS_ERROR = (
+    "Capacity entry bulk creation does not support batch or conflict options."
 )
 
 
@@ -287,61 +288,37 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
         if draft_plan_ids != plan_ids:
             raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
 
-    def _target_plan_ids(self, update_values):
-        target_plan_ids = set()
-        for field_name in ("plan", "plan_id"):
-            if field_name not in update_values:
-                continue
-            value = update_values[field_name]
-            if isinstance(value, SemesterCapacityPlan):
-                target_plan_ids.add(value.pk)
-            elif isinstance(value, models.F) and value.name in {"plan", "plan_id"}:
-                continue
-            elif hasattr(value, "resolve_expression"):
-                raise ValidationError({"plan": CAPACITY_ENTRY_DRAFT_PLAN_ERROR})
-            else:
-                target_plan_ids.add(value)
-        return target_plan_ids
+    def bulk_create(
+        self,
+        objs,
+        batch_size=None,
+        ignore_conflicts=False,
+        update_conflicts=False,
+        update_fields=None,
+        unique_fields=None,
+    ):
+        if (
+            batch_size is not None
+            or ignore_conflicts
+            or update_conflicts
+            or update_fields is not None
+            or unique_fields is not None
+        ):
+            raise ValidationError(CAPACITY_ENTRY_BULK_CREATE_OPTIONS_ERROR)
 
-    def bulk_create(self, objs, *args, **kwargs):
         objs = list(objs)
-        with transaction.atomic(using=self.db):
-            self._validate_plan_ids_are_draft(obj.plan_id for obj in objs)
-            return super().bulk_create(objs, *args, **kwargs)
+        self._for_write = True
+        using = self.db
+        with transaction.atomic(using=using):
+            for obj in objs:
+                obj.save(using=using, force_insert=True)
+        return objs
 
     def bulk_update(self, objs, fields, batch_size=None):
-        objs = tuple(objs)
-        object_pks = [obj.pk for obj in objs if obj.pk is not None]
-        field_names = {getattr(field, "name", field) for field in fields}
-
-        with transaction.atomic(using=self.db):
-            plan_ids = set(
-                self.order_by()
-                .filter(pk__in=object_pks)
-                .values_list("plan_id", flat=True)
-                .distinct()
-            )
-            if {"plan", "plan_id"} & field_names:
-                plan_ids.update(obj.plan_id for obj in objs)
-            self._validate_plan_ids_are_draft(plan_ids)
-
-            token = _capacity_bulk_update_validated.set(True)
-            try:
-                return super().bulk_update(objs, fields, batch_size=batch_size)
-            finally:
-                _capacity_bulk_update_validated.reset(token)
+        raise ValidationError(CAPACITY_ENTRY_BULK_WRITE_ERROR)
 
     def update(self, **kwargs):
-        if _capacity_bulk_update_validated.get():
-            return super().update(**kwargs)
-
-        with transaction.atomic(using=self.db):
-            plan_ids = set(
-                self.order_by().values_list("plan_id", flat=True).distinct()
-            )
-            plan_ids.update(self._target_plan_ids(kwargs))
-            self._validate_plan_ids_are_draft(plan_ids)
-            return super().update(**kwargs)
+        raise ValidationError(CAPACITY_ENTRY_BULK_WRITE_ERROR)
 
     def _lock_and_validate_delete(self):
         initial_rows = tuple(self.order_by("pk").values_list("pk", "plan_id"))
@@ -543,9 +520,11 @@ class LecturerCapacityEntry(models.Model):
                 f"{self.__class__.__name__} object can't be deleted because its "
                 f"{self._meta.pk.attname} attribute is set to None."
             )
-        result = self.__class__.objects.using(using).filter(pk=pk).delete()
-        setattr(self, self._meta.pk.attname, None)
-        return result
+        with transaction.atomic(using=using):
+            self.__class__.objects.using(using).filter(
+                pk=pk
+            )._lock_and_validate_delete()
+            return super().delete(using=using, keep_parents=keep_parents)
 
     def __str__(self):
         return f"{self.lecturer} in {self.plan}"
