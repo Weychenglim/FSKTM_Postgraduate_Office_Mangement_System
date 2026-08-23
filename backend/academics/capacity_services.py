@@ -631,9 +631,18 @@ def validate_capacity_plan_ready(plan) -> list[str]:
     return _capacity_plan_readiness_errors(plan)
 
 
-def capacity_plan_readiness_errors(plan, *, entries):
+def capacity_eligible_lecturers():
+    """Return the current Lecturer set required for capacity publication."""
+    return _current_eligible_lecturers()
+
+
+def capacity_plan_readiness_errors(plan, *, entries, lecturers=None):
     """Derive readiness from caller-loaded entries for read-only API payloads."""
-    return _capacity_plan_readiness_errors(plan, entries=entries)
+    return _capacity_plan_readiness_errors(
+        plan,
+        entries=entries,
+        lecturers=lecturers,
+    )
 
 
 def _publish_capacity_plan_atomic(plan, *, actor, reason, expected_fingerprint):

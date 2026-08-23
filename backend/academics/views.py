@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -23,22 +24,28 @@ from .models import (
     AcademicSemester,
     LecturerAvailabilityWindow,
     LecturerCapacityAudit,
+    LecturerCapacityEntry,
     SemesterCapacityPlan,
 )
+from .permissions import IsOfficeStaffAdmin
 from .serializers import (
     AcademicSemesterUpdateSerializer,
     AcademicSemesterWriteSerializer,
     AvailabilityWriteSerializer,
     CapacityEntryWriteSerializer,
+    CapacityLimitOffsetSerializer,
     CapacityPlanCommandSerializer,
     CapacityPlanCreateSerializer,
     CapacityPlanPatchSerializer,
+    CapacityReasonSerializer,
+    EmptyCapacityCommandSerializer,
     ExtendSerializer,
     ReasonSerializer,
     availability_payload,
     audit_payload,
     capacity_audit_payload,
     capacity_plan_payload,
+    capacity_plan_payloads,
     semester_payload,
 )
 from .services import (
@@ -126,6 +133,26 @@ def _require_expected_version(plan, expected_version):
         raise CapacityPlanConflict(
             "Capacity plan version changed concurrently; reload and retry."
         )
+
+
+def _paginate_capacity_queryset(request, queryset):
+    serializer = CapacityLimitOffsetSerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    limit = serializer.validated_data["limit"]
+    offset = serializer.validated_data["offset"]
+    return queryset[offset : offset + limit], {
+        "total": queryset.count(),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+def _capacity_page_response(data, pagination):
+    response = Response(data)
+    response["X-Total-Count"] = str(pagination["total"])
+    response["X-Limit"] = str(pagination["limit"])
+    response["X-Offset"] = str(pagination["offset"])
+    return response
 
 
 @api_view(["GET"])
@@ -281,7 +308,7 @@ def semester_audits_view(request, pk):
 
 
 @api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def semester_capacity_plans_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
@@ -292,8 +319,33 @@ def semester_capacity_plans_view(request, pk):
             _capacity_plan_queryset()
             .filter(academic_semester=semester)
             .order_by("-version", "-pk")
+            .prefetch_related(
+                Prefetch(
+                    "entries",
+                    queryset=LecturerCapacityEntry.objects.select_related(
+                        "lecturer__user",
+                        "lecturer__supervisor",
+                        "lecturer__panel",
+                        "updated_by",
+                    ).order_by("lecturer__staff_no", "lecturer_id", "pk"),
+                    to_attr="capacity_payload_entries",
+                ),
+                Prefetch(
+                    "successor_plans",
+                    queryset=SemesterCapacityPlan.objects.only(
+                        "pk",
+                        "supersedes_id",
+                        "version",
+                    ).order_by("version", "pk"),
+                    to_attr="capacity_payload_successors",
+                ),
+            )
         )
-        return Response([capacity_plan_payload(plan) for plan in plans])
+        plans, pagination = _paginate_capacity_queryset(request, plans)
+        return _capacity_page_response(
+            capacity_plan_payloads(plans),
+            pagination,
+        )
 
     serializer = CapacityPlanCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -343,7 +395,7 @@ def _update_capacity_plan_entry(*, request, plan, lecturer, serializer):
 
 
 @api_view(["GET", "PATCH"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def capacity_plan_detail_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
@@ -367,12 +419,14 @@ def capacity_plan_detail_view(request, pk):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def clone_capacity_plan_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
         return denied
     plan = get_object_or_404(_capacity_plan_queryset(), pk=pk)
+    serializer = EmptyCapacityCommandSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
     try:
         cloned = clone_capacity_plan(plan, actor=request.user)
     except (CapacityLifecycleConflict, CapacityConflict) as exc:
@@ -388,7 +442,7 @@ def clone_capacity_plan_view(request, pk):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def publish_capacity_plan_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
@@ -415,7 +469,7 @@ def publish_capacity_plan_view(request, pk):
 
 
 @api_view(["PATCH"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def capacity_plan_entry_view(request, pk, lecturer_id):
     denied = _office_denied(request.user)
     if denied:
@@ -436,7 +490,7 @@ def capacity_plan_entry_view(request, pk, lecturer_id):
 
 
 @api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def semester_availability_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
@@ -455,7 +509,11 @@ def semester_availability_view(request, pk):
                 "pk",
             )
         )
-        return Response([availability_payload(window) for window in windows])
+        windows, pagination = _paginate_capacity_queryset(request, windows)
+        return _capacity_page_response(
+            [availability_payload(window) for window in windows],
+            pagination,
+        )
 
     serializer = AvailabilityWriteSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -489,13 +547,13 @@ def semester_availability_view(request, pk):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def cancel_availability_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
         return denied
     window = get_object_or_404(_capacity_window_queryset(), pk=pk)
-    serializer = ReasonSerializer(data=request.data)
+    serializer = CapacityReasonSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     try:
         cancelled = cancel_availability_window(
@@ -517,7 +575,7 @@ def cancel_availability_view(request, pk):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsOfficeStaffAdmin])
 def semester_capacity_audits_view(request, pk):
     denied = _office_denied(request.user)
     if denied:
@@ -528,4 +586,8 @@ def semester_capacity_audits_view(request, pk):
         .select_related("actor")
         .order_by("-created_at", "-pk")
     )
-    return Response([capacity_audit_payload(audit) for audit in audits])
+    audits, pagination = _paginate_capacity_queryset(request, audits)
+    return _capacity_page_response(
+        [capacity_audit_payload(audit) for audit in audits],
+        pagination,
+    )

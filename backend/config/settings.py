@@ -51,6 +51,11 @@ CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000" if DEBUG else "",
 )
+CORS_EXPOSE_HEADERS = (
+    "X-Total-Count",
+    "X-Limit",
+    "X-Offset",
+)
 
 if not DEBUG:
     validate_production_environment(

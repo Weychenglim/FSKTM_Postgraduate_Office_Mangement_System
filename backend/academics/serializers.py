@@ -1,9 +1,12 @@
+from collections.abc import Mapping
+
 from django.db.models import Count
 from django.utils import timezone
 from rest_framework import serializers
 
 from .capacity import CapacityRole, derive_capacity_resolution
 from .capacity_services import (
+    capacity_eligible_lecturers,
     capacity_plan_content_fingerprint,
     capacity_plan_readiness_errors,
 )
@@ -59,7 +62,18 @@ class ExtendSerializer(ReasonSerializer):
     endsOn = serializers.DateField()
 
 
-class CapacityPlanCreateSerializer(serializers.Serializer):
+class StrictCapacitySerializer(serializers.Serializer):
+    def to_internal_value(self, data):
+        if isinstance(data, Mapping):
+            unknown_fields = sorted(set(data.keys()) - set(self.fields.keys()))
+            if unknown_fields:
+                raise serializers.ValidationError(
+                    {field_name: ["Unknown field."] for field_name in unknown_fields}
+                )
+        return super().to_internal_value(data)
+
+
+class CapacityPlanCreateSerializer(StrictCapacitySerializer):
     copyFromPlanId = serializers.IntegerField(
         min_value=1,
         allow_null=True,
@@ -68,7 +82,7 @@ class CapacityPlanCreateSerializer(serializers.Serializer):
     )
 
 
-class CapacityEntryWriteSerializer(serializers.Serializer):
+class CapacityEntryWriteSerializer(StrictCapacitySerializer):
     supervisorLimit = serializers.IntegerField(min_value=0, allow_null=True)
     panelLimit = serializers.IntegerField(min_value=0, allow_null=True)
     expectedVersion = serializers.IntegerField(min_value=1)
@@ -79,13 +93,13 @@ class CapacityPlanPatchSerializer(CapacityEntryWriteSerializer):
     lecturerId = serializers.IntegerField(min_value=1)
 
 
-class CapacityPlanCommandSerializer(serializers.Serializer):
+class CapacityPlanCommandSerializer(StrictCapacitySerializer):
     reason = serializers.CharField(allow_blank=False)
     expectedVersion = serializers.IntegerField(min_value=1)
     expectedFingerprint = serializers.RegexField(r"^[0-9a-f]{64}$")
 
 
-class AvailabilityWriteSerializer(serializers.Serializer):
+class AvailabilityWriteSerializer(StrictCapacitySerializer):
     lecturerId = serializers.IntegerField(min_value=1)
     role = serializers.ChoiceField(
         choices=(
@@ -96,6 +110,28 @@ class AvailabilityWriteSerializer(serializers.Serializer):
     startsOn = serializers.DateField()
     endsOn = serializers.DateField()
     reason = serializers.CharField(allow_blank=False)
+
+
+class CapacityReasonSerializer(StrictCapacitySerializer):
+    reason = serializers.CharField(allow_blank=False)
+
+
+class EmptyCapacityCommandSerializer(StrictCapacitySerializer):
+    pass
+
+
+class CapacityLimitOffsetSerializer(serializers.Serializer):
+    limit = serializers.IntegerField(
+        min_value=1,
+        max_value=100,
+        required=False,
+        default=25,
+    )
+    offset = serializers.IntegerField(
+        min_value=0,
+        required=False,
+        default=0,
+    )
 
 
 def semester_payload(semester, *, include_counts=False):
@@ -306,20 +342,20 @@ def _capacity_entry_payload(entry, context):
     }
 
 
-def capacity_plan_payload(plan):
+def _render_capacity_plan_payload(
+    plan,
+    *,
+    entries,
+    resolution_context,
+    readiness_lecturers,
+    successor_ids,
+):
     semester = plan.academic_semester
-    entries = list(
-        plan.entries.select_related(
-            "lecturer__user",
-            "lecturer__supervisor",
-            "lecturer__panel",
-            "updated_by",
-        ).order_by("lecturer__staff_no", "lecturer_id", "pk")
+    readiness_errors = capacity_plan_readiness_errors(
+        plan,
+        entries=entries,
+        lecturers=readiness_lecturers,
     )
-    resolution_context = (
-        _capacity_resolution_context(semester, entries) if entries else None
-    )
-    readiness_errors = capacity_plan_readiness_errors(plan, entries=entries)
     return {
         "id": plan.pk,
         "semesterId": semester.pk,
@@ -329,9 +365,7 @@ def capacity_plan_payload(plan):
         "lifecycleStatus": plan.lifecycle_status,
         "origin": plan.origin,
         "supersedesId": plan.supersedes_id,
-        "successorIds": list(
-            plan.successor_plans.order_by("version", "pk").values_list("pk", flat=True)
-        ),
+        "successorIds": successor_ids,
         "isComplete": not readiness_errors,
         "readinessErrors": readiness_errors,
         "isCurrentPublished": (plan.lifecycle_status == plan.Lifecycle.PUBLISHED),
@@ -348,6 +382,55 @@ def capacity_plan_payload(plan):
         "publishedAt": plan.published_at,
         "publicationReason": plan.publication_reason or None,
     }
+
+
+def capacity_plan_payload(plan):
+    semester = plan.academic_semester
+    entries = list(
+        plan.entries.select_related(
+            "lecturer__user",
+            "lecturer__supervisor",
+            "lecturer__panel",
+            "updated_by",
+        ).order_by("lecturer__staff_no", "lecturer_id", "pk")
+    )
+    resolution_context = (
+        _capacity_resolution_context(semester, entries) if entries else None
+    )
+    return _render_capacity_plan_payload(
+        plan,
+        entries=entries,
+        resolution_context=resolution_context,
+        readiness_lecturers=capacity_eligible_lecturers(),
+        successor_ids=list(
+            plan.successor_plans.order_by("version", "pk").values_list("pk", flat=True)
+        ),
+    )
+
+
+def capacity_plan_payloads(plans):
+    plans = list(plans)
+    if not plans:
+        return []
+    all_entries = [entry for plan in plans for entry in plan.capacity_payload_entries]
+    resolution_context = (
+        _capacity_resolution_context(plans[0].academic_semester, all_entries)
+        if all_entries
+        else None
+    )
+    readiness_lecturers = capacity_eligible_lecturers()
+    return [
+        _render_capacity_plan_payload(
+            plan,
+            entries=plan.capacity_payload_entries,
+            resolution_context=resolution_context,
+            readiness_lecturers=readiness_lecturers,
+            successor_ids=[
+                successor.pk for successor in plan.capacity_payload_successors
+            ],
+        )
+        for plan in plans
+    ]
 
 
 def availability_payload(window):

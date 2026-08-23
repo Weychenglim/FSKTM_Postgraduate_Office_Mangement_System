@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, close_old_connections, connection, transaction
 from django.db.models.query import QuerySet
@@ -2683,6 +2684,12 @@ class CapacityApiTests(TestCase):
             matric_no="CAP-API-STUDENT",
             programme="Master of Computer Science",
         )
+        cls.coordinator_user = User.objects.create_user(
+            email="capacity.api.coordinator@example.test",
+            password="local-test-password",
+            full_name="Capacity API Coordinator",
+            role=User.Role.COORDINATOR,
+        )
         cls.supervisor_only = cls._create_lecturer(
             "001",
             supervisor=True,
@@ -2831,6 +2838,249 @@ class CapacityApiTests(TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.data, listed.data[0])
 
+    def test_capacity_plan_history_uses_bounded_array_pagination(self):
+        plans = [
+            SemesterCapacityPlan.objects.create(
+                academic_semester=self.semester,
+                version=version,
+                lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
+                origin=SemesterCapacityPlan.Origin.CREATED,
+                created_by=self.office,
+            )
+            for version in range(1, 32)
+        ]
+
+        default_page = self.client.get(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/"
+        )
+        second_page = self.client.get(
+            (
+                f"/api/academics/semesters/{self.semester.pk}/capacity-plans/"
+                "?limit=10&offset=10"
+            )
+        )
+
+        self.assertEqual(default_page.status_code, 200)
+        self.assertEqual(len(default_page.data), 25)
+        self.assertEqual(
+            [row["version"] for row in default_page.data],
+            list(range(31, 6, -1)),
+        )
+        self.assertEqual(default_page["X-Total-Count"], "31")
+        self.assertEqual(default_page["X-Limit"], "25")
+        self.assertEqual(default_page["X-Offset"], "0")
+        self.assertEqual(second_page.status_code, 200)
+        self.assertEqual(len(second_page.data), 10)
+        self.assertEqual(
+            [row["id"] for row in second_page.data],
+            [plan.pk for plan in reversed(plans)][10:20],
+        )
+        self.assertEqual(second_page["X-Total-Count"], "31")
+        self.assertEqual(second_page["X-Limit"], "10")
+        self.assertEqual(second_page["X-Offset"], "10")
+        self.assertTrue(
+            {"X-Total-Count", "X-Limit", "X-Offset"}.issubset(
+                set(getattr(settings, "CORS_EXPOSE_HEADERS", ()))
+            )
+        )
+
+    def test_capacity_audit_and_availability_history_are_paginated(self):
+        audits = [
+            LecturerCapacityAudit.objects.create(
+                academic_semester=self.semester,
+                actor=self.office,
+                action=LecturerCapacityAudit.Action.PLAN_CREATE,
+                reason=f"Capacity audit {index}.",
+                before_values={},
+                after_values={"index": index},
+            )
+            for index in range(30)
+        ]
+        windows = [
+            LecturerAvailabilityWindow.objects.create(
+                academic_semester=self.semester,
+                lecturer=self.dual_role,
+                role=LecturerAvailabilityWindow.Role.PANEL,
+                starts_on=self.semester.starts_on + timedelta(days=index),
+                ends_on=self.semester.starts_on + timedelta(days=index),
+                reason=f"Availability history {index}.",
+                created_by=self.office,
+            )
+            for index in range(30)
+        ]
+
+        audit_page = self.client.get(
+            (
+                f"/api/academics/semesters/{self.semester.pk}/capacity-audits/"
+                "?limit=7&offset=3"
+            )
+        )
+        availability_page = self.client.get(
+            (
+                f"/api/academics/semesters/{self.semester.pk}/availability/"
+                "?limit=8&offset=4"
+            )
+        )
+
+        self.assertEqual(audit_page.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in audit_page.data],
+            [audit.pk for audit in reversed(audits)][3:10],
+        )
+        self.assertEqual(audit_page["X-Total-Count"], "30")
+        self.assertEqual(audit_page["X-Limit"], "7")
+        self.assertEqual(audit_page["X-Offset"], "3")
+        self.assertEqual(availability_page.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in availability_page.data],
+            [window.pk for window in windows][4:12],
+        )
+        self.assertEqual(availability_page["X-Total-Count"], "30")
+        self.assertEqual(availability_page["X-Limit"], "8")
+        self.assertEqual(availability_page["X-Offset"], "4")
+
+    def test_capacity_history_pagination_rejects_invalid_values(self):
+        endpoints = (
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+            f"/api/academics/semesters/{self.semester.pk}/capacity-audits/",
+            f"/api/academics/semesters/{self.semester.pk}/availability/",
+        )
+        invalid_queries = (
+            "limit=invalid",
+            "limit=0",
+            "limit=-1",
+            "limit=101",
+            "offset=invalid",
+            "offset=-1",
+        )
+
+        for endpoint in endpoints:
+            for query in invalid_queries:
+                with self.subTest(endpoint=endpoint, query=query):
+                    response = self.client.get(f"{endpoint}?{query}")
+                    self.assertEqual(response.status_code, 400)
+
+    def test_plan_create_and_clone_reject_unknown_fields_without_side_effects(self):
+        plan_count = SemesterCapacityPlan.objects.count()
+        audit_count = LecturerCapacityAudit.objects.count()
+
+        snake_case = self.client.post(
+            f"/api/academics/semesters/{self.semester.pk}/capacity-plans/",
+            {"copy_from_plan_id": 123},
+            format="json",
+        )
+
+        self.assertEqual(snake_case.status_code, 400)
+        self.assertEqual(SemesterCapacityPlan.objects.count(), plan_count)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+        published = self.publish_plan(self.complete_plan())
+        plan_count = SemesterCapacityPlan.objects.count()
+        audit_count = LecturerCapacityAudit.objects.count()
+        surplus_clone = self.client.post(
+            f"/api/academics/capacity-plans/{published['id']}/clone/",
+            {"unexpected": "value"},
+            format="json",
+        )
+
+        self.assertEqual(surplus_clone.status_code, 400)
+        self.assertEqual(SemesterCapacityPlan.objects.count(), plan_count)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+    def test_plan_writes_reject_wrong_case_and_surplus_fields(self):
+        plan = self.create_plan().data
+        entry_count = LecturerCapacityEntry.objects.count()
+        audit_count = LecturerCapacityAudit.objects.count()
+        entry_endpoint = (
+            f"/api/academics/capacity-plans/{plan['id']}"
+            f"/lecturers/{self.supervisor_only.pk}/"
+        )
+        valid_values = {
+            "supervisorLimit": 4,
+            "panelLimit": None,
+            "expectedVersion": plan["version"],
+            "expectedFingerprint": plan["contentFingerprint"],
+        }
+
+        wrong_case = self.client.patch(
+            entry_endpoint,
+            {
+                **valid_values,
+                "supervisor_limit": valid_values["supervisorLimit"],
+            },
+            format="json",
+        )
+        detail_surplus = self.client.patch(
+            f"/api/academics/capacity-plans/{plan['id']}/",
+            {
+                "lecturerId": self.supervisor_only.pk,
+                **valid_values,
+                "unexpected": True,
+            },
+            format="json",
+        )
+        publish_surplus = self.client.post(
+            f"/api/academics/capacity-plans/{plan['id']}/publish/",
+            {
+                "reason": "Must not be accepted.",
+                "expectedVersion": plan["version"],
+                "expectedFingerprint": plan["contentFingerprint"],
+                "unexpected": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(wrong_case.status_code, 400)
+        self.assertEqual(detail_surplus.status_code, 400)
+        self.assertEqual(publish_surplus.status_code, 400)
+        self.assertEqual(LecturerCapacityEntry.objects.count(), entry_count)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+    def test_availability_create_and_cancel_reject_unknown_fields(self):
+        endpoint = f"/api/academics/semesters/{self.semester.pk}/availability/"
+        window_count = LecturerAvailabilityWindow.objects.count()
+        audit_count = LecturerCapacityAudit.objects.count()
+        snake_case = self.client.post(
+            endpoint,
+            {
+                "lecturer_id": self.dual_role.pk,
+                "role": "PANEL",
+                "starts_on": "2026-11-01",
+                "ends_on": "2026-11-02",
+                "reason": "Must not be accepted.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(snake_case.status_code, 400)
+        self.assertEqual(LecturerAvailabilityWindow.objects.count(), window_count)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+        created = self.client.post(
+            endpoint,
+            {
+                "lecturerId": self.dual_role.pk,
+                "role": "PANEL",
+                "startsOn": "2026-11-01",
+                "endsOn": "2026-11-02",
+                "reason": "Approved internal leave.",
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        audit_count = LecturerCapacityAudit.objects.count()
+        surplus_cancel = self.client.post(
+            f"/api/academics/availability/{created.data['id']}/cancel/",
+            {"reason": "Cancel leave.", "unexpected": True},
+            format="json",
+        )
+
+        self.assertEqual(surplus_cancel.status_code, 400)
+        self.assertIsNone(
+            LecturerAvailabilityWindow.objects.get(pk=created.data["id"]).cancelled_at
+        )
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
     def test_plan_entry_write_requires_both_stale_tokens_and_maps_errors(self):
         plan = self.create_plan().data
         endpoint = (
@@ -2950,6 +3200,51 @@ class CapacityApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["entries"]), 5)
         self.assertLessEqual(len(captured), 20)
+
+    def test_plan_history_reuses_one_resolution_context_across_versions(self):
+        additional_lecturers = [
+            self._create_lecturer(
+                f"LIST-QUERY-{index}",
+                supervisor=True,
+                panel=True,
+            )
+            for index in range(3)
+        ]
+        plan = self.complete_plan()
+        for lecturer in additional_lecturers:
+            plan = self.update_entry(
+                plan,
+                lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+            )
+        published = self.publish_plan(plan)
+        second = self.client.post(
+            f"/api/academics/capacity-plans/{published['id']}/clone/",
+            {},
+            format="json",
+        ).data
+        second = self.publish_plan(second, reason="Approved second version.")
+        third = self.client.post(
+            f"/api/academics/capacity-plans/{second['id']}/clone/",
+            {},
+            format="json",
+        )
+        self.assertEqual(third.status_code, 201, third.data)
+        endpoint = f"/api/academics/semesters/{self.semester.pk}/capacity-plans/"
+
+        with CaptureQueriesContext(connection) as one_plan_queries:
+            one_plan = self.client.get(f"{endpoint}?limit=1")
+        with CaptureQueriesContext(connection) as all_plan_queries:
+            all_plans = self.client.get(endpoint)
+
+        self.assertEqual(one_plan.status_code, 200)
+        self.assertEqual(all_plans.status_code, 200)
+        self.assertEqual(len(one_plan.data), 1)
+        self.assertEqual(len(all_plans.data), 3)
+        self.assertEqual([row["version"] for row in all_plans.data], [3, 2, 1])
+        self.assertLessEqual(len(all_plan_queries), len(one_plan_queries) + 2)
+        self.assertLessEqual(len(all_plan_queries), 20)
 
     def test_office_publishes_complete_plan_and_lifecycle_conflicts_are_409(self):
         incomplete = self.create_plan().data
@@ -3205,6 +3500,41 @@ class CapacityApiTests(TestCase):
 
         for response in requests:
             self.assertEqual(response.status_code, 403)
+
+    def test_capacity_permission_denies_non_office_methods_before_lookup(self):
+        endpoints = (
+            "/api/academics/semesters/999999/capacity-plans/",
+            "/api/academics/capacity-plans/999999/",
+            "/api/academics/capacity-plans/999999/clone/",
+            "/api/academics/capacity-plans/999999/publish/",
+            "/api/academics/capacity-plans/999999/lecturers/999999/",
+            "/api/academics/semesters/999999/availability/",
+            "/api/academics/availability/999999/cancel/",
+            "/api/academics/semesters/999999/capacity-audits/",
+        )
+        users = (
+            self.student_user,
+            self.supervisor_only.user,
+            self.coordinator_user,
+        )
+
+        for user in users:
+            self.client.force_authenticate(user)
+            for method in ("options", "head", "delete"):
+                for endpoint in endpoints:
+                    with self.subTest(
+                        role=user.role,
+                        method=method,
+                        endpoint=endpoint,
+                    ):
+                        response = getattr(self.client, method)(
+                            endpoint,
+                            {},
+                            format="json",
+                        )
+                        self.assertEqual(response.status_code, 403)
+                        self.assertNotIn("actions", response.data)
+                        self.assertNotIn("not found", str(response.data).lower())
 
 
 @skipUnless(
