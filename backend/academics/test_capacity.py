@@ -1691,6 +1691,7 @@ class CapacityLifecycleTests(TestCase):
         self.assertEqual(plan.origin, SemesterCapacityPlan.Origin.CREATED)
         self.assertIsNone(plan.supersedes_id)
         self.assertFalse(plan.entries.exists())
+        self.assertIsNone(capacity_plan_snapshot(plan)["supersedesId"])
         audit = LecturerCapacityAudit.objects.get(
             plan=plan,
             action=LecturerCapacityAudit.Action.PLAN_CREATE,
@@ -1742,6 +1743,9 @@ class CapacityLifecycleTests(TestCase):
 
         self.assertEqual(copied.version, 1)
         self.assertEqual(copied.origin, SemesterCapacityPlan.Origin.COPIED_FORWARD)
+        self.assertEqual(copied.supersedes_id, source.pk)
+        copied_snapshot = capacity_plan_snapshot(copied)
+        self.assertEqual(copied_snapshot["supersedesId"], source.pk)
         self.assertEqual(
             list(copied.entries.values_list("lecturer__staff_no", flat=True)),
             [self.supervisor_only.staff_no, self.lecturer.staff_no],
@@ -1751,12 +1755,14 @@ class CapacityLifecycleTests(TestCase):
                 academic_semester=self.semester
             ).exists()
         )
-        self.assertTrue(
-            LecturerCapacityAudit.objects.filter(
-                plan=copied,
-                action=LecturerCapacityAudit.Action.PLAN_COPY,
-            ).exists()
+        copy_audit = LecturerCapacityAudit.objects.get(
+            plan=copied,
+            action=LecturerCapacityAudit.Action.PLAN_COPY,
         )
+        self.assertEqual(copy_audit.academic_semester_id, self.semester.pk)
+        self.assertEqual(copy_audit.before_values["planId"], source.pk)
+        self.assertEqual(copy_audit.after_values["planId"], copied.pk)
+        self.assertEqual(copy_audit.after_values["supersedesId"], source.pk)
 
     def test_same_semester_clone_increments_version_and_records_source(self):
         first = self.publish_complete_plan(version=1)
@@ -1919,6 +1925,60 @@ class CapacityLifecycleTests(TestCase):
                 LecturerCapacityAudit.Action.PUBLISH,
                 LecturerCapacityAudit.Action.SUPERSEDE,
             },
+        )
+
+    def test_publication_locks_entries_for_every_same_semester_plan_only(self):
+        prior = self.publish_complete_plan(
+            semester=self.prior_semester,
+            version=1,
+        )
+        current = self.publish_complete_plan(version=1)
+        draft = clone_capacity_plan(current, actor=self.office)
+        expected_locked_rows = list(
+            LecturerCapacityEntry.objects.filter(
+                plan_id__in=[current.pk, draft.pk]
+            )
+            .order_by("plan_id", "lecturer_id", "pk")
+            .values_list("plan_id", "lecturer_id", "pk")
+        )
+        prior_entry_ids = set(
+            LecturerCapacityEntry.objects.filter(plan=prior).values_list(
+                "pk",
+                flat=True,
+            )
+        )
+        locked_entry_batches = []
+        original_fetch_all = QuerySet._fetch_all
+
+        def capture_locked_entries(queryset):
+            should_capture = (
+                queryset.model is LecturerCapacityEntry
+                and queryset.query.select_for_update
+                and queryset._result_cache is None
+            )
+            original_fetch_all(queryset)
+            if should_capture:
+                locked_entry_batches.append(
+                    [
+                        (entry.plan_id, entry.lecturer_id, entry.pk)
+                        for entry in queryset._result_cache
+                    ]
+                )
+
+        with patch.object(QuerySet, "_fetch_all", new=capture_locked_entries):
+            publish_capacity_plan(
+                draft,
+                actor=self.office,
+                reason="Approved replacement with complete entry locks.",
+            )
+
+        self.assertEqual(locked_entry_batches, [expected_locked_rows])
+        self.assertTrue(
+            prior_entry_ids.isdisjoint(
+                entry_id
+                for batch in locked_entry_batches
+                for _, _, entry_id in batch
+            )
         )
 
     def test_stale_and_non_draft_plan_mutations_are_conflicts(self):

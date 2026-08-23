@@ -310,6 +310,7 @@ def create_capacity_plan(*, semester, actor, copy_from=None):
                 semester=current_semester,
                 actor=actor,
                 source=copy_from,
+                supersedes=copy_from,
                 allowed_source_lifecycles={
                     SemesterCapacityPlan.Lifecycle.PUBLISHED,
                 },
@@ -495,12 +496,15 @@ def _publish_capacity_plan_atomic(plan, *, actor, reason):
                 "Only a Draft capacity plan can be published."
             )
 
-        entries = list(
+        locked_entries = list(
             LecturerCapacityEntry.objects.select_for_update()
-            .filter(plan=current_plan)
+            .filter(plan_id__in=[candidate.pk for candidate in plans])
             .select_related("lecturer")
-            .order_by("lecturer__staff_no", "lecturer_id", "pk")
+            .order_by("plan_id", "lecturer_id", "pk")
         )
+        entries = [
+            entry for entry in locked_entries if entry.plan_id == current_plan.pk
+        ]
         lecturers = _current_eligible_lecturers(lock=True)
         readiness_errors = _capacity_plan_readiness_errors(
             current_plan,
