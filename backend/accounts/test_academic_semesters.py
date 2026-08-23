@@ -1,12 +1,14 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from academics.models import AcademicSemester, AcademicSemesterAudit
+from academics.services import activate_semester, lock_academic_semesters
 from marks.models import EvaluationPeriod, MarksConfigurationAudit, Rubric
 
 
@@ -78,6 +80,56 @@ class AcademicSemesterModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             overlapping.full_clean()
+
+
+class AcademicSemesterLockOrderTests(TransactionTestCase):
+    def test_activation_locks_reverse_id_target_and_current_in_pk_order(self):
+        actor = User.objects.create_user(
+            email="semester.locking@example.test",
+            password="local-test-password",
+            full_name="Semester Locking Actor",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        today = date.today()
+        current = AcademicSemester.objects.create(
+            code=f"{today.year - 1}-{today.year}-S2",
+            academic_session=f"{today.year - 1}/{today.year}",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=today - timedelta(days=120),
+            ends_on=today - timedelta(days=1),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=actor,
+        )
+        target = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today,
+            ends_on=today + timedelta(days=100),
+            created_by=actor,
+        )
+        self.assertLess(current.pk, target.pk)
+        observed_lock_orders = []
+
+        def record_lock_order(semester_ids=None):
+            locked = lock_academic_semesters(semester_ids)
+            observed_lock_orders.append(list(locked))
+            return locked
+
+        with patch(
+            "academics.services.lock_academic_semesters",
+            side_effect=record_lock_order,
+        ):
+            activated = activate_semester(
+                target,
+                actor=actor,
+                reason="Exercise deterministic handover locking.",
+            )
+
+        current.refresh_from_db()
+        self.assertEqual(observed_lock_orders, [[current.pk, target.pk]])
+        self.assertEqual(current.lifecycle_status, AcademicSemester.Lifecycle.CLOSED)
+        self.assertEqual(activated.lifecycle_status, AcademicSemester.Lifecycle.ACTIVE)
 
 
 class AcademicSemesterApiTests(TestCase):

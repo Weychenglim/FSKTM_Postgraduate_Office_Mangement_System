@@ -1,15 +1,18 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
+from threading import Barrier
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection, transaction
+from django.db import IntegrityError, close_old_connections, connection, transaction
 from django.db.models.query import QuerySet
 from django.db.models.signals import post_delete, pre_delete
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -25,6 +28,7 @@ from appointments.models import (
     supervisor_workload_limit,
 )
 
+from . import capacity_services
 from .capacity import (
     CapacityConflict,
     CapacityRole,
@@ -36,7 +40,9 @@ from .capacity import (
 from .capacity_services import (
     AvailabilityConflict,
     CapacityLifecycleConflict,
+    CapacityPlanConflict,
     cancel_availability_window,
+    capacity_plan_content_fingerprint,
     capacity_plan_snapshot,
     clone_capacity_plan,
     create_availability_window,
@@ -1636,6 +1642,7 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=4,
             panel_limit=None,
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
         update_capacity_entry(
             plan,
@@ -1643,6 +1650,7 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=5,
             panel_limit=8,
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
         return plan
 
@@ -1653,6 +1661,7 @@ class CapacityLifecycleTests(TestCase):
             plan,
             actor=self.office,
             reason="Approved complete capacity allocation.",
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
 
     def create_student_appointment(self):
@@ -1699,6 +1708,21 @@ class CapacityLifecycleTests(TestCase):
         self.assertEqual(audit.actor, self.office)
         self.assertEqual(audit.after_values, capacity_plan_snapshot(plan))
 
+    def test_internal_version_allocation_defers_uniqueness_to_database(self):
+        with patch.object(
+            SemesterCapacityPlan,
+            "validate_unique",
+            side_effect=AssertionError("model uniqueness validation was called"),
+        ), patch.object(
+            SemesterCapacityPlan,
+            "validate_constraints",
+            side_effect=AssertionError("model constraint validation was called"),
+        ):
+            plan = create_capacity_plan(semester=self.semester, actor=self.office)
+
+        self.assertEqual(plan.version, 1)
+        self.assertEqual(plan.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+
     def test_copy_from_prior_published_plan_uses_current_eligibility_only(self):
         historical = self.create_lecturer(
             "HISTORICAL",
@@ -1716,11 +1740,13 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=3,
             panel_limit=None,
+            expected_fingerprint=capacity_plan_content_fingerprint(source),
         )
         source = publish_capacity_plan(
             source,
             actor=self.office,
             reason="Approved prior-semester capacity allocation.",
+            expected_fingerprint=capacity_plan_content_fingerprint(source),
         )
         Lecturer.objects.filter(pk=historical.pk).update(
             lifecycle_status=Lecturer.Lifecycle.RETIRED
@@ -1735,13 +1761,29 @@ class CapacityLifecycleTests(TestCase):
             reason="Approved prior-semester leave.",
         )
 
-        copied = create_capacity_plan(
-            semester=self.semester,
-            actor=self.office,
-            copy_from=source,
-        )
+        shared_semester_lock = capacity_services.lock_academic_semesters
+        observed_lock_orders = []
+
+        def capture_semester_lock_order(semester_ids=None):
+            locked = shared_semester_lock(semester_ids)
+            observed_lock_orders.append(list(locked))
+            return locked
+
+        with patch(
+            "academics.capacity_services.lock_academic_semesters",
+            side_effect=capture_semester_lock_order,
+        ):
+            copied = create_capacity_plan(
+                semester=self.semester,
+                actor=self.office,
+                copy_from=source,
+            )
 
         self.assertEqual(copied.version, 1)
+        self.assertEqual(
+            observed_lock_orders,
+            [[self.prior_semester.pk, self.semester.pk]],
+        )
         self.assertEqual(copied.origin, SemesterCapacityPlan.Origin.COPIED_FORWARD)
         self.assertEqual(copied.supersedes_id, source.pk)
         copied_snapshot = capacity_plan_snapshot(copied)
@@ -1764,6 +1806,147 @@ class CapacityLifecycleTests(TestCase):
         self.assertEqual(copy_audit.after_values["planId"], copied.pk)
         self.assertEqual(copy_audit.after_values["supersedesId"], source.pk)
 
+    def test_copy_requires_latest_strictly_prior_published_semester(self):
+        older_semester = AcademicSemester.objects.create(
+            code="2025-2026-S1",
+            academic_session="2025/2026",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2025, 9, 1),
+            ends_on=date(2026, 1, 15),
+            created_by=self.office,
+        )
+        older_source = self.publish_complete_plan(semester=older_semester)
+        latest_source = self.publish_complete_plan(semester=self.prior_semester)
+
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(
+                semester=self.semester,
+                actor=self.office,
+                copy_from=older_source,
+            )
+
+        copied = create_capacity_plan(
+            semester=self.semester,
+            actor=self.office,
+            copy_from=latest_source,
+        )
+        self.assertEqual(copied.supersedes_id, latest_source.pk)
+
+        future_semester = AcademicSemester.objects.create(
+            code="2027-2028-S1",
+            academic_session="2027/2028",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2027, 9, 1),
+            ends_on=date(2028, 1, 31),
+            created_by=self.office,
+        )
+        future_source = self.publish_complete_plan(semester=future_semester)
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(
+                semester=self.semester,
+                actor=self.office,
+                copy_from=future_source,
+            )
+
+    def test_copy_rejects_same_semester_and_overlapping_source(self):
+        same_semester_source = self.publish_complete_plan()
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(
+                semester=self.semester,
+                actor=self.office,
+                copy_from=same_semester_source,
+            )
+
+        overlapping_semester = AcademicSemester.objects.create(
+            code="2026-2027-SP",
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SPECIAL,
+            starts_on=date(2026, 8, 1),
+            ends_on=date(2026, 10, 1),
+            created_by=self.office,
+        )
+        overlapping_source = self.publish_complete_plan(semester=overlapping_semester)
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(
+                semester=self.semester,
+                actor=self.office,
+                copy_from=overlapping_source,
+            )
+
+    def test_capacity_writes_reject_closed_and_archived_target_semesters(self):
+        current = self.publish_complete_plan()
+        draft = clone_capacity_plan(current, actor=self.office)
+        AcademicSemester.objects.filter(pk=self.semester.pk).update(
+            lifecycle_status=AcademicSemester.Lifecycle.CLOSED
+        )
+        self.semester.refresh_from_db()
+
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(semester=self.semester, actor=self.office)
+        with self.assertRaises(CapacityPlanConflict):
+            clone_capacity_plan(current, actor=self.office)
+        with self.assertRaises(CapacityPlanConflict):
+            update_capacity_entry(
+                draft,
+                lecturer=self.lecturer,
+                actor=self.office,
+                supervisor_limit=4,
+                panel_limit=8,
+                expected_fingerprint=capacity_plan_content_fingerprint(draft),
+            )
+        with self.assertRaises(CapacityPlanConflict):
+            publish_capacity_plan(
+                draft,
+                actor=self.office,
+                reason="Closed semester must reject publication.",
+                expected_fingerprint=capacity_plan_content_fingerprint(draft),
+            )
+        with self.assertRaises(CapacityPlanConflict):
+            create_availability_window(
+                semester=self.semester,
+                lecturer=self.lecturer,
+                role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+                starts_on=self.semester.starts_on,
+                ends_on=self.semester.starts_on,
+                actor=self.office,
+                reason="Closed semester must reject a new restriction.",
+            )
+
+        AcademicSemester.objects.filter(pk=self.semester.pk).update(
+            lifecycle_status=AcademicSemester.Lifecycle.ARCHIVED
+        )
+        self.semester.refresh_from_db()
+        with self.assertRaises(CapacityPlanConflict):
+            create_capacity_plan(semester=self.semester, actor=self.office)
+
+    def test_active_semester_allows_replacement_publication(self):
+        current = self.publish_complete_plan()
+        draft = clone_capacity_plan(current, actor=self.office)
+        AcademicSemester.objects.filter(pk=self.semester.pk).update(
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE
+        )
+
+        updated = update_capacity_entry(
+            draft,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=4,
+            panel_limit=8,
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
+        )
+        published = publish_capacity_plan(
+            draft,
+            actor=self.office,
+            reason="Approved active-semester replacement.",
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
+        )
+
+        self.assertEqual(updated.supervisor_limit, 4)
+        self.assertEqual(
+            published.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+
     def test_same_semester_clone_increments_version_and_records_source(self):
         first = self.publish_complete_plan(version=1)
         second = clone_capacity_plan(first, actor=self.office)
@@ -1771,6 +1954,7 @@ class CapacityLifecycleTests(TestCase):
             second,
             actor=self.office,
             reason="Approved second capacity version.",
+            expected_fingerprint=capacity_plan_content_fingerprint(second),
         )
 
         third = clone_capacity_plan(second, actor=self.office)
@@ -1788,6 +1972,7 @@ class CapacityLifecycleTests(TestCase):
             second,
             actor=self.office,
             reason="Approved second capacity version.",
+            expected_fingerprint=capacity_plan_content_fingerprint(second),
         )
         first.refresh_from_db()
 
@@ -1806,6 +1991,7 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=5,
             panel_limit=8,
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
         updated = update_capacity_entry(
             plan,
@@ -1813,6 +1999,7 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=2,
             panel_limit=6,
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
         )
 
         self.assertEqual(created.pk, updated.pk)
@@ -1831,6 +2018,76 @@ class CapacityLifecycleTests(TestCase):
         self.assertEqual(audits[1].before_values["entry"]["supervisorLimit"], 5)
         self.assertEqual(audits[1].after_values["entry"]["supervisorLimit"], 2)
 
+    def test_content_fingerprint_is_required_validated_and_detects_stale_edits(self):
+        plan = create_capacity_plan(semester=self.semester, actor=self.office)
+        initial_fingerprint = capacity_plan_content_fingerprint(plan)
+
+        self.assertRegex(initial_fingerprint, r"^[0-9a-f]{64}$")
+        self.assertEqual(
+            capacity_plan_snapshot(plan)["contentFingerprint"],
+            initial_fingerprint,
+        )
+        with self.assertRaises(ValidationError):
+            update_capacity_entry(
+                plan,
+                lecturer=self.lecturer,
+                actor=self.office,
+                supervisor_limit=5,
+                panel_limit=8,
+                expected_fingerprint="not-a-fingerprint",
+            )
+
+        audit_count = LecturerCapacityAudit.objects.count()
+        with self.assertRaises(CapacityPlanConflict):
+            update_capacity_entry(
+                plan,
+                lecturer=self.lecturer,
+                actor=self.office,
+                supervisor_limit=5,
+                panel_limit=8,
+                expected_fingerprint="0" * 64,
+            )
+        self.assertFalse(plan.entries.exists())
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
+        update_capacity_entry(
+            plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=5,
+            panel_limit=8,
+            expected_fingerprint=initial_fingerprint,
+        )
+        self.assertNotEqual(
+            capacity_plan_content_fingerprint(plan),
+            initial_fingerprint,
+        )
+
+    def test_publish_rejects_stale_content_fingerprint_before_mutation(self):
+        plan = self.complete_plan()
+        stale_fingerprint = capacity_plan_content_fingerprint(plan)
+        update_capacity_entry(
+            plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=4,
+            panel_limit=8,
+            expected_fingerprint=stale_fingerprint,
+        )
+        audit_count = LecturerCapacityAudit.objects.count()
+
+        with self.assertRaises(CapacityPlanConflict):
+            publish_capacity_plan(
+                plan,
+                actor=self.office,
+                reason="Stale content must not publish.",
+                expected_fingerprint=stale_fingerprint,
+            )
+
+        plan.refresh_from_db()
+        self.assertEqual(plan.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(LecturerCapacityAudit.objects.count(), audit_count)
+
     def test_readiness_requires_complete_current_lecturer_coverage(self):
         plan = self.complete_plan()
         self.assertEqual(validate_capacity_plan_ready(plan), [])
@@ -1848,6 +2105,7 @@ class CapacityLifecycleTests(TestCase):
                 plan,
                 actor=self.office,
                 reason="Incomplete allocation must not publish.",
+                expected_fingerprint=capacity_plan_content_fingerprint(plan),
             )
 
     def test_readiness_detects_role_limit_alignment_changes(self):
@@ -1876,6 +2134,7 @@ class CapacityLifecycleTests(TestCase):
             draft,
             actor=self.office,
             reason="Approved initial capacity plan.",
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
 
         self.assertEqual(
@@ -1898,6 +2157,7 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=1,
             panel_limit=7,
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
         publish_audits_before = LecturerCapacityAudit.objects.filter(
             action=LecturerCapacityAudit.Action.PUBLISH
@@ -1907,6 +2167,7 @@ class CapacityLifecycleTests(TestCase):
             draft,
             actor=self.office,
             reason="Approved revised allocation.",
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
 
         current.refresh_from_db()
@@ -1948,28 +2209,24 @@ class CapacityLifecycleTests(TestCase):
             )
         )
         locked_entry_batches = []
-        original_fetch_all = QuerySet._fetch_all
+        original_lock_entries = capacity_services._lock_capacity_entries_for_plans
 
-        def capture_locked_entries(queryset):
-            should_capture = (
-                queryset.model is LecturerCapacityEntry
-                and queryset.query.select_for_update
-                and queryset._result_cache is None
+        def capture_locked_entries(plan_ids):
+            entries = original_lock_entries(plan_ids)
+            locked_entry_batches.append(
+                [(entry.plan_id, entry.lecturer_id, entry.pk) for entry in entries]
             )
-            original_fetch_all(queryset)
-            if should_capture:
-                locked_entry_batches.append(
-                    [
-                        (entry.plan_id, entry.lecturer_id, entry.pk)
-                        for entry in queryset._result_cache
-                    ]
-                )
+            return entries
 
-        with patch.object(QuerySet, "_fetch_all", new=capture_locked_entries):
+        with patch(
+            "academics.capacity_services._lock_capacity_entries_for_plans",
+            side_effect=capture_locked_entries,
+        ):
             publish_capacity_plan(
                 draft,
                 actor=self.office,
                 reason="Approved replacement with complete entry locks.",
+                expected_fingerprint=capacity_plan_content_fingerprint(draft),
             )
 
         self.assertEqual(locked_entry_batches, [expected_locked_rows])
@@ -1988,6 +2245,7 @@ class CapacityLifecycleTests(TestCase):
             draft,
             actor=self.office,
             reason="Approved capacity plan.",
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
 
         with self.assertRaises(CapacityLifecycleConflict):
@@ -1995,6 +2253,7 @@ class CapacityLifecycleTests(TestCase):
                 stale,
                 actor=self.office,
                 reason="Stale retry.",
+                expected_fingerprint=capacity_plan_content_fingerprint(stale),
             )
         with self.assertRaises(CapacityLifecycleConflict):
             update_capacity_entry(
@@ -2003,6 +2262,7 @@ class CapacityLifecycleTests(TestCase):
                 actor=self.office,
                 supervisor_limit=1,
                 panel_limit=1,
+                expected_fingerprint=capacity_plan_content_fingerprint(published),
             )
 
     def test_concurrent_publication_integrity_failure_rolls_back_supersession(self):
@@ -2030,6 +2290,7 @@ class CapacityLifecycleTests(TestCase):
                     draft,
                     actor=self.office,
                     reason="Approved concurrent replacement.",
+                    expected_fingerprint=capacity_plan_content_fingerprint(draft),
                 )
 
         current.refresh_from_db()
@@ -2044,7 +2305,12 @@ class CapacityLifecycleTests(TestCase):
     def test_publication_window_and_cancellation_reasons_are_mandatory(self):
         plan = self.complete_plan()
         with self.assertRaises(ValidationError):
-            publish_capacity_plan(plan, actor=self.office, reason="  ")
+            publish_capacity_plan(
+                plan,
+                actor=self.office,
+                reason="  ",
+                expected_fingerprint=capacity_plan_content_fingerprint(plan),
+            )
         with self.assertRaises(ValidationError):
             create_availability_window(
                 semester=self.semester,
@@ -2078,12 +2344,14 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=0,
             panel_limit=8,
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
         self.assertEqual(validate_capacity_plan_ready(draft), [])
         published = publish_capacity_plan(
             draft,
             actor=self.office,
             reason="Approved zero-capacity replacement.",
+            expected_fingerprint=capacity_plan_content_fingerprint(draft),
         )
 
         appointment.refresh_from_db()
@@ -2205,6 +2473,45 @@ class CapacityLifecycleTests(TestCase):
                 reason="Inactive lecturer restriction.",
             )
 
+    def test_window_can_be_cancelled_after_role_removal_but_not_reactivated(self):
+        window = create_availability_window(
+            semester=self.semester,
+            lecturer=self.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=self.semester.starts_on,
+            ends_on=self.semester.starts_on + timedelta(days=2),
+            actor=self.office,
+            reason="Approved Supervisor leave.",
+        )
+        Supervisor.objects.filter(lecturer=self.lecturer).delete()
+
+        cancelled = cancel_availability_window(
+            window,
+            actor=self.office,
+            reason="Restriction safely terminated after role removal.",
+        )
+
+        self.assertIsNotNone(cancelled.cancelled_at)
+        self.assertTrue(
+            LecturerCapacityAudit.objects.filter(
+                availability_window=cancelled,
+                action=LecturerCapacityAudit.Action.AVAILABILITY_CANCEL,
+                reason="Restriction safely terminated after role removal.",
+            ).exists()
+        )
+        Supervisor.objects.create(lecturer=self.lecturer, max_supervisees=5)
+        cancelled.cancelled_by = None
+        cancelled.cancelled_at = None
+        cancelled.cancellation_reason = ""
+        with self.assertRaises(ValidationError):
+            cancelled.save(
+                update_fields=[
+                    "cancelled_by",
+                    "cancelled_at",
+                    "cancellation_reason",
+                ]
+            )
+
     def test_window_cancellation_rolls_back_when_audit_creation_fails(self):
         window = create_availability_window(
             semester=self.semester,
@@ -2248,17 +2555,20 @@ class CapacityLifecycleTests(TestCase):
             actor=self.office,
             supervisor_limit=2,
             panel_limit=7,
+            expected_fingerprint=capacity_plan_content_fingerprint(copied),
         )
         copied = publish_capacity_plan(
             copied,
             actor=self.office,
             reason="Approved copied plan.",
+            expected_fingerprint=capacity_plan_content_fingerprint(copied),
         )
         replacement = clone_capacity_plan(copied, actor=self.office)
         publish_capacity_plan(
             replacement,
             actor=self.office,
             reason="Approved replacement plan.",
+            expected_fingerprint=capacity_plan_content_fingerprint(replacement),
         )
         window = create_availability_window(
             semester=self.semester,
@@ -2313,6 +2623,100 @@ class CapacityLifecycleTests(TestCase):
         )
         encoded = json.dumps(first, sort_keys=True)
         self.assertEqual(json.loads(encoded), first)
+
+
+@skipUnless(
+    connection.vendor == "postgresql",
+    "Concurrent capacity writes require PostgreSQL row locks.",
+)
+class CapacityConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.office = User.objects.create_user(
+            email="capacity.concurrent.office@example.test",
+            password="local-test-password",
+            full_name="Capacity Concurrency Office",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        lecturer_user = User.objects.create_user(
+            email="capacity.concurrent.lecturer@example.test",
+            password="local-test-password",
+            full_name="Capacity Concurrency Lecturer",
+            role=User.Role.LECTURER,
+        )
+        self.lecturer = Lecturer.objects.create(
+            user=lecturer_user,
+            staff_no="CAP-CONCURRENT-LECT",
+            department="Computing",
+        )
+        Supervisor.objects.create(lecturer=self.lecturer, max_supervisees=5)
+        self.semester = AcademicSemester.objects.create(
+            code="2026-2027-S1",
+            academic_session="2026/2027",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=date(2026, 9, 1),
+            ends_on=date(2027, 1, 31),
+            created_by=self.office,
+        )
+        self.plan = create_capacity_plan(
+            semester=self.semester,
+            actor=self.office,
+        )
+        update_capacity_entry(
+            self.plan,
+            lecturer=self.lecturer,
+            actor=self.office,
+            supervisor_limit=5,
+            panel_limit=None,
+            expected_fingerprint=capacity_plan_content_fingerprint(self.plan),
+        )
+
+    def test_same_fingerprint_concurrent_entry_updates_allow_one_commit(self):
+        expected_fingerprint = capacity_plan_content_fingerprint(self.plan)
+        audit_count = LecturerCapacityAudit.objects.filter(
+            action=LecturerCapacityAudit.Action.ENTRY_UPDATE
+        ).count()
+        barrier = Barrier(2)
+
+        def update_from_independent_connection(supervisor_limit):
+            close_old_connections()
+            try:
+                plan = SemesterCapacityPlan.objects.get(pk=self.plan.pk)
+                lecturer = Lecturer.objects.get(pk=self.lecturer.pk)
+                actor = User.objects.get(pk=self.office.pk)
+                barrier.wait(timeout=10)
+                update_capacity_entry(
+                    plan,
+                    lecturer=lecturer,
+                    actor=actor,
+                    supervisor_limit=supervisor_limit,
+                    panel_limit=None,
+                    expected_fingerprint=expected_fingerprint,
+                )
+                return "updated"
+            except CapacityPlanConflict:
+                return "conflict"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(update_from_independent_connection, limit)
+                for limit in (1, 2)
+            ]
+            outcomes = sorted(future.result(timeout=20) for future in futures)
+
+        self.assertEqual(outcomes, ["conflict", "updated"])
+        entry = LecturerCapacityEntry.objects.get(
+            plan=self.plan,
+            lecturer=self.lecturer,
+        )
+        self.assertIn(entry.supervisor_limit, {1, 2})
+        self.assertEqual(
+            LecturerCapacityAudit.objects.filter(
+                action=LecturerCapacityAudit.Action.ENTRY_UPDATE
+            ).count(),
+            audit_count + 1,
+        )
 
 
 @override_settings(TIME_ZONE="Asia/Kuala_Lumpur")

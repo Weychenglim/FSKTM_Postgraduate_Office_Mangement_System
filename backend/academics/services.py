@@ -9,6 +9,17 @@ class SemesterConflict(Exception):
     pass
 
 
+def lock_academic_semesters(semester_ids=None):
+    """Lock the requested semesters in the shared deterministic order."""
+    queryset = AcademicSemester.objects.select_for_update().order_by("pk")
+    if semester_ids is not None:
+        requested_ids = {
+            semester_id for semester_id in semester_ids if semester_id is not None
+        }
+        queryset = queryset.filter(pk__in=requested_ids)
+    return {semester.pk: semester for semester in queryset}
+
+
 def semester_snapshot(semester):
     return {
         "code": semester.code,
@@ -122,7 +133,12 @@ def _close_marks_periods(semester, actor, now):
 @transaction.atomic
 def activate_semester(semester, *, actor, reason):
     reason = _require_reason(reason)
-    semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+    locked_semesters = lock_academic_semesters()
+    semester = locked_semesters.get(semester.pk)
+    if semester is None:
+        raise SemesterConflict(
+            "Academic semester changed concurrently; reload and retry."
+        )
     if semester.lifecycle_status != AcademicSemester.Lifecycle.DRAFT:
         raise SemesterConflict("Only a draft semester can be activated.")
     today = timezone.localdate()
@@ -132,11 +148,14 @@ def activate_semester(semester, *, actor, reason):
         )
 
     now = timezone.now()
-    current = (
-        AcademicSemester.objects.select_for_update()
-        .filter(lifecycle_status=AcademicSemester.Lifecycle.ACTIVE)
-        .exclude(pk=semester.pk)
-        .first()
+    current = next(
+        (
+            candidate
+            for candidate in locked_semesters.values()
+            if candidate.lifecycle_status == AcademicSemester.Lifecycle.ACTIVE
+            and candidate.pk != semester.pk
+        ),
+        None,
     )
     if current:
         before = semester_snapshot(current)

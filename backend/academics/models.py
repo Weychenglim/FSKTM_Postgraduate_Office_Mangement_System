@@ -673,7 +673,16 @@ class LecturerAvailabilityWindow(models.Model):
                     "Availability must end within the academic semester."
                 )
 
-        if self.lecturer_id and self.role in self.Role.values:
+        cancellation_reason = (self.cancellation_reason or "").strip()
+        cancellation_complete = bool(
+            self.cancelled_at and self.cancelled_by_id and cancellation_reason
+        )
+
+        if (
+            self.lecturer_id
+            and self.role in self.Role.values
+            and not cancellation_complete
+        ):
             from accounts.models import Panel, Supervisor
 
             role_exists = (
@@ -684,7 +693,6 @@ class LecturerAvailabilityWindow(models.Model):
             if not role_exists:
                 errors["role"] = "The lecturer does not hold the selected role."
 
-        cancellation_reason = (self.cancellation_reason or "").strip()
         if self.cancelled_at:
             if not self.cancelled_by_id:
                 errors["cancelled_by"] = "A cancellation actor is required."
@@ -692,6 +700,18 @@ class LecturerAvailabilityWindow(models.Model):
                 errors["cancellation_reason"] = "A cancellation reason is required."
         elif self.cancelled_by_id or cancellation_reason:
             errors["cancelled_at"] = "A cancellation timestamp is required."
+
+        if (
+            self.pk
+            and self.cancelled_at is None
+            and LecturerAvailabilityWindow.objects.filter(
+                pk=self.pk,
+                cancelled_at__isnull=False,
+            ).exists()
+        ):
+            errors["cancelled_at"] = (
+                "A cancelled availability window cannot be reactivated."
+            )
 
         if (
             self.cancelled_at is None
@@ -903,4 +923,3 @@ class LecturerCapacityAudit(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
-

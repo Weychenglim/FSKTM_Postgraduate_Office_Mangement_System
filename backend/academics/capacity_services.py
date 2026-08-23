@@ -1,3 +1,7 @@
+import hashlib
+import json
+import re
+
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -12,10 +16,15 @@ from .models import (
     LecturerCapacityEntry,
     SemesterCapacityPlan,
 )
+from .services import lock_academic_semesters
 
 
 class CapacityLifecycleConflict(Exception):
     """The requested capacity write conflicts with current persisted state."""
+
+
+class CapacityPlanConflict(CapacityLifecycleConflict):
+    """The requested plan write conflicts with current persisted content."""
 
 
 class AvailabilityConflict(CapacityLifecycleConflict):
@@ -24,6 +33,11 @@ class AvailabilityConflict(CapacityLifecycleConflict):
 
 PLAN_CREATED_REASON = "Blank capacity plan created."
 ENTRY_UPDATED_REASON = "Draft capacity entry saved."
+CONTENT_FINGERPRINT_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+WRITABLE_SEMESTER_LIFECYCLES = {
+    AcademicSemester.Lifecycle.DRAFT,
+    AcademicSemester.Lifecycle.ACTIVE,
+}
 
 
 def _require_reason(reason):
@@ -50,8 +64,51 @@ def _entry_snapshot(entry):
     }
 
 
+def _capacity_plan_content_payload(plan, entries):
+    return {
+        "planId": plan.pk,
+        "semesterId": plan.academic_semester_id,
+        "version": plan.version,
+        "lifecycleStatus": plan.lifecycle_status,
+        "origin": plan.origin,
+        "supersedesId": plan.supersedes_id,
+        "entries": [
+            {
+                "entryId": entry.pk,
+                "lecturerId": entry.lecturer_id,
+                "supervisorLimit": entry.supervisor_limit,
+                "panelLimit": entry.panel_limit,
+                "updatedAt": _iso_or_none(entry.updated_at),
+            }
+            for entry in sorted(
+                entries, key=lambda entry: (entry.lecturer_id, entry.pk)
+            )
+        ],
+    }
+
+
+def _capacity_plan_content_fingerprint(plan, entries):
+    canonical = json.dumps(
+        _capacity_plan_content_payload(plan, entries),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def capacity_plan_content_fingerprint(plan) -> str:
+    entries = list(
+        LecturerCapacityEntry.objects.filter(plan_id=plan.pk).order_by(
+            "lecturer_id",
+            "pk",
+        )
+    )
+    return _capacity_plan_content_fingerprint(plan, entries)
+
+
 def capacity_plan_snapshot(plan) -> dict:
-    entries = (
+    entries = list(
         LecturerCapacityEntry.objects.filter(plan_id=plan.pk)
         .select_related("lecturer")
         .order_by("lecturer__staff_no", "lecturer_id", "pk")
@@ -70,6 +127,7 @@ def capacity_plan_snapshot(plan) -> dict:
         "publishedById": plan.published_by_id,
         "publishedAt": _iso_or_none(plan.published_at),
         "publicationReason": plan.publication_reason,
+        "contentFingerprint": _capacity_plan_content_fingerprint(plan, entries),
         "entries": [_entry_snapshot(entry) for entry in entries],
     }
 
@@ -116,18 +174,18 @@ def _audit(
     )
 
 
-def _lock_semesters(semester_ids):
-    requested_ids = {semester_id for semester_id in semester_ids if semester_id}
-    semesters = list(
-        AcademicSemester.objects.select_for_update()
-        .filter(pk__in=requested_ids)
-        .order_by("pk")
+def _lock_semesters(semester_ids=None):
+    requested_ids = (
+        None
+        if semester_ids is None
+        else {semester_id for semester_id in semester_ids if semester_id}
     )
-    if {semester.pk for semester in semesters} != requested_ids:
+    semesters = lock_academic_semesters(requested_ids)
+    if requested_ids is not None and set(semesters) != requested_ids:
         raise CapacityLifecycleConflict(
             "Academic semester changed concurrently; reload and retry."
         )
-    return {semester.pk: semester for semester in semesters}
+    return semesters
 
 
 def _lock_plans_for_semesters(semester_ids):
@@ -136,6 +194,44 @@ def _lock_plans_for_semesters(semester_ids):
         .filter(academic_semester_id__in=semester_ids)
         .order_by("academic_semester_id", "pk")
     )
+
+
+def _lock_capacity_entries_for_plans(plan_ids):
+    return list(
+        LecturerCapacityEntry.objects.select_for_update()
+        .filter(plan_id__in=plan_ids)
+        .select_related("lecturer")
+        .order_by("plan_id", "lecturer_id", "pk")
+    )
+
+
+def _require_writable_semester(semester):
+    if semester.lifecycle_status not in WRITABLE_SEMESTER_LIFECYCLES:
+        raise CapacityPlanConflict(
+            "Capacity changes are only allowed for Draft or Active semesters."
+        )
+
+
+def _validate_expected_fingerprint(expected_fingerprint):
+    if not isinstance(
+        expected_fingerprint, str
+    ) or not CONTENT_FINGERPRINT_PATTERN.fullmatch(expected_fingerprint):
+        raise ValidationError(
+            {
+                "expected_fingerprint": (
+                    "Expected fingerprint must be a 64-character lowercase "
+                    "hexadecimal value."
+                )
+            }
+        )
+    return expected_fingerprint
+
+
+def _assert_expected_fingerprint(plan, entries, expected_fingerprint):
+    if _capacity_plan_content_fingerprint(plan, entries) != expected_fingerprint:
+        raise CapacityPlanConflict(
+            "Capacity plan content changed concurrently; reload and retry."
+        )
 
 
 def _assert_current_plan(passed, current):
@@ -229,6 +325,30 @@ def _copy_current_entries(*, source, target, actor):
         entry.save(force_insert=True)
 
 
+def _require_latest_prior_published_source(*, source, target_semester):
+    source_semester = source.academic_semester
+    if source_semester.ends_on >= target_semester.starts_on:
+        raise CapacityPlanConflict(
+            "Copied capacity plans must use a strictly prior semester."
+        )
+    latest_prior = (
+        SemesterCapacityPlan.objects.filter(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+            academic_semester__ends_on__lt=target_semester.starts_on,
+        )
+        .order_by(
+            "-academic_semester__ends_on",
+            "-academic_semester_id",
+            "-pk",
+        )
+        .first()
+    )
+    if latest_prior is None or latest_prior.pk != source.pk:
+        raise CapacityPlanConflict(
+            "Copied capacity plans must use the latest prior Published semester plan."
+        )
+
+
 def _create_plan_locked(
     *,
     semester,
@@ -236,6 +356,7 @@ def _create_plan_locked(
     source=None,
     supersedes=None,
     allowed_source_lifecycles=None,
+    require_latest_prior=False,
 ):
     plans = _lock_plans_for_semesters(
         {semester.pk, source.academic_semester_id if source else semester.pk}
@@ -251,6 +372,11 @@ def _create_plan_locked(
                 "The source capacity plan cannot be copied in its current lifecycle."
             )
         source = current_source
+        if require_latest_prior:
+            _require_latest_prior_published_source(
+                source=source,
+                target_semester=semester,
+            )
         if supersedes is not None:
             supersedes = current_source
 
@@ -271,7 +397,7 @@ def _create_plan_locked(
         supersedes=supersedes,
         created_by=actor,
     )
-    plan.full_clean()
+    plan.full_clean(validate_unique=False, validate_constraints=False)
     plan.save(force_insert=True)
     if source is not None:
         _copy_current_entries(source=source, target=plan, actor=actor)
@@ -297,13 +423,22 @@ def _create_plan_locked(
 def create_capacity_plan(*, semester, actor, copy_from=None):
     try:
         with transaction.atomic():
-            semester_ids = {semester.pk}
-            if copy_from is not None:
-                semester_ids.add(copy_from.academic_semester_id)
-            semesters = _lock_semesters(semester_ids)
-            current_semester = semesters[semester.pk]
+            semesters = (
+                _lock_semesters()
+                if copy_from is not None
+                else _lock_semesters({semester.pk})
+            )
+            current_semester = semesters.get(semester.pk)
+            if current_semester is None or (
+                copy_from is not None
+                and copy_from.academic_semester_id not in semesters
+            ):
+                raise CapacityPlanConflict(
+                    "Academic semester changed concurrently; reload and retry."
+                )
+            _require_writable_semester(current_semester)
             if copy_from is not None and copy_from.academic_semester_id == semester.pk:
-                raise CapacityLifecycleConflict(
+                raise CapacityPlanConflict(
                     "Use clone_capacity_plan for a same-semester version."
                 )
             return _create_plan_locked(
@@ -314,9 +449,10 @@ def create_capacity_plan(*, semester, actor, copy_from=None):
                 allowed_source_lifecycles={
                     SemesterCapacityPlan.Lifecycle.PUBLISHED,
                 },
+                require_latest_prior=copy_from is not None,
             )
     except IntegrityError as exc:
-        raise CapacityLifecycleConflict(
+        raise CapacityPlanConflict(
             "Capacity plan changed concurrently; reload and retry."
         ) from exc
 
@@ -326,6 +462,7 @@ def clone_capacity_plan(plan, *, actor):
         with transaction.atomic():
             semesters = _lock_semesters({plan.academic_semester_id})
             semester = semesters[plan.academic_semester_id]
+            _require_writable_semester(semester)
             return _create_plan_locked(
                 semester=semester,
                 actor=actor,
@@ -337,17 +474,18 @@ def clone_capacity_plan(plan, *, actor):
                 },
             )
     except IntegrityError as exc:
-        raise CapacityLifecycleConflict(
+        raise CapacityPlanConflict(
             "Capacity plan changed concurrently; reload and retry."
         ) from exc
 
 
 def _locked_current_plan(plan):
-    _lock_semesters({plan.academic_semester_id})
+    semesters = _lock_semesters({plan.academic_semester_id})
+    semester = semesters[plan.academic_semester_id]
     plans = _lock_plans_for_semesters({plan.academic_semester_id})
     current = next((candidate for candidate in plans if candidate.pk == plan.pk), None)
     _assert_current_plan(plan, current)
-    return current
+    return current, semester
 
 
 def update_capacity_entry(
@@ -357,14 +495,23 @@ def update_capacity_entry(
     actor,
     supervisor_limit,
     panel_limit,
+    expected_fingerprint,
 ):
+    expected_fingerprint = _validate_expected_fingerprint(expected_fingerprint)
     try:
         with transaction.atomic():
-            current_plan = _locked_current_plan(plan)
+            current_plan, semester = _locked_current_plan(plan)
+            _require_writable_semester(semester)
             if current_plan.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
                 raise CapacityLifecycleConflict(
                     "Capacity entries can only be changed on Draft plans."
                 )
+            locked_entries = _lock_capacity_entries_for_plans({current_plan.pk})
+            _assert_expected_fingerprint(
+                current_plan,
+                locked_entries,
+                expected_fingerprint,
+            )
             current_lecturer = (
                 Lecturer.objects.select_for_update().filter(pk=lecturer.pk).first()
             )
@@ -393,11 +540,13 @@ def update_capacity_entry(
                     "The Lecturer does not hold a capacity-managed role."
                 )
 
-            entry = (
-                LecturerCapacityEntry.objects.select_for_update()
-                .filter(plan=current_plan, lecturer=current_lecturer)
-                .select_related("lecturer")
-                .first()
+            entry = next(
+                (
+                    candidate
+                    for candidate in locked_entries
+                    if candidate.lecturer_id == current_lecturer.pk
+                ),
+                None,
             )
             before = _entry_snapshot(entry) if entry is not None else None
             if entry is None:
@@ -411,7 +560,7 @@ def update_capacity_entry(
             entry.updated_by = actor
             entry.save()
             _audit(
-                semester=current_plan.academic_semester,
+                semester=semester,
                 plan=current_plan,
                 lecturer=current_lecturer,
                 actor=actor,
@@ -422,7 +571,7 @@ def update_capacity_entry(
             )
             return entry
     except IntegrityError as exc:
-        raise CapacityLifecycleConflict(
+        raise CapacityPlanConflict(
             "Capacity entry changed concurrently; reload and retry."
         ) from exc
 
@@ -481,10 +630,11 @@ def validate_capacity_plan_ready(plan) -> list[str]:
     return _capacity_plan_readiness_errors(plan)
 
 
-def _publish_capacity_plan_atomic(plan, *, actor, reason):
+def _publish_capacity_plan_atomic(plan, *, actor, reason, expected_fingerprint):
     with transaction.atomic():
         semesters = _lock_semesters({plan.academic_semester_id})
         semester = semesters[plan.academic_semester_id]
+        _require_writable_semester(semester)
         plans = _lock_plans_for_semesters({semester.pk})
         current_plan = next(
             (candidate for candidate in plans if candidate.pk == plan.pk),
@@ -496,15 +646,17 @@ def _publish_capacity_plan_atomic(plan, *, actor, reason):
                 "Only a Draft capacity plan can be published."
             )
 
-        locked_entries = list(
-            LecturerCapacityEntry.objects.select_for_update()
-            .filter(plan_id__in=[candidate.pk for candidate in plans])
-            .select_related("lecturer")
-            .order_by("plan_id", "lecturer_id", "pk")
+        locked_entries = _lock_capacity_entries_for_plans(
+            [candidate.pk for candidate in plans]
         )
         entries = [
             entry for entry in locked_entries if entry.plan_id == current_plan.pk
         ]
+        _assert_expected_fingerprint(
+            current_plan,
+            entries,
+            expected_fingerprint,
+        )
         lecturers = _current_eligible_lecturers(lock=True)
         readiness_errors = _capacity_plan_readiness_errors(
             current_plan,
@@ -566,12 +718,18 @@ def _publish_capacity_plan_atomic(plan, *, actor, reason):
         return current_plan
 
 
-def publish_capacity_plan(plan, *, actor, reason):
+def publish_capacity_plan(plan, *, actor, reason, expected_fingerprint):
     reason = _require_reason(reason)
+    expected_fingerprint = _validate_expected_fingerprint(expected_fingerprint)
     try:
-        return _publish_capacity_plan_atomic(plan, actor=actor, reason=reason)
+        return _publish_capacity_plan_atomic(
+            plan,
+            actor=actor,
+            reason=reason,
+            expected_fingerprint=expected_fingerprint,
+        )
     except IntegrityError as exc:
-        raise CapacityLifecycleConflict(
+        raise CapacityPlanConflict(
             "Capacity plan was published concurrently; reload and retry."
         ) from exc
 
@@ -600,6 +758,7 @@ def create_availability_window(
     with transaction.atomic():
         semesters = _lock_semesters({semester.pk})
         current_semester = semesters[semester.pk]
+        _require_writable_semester(current_semester)
         current_lecturer = (
             Lecturer.objects.select_for_update().filter(pk=lecturer.pk).first()
         )
