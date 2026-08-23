@@ -117,6 +117,74 @@ class CapacityModelTests(TestCase):
         values.update(overrides)
         return values
 
+    def delete_capacity_entries_after_related_predicate_expands(self, *, raw):
+        draft_plan = self.create_plan()
+        second_draft_lecturer = self.create_additional_lecturer("DRAFT-DELETE")
+        draft_entries = [
+            LecturerCapacityEntry.objects.create(
+                plan=draft_plan,
+                lecturer=lecturer,
+                supervisor_limit=4,
+                panel_limit=8,
+                updated_by=self.office,
+            )
+            for lecturer in (self.lecturer, second_draft_lecturer)
+        ]
+
+        published_plan = self.create_plan(version=2)
+        published_lecturer = self.create_additional_lecturer("PUBLISHED-DELETE")
+        Lecturer.objects.filter(pk=published_lecturer.pk).update(
+            department="Mathematics"
+        )
+        published_entry = LecturerCapacityEntry.objects.create(
+            plan=published_plan,
+            lecturer=published_lecturer,
+            supervisor_limit=4,
+            panel_limit=8,
+            updated_by=self.office,
+        )
+        SemesterCapacityPlan.objects.filter(pk=published_plan.pk).update(
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+        )
+
+        queryset = LecturerCapacityEntry.objects.filter(
+            lecturer__department="Computing"
+        )
+        original_guard = queryset.__class__._lock_and_validate_delete
+        guard_call_count = 0
+        expansion_call = 1 if raw else 2
+
+        def expand_predicate_after_validation(candidate_queryset):
+            nonlocal guard_call_count
+            guard_call_count += 1
+            captured_pks = original_guard(candidate_queryset)
+            if guard_call_count == expansion_call:
+                Lecturer.objects.filter(pk=published_lecturer.pk).update(
+                    department="Computing"
+                )
+            return captured_pks
+
+        with patch.object(
+            queryset.__class__,
+            "_lock_and_validate_delete",
+            expand_predicate_after_validation,
+        ):
+            result = (
+                queryset._raw_delete(using="default")
+                if raw
+                else queryset.delete()
+            )
+
+        self.assertTrue(
+            LecturerCapacityEntry.objects.filter(pk=published_entry.pk).exists()
+        )
+        self.assertFalse(
+            LecturerCapacityEntry.objects.filter(
+                pk__in=[entry.pk for entry in draft_entries]
+            ).exists()
+        )
+        return result
+
     def test_plan_version_is_unique_within_semester(self):
         self.create_plan(version=1)
 
@@ -391,6 +459,24 @@ class CapacityModelTests(TestCase):
 
         self.assertEqual(deleted, 1)
         self.assertFalse(LecturerCapacityEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_queryset_delete_uses_locked_pks_if_related_predicate_expands(self):
+        deleted, deleted_by_model = (
+            self.delete_capacity_entries_after_related_predicate_expands(raw=False)
+        )
+
+        self.assertEqual(deleted, 2)
+        self.assertEqual(
+            deleted_by_model,
+            {LecturerCapacityEntry._meta.label: 2},
+        )
+
+    def test_raw_delete_uses_locked_pks_if_related_predicate_expands(self):
+        deleted = self.delete_capacity_entries_after_related_predicate_expands(
+            raw=True
+        )
+
+        self.assertEqual(deleted, 2)
 
     def test_plan_admin_keeps_publication_fields_read_only(self):
         draft = self.create_plan()

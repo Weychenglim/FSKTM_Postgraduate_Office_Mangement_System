@@ -346,7 +346,7 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
     def _lock_and_validate_delete(self):
         initial_rows = tuple(self.order_by("pk").values_list("pk", "plan_id"))
         if not initial_rows:
-            return
+            return ()
 
         initial_plan_ids = {plan_id for _, plan_id in initial_rows}
         self._validate_plan_ids_are_draft(initial_plan_ids)
@@ -363,19 +363,29 @@ class LecturerCapacityEntryQuerySet(models.QuerySet):
         self._validate_plan_ids_are_draft(
             plan_id for _, plan_id in locked_rows
         )
+        return tuple(pk for pk, _ in locked_rows)
 
     def delete(self):
         with transaction.atomic(using=self.db):
-            self._lock_and_validate_delete()
-            return super().delete()
+            locked_pks = self._lock_and_validate_delete()
+            delete_queryset = self.model._default_manager.using(self.db).filter(
+                pk__in=locked_pks
+            )
+            return super(
+                LecturerCapacityEntryQuerySet,
+                delete_queryset,
+            ).delete()
 
     def _raw_delete(self, using):
         queryset = self.using(using)
         with transaction.atomic(using=using):
-            queryset._lock_and_validate_delete()
+            locked_pks = queryset._lock_and_validate_delete()
+            delete_queryset = queryset.model._default_manager.using(using).filter(
+                pk__in=locked_pks
+            )
             return super(
                 LecturerCapacityEntryQuerySet,
-                queryset,
+                delete_queryset,
             )._raw_delete(using)
 
 
