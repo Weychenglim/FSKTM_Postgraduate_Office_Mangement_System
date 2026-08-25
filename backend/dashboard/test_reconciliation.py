@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
@@ -24,7 +25,6 @@ from marks.models import (
     Rubric,
     RubricComponent,
 )
-
 
 User = get_user_model()
 PROGRAMME = "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
@@ -78,6 +78,7 @@ class WorkflowReconciliationApiTests(TestCase):
             created_by=self.office,
             activated_at=timezone.now(),
         )
+        publish_test_capacity_plan(self.semester, self.office)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -93,7 +94,9 @@ class WorkflowReconciliationApiTests(TestCase):
             and (record_id is None or item["recordId"] == str(record_id))
         )
 
-    def apply_issue(self, issue, resolution, reason="Verified against faculty records."):
+    def apply_issue(
+        self, issue, resolution, reason="Verified against faculty records."
+    ):
         return self.client.post(
             f"/api/dashboard/reconciliation/issues/{issue['issueId']}/apply/",
             {
@@ -317,9 +320,7 @@ class WorkflowReconciliationApiTests(TestCase):
                 for item in response.data["results"]
             )
         )
-        invalid = self.client.get(
-            "/api/dashboard/reconciliation/", {"page": "invalid"}
-        )
+        invalid = self.client.get("/api/dashboard/reconciliation/", {"page": "invalid"})
         self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_coordinator_profile_and_programme_repairs_require_valid_role(self):
@@ -335,7 +336,9 @@ class WorkflowReconciliationApiTests(TestCase):
             department="Artificial Intelligence",
         )
         self.authenticate(self.office)
-        missing = self.issue("COORDINATOR_PROFILE_MISSING", record_id=coordinator_user.pk)
+        missing = self.issue(
+            "COORDINATOR_PROFILE_MISSING", record_id=coordinator_user.pk
+        )
 
         created = self.apply_issue(
             missing,
@@ -357,7 +360,9 @@ class WorkflowReconciliationApiTests(TestCase):
         lecturer.coordinator.refresh_from_db()
         self.assertEqual(lecturer.coordinator.programme_managed, PROGRAMME)
 
-    def test_unlinked_profile_repair_preserves_primary_key_and_blocks_used_history(self):
+    def test_unlinked_profile_repair_preserves_primary_key_and_blocks_used_history(
+        self,
+    ):
         profile = StudentResearchProfile.objects.create(
             student=None,
             matric_no=self.student.matric_no,
@@ -503,7 +508,9 @@ class WorkflowReconciliationApiTests(TestCase):
         )
 
         self.assertEqual(supervisor_result.status_code, status.HTTP_200_OK)
-        supervisor_appointment = SupervisorAppointment.objects.get(application=application)
+        supervisor_appointment = SupervisorAppointment.objects.get(
+            application=application
+        )
         self.assertEqual(supervisor_appointment.approved_by_id, coordinator_user.pk)
         self.assertEqual(supervisor_appointment.appointment_date, decided_at.date())
         profile = StudentResearchProfile.objects.get(student=self.student_user)
@@ -537,7 +544,9 @@ class WorkflowReconciliationApiTests(TestCase):
             new_status=PanelRecommendation.Status.APPROVED,
             created_at=decided_at,
         )
-        panel_issue = self.issue("PANEL_HANDOFF_INCOMPLETE", record_id=recommendation.pk)
+        panel_issue = self.issue(
+            "PANEL_HANDOFF_INCOMPLETE", record_id=recommendation.pk
+        )
 
         panel_result = self.apply_issue(
             panel_issue, {"action": "COMPLETE_PANEL_HANDOFF"}
@@ -624,7 +633,13 @@ class WorkflowReconciliationApiTests(TestCase):
         appointment.ended_at = timezone.now()
         appointment.ended_by = self.office
         appointment.save(
-            update_fields=["status", "end_outcome", "end_reason", "ended_at", "ended_by"]
+            update_fields=[
+                "status",
+                "end_outcome",
+                "end_reason",
+                "ended_at",
+                "ended_by",
+            ]
         )
         invalid = self.issue("MARKS_TASK_INCONSISTENT", record_id=task.pk)
         retired = self.apply_issue(invalid, {"action": "RETIRE_MARKS_TASK"})
@@ -645,7 +660,13 @@ class WorkflowReconciliationApiTests(TestCase):
         appointment.ended_at = None
         appointment.ended_by = None
         appointment.save(
-            update_fields=["status", "end_outcome", "end_reason", "ended_at", "ended_by"]
+            update_fields=[
+                "status",
+                "end_outcome",
+                "end_reason",
+                "ended_at",
+                "ended_by",
+            ]
         )
         paused = EvaluationTask.objects.create(
             period=period,

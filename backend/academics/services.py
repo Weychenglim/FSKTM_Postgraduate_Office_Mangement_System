@@ -29,17 +29,11 @@ def semester_snapshot(semester):
         "endsOn": semester.ends_on.isoformat(),
         "lifecycleStatus": semester.lifecycle_status,
         "activatedAt": (
-            semester.activated_at.isoformat()
-            if semester.activated_at
-            else None
+            semester.activated_at.isoformat() if semester.activated_at else None
         ),
-        "closedAt": (
-            semester.closed_at.isoformat() if semester.closed_at else None
-        ),
+        "closedAt": (semester.closed_at.isoformat() if semester.closed_at else None),
         "archivedAt": (
-            semester.archived_at.isoformat()
-            if semester.archived_at
-            else None
+            semester.archived_at.isoformat() if semester.archived_at else None
         ),
     }
 
@@ -147,6 +141,15 @@ def activate_semester(semester, *, actor, reason):
             "Semester can only be activated within its configured date range."
         )
 
+    from .capacity_services import validate_published_capacity_ready
+
+    capacity_errors = validate_published_capacity_ready(semester)
+    if capacity_errors:
+        raise SemesterConflict(
+            "Semester activation requires a complete published capacity plan: "
+            + "; ".join(capacity_errors)
+        )
+
     now = timezone.now()
     current = next(
         (
@@ -161,9 +164,7 @@ def activate_semester(semester, *, actor, reason):
         before = semester_snapshot(current)
         current.lifecycle_status = AcademicSemester.Lifecycle.CLOSED
         current.closed_at = now
-        current.save(
-            update_fields=["lifecycle_status", "closed_at", "updated_at"]
-        )
+        current.save(update_fields=["lifecycle_status", "closed_at", "updated_at"])
         _close_marks_periods(current, actor, now)
         _audit(
             current,
@@ -176,9 +177,7 @@ def activate_semester(semester, *, actor, reason):
     before = semester_snapshot(semester)
     semester.lifecycle_status = AcademicSemester.Lifecycle.ACTIVE
     semester.activated_at = now
-    semester.save(
-        update_fields=["lifecycle_status", "activated_at", "updated_at"]
-    )
+    semester.save(update_fields=["lifecycle_status", "activated_at", "updated_at"])
     _audit(
         semester,
         actor,
@@ -245,9 +244,7 @@ def archive_semester(semester, *, actor, reason):
     before = semester_snapshot(semester)
     semester.lifecycle_status = AcademicSemester.Lifecycle.ARCHIVED
     semester.archived_at = timezone.now()
-    semester.save(
-        update_fields=["lifecycle_status", "archived_at", "updated_at"]
-    )
+    semester.save(update_fields=["lifecycle_status", "archived_at", "updated_at"])
     _audit(
         semester,
         actor,

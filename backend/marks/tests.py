@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Lecturer, OfficeStaff, Student
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     PanelAppointment,
     PanelRecommendation,
@@ -32,7 +33,6 @@ from .services import (
     correct_submitted_marks,
     reopen_submitted_marks,
 )
-
 
 User = get_user_model()
 
@@ -138,6 +138,7 @@ class MarkEntryWorkflowTests(APITestCase):
             evaluator=self.lecturer,
             period=self.period,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office_admin)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -196,9 +197,7 @@ class MarkEntryWorkflowTests(APITestCase):
             format="json",
         )
 
-        submitted = self.client.post(
-            f"/api/marks/tasks/{self.task.pk}/submit/"
-        )
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
 
         self.assertEqual(draft.status_code, status.HTTP_200_OK)
         self.assertEqual(submitted.status_code, status.HTTP_400_BAD_REQUEST)
@@ -211,9 +210,7 @@ class MarkEntryWorkflowTests(APITestCase):
             format="json",
         )
 
-        submitted = self.client.post(
-            f"/api/marks/tasks/{self.task.pk}/submit/"
-        )
+        submitted = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
         self.assertEqual(submitted.status_code, status.HTTP_200_OK)
         self.assertEqual(submitted.data["status"], "SUBMITTED")
 
@@ -224,9 +221,7 @@ class MarkEntryWorkflowTests(APITestCase):
         )
         self.assertEqual(locked_edit.status_code, status.HTTP_409_CONFLICT)
 
-        duplicate_submit = self.client.post(
-            f"/api/marks/tasks/{self.task.pk}/submit/"
-        )
+        duplicate_submit = self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
         self.assertEqual(
             duplicate_submit.status_code,
             status.HTTP_409_CONFLICT,
@@ -593,9 +588,7 @@ class MarkEntryWorkflowTests(APITestCase):
         self.period.lifecycle_status = EvaluationPeriod.Lifecycle.PUBLISHED
         self.period.opens_at = timezone.now() - timezone.timedelta(days=2)
         self.period.closes_at = timezone.now() - timezone.timedelta(days=1)
-        self.period.save(
-            update_fields=["lifecycle_status", "opens_at", "closes_at"]
-        )
+        self.period.save(update_fields=["lifecycle_status", "opens_at", "closes_at"])
         ended_response = self.client.post(
             f"/api/marks/periods/{self.period.pk}/generate-tasks/"
         )
@@ -760,14 +753,21 @@ class MarkEntryWorkflowTests(APITestCase):
         response = self.client.get("/api/marks/assignment-options/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["students"][0]["studentId"], self.profile.matric_no)
-        self.assertEqual(response.data["students"][0]["studentName"], self.profile.student_name)
+        self.assertEqual(
+            response.data["students"][0]["studentId"], self.profile.matric_no
+        )
+        self.assertEqual(
+            response.data["students"][0]["studentName"], self.profile.student_name
+        )
         lecturer_ids = {item["userId"] for item in response.data["lecturers"]}
         self.assertIn(self.lecturer.pk, lecturer_ids)
         self.assertIn(self.other_lecturer.pk, lecturer_ids)
         self.assertEqual(response.data["tasks"][0]["taskId"], self.task.pk)
         self.assertEqual(response.data["tasks"][0]["periodId"], self.period.pk)
-        self.assertEqual(response.data["tasks"][0]["evaluatorRole"], EvaluationTask.EvaluatorRole.PANEL)
+        self.assertEqual(
+            response.data["tasks"][0]["evaluatorRole"],
+            EvaluationTask.EvaluatorRole.PANEL,
+        )
 
     def test_office_staff_can_monitor_persisted_mark_records(self):
         MarkEntry.objects.create(
@@ -783,7 +783,9 @@ class MarkEntryWorkflowTests(APITestCase):
         self.assertEqual(response.data[0]["studentId"], "MEA-MARK-001")
         self.assertEqual(response.data[0]["status"], "Draft")
 
-    def test_office_staff_mark_records_show_overdue_for_unsubmitted_closed_period_tasks(self):
+    def test_office_staff_mark_records_show_overdue_for_unsubmitted_closed_period_tasks(
+        self,
+    ):
         self.period.closes_at = timezone.now() - timezone.timedelta(days=1)
         self.period.save(update_fields=["closes_at"])
         self.authenticate(self.office_admin)
@@ -834,9 +836,7 @@ class MarkEntryWorkflowTests(APITestCase):
         )
         self.authenticate(self.office_admin)
 
-        response = self.client.get(
-            f"/api/marks/records/MRK-{self.task.pk:05d}/"
-        )
+        response = self.client.get(f"/api/marks/records/MRK-{self.task.pk:05d}/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["recordId"], f"MRK-{self.task.pk:05d}")
@@ -855,11 +855,11 @@ class MarkEntryWorkflowTests(APITestCase):
         )
         self.assertEqual(response.data["overrideHistory"], [])
 
-    def test_mark_record_detail_is_office_only_and_unknown_records_return_not_found(self):
+    def test_mark_record_detail_is_office_only_and_unknown_records_return_not_found(
+        self,
+    ):
         self.authenticate(self.lecturer)
-        forbidden = self.client.get(
-            f"/api/marks/records/MRK-{self.task.pk:05d}/"
-        )
+        forbidden = self.client.get(f"/api/marks/records/MRK-{self.task.pk:05d}/")
         self.authenticate(self.office_admin)
         missing = self.client.get("/api/marks/records/MRK-99999/")
 

@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     PanelRecommendation,
     StudentResearchProfile,
@@ -16,7 +17,6 @@ from appointments.models import (
 )
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
-
 
 User = get_user_model()
 PROGRAMME = "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
@@ -164,6 +164,7 @@ class WorkflowReportTests(APITestCase):
             target_roles=["LECTURER"],
             display_order=1,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office)
 
     def _user(self, email, name, role):
         return User.objects.create_user(
@@ -216,9 +217,7 @@ class WorkflowReportTests(APITestCase):
         self.assertEqual(response.data["overview"]["overdueMarks"], 1)
         self.assertEqual(response.data["supervisor"]["ageBands"]["4-7"], 1)
         self.assertEqual(response.data["panel"]["ageBands"]["8-14"], 1)
-        self.assertTrue(
-            all(item["studentId"] for item in response.data["attention"])
-        )
+        self.assertTrue(all(item["studentId"] for item in response.data["attention"]))
         self.assertIn(PROGRAMME, response.data["filters"]["availableProgrammes"])
         self.assertIn(
             FOREIGN_PROGRAMME, response.data["filters"]["availableProgrammes"]
@@ -243,9 +242,7 @@ class WorkflowReportTests(APITestCase):
             programmes_response.data["filters"]["availableProgrammes"],
         )
 
-        filtered = self.client.get(
-            "/api/dashboard/reports/", {"programme": PROGRAMME}
-        )
+        filtered = self.client.get("/api/dashboard/reports/", {"programme": PROGRAMME})
         self.assertEqual(filtered.status_code, status.HTTP_200_OK)
         self.assertEqual(filtered.data["filters"]["programme"], PROGRAMME)
         self.assertEqual(filtered.data["supervisor"]["total"], 1)
@@ -360,9 +357,7 @@ class WorkflowReportTests(APITestCase):
         self.assertEqual(workbook.sheetnames, ["Summary", "Supervisor", "Panel"])
         self.assertEqual(workbook["Supervisor"].freeze_panes, "A2")
         self.assertEqual(workbook["Panel"].freeze_panes, "A2")
-        supervisor_ids = {
-            str(cell.value) for cell in workbook["Supervisor"]["A"][1:]
-        }
+        supervisor_ids = {str(cell.value) for cell in workbook["Supervisor"]["A"][1:]}
         self.assertIn(str(self.pending_supervisor.pk), supervisor_ids)
         self.assertNotIn(str(self.approved_supervisor.pk), supervisor_ids)
 

@@ -12,6 +12,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 from announcements.models import Notification
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -23,7 +24,6 @@ from .models import (
     SupervisorDocumentRequirement,
 )
 from marks.models import EvaluationPeriod, EvaluationTask, Rubric, RubricComponent
-
 
 User = get_user_model()
 
@@ -119,6 +119,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             is_active=True,
             display_order=1,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office_admin)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -172,9 +173,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "Human-Centred Artificial Intelligence",
         )
         self.assertFalse(response.data["researchProfileReady"])
-        event = AppointmentWorkflowEvent.objects.get(
-            supervisor_application=application
-        )
+        event = AppointmentWorkflowEvent.objects.get(supervisor_application=application)
         self.assertEqual(event.action, "SUBMIT")
         self.assertEqual(event.new_status, "SUBMITTED_TO_SUPERVISOR")
         self.assertEqual(event.actor, self.student_user)
@@ -208,7 +207,9 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertFalse(SupervisorApplication.objects.exists())
 
     def test_student_submission_is_blocked_without_effective_semester(self):
-        self.academic_semester.delete()
+        AcademicSemester.objects.filter(pk=self.academic_semester.pk).update(
+            lifecycle_status=AcademicSemester.Lifecycle.CLOSED
+        )
         self.authenticate(self.student_user)
 
         response = self.client.post(
@@ -261,9 +262,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             self.coordinator,
         ]:
             self.authenticate(user)
-            response = self.client.get(
-                "/api/appointments/supervisor/workload/"
-            )
+            response = self.client.get("/api/appointments/supervisor/workload/")
             self.assertEqual(
                 response.status_code,
                 status.HTTP_403_FORBIDDEN,
@@ -282,12 +281,8 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         )
         self.authenticate(self.supervisor_user)
 
-        workload = self.client.get(
-            "/api/appointments/supervisor/my-workload/"
-        )
-        supervisees = self.client.get(
-            "/api/appointments/supervisor/supervisees/"
-        )
+        workload = self.client.get("/api/appointments/supervisor/my-workload/")
+        supervisees = self.client.get("/api/appointments/supervisor/supervisees/")
 
         self.assertEqual(workload.status_code, status.HTTP_200_OK)
         self.assertEqual(
@@ -328,9 +323,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             self.office_admin,
         ]:
             self.authenticate(user)
-            response = self.client.get(
-                "/api/appointments/supervisor/my-workload/"
-            )
+            response = self.client.get("/api/appointments/supervisor/my-workload/")
             self.assertEqual(
                 response.status_code,
                 status.HTTP_403_FORBIDDEN,
@@ -498,9 +491,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertEqual(supervisor_approval.status_code, status.HTTP_200_OK)
 
         self.authenticate(self.supervisor_user)
-        eligible = self.client.get(
-            "/api/appointments/panel/eligible-supervisees/"
-        )
+        eligible = self.client.get("/api/appointments/panel/eligible-supervisees/")
         self.assertEqual(eligible.status_code, status.HTTP_200_OK)
         self.assertEqual(eligible.data[0]["studentId"], "MEA-SUP-001")
         self.assertEqual(
@@ -556,9 +547,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             closes_at=timezone.now() + timedelta(days=7),
         )
         self.authenticate(self.office_admin)
-        generated = self.client.post(
-            f"/api/marks/periods/{period.pk}/generate-tasks/"
-        )
+        generated = self.client.post(f"/api/marks/periods/{period.pk}/generate-tasks/")
         self.assertEqual(generated.status_code, status.HTTP_201_CREATED)
         self.assertEqual(generated.data["supervisorCreatedCount"], 1)
         self.assertEqual(generated.data["panelCreatedCount"], 1)
@@ -699,9 +688,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             status.HTTP_200_OK,
         )
         self.authenticate(self.coordinator)
-        url = (
-            f"/api/appointments/supervisor/applications/{application_id}/coordinator-approve/"
-        )
+        url = f"/api/appointments/supervisor/applications/{application_id}/coordinator-approve/"
 
         first = self.client.post(url)
         second = self.client.post(url)

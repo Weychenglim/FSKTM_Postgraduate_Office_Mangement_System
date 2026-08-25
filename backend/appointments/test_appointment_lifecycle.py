@@ -8,7 +8,15 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from academics.models import AcademicSemester
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Panel, Student, Supervisor
+from academics.test_capacity_helpers import publish_test_capacity_plan
+from accounts.models import (
+    Coordinator,
+    Lecturer,
+    OfficeStaff,
+    Panel,
+    Student,
+    Supervisor,
+)
 from marks.models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -29,7 +37,6 @@ from .models import (
     SupervisorDocumentRequirement,
 )
 
-
 User = get_user_model()
 
 
@@ -47,9 +54,13 @@ class AppointmentLifecycleTests(APITestCase):
             programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
         )
         self.supervisor = self._lecturer("old@example.test", "OLD-001", supervisor=True)
-        self.new_supervisor = self._lecturer("new@example.test", "NEW-001", supervisor=True)
+        self.new_supervisor = self._lecturer(
+            "new@example.test", "NEW-001", supervisor=True
+        )
         self.panel = self._lecturer("panel@example.test", "PANEL-001", panel=True)
-        self.new_panel = self._lecturer("new-panel@example.test", "PANEL-002", panel=True)
+        self.new_panel = self._lecturer(
+            "new-panel@example.test", "PANEL-002", panel=True
+        )
         self.coordinator = self._lecturer("coordinator@example.test", "COORD-001")
         self.coordinator.role = User.Role.COORDINATOR
         self.coordinator.save(update_fields=["role"])
@@ -120,6 +131,7 @@ class AppointmentLifecycleTests(APITestCase):
             abstract=self.application.research_abstract,
             supervisor=self.supervisor,
         )
+        publish_test_capacity_plan(self.semester, self.office)
 
     def _lecturer(self, email, staff_no, *, supervisor=False, panel=False):
         user = User.objects.create_user(
@@ -175,11 +187,15 @@ class AppointmentLifecycleTests(APITestCase):
         )
         self.assertEqual(malformed.status_code, status.HTTP_400_BAD_REQUEST)
 
-        response = self._post_end("supervisor", self.supervisor_appointment, self.office)
+        response = self._post_end(
+            "supervisor", self.supervisor_appointment, self.office
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.supervisor_appointment.refresh_from_db()
-        self.assertEqual(self.supervisor_appointment.status, SupervisorAppointment.Status.ENDED)
+        self.assertEqual(
+            self.supervisor_appointment.status, SupervisorAppointment.Status.ENDED
+        )
         self.assertEqual(self.supervisor_appointment.end_outcome, "WITHDRAWN")
         self.assertEqual(self.supervisor_appointment.ended_by, self.office)
         self.assertIsNotNone(self.supervisor_appointment.ended_at)
@@ -233,9 +249,7 @@ class AppointmentLifecycleTests(APITestCase):
         )
         self.assertEqual(allowed.status_code, status.HTTP_200_OK)
 
-        records = self.client.get(
-            "/api/appointments/supervisor/coordinator-records/"
-        )
+        records = self.client.get("/api/appointments/supervisor/coordinator-records/")
         self.assertEqual(records.status_code, status.HTTP_200_OK)
         self.assertEqual([item["id"] for item in records.data], [self.application.pk])
 
@@ -289,7 +303,9 @@ class AppointmentLifecycleTests(APITestCase):
         self.assertEqual(replacement.replaces_appointment, self.supervisor_appointment)
         self.assertEqual(replacement.replacement_reason, "Research direction changed.")
         self.supervisor_appointment.refresh_from_db()
-        self.assertEqual(self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE)
+        self.assertEqual(
+            self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE
+        )
 
     def test_supervisor_replacement_handover_is_atomic_and_cancels_pending_panel(self):
         replacement = SupervisorApplication.objects.create(
@@ -323,7 +339,9 @@ class AppointmentLifecycleTests(APITestCase):
         pending_panel.refresh_from_db()
         self.profile.refresh_from_db()
         new_appointment = replacement.appointment
-        self.assertEqual(self.supervisor_appointment.status, SupervisorAppointment.Status.ENDED)
+        self.assertEqual(
+            self.supervisor_appointment.status, SupervisorAppointment.Status.ENDED
+        )
         self.assertEqual(self.supervisor_appointment.end_outcome, "REPLACED")
         self.assertEqual(new_appointment.supersedes, self.supervisor_appointment)
         self.assertEqual(self.profile.supervisor, self.new_supervisor)
@@ -453,9 +471,7 @@ class AppointmentLifecycleTests(APITestCase):
         self.assertEqual(detail.data["assignment"]["lifecycleStatus"], "RETIRED")
         self.assertEqual(len(detail.data["handoverHistory"]), 1)
 
-        dossier = self.client.get(
-            f"/api/dashboard/progress/{self.student.matric_no}/"
-        )
+        dossier = self.client.get(f"/api/dashboard/progress/{self.student.matric_no}/")
         self.assertEqual(dossier.status_code, status.HTTP_200_OK)
         retired_dossier_task = next(
             item

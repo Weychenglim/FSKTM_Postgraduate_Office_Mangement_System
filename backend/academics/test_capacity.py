@@ -2145,6 +2145,29 @@ class CapacityLifecycleTests(TestCase):
                 expected_fingerprint=capacity_plan_content_fingerprint(plan),
             )
 
+    def test_readiness_excludes_disabled_lecturer_accounts(self):
+        plan = self.complete_plan()
+        disabled = self.create_lecturer(
+            "DISABLED",
+            supervisor=True,
+            panel=True,
+        )
+        disabled.user.is_active = False
+        disabled.user.save(update_fields=["is_active"])
+
+        self.assertEqual(validate_capacity_plan_ready(plan), [])
+        published = publish_capacity_plan(
+            plan,
+            actor=self.office,
+            reason="Disabled accounts are not capacity participants.",
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
+        )
+
+        self.assertEqual(
+            published.lifecycle_status,
+            SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+
     def test_readiness_detects_role_limit_alignment_changes(self):
         plan = self.complete_plan()
         Panel.objects.filter(lecturer=self.lecturer).delete()

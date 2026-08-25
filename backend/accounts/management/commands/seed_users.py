@@ -31,9 +31,15 @@ from appointments.models import (
     SupervisorDocumentRequirement,
 )
 from appointments.supervisor_documents import create_requirement
-from academics.models import AcademicSemester
+from academics.capacity_services import (
+    capacity_eligible_lecturers,
+    capacity_plan_content_fingerprint,
+    create_capacity_plan,
+    publish_capacity_plan,
+    update_capacity_entry,
+)
+from academics.models import AcademicSemester, SemesterCapacityPlan
 from academics.services import activate_semester, create_semester
-
 
 DEMO_USERS = [
     {
@@ -183,6 +189,42 @@ PANEL_RESEARCH_PROFILES = [
 ]
 
 
+def _publish_demo_capacity_plan(semester, actor):
+    existing_plans = SemesterCapacityPlan.objects.filter(academic_semester=semester)
+    published = existing_plans.filter(
+        lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+    ).first()
+    if published is not None:
+        return published
+    if existing_plans.exists():
+        raise CommandError(
+            "Demo seeding will not replace or supersede an existing capacity plan."
+        )
+
+    plan = create_capacity_plan(semester=semester, actor=actor)
+    for lecturer in capacity_eligible_lecturers():
+        update_capacity_entry(
+            plan,
+            lecturer=lecturer,
+            actor=actor,
+            supervisor_limit=(
+                lecturer.supervisor.max_supervisees
+                if hasattr(lecturer, "supervisor")
+                else None
+            ),
+            panel_limit=(
+                lecturer.panel.max_appointments if hasattr(lecturer, "panel") else None
+            ),
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
+        )
+    return publish_capacity_plan(
+        plan,
+        actor=actor,
+        reason="Publish guarded fictional development capacity policy.",
+        expected_fingerprint=capacity_plan_content_fingerprint(plan),
+    )
+
+
 class Command(BaseCommand):
     help = "Seed/refresh development-only demo accounts and role profiles."
 
@@ -250,17 +292,25 @@ class Command(BaseCommand):
     def _profile_conflict(entry):
         email = entry["email"]
         if "student" in entry:
-            return User.objects.filter(
-                student__matric_no=entry["student"]["matric_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(student__matric_no=entry["student"]["matric_no"])
+                .exclude(email=email)
+                .first()
+            )
         if "office_staff" in entry:
-            return User.objects.filter(
-                office_staff__staff_no=entry["office_staff"]["staff_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(
+                    office_staff__staff_no=entry["office_staff"]["staff_no"]
+                )
+                .exclude(email=email)
+                .first()
+            )
         if "lecturer" in entry:
-            return User.objects.filter(
-                lecturer__staff_no=entry["lecturer"]["staff_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(lecturer__staff_no=entry["lecturer"]["staff_no"])
+                .exclude(email=email)
+                .first()
+            )
         return None
 
     def _adopt_profile_conflict(self, entry):
@@ -393,9 +443,7 @@ class Command(BaseCommand):
 
         if not AcademicSemester.objects.exists():
             today = timezone.localdate()
-            office = User.objects.get(
-                email="demo.office.admin@example.test"
-            )
+            office = User.objects.get(email="demo.office.admin@example.test")
             semester = create_semester(
                 actor=office,
                 academic_session=f"{today.year}/{today.year + 1}",
@@ -403,15 +451,14 @@ class Command(BaseCommand):
                 starts_on=today - timedelta(days=30),
                 ends_on=today + timedelta(days=120),
             )
+            _publish_demo_capacity_plan(semester, office)
             activate_semester(
                 semester,
                 actor=office,
                 reason="Create guarded fictional development semester.",
             )
             self.stdout.write(
-                self.style.SUCCESS(
-                    "  Created fictional active academic semester"
-                )
+                self.style.SUCCESS("  Created fictional active academic semester")
             )
 
         demo_semester = (
@@ -420,9 +467,7 @@ class Command(BaseCommand):
             ).first()
             or AcademicSemester.objects.order_by("-starts_on", "-pk").first()
         )
-        demo_coordinator = User.objects.get(
-            email="demo.coordinator@example.test"
-        )
+        demo_coordinator = User.objects.get(email="demo.coordinator@example.test")
         for profile in StudentResearchProfile.objects.filter(
             student__email__in=[
                 item["student_email"] for item in PANEL_RESEARCH_PROFILES

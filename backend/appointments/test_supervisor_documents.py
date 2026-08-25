@@ -16,6 +16,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 
 from .models import (
@@ -24,7 +25,6 @@ from .models import (
     SupervisorDocumentRequirement,
     SupervisorDocumentRequirementAudit,
 )
-
 
 User = get_user_model()
 
@@ -141,6 +141,7 @@ class SupervisorDocumentTests(APITestCase):
             created_by=self.office_user,
             activated_at=timezone.now(),
         )
+        publish_test_capacity_plan(self.semester, self.office_user)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -272,7 +273,9 @@ class SupervisorDocumentTests(APITestCase):
         self.assertEqual(denied.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(unknown.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_requirement_updates_require_reason_keep_code_and_write_immutable_audit(self):
+    def test_requirement_updates_require_reason_keep_code_and_write_immutable_audit(
+        self,
+    ):
         self.authenticate(self.office_user)
         created = self.client.post(
             "/api/appointments/supervisor/document-requirements/",
@@ -417,9 +420,7 @@ class SupervisorDocumentTests(APITestCase):
         )
 
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            detail.data["documents"][0]["availability"], "LEGACY_METADATA"
-        )
+        self.assertEqual(detail.data["documents"][0]["availability"], "LEGACY_METADATA")
         self.assertIsNone(detail.data["documents"][0]["contentType"])
         self.assertEqual(download.status_code, status.HTTP_404_NOT_FOUND)
 

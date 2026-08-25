@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import OfficeStaff
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 
 from .models import (
     EvaluationPeriod,
@@ -17,7 +18,6 @@ from .models import (
     RubricComponent,
 )
 from .services import clone_rubric_version, publish_evaluation_period
-
 
 User = get_user_model()
 
@@ -69,6 +69,7 @@ class MarksConfigurationModelTests(TestCase):
             max_marks=Decimal("60.00"),
             display_order=2,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office_admin)
 
     def test_rubric_readiness_uses_configurable_target(self):
         self.assertEqual(self.rubric.component_total, Decimal("100.00"))
@@ -262,6 +263,7 @@ class MarksConfigurationApiTests(APITestCase):
             created_by=self.office_admin,
             activated_at=timezone.now(),
         )
+        publish_test_capacity_plan(self.academic_semester, self.office_admin)
 
     def create_ready_rubric(self):
         created = self.client.post(
@@ -429,9 +431,7 @@ class MarksConfigurationApiTests(APITestCase):
             format="json",
         )
         default_list = self.client.get("/api/marks/periods/")
-        archived_list = self.client.get(
-            "/api/marks/periods/?includeArchived=true"
-        )
+        archived_list = self.client.get("/api/marks/periods/?includeArchived=true")
 
         self.assertEqual(closed.status_code, status.HTTP_200_OK)
         self.assertEqual(closed.data["effectiveStatus"], "CLOSED")

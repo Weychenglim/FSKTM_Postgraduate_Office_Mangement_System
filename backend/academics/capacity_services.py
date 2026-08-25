@@ -253,7 +253,10 @@ def _assert_current_plan(passed, current):
 
 def _current_eligible_lecturers(*, lock=False):
     eligible_ids = (
-        Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE)
+        Lecturer.objects.filter(
+            lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+            user__is_active=True,
+        )
         .filter(
             Q(pk__in=Supervisor.objects.values("lecturer_id"))
             | Q(pk__in=Panel.objects.values("lecturer_id"))
@@ -629,6 +632,18 @@ def validate_capacity_plan_ready(plan) -> list[str]:
     if plan.pk is None or not SemesterCapacityPlan.objects.filter(pk=plan.pk).exists():
         return ["Capacity plan does not exist."]
     return _capacity_plan_readiness_errors(plan)
+
+
+def validate_published_capacity_ready(semester) -> list[str]:
+    published_plans = list(
+        SemesterCapacityPlan.objects.filter(
+            academic_semester=semester,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        ).order_by("pk")
+    )
+    if len(published_plans) != 1:
+        return ["Exactly one Published capacity plan is required."]
+    return _capacity_plan_readiness_errors(published_plans[0])
 
 
 def capacity_eligible_lecturers():

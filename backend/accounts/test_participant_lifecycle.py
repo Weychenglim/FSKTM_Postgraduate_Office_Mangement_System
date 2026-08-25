@@ -8,6 +8,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     AppointmentWorkflowEvent,
     PanelAppointment,
@@ -35,7 +36,6 @@ from .models import (
     User,
 )
 from .participant_lifecycle import ParticipantLifecycleConflict
-
 
 PROGRAMME = "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
 
@@ -128,6 +128,7 @@ class ParticipantLifecycleTests(APITestCase):
             research_area=self.application.research_area,
             supervisor=self.supervisor_user,
         )
+        publish_test_capacity_plan(self.semester, self.office)
 
     def _lecturer(self, email, staff_no, role=User.Role.LECTURER):
         user = User.objects.create_user(
@@ -167,7 +168,9 @@ class ParticipantLifecycleTests(APITestCase):
             period=period,
             assigned_by=self.office,
         )
-        MarkEntry.objects.create(task=task, status=MarkEntry.Status.DRAFT, comments="Saved draft")
+        MarkEntry.objects.create(
+            task=task, status=MarkEntry.Status.DRAFT, comments="Saved draft"
+        )
         return task
 
     def _transition_student(self, target_status, reason="Lifecycle transition reason"):
@@ -197,14 +200,20 @@ class ParticipantLifecycleTests(APITestCase):
         self.supervisor_appointment.refresh_from_db()
         self.assertEqual(self.student.status, Student.Status.DEFERRED)
         self.assertEqual(task.lifecycle_status, EvaluationTask.Lifecycle.PAUSED)
-        self.assertEqual(self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE)
+        self.assertEqual(
+            self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE
+        )
         self.assertTrue(self.student_user.is_active)
         records = self.client.get("/api/marks/")
         detail = self.client.get(f"/api/marks/records/MRK-{task.pk:05d}/")
-        paused_record = next(row for row in records.data if row["id"] == f"MRK-{task.pk:05d}")
+        paused_record = next(
+            row for row in records.data if row["id"] == f"MRK-{task.pk:05d}"
+        )
         self.assertEqual(paused_record["taskLifecycleStatus"], "PAUSED")
         self.assertEqual(detail.data["assignment"]["lifecycleStatus"], "PAUSED")
-        self.assertEqual(detail.data["assignment"]["pauseReason"], "Lifecycle transition reason")
+        self.assertEqual(
+            detail.data["assignment"]["pauseReason"], "Lifecycle transition reason"
+        )
 
         active = self._transition_student("ACTIVE", "Student returned to study")
 
@@ -213,7 +222,9 @@ class ParticipantLifecycleTests(APITestCase):
         self.assertEqual(task.lifecycle_status, EvaluationTask.Lifecycle.ACTIVE)
         self.assertEqual(task.lifecycle_audits.count(), 2)
 
-    def test_graduation_conflicts_until_pending_work_is_cancelled_then_completes_appointments(self):
+    def test_graduation_conflicts_until_pending_work_is_cancelled_then_completes_appointments(
+        self,
+    ):
         SupervisorApplication.objects.filter(pk=self.application.pk).update(
             status=SupervisorApplication.Status.PENDING_COORDINATOR
         )
@@ -232,7 +243,10 @@ class ParticipantLifecycleTests(APITestCase):
         self.student.refresh_from_db()
         self.supervisor_appointment.refresh_from_db()
         self.assertEqual(self.student.status, Student.Status.GRADUATED)
-        self.assertEqual(self.supervisor_appointment.end_outcome, SupervisorAppointment.EndOutcome.COMPLETED)
+        self.assertEqual(
+            self.supervisor_appointment.end_outcome,
+            SupervisorAppointment.EndOutcome.COMPLETED,
+        )
         self.assertTrue(self.student_user.is_active)
 
     def test_withdrawal_cancels_pending_panel_and_ends_appointments(self):
@@ -252,8 +266,13 @@ class ParticipantLifecycleTests(APITestCase):
         recommendation.refresh_from_db()
         task.refresh_from_db()
         self.supervisor_appointment.refresh_from_db()
-        self.assertEqual(recommendation.status, PanelRecommendation.Status.CANCELLED_BY_OFFICE)
-        self.assertEqual(self.supervisor_appointment.end_outcome, SupervisorAppointment.EndOutcome.WITHDRAWN)
+        self.assertEqual(
+            recommendation.status, PanelRecommendation.Status.CANCELLED_BY_OFFICE
+        )
+        self.assertEqual(
+            self.supervisor_appointment.end_outcome,
+            SupervisorAppointment.EndOutcome.WITHDRAWN,
+        )
         self.assertEqual(task.lifecycle_status, EvaluationTask.Lifecycle.RETIRED)
         self.assertTrue(
             EvaluationTaskLifecycleAudit.objects.filter(
@@ -268,7 +287,9 @@ class ParticipantLifecycleTests(APITestCase):
             ).exists()
         )
 
-    def test_retiring_blocks_candidates_and_final_retirement_requires_resolved_work(self):
+    def test_retiring_blocks_candidates_and_final_retirement_requires_resolved_work(
+        self,
+    ):
         refresh = RefreshToken.for_user(self.supervisor_user)
         retiring = self._transition_lecturer("RETIRING")
         self.assertEqual(retiring.status_code, status.HTTP_200_OK)
@@ -326,7 +347,9 @@ class ParticipantLifecycleTests(APITestCase):
             recommended_member=self.panel_user,
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         )
-        self.assertEqual(self._transition_student("DEFERRED").status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._transition_student("DEFERRED").status_code, status.HTTP_200_OK
+        )
 
         self.client.force_authenticate(self.supervisor_user)
         supervisor_queue = self.client.get("/api/appointments/supervisor/requests/")
@@ -403,7 +426,9 @@ class ParticipantLifecycleTests(APITestCase):
     def test_office_can_cancel_retiring_lecturer_pending_work(self):
         self.application.status = SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
         self.application.save(update_fields=["status"])
-        self.assertEqual(self._transition_lecturer("RETIRING").status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._transition_lecturer("RETIRING").status_code, status.HTTP_200_OK
+        )
 
         self.client.force_authenticate(self.office)
         response = self.client.post(
@@ -436,17 +461,15 @@ class ParticipantLifecycleTests(APITestCase):
 
         self.client.force_authenticate(self.office)
         report = self.client.get("/api/dashboard/reports/")
-        internal = self.client.get(
-            f"/api/dashboard/progress/{self.student.matric_no}/"
-        )
+        internal = self.client.get(f"/api/dashboard/progress/{self.student.matric_no}/")
         self.client.force_authenticate(self.student_user)
-        public = self.client.get(
-            f"/api/dashboard/progress/{self.student.matric_no}/"
-        )
+        public = self.client.get(f"/api/dashboard/progress/{self.student.matric_no}/")
 
         self.assertEqual(report.status_code, status.HTTP_200_OK)
         self.assertEqual(report.data["participantLifecycle"]["deferredStudents"], 1)
-        self.assertEqual(internal.data["student"]["lifecycle"]["reason"], "Approved study deferral")
+        self.assertEqual(
+            internal.data["student"]["lifecycle"]["reason"], "Approved study deferral"
+        )
         self.assertEqual(public.data["student"]["lifecycle"]["status"], "DEFERRED")
         self.assertNotIn("reason", public.data["student"]["lifecycle"])
         self.assertNotIn("changedBy", public.data["student"]["lifecycle"])
@@ -456,6 +479,8 @@ class ParticipantLifecycleTests(APITestCase):
         self.assertEqual(blank.status_code, status.HTTP_400_BAD_REQUEST)
         invalid = self._transition_student("RETIRED")
         self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(self._transition_student("DEFERRED").status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._transition_student("DEFERRED").status_code, status.HTTP_200_OK
+        )
         stale = self._transition_student("DEFERRED")
         self.assertEqual(stale.status_code, status.HTTP_409_CONFLICT)

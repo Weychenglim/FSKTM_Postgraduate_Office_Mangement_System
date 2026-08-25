@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Panel, Student
 from announcements.models import Notification
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -18,7 +19,6 @@ from .models import (
     SupervisorAppointment,
     count_panel_workload,
 )
-
 
 User = get_user_model()
 
@@ -31,14 +31,18 @@ class PanelRecommendationWorkflowTests(APITestCase):
             full_name="Dr. Supervisor",
             role=User.Role.LECTURER,
         )
-        Lecturer.objects.create(user=self.supervisor, staff_no="L10001", department="Software Engineering")
+        Lecturer.objects.create(
+            user=self.supervisor, staff_no="L10001", department="Software Engineering"
+        )
         self.panel = User.objects.create_user(
             email="panel@example.com",
             password="password123",
             full_name="Dr. Panel",
             role=User.Role.LECTURER,
         )
-        Lecturer.objects.create(user=self.panel, staff_no="L10002", department="Data Science")
+        Lecturer.objects.create(
+            user=self.panel, staff_no="L10002", department="Data Science"
+        )
         Panel.objects.create(lecturer=self.panel.lecturer, max_appointments=5)
         self.other_panel = User.objects.create_user(
             email="other-panel@example.com",
@@ -46,7 +50,11 @@ class PanelRecommendationWorkflowTests(APITestCase):
             full_name="Dr. Other Panel",
             role=User.Role.LECTURER,
         )
-        Lecturer.objects.create(user=self.other_panel, staff_no="L10003", department="Artificial Intelligence")
+        Lecturer.objects.create(
+            user=self.other_panel,
+            staff_no="L10003",
+            department="Artificial Intelligence",
+        )
         Panel.objects.create(lecturer=self.other_panel.lecturer, max_appointments=5)
         self.coordinator = User.objects.create_user(
             email="coordinator@example.com",
@@ -54,7 +62,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
             full_name="Dr. Coordinator",
             role=User.Role.COORDINATOR,
         )
-        Lecturer.objects.create(user=self.coordinator, staff_no="C10001", department="Software Engineering")
+        Lecturer.objects.create(
+            user=self.coordinator, staff_no="C10001", department="Software Engineering"
+        )
         Coordinator.objects.create(
             lecturer=self.coordinator.lecturer,
             programme_managed="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
@@ -120,6 +130,7 @@ class PanelRecommendationWorkflowTests(APITestCase):
             supervisor=self.supervisor,
             approved_by=self.coordinator,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office_admin)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -258,7 +269,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
                 status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
             )
 
-    def test_office_panel_records_include_approved_pending_rejected_and_no_panel_profiles(self):
+    def test_office_panel_records_include_approved_pending_rejected_and_no_panel_profiles(
+        self,
+    ):
         approved_profile = self.create_profile("MEA999010", supervisor=self.supervisor)
         approved_recommendation = PanelRecommendation.objects.create(
             profile=approved_profile,
@@ -305,11 +318,19 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         records_by_id = {record["id"]: record for record in response.data}
         self.assertEqual(records_by_id[self.profile.matric_no]["status"], "No Panel")
-        self.assertEqual(records_by_id[self.profile.matric_no]["panelMember"], "Not Assigned")
-        self.assertEqual(records_by_id[approved_profile.matric_no]["status"], "Approved")
+        self.assertEqual(
+            records_by_id[self.profile.matric_no]["panelMember"], "Not Assigned"
+        )
+        self.assertEqual(
+            records_by_id[approved_profile.matric_no]["status"], "Approved"
+        )
         self.assertEqual(records_by_id[pending_profile.matric_no]["status"], "Pending")
-        self.assertEqual(records_by_id[submitted_profile.matric_no]["status"], "Recommendation")
-        self.assertEqual(records_by_id[rejected_profile.matric_no]["status"], "Rejected")
+        self.assertEqual(
+            records_by_id[submitted_profile.matric_no]["status"], "Recommendation"
+        )
+        self.assertEqual(
+            records_by_id[rejected_profile.matric_no]["status"], "Rejected"
+        )
 
     def test_panel_records_are_office_admin_only(self):
         for user in [self.supervisor, self.panel, self.coordinator, self.student]:
@@ -343,12 +364,18 @@ class PanelRecommendationWorkflowTests(APITestCase):
         response = self.client.get("/api/appointments/panel/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        row = next(record for record in response.data if record["id"] == cancelled_profile.matric_no)
+        row = next(
+            record
+            for record in response.data
+            if record["id"] == cancelled_profile.matric_no
+        )
         self.assertEqual(row["status"], "Cancelled")
         self.assertEqual(row["recordId"], f"recommendation-{cancelled.pk}")
         self.assertEqual(row["recommendationId"], cancelled.pk)
         self.assertIsNotNone(row["cancelledAt"])
-        self.assertEqual(row["cancellationReason"], "Student changed research direction.")
+        self.assertEqual(
+            row["cancellationReason"], "Student changed research direction."
+        )
         self.assertEqual(row["workflow"][0]["action"], "SUPERVISOR_CANCEL")
 
     def test_office_panel_records_keep_rejected_history_after_later_approval(self):
@@ -399,7 +426,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
             justification="In scope.",
             status=PanelRecommendation.Status.PENDING_COORDINATOR,
         )
-        out_of_scope_profile = self.create_profile("MEA999016", supervisor=self.supervisor)
+        out_of_scope_profile = self.create_profile(
+            "MEA999016", supervisor=self.supervisor
+        )
         out_of_scope_profile.programme = "MASTER OF DATA SCIENCE (COURSEWORK)"
         out_of_scope_profile.save(update_fields=["programme", "updated_at"])
         PanelRecommendation.objects.create(
@@ -429,7 +458,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
         )
         queue_response = self.client.get("/api/appointments/panel/coordinator-queue/")
         self.assertEqual(queue_response.status_code, status.HTTP_200_OK)
-        self.assertEqual([item["id"] for item in queue_response.data], [in_scope_recommendation.pk])
+        self.assertEqual(
+            [item["id"] for item in queue_response.data], [in_scope_recommendation.pk]
+        )
 
     def test_coordinator_without_managed_programme_gets_empty_workspace(self):
         recommendation = PanelRecommendation.objects.create(
@@ -474,7 +505,8 @@ class PanelRecommendationWorkflowTests(APITestCase):
                 status=recommendation_status,
                 panel_decided_at=(
                     timezone.now()
-                    if recommendation_status != PanelRecommendation.Status.SUBMITTED_TO_PANEL
+                    if recommendation_status
+                    != PanelRecommendation.Status.SUBMITTED_TO_PANEL
                     else None
                 ),
                 coordinator_decided_at=(
@@ -516,7 +548,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         recommendation.refresh_from_db()
-        self.assertEqual(recommendation.status, PanelRecommendation.Status.PENDING_COORDINATOR)
+        self.assertEqual(
+            recommendation.status, PanelRecommendation.Status.PENDING_COORDINATOR
+        )
 
     def test_selected_panel_review_history_keeps_later_coordinator_outcome(self):
         accepted_profile = self.create_profile("MEA999018", supervisor=self.supervisor)
@@ -556,7 +590,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
         response = self.client.get("/api/appointments/panel/review-history/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual({item["id"] for item in response.data}, {accepted.pk, rejected.pk})
+        self.assertEqual(
+            {item["id"] for item in response.data}, {accepted.pk, rejected.pk}
+        )
         accepted_row = next(item for item in response.data if item["id"] == accepted.pk)
         rejected_row = next(item for item in response.data if item["id"] == rejected.pk)
         self.assertEqual(accepted_row["selectedPanelDecision"], "ACCEPTED")
@@ -566,9 +602,13 @@ class PanelRecommendationWorkflowTests(APITestCase):
 
     def test_supervisor_can_submit_one_recommendation_and_duplicate_is_blocked(self):
         recommendation = self.create_submitted_recommendation()
-        self.assertEqual(recommendation["status"], PanelRecommendation.Status.SUBMITTED_TO_PANEL)
+        self.assertEqual(
+            recommendation["status"], PanelRecommendation.Status.SUBMITTED_TO_PANEL
+        )
         self.assertEqual(recommendation["studentId"], self.profile.matric_no)
-        self.assertEqual(recommendation["recommendedMemberId"], self.panel.lecturer.staff_no)
+        self.assertEqual(
+            recommendation["recommendedMemberId"], self.panel.lecturer.staff_no
+        )
         self.assertIsNotNone(recommendation["submittedAt"])
         self.assertIsNone(recommendation["panelDecisionAt"])
         self.assertIsNone(recommendation["coordinatorDecisionAt"])
@@ -598,7 +638,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(PanelRecommendation.objects.filter(profile=self.profile).exists())
+        self.assertFalse(
+            PanelRecommendation.objects.filter(profile=self.profile).exists()
+        )
 
     def test_full_panel_workload_blocks_new_submission(self):
         self.reserve_panel_workload(self.panel, 5)
@@ -624,13 +666,19 @@ class PanelRecommendationWorkflowTests(APITestCase):
         response = self.client.get("/api/appointments/panel/candidates/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        candidate = next(item for item in response.data if item["staffId"] == self.panel.lecturer.staff_no)
+        candidate = next(
+            item
+            for item in response.data
+            if item["staffId"] == self.panel.lecturer.staff_no
+        )
         self.assertEqual(candidate["workloadCount"], 4)
         self.assertEqual(candidate["workloadLimit"], 5)
         self.assertTrue(candidate["canSubmit"])
         self.assertIn("submitted nominations", candidate["workloadHelpText"])
 
-    def test_office_panel_workload_counts_confirmed_appointments_and_pending_nominations(self):
+    def test_office_panel_workload_counts_confirmed_appointments_and_pending_nominations(
+        self,
+    ):
         approved_profile = self.create_profile("MEA999020", supervisor=self.supervisor)
         approved_recommendation = PanelRecommendation.objects.create(
             profile=approved_profile,
@@ -652,7 +700,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
         response = self.client.get("/api/appointments/panel/workload/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        panel_row = next(row for row in response.data if row["id"] == self.panel.lecturer.staff_no)
+        panel_row = next(
+            row for row in response.data if row["id"] == self.panel.lecturer.staff_no
+        )
         self.assertEqual(panel_row["currentStudents"], 5)
         self.assertEqual(panel_row["confirmedAppointments"], 1)
         self.assertEqual(panel_row["pendingNominations"], 4)
@@ -692,7 +742,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
             format="json",
         )
         self.assertEqual(accept.status_code, status.HTTP_200_OK)
-        self.assertEqual(accept.data["status"], PanelRecommendation.Status.PENDING_COORDINATOR)
+        self.assertEqual(
+            accept.data["status"], PanelRecommendation.Status.PENDING_COORDINATOR
+        )
         self.assertIsNotNone(accept.data["panelDecisionAt"])
         self.assertTrue(
             Notification.objects.filter(
@@ -727,7 +779,11 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(assignments.status_code, status.HTTP_200_OK)
         self.assertEqual(assignments.data[0]["studentId"], self.profile.matric_no)
         self.assertEqual(assignments.data[0]["status"], "ACTIVE")
-        self.assertTrue(PanelAppointment.objects.filter(recommendation_id=recommendation["id"]).exists())
+        self.assertTrue(
+            PanelAppointment.objects.filter(
+                recommendation_id=recommendation["id"]
+            ).exists()
+        )
 
     def test_student_without_confirmed_panel_appointment_receives_pending_state(self):
         self.authenticate(self.student)
@@ -764,8 +820,12 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(response.data["status"], "PENDING")
         self.assertEqual(response.data["readinessState"], "SUPERVISOR_REQUIRED")
         self.assertEqual(response.data["studentName"], unprofiled_student.full_name)
-        self.assertEqual(response.data["studentId"], unprofiled_student.student.matric_no)
-        self.assertEqual(response.data["programme"], unprofiled_student.student.programme)
+        self.assertEqual(
+            response.data["studentId"], unprofiled_student.student.matric_no
+        )
+        self.assertEqual(
+            response.data["programme"], unprofiled_student.student.programme
+        )
         self.assertEqual(response.data["supervisorName"], "Not assigned yet")
         self.assertIsNone(response.data["panelMemberName"])
 
@@ -877,13 +937,13 @@ class PanelRecommendationWorkflowTests(APITestCase):
             f"/api/appointments/panel/recommendations/{recommendation['id']}/coordinator-approve/",
             format="json",
         )
-        self.assertEqual(panel_coordinator_approve.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            panel_coordinator_approve.status_code, status.HTTP_403_FORBIDDEN
+        )
 
     def test_panel_recommendation_detail_protects_internal_history_from_student(self):
         recommendation = self.create_submitted_recommendation()
-        detail_url = (
-            f"/api/appointments/panel/recommendations/{recommendation['id']}/"
-        )
+        detail_url = f"/api/appointments/panel/recommendations/{recommendation['id']}/"
 
         for user in [self.supervisor, self.panel, self.coordinator, self.office_admin]:
             self.authenticate(user)
@@ -913,7 +973,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
             format="json",
         )
         self.assertEqual(rejected.status_code, status.HTTP_200_OK)
-        self.assertEqual(rejected.data["status"], PanelRecommendation.Status.REJECTED_BY_PANEL)
+        self.assertEqual(
+            rejected.data["status"], PanelRecommendation.Status.REJECTED_BY_PANEL
+        )
         self.assertEqual(rejected.data["rejectionReason"], "Workload conflict.")
 
         self.authenticate(self.supervisor)

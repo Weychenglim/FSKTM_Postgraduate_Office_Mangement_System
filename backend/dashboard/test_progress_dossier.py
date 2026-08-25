@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     AppointmentWorkflowEvent,
     PanelRecommendation,
@@ -15,7 +16,6 @@ from appointments.models import (
 )
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
-
 
 User = get_user_model()
 PROGRAMME = "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
@@ -242,6 +242,7 @@ class StudentProgressDossierTests(APITestCase):
             target_roles=["STUDENT"],
             display_order=1,
         )
+        publish_test_capacity_plan(self.academic_semester, self.office)
 
     def create_user(self, email, name, role):
         return User.objects.create_user(
@@ -301,8 +302,13 @@ class StudentProgressDossierTests(APITestCase):
             ["SUPERVISOR", "PANEL", "MARKS", "TIMELINE"],
         )
         self.assertEqual(response.data["student"]["studentId"], self.student.matric_no)
-        self.assertEqual(response.data["supervisor"]["currentRecordId"], str(self.pending_supervisor.pk))
-        self.assertEqual(response.data["panel"]["currentRecordId"], str(self.pending_panel.pk))
+        self.assertEqual(
+            response.data["supervisor"]["currentRecordId"],
+            str(self.pending_supervisor.pk),
+        )
+        self.assertEqual(
+            response.data["panel"]["currentRecordId"], str(self.pending_panel.pk)
+        )
         self.assertEqual(len(response.data["supervisor"]["records"]), 2)
         self.assertEqual(len(response.data["panel"]["records"]), 2)
         self.assertEqual(len(response.data["marks"]["tasks"]), 2)
@@ -401,7 +407,9 @@ class StudentProgressDossierTests(APITestCase):
         )
 
         mark_task = response.data["marks"]["tasks"][0]
-        self.assertIn(mark_task["status"], {"DRAFT", "OVERDUE", "NOT_STARTED", "SUBMITTED"})
+        self.assertIn(
+            mark_task["status"], {"DRAFT", "OVERDUE", "NOT_STARTED", "SUBMITTED"}
+        )
         for sensitive_key in (
             "evaluator",
             "evaluatorId",

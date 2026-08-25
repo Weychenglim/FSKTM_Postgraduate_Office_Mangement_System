@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
 from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     PanelRecommendation,
     StudentResearchProfile,
@@ -14,7 +15,6 @@ from appointments.models import (
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 from dashboard.actions import _sort_key
-
 
 User = get_user_model()
 
@@ -128,6 +128,7 @@ class DashboardSummaryTests(APITestCase):
             period=period,
         )
         MarkEntry.objects.create(task=task, status=MarkEntry.Status.DRAFT)
+        publish_test_capacity_plan(self.academic_semester, self.office)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -269,9 +270,7 @@ class DashboardSummaryTests(APITestCase):
             {task["targetModule"] for task in tasks},
             {"SUPERVISOR_APPOINTMENTS"},
         )
-        self.assertTrue(
-            all(task["waitingOn"] == "SUPERVISOR" for task in tasks)
-        )
+        self.assertTrue(all(task["waitingOn"] == "SUPERVISOR" for task in tasks))
 
     def test_action_feed_limits_results_to_twenty(self):
         timeline = SemesterTimeline.objects.create(

@@ -7,10 +7,17 @@ from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from academics.capacity_services import (
+    capacity_plan_content_fingerprint,
+    create_capacity_plan,
+    publish_capacity_plan,
+    update_capacity_entry,
+)
 from academics.models import AcademicSemester, AcademicSemesterAudit
 from academics.services import activate_semester, lock_academic_semesters
+from academics.test_capacity_helpers import publish_test_capacity_plan
+from accounts.models import Lecturer, Supervisor
 from marks.models import EvaluationPeriod, MarksConfigurationAudit, Rubric
-
 
 User = get_user_model()
 
@@ -109,6 +116,7 @@ class AcademicSemesterLockOrderTests(TransactionTestCase):
             created_by=actor,
         )
         self.assertLess(current.pk, target.pk)
+        publish_test_capacity_plan(target, actor)
         observed_lock_orders = []
 
         def record_lock_order(semester_ids=None):
@@ -163,6 +171,10 @@ class AcademicSemesterApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
         semester_id = response.data["id"]
+        publish_test_capacity_plan(
+            AcademicSemester.objects.get(pk=semester_id),
+            self.office,
+        )
 
         activated = self.client.post(
             f"/api/academics/semesters/{semester_id}/activate/",
@@ -176,6 +188,147 @@ class AcademicSemesterApiTests(TestCase):
         active = self.client.get("/api/academics/semesters/active/")
         self.assertEqual(active.status_code, 200)
         self.assertEqual(active.data["semester"]["id"], semester_id)
+
+    def test_activation_requires_a_published_capacity_plan_without_side_effects(self):
+        today = date.today()
+        previous = AcademicSemester.objects.create(
+            code=f"{today.year - 1}-{today.year}-S2",
+            academic_session=f"{today.year - 1}/{today.year}",
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=today - timedelta(days=120),
+            ends_on=today - timedelta(days=1),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+        rubric = Rubric.objects.create(
+            name="Blocked Handover Rubric",
+            code="blocked-handover-rubric",
+        )
+        period = EvaluationPeriod.objects.create(
+            name="Blocked Handover Period",
+            semester=previous.label,
+            academic_semester=previous,
+            rubric=rubric,
+            lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+            is_open=True,
+        )
+        target = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today,
+            ends_on=today + timedelta(days=100),
+            created_by=self.office,
+        )
+
+        blocked = self.client.post(
+            f"/api/academics/semesters/{target.pk}/activate/",
+            {"reason": "Attempt without capacity policy."},
+            format="json",
+        )
+
+        self.assertEqual(blocked.status_code, 409)
+        self.assertIn("published capacity plan", str(blocked.data).lower())
+        previous.refresh_from_db()
+        target.refresh_from_db()
+        period.refresh_from_db()
+        self.assertEqual(previous.lifecycle_status, AcademicSemester.Lifecycle.ACTIVE)
+        self.assertEqual(target.lifecycle_status, AcademicSemester.Lifecycle.DRAFT)
+        self.assertEqual(period.lifecycle_status, EvaluationPeriod.Lifecycle.PUBLISHED)
+        self.assertTrue(period.is_open)
+        self.assertFalse(previous.audits.filter(action="HANDOVER_CLOSE").exists())
+        self.assertFalse(target.audits.filter(action="ACTIVATE").exists())
+        self.assertFalse(
+            MarksConfigurationAudit.objects.filter(
+                entity_id=period.pk,
+                action="SEMESTER_CLOSE",
+            ).exists()
+        )
+
+    def test_activation_rejects_an_incomplete_published_capacity_plan(self):
+        lecturer_user = User.objects.create_user(
+            email="capacity.supervisor@example.test",
+            password="local-test-password",
+            full_name="Capacity Supervisor",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=lecturer_user,
+            staff_no="CAP-ACT-001",
+            lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+        )
+        Supervisor.objects.create(lecturer=lecturer, max_supervisees=4)
+        today = date.today()
+        target = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today,
+            ends_on=today + timedelta(days=100),
+            created_by=self.office,
+        )
+        plan = create_capacity_plan(semester=target, actor=self.office)
+        type(plan).objects.filter(pk=plan.pk).update(lifecycle_status="PUBLISHED")
+
+        blocked = self.client.post(
+            f"/api/academics/semesters/{target.pk}/activate/",
+            {"reason": "Attempt with incomplete capacity policy."},
+            format="json",
+        )
+
+        self.assertEqual(blocked.status_code, 409)
+        self.assertIn("capacity entry is required", str(blocked.data).lower())
+        target.refresh_from_db()
+        self.assertEqual(target.lifecycle_status, AcademicSemester.Lifecycle.DRAFT)
+        self.assertFalse(target.audits.filter(action="ACTIVATE").exists())
+
+    def test_activation_accepts_one_complete_published_capacity_plan(self):
+        lecturer_user = User.objects.create_user(
+            email="capacity.valid@example.test",
+            password="local-test-password",
+            full_name="Capacity Valid Supervisor",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=lecturer_user,
+            staff_no="CAP-ACT-002",
+            lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+        )
+        Supervisor.objects.create(lecturer=lecturer, max_supervisees=5)
+        today = date.today()
+        target = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today,
+            ends_on=today + timedelta(days=100),
+            created_by=self.office,
+        )
+        plan = create_capacity_plan(semester=target, actor=self.office)
+        update_capacity_entry(
+            plan,
+            lecturer=lecturer,
+            actor=self.office,
+            supervisor_limit=5,
+            panel_limit=None,
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
+        )
+        publish_capacity_plan(
+            plan,
+            actor=self.office,
+            reason="Publish a complete activation policy.",
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
+        )
+
+        activated = self.client.post(
+            f"/api/academics/semesters/{target.pk}/activate/",
+            {"reason": "Start the capacity-governed semester."},
+            format="json",
+        )
+
+        self.assertEqual(activated.status_code, 200)
+        target.refresh_from_db()
+        self.assertEqual(target.lifecycle_status, AcademicSemester.Lifecycle.ACTIVE)
 
     def test_student_cannot_manage_semesters(self):
         self.client.force_authenticate(self.student)
@@ -327,6 +480,10 @@ class AcademicSemesterApiTests(TestCase):
             },
             format="json",
         )
+        publish_test_capacity_plan(
+            AcademicSemester.objects.get(pk=created.data["id"]),
+            self.office,
+        )
 
         activated = self.client.post(
             f"/api/academics/semesters/{created.data['id']}/activate/",
@@ -340,9 +497,7 @@ class AcademicSemesterApiTests(TestCase):
         self.assertEqual(previous.lifecycle_status, "CLOSED")
         self.assertEqual(period.lifecycle_status, "CLOSED")
         self.assertFalse(period.is_open)
-        self.assertTrue(
-            previous.audits.filter(action="HANDOVER_CLOSE").exists()
-        )
+        self.assertTrue(previous.audits.filter(action="HANDOVER_CLOSE").exists())
         self.assertTrue(
             MarksConfigurationAudit.objects.filter(
                 entity_id=period.pk,
