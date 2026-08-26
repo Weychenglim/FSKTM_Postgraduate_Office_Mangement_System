@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 from importlib import import_module
+from unittest.mock import patch
 
 from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
@@ -9,9 +10,16 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from accounts.models import (
+    Coordinator,
+    Lecturer,
+    OfficeStaff,
+    Panel,
+    Student,
+    Supervisor,
+)
 from announcements.models import Notification
-from academics.models import AcademicSemester
+from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 
 from .models import (
@@ -72,6 +80,10 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         Supervisor.objects.create(
             lecturer=self.other_supervisor.lecturer,
             max_supervisees=2,
+        )
+        Panel.objects.create(
+            lecturer=self.other_supervisor.lecturer,
+            max_appointments=5,
         )
         self.coordinator = User.objects.create_user(
             email="supervisor-coordinator@example.com",
@@ -206,6 +218,189 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertIn("researchArea", response.data)
         self.assertFalse(SupervisorApplication.objects.exists())
 
+    def test_candidates_expose_semester_capacity_and_hide_unavailable_lecturers(self):
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.supervisor_user.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=today + timedelta(days=2),
+            reason="Unavailable for a private operational reason.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.student_user)
+
+        response = self.client.get("/api/appointments/supervisor/candidates/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(
+            self.supervisor_user.lecturer.staff_no,
+            {candidate["id"] for candidate in response.data},
+        )
+        candidate = next(
+            item
+            for item in response.data
+            if item["id"] == self.other_supervisor.lecturer.staff_no
+        )
+        self.assertEqual(candidate["semesterId"], self.academic_semester.pk)
+        self.assertIsNotNone(candidate["capacityPlanId"])
+        self.assertEqual(candidate["capacityPlanVersion"], 1)
+        self.assertEqual(candidate["capacityState"], "AVAILABLE")
+        self.assertEqual(candidate["workloadCount"], 0)
+        self.assertEqual(candidate["workloadLimit"], 2)
+        self.assertEqual(candidate["availableSlots"], 2)
+        self.assertTrue(candidate["selectable"])
+        self.assertIsNone(candidate["unavailableUntil"])
+
+    def test_crafted_unavailable_supervisor_submission_returns_conflict(self):
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.supervisor_user.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=today + timedelta(days=2),
+            reason="Private operational reason must not be disclosed.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.student_user)
+
+        response = self.client.post(
+            "/api/appointments/supervisor/applications/",
+            {
+                "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "researchTitle": "Capacity guarded workflow",
+                "researchArea": "Software Engineering",
+                "researchAbstract": "A direct identifier must not bypass capacity.",
+                "documents": [
+                    SimpleUploadedFile(
+                        "proposal.pdf",
+                        b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
+                        content_type="application/pdf",
+                    )
+                ],
+                "requirementCodes": ["research-proposal"],
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("temporarily unavailable", str(response.data).lower())
+        self.assertNotIn("private operational", str(response.data).lower())
+        self.assertFalse(SupervisorApplication.objects.exists())
+
+    def test_full_supervisor_remains_visible_but_is_not_selectable(self):
+        for index in range(2):
+            user = User.objects.create_user(
+                email=f"capacity-supervisee-{index}@example.test",
+                password="password123",
+                full_name=f"Capacity Supervisee {index}",
+                role=User.Role.STUDENT,
+            )
+            student = Student.objects.create(
+                user=user,
+                matric_no=f"CAP-SUP-{index}",
+                programme=self.student_user.student.programme,
+            )
+            application = SupervisorApplication.objects.create(
+                student=student,
+                academic_semester=self.academic_semester,
+                proposed_supervisor=self.supervisor_user,
+                research_title=f"Capacity research {index}",
+                research_area="Software Engineering",
+                research_abstract="Existing active supervision.",
+                status=SupervisorApplication.Status.APPROVED,
+            )
+            SupervisorAppointment.objects.create(
+                application=application,
+                student=student,
+                supervisor=self.supervisor_user,
+                approved_by=self.coordinator,
+            )
+        self.authenticate(self.student_user)
+
+        response = self.client.get("/api/appointments/supervisor/candidates/")
+
+        candidate = next(
+            item
+            for item in response.data
+            if item["id"] == self.supervisor_user.lecturer.staff_no
+        )
+        self.assertEqual(candidate["capacityState"], "FULL")
+        self.assertEqual(candidate["workloadCount"], 2)
+        self.assertEqual(candidate["availableSlots"], 0)
+        self.assertFalse(candidate["selectable"])
+
+    def test_existing_application_keeps_selected_identity_with_public_unavailable_date(
+        self,
+    ):
+        application_id = self.submit_application().data["id"]
+        today = timezone.localdate()
+        ends_on = today + timedelta(days=2)
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.supervisor_user.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=ends_on,
+            reason="Private reason must not leave the Office boundary.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.student_user)
+
+        response = self.client.get("/api/appointments/supervisor/applications/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        application = next(
+            item for item in response.data if item["id"] == application_id
+        )
+        self.assertEqual(
+            application["proposedSupervisor"],
+            self.supervisor_user.full_name,
+        )
+        self.assertEqual(application["unavailableUntil"], ends_on.isoformat())
+        self.assertNotIn("private reason", str(application).lower())
+
+    def test_final_approval_rechecks_capacity_and_preserves_pending_application(self):
+        application_id = self.submit_application().data["id"]
+        self.assertEqual(
+            self.accept_by_supervisor(application_id).status_code,
+            status.HTTP_200_OK,
+        )
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.supervisor_user.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=today + timedelta(days=1),
+            reason="Private final-approval restriction.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.coordinator)
+        url = (
+            f"/api/appointments/supervisor/applications/{application_id}/"
+            "coordinator-approve/"
+        )
+
+        blocked = self.client.post(url)
+
+        self.assertEqual(blocked.status_code, status.HTTP_409_CONFLICT)
+        application = SupervisorApplication.objects.get(pk=application_id)
+        self.assertEqual(
+            application.status,
+            SupervisorApplication.Status.PENDING_COORDINATOR,
+        )
+        self.assertFalse(SupervisorAppointment.objects.exists())
+        self.assertFalse(StudentResearchProfile.objects.exists())
+        with patch(
+            "academics.capacity.timezone.localdate",
+            return_value=today + timedelta(days=2),
+        ):
+            approved = self.client.post(url)
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+
     def test_student_submission_is_blocked_without_effective_semester(self):
         AcademicSemester.objects.filter(pk=self.academic_semester.pk).update(
             lifecycle_status=AcademicSemester.Lifecycle.CLOSED
@@ -248,6 +443,14 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertEqual(supervisor_row["lecturerName"], "Dr. Requested Supervisor")
         self.assertEqual(supervisor_row["currentStudents"], 1)
         self.assertEqual(supervisor_row["workloadLimit"], 2)
+        self.assertEqual(supervisor_row["semesterId"], self.academic_semester.pk)
+        self.assertIsNotNone(supervisor_row["capacityPlanId"])
+        self.assertEqual(supervisor_row["capacityPlanVersion"], 1)
+        self.assertEqual(supervisor_row["capacityState"], "AVAILABLE")
+        self.assertEqual(supervisor_row["workloadCount"], 1)
+        self.assertEqual(supervisor_row["availableSlots"], 1)
+        self.assertTrue(supervisor_row["selectable"])
+        self.assertIsNone(supervisor_row["unavailableUntil"])
         self.assertEqual(supervisor_row["availability"], "Near Limit")
         self.assertEqual(len(supervisor_row["supervisees"]), 1)
         self.assertEqual(
@@ -291,6 +494,13 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "currentStudents": 1,
                 "workloadLimit": 2,
                 "availableSlots": 1,
+                "semesterId": self.academic_semester.pk,
+                "capacityPlanId": self.academic_semester.capacity_plans.get().pk,
+                "capacityPlanVersion": 1,
+                "capacityState": "AVAILABLE",
+                "workloadCount": 1,
+                "selectable": True,
+                "unavailableUntil": None,
             },
         )
         self.assertEqual(supervisees.status_code, status.HTTP_200_OK)
@@ -843,7 +1053,10 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.assertEqual(resubmitted.status_code, status.HTTP_201_CREATED)
         self.assertEqual(SupervisorApplication.objects.count(), 2)
 
-    def test_workload_limit_blocks_supervisor_acceptance(self):
+    def test_supervisor_can_review_pending_request_but_final_approval_rechecks_full_capacity(
+        self,
+    ):
+        application_id = self.submit_application().data["id"]
         for index in range(2):
             user = User.objects.create_user(
                 email=f"active-supervisee-{index}@example.com",
@@ -870,11 +1083,22 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 approved_by=self.coordinator,
             )
 
-        application_id = self.submit_application().data["id"]
-        response = self.accept_by_supervisor(application_id)
+        accepted = self.accept_by_supervisor(application_id)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("workload", str(response.data).lower())
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            accepted.data["status"],
+            SupervisorApplication.Status.PENDING_COORDINATOR,
+        )
+        self.authenticate(self.coordinator)
+        blocked = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/coordinator-approve/"
+        )
+        self.assertEqual(blocked.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            SupervisorApplication.objects.get(pk=application_id).status,
+            SupervisorApplication.Status.PENDING_COORDINATOR,
+        )
 
     def test_role_scoped_queues_records_and_history(self):
         application_id = self.submit_application().data["id"]

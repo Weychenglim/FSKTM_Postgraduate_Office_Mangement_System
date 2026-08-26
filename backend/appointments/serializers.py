@@ -4,6 +4,13 @@ from django.core.files.base import ContentFile
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
+from academics.capacity import (
+    CapacityConflict,
+    CapacityRole,
+    CapacityState,
+    assert_capacity_allows_assignment,
+    resolve_lecturer_capacity,
+)
 from academics.services import current_effective_semester
 from accounts.models import Lecturer, Student
 
@@ -18,30 +25,50 @@ from .models import (
     SupervisorApplicationDocument,
     SupervisorAppointment,
     SupervisorDocumentRequirement,
-    count_panel_workload,
-    count_supervisor_workload,
-    panel_workload_limit,
-    supervisor_workload_limit,
 )
-
 
 User = get_user_model()
 
 
 class NoEffectiveSemester(APIException):
     status_code = 409
-    default_detail = (
-        "No active academic semester is currently accepting new workflows."
-    )
+    default_detail = "No active academic semester is currently accepting new workflows."
     default_code = "academic_semester_unavailable"
 
 
 class NoActiveSupervisorAppointment(APIException):
     status_code = 409
-    default_detail = (
-        "An active approved supervisor appointment is required before a panel recommendation can be submitted."
-    )
+    default_detail = "An active approved supervisor appointment is required before a panel recommendation can be submitted."
     default_code = "active_supervisor_appointment_required"
+
+
+class CapacityUnavailable(APIException):
+    status_code = 409
+    default_code = "lecturer_capacity_unavailable"
+
+
+def enforce_capacity(*, user, semester, role):
+    try:
+        return assert_capacity_allows_assignment(
+            user=user,
+            semester=semester,
+            role=role,
+        )
+    except CapacityConflict as exc:
+        raise CapacityUnavailable(str(exc)) from exc
+
+
+def public_unavailable_until(*, user, semester, role):
+    if semester is None:
+        return None
+    resolution = resolve_lecturer_capacity(
+        user=user,
+        semester=semester,
+        role=role,
+    )
+    if resolution.unavailable_until is None:
+        return None
+    return resolution.unavailable_until.isoformat()
 
 
 def related_or_none(obj, attr):
@@ -191,6 +218,13 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
     canSubmit = serializers.SerializerMethodField()
     availability = serializers.SerializerMethodField()
     workloadHelpText = serializers.SerializerMethodField()
+    semesterId = serializers.SerializerMethodField()
+    capacityPlanId = serializers.SerializerMethodField()
+    capacityPlanVersion = serializers.SerializerMethodField()
+    capacityState = serializers.SerializerMethodField()
+    availableSlots = serializers.SerializerMethodField()
+    selectable = serializers.SerializerMethodField()
+    unavailableUntil = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -203,10 +237,21 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
             "canSubmit",
             "availability",
             "workloadHelpText",
+            "semesterId",
+            "capacityPlanId",
+            "capacityPlanVersion",
+            "capacityState",
+            "availableSlots",
+            "selectable",
+            "unavailableUntil",
         ]
 
+    def _capacity(self, obj):
+        return self.context["capacity_resolutions"][obj.pk]
+
     def get_workloadCount(self, obj):
-        return count_panel_workload(obj)
+        resolution = self._capacity(obj)
+        return resolution.active_load + resolution.reserved_load
 
     def get_staffId(self, obj):
         return staff_no_for_user(obj)
@@ -215,16 +260,42 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
         return department_for_user(obj)
 
     def get_workloadLimit(self, obj):
-        return panel_workload_limit(obj)
+        return self._capacity(obj).limit or 0
 
     def get_canSubmit(self, obj):
-        return count_panel_workload(obj) < panel_workload_limit(obj)
+        return self._capacity(obj).state == CapacityState.AVAILABLE
 
     def get_availability(self, obj):
-        return "Available" if count_panel_workload(obj) < panel_workload_limit(obj) else "Workload Full"
+        return (
+            "Available"
+            if self._capacity(obj).state == CapacityState.AVAILABLE
+            else "Workload Full"
+        )
 
     def get_workloadHelpText(self, obj):
         return "Workload includes confirmed active panel appointments and submitted nominations."
+
+    def get_semesterId(self, obj):
+        return self._capacity(obj).semester_id
+
+    def get_capacityPlanId(self, obj):
+        return self._capacity(obj).plan_id
+
+    def get_capacityPlanVersion(self, obj):
+        return self._capacity(obj).plan_version
+
+    def get_capacityState(self, obj):
+        return self._capacity(obj).state
+
+    def get_availableSlots(self, obj):
+        return self._capacity(obj).available_slots
+
+    def get_selectable(self, obj):
+        return self._capacity(obj).state == CapacityState.AVAILABLE
+
+    def get_unavailableUntil(self, obj):
+        value = self._capacity(obj).unavailable_until
+        return value.isoformat() if value is not None else None
 
 
 class PanelRecommendationSerializer(serializers.ModelSerializer):
@@ -236,19 +307,33 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     semester = serializers.SerializerMethodField()
     semesterId = serializers.SerializerMethodField()
     semesterCode = serializers.SerializerMethodField()
-    proposedTopic = serializers.CharField(source="profile.proposed_topic", read_only=True)
+    proposedTopic = serializers.CharField(
+        source="profile.proposed_topic", read_only=True
+    )
     researchArea = serializers.CharField(source="profile.research_area", read_only=True)
     abstract = serializers.CharField(source="profile.abstract", read_only=True)
-    recommendedMember = serializers.CharField(source="recommended_member.full_name", read_only=True)
+    recommendedMember = serializers.CharField(
+        source="recommended_member.full_name", read_only=True
+    )
     recommendedMemberId = serializers.SerializerMethodField()
-    supervisorName = serializers.CharField(source="supervisor.full_name", read_only=True)
+    supervisorName = serializers.CharField(
+        source="supervisor.full_name", read_only=True
+    )
     submittedDate = serializers.SerializerMethodField()
     submittedAt = serializers.DateTimeField(source="submitted_at", read_only=True)
-    panelDecisionAt = serializers.DateTimeField(source="panel_decided_at", read_only=True)
-    coordinatorDecisionAt = serializers.DateTimeField(source="coordinator_decided_at", read_only=True)
+    panelDecisionAt = serializers.DateTimeField(
+        source="panel_decided_at", read_only=True
+    )
+    coordinatorDecisionAt = serializers.DateTimeField(
+        source="coordinator_decided_at", read_only=True
+    )
     cancelledAt = serializers.DateTimeField(source="cancelled_at", read_only=True)
-    cancellationReason = serializers.CharField(source="cancellation_reason", read_only=True)
-    rejectionReason = serializers.CharField(source="display_rejection_reason", read_only=True)
+    cancellationReason = serializers.CharField(
+        source="cancellation_reason", read_only=True
+    )
+    rejectionReason = serializers.CharField(
+        source="display_rejection_reason", read_only=True
+    )
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
     selectedPanelDecision = serializers.SerializerMethodField()
     workflow = serializers.SerializerMethodField()
@@ -262,6 +347,7 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
         source="replacement_reason", read_only=True
     )
     appointmentLifecycle = serializers.SerializerMethodField()
+    unavailableUntil = serializers.SerializerMethodField()
 
     class Meta:
         model = PanelRecommendation
@@ -299,6 +385,7 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
             "replacesAppointmentId",
             "replacementReason",
             "appointmentLifecycle",
+            "unavailableUntil",
         ]
 
     def get_submittedDate(self, obj):
@@ -330,6 +417,13 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
 
     def get_recommendedMemberId(self, obj):
         return staff_no_for_user(obj.recommended_member)
+
+    def get_unavailableUntil(self, obj):
+        return public_unavailable_until(
+            user=obj.recommended_member,
+            semester=obj.academic_semester,
+            role=CapacityRole.PANEL,
+        )
 
     def get_selectedPanelDecision(self, obj):
         if obj.panel_decided_at is None:
@@ -385,11 +479,14 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         request = self.context["request"]
         user = request.user
         if user.role != User.Role.LECTURER:
-            raise serializers.ValidationError("Only lecturers can submit panel recommendations.")
+            raise serializers.ValidationError(
+                "Only lecturers can submit panel recommendations."
+            )
         from accounts.eligibility import (
             profile_student_is_workflow_eligible,
             user_is_assignable_lecturer,
         )
+
         if not user_is_assignable_lecturer(user):
             raise serializers.ValidationError(
                 "Retiring or retired lecturers cannot submit new panel recommendations."
@@ -401,7 +498,9 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 supervisor=user,
             )
         except StudentResearchProfile.DoesNotExist as exc:
-            raise serializers.ValidationError("This student is not assigned to you as supervisor.") from exc
+            raise serializers.ValidationError(
+                "This student is not assigned to you as supervisor."
+            ) from exc
         if not profile_student_is_workflow_eligible(profile):
             raise serializers.ValidationError(
                 "This student's lifecycle status does not permit a new panel recommendation."
@@ -421,19 +520,25 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 is_active=True,
             )
         except User.DoesNotExist as exc:
-            raise serializers.ValidationError("Selected panel lecturer was not found.") from exc
+            raise serializers.ValidationError(
+                "Selected panel lecturer was not found."
+            ) from exc
         if not user_is_assignable_lecturer(recommended_member):
             raise serializers.ValidationError(
                 "The selected panel lecturer is not available for new assignments."
             )
 
         if recommended_member.pk == user.pk:
-            raise serializers.ValidationError("A supervisor cannot recommend themself as panel member.")
+            raise serializers.ValidationError(
+                "A supervisor cannot recommend themself as panel member."
+            )
 
         if profile.panel_recommendations.filter(
             status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
         ).exists():
-            raise serializers.ValidationError("An active panel recommendation already exists for this student.")
+            raise serializers.ValidationError(
+                "An active panel recommendation already exists for this student."
+            )
 
         active_appointment = PanelAppointment.objects.filter(
             profile=profile,
@@ -474,14 +579,14 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 )
             active_appointment = replaced
 
-        if count_panel_workload(recommended_member) >= panel_workload_limit(recommended_member):
-            raise serializers.ValidationError(
-                "Selected panel lecturer has reached the panel workload limit. Please choose another panel member."
-            )
-
         academic_semester = current_effective_semester()
         if academic_semester is None:
             raise NoEffectiveSemester()
+        enforce_capacity(
+            user=recommended_member,
+            semester=academic_semester,
+            role=CapacityRole.PANEL,
+        )
         attrs["profile"] = profile
         attrs["recommended_member"] = recommended_member
         attrs["academic_semester"] = academic_semester
@@ -513,6 +618,11 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "A selected Lecturer is no longer available for new assignments."
             )
+        enforce_capacity(
+            user=validated_data["recommended_member"],
+            semester=validated_data["academic_semester"],
+            role=CapacityRole.PANEL,
+        )
         recommendation = PanelRecommendation(
             profile=profile,
             academic_semester=validated_data["academic_semester"],
@@ -529,7 +639,9 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
 
 
 class ReasonSerializer(serializers.Serializer):
-    reason = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    reason = serializers.CharField(
+        required=True, allow_blank=False, trim_whitespace=True
+    )
 
 
 class SupervisorApplicationDocumentSerializer(serializers.ModelSerializer):
@@ -615,7 +727,9 @@ class SupervisorDocumentRequirementUpdateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if not set(attrs) - {"reason"}:
-            raise serializers.ValidationError("At least one requirement field must change.")
+            raise serializers.ValidationError(
+                "At least one requirement field must change."
+            )
         return attrs
 
     def service_values(self):
@@ -703,6 +817,7 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
         source="replacement_reason", read_only=True
     )
     appointmentLifecycle = serializers.SerializerMethodField()
+    unavailableUntil = serializers.SerializerMethodField()
 
     class Meta:
         model = SupervisorApplication
@@ -737,10 +852,18 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "replacesAppointmentId",
             "replacementReason",
             "appointmentLifecycle",
+            "unavailableUntil",
         ]
 
     def get_proposedSupervisorId(self, obj):
         return staff_no_for_user(obj.proposed_supervisor)
+
+    def get_unavailableUntil(self, obj):
+        return public_unavailable_until(
+            user=obj.proposed_supervisor,
+            semester=obj.academic_semester,
+            role=CapacityRole.SUPERVISOR,
+        )
 
     def get_participantLifecycleStatus(self, obj):
         return obj.student.status.upper()
@@ -819,7 +942,11 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The student profile is not available."
             ) from exc
-        from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
+        from accounts.eligibility import (
+            student_is_workflow_eligible,
+            user_is_assignable_lecturer,
+        )
+
         if not student_is_workflow_eligible(student):
             raise serializers.ValidationError(
                 "Your current lifecycle status does not permit a new supervisor application."
@@ -889,6 +1016,11 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         academic_semester = current_effective_semester()
         if academic_semester is None:
             raise NoEffectiveSemester()
+        enforce_capacity(
+            user=supervisor,
+            semester=academic_semester,
+            role=CapacityRole.SUPERVISOR,
+        )
         attrs["student"] = student
         attrs["supervisor"] = supervisor
         attrs["academic_semester"] = academic_semester
@@ -916,6 +1048,11 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The selected supervisor is no longer available for new assignments."
             )
+        enforce_capacity(
+            user=validated_data["supervisor"],
+            semester=validated_data["academic_semester"],
+            role=CapacityRole.SUPERVISOR,
+        )
         application = SupervisorApplication.objects.create(
             student=student,
             academic_semester=validated_data["academic_semester"],
@@ -955,10 +1092,38 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
     filled = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
     initials = serializers.SerializerMethodField()
+    semesterId = serializers.SerializerMethodField()
+    capacityPlanId = serializers.SerializerMethodField()
+    capacityPlanVersion = serializers.SerializerMethodField()
+    capacityState = serializers.SerializerMethodField()
+    workloadCount = serializers.SerializerMethodField()
+    workloadLimit = serializers.SerializerMethodField()
+    availableSlots = serializers.SerializerMethodField()
+    selectable = serializers.SerializerMethodField()
+    unavailableUntil = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "name", "domain", "filled", "total", "initials"]
+        fields = [
+            "id",
+            "name",
+            "domain",
+            "filled",
+            "total",
+            "initials",
+            "semesterId",
+            "capacityPlanId",
+            "capacityPlanVersion",
+            "capacityState",
+            "workloadCount",
+            "workloadLimit",
+            "availableSlots",
+            "selectable",
+            "unavailableUntil",
+        ]
+
+    def _capacity(self, obj):
+        return self.context["capacity_resolutions"][obj.pk]
 
     def get_id(self, obj):
         return staff_no_for_user(obj)
@@ -967,13 +1132,42 @@ class SupervisorCandidateSerializer(serializers.ModelSerializer):
         return obj.lecturer.specialization or obj.lecturer.department
 
     def get_filled(self, obj):
-        return count_supervisor_workload(obj)
+        return self._capacity(obj).active_load
 
     def get_total(self, obj):
-        return supervisor_workload_limit(obj)
+        return self._capacity(obj).limit or 0
 
     def get_initials(self, obj):
         return "".join(part[0] for part in obj.full_name.split()[:2]).upper()
+
+    def get_semesterId(self, obj):
+        return self._capacity(obj).semester_id
+
+    def get_capacityPlanId(self, obj):
+        return self._capacity(obj).plan_id
+
+    def get_capacityPlanVersion(self, obj):
+        return self._capacity(obj).plan_version
+
+    def get_capacityState(self, obj):
+        return self._capacity(obj).state
+
+    def get_workloadCount(self, obj):
+        resolution = self._capacity(obj)
+        return resolution.active_load + resolution.reserved_load
+
+    def get_workloadLimit(self, obj):
+        return self._capacity(obj).limit or 0
+
+    def get_availableSlots(self, obj):
+        return self._capacity(obj).available_slots
+
+    def get_selectable(self, obj):
+        return self._capacity(obj).state == CapacityState.AVAILABLE
+
+    def get_unavailableUntil(self, obj):
+        value = self._capacity(obj).unavailable_until
+        return value.isoformat() if value is not None else None
 
 
 class PanelAssignmentSerializer(serializers.ModelSerializer):
@@ -991,10 +1185,18 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
     semesterCode = serializers.SerializerMethodField()
     abstract = serializers.CharField(source="profile.abstract")
     initials = serializers.SerializerMethodField()
-    recommendationSubmittedAt = serializers.DateTimeField(source="recommendation.submitted_at", read_only=True)
-    panelDecisionAt = serializers.DateTimeField(source="recommendation.panel_decided_at", read_only=True)
-    coordinatorDecisionAt = serializers.DateTimeField(source="recommendation.coordinator_decided_at", read_only=True)
-    appointmentConfirmedAt = serializers.DateTimeField(source="recommendation.coordinator_decided_at", read_only=True)
+    recommendationSubmittedAt = serializers.DateTimeField(
+        source="recommendation.submitted_at", read_only=True
+    )
+    panelDecisionAt = serializers.DateTimeField(
+        source="recommendation.panel_decided_at", read_only=True
+    )
+    coordinatorDecisionAt = serializers.DateTimeField(
+        source="recommendation.coordinator_decided_at", read_only=True
+    )
+    appointmentConfirmedAt = serializers.DateTimeField(
+        source="recommendation.coordinator_decided_at", read_only=True
+    )
     appointmentId = serializers.IntegerField(source="pk", read_only=True)
     endOutcome = serializers.CharField(source="end_outcome", read_only=True)
     endReason = serializers.CharField(source="end_reason", read_only=True)
@@ -1195,7 +1397,9 @@ def pending_student_panel_payload_from_user(user):
             if application and application.academic_semester_id
             else None
         ),
-        "researchTitle": application.research_title if application else "Not available yet",
+        "researchTitle": (
+            application.research_title if application else "Not available yet"
+        ),
         "supervisorName": (
             application.proposed_supervisor.full_name
             if application

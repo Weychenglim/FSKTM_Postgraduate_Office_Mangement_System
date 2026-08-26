@@ -18,6 +18,14 @@ from accounts.eligibility import (
     user_is_assignable_lecturer,
 )
 from accounts.models import Lecturer, Student
+from academics.capacity import (
+    CapacityConflict,
+    CapacityRole,
+    CapacityState,
+    assert_capacity_allows_assignment,
+    resolve_lecturer_capacity,
+)
+from academics.services import current_effective_semester
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from .models import (
@@ -32,7 +40,6 @@ from .models import (
     SupervisorDocumentRequirement,
     SupervisorDocumentRequirementAudit,
     count_supervisor_workload,
-    panel_workload_limit,
     supervisor_workload_limit,
 )
 from .appointment_lifecycle import (
@@ -76,7 +83,6 @@ from .supervisor_handoff import (
     approve_supervisor_application,
 )
 
-
 User = get_user_model()
 
 
@@ -118,14 +124,19 @@ def panel_record_from_appointment(appointment):
         "recommendationSubmittedAt": recommendation.submitted_at,
         "panelDecisionAt": recommendation.panel_decided_at,
         "coordinatorDecisionAt": recommendation.coordinator_decided_at,
-        "appointmentConfirmedAt": recommendation.coordinator_decided_at or appointment.created_at,
+        "appointmentConfirmedAt": recommendation.coordinator_decided_at
+        or appointment.created_at,
         "rejectionStage": None,
         "rejectionReason": "",
         "workflow": AppointmentWorkflowEventSerializer(
             appointment.recommendation.workflow_events.all(),
             many=True,
         ).data,
-        "status": "Approved" if appointment.status == PanelAppointment.Status.ACTIVE else "Ended",
+        "status": (
+            "Approved"
+            if appointment.status == PanelAppointment.Status.ACTIVE
+            else "Ended"
+        ),
         "updatedDate": appointment.updated_at.strftime("%d %b %Y"),
         "appointmentLifecycle": appointment_lifecycle_payload(appointment),
         **panel_waiting_metadata(recommendation),
@@ -233,7 +244,42 @@ def panel_workload_availability(count, limit):
     return "Available"
 
 
-def supervisor_workload_row(lecturer):
+def capacity_workload_payload(*, lecturer, academic_semester, role, fallback_load):
+    if academic_semester is None:
+        return {
+            "semesterId": None,
+            "capacityPlanId": None,
+            "capacityPlanVersion": None,
+            "capacityState": CapacityState.NOT_CONFIGURED,
+            "workloadCount": fallback_load,
+            "workloadLimit": 0,
+            "availableSlots": 0,
+            "selectable": False,
+            "unavailableUntil": None,
+        }
+    resolution = resolve_lecturer_capacity(
+        user=lecturer,
+        semester=academic_semester,
+        role=role,
+    )
+    return {
+        "semesterId": resolution.semester_id,
+        "capacityPlanId": resolution.plan_id,
+        "capacityPlanVersion": resolution.plan_version,
+        "capacityState": resolution.state,
+        "workloadCount": resolution.active_load + resolution.reserved_load,
+        "workloadLimit": resolution.limit or 0,
+        "availableSlots": resolution.available_slots,
+        "selectable": resolution.state == CapacityState.AVAILABLE,
+        "unavailableUntil": (
+            resolution.unavailable_until.isoformat()
+            if resolution.unavailable_until is not None
+            else None
+        ),
+    }
+
+
+def supervisor_workload_row(lecturer, academic_semester=None):
     active_appointments = list(
         SupervisorAppointment.objects.filter(
             supervisor=lecturer,
@@ -244,8 +290,14 @@ def supervisor_workload_row(lecturer):
             "application",
         )
     )
-    workload_count = len(active_appointments)
-    workload_limit = supervisor_workload_limit(lecturer)
+    capacity = capacity_workload_payload(
+        lecturer=lecturer,
+        academic_semester=academic_semester,
+        role=CapacityRole.SUPERVISOR,
+        fallback_load=len(active_appointments),
+    )
+    workload_count = capacity["workloadCount"]
+    workload_limit = capacity["workloadLimit"]
     return {
         "lecturerId": staff_no_for_user(lecturer),
         "lecturerName": lecturer.full_name,
@@ -257,6 +309,7 @@ def supervisor_workload_row(lecturer):
             workload_limit,
         ),
         "email": lecturer.email,
+        **capacity,
         "supervisees": [
             {
                 "id": appointment.student.matric_no,
@@ -264,16 +317,14 @@ def supervisor_workload_row(lecturer):
                 "programme": appointment.student.programme,
                 "status": "Approved",
                 "topic": appointment.application.research_title,
-                "appointmentDate": format_display_date(
-                    appointment.appointment_date
-                ),
+                "appointmentDate": format_display_date(appointment.appointment_date),
             }
             for appointment in active_appointments
         ],
     }
 
 
-def panel_workload_row(lecturer):
+def panel_workload_row(lecturer, academic_semester=None):
     confirmed_appointments = list(
         PanelAppointment.objects.filter(
             panel_member=lecturer,
@@ -286,8 +337,14 @@ def panel_workload_row(lecturer):
             status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
         ).select_related("profile")
     )
-    workload_count = len(confirmed_appointments) + len(pending_nominations)
-    workload_limit = panel_workload_limit(lecturer)
+    capacity = capacity_workload_payload(
+        lecturer=lecturer,
+        academic_semester=academic_semester,
+        role=CapacityRole.PANEL,
+        fallback_load=len(confirmed_appointments) + len(pending_nominations),
+    )
+    workload_count = capacity["workloadCount"]
+    workload_limit = capacity["workloadLimit"]
     workload_items = [
         {
             "type": "Confirmed Appointment",
@@ -303,7 +360,9 @@ def panel_workload_row(lecturer):
             "studentName": recommendation.profile.student_name,
             "studentId": recommendation.profile.matric_no,
             "researchTitle": recommendation.profile.proposed_topic,
-            "date": format_display_date(recommendation.submitted_at or recommendation.updated_at),
+            "date": format_display_date(
+                recommendation.submitted_at or recommendation.updated_at
+            ),
         }
         for recommendation in pending_nominations
     ]
@@ -315,6 +374,7 @@ def panel_workload_row(lecturer):
         "workloadLimit": workload_limit,
         "availability": panel_workload_availability(workload_count, workload_limit),
         "initials": initials_for_name(lecturer.full_name),
+        **capacity,
         "confirmedAppointments": len(confirmed_appointments),
         "pendingNominations": len(pending_nominations),
         "workloadItems": workload_items,
@@ -477,9 +537,8 @@ def can_view_panel_recommendation(user, recommendation):
         recommendation.recommended_member_id,
     ]:
         return True
-    return (
-        user.role == User.Role.COORDINATOR
-        and coordinator_can_access_recommendation(user, recommendation)
+    return user.role == User.Role.COORDINATOR and coordinator_can_access_recommendation(
+        user, recommendation
     )
 
 
@@ -497,15 +556,21 @@ def panel_records_view(request):
             status.HTTP_403_FORBIDDEN,
         )
 
-    appointments = list(PanelAppointment.objects.select_related(
-        "profile", "supervisor", "panel_member", "recommendation"
-    ).prefetch_related("recommendation__workflow_events__actor"))
+    appointments = list(
+        PanelAppointment.objects.select_related(
+            "profile", "supervisor", "panel_member", "recommendation"
+        ).prefetch_related("recommendation__workflow_events__actor")
+    )
     appointment_recommendation_ids = {
         appointment.recommendation_id for appointment in appointments
     }
-    recommendations = list(PanelRecommendation.objects.select_related(
-        "profile", "supervisor", "recommended_member"
-    ).prefetch_related("workflow_events__actor").exclude(pk__in=appointment_recommendation_ids))
+    recommendations = list(
+        PanelRecommendation.objects.select_related(
+            "profile", "supervisor", "recommended_member"
+        )
+        .prefetch_related("workflow_events__actor")
+        .exclude(pk__in=appointment_recommendation_ids)
+    )
 
     workflow_records = [
         (appointment.updated_at, panel_record_from_appointment(appointment))
@@ -518,12 +583,12 @@ def panel_records_view(request):
 
     profiles_with_workflow = {
         appointment.profile_id for appointment in appointments
-    } | {
-        recommendation.profile_id for recommendation in recommendations
-    }
-    no_panel_profiles = StudentResearchProfile.objects.select_related("supervisor").exclude(
-        pk__in=profiles_with_workflow
-    ).order_by("student_name")
+    } | {recommendation.profile_id for recommendation in recommendations}
+    no_panel_profiles = (
+        StudentResearchProfile.objects.select_related("supervisor")
+        .exclude(pk__in=profiles_with_workflow)
+        .order_by("student_name")
+    )
     records = [record for _, record in workflow_records]
     records.extend(panel_record_from_profile(profile) for profile in no_panel_profiles)
 
@@ -534,10 +599,18 @@ def panel_records_view(request):
 @permission_classes([IsAuthenticated])
 def panel_workload_view(request):
     if request.user.role != User.Role.OFFICE_ADMIN:
-        return error_response("Only Office Staff/Admin can view panel workload monitoring.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only Office Staff/Admin can view panel workload monitoring.",
+            status.HTTP_403_FORBIDDEN,
+        )
 
-    lecturers = User.objects.filter(role=User.Role.LECTURER, is_active=True).select_related("lecturer")
-    return Response([panel_workload_row(lecturer) for lecturer in lecturers])
+    academic_semester = current_effective_semester()
+    lecturers = User.objects.filter(
+        role=User.Role.LECTURER, is_active=True
+    ).select_related("lecturer")
+    return Response(
+        [panel_workload_row(lecturer, academic_semester) for lecturer in lecturers]
+    )
 
 
 @api_view(["GET"])
@@ -557,8 +630,9 @@ def supervisor_workload_view(request):
         .select_related("lecturer", "lecturer__supervisor")
         .order_by("full_name")
     )
+    academic_semester = current_effective_semester()
     return Response(
-        [supervisor_workload_row(lecturer) for lecturer in lecturers]
+        [supervisor_workload_row(lecturer, academic_semester) for lecturer in lecturers]
     )
 
 
@@ -571,12 +645,16 @@ def own_supervisor_workload_view(request):
             status.HTTP_403_FORBIDDEN,
         )
     current_students = count_supervisor_workload(request.user)
-    workload_limit = supervisor_workload_limit(request.user)
+    capacity = capacity_workload_payload(
+        lecturer=request.user,
+        academic_semester=current_effective_semester(),
+        role=CapacityRole.SUPERVISOR,
+        fallback_load=current_students,
+    )
     return Response(
         {
-            "currentStudents": current_students,
-            "workloadLimit": workload_limit,
-            "availableSlots": max(workload_limit - current_students, 0),
+            "currentStudents": capacity["workloadCount"],
+            **capacity,
         }
     )
 
@@ -585,7 +663,9 @@ def own_supervisor_workload_view(request):
 @permission_classes([IsAuthenticated])
 def eligible_supervisees_view(request):
     if request.user.role != User.Role.LECTURER:
-        return error_response("Only lecturers can view eligible supervisees.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only lecturers can view eligible supervisees.", status.HTTP_403_FORBIDDEN
+        )
     if request.user.lecturer.lifecycle_status != request.user.lecturer.Lifecycle.ACTIVE:
         return Response([])
     active_appointment = SupervisorAppointment.objects.filter(
@@ -615,30 +695,65 @@ def eligible_supervisees_view(request):
 @permission_classes([IsAuthenticated])
 def panel_candidates_view(request):
     if request.user.role != User.Role.LECTURER:
-        return error_response("Only lecturers can view panel candidates.", status.HTTP_403_FORBIDDEN)
-    lecturers = User.objects.filter(
-        role=User.Role.LECTURER,
-        is_active=True,
-        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-    ).select_related(
-        "lecturer"
-    ).exclude(pk=request.user.pk)
-    return Response(PanelCandidateSerializer(lecturers, many=True).data)
+        return error_response(
+            "Only lecturers can view panel candidates.", status.HTTP_403_FORBIDDEN
+        )
+    academic_semester = current_effective_semester()
+    if academic_semester is None:
+        return Response([])
+    lecturers = list(
+        User.objects.filter(
+            role=User.Role.LECTURER,
+            is_active=True,
+            lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+        )
+        .select_related("lecturer")
+        .exclude(pk=request.user.pk)
+    )
+    resolutions = {
+        lecturer.pk: resolve_lecturer_capacity(
+            user=lecturer,
+            semester=academic_semester,
+            role=CapacityRole.PANEL,
+        )
+        for lecturer in lecturers
+    }
+    visible = [
+        lecturer
+        for lecturer in lecturers
+        if resolutions[lecturer.pk].state
+        not in {CapacityState.INELIGIBLE, CapacityState.TEMPORARILY_UNAVAILABLE}
+    ]
+    return Response(
+        PanelCandidateSerializer(
+            visible,
+            many=True,
+            context={"capacity_resolutions": resolutions},
+        ).data
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def student_panel_appointment_view(request):
     if request.user.role != User.Role.STUDENT:
-        return error_response("Only students can view their panel appointment.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only students can view their panel appointment.", status.HTTP_403_FORBIDDEN
+        )
 
     try:
-        profile = StudentResearchProfile.objects.select_related("supervisor").get(student=request.user)
+        profile = StudentResearchProfile.objects.select_related("supervisor").get(
+            student=request.user
+        )
     except StudentResearchProfile.DoesNotExist:
-        serializer = StudentPanelAppointmentSerializer(pending_student_panel_payload_from_user(request.user))
+        serializer = StudentPanelAppointmentSerializer(
+            pending_student_panel_payload_from_user(request.user)
+        )
         return Response(serializer.data)
 
-    serializer = StudentPanelAppointmentSerializer(student_panel_appointment_payload(profile))
+    serializer = StudentPanelAppointmentSerializer(
+        student_panel_appointment_payload(profile)
+    )
     return Response(serializer.data)
 
 
@@ -647,13 +762,20 @@ def student_panel_appointment_view(request):
 def recommendations_view(request):
     if request.method == "GET":
         if request.user.role != User.Role.LECTURER:
-            return error_response("Only lecturers can view submitted panel recommendations.", status.HTTP_403_FORBIDDEN)
-        recommendations = PanelRecommendation.objects.filter(supervisor=request.user).select_related(
+            return error_response(
+                "Only lecturers can view submitted panel recommendations.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        recommendations = PanelRecommendation.objects.filter(
+            supervisor=request.user
+        ).select_related(
             "profile", "recommended_member", "recommended_member__lecturer"
         )
         return Response(PanelRecommendationSerializer(recommendations, many=True).data)
 
-    serializer = PanelRecommendationCreateSerializer(data=request.data, context={"request": request})
+    serializer = PanelRecommendationCreateSerializer(
+        data=request.data, context={"request": request}
+    )
     serializer.is_valid(raise_exception=True)
     with transaction.atomic():
         recommendation = serializer.save()
@@ -677,7 +799,10 @@ def recommendations_view(request):
             record_id=recommendation.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(PanelRecommendationSerializer(recommendation).data, status=status.HTTP_201_CREATED)
+    return Response(
+        PanelRecommendationSerializer(recommendation).data,
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(["GET"])
@@ -701,7 +826,10 @@ def panel_recommendation_detail_view(request, pk):
 @permission_classes([IsAuthenticated])
 def review_queue_view(request):
     if request.user.role != User.Role.LECTURER:
-        return error_response("Only lecturers can view selected-panel review queues.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only lecturers can view selected-panel review queues.",
+            status.HTTP_403_FORBIDDEN,
+        )
     recommendations = PanelRecommendation.objects.filter(
         recommended_member=request.user,
         status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
@@ -713,7 +841,10 @@ def review_queue_view(request):
 @permission_classes([IsAuthenticated])
 def coordinator_queue_view(request):
     if request.user.role != User.Role.COORDINATOR:
-        return error_response("Only Programme Coordinators can view coordinator review queues.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only Programme Coordinators can view coordinator review queues.",
+            status.HTTP_403_FORBIDDEN,
+        )
     programme = coordinator_programme(request.user)
     if not programme:
         return Response([])
@@ -747,11 +878,16 @@ def coordinator_workspace_view(request):
             }
         )
 
-    recommendations = PanelRecommendation.objects.filter(
-        profile__programme=programme
-    ).select_related(
-        "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
-    ).order_by("-updated_at", "-created_at")
+    recommendations = (
+        PanelRecommendation.objects.filter(profile__programme=programme)
+        .select_related(
+            "profile",
+            "supervisor",
+            "recommended_member",
+            "recommended_member__lecturer",
+        )
+        .order_by("-updated_at", "-created_at")
+    )
     queue = [
         recommendation
         for recommendation in recommendations
@@ -775,14 +911,22 @@ def review_history_view(request):
             "Only lecturers can view selected-panel review history.",
             status.HTTP_403_FORBIDDEN,
         )
-    recommendations = PanelRecommendation.objects.filter(
-        recommended_member=request.user,
-    ).filter(
-        Q(panel_decided_at__isnull=False)
-        | Q(status=PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR)
-    ).select_related(
-        "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
-    ).order_by("-updated_at")
+    recommendations = (
+        PanelRecommendation.objects.filter(
+            recommended_member=request.user,
+        )
+        .filter(
+            Q(panel_decided_at__isnull=False)
+            | Q(status=PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR)
+        )
+        .select_related(
+            "profile",
+            "supervisor",
+            "recommended_member",
+            "recommended_member__lecturer",
+        )
+        .order_by("-updated_at")
+    )
     return Response(PanelRecommendationSerializer(recommendations, many=True).data)
 
 
@@ -791,9 +935,11 @@ def review_history_view(request):
 def cancel_panel_recommendation_view(request, pk):
     with transaction.atomic():
         try:
-            recommendation = PanelRecommendation.objects.select_for_update().select_related(
-                "profile", "supervisor", "recommended_member"
-            ).get(pk=pk)
+            recommendation = (
+                PanelRecommendation.objects.select_for_update()
+                .select_related("profile", "supervisor", "recommended_member")
+                .get(pk=pk)
+            )
         except PanelRecommendation.DoesNotExist:
             return error_response(
                 "Panel recommendation was not found.",
@@ -854,11 +1000,18 @@ def cancel_panel_recommendation_view(request, pk):
 def panel_accept_view(request, pk):
     recommendation = get_recommendation_or_404(pk)
     if recommendation is None:
-        return error_response("Panel recommendation was not found.", status.HTTP_404_NOT_FOUND)
+        return error_response(
+            "Panel recommendation was not found.", status.HTTP_404_NOT_FOUND
+        )
     if request.user.pk != recommendation.recommended_member_id:
-        return error_response("Only the selected panel lecturer can accept this recommendation.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only the selected panel lecturer can accept this recommendation.",
+            status.HTTP_403_FORBIDDEN,
+        )
     if recommendation.status != PanelRecommendation.Status.SUBMITTED_TO_PANEL:
-        return error_response("This recommendation is not awaiting selected panel review.")
+        return error_response(
+            "This recommendation is not awaiting selected panel review."
+        )
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
@@ -898,11 +1051,18 @@ def panel_accept_view(request, pk):
 def panel_reject_view(request, pk):
     recommendation = get_recommendation_or_404(pk)
     if recommendation is None:
-        return error_response("Panel recommendation was not found.", status.HTTP_404_NOT_FOUND)
+        return error_response(
+            "Panel recommendation was not found.", status.HTTP_404_NOT_FOUND
+        )
     if request.user.pk != recommendation.recommended_member_id:
-        return error_response("Only the selected panel lecturer can reject this recommendation.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only the selected panel lecturer can reject this recommendation.",
+            status.HTTP_403_FORBIDDEN,
+        )
     if recommendation.status != PanelRecommendation.Status.SUBMITTED_TO_PANEL:
-        return error_response("This recommendation is not awaiting selected panel review.")
+        return error_response(
+            "This recommendation is not awaiting selected panel review."
+        )
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
@@ -911,10 +1071,17 @@ def panel_reject_view(request, pk):
     with transaction.atomic():
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.REJECTED_BY_PANEL
-        recommendation.panel_rejection_reason = reason_serializer.validated_data["reason"]
+        recommendation.panel_rejection_reason = reason_serializer.validated_data[
+            "reason"
+        ]
         recommendation.panel_decided_at = timezone.now()
         recommendation.save(
-            update_fields=["status", "panel_rejection_reason", "panel_decided_at", "updated_at"]
+            update_fields=[
+                "status",
+                "panel_rejection_reason",
+                "panel_decided_at",
+                "updated_at",
+            ]
         )
         record_workflow_event(
             actor=request.user,
@@ -945,16 +1112,23 @@ def panel_reject_view(request, pk):
 def coordinator_approve_view(request, pk):
     recommendation = get_recommendation_or_404(pk)
     if recommendation is None:
-        return error_response("Panel recommendation was not found.", status.HTTP_404_NOT_FOUND)
+        return error_response(
+            "Panel recommendation was not found.", status.HTTP_404_NOT_FOUND
+        )
     if request.user.role != User.Role.COORDINATOR:
-        return error_response("Only Programme Coordinators can approve panel recommendations.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only Programme Coordinators can approve panel recommendations.",
+            status.HTTP_403_FORBIDDEN,
+        )
     if not coordinator_can_access_recommendation(request.user, recommendation):
         return error_response(
             "This recommendation is outside your managed programme.",
             status.HTTP_403_FORBIDDEN,
         )
     if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
-        return error_response("This recommendation is not awaiting Programme Coordinator review.")
+        return error_response(
+            "This recommendation is not awaiting Programme Coordinator review."
+        )
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
@@ -970,6 +1144,7 @@ def coordinator_approve_view(request, pk):
             .select_related(
                 "profile",
                 "profile__student",
+                "academic_semester",
                 "supervisor",
                 "recommended_member",
                 "replaces_appointment",
@@ -983,10 +1158,29 @@ def coordinator_approve_view(request, pk):
                 "The selected panel lecturer is not eligible for a new appointment.",
                 status.HTTP_409_CONFLICT,
             )
+        Lecturer.objects.select_for_update().get(
+            pk=recommendation.recommended_member_id
+        )
+        if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
+            return error_response(
+                "This recommendation is not awaiting Programme Coordinator review.",
+                status.HTTP_409_CONFLICT,
+            )
+        try:
+            assert_capacity_allows_assignment(
+                user=recommendation.recommended_member,
+                semester=recommendation.academic_semester,
+                role=CapacityRole.PANEL,
+                exclude_panel_recommendation_id=recommendation.pk,
+            )
+        except CapacityConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.APPROVED
         recommendation.coordinator_decided_at = timezone.now()
-        recommendation.save(update_fields=["status", "coordinator_decided_at", "updated_at"])
+        recommendation.save(
+            update_fields=["status", "coordinator_decided_at", "updated_at"]
+        )
         try:
             activate_replacement(
                 model=PanelAppointment,
@@ -994,10 +1188,10 @@ def coordinator_approve_view(request, pk):
                 actor=request.user,
                 create_values={
                     "recommendation": recommendation,
-                "profile": recommendation.profile,
-                "supervisor": recommendation.supervisor,
-                "panel_member": recommendation.recommended_member,
-                "approved_by": request.user,
+                    "profile": recommendation.profile,
+                    "supervisor": recommendation.supervisor,
+                    "panel_member": recommendation.recommended_member,
+                    "approved_by": request.user,
                 },
             )
         except AppointmentLifecycleConflict as exc:
@@ -1034,16 +1228,23 @@ def coordinator_approve_view(request, pk):
 def coordinator_reject_view(request, pk):
     recommendation = get_recommendation_or_404(pk)
     if recommendation is None:
-        return error_response("Panel recommendation was not found.", status.HTTP_404_NOT_FOUND)
+        return error_response(
+            "Panel recommendation was not found.", status.HTTP_404_NOT_FOUND
+        )
     if request.user.role != User.Role.COORDINATOR:
-        return error_response("Only Programme Coordinators can reject panel recommendations.", status.HTTP_403_FORBIDDEN)
+        return error_response(
+            "Only Programme Coordinators can reject panel recommendations.",
+            status.HTTP_403_FORBIDDEN,
+        )
     if not coordinator_can_access_recommendation(request.user, recommendation):
         return error_response(
             "This recommendation is outside your managed programme.",
             status.HTTP_403_FORBIDDEN,
         )
     if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
-        return error_response("This recommendation is not awaiting Programme Coordinator review.")
+        return error_response(
+            "This recommendation is not awaiting Programme Coordinator review."
+        )
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
@@ -1056,7 +1257,12 @@ def coordinator_reject_view(request, pk):
         recommendation.coordinator_rejection_reason = str(reason).strip()
         recommendation.coordinator_decided_at = timezone.now()
         recommendation.save(
-            update_fields=["status", "coordinator_rejection_reason", "coordinator_decided_at", "updated_at"]
+            update_fields=[
+                "status",
+                "coordinator_rejection_reason",
+                "coordinator_decided_at",
+                "updated_at",
+            ]
         )
         record_workflow_event(
             actor=request.user,
@@ -1086,10 +1292,12 @@ def coordinator_reject_view(request, pk):
 @permission_classes([IsAuthenticated])
 def assignments_view(request):
     if request.user.role != User.Role.LECTURER:
-        return error_response("Only lecturers can view panel assignments.", status.HTTP_403_FORBIDDEN)
-    appointments = PanelAppointment.objects.filter(panel_member=request.user).select_related(
-        "profile", "supervisor"
-    )
+        return error_response(
+            "Only lecturers can view panel assignments.", status.HTTP_403_FORBIDDEN
+        )
+    appointments = PanelAppointment.objects.filter(
+        panel_member=request.user
+    ).select_related("profile", "supervisor")
     return Response(PanelAssignmentSerializer(appointments, many=True).data)
 
 
@@ -1100,12 +1308,16 @@ def supervisor_programme_access(user, application):
 
 def get_supervisor_application(pk):
     try:
-        return SupervisorApplication.objects.select_related(
-            "student",
-            "student__user",
-            "proposed_supervisor",
-            "proposed_supervisor__lecturer",
-        ).prefetch_related("documents", "workflow_events__actor").get(pk=pk)
+        return (
+            SupervisorApplication.objects.select_related(
+                "student",
+                "student__user",
+                "proposed_supervisor",
+                "proposed_supervisor__lecturer",
+            )
+            .prefetch_related("documents", "workflow_events__actor")
+            .get(pk=pk)
+        )
     except SupervisorApplication.DoesNotExist:
         return None
 
@@ -1118,9 +1330,8 @@ def can_view_supervisor_application(user, application):
         application.proposed_supervisor_id,
     ]:
         return True
-    return (
-        user.role == User.Role.COORDINATOR
-        and supervisor_programme_access(user, application)
+    return user.role == User.Role.COORDINATOR and supervisor_programme_access(
+        user, application
     )
 
 
@@ -1142,7 +1353,9 @@ def _office_requirement_access(request):
 @permission_classes([IsAuthenticated])
 def active_supervisor_document_requirements_view(_request):
     requirements = SupervisorDocumentRequirement.objects.filter(is_active=True)
-    return Response(SupervisorDocumentRequirementSerializer(requirements, many=True).data)
+    return Response(
+        SupervisorDocumentRequirementSerializer(requirements, many=True).data
+    )
 
 
 @api_view(["GET", "POST"])
@@ -1266,13 +1479,38 @@ def supervisor_candidates_view(request):
             "Only students can view supervisor candidates.",
             status.HTTP_403_FORBIDDEN,
         )
-    candidates = User.objects.filter(
-        role=User.Role.LECTURER,
-        is_active=True,
-        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-        lecturer__supervisor__isnull=False,
-    ).select_related("lecturer", "lecturer__supervisor")
-    return Response(SupervisorCandidateSerializer(candidates, many=True).data)
+    academic_semester = current_effective_semester()
+    if academic_semester is None:
+        return Response([])
+    candidates = list(
+        User.objects.filter(
+            role=User.Role.LECTURER,
+            is_active=True,
+            lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+            lecturer__supervisor__isnull=False,
+        ).select_related("lecturer", "lecturer__supervisor")
+    )
+    resolutions = {
+        candidate.pk: resolve_lecturer_capacity(
+            user=candidate,
+            semester=academic_semester,
+            role=CapacityRole.SUPERVISOR,
+        )
+        for candidate in candidates
+    }
+    visible = [
+        candidate
+        for candidate in candidates
+        if resolutions[candidate.pk].state
+        not in {CapacityState.INELIGIBLE, CapacityState.TEMPORARILY_UNAVAILABLE}
+    ]
+    return Response(
+        SupervisorCandidateSerializer(
+            visible,
+            many=True,
+            context={"capacity_resolutions": resolutions},
+        ).data
+    )
 
 
 @api_view(["GET", "POST"])
@@ -1284,14 +1522,16 @@ def supervisor_applications_view(request):
                 "Only students can view their supervisor applications.",
                 status.HTTP_403_FORBIDDEN,
             )
-        applications = SupervisorApplication.objects.filter(
-            student=request.user.student
-        ).select_related(
-            "student",
-            "student__user",
-            "proposed_supervisor",
-            "proposed_supervisor__lecturer",
-        ).prefetch_related("documents", "workflow_events__actor")
+        applications = (
+            SupervisorApplication.objects.filter(student=request.user.student)
+            .select_related(
+                "student",
+                "student__user",
+                "proposed_supervisor",
+                "proposed_supervisor__lecturer",
+            )
+            .prefetch_related("documents", "workflow_events__actor")
+        )
         return Response(SupervisorApplicationSerializer(applications, many=True).data)
 
     serializer = SupervisorApplicationCreateSerializer(
@@ -1372,11 +1612,16 @@ def supervisor_application_detail_view(request, pk):
 def cancel_supervisor_application_view(request, pk):
     with transaction.atomic():
         try:
-            application = SupervisorApplication.objects.select_for_update().select_related(
-                "student",
-                "student__user",
-                "proposed_supervisor",
-            ).prefetch_related("documents", "workflow_events__actor").get(pk=pk)
+            application = (
+                SupervisorApplication.objects.select_for_update()
+                .select_related(
+                    "student",
+                    "student__user",
+                    "proposed_supervisor",
+                )
+                .prefetch_related("documents", "workflow_events__actor")
+                .get(pk=pk)
+            )
         except SupervisorApplication.DoesNotExist:
             return error_response(
                 "Supervisor application was not found.",
@@ -1480,18 +1725,9 @@ def supervisor_accept_view(request, pk):
             status.HTTP_403_FORBIDDEN,
         )
     if application.status != SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR:
-        return error_response(
-            "This application is not awaiting supervisor review."
-        )
+        return error_response("This application is not awaiting supervisor review.")
     if not student_is_workflow_eligible(application.student):
         return participant_ineligible_response()
-    if count_supervisor_workload(request.user) >= supervisor_workload_limit(
-        request.user
-    ):
-        return error_response(
-            "This supervisor has reached the configured workload limit."
-        )
-
     with transaction.atomic():
         previous_status = application.status
         application.status = SupervisorApplication.Status.PENDING_COORDINATOR
@@ -1540,9 +1776,7 @@ def supervisor_reject_view(request, pk):
             status.HTTP_403_FORBIDDEN,
         )
     if application.status != SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR:
-        return error_response(
-            "This application is not awaiting supervisor review."
-        )
+        return error_response("This application is not awaiting supervisor review.")
     if not student_is_workflow_eligible(application.student):
         return participant_ineligible_response()
     reason_serializer = ReasonSerializer(data=request.data)
@@ -1769,13 +2003,9 @@ def active_supervisees_view(request):
                 "email": appointment.student.user.email,
                 "researchTitle": appointment.application.research_title,
                 "researchArea": appointment.application.research_area,
-                "researchAbstract": (
-                    appointment.application.research_abstract
-                ),
+                "researchAbstract": (appointment.application.research_abstract),
                 "supervisorName": appointment.supervisor.full_name,
-                "appointmentDate": format_display_date(
-                    appointment.appointment_date
-                ),
+                "appointmentDate": format_display_date(appointment.appointment_date),
                 "status": "Active",
             }
             for appointment in appointments
@@ -1791,12 +2021,16 @@ def supervisor_request_history_view(request):
             "Only lecturers can view supervisor request history.",
             status.HTTP_403_FORBIDDEN,
         )
-    applications = SupervisorApplication.objects.filter(
-        proposed_supervisor=request.user,
-    ).filter(
-        Q(supervisor_decided_at__isnull=False)
-        | Q(status=SupervisorApplication.Status.CANCELLED_BY_STUDENT)
-    ).select_related("student", "student__user")
+    applications = (
+        SupervisorApplication.objects.filter(
+            proposed_supervisor=request.user,
+        )
+        .filter(
+            Q(supervisor_decided_at__isnull=False)
+            | Q(status=SupervisorApplication.Status.CANCELLED_BY_STUDENT)
+        )
+        .select_related("student", "student__user")
+    )
     return Response(
         [
             {
@@ -1810,10 +2044,12 @@ def supervisor_request_history_view(request):
                     "Cancelled"
                     if application.status
                     == SupervisorApplication.Status.CANCELLED_BY_STUDENT
-                    else "Rejected"
-                    if application.status
-                    == SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
-                    else "Approved"
+                    else (
+                        "Rejected"
+                        if application.status
+                        == SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
+                        else "Approved"
+                    )
                 ),
                 **workflow_semester_payload(application),
                 "abstract": application.research_abstract,
@@ -1888,9 +2124,7 @@ def supervisor_records_view(request):
                     f"{count_supervisor_workload(application.proposed_supervisor)}/"
                     f"{supervisor_workload_limit(application.proposed_supervisor)} Supervisees"
                 ),
-                "approvedDate": format_display_date(
-                    application.coordinator_decided_at
-                ),
+                "approvedDate": format_display_date(application.coordinator_decided_at),
                 "cancelledAt": application.cancelled_at,
                 "cancellationReason": application.cancellation_reason,
                 "workflow": AppointmentWorkflowEventSerializer(

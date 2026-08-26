@@ -2,8 +2,17 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
+from academics.capacity import (
+    CapacityConflict,
+    CapacityRole,
+    assert_capacity_allows_assignment,
+)
 from accounts.authorization import coordinator_programme
+from accounts.eligibility import (
+    student_is_workflow_eligible,
+    user_is_assignable_lecturer,
+)
+from accounts.models import Lecturer
 
 from .models import (
     AppointmentWorkflowEvent,
@@ -11,14 +20,11 @@ from .models import (
     StudentResearchProfile,
     SupervisorApplication,
     SupervisorAppointment,
-    count_supervisor_workload,
-    supervisor_workload_limit,
 )
 from .appointment_lifecycle import (
     AppointmentLifecycleConflict,
     activate_replacement,
 )
-
 
 User = get_user_model()
 
@@ -111,9 +117,11 @@ def _resolve_research_profile(application):
 
 @transaction.atomic
 def approve_supervisor_application(*, application_id, actor):
-    student_id = SupervisorApplication.objects.only("student_id").get(
-        pk=application_id
-    ).student_id
+    student_id = (
+        SupervisorApplication.objects.only("student_id")
+        .get(pk=application_id)
+        .student_id
+    )
     from accounts.models import Student
 
     Student.objects.select_for_update().get(pk=student_id)
@@ -123,6 +131,7 @@ def approve_supervisor_application(*, application_id, actor):
             "student",
             "student__user",
             "proposed_supervisor",
+            "academic_semester",
         )
         .get(pk=application_id)
     )
@@ -131,7 +140,10 @@ def approve_supervisor_application(*, application_id, actor):
             "Only Programme Coordinators can approve supervisor applications."
         )
     programme = coordinator_programme(actor)
-    if not programme or programme.casefold() != application.student.programme.strip().casefold():
+    if (
+        not programme
+        or programme.casefold() != application.student.programme.strip().casefold()
+    ):
         raise SupervisorApprovalForbidden(
             "This application is outside your managed programme."
         )
@@ -163,20 +175,21 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalConflict(
             "The proposed supervisor is not eligible for a new appointment."
         )
-    if count_supervisor_workload(
-        application.proposed_supervisor
-    ) >= supervisor_workload_limit(application.proposed_supervisor):
-        raise SupervisorApprovalConflict(
-            "This supervisor has reached the configured workload limit."
+    Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
+    try:
+        assert_capacity_allows_assignment(
+            user=application.proposed_supervisor,
+            semester=application.academic_semester,
+            role=CapacityRole.SUPERVISOR,
         )
+    except CapacityConflict as exc:
+        raise SupervisorApprovalConflict(str(exc)) from exc
 
     _resolve_research_profile(application)
     previous_status = application.status
     application.status = SupervisorApplication.Status.APPROVED
     application.coordinator_decided_at = timezone.now()
-    application.save(
-        update_fields=["status", "coordinator_decided_at", "updated_at"]
-    )
+    application.save(update_fields=["status", "coordinator_decided_at", "updated_at"])
     try:
         appointment = activate_replacement(
             model=SupervisorAppointment,
@@ -193,17 +206,17 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalConflict(str(exc)) from exc
     if application.replaces_appointment_id:
         now = timezone.now()
-        pending_recommendations = PanelRecommendation.objects.select_for_update().filter(
-            profile__student=application.student.user,
-            supervisor=application.replaces_appointment.supervisor,
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+        pending_recommendations = (
+            PanelRecommendation.objects.select_for_update().filter(
+                profile__student=application.student.user,
+                supervisor=application.replaces_appointment.supervisor,
+                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+            )
         )
         for recommendation in pending_recommendations:
             previous_panel_status = recommendation.status
             recommendation.status = PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR
-            recommendation.cancellation_reason = (
-                "Automatically cancelled because the Supervisor appointment was replaced."
-            )
+            recommendation.cancellation_reason = "Automatically cancelled because the Supervisor appointment was replaced."
             recommendation.cancelled_at = now
             recommendation.save(
                 update_fields=[

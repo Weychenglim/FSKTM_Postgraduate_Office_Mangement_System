@@ -5,7 +5,14 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Student
+from accounts.models import (
+    Coordinator,
+    Lecturer,
+    OfficeStaff,
+    Panel,
+    Student,
+    Supervisor,
+)
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
@@ -56,6 +63,22 @@ class WorkflowReconciliationApiTests(TestCase):
             staff_no="REC-LECT-001",
             department="Artificial Intelligence",
         )
+        Supervisor.objects.create(
+            lecturer=self.lecturer.lecturer,
+            max_supervisees=5,
+        )
+        self.panel_member = User.objects.create_user(
+            email="handoff.panel@example.test",
+            password="password123",
+            full_name="Handoff Panel",
+            role=User.Role.LECTURER,
+        )
+        panel_lecturer = Lecturer.objects.create(
+            user=self.panel_member,
+            staff_no="REC-PANEL-HANDOFF",
+            department="Artificial Intelligence",
+        )
+        Panel.objects.create(lecturer=panel_lecturer, max_appointments=5)
         self.student_user = User.objects.create_user(
             email="reconciliation.student@example.test",
             password="password123",
@@ -516,22 +539,11 @@ class WorkflowReconciliationApiTests(TestCase):
         profile = StudentResearchProfile.objects.get(student=self.student_user)
         self.assertEqual(profile.supervisor_id, self.lecturer.pk)
 
-        panel_member = User.objects.create_user(
-            email="handoff.panel@example.test",
-            password="password123",
-            full_name="Handoff Panel",
-            role=User.Role.LECTURER,
-        )
-        Lecturer.objects.create(
-            user=panel_member,
-            staff_no="REC-PANEL-HANDOFF",
-            department="Artificial Intelligence",
-        )
         recommendation = PanelRecommendation.objects.create(
             profile=profile,
             academic_semester=self.semester,
             supervisor=self.lecturer,
-            recommended_member=panel_member,
+            recommended_member=self.panel_member,
             status=PanelRecommendation.Status.APPROVED,
             coordinator_decided_at=decided_at,
         )

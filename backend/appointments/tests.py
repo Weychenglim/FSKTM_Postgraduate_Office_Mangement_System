@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -7,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Coordinator, Lecturer, OfficeStaff, Panel, Student
 from announcements.models import Notification
-from academics.models import AcademicSemester
+from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 
 from .models import (
@@ -656,8 +657,135 @@ class PanelRecommendationWorkflowTests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("workload", str(response.data).lower())
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("capacity", str(response.data).lower())
+        self.assertFalse(
+            PanelRecommendation.objects.filter(profile=self.profile).exists()
+        )
+
+    def test_panel_candidates_expose_capacity_and_hide_unavailable_lecturers(self):
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.panel.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=today,
+            ends_on=today + timedelta(days=2),
+            reason="Private operational reason.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.supervisor)
+
+        response = self.client.get("/api/appointments/panel/candidates/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(
+            self.panel.lecturer.staff_no,
+            {candidate["staffId"] for candidate in response.data},
+        )
+        candidate = next(
+            item
+            for item in response.data
+            if item["staffId"] == self.other_panel.lecturer.staff_no
+        )
+        self.assertEqual(candidate["semesterId"], self.academic_semester.pk)
+        self.assertIsNotNone(candidate["capacityPlanId"])
+        self.assertEqual(candidate["capacityPlanVersion"], 1)
+        self.assertEqual(candidate["capacityState"], "AVAILABLE")
+        self.assertEqual(candidate["workloadCount"], 0)
+        self.assertEqual(candidate["workloadLimit"], 5)
+        self.assertEqual(candidate["availableSlots"], 5)
+        self.assertTrue(candidate["selectable"])
+        self.assertIsNone(candidate["unavailableUntil"])
+
+    def test_crafted_unavailable_panel_submission_returns_conflict(self):
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.panel.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=today,
+            ends_on=today + timedelta(days=2),
+            reason="Private operational reason must remain hidden.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.supervisor)
+
+        response = self.client.post(
+            "/api/appointments/panel/recommendations/",
+            {
+                "studentId": self.profile.matric_no,
+                "recommendedMemberId": self.panel.lecturer.staff_no,
+                "justification": "Direct identifiers must not bypass capacity.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("temporarily unavailable", str(response.data).lower())
+        self.assertNotIn("private operational", str(response.data).lower())
+        self.assertFalse(PanelRecommendation.objects.exists())
+
+    def test_full_panel_candidate_remains_visible_but_is_not_selectable(self):
+        self.reserve_panel_workload(self.panel, 5)
+        self.authenticate(self.supervisor)
+
+        response = self.client.get("/api/appointments/panel/candidates/")
+
+        candidate = next(
+            item
+            for item in response.data
+            if item["staffId"] == self.panel.lecturer.staff_no
+        )
+        self.assertEqual(candidate["capacityState"], "FULL")
+        self.assertEqual(candidate["workloadCount"], 5)
+        self.assertEqual(candidate["availableSlots"], 0)
+        self.assertFalse(candidate["selectable"])
+
+        extra_profile = self.create_profile("MEA888999")
+        PanelRecommendation.objects.create(
+            profile=extra_profile,
+            supervisor=extra_profile.supervisor,
+            recommended_member=self.panel,
+            justification="Existing over-capacity reservation.",
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+        response = self.client.get("/api/appointments/panel/candidates/")
+        candidate = next(
+            item
+            for item in response.data
+            if item["staffId"] == self.panel.lecturer.staff_no
+        )
+        self.assertEqual(candidate["capacityState"], "OVER_CAPACITY")
+        self.assertEqual(candidate["workloadCount"], 6)
+        self.assertFalse(candidate["selectable"])
+
+    def test_existing_recommendation_keeps_selected_identity_with_public_unavailable_date(
+        self,
+    ):
+        recommendation = self.create_submitted_recommendation()
+        today = timezone.localdate()
+        ends_on = today + timedelta(days=2)
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.panel.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=today,
+            ends_on=ends_on,
+            reason="Private panel availability reason.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.supervisor)
+
+        response = self.client.get("/api/appointments/panel/recommendations/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        persisted = next(
+            item for item in response.data if item["id"] == recommendation["id"]
+        )
+        self.assertEqual(persisted["recommendedMember"], self.panel.full_name)
+        self.assertEqual(persisted["unavailableUntil"], ends_on.isoformat())
+        self.assertNotIn("private panel", str(persisted).lower())
 
     def test_panel_candidates_include_pending_nomination_workload(self):
         self.reserve_panel_workload(self.panel, 4)
@@ -674,6 +802,9 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(candidate["workloadCount"], 4)
         self.assertEqual(candidate["workloadLimit"], 5)
         self.assertTrue(candidate["canSubmit"])
+        self.assertEqual(candidate["capacityState"], "AVAILABLE")
+        self.assertEqual(candidate["availableSlots"], 1)
+        self.assertTrue(candidate["selectable"])
         self.assertIn("submitted nominations", candidate["workloadHelpText"])
 
     def test_office_panel_workload_counts_confirmed_appointments_and_pending_nominations(
@@ -704,6 +835,14 @@ class PanelRecommendationWorkflowTests(APITestCase):
             row for row in response.data if row["id"] == self.panel.lecturer.staff_no
         )
         self.assertEqual(panel_row["currentStudents"], 5)
+        self.assertEqual(panel_row["semesterId"], self.academic_semester.pk)
+        self.assertIsNotNone(panel_row["capacityPlanId"])
+        self.assertEqual(panel_row["capacityPlanVersion"], 1)
+        self.assertEqual(panel_row["capacityState"], "FULL")
+        self.assertEqual(panel_row["workloadCount"], 5)
+        self.assertEqual(panel_row["availableSlots"], 0)
+        self.assertFalse(panel_row["selectable"])
+        self.assertIsNone(panel_row["unavailableUntil"])
         self.assertEqual(panel_row["confirmedAppointments"], 1)
         self.assertEqual(panel_row["pendingNominations"], 4)
         self.assertEqual(panel_row["availability"], "Full Load")
@@ -782,6 +921,68 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertTrue(
             PanelAppointment.objects.filter(
                 recommendation_id=recommendation["id"]
+            ).exists()
+        )
+
+    def test_panel_acceptance_continues_but_final_approval_rechecks_capacity(self):
+        recommendation = self.create_submitted_recommendation()
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.panel.lecturer,
+            role=LecturerAvailabilityWindow.Role.PANEL,
+            starts_on=today,
+            ends_on=today + timedelta(days=1),
+            reason="Private approval-time restriction.",
+            created_by=self.office_admin,
+        )
+        self.authenticate(self.panel)
+        accepted = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/"
+        )
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+
+        self.authenticate(self.coordinator)
+        url = (
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/"
+            "coordinator-approve/"
+        )
+        blocked = self.client.post(url)
+
+        self.assertEqual(blocked.status_code, status.HTTP_409_CONFLICT)
+        persisted = PanelRecommendation.objects.get(pk=recommendation["id"])
+        self.assertEqual(
+            persisted.status,
+            PanelRecommendation.Status.PENDING_COORDINATOR,
+        )
+        self.assertFalse(PanelAppointment.objects.exists())
+        with patch(
+            "academics.capacity.timezone.localdate",
+            return_value=today + timedelta(days=2),
+        ):
+            approved = self.client.post(url)
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+        self.assertEqual(PanelAppointment.objects.count(), 1)
+
+    def test_final_panel_approval_converts_its_own_last_reserved_slot(self):
+        self.reserve_panel_workload(self.panel, 4)
+        recommendation = self.create_submitted_recommendation()
+        self.authenticate(self.panel)
+        accepted = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/"
+        )
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        self.authenticate(self.coordinator)
+
+        approved = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/coordinator-approve/"
+        )
+
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            PanelAppointment.objects.filter(
+                recommendation_id=recommendation["id"],
+                status=PanelAppointment.Status.ACTIVE,
             ).exists()
         )
 

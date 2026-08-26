@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from academics.models import AcademicSemester
+from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from accounts.models import (
     Coordinator,
@@ -305,6 +305,50 @@ class AppointmentLifecycleTests(APITestCase):
         self.supervisor_appointment.refresh_from_db()
         self.assertEqual(
             self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE
+        )
+
+    def test_supervisor_replacement_submission_enforces_incoming_capacity(self):
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.semester,
+            lecturer=self.new_supervisor.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=today + timedelta(days=3),
+            reason="Replacement assignment is temporarily unavailable.",
+            created_by=self.office,
+        )
+        self.client.force_authenticate(user=self.student_user)
+
+        response = self.client.post(
+            "/api/appointments/supervisor/applications/",
+            {
+                "proposedSupervisorId": self.new_supervisor.lecturer.staff_no,
+                "researchTitle": self.profile.proposed_topic,
+                "researchArea": self.profile.research_area,
+                "researchAbstract": self.profile.abstract,
+                "replacesAppointmentId": self.supervisor_appointment.pk,
+                "replacementReason": "Research direction changed.",
+                "documents": [
+                    SimpleUploadedFile(
+                        "proposal.pdf",
+                        b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
+                        content_type="application/pdf",
+                    )
+                ],
+                "requirementCodes": ["research-proposal"],
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(
+            SupervisorApplication.objects.exclude(pk=self.application.pk).exists()
+        )
+        self.supervisor_appointment.refresh_from_db()
+        self.assertEqual(
+            self.supervisor_appointment.status,
+            SupervisorAppointment.Status.ACTIVE,
         )
 
     def test_supervisor_replacement_handover_is_atomic_and_cancels_pending_panel(self):

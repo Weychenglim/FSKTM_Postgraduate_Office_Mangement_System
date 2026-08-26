@@ -52,7 +52,7 @@ def _non_negative(value):
         return 0
 
 
-def _workloads(*, user, role):
+def _workloads(*, user, role, exclude_panel_recommendation_id=None):
     from appointments.models import (
         PanelAppointment,
         PanelRecommendation,
@@ -70,10 +70,15 @@ def _workloads(*, user, role):
         panel_member=user,
         status=PanelAppointment.Status.ACTIVE,
     ).count()
-    reserved_load = PanelRecommendation.objects.filter(
+    reserved_recommendations = PanelRecommendation.objects.filter(
         recommended_member=user,
         status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
-    ).count()
+    )
+    if exclude_panel_recommendation_id is not None:
+        reserved_recommendations = reserved_recommendations.exclude(
+            pk=exclude_panel_recommendation_id
+        )
+    reserved_load = reserved_recommendations.count()
     return _non_negative(active_load), _non_negative(reserved_load)
 
 
@@ -146,6 +151,7 @@ def resolve_lecturer_capacity(
     semester,
     role,
     on_date=None,
+    exclude_panel_recommendation_id=None,
 ) -> CapacityResolution:
     role = CapacityRole(role)
     on_date = on_date or timezone.localdate()
@@ -161,7 +167,11 @@ def resolve_lecturer_capacity(
         lecturer=lecturer,
         role=role,
     )
-    active_load, reserved_load = _workloads(user=user, role=role)
+    active_load, reserved_load = _workloads(
+        user=user,
+        role=role,
+        exclude_panel_recommendation_id=exclude_panel_recommendation_id,
+    )
 
     plan = (
         SemesterCapacityPlan.objects.filter(
@@ -244,12 +254,18 @@ def assert_capacity_allows_assignment(
     semester,
     role,
     on_date=None,
+    exclude_panel_recommendation_id=None,
 ):
+    if semester is None:
+        raise CapacityConflict(
+            "Lecturer capacity is not configured for this assignment."
+        )
     result = resolve_lecturer_capacity(
         user=user,
         semester=semester,
         role=role,
         on_date=on_date,
+        exclude_panel_recommendation_id=exclude_panel_recommendation_id,
     )
     if result.state != CapacityState.AVAILABLE:
         raise CapacityConflict(capacity_conflict_message(result))

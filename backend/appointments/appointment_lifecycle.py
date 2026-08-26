@@ -11,7 +11,6 @@ from .models import (
     SupervisorAppointment,
 )
 
-
 User = get_user_model()
 
 
@@ -162,6 +161,32 @@ def activate_replacement(
     create_values,
 ):
     """End the referenced appointment and activate its successor atomically."""
+
+    from academics.capacity import (
+        CapacityConflict,
+        CapacityRole,
+        assert_capacity_allows_assignment,
+    )
+    from accounts.models import Lecturer
+
+    if model is SupervisorAppointment:
+        capacity_user = replacement_source.proposed_supervisor
+        capacity_role = CapacityRole.SUPERVISOR
+        excluded_recommendation_id = None
+    else:
+        capacity_user = replacement_source.recommended_member
+        capacity_role = CapacityRole.PANEL
+        excluded_recommendation_id = replacement_source.pk
+    Lecturer.objects.select_for_update().get(pk=capacity_user.pk)
+    try:
+        assert_capacity_allows_assignment(
+            user=capacity_user,
+            semester=replacement_source.academic_semester,
+            role=capacity_role,
+            exclude_panel_recommendation_id=excluded_recommendation_id,
+        )
+    except CapacityConflict as exc:
+        raise AppointmentLifecycleConflict(str(exc)) from exc
 
     target_id = replacement_source.replaces_appointment_id
     target = None
