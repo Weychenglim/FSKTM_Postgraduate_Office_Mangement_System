@@ -3,6 +3,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
 from accounts.authorization import coordinator_programme
+from accounts.models import Lecturer, Panel, Supervisor
+from academics.capacity import CapacityRole, CapacityState, resolve_lecturer_capacity
 from academics.services import current_effective_semester
 from appointments.ageing import (
     panel_waiting_metadata,
@@ -18,7 +20,6 @@ from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimeline, SemesterTimelineEntry
 from .reconciliation import detect_reconciliation_issues
-
 
 User = get_user_model()
 MAX_DASHBOARD_ACTIONS = 20
@@ -82,10 +83,14 @@ def _supervisor_actions(user, now):
     )
     if user.role == User.Role.COORDINATOR:
         programme = coordinator_programme(user)
-        applications = applications.filter(
-            student__programme=programme,
-            status=SupervisorApplication.Status.PENDING_COORDINATOR,
-        ) if programme else applications.none()
+        applications = (
+            applications.filter(
+                student__programme=programme,
+                status=SupervisorApplication.Status.PENDING_COORDINATOR,
+            )
+            if programme
+            else applications.none()
+        )
     elif user.role == User.Role.LECTURER:
         applications = applications.filter(
             proposed_supervisor=user,
@@ -140,10 +145,14 @@ def _panel_actions(user, now):
     public = user.role == User.Role.STUDENT
     if user.role == User.Role.COORDINATOR:
         programme = coordinator_programme(user)
-        recommendations = recommendations.filter(
-            profile__programme=programme,
-            status=PanelRecommendation.Status.PENDING_COORDINATOR,
-        ) if programme else recommendations.none()
+        recommendations = (
+            recommendations.filter(
+                profile__programme=programme,
+                status=PanelRecommendation.Status.PENDING_COORDINATOR,
+            )
+            if programme
+            else recommendations.none()
+        )
     elif user.role == User.Role.LECTURER:
         recommendations = recommendations.filter(
             recommended_member=user,
@@ -191,9 +200,7 @@ def _panel_actions(user, now):
             **metadata,
         )
         for recommendation in recommendations
-        for metadata in [
-            panel_waiting_metadata(recommendation, now=now, public=public)
-        ]
+        for metadata in [panel_waiting_metadata(recommendation, now=now, public=public)]
     ]
 
 
@@ -201,11 +208,15 @@ def _mark_actions(user, now):
     semester = current_effective_semester()
     if semester is None:
         return []
-    tasks = EvaluationTask.objects.filter(
-        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-    ).exclude(
-        mark_entry__status=MarkEntry.Status.SUBMITTED,
-    ).filter(period__academic_semester=semester)
+    tasks = (
+        EvaluationTask.objects.filter(
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
+        .exclude(
+            mark_entry__status=MarkEntry.Status.SUBMITTED,
+        )
+        .filter(period__academic_semester=semester)
+    )
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
     elif user.role != User.Role.OFFICE_ADMIN:
@@ -325,6 +336,52 @@ def _reconciliation_actions(user):
     ]
 
 
+def _capacity_actions(user, semester):
+    if user.role != User.Role.OFFICE_ADMIN or semester is None:
+        return []
+    actions = []
+    for role, role_model in (
+        (CapacityRole.SUPERVISOR, Supervisor),
+        (CapacityRole.PANEL, Panel),
+    ):
+        lecturers = Lecturer.objects.select_related("user").filter(
+            pk__in=role_model.objects.values_list("lecturer_id", flat=True)
+        )
+        for lecturer in lecturers:
+            resolution = resolve_lecturer_capacity(
+                user=lecturer.user,
+                semester=semester,
+                role=role,
+            )
+            reportable = resolution.state in {
+                CapacityState.OVER_CAPACITY,
+                CapacityState.TEMPORARILY_UNAVAILABLE,
+                CapacityState.NOT_CONFIGURED,
+            }
+            if not reportable:
+                continue
+            actions.append(
+                _task(
+                    id=f"capacity_{role.value.lower()}_{lecturer.pk}",
+                    name=f"{lecturer.user.full_name} - {role.value.title()} capacity",
+                    status=(
+                        "critical"
+                        if resolution.state
+                        in {CapacityState.OVER_CAPACITY, CapacityState.NOT_CONFIGURED}
+                        else "pending"
+                    ),
+                    statusText=resolution.state.replace("_", " ").title(),
+                    target="Lecturer Capacity Management",
+                    targetModule="DASHBOARD",
+                    recordType="LECTURER_CAPACITY",
+                    recordId=lecturer.staff_no,
+                    semester=semester.label,
+                    semesterCode=semester.code,
+                )
+            )
+    return actions
+
+
 def _sort_key(task):
     due_value = str(task["dueAt"] or "")
     if task["deadlineState"] == "OVERDUE":
@@ -356,6 +413,7 @@ def build_dashboard_tasks(user, *, now=None):
         *_panel_actions(user, now),
         *_mark_actions(user, now),
         *_timeline_actions(user, now),
+        *_capacity_actions(user, semester),
         *_reconciliation_actions(user),
     ]
     if user.role == User.Role.OFFICE_ADMIN:

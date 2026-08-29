@@ -10,9 +10,10 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from academics.capacity import CapacityRole, CapacityState, resolve_lecturer_capacity
 from academics.models import AcademicSemester
 from accounts.authorization import coordinator_programme
-from accounts.models import Lecturer, Student
+from accounts.models import Lecturer, Panel, Student, Supervisor
 from appointments.ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.deadlines import mark_deadline_metadata
@@ -20,7 +21,6 @@ from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimelineEntry
 from .reconciliation import detect_reconciliation_issues
-
 
 User = get_user_model()
 AUTHORIZED_ROLES = {
@@ -52,7 +52,11 @@ def _date_of(value):
     if value is None:
         return None
     if isinstance(value, datetime):
-        return timezone.localtime(value).date() if timezone.is_aware(value) else value.date()
+        return (
+            timezone.localtime(value).date()
+            if timezone.is_aware(value)
+            else value.date()
+        )
     if isinstance(value, date):
         return value
     return None
@@ -131,8 +135,93 @@ def _semester_row(semester):
     }
 
 
+def _capacity_fields(*, lecturer, semester, role):
+    if semester is None:
+        return {
+            "capacityPlanId": None,
+            "capacityPlanVersion": None,
+            "capacityState": CapacityState.NOT_CONFIGURED,
+            "capacityLimit": 0,
+            "capacityLoad": 0,
+            "availableSlots": 0,
+            "unavailableUntil": None,
+        }
+    resolution = resolve_lecturer_capacity(
+        user=lecturer,
+        semester=semester,
+        role=role,
+    )
+    return {
+        "capacityPlanId": resolution.plan_id,
+        "capacityPlanVersion": resolution.plan_version,
+        "capacityState": resolution.state,
+        "capacityLimit": resolution.limit or 0,
+        "capacityLoad": resolution.active_load + resolution.reserved_load,
+        "availableSlots": resolution.available_slots,
+        "unavailableUntil": _iso(resolution.unavailable_until),
+    }
+
+
+def _capacity_summary(user, semester):
+    if user.role != User.Role.OFFICE_ADMIN or semester is None:
+        return None, []
+    states = tuple(state.value for state in CapacityState)
+    summary = {
+        "semesterId": semester.pk,
+        "semesterCode": semester.code,
+        "supervisor": {state: 0 for state in states},
+        "panel": {state: 0 for state in states},
+    }
+    attention = []
+    role_specs = (
+        (CapacityRole.SUPERVISOR, Supervisor, "supervisor"),
+        (CapacityRole.PANEL, Panel, "panel"),
+    )
+    for role, role_model, key in role_specs:
+        lecturers = Lecturer.objects.select_related("user").filter(
+            pk__in=role_model.objects.values_list("lecturer_id", flat=True)
+        )
+        for lecturer in lecturers:
+            resolution = resolve_lecturer_capacity(
+                user=lecturer.user,
+                semester=semester,
+                role=role,
+            )
+            summary[key][resolution.state] += 1
+            reportable = resolution.state in {
+                CapacityState.OVER_CAPACITY,
+                CapacityState.TEMPORARILY_UNAVAILABLE,
+            } or (
+                resolution.state == CapacityState.NOT_CONFIGURED
+                and semester.lifecycle_status == AcademicSemester.Lifecycle.ACTIVE
+            )
+            if not reportable:
+                continue
+            attention.append(
+                {
+                    "kind": "LECTURER_CAPACITY",
+                    "recordType": "LECTURER_CAPACITY",
+                    "recordId": lecturer.staff_no,
+                    "studentId": None,
+                    "label": f"{lecturer.user.full_name} - {role.value.title()} {resolution.state.replace('_', ' ').title()}",
+                    "programme": lecturer.department or None,
+                    "waitingDays": None,
+                    "waitingOn": None,
+                    "deadlineState": None,
+                    "dueAt": None,
+                    "targetModule": "DASHBOARD",
+                    "capacityRole": role.value,
+                    "capacityState": resolution.state,
+                    "unavailableUntil": _iso(resolution.unavailable_until),
+                }
+            )
+    return summary, attention
+
+
 def _module_summary(records):
-    waiting_records = [record for record in records if record["waitingDays"] is not None]
+    waiting_records = [
+        record for record in records if record["waitingDays"] is not None
+    ]
     return {
         "total": len(records),
         "statusCounts": _counts(record["status"] for record in records),
@@ -273,6 +362,11 @@ def _supervisor_rows(
                     and hasattr(application.appointment, "replacement_appointment")
                     else None
                 ),
+                **_capacity_fields(
+                    lecturer=application.proposed_supervisor,
+                    semester=application.academic_semester,
+                    role=CapacityRole.SUPERVISOR,
+                ),
                 **_semester_row(application.academic_semester),
             }
         )
@@ -354,6 +448,11 @@ def _panel_rows(
                         "replacement_appointment",
                     )
                     else None
+                ),
+                **_capacity_fields(
+                    lecturer=recommendation.recommended_member,
+                    semester=recommendation.academic_semester,
+                    role=CapacityRole.PANEL,
                 ),
                 **_semester_row(recommendation.academic_semester),
             }
@@ -567,9 +666,15 @@ def _participant_lifecycle_summary(user, programme):
         "deferredStudents": students.filter(status=Student.Status.DEFERRED).count(),
         "graduatedStudents": students.filter(status=Student.Status.GRADUATED).count(),
         "withdrawnStudents": students.filter(status=Student.Status.WITHDRAWN).count(),
-        "activeLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
-        "retiringLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
-        "retiredLecturers": lecturers.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),
+        "activeLecturers": lecturers.filter(
+            lifecycle_status=Lecturer.Lifecycle.ACTIVE
+        ).count(),
+        "retiringLecturers": lecturers.filter(
+            lifecycle_status=Lecturer.Lifecycle.RETIRING
+        ).count(),
+        "retiredLecturers": lecturers.filter(
+            lifecycle_status=Lecturer.Lifecycle.RETIRED
+        ).count(),
     }
     attention = [
         {
@@ -628,29 +733,31 @@ def build_workflow_report(user, query_params=None, now=None):
     elif user.role == User.Role.OFFICE_ADMIN:
         programme = str(params.get("programme") or "").strip() or None
 
-    available_programmes = sorted(
-        {
-            value.strip()
-            for value in list(
-                SupervisorApplication.objects.values_list(
-                    "student__programme", flat=True
+    available_programmes = (
+        sorted(
+            {
+                value.strip()
+                for value in list(
+                    SupervisorApplication.objects.values_list(
+                        "student__programme", flat=True
+                    )
                 )
-            )
-            + list(
-                PanelRecommendation.objects.values_list(
-                    "profile__programme", flat=True
+                + list(
+                    PanelRecommendation.objects.values_list(
+                        "profile__programme", flat=True
+                    )
                 )
-            )
-            + list(
-                EvaluationTask.objects.filter(
-                    lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-                ).values_list(
-                    "profile__programme", flat=True
+                + list(
+                    EvaluationTask.objects.filter(
+                        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+                    ).values_list("profile__programme", flat=True)
                 )
-            )
-            if value and value.strip()
-        }
-    ) if user.role == User.Role.OFFICE_ADMIN else ([programme] if programme else [])
+                if value and value.strip()
+            }
+        )
+        if user.role == User.Role.OFFICE_ADMIN
+        else ([programme] if programme else [])
+    )
 
     supervisor_rows = _supervisor_rows(
         user,
@@ -701,10 +808,9 @@ def build_workflow_report(user, query_params=None, now=None):
     participant_lifecycle, participant_attention = _participant_lifecycle_summary(
         user, programme
     )
+    capacity, capacity_attention = _capacity_summary(user, selected_semester)
     reconciliation_issues = (
-        detect_reconciliation_issues()
-        if user.role == User.Role.OFFICE_ADMIN
-        else []
+        detect_reconciliation_issues() if user.role == User.Role.OFFICE_ADMIN else []
     )
     reconciliation_summary = (
         {
@@ -716,8 +822,7 @@ def build_workflow_report(user, query_params=None, now=None):
                 issue.severity == "WARNING" for issue in reconciliation_issues
             ),
             "repairable": sum(
-                issue.repairability == "REPAIRABLE"
-                for issue in reconciliation_issues
+                issue.repairability == "REPAIRABLE" for issue in reconciliation_issues
             ),
             "reviewRequired": sum(
                 issue.repairability == "REVIEW_REQUIRED"
@@ -741,9 +846,7 @@ def build_workflow_report(user, query_params=None, now=None):
             "availableProgrammes": available_programmes,
             "semester": semester_selector,
             "selectedSemester": (
-                _semester_row(selected_semester)
-                if selected_semester
-                else None
+                _semester_row(selected_semester) if selected_semester else None
             ),
             "availableSemesters": [
                 {
@@ -772,8 +875,7 @@ def build_workflow_report(user, query_params=None, now=None):
                 row["deadlineState"] == "OVERDUE" for row in mark_rows or []
             ),
             "activeTimelineEntries": sum(
-                row["status"] in {"ACTIVE", "DEADLINE"}
-                for row in timeline_rows or []
+                row["status"] in {"ACTIVE", "DEADLINE"} for row in timeline_rows or []
             ),
         },
         "supervisor": _module_summary(supervisor_rows),
@@ -781,12 +883,13 @@ def build_workflow_report(user, query_params=None, now=None):
         "marks": _marks_summary(mark_rows),
         "timeline": _timeline_summary(timeline_rows),
         "participantLifecycle": participant_lifecycle,
+        "capacity": capacity,
         "reconciliation": reconciliation_summary,
         "attention": _attention(
             supervisor_rows,
             panel_rows,
             mark_rows,
-            participant_attention,
+            [*participant_attention, *capacity_attention],
         )
         + [
             {
@@ -816,9 +919,7 @@ def _append_sheet(workbook, title, headers, rows):
     for column_index, (_key, label) in enumerate(headers, start=1):
         sheet.cell(1, column_index, label)
         sheet.cell(1, column_index).font = Font(bold=True, color="FFFFFF")
-        sheet.cell(1, column_index).fill = PatternFill(
-            "solid", fgColor="1E3A5F"
-        )
+        sheet.cell(1, column_index).fill = PatternFill("solid", fgColor="1E3A5F")
         column_widths = [
             len(label),
             *[
@@ -844,9 +945,7 @@ def build_workflow_report_workbook(report):
         ("Start Date", report["filters"]["startDate"] or "All"),
         ("End Date", report["filters"]["endDate"] or "All"),
         ("Semester", report["filters"]["semester"]),
-    ] + [
-        (key, value) for key, value in report["overview"].items()
-    ]
+    ] + [(key, value) for key, value in report["overview"].items()]
     if report.get("participantLifecycle"):
         summary_rows.extend(
             (f"Participant {key}", value)
@@ -882,6 +981,13 @@ def build_workflow_report_workbook(report):
         ("appointmentEndedBy", "Appointment Ended By"),
         ("supersedesAppointmentId", "Supersedes Appointment ID"),
         ("replacementAppointmentId", "Replacement Appointment ID"),
+        ("capacityPlanId", "Capacity Plan ID"),
+        ("capacityPlanVersion", "Capacity Plan Version"),
+        ("capacityState", "Capacity State"),
+        ("capacityLimit", "Capacity Limit"),
+        ("capacityLoad", "Capacity Load"),
+        ("availableSlots", "Available Slots"),
+        ("unavailableUntil", "Unavailable Until"),
     ]
     _append_sheet(
         workbook,

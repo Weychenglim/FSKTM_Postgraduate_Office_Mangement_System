@@ -11,8 +11,17 @@ from accounts.eligibility import (
     user_is_assignable_lecturer,
 )
 from accounts.authorization import coordinator_manages_programme
-from accounts.models import Coordinator, Lecturer, Student, User
-from academics.models import AcademicSemester
+from accounts.models import Coordinator, Lecturer, Panel, Student, Supervisor, User
+from academics.capacity_services import (
+    CapacityLifecycleConflict,
+    create_capacity_plan,
+    validate_published_capacity_ready,
+)
+from academics.models import (
+    AcademicSemester,
+    LecturerAvailabilityWindow,
+    SemesterCapacityPlan,
+)
 from appointments.models import (
     AppointmentWorkflowEvent,
     PanelAppointment,
@@ -83,7 +92,9 @@ class ReconciliationIssue:
         values = asdict(self)
         navigation = values["navigation"] or {
             "targetModule": (
-                "DASHBOARD" if values["module"] == "WORKFLOW_TRACKING" else values["module"]
+                "DASHBOARD"
+                if values["module"] == "WORKFLOW_TRACKING"
+                else values["module"]
             ),
             "recordType": values["record_type"],
             "recordId": values["record_id"],
@@ -159,7 +170,18 @@ def _semester_candidates(*, label="", occurred_on=None, starts_at=None, ends_at=
     return candidates
 
 
-def _semester_issue(record, *, module, record_type, programme, student_id, label="", occurred_on=None, starts_at=None, ends_at=None):
+def _semester_issue(
+    record,
+    *,
+    module,
+    record_type,
+    programme,
+    student_id,
+    label="",
+    occurred_on=None,
+    starts_at=None,
+    ends_at=None,
+):
     candidates = _semester_candidates(
         label=label,
         occurred_on=occurred_on,
@@ -186,8 +208,238 @@ def _semester_issue(record, *, module, record_type, programme, student_id, label
     )
 
 
-def detect_reconciliation_issues():
+def _capacity_issue(
+    issue_type,
+    record_type,
+    record_id,
+    *,
+    title,
+    summary,
+    current_state,
+    severity="WARNING",
+    repairability="REVIEW_REQUIRED",
+    suggestion=None,
+    dependencies=None,
+):
+    return ReconciliationIssue(
+        issue_id=_issue_id(issue_type, record_type, record_id),
+        module="WORKFLOW_TRACKING",
+        issue_type=issue_type,
+        severity=severity,
+        repairability=repairability,
+        title=title,
+        summary=summary,
+        record_type=record_type,
+        record_id=str(record_id),
+        programme=None,
+        student_id=None,
+        current_state=current_state,
+        suggestion=suggestion or {},
+        dependencies=dependencies or [],
+        navigation={
+            "targetModule": "DASHBOARD",
+            "recordType": record_type,
+            "recordId": str(record_id),
+        },
+    )
+
+
+def _capacity_reconciliation_issues():
     issues = []
+    for semester in AcademicSemester.objects.filter(
+        lifecycle_status__in=(
+            AcademicSemester.Lifecycle.DRAFT,
+            AcademicSemester.Lifecycle.ACTIVE,
+        )
+    ).order_by("starts_on", "pk"):
+        plans = list(semester.capacity_plans.order_by("version", "pk"))
+        published = [
+            plan
+            for plan in plans
+            if plan.lifecycle_status == SemesterCapacityPlan.Lifecycle.PUBLISHED
+        ]
+        if not plans:
+            prior = list(
+                SemesterCapacityPlan.objects.filter(
+                    lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+                    academic_semester__ends_on__lt=semester.starts_on,
+                )
+                .select_related("academic_semester")
+                .order_by("-academic_semester__ends_on", "-pk")
+            )
+            repairable = (
+                semester.lifecycle_status == AcademicSemester.Lifecycle.DRAFT
+                and len(prior) == 1
+            )
+            issues.append(
+                _capacity_issue(
+                    "CAPACITY_PLAN_MISSING",
+                    "ACADEMIC_SEMESTER",
+                    semester.pk,
+                    title="Academic semester has no capacity plan",
+                    summary=f"{semester.label} has no versioned Lecturer capacity policy.",
+                    current_state={
+                        **_semester_payload(semester),
+                        "lifecycleStatus": semester.lifecycle_status,
+                        "capacityPlanIds": [],
+                    },
+                    severity=(
+                        "BLOCKING"
+                        if semester.lifecycle_status
+                        == AcademicSemester.Lifecycle.ACTIVE
+                        else "WARNING"
+                    ),
+                    repairability="REPAIRABLE" if repairable else "REVIEW_REQUIRED",
+                    suggestion=(
+                        {
+                            "action": "COPY_CAPACITY_PLAN",
+                            "sourcePlanId": prior[0].pk,
+                        }
+                        if repairable
+                        else {}
+                    ),
+                    dependencies=(
+                        []
+                        if repairable
+                        else ["Create and review a Draft capacity plan manually."]
+                    ),
+                )
+            )
+            continue
+        if len(published) > 1:
+            issues.append(
+                _capacity_issue(
+                    "CAPACITY_MULTIPLE_PUBLISHED",
+                    "ACADEMIC_SEMESTER",
+                    semester.pk,
+                    title="Multiple capacity plans are published",
+                    summary=f"{semester.label} has more than one Published capacity plan.",
+                    current_state={"publishedPlanIds": [plan.pk for plan in published]},
+                    severity="BLOCKING",
+                )
+            )
+        if len(published) == 1:
+            errors = validate_published_capacity_ready(semester)
+            if errors:
+                issues.append(
+                    _capacity_issue(
+                        "CAPACITY_PLAN_INCOMPLETE",
+                        "CAPACITY_PLAN",
+                        published[0].pk,
+                        title="Published capacity plan is incomplete",
+                        summary=" ".join(errors),
+                        current_state={
+                            "semesterId": semester.pk,
+                            "capacityPlanId": published[0].pk,
+                            "readinessErrors": errors,
+                        },
+                        severity="BLOCKING",
+                    )
+                )
+
+        for plan in plans:
+            for entry in plan.entries.select_related("lecturer__user"):
+                supervisor_profile = Supervisor.objects.filter(
+                    lecturer_id=entry.lecturer_id
+                ).first()
+                panel_profile = Panel.objects.filter(
+                    lecturer_id=entry.lecturer_id
+                ).first()
+                has_supervisor = supervisor_profile is not None
+                has_panel = panel_profile is not None
+                mismatch = (
+                    (has_supervisor and entry.supervisor_limit is None)
+                    or (not has_supervisor and entry.supervisor_limit is not None)
+                    or (has_panel and entry.panel_limit is None)
+                    or (not has_panel and entry.panel_limit is not None)
+                )
+                if mismatch:
+                    issues.append(
+                        _capacity_issue(
+                            "CAPACITY_ENTRY_ROLE_MISMATCH",
+                            "CAPACITY_ENTRY",
+                            entry.pk,
+                            title="Capacity entry no longer matches Lecturer roles",
+                            summary=f"{entry.lecturer.user.full_name} has role-alignment drift in plan {plan.pk}.",
+                            current_state={
+                                "capacityPlanId": plan.pk,
+                                "lecturerId": entry.lecturer.staff_no,
+                                "hasSupervisorRole": has_supervisor,
+                                "hasPanelRole": has_panel,
+                                "supervisorLimit": entry.supervisor_limit,
+                                "panelLimit": entry.panel_limit,
+                            },
+                        )
+                    )
+                legacy_values = (
+                    supervisor_profile.max_supervisees if supervisor_profile else None,
+                    panel_profile.max_appointments if panel_profile else None,
+                )
+                if (
+                    plan.lifecycle_status == SemesterCapacityPlan.Lifecycle.PUBLISHED
+                    and (
+                        (
+                            entry.supervisor_limit is not None
+                            and entry.supervisor_limit != legacy_values[0]
+                        )
+                        or (
+                            entry.panel_limit is not None
+                            and entry.panel_limit != legacy_values[1]
+                        )
+                    )
+                ):
+                    issues.append(
+                        _capacity_issue(
+                            "CAPACITY_LEGACY_LIMIT_DIVERGENCE",
+                            "CAPACITY_ENTRY",
+                            entry.pk,
+                            title="Semester capacity differs from the legacy profile limit",
+                            summary="The semester policy is authoritative; review the legacy compatibility value.",
+                            current_state={
+                                "capacityPlanId": plan.pk,
+                                "supervisorLimit": entry.supervisor_limit,
+                                "legacySupervisorLimit": legacy_values[0],
+                                "panelLimit": entry.panel_limit,
+                                "legacyPanelLimit": legacy_values[1],
+                            },
+                        )
+                    )
+
+    windows = list(
+        LecturerAvailabilityWindow.objects.filter(cancelled_at__isnull=True).order_by(
+            "academic_semester_id", "lecturer_id", "role", "starts_on", "pk"
+        )
+    )
+    for index, window in enumerate(windows):
+        overlap = next(
+            (
+                other
+                for other in windows[index + 1 :]
+                if other.academic_semester_id == window.academic_semester_id
+                and other.lecturer_id == window.lecturer_id
+                and other.role == window.role
+                and other.starts_on <= window.ends_on
+                and window.starts_on <= other.ends_on
+            ),
+            None,
+        )
+        if overlap is not None:
+            issues.append(
+                _capacity_issue(
+                    "CAPACITY_AVAILABILITY_OVERLAP",
+                    "LECTURER_AVAILABILITY",
+                    window.pk,
+                    title="Lecturer availability windows overlap",
+                    summary="Two active same-role availability windows overlap.",
+                    current_state={"windowIds": [window.pk, overlap.pk]},
+                    severity="BLOCKING",
+                )
+            )
+    return issues
+
+
+def detect_reconciliation_issues():
+    issues = _capacity_reconciliation_issues()
     for coordinator in Coordinator.objects.select_related("lecturer__user").filter(
         programme_managed=""
     ):
@@ -221,14 +473,14 @@ def detect_reconciliation_issues():
             )
         )
 
-    for user in User.objects.filter(role=User.Role.COORDINATOR).select_related("lecturer"):
+    for user in User.objects.filter(role=User.Role.COORDINATOR).select_related(
+        "lecturer"
+    ):
         lecturer = getattr(user, "lecturer", None)
         if lecturer and not Coordinator.objects.filter(lecturer=lecturer).exists():
             issues.append(
                 ReconciliationIssue(
-                    issue_id=_issue_id(
-                        "COORDINATOR_PROFILE_MISSING", "USER", user.pk
-                    ),
+                    issue_id=_issue_id("COORDINATOR_PROFILE_MISSING", "USER", user.pk),
                     module="WORKFLOW_TRACKING",
                     issue_type="COORDINATOR_PROFILE_MISSING",
                     severity="BLOCKING",
@@ -269,7 +521,9 @@ def detect_reconciliation_issues():
                     "role": coordinator.lecturer.user.role,
                     "programmeManaged": coordinator.programme_managed,
                 },
-                dependencies=["Review the account role through controlled administration."],
+                dependencies=[
+                    "Review the account role through controlled administration."
+                ],
             )
         )
 
@@ -343,9 +597,7 @@ def detect_reconciliation_issues():
                 occurred_on=occurred.date() if occurred else None,
             )
         )
-    for timeline in SemesterTimeline.objects.filter(
-        academic_semester__isnull=True
-    ):
+    for timeline in SemesterTimeline.objects.filter(academic_semester__isnull=True):
         issues.append(
             _semester_issue(
                 timeline,
@@ -356,9 +608,7 @@ def detect_reconciliation_issues():
                 label=f"{timeline.semester} {timeline.session}",
             )
         )
-    for period in EvaluationPeriod.objects.filter(
-        academic_semester__isnull=True
-    ):
+    for period in EvaluationPeriod.objects.filter(academic_semester__isnull=True):
         issues.append(
             _semester_issue(
                 period,
@@ -407,13 +657,17 @@ def detect_reconciliation_issues():
                     "competingProfile": competing_profile,
                 },
                 suggestion={"studentUserId": student.user_id} if repairable else {},
-                dependencies=[] if repairable else ["Resolve profile ownership outside the portal."],
+                dependencies=(
+                    []
+                    if repairable
+                    else ["Resolve profile ownership outside the portal."]
+                ),
             )
         )
 
-    for profile in StudentResearchProfile.objects.exclude(student__isnull=True).select_related(
-        "student"
-    ):
+    for profile in StudentResearchProfile.objects.exclude(
+        student__isnull=True
+    ).select_related("student"):
         student = Student.objects.filter(user_id=profile.student_id).first()
         if student and _normalized(student.matric_no) == _normalized(profile.matric_no):
             continue
@@ -486,9 +740,11 @@ def detect_reconciliation_issues():
         status=SupervisorApplication.Status.APPROVED,
         appointment__isnull=True,
     ).select_related("student", "proposed_supervisor"):
-        approval_event = application.workflow_events.filter(
-            action="COORDINATOR_APPROVE"
-        ).order_by("-created_at", "-id").first()
+        approval_event = (
+            application.workflow_events.filter(action="COORDINATOR_APPROVE")
+            .order_by("-created_at", "-id")
+            .first()
+        )
         repairable = bool(
             approval_event
             and application.coordinator_decided_at
@@ -508,7 +764,9 @@ def detect_reconciliation_issues():
         issues.append(
             ReconciliationIssue(
                 issue_id=_issue_id(
-                    "SUPERVISOR_HANDOFF_INCOMPLETE", "SUPERVISOR_APPLICATION", application.pk
+                    "SUPERVISOR_HANDOFF_INCOMPLETE",
+                    "SUPERVISOR_APPLICATION",
+                    application.pk,
                 ),
                 module="SUPERVISOR_APPOINTMENTS",
                 issue_type="SUPERVISOR_HANDOFF_INCOMPLETE",
@@ -526,17 +784,25 @@ def detect_reconciliation_issues():
                     "coordinatorDecisionAt": application.coordinator_decided_at,
                     "approvalEventId": approval_event.pk if approval_event else None,
                 },
-                suggestion={"action": "COMPLETE_SUPERVISOR_HANDOFF"} if repairable else {},
-                dependencies=[] if repairable else ["Restore all authoritative approval prerequisites."],
+                suggestion=(
+                    {"action": "COMPLETE_SUPERVISOR_HANDOFF"} if repairable else {}
+                ),
+                dependencies=(
+                    []
+                    if repairable
+                    else ["Restore all authoritative approval prerequisites."]
+                ),
             )
         )
     for recommendation in PanelRecommendation.objects.filter(
         status=PanelRecommendation.Status.APPROVED,
         panel_appointment__isnull=True,
     ).select_related("profile"):
-        approval_event = recommendation.workflow_events.filter(
-            action="COORDINATOR_APPROVE"
-        ).order_by("-created_at", "-id").first()
+        approval_event = (
+            recommendation.workflow_events.filter(action="COORDINATOR_APPROVE")
+            .order_by("-created_at", "-id")
+            .first()
+        )
         repairable = bool(
             approval_event
             and recommendation.coordinator_decided_at
@@ -565,7 +831,9 @@ def detect_reconciliation_issues():
         issues.append(
             ReconciliationIssue(
                 issue_id=_issue_id(
-                    "PANEL_HANDOFF_INCOMPLETE", "PANEL_RECOMMENDATION", recommendation.pk
+                    "PANEL_HANDOFF_INCOMPLETE",
+                    "PANEL_RECOMMENDATION",
+                    recommendation.pk,
                 ),
                 module="PANEL_APPOINTMENTS",
                 issue_type="PANEL_HANDOFF_INCOMPLETE",
@@ -584,7 +852,9 @@ def detect_reconciliation_issues():
                     "approvalEventId": approval_event.pk if approval_event else None,
                 },
                 suggestion={"action": "COMPLETE_PANEL_HANDOFF"} if repairable else {},
-                dependencies=[] if repairable else ["Restore authoritative approval metadata."],
+                dependencies=(
+                    [] if repairable else ["Restore authoritative approval metadata."]
+                ),
             )
         )
 
@@ -643,7 +913,9 @@ def _detect_marks_issues():
         if task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE:
             if student and student.status == Student.Status.DEFERRED:
                 action = "PAUSE_MARKS_TASK"
-                reason = "The Student is deferred but the unfinished task remains active."
+                reason = (
+                    "The Student is deferred but the unfinished task remains active."
+                )
             elif not student or not student_is_workflow_eligible(student):
                 action = "RETIRE_MARKS_TASK"
                 reason = "The Student is not eligible for an active evaluation task."
@@ -671,7 +943,9 @@ def _detect_marks_issues():
             continue
         issues.append(
             ReconciliationIssue(
-                issue_id=_issue_id("MARKS_TASK_INCONSISTENT", "EVALUATION_TASK", task.pk),
+                issue_id=_issue_id(
+                    "MARKS_TASK_INCONSISTENT", "EVALUATION_TASK", task.pk
+                ),
                 module="MARKS",
                 issue_type="MARKS_TASK_INCONSISTENT",
                 severity="BLOCKING",
@@ -714,7 +988,11 @@ def _detect_marks_issues():
             ).first()
             if profile:
                 expected.add(
-                    (profile.pk, appointment.supervisor_id, EvaluationTask.EvaluatorRole.SUPERVISOR)
+                    (
+                        profile.pk,
+                        appointment.supervisor_id,
+                        EvaluationTask.EvaluatorRole.SUPERVISOR,
+                    )
                 )
         for appointment in PanelAppointment.objects.filter(
             status=PanelAppointment.Status.ACTIVE,
@@ -723,7 +1001,11 @@ def _detect_marks_issues():
         ).select_related("profile"):
             if profile_student_is_workflow_eligible(appointment.profile):
                 expected.add(
-                    (appointment.profile_id, appointment.panel_member_id, EvaluationTask.EvaluatorRole.PANEL)
+                    (
+                        appointment.profile_id,
+                        appointment.panel_member_id,
+                        EvaluationTask.EvaluatorRole.PANEL,
+                    )
                 )
         existing = set(
             EvaluationTask.objects.filter(
@@ -736,7 +1018,9 @@ def _detect_marks_issues():
             continue
         issues.append(
             ReconciliationIssue(
-                issue_id=_issue_id("MARKS_TASKS_MISSING", "EVALUATION_PERIOD", period.pk),
+                issue_id=_issue_id(
+                    "MARKS_TASKS_MISSING", "EVALUATION_PERIOD", period.pk
+                ),
                 module="MARKS",
                 issue_type="MARKS_TASKS_MISSING",
                 severity="BLOCKING",
@@ -751,7 +1035,8 @@ def _detect_marks_issues():
                     "periodStatus": period.effective_status,
                     "missingCount": len(missing),
                     "missingAssignments": sorted(
-                        [list(item) for item in missing], key=lambda item: tuple(map(str, item))
+                        [list(item) for item in missing],
+                        key=lambda item: tuple(map(str, item)),
                     ),
                 },
                 suggestion={"action": "GENERATE_MISSING_MARKS_TASKS"},
@@ -778,7 +1063,13 @@ def _detect_appointment_integrity_issues():
             PanelRecommendation.Status.APPROVED,
         ),
     )
-    for queryset, record_type, module, source_field, approved_status in appointment_specs:
+    for (
+        queryset,
+        record_type,
+        module,
+        source_field,
+        approved_status,
+    ) in appointment_specs:
         for appointment in queryset:
             source = getattr(appointment, source_field)
             programme = (
@@ -795,17 +1086,22 @@ def _detect_appointment_integrity_issues():
             if source.status != approved_status:
                 problems.append("The source workflow is not approved.")
             if source.replaces_appointment_id != appointment.supersedes_id:
-                problems.append("Replacement lineage differs between workflow and appointment.")
+                problems.append(
+                    "Replacement lineage differs between workflow and appointment."
+                )
             if appointment.supersedes_id and (
                 appointment.supersedes.status == appointment.supersedes.Status.ACTIVE
-                or appointment.supersedes.end_outcome != appointment.supersedes.EndOutcome.REPLACED
+                or appointment.supersedes.end_outcome
+                != appointment.supersedes.EndOutcome.REPLACED
             ):
                 problems.append("The superseded appointment is not closed as replaced.")
             if not problems:
                 continue
             issues.append(
                 ReconciliationIssue(
-                    issue_id=_issue_id("APPOINTMENT_LINEAGE_INCONSISTENT", record_type, appointment.pk),
+                    issue_id=_issue_id(
+                        "APPOINTMENT_LINEAGE_INCONSISTENT", record_type, appointment.pk
+                    ),
                     module=module,
                     issue_type="APPOINTMENT_LINEAGE_INCONSISTENT",
                     severity="BLOCKING",
@@ -822,7 +1118,9 @@ def _detect_appointment_integrity_issues():
                         "supersedesId": appointment.supersedes_id,
                         "sourceReplacesAppointmentId": source.replaces_appointment_id,
                     },
-                    dependencies=["Review the immutable workflow and appointment history."],
+                    dependencies=[
+                        "Review the immutable workflow and appointment history."
+                    ],
                 )
             )
     return issues
@@ -830,7 +1128,11 @@ def _detect_appointment_integrity_issues():
 
 def get_reconciliation_issue(issue_id):
     return next(
-        (issue for issue in detect_reconciliation_issues() if issue.issue_id == issue_id),
+        (
+            issue
+            for issue in detect_reconciliation_issues()
+            if issue.issue_id == issue_id
+        ),
         None,
     )
 
@@ -838,14 +1140,22 @@ def get_reconciliation_issue(issue_id):
 def allowed_resolutions(issue):
     if issue.repairability != "REPAIRABLE":
         return []
-    if issue.issue_type == "SEMESTER_UNASSIGNED" and issue.suggestion.get(
-        "semesterId"
-    ):
+    if issue.issue_type == "SEMESTER_UNASSIGNED" and issue.suggestion.get("semesterId"):
         return [
             {
                 "action": "ASSIGN_SEMESTER",
                 "label": "Assign verified academic semester",
                 "semesterId": issue.suggestion["semesterId"],
+            }
+        ]
+    if issue.issue_type == "CAPACITY_PLAN_MISSING" and issue.suggestion.get(
+        "sourcePlanId"
+    ):
+        return [
+            {
+                "action": "COPY_CAPACITY_PLAN",
+                "label": "Copy the verified prior Published capacity plan",
+                "sourcePlanId": issue.suggestion["sourcePlanId"],
             }
         ]
     if issue.issue_type == "COORDINATOR_PROFILE_MISSING":
@@ -894,9 +1204,7 @@ def allowed_resolutions(issue):
                 "label": "Create the missing approved Panel appointment",
             }
         ]
-    if issue.issue_type == "MARKS_TASK_INCONSISTENT" and issue.suggestion.get(
-        "action"
-    ):
+    if issue.issue_type == "MARKS_TASK_INCONSISTENT" and issue.suggestion.get("action"):
         return [
             {
                 "action": issue.suggestion["action"],
@@ -934,9 +1242,13 @@ def _apply_semester_assignment(issue, resolution):
             "The selected semester is not the current unambiguous suggestion."
         )
     record = model.objects.select_for_update().filter(pk=issue.record_id).first()
-    semester = AcademicSemester.objects.select_for_update().filter(pk=semester_id).first()
+    semester = (
+        AcademicSemester.objects.select_for_update().filter(pk=semester_id).first()
+    )
     if record is None or semester is None:
-        raise ReconciliationConflict("The affected record or semester no longer exists.")
+        raise ReconciliationConflict(
+            "The affected record or semester no longer exists."
+        )
     if record.academic_semester_id is not None:
         raise ReconciliationConflict("The record already has an academic semester.")
     before = {"academicSemesterId": None}
@@ -947,11 +1259,15 @@ def _apply_semester_assignment(issue, resolution):
         "semesterCode": semester.code,
         "semesterLabel": semester.label,
     }
-    return before, after, {
-        "recordType": issue.record_type,
-        "recordId": issue.record_id,
-        "semesterId": semester.pk,
-    }
+    return (
+        before,
+        after,
+        {
+            "recordType": issue.record_type,
+            "recordId": issue.record_id,
+            "semesterId": semester.pk,
+        },
+    )
 
 
 def _validated_programme(resolution):
@@ -965,7 +1281,9 @@ def _validated_programme(resolution):
         .first()
     )
     if canonical is None:
-        raise ReconciliationError("The selected programme is not represented by a Student record.")
+        raise ReconciliationError(
+            "The selected programme is not represented by a Student record."
+        )
     return canonical
 
 
@@ -973,7 +1291,9 @@ def _apply_coordinator_profile(issue, resolution):
     programme = _validated_programme(resolution)
     user = User.objects.select_for_update().filter(pk=issue.record_id).first()
     if user is None or user.role != User.Role.COORDINATOR:
-        raise ReconciliationConflict("The account is no longer an eligible Coordinator.")
+        raise ReconciliationConflict(
+            "The account is no longer an eligible Coordinator."
+        )
     lecturer = Lecturer.objects.select_for_update().filter(user=user).first()
     if lecturer is None:
         raise ReconciliationConflict("The Coordinator account has no Lecturer profile.")
@@ -1001,7 +1321,9 @@ def _apply_coordinator_programme(issue, resolution):
     if coordinator is None:
         raise ReconciliationConflict("The Coordinator profile no longer exists.")
     if coordinator.lecturer.user.role != User.Role.COORDINATOR:
-        raise ReconciliationConflict("The profile role mismatch requires manual review.")
+        raise ReconciliationConflict(
+            "The profile role mismatch requires manual review."
+        )
     if coordinator.programme_managed.strip():
         raise ReconciliationConflict("The Coordinator already has a managed programme.")
     before = {"programmeManaged": coordinator.programme_managed}
@@ -1030,10 +1352,14 @@ def _apply_research_profile_link(issue):
     )
     if student is None:
         raise ReconciliationConflict("No exact matric-number Student account exists.")
-    if StudentResearchProfile.objects.filter(student=student.user).exclude(
-        pk=profile.pk
-    ).exists():
-        raise ReconciliationConflict("A competing research profile exists for this Student.")
+    if (
+        StudentResearchProfile.objects.filter(student=student.user)
+        .exclude(pk=profile.pk)
+        .exists()
+    ):
+        raise ReconciliationConflict(
+            "A competing research profile exists for this Student."
+        )
     if (
         profile.panel_recommendations.exists()
         or profile.panel_appointments.exists()
@@ -1060,17 +1386,20 @@ def _apply_profile_supervisor_sync(issue):
     if profile is None:
         raise ReconciliationConflict("The research profile no longer exists.")
     appointments = list(
-        SupervisorAppointment.objects.select_for_update()
-        .filter(
+        SupervisorAppointment.objects.select_for_update().filter(
             student__matric_no__iexact=profile.matric_no,
             status=SupervisorAppointment.Status.ACTIVE,
         )[:2]
     )
     if len(appointments) != 1:
-        raise ReconciliationConflict("There is no longer one authoritative active appointment.")
+        raise ReconciliationConflict(
+            "There is no longer one authoritative active appointment."
+        )
     appointment = appointments[0]
     if appointment.supervisor_id != issue.suggestion.get("supervisorId"):
-        raise ReconciliationConflict("The authoritative Supervisor changed after preview.")
+        raise ReconciliationConflict(
+            "The authoritative Supervisor changed after preview."
+        )
     before = {"supervisorId": profile.supervisor_id}
     profile.supervisor_id = appointment.supervisor_id
     profile.save(update_fields=["supervisor", "updated_at"])
@@ -1099,29 +1428,46 @@ def _approval_event_for(source):
 def _apply_supervisor_handoff(issue, actor):
     application = (
         SupervisorApplication.objects.select_for_update(of=("self",))
-        .select_related("student", "student__user", "proposed_supervisor", "academic_semester")
+        .select_related(
+            "student", "student__user", "proposed_supervisor", "academic_semester"
+        )
         .filter(pk=issue.record_id)
         .first()
     )
-    if application is None or application.status != SupervisorApplication.Status.APPROVED:
+    if (
+        application is None
+        or application.status != SupervisorApplication.Status.APPROVED
+    ):
         raise ReconciliationConflict("The Supervisor workflow is no longer approved.")
     if SupervisorAppointment.objects.filter(application=application).exists():
         raise ReconciliationConflict("The Supervisor appointment already exists.")
     approval_event = _approval_event_for(application)
     if not approval_event or not application.coordinator_decided_at:
-        raise ReconciliationConflict("Authoritative Coordinator approval metadata is missing.")
-    if not coordinator_manages_programme(approval_event.actor, application.student.programme):
-        raise ReconciliationConflict("The original approval actor is no longer authoritative for this programme.")
+        raise ReconciliationConflict(
+            "Authoritative Coordinator approval metadata is missing."
+        )
+    if not coordinator_manages_programme(
+        approval_event.actor, application.student.programme
+    ):
+        raise ReconciliationConflict(
+            "The original approval actor is no longer authoritative for this programme."
+        )
     if not application.academic_semester_id:
-        raise ReconciliationConflict("The workflow must have an academic semester before handoff.")
+        raise ReconciliationConflict(
+            "The workflow must have an academic semester before handoff."
+        )
     if not student_is_workflow_eligible(application.student):
-        raise ReconciliationConflict("The Student is not currently eligible for appointment activation.")
+        raise ReconciliationConflict(
+            "The Student is not currently eligible for appointment activation."
+        )
     if not user_is_assignable_lecturer(application.proposed_supervisor):
         raise ReconciliationConflict("The proposed Supervisor is no longer assignable.")
-    if count_supervisor_workload(application.proposed_supervisor) >= supervisor_workload_limit(
+    if count_supervisor_workload(
         application.proposed_supervisor
-    ):
-        raise ReconciliationConflict("The proposed Supervisor has reached the workload limit.")
+    ) >= supervisor_workload_limit(application.proposed_supervisor):
+        raise ReconciliationConflict(
+            "The proposed Supervisor has reached the workload limit."
+        )
     try:
         profile = _resolve_research_profile(application)
         appointment = activate_replacement(
@@ -1165,33 +1511,54 @@ def _apply_panel_handoff(issue, actor):
         .filter(pk=issue.record_id)
         .first()
     )
-    if recommendation is None or recommendation.status != PanelRecommendation.Status.APPROVED:
+    if (
+        recommendation is None
+        or recommendation.status != PanelRecommendation.Status.APPROVED
+    ):
         raise ReconciliationConflict("The Panel workflow is no longer approved.")
     if PanelAppointment.objects.filter(recommendation=recommendation).exists():
         raise ReconciliationConflict("The Panel appointment already exists.")
     approval_event = _approval_event_for(recommendation)
     if not approval_event or not recommendation.coordinator_decided_at:
-        raise ReconciliationConflict("Authoritative Coordinator approval metadata is missing.")
-    if not coordinator_manages_programme(approval_event.actor, recommendation.profile.programme):
-        raise ReconciliationConflict("The original approval actor is no longer authoritative for this programme.")
+        raise ReconciliationConflict(
+            "Authoritative Coordinator approval metadata is missing."
+        )
+    if not coordinator_manages_programme(
+        approval_event.actor, recommendation.profile.programme
+    ):
+        raise ReconciliationConflict(
+            "The original approval actor is no longer authoritative for this programme."
+        )
     if not recommendation.academic_semester_id:
-        raise ReconciliationConflict("The workflow must have an academic semester before handoff.")
+        raise ReconciliationConflict(
+            "The workflow must have an academic semester before handoff."
+        )
     if not profile_student_is_workflow_eligible(recommendation.profile):
-        raise ReconciliationConflict("The Student is not currently eligible for appointment activation.")
+        raise ReconciliationConflict(
+            "The Student is not currently eligible for appointment activation."
+        )
     if recommendation.supervisor_id == recommendation.recommended_member_id:
-        raise ReconciliationConflict("A Supervisor cannot be appointed as the same Student's Panel member.")
+        raise ReconciliationConflict(
+            "A Supervisor cannot be appointed as the same Student's Panel member."
+        )
     if not SupervisorAppointment.objects.filter(
         student__matric_no__iexact=recommendation.profile.matric_no,
         supervisor=recommendation.supervisor,
         status=SupervisorAppointment.Status.ACTIVE,
     ).exists():
-        raise ReconciliationConflict("The submitting Supervisor has no authoritative active appointment.")
+        raise ReconciliationConflict(
+            "The submitting Supervisor has no authoritative active appointment."
+        )
     if not user_is_assignable_lecturer(recommendation.recommended_member):
-        raise ReconciliationConflict("The selected Panel lecturer is no longer assignable.")
+        raise ReconciliationConflict(
+            "The selected Panel lecturer is no longer assignable."
+        )
     if count_panel_workload(recommendation.recommended_member) >= panel_workload_limit(
         recommendation.recommended_member
     ):
-        raise ReconciliationConflict("The selected Panel lecturer has reached the workload limit.")
+        raise ReconciliationConflict(
+            "The selected Panel lecturer has reached the workload limit."
+        )
     try:
         appointment = activate_replacement(
             model=PanelAppointment,
@@ -1266,20 +1633,80 @@ def _apply_missing_marks_tasks(issue, actor):
     return before, after, {"evaluationPeriodId": period.pk, **result}
 
 
+def _apply_capacity_plan_copy(issue, actor):
+    semester = AcademicSemester.objects.select_for_update().get(pk=issue.record_id)
+    if semester.lifecycle_status != AcademicSemester.Lifecycle.DRAFT:
+        raise ReconciliationConflict(
+            "Only a Draft semester can copy a missing capacity plan."
+        )
+    if semester.capacity_plans.exists():
+        raise ReconciliationConflict(
+            "The semester already has capacity policy history."
+        )
+    source_id = issue.suggestion.get("sourcePlanId")
+    source = (
+        SemesterCapacityPlan.objects.select_for_update()
+        .filter(
+            pk=source_id,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        .first()
+    )
+    if source is None:
+        raise ReconciliationConflict(
+            "The verified prior Published capacity plan is no longer available."
+        )
+    before = {
+        "semesterId": semester.pk,
+        "capacityPlanIds": [],
+        "sourcePlanId": source.pk,
+    }
+    try:
+        copied = create_capacity_plan(
+            semester=semester,
+            actor=actor,
+            copy_from=source,
+        )
+    except CapacityLifecycleConflict as exc:
+        raise ReconciliationConflict(str(exc)) from exc
+    after = {
+        "semesterId": semester.pk,
+        "capacityPlanIds": [copied.pk],
+        "sourcePlanId": source.pk,
+    }
+    return (
+        before,
+        after,
+        {
+            "academicSemesterId": semester.pk,
+            "capacityPlanId": copied.pk,
+            "sourcePlanId": source.pk,
+        },
+    )
+
+
 @transaction.atomic
-def apply_reconciliation_issue(*, issue_id, expected_fingerprint, reason, resolution, actor):
+def apply_reconciliation_issue(
+    *, issue_id, expected_fingerprint, reason, resolution, actor
+):
     issue = get_reconciliation_issue(issue_id)
     if issue is None:
         raise ReconciliationConflict("This issue has already been resolved or removed.")
     if issue.fingerprint != expected_fingerprint:
-        raise ReconciliationConflict("The issue changed after preview. Refresh and review it again.")
+        raise ReconciliationConflict(
+            "The issue changed after preview. Refresh and review it again."
+        )
     if issue.repairability != "REPAIRABLE":
-        raise ReconciliationConflict("This issue requires manual review and cannot be repaired here.")
+        raise ReconciliationConflict(
+            "This issue requires manual review and cannot be repaired here."
+        )
 
     action = str(resolution.get("action") or "").strip().upper()
     valid_actions = {item["action"] for item in allowed_resolutions(issue)}
     if action not in valid_actions:
-        raise ReconciliationError("The selected resolution is not valid for this issue.")
+        raise ReconciliationError(
+            "The selected resolution is not valid for this issue."
+        )
 
     # Locking is followed by another live scan so preview state cannot race the repair.
     if action == "ASSIGN_SEMESTER":
@@ -1300,6 +1727,8 @@ def apply_reconciliation_issue(*, issue_id, expected_fingerprint, reason, resolu
         before, after, affected = _apply_marks_task(issue, action, actor, reason)
     elif action == "GENERATE_MISSING_MARKS_TASKS":
         before, after, affected = _apply_missing_marks_tasks(issue, actor)
+    elif action == "COPY_CAPACITY_PLAN":
+        before, after, affected = _apply_capacity_plan_copy(issue, actor)
     else:
         raise ReconciliationError("The selected resolution is not supported.")
 

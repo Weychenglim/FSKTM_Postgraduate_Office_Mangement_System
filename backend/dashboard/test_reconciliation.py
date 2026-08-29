@@ -13,7 +13,7 @@ from accounts.models import (
     Student,
     Supervisor,
 )
-from academics.models import AcademicSemester
+from academics.models import AcademicSemester, SemesterCapacityPlan
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     AppointmentLifecycleEvent,
@@ -345,6 +345,102 @@ class WorkflowReconciliationApiTests(TestCase):
         )
         invalid = self.client.get("/api/dashboard/reconciliation/", {"page": "invalid"})
         self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_missing_draft_capacity_plan_can_copy_the_unique_prior_policy(self):
+        next_semester = AcademicSemester.objects.create(
+            code=f"{self.semester.ends_on.year}-{self.semester.ends_on.year + 1}-S2",
+            academic_session=(
+                f"{self.semester.ends_on.year}/{self.semester.ends_on.year + 1}"
+            ),
+            term=AcademicSemester.Term.SEMESTER_II,
+            starts_on=self.semester.ends_on + timezone.timedelta(days=1),
+            ends_on=self.semester.ends_on + timezone.timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.DRAFT,
+            created_by=self.office,
+        )
+        self.authenticate(self.office)
+        issue = self.issue(
+            "CAPACITY_PLAN_MISSING",
+            record_type="ACADEMIC_SEMESTER",
+            record_id=next_semester.pk,
+        )
+
+        response = self.apply_issue(
+            issue,
+            {"action": "COPY_CAPACITY_PLAN"},
+            reason="Prepare the reviewed next-semester policy.",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        copied = SemesterCapacityPlan.objects.get(academic_semester=next_semester)
+        self.assertEqual(copied.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertEqual(copied.supersedes_id, self.semester.capacity_plans.get().pk)
+        self.assertEqual(
+            copied.entries.count(),
+            self.semester.capacity_plans.get().entries.count(),
+        )
+        audit = WorkflowReconciliationAudit.objects.get(
+            issue_type="CAPACITY_PLAN_MISSING"
+        )
+        self.assertEqual(audit.action, "COPY_CAPACITY_PLAN")
+        self.assertEqual(audit.affected_records["capacityPlanId"], copied.pk)
+
+    def test_missing_capacity_plan_repair_rejects_a_stale_fingerprint(self):
+        next_semester = AcademicSemester.objects.create(
+            code=f"{self.semester.ends_on.year}-{self.semester.ends_on.year + 1}-SP",
+            academic_session=(
+                f"{self.semester.ends_on.year}/{self.semester.ends_on.year + 1}"
+            ),
+            term=AcademicSemester.Term.SPECIAL,
+            starts_on=self.semester.ends_on + timezone.timedelta(days=1),
+            ends_on=self.semester.ends_on + timezone.timedelta(days=60),
+            lifecycle_status=AcademicSemester.Lifecycle.DRAFT,
+            created_by=self.office,
+        )
+        self.authenticate(self.office)
+        issue = self.issue(
+            "CAPACITY_PLAN_MISSING",
+            record_type="ACADEMIC_SEMESTER",
+            record_id=next_semester.pk,
+        )
+        SemesterCapacityPlan.objects.create(
+            academic_semester=next_semester,
+            version=1,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.DRAFT,
+            created_by=self.office,
+        )
+
+        response = self.apply_issue(issue, {"action": "COPY_CAPACITY_PLAN"})
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(WorkflowReconciliationAudit.objects.exists())
+
+    def test_capacity_policy_role_and_legacy_limit_drift_are_review_only(self):
+        plan = self.semester.capacity_plans.get()
+        Panel.objects.create(
+            lecturer=self.lecturer.lecturer,
+            max_appointments=4,
+        )
+        supervisor = self.lecturer.lecturer.supervisor
+        supervisor.max_supervisees = 9
+        supervisor.save(update_fields=["max_supervisees"])
+        self.authenticate(self.office)
+
+        response = self.client.get("/api/dashboard/reconciliation/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        plan_issues = [
+            item
+            for item in response.data["results"]
+            if item["currentState"].get("capacityPlanId") == plan.pk
+        ]
+        issue_types = {item["issueType"] for item in plan_issues}
+        self.assertIn("CAPACITY_PLAN_INCOMPLETE", issue_types)
+        self.assertIn("CAPACITY_ENTRY_ROLE_MISMATCH", issue_types)
+        self.assertIn("CAPACITY_LEGACY_LIMIT_DIVERGENCE", issue_types)
+        self.assertTrue(
+            all(item["repairability"] == "REVIEW_REQUIRED" for item in plan_issues)
+        )
 
     def test_coordinator_profile_and_programme_repairs_require_valid_role(self):
         coordinator_user = User.objects.create_user(

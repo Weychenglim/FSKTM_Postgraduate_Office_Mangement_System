@@ -7,8 +7,21 @@ from openpyxl import load_workbook
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
-from academics.models import AcademicSemester
+from accounts.models import (
+    Coordinator,
+    Lecturer,
+    OfficeStaff,
+    Panel,
+    Student,
+    Supervisor,
+)
+from academics.capacity_services import (
+    capacity_plan_content_fingerprint,
+    clone_capacity_plan,
+    publish_capacity_plan,
+    update_capacity_entry,
+)
+from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     PanelRecommendation,
@@ -55,10 +68,18 @@ class WorkflowReportTests(APITestCase):
         self.panel = self._lecturer(
             "report-panel@example.test", "Report Panel", "REPORT-PANEL"
         )
+        Panel.objects.create(
+            lecturer=self.panel.lecturer,
+            max_appointments=5,
+        )
         self.foreign_panel = self._lecturer(
             "report-foreign-panel@example.test",
             "Report Foreign Panel",
             "REPORT-FOREIGN",
+        )
+        Panel.objects.create(
+            lecturer=self.foreign_panel.lecturer,
+            max_appointments=5,
         )
         self.coordinator = self._user(
             "report-coordinator@example.test",
@@ -247,6 +268,85 @@ class WorkflowReportTests(APITestCase):
         self.assertEqual(filtered.data["filters"]["programme"], PROGRAMME)
         self.assertEqual(filtered.data["supervisor"]["total"], 1)
         self.assertEqual(filtered.data["panel"]["total"], 1)
+
+    def test_office_report_exposes_capacity_distribution_attention_and_export_columns(
+        self,
+    ):
+        current = self.academic_semester.capacity_plans.get()
+        replacement = clone_capacity_plan(current, actor=self.office)
+        update_capacity_entry(
+            replacement,
+            lecturer=self.panel.lecturer,
+            actor=self.office,
+            supervisor_limit=None,
+            panel_limit=0,
+            expected_fingerprint=capacity_plan_content_fingerprint(replacement),
+        )
+        publish_capacity_plan(
+            replacement,
+            actor=self.office,
+            reason="Exercise over-capacity reporting.",
+            expected_fingerprint=capacity_plan_content_fingerprint(replacement),
+        )
+        today = timezone.localdate()
+        LecturerAvailabilityWindow.objects.create(
+            academic_semester=self.academic_semester,
+            lecturer=self.supervisor.lecturer,
+            role=LecturerAvailabilityWindow.Role.SUPERVISOR,
+            starts_on=today,
+            ends_on=today + timedelta(days=2),
+            reason="Private report test reason.",
+            created_by=self.office,
+        )
+        self.authenticate(self.office)
+
+        response = self.client.get("/api/dashboard/reports/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["capacity"]["supervisor"]["TEMPORARILY_UNAVAILABLE"], 1
+        )
+        self.assertEqual(response.data["capacity"]["panel"]["OVER_CAPACITY"], 1)
+        capacity_attention = [
+            item
+            for item in response.data["attention"]
+            if item["kind"] == "LECTURER_CAPACITY"
+        ]
+        self.assertEqual(len(capacity_attention), 2)
+        self.assertTrue(
+            all(
+                item["recordType"] == "LECTURER_CAPACITY" for item in capacity_attention
+            )
+        )
+        self.assertNotIn("private report", str(capacity_attention).lower())
+
+        actions = self.client.get("/api/dashboard/tasks/")
+        self.assertEqual(actions.status_code, status.HTTP_200_OK)
+        capacity_actions = [
+            item
+            for item in actions.data["tasks"]
+            if item["recordType"] == "LECTURER_CAPACITY"
+        ]
+        self.assertEqual(len(capacity_actions), 2)
+        self.assertNotIn("private report", str(capacity_actions).lower())
+
+        export = self.client.get("/api/dashboard/reports/export/")
+        workbook = load_workbook(BytesIO(export.content))
+        for sheet_name in ("Supervisor", "Panel"):
+            headers = [cell.value for cell in workbook[sheet_name][1]]
+            self.assertIn("Capacity Plan ID", headers)
+            self.assertIn("Capacity Plan Version", headers)
+            self.assertIn("Capacity State", headers)
+            self.assertIn("Capacity Limit", headers)
+            self.assertIn("Capacity Load", headers)
+            self.assertIn("Unavailable Until", headers)
+
+    def test_non_office_reports_do_not_expose_capacity_summary(self):
+        for user in (self.coordinator, self.panel):
+            self.authenticate(user)
+            response = self.client.get("/api/dashboard/reports/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIsNone(response.data["capacity"])
 
     def test_report_defaults_active_and_supports_all_and_unassigned(self):
         SupervisorApplication.objects.create(
