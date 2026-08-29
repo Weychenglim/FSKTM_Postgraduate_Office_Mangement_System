@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { 
+import {
   Users, 
   Clock, 
   CheckCircle, 
@@ -49,9 +49,11 @@ import {
   PanelCandidate,
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
+  PanelWorkloadSummary,
   SubmittedRecommendation,
 } from '../types';
 import {
+  ApiError,
   acceptPanelRecommendation,
   approvePanelRecommendationByCoordinator,
   cancelPanelRecommendation,
@@ -64,6 +66,7 @@ import {
   getPanelRecommendations,
   getPanelReviewQueue,
   getPanelReviewHistory,
+  getOwnPanelWorkload,
   rejectPanelRecommendation,
   rejectPanelRecommendationByCoordinator,
   endPanelAppointment,
@@ -78,6 +81,7 @@ import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTab
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 import { AppointmentEndControl } from './AppointmentEndControl';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
@@ -368,6 +372,11 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 <p className="text-[10px] font-mono text-slate-400 font-bold mt-1">
                   {recommendation.recommendedMemberId}
                 </p>
+                {recommendation.unavailableUntil && (
+                  <p className="mt-2 text-[10px] font-bold text-amber-700">
+                    Unavailable for new appointments until {recommendation.unavailableUntil}. This persisted review remains in the queue.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -546,6 +555,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [reviewedRequests, setReviewedRequests] = useState<PanelRecommendationDraft[]>([]);
   const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
   const [panelCandidates, setPanelCandidates] = useState<PanelCandidate[]>([]);
+  const [ownPanelCapacity, setOwnPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
   const [selectedSuperviseeId, setSelectedSuperviseeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -564,6 +574,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           getPanelReviewHistory(),
           getEligiblePanelSupervisees(),
           getPanelCandidates(),
+          getOwnPanelWorkload(),
         ]);
 
     load
@@ -574,6 +585,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           setSubmittedRecs([]);
           setPanelRecommendations([]);
           setPanelCandidates([]);
+          setOwnPanelCapacity(null);
           setEligibleSupervisees([]);
           setSelectedSuperviseeId(null);
           setPanelReviewQueue([]);
@@ -583,7 +595,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           return;
         }
 
-        const [asg, drafts, recs, panelQueue, history, eligibleSupervisees, candidates] = result as [
+        const [asg, drafts, recs, panelQueue, history, eligibleSupervisees, candidates, workload] = result as [
           PanelAssignment[],
           PanelRecommendationDraft[],
           SubmittedRecommendation[],
@@ -591,11 +603,13 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           PanelRecommendationDraft[],
           Awaited<ReturnType<typeof getEligiblePanelSupervisees>>,
           PanelCandidate[],
+          PanelWorkloadSummary,
         ];
         setAssignments(asg);
         setSubmittedRecs(drafts);
         setPanelRecommendations(recs);
         setPanelCandidates(candidates);
+        setOwnPanelCapacity(workload);
         setPanelReviewQueue(panelQueue);
         setCoordinatorReviewQueue([]);
         setCoordinatorWorkspace(null);
@@ -799,10 +813,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
-  const activeAssignmentsCount = assignments.length;
-  // Use workloadLimit from panelCandidates if current user is found, otherwise default to 10.
-  const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.fullName);
-  const workloadLimit = currentUserCandidate ? currentUserCandidate.workloadLimit : 10;
+  const activeAssignmentsCount = ownPanelCapacity?.workloadCount ?? assignments.length;
+  const workloadLimit = ownPanelCapacity?.workloadLimit ?? 0;
   const activeReviewQueue = useMemo(
     () => [...(isCoordinator ? coordinatorReviewQueue : panelReviewQueue)]
       .sort(compareLongestWaiting),
@@ -835,6 +847,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       loadData();
     } catch (e) {
       triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
+      if (e instanceof ApiError && e.status === 409) loadData();
     }
   };
 
@@ -926,16 +939,20 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                     Persisted assignments and reservations
                   </span>
                 </div>
-                <StatusBadge tone="success" dot pulse className="px-3 py-1 text-[9px]">
-                  AVAILABLE
+                <StatusBadge tone={ownPanelCapacity?.selectable ? 'success' : 'warning'} dot pulse className="px-3 py-1 text-[9px]">
+                  {ownPanelCapacity?.capacityState ? capacityStateLabel(ownPanelCapacity.capacityState) : 'Not configured'}
                 </StatusBadge>
               </div>
 
               <div className="mt-5">
                 <div className="text-3xl font-black text-brand-navy tracking-tight">
-                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Assignments</span>
+                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Total Load</span>
                 </div>
                 <ProgressBar value={activeAssignmentsCount} max={workloadLimit} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
+                <p className="mt-2 text-[10px] font-bold text-slate-500">
+                  {ownPanelCapacity?.semesterCode ?? 'No active semester'} · {ownPanelCapacity?.capacityPlanVersion ? `Plan v${ownPanelCapacity.capacityPlanVersion}` : 'Plan not configured'}
+                  {ownPanelCapacity?.unavailableUntil ? ` · Unavailable until ${ownPanelCapacity.unavailableUntil}` : ''}
+                </p>
               </div>
             </div>
 

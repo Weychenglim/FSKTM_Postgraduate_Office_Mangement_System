@@ -2,7 +2,6 @@ from django.urls import path
 
 from . import views
 
-
 urlpatterns = [
     path("supervisor/", views.supervisor_records_view),
     path("supervisor/workload/", views.supervisor_workload_view),
@@ -71,6 +70,7 @@ urlpatterns = [
         views.end_panel_appointment_view,
     ),
     path("panel/workload/", views.panel_workload_view),
+    path("panel/my-workload/", views.own_panel_workload_view),
     path("panel/eligible-supervisees/", views.eligible_supervisees_view),
     path("panel/candidates/", views.panel_candidates_view),
     path("panel/student/", views.student_panel_appointment_view),
@@ -89,7 +89,13 @@ urlpatterns = [
         "panel/recommendations/<int:pk>/cancel/",
         views.cancel_panel_recommendation_view,
     ),
-    path("panel/recommendations/<int:pk>/coordinator-approve/", views.coordinator_approve_view),
-    path("panel/recommendations/<int:pk>/coordinator-reject/", views.coordinator_reject_view),
+    path(
+        "panel/recommendations/<int:pk>/coordinator-approve/",
+        views.coordinator_approve_view,
+    ),
+    path(
+        "panel/recommendations/<int:pk>/coordinator-reject/",
+        views.coordinator_reject_view,
+    ),
     path("panel/assignments/", views.assignments_view),
 ]

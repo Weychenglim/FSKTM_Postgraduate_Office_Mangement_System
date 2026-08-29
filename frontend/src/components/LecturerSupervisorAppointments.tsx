@@ -39,7 +39,7 @@ import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
-import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
+import { SupervisorRequest, ActiveSuperviseeRow, SupervisorWorkloadSummary } from '../types';
 import {
   acceptSupervisorApplication,
   formatSupervisorWaiting,
@@ -50,6 +50,7 @@ import {
   orderSupervisorQueueOldestFirst,
   rejectSupervisorApplication,
 } from '../services';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -673,6 +674,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToPanelRecommendation,
 }) => {
   const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
+  const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
 
   // Pending requests, active supervisees, and workload come from Django.
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
@@ -695,6 +697,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           current: workload.currentStudents,
           max: workload.workloadLimit,
         });
+        setCapacity(workload);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
       .finally(() => setLoading(false));
@@ -838,10 +841,10 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
             <SummaryCard
               title="Supervisory Load"
-              subtext="Active persisted appointments"
+              subtext={`${capacity?.semesterCode ?? 'No active semester'} · ${capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}`}
               value=""
-              badge="Available"
-              badgeType="success"
+              badge={capacity?.capacityState ? capacityStateLabel(capacity.capacityState) : 'Not configured'}
+              badgeType={capacity?.selectable ? 'success' : 'warning'}
               progress={summaryLoad}
             />
             <SummaryCard
@@ -982,8 +985,12 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                     REMAINING SEATS
                   </span>
                   <span className="text-xs font-extrabold text-[#00a15c] block mt-1">
-                    {Math.max(summaryLoad.max - summaryLoad.current, 0)}
+                    {capacity?.availableSlots ?? Math.max(summaryLoad.max - summaryLoad.current, 0)}
                     {' '}/ {summaryLoad.max} Slots Available
+                  </span>
+                  <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                    {capacity?.semesterCode ?? 'No active semester'} · {capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}
+                    {capacity?.unavailableUntil ? ` · Unavailable until ${capacity.unavailableUntil}` : ''}
                   </span>
                 </div>
               </div>

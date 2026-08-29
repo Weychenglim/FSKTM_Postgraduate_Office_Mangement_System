@@ -23,7 +23,11 @@
 - Task 8 verification passes the focused Lecturer capacity utility test, route test, lazy-loading/role-guard source test, and full TypeScript lint check.
 - Task 9 completes the Office capacity workspace with semester and plan-version selection, blank Draft creation, cloning, comparison, independent Supervisor/Panel limit editing, readiness blockers, confirmed publication, role/date availability configuration, reasoned cancellation, audit history, stale-conflict refresh, and loading/error/empty feedback. Closed and Archived semesters expose policy history without new mutations; current availability uses Kuala Lumpur calendar dates.
 - Capacity management is now linked from Office Dashboard, Academic Semester Management, both workload monitors, and Workflow Reconciliation. Focused capacity, Dashboard integration, and lazy-route tests pass; TypeScript lint and a production Vite build pass after the final lifecycle/date guard changes.
-- Cross-role capacity presentation and workload/export refinements remain planned.
+- Task 10 completes public capacity presentation: Student and Lecturer candidate controls honor `selectable`, public labels replace legacy workload guesses, existing selections show only public resume dates, and native Student selection alerts are removed. Coordinator Supervisor and Panel conflict handlers display backend `409` messages, retain pending rows, and refresh from Django.
+- Lecturer Dashboard, Supervisor Appointments, and Panel Appointments now show the authenticated Lecturer's Supervisor/Panel state, published plan version, load/limit, and public availability date. The new Lecturer-only Panel own-workload endpoint counts confirmed appointments and reservation nominations through the shared resolver; the former invented Panel limit of 10 is removed.
+- Both Office workload exports now include semester code, plan version, capacity state, active/reserved load, available slots, and public unavailability dates without internal reasons. Utilization rejects malformed/zero limits and stays within 0-100.
+- Task 10 verification passes all 123 Appointments tests, Django checks, migration dry-run, and Black validation. The three focused frontend scripts, full TypeScript lint, and production Vite build also pass.
+- Full cross-module verification and browser smoke remain for Task 11.
 - The approved specification is `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`.
 - The reviewed task-by-task implementation plan is `docs/superpowers/plans/2026-08-19-lecturer-capacity-availability.md`.
 

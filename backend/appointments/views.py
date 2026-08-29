@@ -248,6 +248,7 @@ def capacity_workload_payload(*, lecturer, academic_semester, role, fallback_loa
     if academic_semester is None:
         return {
             "semesterId": None,
+            "semesterCode": None,
             "capacityPlanId": None,
             "capacityPlanVersion": None,
             "capacityState": CapacityState.NOT_CONFIGURED,
@@ -264,6 +265,7 @@ def capacity_workload_payload(*, lecturer, academic_semester, role, fallback_loa
     )
     return {
         "semesterId": resolution.semester_id,
+        "semesterCode": academic_semester.code,
         "capacityPlanId": resolution.plan_id,
         "capacityPlanVersion": resolution.plan_version,
         "capacityState": resolution.state,
@@ -654,6 +656,38 @@ def own_supervisor_workload_view(request):
     return Response(
         {
             "currentStudents": capacity["workloadCount"],
+            **capacity,
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def own_panel_workload_view(request):
+    if request.user.role != User.Role.LECTURER:
+        return error_response(
+            "Only lecturers can view their panel workload.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    confirmed_appointments = PanelAppointment.objects.filter(
+        panel_member=request.user,
+        status=PanelAppointment.Status.ACTIVE,
+    ).count()
+    pending_nominations = PanelRecommendation.objects.filter(
+        recommended_member=request.user,
+        status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+    ).count()
+    capacity = capacity_workload_payload(
+        lecturer=request.user,
+        academic_semester=current_effective_semester(),
+        role=CapacityRole.PANEL,
+        fallback_load=confirmed_appointments + pending_nominations,
+    )
+    return Response(
+        {
+            "currentStudents": capacity["workloadCount"],
+            "confirmedAppointments": confirmed_appointments,
+            "pendingNominations": pending_nominations,
             **capacity,
         }
     )

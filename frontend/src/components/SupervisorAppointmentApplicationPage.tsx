@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { 
+import {
   Users, 
   Search, 
   ArrowLeft, 
@@ -33,6 +33,7 @@ import {
   validateSupervisorDocumentFile,
   validateSupervisorDocumentSelection,
 } from '../utils/supervisorDocuments';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 
@@ -338,22 +339,24 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
               ) : filteredSupervisors.length > 0 ? (
                 filteredSupervisors.map((sv) => {
                   const isSelected = selectedSupervisorId === sv.id;
-                  const isFull = sv.filled >= sv.total;
+                  const isSelectable = sv.selectable ?? sv.filled < sv.total;
+                  const capacityLabel = sv.capacityState
+                    ? capacityStateLabel(sv.capacityState)
+                    : isSelectable ? 'Available' : 'Full';
                   
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={sv.id}
                       onClick={() => {
-                        if (!isFull) {
-                          setSelectedSupervisorId(sv.id);
-                        } else {
-                          alert(`Sorry, ${sv.name} has reached maximum advisory capacity of ${sv.total} slots.`);
-                        }
+                        setSelectedSupervisorId(sv.id);
+                        setFormError(null);
                       }}
-                      className={`flex items-center justify-between p-3.5 border rounded-xl transition cursor-pointer text-left select-none ${
+                      disabled={!isSelectable}
+                      className={`flex w-full items-center justify-between p-3.5 border rounded-xl transition cursor-pointer text-left select-none ${
                         isSelected 
                           ? 'bg-indigo-50/40 border-indigo-400 shadow-3xs' 
-                          : isFull 
+                          : !isSelectable
                             ? 'bg-slate-50/50 border-slate-200/50 opacity-60 cursor-not-allowed' 
                             : 'bg-white border-slate-200/80 hover:bg-slate-50'
                       }`}
@@ -377,14 +380,14 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
                       {/* Right capacity indicator slots chip */}
                       <StatusBadge
-                        tone={isFull ? 'danger' : isSelected ? 'brand' : 'neutral'}
+                        tone={!isSelectable ? 'danger' : isSelected ? 'brand' : 'neutral'}
                         dot
                         className="py-1.5 text-[9px]"
                       >
-                        <span>{sv.filled}/{sv.total} Slots Filled</span>
+                        <span>{capacityLabel} · {sv.filled}/{sv.total} filled</span>
                       </StatusBadge>
 
-                    </div>
+                    </button>
                   );
                 })
               ) : (

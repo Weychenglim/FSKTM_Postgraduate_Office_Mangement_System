@@ -836,6 +836,7 @@ class PanelRecommendationWorkflowTests(APITestCase):
         )
         self.assertEqual(panel_row["currentStudents"], 5)
         self.assertEqual(panel_row["semesterId"], self.academic_semester.pk)
+        self.assertEqual(panel_row["semesterCode"], self.academic_semester.code)
         self.assertIsNotNone(panel_row["capacityPlanId"])
         self.assertEqual(panel_row["capacityPlanVersion"], 1)
         self.assertEqual(panel_row["capacityState"], "FULL")
@@ -847,6 +848,26 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(panel_row["pendingNominations"], 4)
         self.assertEqual(panel_row["availability"], "Full Load")
         self.assertEqual(len(panel_row["workloadItems"]), 5)
+
+    def test_lecturer_can_view_own_panel_capacity_and_reserved_workload(self):
+        recommendation = self.create_submitted_recommendation()
+        self.authenticate(self.panel)
+
+        response = self.client.get("/api/appointments/panel/my-workload/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["semesterId"], self.academic_semester.pk)
+        self.assertEqual(response.data["semesterCode"], self.academic_semester.code)
+        self.assertEqual(response.data["capacityPlanVersion"], 1)
+        self.assertEqual(response.data["capacityState"], "AVAILABLE")
+        self.assertEqual(response.data["confirmedAppointments"], 0)
+        self.assertEqual(response.data["pendingNominations"], 1)
+        self.assertEqual(response.data["currentStudents"], 1)
+        self.assertEqual(response.data["workloadCount"], 1)
+        self.assertEqual(response.data["availableSlots"], 4)
+        self.assertTrue(response.data["selectable"])
+        self.assertIsNone(response.data["unavailableUntil"])
+        self.assertEqual(recommendation["recommendedMemberId"], "L10002")
 
     def test_student_cannot_view_office_panel_workload(self):
         self.authenticate(self.student)

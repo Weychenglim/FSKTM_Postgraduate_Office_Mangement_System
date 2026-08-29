@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   X, 
   Search, 
   CheckCircle, 
@@ -18,6 +18,7 @@ import {
   canSubmitPanelCandidate,
   getPanelCandidateValidationMessage,
 } from '../utils/panelRecommendationWorkflow';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 export interface StudentData {
   studentName: string;
@@ -51,7 +52,9 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLecturer, setSelectedLecturer] =
-    useState<PanelCandidate | null>(candidates[0] ?? null);
+    useState<PanelCandidate | null>(
+      candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit) ?? null,
+    );
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [replacementReason, setReplacementReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -64,7 +67,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     ) {
       return;
     }
-    const nextLecturer = candidates[0] ?? null;
+    const nextLecturer = candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit)
+      ?? null;
     setSelectedLecturer(nextLecturer);
     setSearchTerm(nextLecturer?.name ?? '');
   }, [candidates, selectedLecturer]);
@@ -98,24 +102,27 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const hasRecommendationNotes = recommendationNotes.trim().length > 0;
   const hasReplacementReason = !replacementMember || replacementReason.trim().length > 0;
   const canSubmitRecommendation = selectedLecturer !== null
-    && selectedLecturer.canSubmit
     && hasReplacementReason
     && canSubmitPanelCandidate({
       workloadCount: selectedLecturer.workloadCount,
       workloadLimit: selectedLecturer.workloadLimit,
+      capacityState: selectedLecturer.capacityState,
+      selectable: selectedLecturer.selectable ?? selectedLecturer.canSubmit,
+      unavailableUntil: selectedLecturer.unavailableUntil,
       isSupervisor: isSupervisorSelected,
       hasNotes: hasRecommendationNotes,
     });
   const validationMessage = selectedLecturer === null
     ? 'No eligible panel candidates are available.'
-    : selectedLecturer.canSubmit
-    ? getPanelCandidateValidationMessage({
+    : getPanelCandidateValidationMessage({
         workloadCount: selectedLecturer.workloadCount,
         workloadLimit: selectedLecturer.workloadLimit,
+        capacityState: selectedLecturer.capacityState,
+        selectable: selectedLecturer.selectable ?? selectedLecturer.canSubmit,
+        unavailableUntil: selectedLecturer.unavailableUntil,
         isSupervisor: isSupervisorSelected,
         hasNotes: hasRecommendationNotes,
-      })
-    : 'This lecturer has reached the panel workload limit. Please choose another panel member.';
+      });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,12 +351,15 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                               No matching lecturers found
                             </div>
                           ) : (
-                            filteredLecturers.map((lec) => (
+                            filteredLecturers.map((lec) => {
+                              const isSelectable = lec.selectable ?? lec.canSubmit;
+                              return (
                               <button
                                 key={lec.staffId}
                                 type="button"
+                                disabled={!isSelectable}
                                 onClick={() => handleLecturerSelect(lec)}
-                                className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 hover:bg-slate-5/80 hover:bg-slate-50 flex items-center justify-between text-brand-navy transition ${
+                                className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-between text-brand-navy transition ${
                                   selectedLecturer?.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
                                 }`}
                               >
@@ -358,12 +368,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                                   <span className="text-[10px] text-slate-400 font-semibold block">{lec.department}</span>
                                 </div>
                                 <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                  lec.canSubmit ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                  isSelectable ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
                                 }`}>
-                                  {lec.availability}
+                                  {lec.capacityState ? capacityStateLabel(lec.capacityState) : lec.availability}
                                 </span>
                               </button>
-                            ))
+                              );
+                            })
                           )}
                         </motion.div>
                       )}
@@ -399,6 +410,11 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                           <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
                             Reserved workload: {selectedLecturer.workloadCount}/{selectedLecturer.workloadLimit}
                           </span>
+                          {selectedLecturer.capacityPlanVersion !== null && selectedLecturer.capacityPlanVersion !== undefined && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
+                              Capacity plan v{selectedLecturer.capacityPlanVersion}
+                            </span>
+                          )}
                         </div>
                         <p className="text-[9.5px] text-slate-400 font-semibold leading-relaxed pt-1">
                           {selectedLecturer.workloadHelpText}
@@ -410,12 +426,14 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <span 
                       id="candidate-avail-badge"
                       className={`text-[9px] font-black uppercase tracking-wider shrink-0 px-2.5 py-1 rounded-md ${
-                        selectedLecturer.canSubmit 
+                        (selectedLecturer.selectable ?? selectedLecturer.canSubmit)
                           ? 'text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db]' 
                           : 'text-rose-600 bg-rose-50 border border-rose-150'
                       }`}
                     >
-                      {selectedLecturer.availability}
+                      {selectedLecturer.capacityState
+                        ? capacityStateLabel(selectedLecturer.capacityState)
+                        : selectedLecturer.availability}
                     </span>
                   </div>
                 )}

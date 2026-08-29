@@ -9,6 +9,7 @@ import type { CapacityState } from './lecturerCapacity';
 
 export interface AppointmentCapacityMetadata {
   semesterId?: number | null;
+  semesterCode?: string | null;
   capacityPlanId?: number | null;
   capacityPlanVersion?: number | null;
   capacityState?: CapacityState;
@@ -166,8 +167,16 @@ export interface ActiveSuperviseeRow {
   status: string;
 }
 
-export interface SupervisorWorkloadSummary {
+export interface SupervisorWorkloadSummary extends AppointmentCapacityMetadata {
   currentStudents: number;
+  workloadLimit: number;
+  availableSlots: number;
+}
+
+export interface PanelWorkloadSummary extends AppointmentCapacityMetadata {
+  currentStudents: number;
+  confirmedAppointments: number;
+  pendingNominations: number;
   workloadLimit: number;
   availableSlots: number;
 }
@@ -256,6 +265,7 @@ export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
   replacesAppointmentId?: number | null;
   replacementReason?: string | null;
   appointmentLifecycle?: AppointmentLifecycle | null;
+  unavailableUntil?: string | null;
 }
 
 export interface CoordinatorPanelWorkspace {
@@ -415,6 +425,7 @@ export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
   appointmentLifecycle?: AppointmentLifecycle | null;
   replacesAppointmentId?: number | null;
   replacementReason?: string | null;
+  unavailableUntil?: string | null;
 }
 
 export type SupervisorApplicationWorkflowStatus =
@@ -462,6 +473,7 @@ export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   appointmentLifecycle?: AppointmentLifecycle | null;
   replacesAppointmentId?: number | null;
   replacementReason?: string | null;
+  unavailableUntil?: string | null;
 }
 
 export interface SupervisorDocumentRequirement {

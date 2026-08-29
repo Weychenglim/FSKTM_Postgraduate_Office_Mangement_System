@@ -133,6 +133,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       waitingSince: app.waitingSince,
       waitingDays: app.waitingDays,
       waitingOn: app.waitingOn,
+      unavailableUntil: app.unavailableUntil,
     });
   }, [applications, initialApplicationId]);
 
@@ -427,6 +428,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                   {/* Supervisor name */}
                   <td className="py-4.5 px-4 font-extrabold text-slate-700">
                     {app.supervisor}
+                    {app.unavailableUntil && <span className="mt-1 block text-[10px] font-semibold text-amber-700">Unavailable for new appointments until {app.unavailableUntil}</span>}
                   </td>
                   {/* Date */}
                   <td className="py-4.5 px-4 font-semibold text-slate-500 font-mono">
@@ -616,6 +618,11 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
                       {formatSupervisorWaiting(activeDetailAp)}
                     </span>
                   </div>
+                  {activeDetailAp.unavailableUntil && (
+                    <div className="border-t border-amber-100 pt-3 text-[10px] font-bold text-amber-700">
+                      The selected Supervisor is unavailable for new appointments until {activeDetailAp.unavailableUntil}. Your existing workflow remains recorded.
+                    </div>
+                  )}
                 </div>
 
                 {activeDetailAp.rejectionReason && (

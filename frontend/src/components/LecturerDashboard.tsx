@@ -8,11 +8,12 @@ import { AlertTriangle, Award, BarChart3, CheckSquare, ChevronRight, UsersRound 
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
-import { getDashboardSummary } from '../services';
-import { DashboardSummary, DashboardTask } from '../types';
+import { getDashboardSummary, getOwnPanelWorkload, getOwnSupervisorWorkload } from '../services';
+import { DashboardSummary, DashboardTask, PanelWorkloadSummary, SupervisorWorkloadSummary } from '../types';
 import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
+import { capacityStateLabel, capacityUtilization } from '../utils/lecturerCapacity';
 
 interface LecturerDashboardProps {
   lifecycleStatus?: string | null;
@@ -80,9 +81,13 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [supervisorCapacity, setSupervisorCapacity] = useState<SupervisorWorkloadSummary | null>(null);
+  const [panelCapacity, setPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
 
   useEffect(() => {
     getDashboardSummary().then(setSummary).catch(() => setSummary(null));
+    getOwnSupervisorWorkload().then(setSupervisorCapacity).catch(() => setSupervisorCapacity(null));
+    getOwnPanelWorkload().then(setPanelCapacity).catch(() => setPanelCapacity(null));
   }, []);
 
   const triggerToast = (message: string) => {
@@ -128,6 +133,36 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
       )}
 
       <ActiveSemesterContext />
+
+      <section className="grid gap-3 md:grid-cols-2" aria-label="Your semester capacity">
+        {[
+          { label: 'Supervisor capacity', value: supervisorCapacity },
+          { label: 'Panel capacity', value: panelCapacity },
+        ].map(({ label, value }) => (
+          <div key={label} className="border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">{label}</p>
+                <p className="mt-2 text-xl font-black text-brand-navy">
+                  {value ? `${value.workloadCount ?? value.currentStudents} / ${value.workloadLimit}` : 'Unavailable'}
+                </p>
+              </div>
+              {value?.capacityState && <StatusBadge tone={value.selectable ? 'success' : 'warning'}>{capacityStateLabel(value.capacityState)}</StatusBadge>}
+            </div>
+            {value && (
+              <>
+                <div className="mt-3 h-2 overflow-hidden bg-slate-100">
+                  <div className="h-full bg-brand-navy" style={{ width: `${capacityUtilization(value.workloadCount ?? value.currentStudents, value.workloadLimit)}%` }} />
+                </div>
+                <p className="mt-2 text-[10px] font-bold text-slate-500">
+                  {value.semesterCode ?? 'No active semester'} · {value.capacityPlanVersion ? `Plan v${value.capacityPlanVersion}` : 'Plan not configured'}
+                  {value.unavailableUntil ? ` · Unavailable until ${value.unavailableUntil}` : ''}
+                </p>
+              </>
+            )}
+          </div>
+        ))}
+      </section>
 
       <DashboardTimeline
         showManageTimeline={false}

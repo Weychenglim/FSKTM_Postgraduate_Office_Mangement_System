@@ -18,6 +18,7 @@ import {
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
   PanelWorkloadRecord,
+  PanelWorkloadSummary,
   StudentPanelAppointmentView,
   StudentSupervisorApplication,
   SubmittedRecommendation,
@@ -139,6 +140,10 @@ export async function getPanelCandidates(): Promise<PanelCandidate[]> {
 
 export async function getPanelWorkloads(): Promise<PanelWorkloadRecord[]> {
   return request<PanelWorkloadRecord[]>('/appointments/panel/workload/');
+}
+
+export async function getOwnPanelWorkload(): Promise<PanelWorkloadSummary> {
+  return request<PanelWorkloadSummary>('/appointments/panel/my-workload/');
 }
 
 export async function getStudentPanelAppointment(): Promise<StudentPanelAppointmentView> {
@@ -445,6 +450,7 @@ export function toStudentSupervisorApplication(
     appointmentLifecycle: record.appointmentLifecycle,
     replacesAppointmentId: record.replacesAppointmentId,
     replacementReason: record.replacementReason,
+    unavailableUntil: record.unavailableUntil,
     waitingSince: record.waitingSince,
     waitingDays: record.waitingDays,
     waitingOn: record.waitingOn,

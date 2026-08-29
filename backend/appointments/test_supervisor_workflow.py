@@ -495,6 +495,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "workloadLimit": 2,
                 "availableSlots": 1,
                 "semesterId": self.academic_semester.pk,
+                "semesterCode": self.academic_semester.code,
                 "capacityPlanId": self.academic_semester.capacity_plans.get().pk,
                 "capacityPlanVersion": 1,
                 "capacityState": "AVAILABLE",

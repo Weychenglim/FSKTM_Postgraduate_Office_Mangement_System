@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
+  ApiError,
   approveSupervisorApplicationByCoordinator,
   formatSupervisorWaiting,
   getCoordinatorSupervisorRecords,
@@ -75,6 +76,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
       );
     } catch (reason) {
       notify(reason instanceof Error ? reason.message : 'Approval failed.');
+      if (reason instanceof ApiError && reason.status === 409) loadRecords();
     }
   };
 
@@ -144,6 +146,11 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   <p className="text-[11px] text-slate-500">
                     Proposed supervisor: <strong>{record.proposedSupervisor}</strong>
                   </p>
+                  {record.unavailableUntil && (
+                    <p className="text-[11px] font-bold text-amber-700">
+                      Unavailable for new appointments until {record.unavailableUntil}. This pending approval remains recorded.
+                    </p>
+                  )}
                   <p className="text-[11px] font-bold text-amber-700">
                     {formatSupervisorWaiting(record)}
                   </p>

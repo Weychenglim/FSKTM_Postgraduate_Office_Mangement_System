@@ -19,6 +19,7 @@ import {
 import { getSupervisorWorkloads } from '../services';
 import type { SupervisorWorkloadRecord } from '../types';
 import { downloadCsv } from '../utils/csvExport';
+import { capacityStateLabel, capacityUtilization } from '../utils/lecturerCapacity';
 import {
   PageHeader,
   PortalButton,
@@ -37,10 +38,6 @@ interface SupervisorWorkloadMonitoringProps {
 }
 
 const ITEMS_PER_PAGE = 5;
-
-const percentage = (value: number, total: number) => (
-  total > 0 ? Math.round((value / total) * 100) : 0
-);
 
 export const SupervisorWorkloadMonitoring: React.FC<
   SupervisorWorkloadMonitoringProps
@@ -159,6 +156,13 @@ export const SupervisorWorkloadMonitoring: React.FC<
         { header: 'Lecturer ID', value: (record) => record.lecturerId },
         { header: 'Lecturer Name', value: (record) => record.lecturerName },
         { header: 'Department', value: (record) => record.department },
+        { header: 'Semester Code', value: (record) => record.semesterCode ?? '' },
+        { header: 'Plan Version', value: (record) => record.capacityPlanVersion ?? '' },
+        { header: 'Capacity State', value: (record) => record.capacityState ?? '' },
+        { header: 'Active Load', value: (record) => record.currentStudents },
+        { header: 'Reserved Load', value: () => 0 },
+        { header: 'Available Slots', value: (record) => record.availableSlots ?? 0 },
+        { header: 'Unavailable Until', value: (record) => record.unavailableUntil ?? '' },
         { header: 'Current Students', value: (record) => record.currentStudents },
         { header: 'Workload Limit', value: (record) => record.workloadLimit },
         { header: 'Availability', value: (record) => record.availability },
@@ -363,17 +367,17 @@ export const SupervisorWorkloadMonitoring: React.FC<
                           {record.workloadLimit}
                         </td>
                         <td className="data-td text-center font-bold text-slate-600">
-                          {percentage(
+                          {capacityUtilization(
                             record.currentStudents,
                             record.workloadLimit,
                           )}%
                         </td>
                         <td className="data-td text-center">
                           <StatusBadge
-                            tone={getStatusBadgeTone(record.availability)}
+                            tone={getStatusBadgeTone(record.capacityState ?? record.availability)}
                             dot
                           >
-                            {record.availability}
+                            {record.capacityState ? capacityStateLabel(record.capacityState) : record.availability}
                           </StatusBadge>
                         </td>
                         <td className="data-td text-center">
@@ -431,7 +435,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
             <Info className="w-5 h-5 text-blue-600 shrink-0" />
             <p className="text-xs font-semibold text-slate-600 leading-relaxed">
               Workload is calculated from persisted active supervisor appointments.
-              Capacity is read from each supervisor profile.
+              Capacity is resolved from the active semester's published plan.
             </p>
           </div>
         </>
@@ -474,6 +478,12 @@ export const SupervisorWorkloadMonitoring: React.FC<
                   {selectedLecturer.workloadLimit}
                 </div>
               </div>
+            </div>
+            <div className="border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
+              <div className="flex justify-between gap-3"><span>Semester</span><strong>{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span>Capacity plan</span><strong>{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span>Capacity state</span><strong>{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</strong></div>
+              {selectedLecturer.unavailableUntil && <div className="mt-2 flex justify-between gap-3"><span>Unavailable until</span><strong>{selectedLecturer.unavailableUntil}</strong></div>}
             </div>
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">
