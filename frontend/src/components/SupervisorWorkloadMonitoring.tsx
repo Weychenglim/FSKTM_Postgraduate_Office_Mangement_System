@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   Filter,
+  Gauge,
   Info,
   Search,
   Users,
@@ -32,6 +33,7 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface SupervisorWorkloadMonitoringProps {
   onBack: () => void;
+  onOpenCapacity?: () => void;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -42,7 +44,7 @@ const percentage = (value: number, total: number) => (
 
 export const SupervisorWorkloadMonitoring: React.FC<
   SupervisorWorkloadMonitoringProps
-> = ({ onBack }) => {
+> = ({ onBack, onOpenCapacity }) => {
   const [records, setRecords] = useState<SupervisorWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,9 +178,12 @@ export const SupervisorWorkloadMonitoring: React.FC<
         backLabel="Back to Supervisor Appointment Management"
         onBack={onBack}
         actions={(
-          <span className="bg-brand-navy text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-lg">
-            Live workload
-          </span>
+          <>
+            {onOpenCapacity && <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton>}
+            <span className="bg-brand-navy text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-lg">
+              Live workload
+            </span>
+          </>
         )}
       />
 

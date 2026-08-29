@@ -613,6 +613,7 @@ export default function App() {
                   onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
                   onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS ? (
@@ -676,6 +677,7 @@ export default function App() {
                   onNavigateToWorkload={() => navigate(routeForSupervisorWorkload())}
                   onNavigateToRecord={(recordId) => navigate(routeForSupervisorApplication(recordId))}
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
@@ -691,6 +693,7 @@ export default function App() {
                 <WorkflowReconciliationCentre
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToRoute={navigate}
+                  onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               ) : isDashboardParticipantLifecycleRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
@@ -746,6 +749,7 @@ export default function App() {
                   onBack={() => navigate(APP_ROUTES.dashboard)}
                   onManageParticipants={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
                   onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
+                  onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               ) : isDashboardTimelineRoute ? (
                 <TimelineManagement

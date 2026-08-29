@@ -50,6 +50,7 @@ interface SupervisorAppointmentManagementProps {
   onNavigateToRecord?: (recordId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
   onNavigateToRequirements?: () => void;
+  onOpenCapacity?: () => void;
 }
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
@@ -60,6 +61,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   onNavigateToRecord,
   onNavigateToDossier,
   onNavigateToRequirements,
+  onOpenCapacity,
 }) => {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -198,7 +200,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
   if (routeView === 'workload') {
     return (
-      <SupervisorWorkloadMonitoring onBack={navigateToList} />
+      <SupervisorWorkloadMonitoring onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
     );
   }
 

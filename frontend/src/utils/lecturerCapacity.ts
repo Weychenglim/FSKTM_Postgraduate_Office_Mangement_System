@@ -20,6 +20,24 @@ export const capacityUtilization = (load: number, limit: number): number => {
   return Math.min(100, Math.max(0, Math.round((load / limit) * 100)));
 };
 
+export const calendarDateInTimeZone = (
+  date: Date = new Date(),
+  timeZone = 'Asia/Kuala_Lumpur',
+): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+export const canMutateSemesterCapacity = (
+  status: AcademicSemester['lifecycleStatus'],
+): boolean => status === 'DRAFT' || status === 'ACTIVE';
+
 interface CapacityDraftEntryValues {
   hasSupervisorRole: boolean;
   hasPanelRole: boolean;

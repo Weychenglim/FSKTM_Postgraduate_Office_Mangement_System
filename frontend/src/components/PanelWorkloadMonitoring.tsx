@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  Gauge,
   Search,
   SlidersHorizontal,
   X,
@@ -34,6 +35,7 @@ import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from '../utils/p
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
+  onOpenCapacity?: () => void;
 }
 
 const itemsPerPage = 5;
@@ -43,7 +45,7 @@ const distributionRows: Array<{ label: string; tone: BadgeTone; key: 'available'
   { label: 'Full Load', tone: 'danger', key: 'fullLoad' },
 ];
 
-export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack }) => {
+export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [records, setRecords] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,6 +171,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         backLabel="Back to Panel Appointment Management"
         onBack={onBack}
         subtitleClassName="leading-relaxed max-w-3xl"
+        actions={onOpenCapacity ? <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton> : undefined}
       />
 
       <div id="workload-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

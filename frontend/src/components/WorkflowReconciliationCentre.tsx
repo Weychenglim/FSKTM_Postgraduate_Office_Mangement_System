@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  Gauge,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -38,6 +39,7 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrim
 interface WorkflowReconciliationCentreProps {
   onBack: () => void;
   onNavigateToRoute: (route: string) => void;
+  onOpenCapacity?: () => void;
 }
 
 const humanize = (value: string) => value
@@ -56,6 +58,7 @@ const stateValue = (value: unknown) => {
 export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentreProps> = ({
   onBack,
   onNavigateToRoute,
+  onOpenCapacity,
 }) => {
   const [data, setData] = useState<ReconciliationListResponse | null>(null);
   const [filters, setFilters] = useState<ReconciliationFilters>({ page: 1, pageSize: 25 });
@@ -170,7 +173,12 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
         subtitle="Detect and repair cross-module data inconsistencies with preview, confirmation, and immutable audit history."
         backLabel="Back to Office Dashboard"
         onBack={onBack}
-        actions={<PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh Scan</PortalButton>}
+        actions={(
+          <>
+            {onOpenCapacity && <PortalButton icon={Gauge} onClick={onOpenCapacity}>Lecturer Capacity</PortalButton>}
+            <PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh Scan</PortalButton>
+          </>
+        )}
       />
 
       {data && (

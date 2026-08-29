@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, ChevronRight, ShieldAlert, UsersRound } from 'lucide-react';
+import { BarChart3, ChevronRight, Gauge, ShieldAlert, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
@@ -134,6 +134,13 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         subtitle="Overview administrative status, timeline intervals, and records requiring office review."
         actions={(
           <>
+            <PortalButton
+              variant="secondary"
+              icon={Gauge}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardLecturerCapacity)}
+            >
+              Lecturer Capacity
+            </PortalButton>
             <PortalButton
               variant="secondary"
               icon={ShieldAlert}

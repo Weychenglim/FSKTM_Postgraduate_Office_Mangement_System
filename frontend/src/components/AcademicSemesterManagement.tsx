@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Edit3,
+  Gauge,
   Plus,
   RefreshCw,
   Save,
@@ -49,6 +50,7 @@ interface AcademicSemesterManagementProps {
   onBack: () => void;
   onManageParticipants?: () => void;
   onOpenReconciliation?: () => void;
+  onOpenCapacity?: () => void;
 }
 
 type LifecycleFilter = 'ALL' | AcademicSemesterLifecycle;
@@ -71,6 +73,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   onBack,
   onManageParticipants,
   onOpenReconciliation,
+  onOpenCapacity,
 }) => {
   const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
   const [filter, setFilter] = useState<LifecycleFilter>('ALL');
@@ -213,6 +216,11 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         onBack={onBack}
         actions={(
           <>
+            {onOpenCapacity && (
+              <PortalButton icon={Gauge} onClick={onOpenCapacity}>
+                Lecturer Capacity
+              </PortalButton>
+            )}
             {onManageParticipants && (
               <PortalButton icon={UsersRound} onClick={onManageParticipants}>
                 Manage participants

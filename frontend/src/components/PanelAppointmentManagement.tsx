@@ -66,6 +66,7 @@ interface PanelAppointmentManagementProps {
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
+  onOpenCapacity?: () => void;
 }
 
 export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
@@ -75,6 +76,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   onNavigateToWorkload,
   onNavigateToRecord,
   onNavigateToDossier,
+  onOpenCapacity,
 }) => {
 
   // Panel records are loaded from the persisted Django API.
@@ -300,7 +302,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
       {/* RENDER PATH 2: WORKLOAD MONITORING LIST */}
       {routeView === 'workload' && (
-        <PanelWorkloadMonitoring onBack={navigateToList} />
+        <PanelWorkloadMonitoring onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
       )}
 
 
