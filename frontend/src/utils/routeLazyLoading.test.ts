@@ -20,6 +20,7 @@ const routeModules = [
   'AcademicSemesterManagement',
   'ParticipantLifecycleManagement',
   'WorkflowReconciliationCentre',
+  'LecturerCapacityManagement',
   'FileRepository',
   'StudentFileSubmission',
   'NotificationsAnnouncements',
@@ -82,6 +83,12 @@ assert.match(
   appSource,
   /<React\.Suspense fallback=\{<ModuleLoadingFallback \/>\}>/,
   'Authenticated route content should be wrapped in a shared Suspense fallback',
+);
+
+assert.match(
+  appSource,
+  /isDashboardLecturerCapacityRoute && currentUser\.role !== 'Office Staff\/Admin'[\s\S]*?<Navigate to=\{APP_ROUTES\.dashboard\} replace \/>/,
+  'The Lecturer capacity route should redirect every non-Office role to Dashboard',
 );
 
 console.log('route lazy loading tests passed');

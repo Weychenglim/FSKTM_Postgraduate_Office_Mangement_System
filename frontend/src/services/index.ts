@@ -22,3 +22,4 @@ export * from './studentProgressApi';
 export * from './academicSemestersApi';
 export * from './participantLifecycleApi';
 export * from './workflowReconciliationApi';
+export * from './lecturerCapacityApi';

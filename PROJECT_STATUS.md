@@ -19,7 +19,9 @@
 - Task 7 adds Office-only Supervisor/Panel capacity-state distributions to Workflow Reports, matching Dashboard attention actions, and current plan/version/state/load/limit/slot/public-availability metadata to report rows and XLSX exports. Coordinator and Lecturer reports do not expose the faculty capacity summary or Office-only reasons.
 - Task 7 extends live reconciliation with missing/incomplete/multiple-plan, role-entry mismatch, active-window overlap, and Published-versus-legacy divergence detectors. Only a missing Draft plan with exactly one verified prior Published source offers transactional `COPY_CAPACITY_PLAN`; stale fingerprints return `409`, and successful copies preserve capacity lineage while recording an immutable reconciliation audit.
 - Task 7 focused and full Dashboard verification passes 38 tests after adding capacity action, report/export, drift detector, Draft-copy, and stale-state coverage. Django system/migration and formatting checks are rerun before commit; no migration is required.
-- Frontend capacity API/types and the Office capacity workspace remain planned.
+- Task 8 adds exact frontend capacity contracts, a backend-only Django API service for every management command, shared labels/validation/conflict/utilization helpers, capacity metadata on appointment/report types, and the known lazy `/dashboard/lecturer-capacity` route with non-Office redirect protection.
+- Task 8 verification passes the focused Lecturer capacity utility test, route test, lazy-loading/role-guard source test, and full TypeScript lint check. The Office route currently has its operational shell; complete plan, availability, and audit controls are the next task.
+- The full Office capacity workspace and cross-screen presentation remain planned.
 - The approved specification is `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`.
 - The reviewed task-by-task implementation plan is `docs/superpowers/plans/2026-08-19-lecturer-capacity-availability.md`.
 

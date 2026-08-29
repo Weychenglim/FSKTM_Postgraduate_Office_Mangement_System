@@ -1,3 +1,5 @@
+import type { CapacityRole, CapacityState } from './lecturerCapacity';
+
 export type WorkflowReportRole = 'OFFICE_ADMIN' | 'COORDINATOR' | 'LECTURER';
 
 export interface WorkflowReportFilters {
@@ -30,6 +32,13 @@ export interface WorkflowReportRecord {
   title?: string;
   level?: string;
   targetRoles?: string[];
+  capacityPlanId?: number | null;
+  capacityPlanVersion?: number | null;
+  capacityState?: CapacityState;
+  capacityLimit?: number;
+  capacityLoad?: number;
+  availableSlots?: number;
+  unavailableUntil?: string | null;
 }
 
 export interface ReportModuleSummary {
@@ -58,7 +67,12 @@ export interface TimelineReportSummary {
 }
 
 export interface WorkflowReportAttentionItem {
-  kind: 'WAITING' | 'DEADLINE' | 'PARTICIPANT_LIFECYCLE' | 'RECONCILIATION';
+  kind:
+    | 'WAITING'
+    | 'DEADLINE'
+    | 'PARTICIPANT_LIFECYCLE'
+    | 'RECONCILIATION'
+    | 'LECTURER_CAPACITY';
   recordType: string;
   recordId: string;
   studentId: string | null;
@@ -70,6 +84,16 @@ export interface WorkflowReportAttentionItem {
   dueAt: string | null;
   participantStatus?: string;
   targetModule?: string;
+  capacityRole?: CapacityRole;
+  capacityState?: CapacityState;
+  unavailableUntil?: string | null;
+}
+
+export interface WorkflowCapacitySummary {
+  semesterId: number;
+  semesterCode: string;
+  supervisor: Record<CapacityState, number>;
+  panel: Record<CapacityState, number>;
 }
 
 export interface WorkflowReport {
@@ -119,6 +143,7 @@ export interface WorkflowReport {
     retiringLecturers: number;
     retiredLecturers: number;
   } | null;
+  capacity: WorkflowCapacitySummary | null;
   reconciliation: {
     total: number;
     blocking: number;

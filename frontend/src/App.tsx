@@ -87,6 +87,7 @@ const TimelineManagement = lazyNamed('TimelineManagement', () => import('./compo
 const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
 const ParticipantLifecycleManagement = lazyNamed('ParticipantLifecycleManagement', () => import('./components/ParticipantLifecycleManagement'));
 const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', () => import('./components/WorkflowReconciliationCentre'));
+const LecturerCapacityManagement = lazyNamed('LecturerCapacityManagement', () => import('./components/LecturerCapacityManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
@@ -223,6 +224,7 @@ export default function App() {
   const isDashboardReportsRoute = pathname === APP_ROUTES.dashboardReports;
   const isDashboardParticipantLifecycleRoute = pathname === APP_ROUTES.dashboardParticipantLifecycle;
   const isDashboardWorkflowReconciliationRoute = pathname === APP_ROUTES.dashboardWorkflowReconciliation;
+  const isDashboardLecturerCapacityRoute = pathname === APP_ROUTES.dashboardLecturerCapacity;
   const dashboardProgressMatch = matchPath(`${APP_ROUTES.dashboardProgress}/:studentId`, pathname);
   const isDashboardProgressRoute = pathname === APP_ROUTES.dashboardProgress || Boolean(dashboardProgressMatch);
   const isStudentOtherDossierRoute = Boolean(
@@ -679,7 +681,11 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardWorkflowReconciliationRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : isDashboardLecturerCapacityRoute ? (
+                <LecturerCapacityManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
+              ) : isDashboardWorkflowReconciliationRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardWorkflowReconciliationRoute ? (
                 <WorkflowReconciliationCentre

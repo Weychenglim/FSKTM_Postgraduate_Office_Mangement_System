@@ -3,7 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { CapacityState } from './lecturerCapacity';
+
 // Supervisor & Panel Appointment domain models (UC10–UC23).
+
+export interface AppointmentCapacityMetadata {
+  semesterId?: number | null;
+  capacityPlanId?: number | null;
+  capacityPlanVersion?: number | null;
+  capacityState?: CapacityState;
+  workloadCount?: number;
+  workloadLimit?: number;
+  availableSlots?: number;
+  selectable?: boolean;
+  unavailableUntil?: string | null;
+}
 
 export type WorkflowWaitingOn =
   | 'SUPERVISOR'
@@ -158,7 +172,7 @@ export interface SupervisorWorkloadSummary {
   availableSlots: number;
 }
 
-export interface SupervisorWorkloadRecord {
+export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
   lecturerId: string;
   lecturerName: string;
   department: string;
@@ -269,7 +283,7 @@ export interface PanelRecommendationSupervisee {
   canRecommend: boolean;
 }
 
-export interface PanelCandidate {
+export interface PanelCandidate extends AppointmentCapacityMetadata {
   staffId: string;
   name: string;
   department: string;
@@ -288,7 +302,7 @@ export interface PanelWorkloadItem {
   date: string;
 }
 
-export interface PanelWorkloadRecord {
+export interface PanelWorkloadRecord extends AppointmentCapacityMetadata {
   id: string;
   name: string;
   department: string;
@@ -490,7 +504,7 @@ export interface SupervisorDocumentRequirementAudit {
   createdAt: string;
 }
 
-export interface SupervisorCandidate {
+export interface SupervisorCandidate extends AppointmentCapacityMetadata {
   id: string;
   name: string;
   initials: string;

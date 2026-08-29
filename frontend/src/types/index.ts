@@ -24,3 +24,4 @@ export * from './studentProgress';
 export * from './academicSemester';
 export * from './participantLifecycle';
 export * from './workflowReconciliation';
+export * from './lecturerCapacity';
