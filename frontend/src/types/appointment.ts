@@ -3,17 +3,74 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { CapacityState } from './lecturerCapacity';
+
 // Supervisor & Panel Appointment domain models (UC10–UC23).
+
+export interface AppointmentCapacityMetadata {
+  semesterId?: number | null;
+  semesterCode?: string | null;
+  capacityPlanId?: number | null;
+  capacityPlanVersion?: number | null;
+  capacityState?: CapacityState;
+  workloadCount?: number;
+  workloadLimit?: number;
+  availableSlots?: number;
+  selectable?: boolean;
+  unavailableUntil?: string | null;
+}
+
+export type WorkflowWaitingOn =
+  | 'SUPERVISOR'
+  | 'SELECTED_PANEL'
+  | 'PROGRAMME_COORDINATOR'
+  | 'FACULTY_PROCESSING';
+
+export interface WorkflowAgeingMetadata {
+  semesterId?: number | null;
+  semesterCode?: string | null;
+  waitingSince?: string | null;
+  waitingDays?: number | null;
+  waitingOn?: WorkflowWaitingOn | null;
+}
+
+export type AppointmentEndOutcome = 'COMPLETED' | 'REPLACED' | 'WITHDRAWN' | 'OTHER';
+
+export interface AppointmentLifecycleEvent {
+  id: number;
+  action: 'ACTIVATED' | 'ENDED' | 'REPLACED';
+  actorName: string;
+  actorRole: string;
+  previousStatus: string;
+  newStatus: string;
+  outcome: AppointmentEndOutcome | null;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface AppointmentLifecycle {
+  appointmentId: number;
+  status: 'ACTIVE' | 'ENDED' | 'COMPLETED';
+  endOutcome: AppointmentEndOutcome | null;
+  endReason: string | null;
+  endedAt: string | null;
+  endedBy: string | null;
+  supersedesAppointmentId: number | null;
+  replacementAppointmentId: number | null;
+  lifecycle?: AppointmentLifecycleEvent[];
+}
 
 export type SupervisorAppointmentStatus =
   | 'Approved'
+  | 'Ended'
   | 'Pending'
   | 'No Supervisor'
   | 'Workload Alert'
   | 'Rejected'
   | 'Cancelled';
 
-export interface SupervisorRecord {
+export interface SupervisorRecord extends WorkflowAgeingMetadata {
+  applicationId?: number;
   studentId: string;
   studentName: string;
   programme: string;
@@ -25,24 +82,29 @@ export interface SupervisorRecord {
   researchTopic?: string;
   researchArea?: string;
   abstract?: string;
-  appointmentId?: string;
+  appointmentId?: number | string | null;
   workloadLimit?: string;
   approvedDate?: string;
   releasedDate?: string;
   panelMemberName?: string;
   panelAssignedDate?: string;
   workflow?: SupervisorWorkflowEvent[];
+  documents?: SupervisorApplicationDocument[];
+  appointmentLifecycle?: AppointmentLifecycle | null;
+  replacesAppointmentId?: number | null;
+  replacementReason?: string | null;
 }
 
 export type PanelAppointmentStatus =
   | 'Approved'
+  | 'Ended'
   | 'No Panel'
   | 'Pending'
   | 'Recommendation'
   | 'Rejected'
   | 'Cancelled';
 
-export interface PanelRecord {
+export interface PanelRecord extends WorkflowAgeingMetadata {
   recordId: string;
   id: string; // student ID, e.g. "MEA2301184"
   studentName: string;
@@ -69,40 +131,84 @@ export interface PanelRecord {
   cancelledAt?: string | null;
   cancellationReason?: string;
   workflow?: SupervisorWorkflowEvent[];
+  appointmentLifecycle?: AppointmentLifecycle | null;
 }
 
 // ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
 // A pending supervisor appointment request shown to a lecturer to review.
-export interface SupervisorRequest {
+export interface SupervisorRequest extends WorkflowAgeingMetadata {
   applicationId?: number;
   studentId: string;
   studentName: string;
   programme: string;
   proposedTopic: string;
+  researchArea: string;
   submittedDate: string;
   receivedTime: string;
   status: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   abstract?: string;
 }
 
 // A row in the lecturer's active supervisee roster.
 export interface ActiveSuperviseeRow {
+  appointmentId: number;
   studentId: string;
   studentName: string;
+  programme: string;
+  semester: string;
+  email: string;
   researchTitle: string;
+  researchArea: string;
+  researchAbstract: string;
+  supervisorName: string;
   appointmentDate: string;
   status: string;
 }
 
+export interface SupervisorWorkloadSummary extends AppointmentCapacityMetadata {
+  currentStudents: number;
+  workloadLimit: number;
+  availableSlots: number;
+}
+
+export interface PanelWorkloadSummary extends AppointmentCapacityMetadata {
+  currentStudents: number;
+  confirmedAppointments: number;
+  pendingNominations: number;
+  workloadLimit: number;
+  availableSlots: number;
+}
+
+export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
+  lecturerId: string;
+  lecturerName: string;
+  department: string;
+  currentStudents: number;
+  workloadLimit: number;
+  availability: 'Available' | 'Near Limit' | 'Full Load';
+  email: string;
+  supervisees: Array<{
+    id: string;
+    name: string;
+    programme: string;
+    status: string;
+    topic: string;
+    appointmentDate: string;
+  }>;
+}
+
 // ── Lecturer-facing panel appointment views (UC20–UC23) ──
 // A student assigned to a lecturer acting as panel member.
-export interface PanelAssignment {
+export interface PanelAssignment extends WorkflowAgeingMetadata {
+  appointmentId: number;
   studentId: string;
   studentName: string;
   researchTitle: string;
   supervisor: string;
   appointmentDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'COMPLETED';
+  status: 'ACTIVE' | 'PENDING' | 'ENDED' | 'COMPLETED';
   programme?: string;
   intake?: string;
   researchArea?: string;
@@ -114,6 +220,10 @@ export interface PanelAssignment {
   panelDecisionAt?: string | null;
   coordinatorDecisionAt?: string | null;
   appointmentConfirmedAt?: string | null;
+  endOutcome?: AppointmentEndOutcome | null;
+  endReason?: string | null;
+  endedAt?: string | null;
+  supersedesAppointmentId?: number | null;
 }
 
 // Approval lifecycle for a supervisor's panel-member recommendation.
@@ -126,10 +236,12 @@ export type PanelRecommendationStatus =
   | 'CANCELLED_BY_SUPERVISOR';
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
-export interface PanelRecommendationDraft {
+export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
   id?: number | string;
   studentId: string;
   studentName: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   programme: string;
   semester?: string;
   proposedTopic: string;
@@ -150,6 +262,10 @@ export interface PanelRecommendationDraft {
   updatedAt?: string | null;
   selectedPanelDecision?: 'ACCEPTED' | 'REJECTED' | null;
   workflow?: SupervisorWorkflowEvent[];
+  replacesAppointmentId?: number | null;
+  replacementReason?: string | null;
+  appointmentLifecycle?: AppointmentLifecycle | null;
+  unavailableUntil?: string | null;
 }
 
 export interface CoordinatorPanelWorkspace {
@@ -170,10 +286,14 @@ export interface PanelRecommendationSupervisee {
   abstract: string;
   supervisorName: string;
   supervisorId: string;
+  supervisorAppointmentId: number;
+  panelAppointmentId: number | null;
+  currentPanelMember: string | null;
+  currentPanelMemberId: string | null;
   canRecommend: boolean;
 }
 
-export interface PanelCandidate {
+export interface PanelCandidate extends AppointmentCapacityMetadata {
   staffId: string;
   name: string;
   department: string;
@@ -192,7 +312,7 @@ export interface PanelWorkloadItem {
   date: string;
 }
 
-export interface PanelWorkloadRecord {
+export interface PanelWorkloadRecord extends AppointmentCapacityMetadata {
   id: string;
   name: string;
   department: string;
@@ -205,8 +325,14 @@ export interface PanelWorkloadRecord {
   workloadItems: PanelWorkloadItem[];
 }
 
-export interface StudentPanelAppointmentView {
+export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
   status: 'PENDING' | 'CONFIRMED';
+  readinessState:
+    | 'SUPERVISOR_REQUIRED'
+    | 'SUPERVISOR_APPROVAL_PENDING'
+    | 'READY_FOR_PANEL_RECOMMENDATION'
+    | 'FACULTY_PROCESSING'
+    | 'CONFIRMED';
   studentName: string;
   studentId: string;
   programme: string;
@@ -221,7 +347,7 @@ export interface StudentPanelAppointmentView {
 }
 
 // A submitted panel recommendation record shown in the history list.
-export interface SubmittedRecommendation {
+export interface SubmittedRecommendation extends WorkflowAgeingMetadata {
   id: string;
   recommendationId?: number | string;
   studentName: string;
@@ -282,10 +408,11 @@ export type StudentSupervisorApplicationStatus =
   | 'CANCELLED'
   | 'APPROVED';
 
-export interface StudentSupervisorApplication {
+export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
   applicationId?: number;
   id: string;
   title: string;
+  researchArea: string;
   supervisor: string;
   date: string;
   status: StudentSupervisorApplicationStatus;
@@ -293,6 +420,12 @@ export interface StudentSupervisorApplication {
   workflow?: SupervisorWorkflowEvent[];
   cancellationReason?: string;
   cancelledAt?: string | null;
+  rejectionReason?: string;
+  documents?: SupervisorApplicationDocument[];
+  appointmentLifecycle?: AppointmentLifecycle | null;
+  replacesAppointmentId?: number | null;
+  replacementReason?: string | null;
+  unavailableUntil?: string | null;
 }
 
 export type SupervisorApplicationWorkflowStatus =
@@ -314,16 +447,20 @@ export interface SupervisorWorkflowEvent {
   createdAt: string;
 }
 
-export interface SupervisorApplicationRecord {
+export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
   id: number;
   studentId: string;
   studentName: string;
+  participantLifecycleStatus?: string | null;
+  participantEligible?: boolean;
   programme: string;
   semester: string;
   proposedSupervisor: string;
   proposedSupervisorId: string;
   researchTitle: string;
+  researchArea: string;
   researchAbstract: string;
+  researchProfileReady: boolean;
   status: SupervisorApplicationWorkflowStatus;
   rejectionReason: string;
   submittedAt: string;
@@ -331,10 +468,55 @@ export interface SupervisorApplicationRecord {
   coordinatorDecisionAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string;
+  documents?: SupervisorApplicationDocument[];
   workflow: SupervisorWorkflowEvent[];
+  appointmentLifecycle?: AppointmentLifecycle | null;
+  replacesAppointmentId?: number | null;
+  replacementReason?: string | null;
+  unavailableUntil?: string | null;
 }
 
-export interface SupervisorCandidate {
+export interface SupervisorDocumentRequirement {
+  id: number;
+  code: string;
+  label: string;
+  description: string;
+  isRequired: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  isUsed: boolean;
+}
+
+export interface SupervisorApplicationDocument {
+  id: number;
+  requirementCode: string | null;
+  requirementLabel: string;
+  name: string;
+  contentType:
+    | 'application/pdf'
+    | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    | null;
+  size: number;
+  checksum: string | null;
+  availability: 'AVAILABLE' | 'LEGACY_METADATA';
+  uploadedAt: string;
+}
+
+export interface SupervisorDocumentRequirementAudit {
+  id: number;
+  requirementId: number;
+  requirementCode: string;
+  requirementLabel: string;
+  actorName: string;
+  actorRole: string;
+  action: 'CREATE' | 'UPDATE';
+  reason: string;
+  beforeValues: Record<string, unknown>;
+  afterValues: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SupervisorCandidate extends AppointmentCapacityMetadata {
   id: string;
   name: string;
   initials: string;

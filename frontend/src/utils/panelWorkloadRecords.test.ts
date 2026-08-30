@@ -1,4 +1,6 @@
 import { PanelWorkloadRecord } from '../types';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from './panelWorkloadRecords';
 
 const rows: PanelWorkloadRecord[] = [
@@ -53,6 +55,70 @@ if (getPanelWorkloadUtilization({ ...rows[0], currentStudents: 6, workloadLimit:
 
 if (getPanelWorkloadUtilization({ ...rows[0], currentStudents: 2, workloadLimit: 0 }) !== 0) {
   throw new Error('Utilization should be 0% when workload limit is zero.');
+}
+
+if (getPanelWorkloadUtilization({ ...rows[0], currentStudents: Number.NaN }) !== 0) {
+  throw new Error('Utilization should be 0% when workload is malformed.');
+}
+
+for (const component of [
+  'src/components/SupervisorWorkloadMonitoring.tsx',
+  'src/components/PanelWorkloadMonitoring.tsx',
+]) {
+  const source = readFileSync(resolve(component), 'utf8');
+  for (const header of [
+    'Semester Code',
+    'Plan Version',
+    'Capacity State',
+    'Active Load',
+    'Reserved Load',
+    'Available Slots',
+    'Unavailable Until',
+  ]) {
+    if (!source.includes(header)) {
+      throw new Error(`${component} must export ${header}.`);
+    }
+  }
+  if (/availabilityReason|internalReason/.test(source)) {
+    throw new Error(`${component} must not expose Office-internal availability reasons.`);
+  }
+}
+
+const lecturerDashboardSource = readFileSync(
+  resolve('src/components/LecturerDashboard.tsx'),
+  'utf8',
+);
+for (const token of [
+  'getOwnSupervisorWorkload',
+  'getOwnPanelWorkload',
+  'capacityStateLabel',
+  'capacityPlanVersion',
+  'unavailableUntil',
+]) {
+  if (!lecturerDashboardSource.includes(token)) {
+    throw new Error(`Lecturer Dashboard must render persisted ${token} capacity metadata.`);
+  }
+}
+
+const lecturerPanelSource = readFileSync(
+  resolve('src/components/LecturerPanelAppointments.tsx'),
+  'utf8',
+);
+if (!lecturerPanelSource.includes('getOwnPanelWorkload')) {
+  throw new Error('Lecturer Panel Appointments must load the current Lecturer panel capacity.');
+}
+if (/currentUserCandidate[\s\S]{0,250}\?\s*currentUserCandidate\.workloadLimit\s*:\s*10/.test(lecturerPanelSource)) {
+  throw new Error('Lecturer panel capacity must not fall back to an invented limit of 10.');
+}
+
+const lecturerSupervisorSource = readFileSync(
+  resolve('src/components/LecturerSupervisorAppointments.tsx'),
+  'utf8',
+);
+for (const token of ['capacityState', 'capacityPlanVersion', 'unavailableUntil']) {
+  if (!lecturerSupervisorSource.includes(token)) {
+    throw new Error(`Lecturer Supervisor Appointments must show ${token}.`);
+  }
 }
 
 console.log('panelWorkloadRecords tests passed');

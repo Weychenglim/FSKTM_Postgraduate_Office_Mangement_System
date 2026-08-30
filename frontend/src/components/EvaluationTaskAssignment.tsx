@@ -10,10 +10,8 @@ import {
   Calendar,
   Check,
   CheckCircle2,
-  Download,
   Eye,
   Filter,
-  Mail,
   RefreshCw,
   ShieldAlert,
   Sliders,
@@ -38,6 +36,10 @@ import {
   getEvaluationPreviewTasks,
   getMarksAssignmentOptions,
 } from '../services';
+import {
+  formatPeriodStatus,
+  marksMutationErrorMessage,
+} from '../utils/marksProductionManagement';
 
 interface EvaluationTaskAssignmentProps {
   onBack: () => void;
@@ -181,6 +183,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     () => periods.find((period) => String(period.id) === selectedPeriodId),
     [periods, selectedPeriodId],
   );
+  const selectedPeriodAllowsGeneration = Boolean(
+    selectedPeriod
+    && selectedPeriod.lifecycleStatus === 'PUBLISHED'
+    && ['SCHEDULED', 'OPEN'].includes(selectedPeriod.effectiveStatus),
+  );
 
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const matchesPeriod = taskMatchesPeriod(task, selectedPeriodId);
@@ -212,6 +219,12 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       showToast('Select an evaluation period before generating tasks.');
       return;
     }
+    if (!selectedPeriodAllowsGeneration) {
+      showToast(
+        'Tasks can only be generated for a published period that has not ended.',
+      );
+      return;
+    }
     setGenerating(true);
     try {
       const result = await generateEvaluationTasks(Number(selectedPeriodId));
@@ -227,7 +240,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       }, ...prev]);
       await loadWorkspace();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to generate evaluation tasks.');
+      showToast(marksMutationErrorMessage(e));
     } finally {
       setGenerating(false);
     }
@@ -287,14 +300,6 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     }
   };
 
-  const handleNotifyPanel = () => {
-    showToast('Notification dispatch will use the in-app notification workflow when marks notifications are enabled.');
-  };
-
-  const handleExportPDF = () => {
-    showToast('Export queued. The current filtered assignment list is ready for reporting integration.');
-  };
-
   return (
     <div id="eval-assignment-workspace" className="space-y-8 animate-fade-in relative text-left">
       <PortalToast message={toastMessage} />
@@ -316,8 +321,8 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           <div id="summary-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCard
               title="Evaluation Period"
-              badgeText={selectedPeriod?.isOpen ? 'Open' : 'Closed'}
-              badgeType={selectedPeriod?.isOpen ? 'active' : 'generated'}
+              badgeText={selectedPeriod ? formatPeriodStatus(selectedPeriod.effectiveStatus) : 'Not selected'}
+              badgeType={selectedPeriod?.effectiveStatus === 'OPEN' ? 'active' : 'generated'}
               subtext={selectedPeriod ? `${selectedPeriod.name} · ${selectedPeriod.semester}` : 'No period selected'}
               icon={Calendar}
               onClick={() => {}}
@@ -415,7 +420,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="flex flex-wrap items-center gap-3 mt-6">
                 <button
                   type="button"
-                  disabled={!selectedPeriodId || generating}
+                  disabled={!selectedPeriodAllowsGeneration || generating}
                   onClick={handleGenerateTasks}
                   className="px-5 py-3 bg-brand-navy hover:bg-slate-900 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition"
                 >
@@ -438,9 +443,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <ul className="space-y-4 pt-5">
                 {[
                   ['Evaluation period selected', Boolean(selectedPeriodId)],
+                  ['Period published and not ended', selectedPeriodAllowsGeneration],
                   ['Rubric configured', Boolean(selectedPeriod?.rubricName)],
                   ['Eligible students available', studentsForPeriod.length > 0],
-                  ['Backup lecturers available', options.lecturers.length > 0],
                 ].map(([label, passed]) => (
                   <li key={String(label)} className="flex items-center justify-between text-xs">
                     <span className="text-slate-500 font-semibold">{label}</span>
@@ -489,13 +494,6 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="SUBMITTED">Submitted</option>
                   </select>
                 </label>
-                <button
-                  onClick={handleExportPDF}
-                  className="self-end px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2.5 transition-all shadow-xs"
-                >
-                  <Download className="w-4 h-4 text-slate-500" />
-                  Export
-                </button>
               </div>
             </div>
 
@@ -559,13 +557,6 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
           <div id="task-actions-wrapper" className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-slate-50 border border-slate-100 p-5 rounded-2xl">
             <div className="flex flex-wrap items-center gap-4">
-              <button
-                onClick={handleNotifyPanel}
-                className="px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-sm"
-              >
-                <Mail className="w-4.5 h-4.5 text-blue-200" />
-                Notify Evaluators
-              </button>
               <button
                 onClick={() => setRoleFilter(ALL_ROLES)}
                 className="px-5 py-3.5 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 hover:border-blue-300 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2.5 transition-all shadow-xs"

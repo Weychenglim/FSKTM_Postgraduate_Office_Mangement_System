@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PanelRecommendationStatus } from '../types';
+import type { CapacityState, PanelRecommendationStatus } from '../types';
 
 export type PanelRecommendationAction =
   | 'panelAccept'
@@ -82,8 +82,11 @@ export const requiresPanelRejectionReason = (
 ): boolean => action === 'panelReject' && reason.trim().length === 0;
 
 interface PanelCandidateValidationInput {
-  workloadCount: number;
-  workloadLimit: number;
+  workloadCount?: number;
+  workloadLimit?: number;
+  capacityState?: CapacityState;
+  selectable?: boolean;
+  unavailableUntil?: string | null;
   isSupervisor: boolean;
   hasNotes?: boolean;
 }
@@ -91,19 +94,64 @@ interface PanelCandidateValidationInput {
 export const canSubmitPanelCandidate = ({
   workloadCount,
   workloadLimit,
+  capacityState,
+  selectable,
   isSupervisor,
   hasNotes = true,
-}: PanelCandidateValidationInput): boolean =>
-  !isSupervisor && hasNotes && workloadCount < workloadLimit;
+}: PanelCandidateValidationInput): boolean => {
+  const capacityAllowsSelection = selectable ?? (
+    capacityState
+      ? capacityState === 'AVAILABLE'
+      : Number.isFinite(workloadCount)
+        && Number.isFinite(workloadLimit)
+        && (workloadCount ?? 0) < (workloadLimit ?? 0)
+  );
+  return !isSupervisor && hasNotes && capacityAllowsSelection;
+};
+
+const formatUnavailableUntil = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('en-MY', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 export const getPanelCandidateValidationMessage = ({
   workloadCount,
   workloadLimit,
+  capacityState,
+  selectable,
+  unavailableUntil,
   isSupervisor,
   hasNotes = true,
 }: PanelCandidateValidationInput): string => {
   if (isSupervisor) return 'The selected panel member cannot be the student supervisor.';
-  if (workloadCount >= workloadLimit) {
+  if (capacityState === 'TEMPORARILY_UNAVAILABLE') {
+    const resumeDate = formatUnavailableUntil(unavailableUntil);
+    return resumeDate
+      ? `This lecturer is temporarily unavailable until ${resumeDate}.`
+      : 'This lecturer is temporarily unavailable for new panel assignments.';
+  }
+  if (capacityState === 'NOT_CONFIGURED') {
+    return 'Panel capacity is not configured for this lecturer in the active semester.';
+  }
+  if (capacityState === 'INELIGIBLE') {
+    return 'This lecturer is not eligible for a new panel assignment.';
+  }
+  if (
+    capacityState === 'FULL'
+    || capacityState === 'OVER_CAPACITY'
+    || selectable === false
+    || (
+      Number.isFinite(workloadCount)
+      && Number.isFinite(workloadLimit)
+      && (workloadCount ?? 0) >= (workloadLimit ?? 0)
+    )
+  ) {
     return 'This lecturer has reached the panel workload limit. Please choose another panel member.';
   }
   if (!hasNotes) return 'Add justification notes before submitting to the selected panel member.';

@@ -6,11 +6,13 @@ ignored local environment.
 """
 
 import json
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from accounts.models import (
     Coordinator,
@@ -22,8 +24,22 @@ from accounts.models import (
     Supervisor,
     User,
 )
-from appointments.models import StudentResearchProfile
-
+from appointments.models import (
+    StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorAppointment,
+    SupervisorDocumentRequirement,
+)
+from appointments.supervisor_documents import create_requirement
+from academics.capacity_services import (
+    capacity_eligible_lecturers,
+    capacity_plan_content_fingerprint,
+    create_capacity_plan,
+    publish_capacity_plan,
+    update_capacity_entry,
+)
+from academics.models import AcademicSemester, SemesterCapacityPlan
+from academics.services import activate_semester, create_semester
 
 DEMO_USERS = [
     {
@@ -173,6 +189,42 @@ PANEL_RESEARCH_PROFILES = [
 ]
 
 
+def _publish_demo_capacity_plan(semester, actor):
+    existing_plans = SemesterCapacityPlan.objects.filter(academic_semester=semester)
+    published = existing_plans.filter(
+        lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED
+    ).first()
+    if published is not None:
+        return published
+    if existing_plans.exists():
+        raise CommandError(
+            "Demo seeding will not replace or supersede an existing capacity plan."
+        )
+
+    plan = create_capacity_plan(semester=semester, actor=actor)
+    for lecturer in capacity_eligible_lecturers():
+        update_capacity_entry(
+            plan,
+            lecturer=lecturer,
+            actor=actor,
+            supervisor_limit=(
+                lecturer.supervisor.max_supervisees
+                if hasattr(lecturer, "supervisor")
+                else None
+            ),
+            panel_limit=(
+                lecturer.panel.max_appointments if hasattr(lecturer, "panel") else None
+            ),
+            expected_fingerprint=capacity_plan_content_fingerprint(plan),
+        )
+    return publish_capacity_plan(
+        plan,
+        actor=actor,
+        reason="Publish guarded fictional development capacity policy.",
+        expected_fingerprint=capacity_plan_content_fingerprint(plan),
+    )
+
+
 class Command(BaseCommand):
     help = "Seed/refresh development-only demo accounts and role profiles."
 
@@ -240,17 +292,25 @@ class Command(BaseCommand):
     def _profile_conflict(entry):
         email = entry["email"]
         if "student" in entry:
-            return User.objects.filter(
-                student__matric_no=entry["student"]["matric_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(student__matric_no=entry["student"]["matric_no"])
+                .exclude(email=email)
+                .first()
+            )
         if "office_staff" in entry:
-            return User.objects.filter(
-                office_staff__staff_no=entry["office_staff"]["staff_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(
+                    office_staff__staff_no=entry["office_staff"]["staff_no"]
+                )
+                .exclude(email=email)
+                .first()
+            )
         if "lecturer" in entry:
-            return User.objects.filter(
-                lecturer__staff_no=entry["lecturer"]["staff_no"]
-            ).exclude(email=email).first()
+            return (
+                User.objects.filter(lecturer__staff_no=entry["lecturer"]["staff_no"])
+                .exclude(email=email)
+                .first()
+            )
         return None
 
     def _adopt_profile_conflict(self, entry):
@@ -379,6 +439,84 @@ class Command(BaseCommand):
             verb = "Created" if created else "Updated"
             self.stdout.write(
                 self.style.SUCCESS(f"  {verb} panel profile {profile.matric_no}")
+            )
+
+        if not AcademicSemester.objects.exists():
+            today = timezone.localdate()
+            office = User.objects.get(email="demo.office.admin@example.test")
+            semester = create_semester(
+                actor=office,
+                academic_session=f"{today.year}/{today.year + 1}",
+                term=AcademicSemester.Term.SEMESTER_I,
+                starts_on=today - timedelta(days=30),
+                ends_on=today + timedelta(days=120),
+            )
+            _publish_demo_capacity_plan(semester, office)
+            activate_semester(
+                semester,
+                actor=office,
+                reason="Create guarded fictional development semester.",
+            )
+            self.stdout.write(
+                self.style.SUCCESS("  Created fictional active academic semester")
+            )
+
+        demo_semester = (
+            AcademicSemester.objects.filter(
+                lifecycle_status=AcademicSemester.Lifecycle.ACTIVE
+            ).first()
+            or AcademicSemester.objects.order_by("-starts_on", "-pk").first()
+        )
+        demo_coordinator = User.objects.get(email="demo.coordinator@example.test")
+        for profile in StudentResearchProfile.objects.filter(
+            student__email__in=[
+                item["student_email"] for item in PANEL_RESEARCH_PROFILES
+            ]
+        ).select_related("student", "student__student", "supervisor"):
+            student = profile.student.student
+            if SupervisorAppointment.objects.filter(
+                student=student,
+                status=SupervisorAppointment.Status.ACTIVE,
+            ).exists():
+                continue
+            if SupervisorApplication.objects.filter(student=student).exists():
+                continue
+            application = SupervisorApplication.objects.create(
+                student=student,
+                academic_semester=demo_semester,
+                proposed_supervisor=profile.supervisor,
+                research_title=profile.proposed_topic,
+                research_area=profile.research_area,
+                research_abstract=profile.abstract,
+                status=SupervisorApplication.Status.APPROVED,
+                supervisor_decided_at=timezone.now(),
+                coordinator_decided_at=timezone.now(),
+            )
+            SupervisorAppointment.objects.create(
+                application=application,
+                student=student,
+                supervisor=profile.supervisor,
+                approved_by=demo_coordinator,
+            )
+
+        if not SupervisorDocumentRequirement.objects.exists():
+            office = User.objects.get(email="demo.office.admin@example.test")
+            create_requirement(
+                actor=office,
+                values={
+                    "label": "Research Proposal",
+                    "description": (
+                        "Upload the current demonstration research proposal."
+                    ),
+                    "is_required": True,
+                    "is_active": True,
+                    "display_order": 1,
+                },
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "  Created fictional supervisor document requirement"
+                )
             )
 
         self.stdout.write(self.style.SUCCESS("\nDemo accounts + role profiles ready."))

@@ -1,9 +1,13 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import EvaluationTask, MarkEntry, MarkScore
+from .deadlines import mark_deadline_metadata
+from .models import EvaluationPeriod, EvaluationTask, MarkEntry, MarkScore
+from .services import MarksStateConflict
 
 
 def initials(name):
@@ -22,6 +26,95 @@ def task_status(task):
     }[status]
 
 
+class RubricCreateSerializer(serializers.Serializer):
+    familyCode = serializers.SlugField(max_length=64)
+    name = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True)
+    targetMark = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        min_value=1,
+    )
+
+
+class RubricUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    targetMark = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        min_value=1,
+        required=False,
+    )
+    isActive = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("At least one field is required.")
+        return attrs
+
+
+class RubricComponentInputSerializer(serializers.Serializer):
+    code = serializers.SlugField(max_length=64, required=False)
+    name = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    maxMarks = serializers.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        required=False,
+    )
+    required = serializers.BooleanField(required=False)
+    isActive = serializers.BooleanField(required=False)
+    displayOrder = serializers.IntegerField(min_value=0, required=False)
+
+    def validate(self, attrs):
+        if self.context.get("create"):
+            required_fields = {"code", "name", "maxMarks", "displayOrder"}
+            missing = required_fields - set(attrs)
+            if missing:
+                raise serializers.ValidationError(
+                    f"Missing required fields: {', '.join(sorted(missing))}."
+                )
+        elif not attrs:
+            raise serializers.ValidationError("At least one field is required.")
+        return attrs
+
+
+class EvaluationPeriodCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    semester = serializers.CharField(max_length=128, required=False)
+    semesterId = serializers.IntegerField(min_value=1, required=False)
+    rubricId = serializers.IntegerField(min_value=1)
+    opensAt = serializers.DateTimeField(required=False, allow_null=True)
+    closesAt = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class EvaluationPeriodUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, required=False)
+    semester = serializers.CharField(max_length=128, required=False)
+    semesterId = serializers.IntegerField(min_value=1, required=False)
+    rubricId = serializers.IntegerField(min_value=1, required=False)
+    opensAt = serializers.DateTimeField(required=False, allow_null=True)
+    closesAt = serializers.DateTimeField(required=False, allow_null=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not set(attrs) - {"reason"}:
+            raise serializers.ValidationError("At least one field is required.")
+        return attrs
+
+
+class ReasonSerializer(serializers.Serializer):
+    reason = serializers.CharField()
+
+    def validate_reason(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("A reason is required.")
+        return value
+
+
 class EvaluationTaskSerializer(serializers.ModelSerializer):
     studentId = serializers.CharField(source="profile.matric_no")
     studentName = serializers.CharField(source="profile.student_name")
@@ -36,6 +129,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
     submittedDate = serializers.SerializerMethodField()
     components = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
+    dueAt = serializers.SerializerMethodField()
+    daysUntilDue = serializers.SerializerMethodField()
+    deadlineState = serializers.SerializerMethodField()
 
     class Meta:
         model = EvaluationTask
@@ -54,6 +150,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             "submittedDate",
             "components",
             "comments",
+            "dueAt",
+            "daysUntilDue",
+            "deadlineState",
         ]
 
     def get_initials(self, obj):
@@ -84,6 +183,30 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             return obj.mark_entry.comments
         except MarkEntry.DoesNotExist:
             return ""
+
+    def get_deadline_metadata(self, obj):
+        cache = getattr(self, "_deadline_metadata_cache", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+        try:
+            is_submitted = obj.mark_entry.status == MarkEntry.Status.SUBMITTED
+        except MarkEntry.DoesNotExist:
+            is_submitted = False
+        cache[obj.pk] = mark_deadline_metadata(
+            obj.period.closes_at,
+            is_submitted=is_submitted,
+        )
+        self._deadline_metadata_cache = cache
+        return cache[obj.pk]
+
+    def get_dueAt(self, obj):
+        return self.get_deadline_metadata(obj)["dueAt"]
+
+    def get_daysUntilDue(self, obj):
+        return self.get_deadline_metadata(obj)["daysUntilDue"]
+
+    def get_deadlineState(self, obj):
+        return self.get_deadline_metadata(obj)["deadlineState"]
 
     def get_components(self, obj):
         try:
@@ -150,12 +273,21 @@ class MarkDraftSerializer(serializers.Serializer):
     @transaction.atomic
     def save(self):
         task = self.context["task"]
+        task.period = EvaluationPeriod.objects.select_for_update().get(
+            pk=task.period_id,
+        )
+        assert_task_accepts_marks(task)
         entry, _ = MarkEntry.objects.select_for_update().get_or_create(task=task)
         if entry.status == MarkEntry.Status.SUBMITTED:
-            raise serializers.ValidationError("Submitted marks are locked.")
+            raise MarksStateConflict("Submitted marks are locked.")
         entry.status = MarkEntry.Status.DRAFT
         entry.comments = self.validated_data.get("comments", "")
         entry.save(update_fields=["status", "comments", "updated_at"])
+        submitted_ids = {
+            score_data["componentId"]
+            for score_data in self.validated_data["scores"]
+        }
+        entry.scores.exclude(component_id__in=submitted_ids).delete()
         for score_data in self.validated_data["scores"]:
             score, _ = MarkScore.objects.get_or_create(
                 entry=entry,
@@ -178,15 +310,27 @@ class MarkDraftSerializer(serializers.Serializer):
         return entry
 
 
+def assert_task_accepts_marks(task):
+    if not task.period.accepts_submissions:
+        raise MarksStateConflict(
+            "Marks can only be saved while the evaluation period is open."
+        )
+
+
+@transaction.atomic
 def submit_entry(task):
+    task.period = EvaluationPeriod.objects.select_for_update().get(
+        pk=task.period_id,
+    )
     try:
-        entry = task.mark_entry
+        entry = MarkEntry.objects.select_for_update().get(task=task)
     except MarkEntry.DoesNotExist as exc:
         raise serializers.ValidationError(
             "Save a complete draft before submission."
         ) from exc
+    assert_task_accepts_marks(task)
     if entry.status == MarkEntry.Status.SUBMITTED:
-        raise serializers.ValidationError("Marks have already been submitted.")
+        raise MarksStateConflict("Marks have already been submitted.")
     required_ids = set(
         task.period.rubric.components.filter(
             is_active=True,

@@ -1,23 +1,52 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from academics.models import AcademicSemester
+from accounts.models import Lecturer, Student
+from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
-from .models import EvaluationPeriod, EvaluationTask, MarkEntry, RubricComponent
+from .deadlines import mark_deadline_metadata
+from .models import (
+    EvaluationPeriod,
+    EvaluationTask,
+    MarkEntry,
+    MarksConfigurationAudit,
+    Rubric,
+    RubricComponent,
+)
 from .serializers import (
+    EvaluationPeriodCreateSerializer,
+    EvaluationPeriodUpdateSerializer,
     EvaluationTaskSerializer,
     MarkDraftSerializer,
+    ReasonSerializer,
+    RubricComponentInputSerializer,
+    RubricCreateSerializer,
+    RubricUpdateSerializer,
     submit_entry,
 )
 from .services import (
+    MarksStateConflict,
+    archive_evaluation_period,
+    clone_rubric_version,
+    close_evaluation_period,
+    create_evaluation_period,
     create_backup_evaluation_task,
+    create_rubric,
+    create_rubric_component,
     ensure_active_period_tasks,
     ensure_period_tasks,
+    publish_evaluation_period,
+    update_evaluation_period,
+    update_rubric,
+    update_rubric_component,
 )
 
 
@@ -57,7 +86,10 @@ def mark_record_display_status(task, entry):
 
 
 def period_task_totals(period):
-    tasks = EvaluationTask.objects.filter(period=period).select_related("mark_entry")
+    tasks = EvaluationTask.objects.filter(
+        period=period,
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related("mark_entry")
     total = tasks.count()
     submitted = tasks.filter(mark_entry__status=MarkEntry.Status.SUBMITTED).count()
     return {
@@ -84,16 +116,128 @@ def period_payload(period):
         "id": period.pk,
         "name": period.name,
         "semester": period.semester,
+        "semesterId": period.academic_semester_id,
+        "semesterCode": (
+            period.academic_semester.code
+            if period.academic_semester_id
+            else None
+        ),
         "rubricId": period.rubric_id,
         "rubricName": period.rubric.name,
         "opensAt": period.opens_at.isoformat() if period.opens_at else None,
         "closesAt": period.closes_at.isoformat() if period.closes_at else None,
-        "isOpen": period.is_open,
+        "isOpen": period.accepts_submissions,
+        "lifecycleStatus": period.lifecycle_status,
+        "effectiveStatus": period.effective_status,
+        "publishedAt": (
+            period.published_at.isoformat() if period.published_at else None
+        ),
+        "closedAt": period.closed_at.isoformat() if period.closed_at else None,
+        "archivedAt": (
+            period.archived_at.isoformat() if period.archived_at else None
+        ),
+        "rubric": rubric_payload(period.rubric),
         "taskTotals": period_task_totals(period),
     }
 
 
+def configuration_audit_payload(audit):
+    return {
+        "id": audit.pk,
+        "entityType": audit.entity_type,
+        "entityId": audit.entity_id,
+        "action": audit.action,
+        "actorName": audit.actor.full_name,
+        "actorRole": audit.actor.get_role_display(),
+        "reason": audit.reason,
+        "beforeValues": audit.before_values,
+        "afterValues": audit.after_values,
+        "createdAt": audit.created_at.isoformat(),
+    }
+
+
+def rubric_component_payload(component):
+    return {
+        "id": component.pk,
+        "code": component.code,
+        "name": component.name,
+        "description": component.description,
+        "maxMarks": f"{component.max_marks:.2f}",
+        "required": component.is_required,
+        "isActive": component.is_active,
+        "status": "ACTIVE" if component.is_active else "INACTIVE",
+        "displayOrder": component.display_order,
+    }
+
+
+def rubric_payload(rubric, *, include_audit=False):
+    payload = {
+        "id": rubric.pk,
+        "familyCode": rubric.family_code,
+        "code": rubric.code,
+        "name": rubric.name,
+        "description": rubric.description,
+        "version": rubric.version,
+        "targetMark": f"{rubric.target_mark:.2f}",
+        "componentTotal": f"{rubric.component_total:.2f}",
+        "isReady": rubric.is_ready,
+        "isLocked": rubric.is_locked,
+        "isActive": rubric.is_active,
+        "supersedesId": rubric.supersedes_id,
+        "components": [
+            rubric_component_payload(component)
+            for component in rubric.components.order_by("display_order", "id")
+        ],
+    }
+    if include_audit:
+        audits = MarksConfigurationAudit.objects.filter(
+            entity_type=MarksConfigurationAudit.EntityType.RUBRIC,
+            entity_id=rubric.pk,
+        ).select_related("actor")
+        payload["auditEvents"] = [
+            configuration_audit_payload(audit) for audit in audits
+        ]
+    return payload
+
+
+def django_validation_response(exc, *, conflict=False):
+    messages = getattr(exc, "messages", None) or [str(exc)]
+    return Response(
+        {"error": messages[0], "errors": messages},
+        status=(
+            status.HTTP_409_CONFLICT
+            if conflict
+            else status.HTTP_400_BAD_REQUEST
+        ),
+    )
+
+
+def state_conflict_response(exc):
+    return Response(
+        {"error": str(exc)},
+        status=status.HTTP_409_CONFLICT,
+    )
+
+
+def component_values(data):
+    mapping = {
+        "code": "code",
+        "name": "name",
+        "description": "description",
+        "maxMarks": "max_marks",
+        "required": "is_required",
+        "isActive": "is_active",
+        "displayOrder": "display_order",
+    }
+    return {
+        target: data[source]
+        for source, target in mapping.items()
+        if source in data
+    }
+
+
 def task_option_payload(task):
+    entry = task_entry_or_none(task)
     return {
         "taskId": task.pk,
         "id": f"EVT-{task.pk:05d}",
@@ -107,6 +251,12 @@ def task_option_payload(task):
         "evaluatorRoleLabel": task.get_evaluator_role_display(),
         "semester": task.period.semester,
         "status": task_display_status(task),
+        **mark_deadline_metadata(
+            task.period.closes_at,
+            is_submitted=bool(
+                entry and entry.status == MarkEntry.Status.SUBMITTED
+            ),
+        ),
     }
 
 
@@ -114,7 +264,11 @@ def lecturer_task_or_none(user, pk):
     if user.role != User.Role.LECTURER:
         return None
     return (
-        EvaluationTask.objects.filter(pk=pk, evaluator=user)
+        EvaluationTask.objects.filter(
+            pk=pk,
+            evaluator=user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
         .select_related("profile", "period", "period__rubric", "mark_entry")
         .prefetch_related(
             "period__rubric__components",
@@ -124,7 +278,7 @@ def lecturer_task_or_none(user, pk):
     )
 
 
-@api_view(["GET"])
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def evaluation_periods_view(request):
     if not office_only(request.user):
@@ -132,8 +286,355 @@ def evaluation_periods_view(request):
             {"error": "Only Office Staff/Admin can view evaluation periods."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    periods = EvaluationPeriod.objects.select_related("rubric").all()[:25]
+    if request.method == "POST":
+        serializer = EvaluationPeriodCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        semester_id = serializer.validated_data.get("semesterId")
+        academic_semester = (
+            AcademicSemester.objects.filter(pk=semester_id).first()
+            if semester_id
+            else current_effective_semester()
+        )
+        if academic_semester is None:
+            return Response(
+                {
+                    "error": (
+                        "Select a Draft or Active academic semester before "
+                        "creating an evaluation period."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        rubric = Rubric.objects.filter(
+            pk=serializer.validated_data["rubricId"]
+        ).first()
+        if rubric is None:
+            return Response(
+                {"error": "Rubric version was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            period = create_evaluation_period(
+                actor=request.user,
+                name=serializer.validated_data["name"],
+                academic_semester=academic_semester,
+                rubric=rubric,
+                opens_at=serializer.validated_data.get("opensAt"),
+                closes_at=serializer.validated_data.get("closesAt"),
+            )
+        except MarksStateConflict as exc:
+            return state_conflict_response(exc)
+        except DjangoValidationError as exc:
+            return django_validation_response(exc)
+        period = EvaluationPeriod.objects.select_related(
+            "rubric",
+            "academic_semester",
+        ).get(
+            pk=period.pk
+        )
+        return Response(period_payload(period), status=status.HTTP_201_CREATED)
+
+    periods = EvaluationPeriod.objects.select_related(
+        "rubric",
+        "academic_semester",
+    )
+    if request.query_params.get("includeArchived", "").lower() != "true":
+        periods = periods.exclude(
+            lifecycle_status=EvaluationPeriod.Lifecycle.ARCHIVED
+        )
+    periods = periods.all()[:100]
     return Response([period_payload(period) for period in periods])
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def evaluation_period_detail_view(request, pk):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage evaluation periods."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    period = EvaluationPeriod.objects.select_related(
+        "rubric",
+        "academic_semester",
+    ).filter(pk=pk).first()
+    if period is None:
+        return Response(
+            {"error": "Evaluation period was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if request.method == "GET":
+        payload = period_payload(period)
+        audits = MarksConfigurationAudit.objects.filter(
+            entity_type=MarksConfigurationAudit.EntityType.PERIOD,
+            entity_id=period.pk,
+        ).select_related("actor")
+        payload["auditEvents"] = [
+            configuration_audit_payload(audit) for audit in audits
+        ]
+        return Response(payload)
+
+    serializer = EvaluationPeriodUpdateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    values = {}
+    for source, target in (
+        ("name", "name"),
+        ("opensAt", "opens_at"),
+        ("closesAt", "closes_at"),
+    ):
+        if source in data:
+            values[target] = data[source]
+    if "rubricId" in data:
+        rubric = Rubric.objects.filter(pk=data["rubricId"]).first()
+        if rubric is None:
+            return Response(
+                {"error": "Rubric version was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        values["rubric"] = rubric
+    if "semesterId" in data:
+        academic_semester = AcademicSemester.objects.filter(
+            pk=data["semesterId"]
+        ).first()
+        if academic_semester is None:
+            return Response(
+                {"error": "Academic semester was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        values["academic_semester"] = academic_semester
+    try:
+        period = update_evaluation_period(
+            period=period,
+            actor=request.user,
+            values=values,
+            reason=data.get("reason", ""),
+        )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(period_payload(period))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def publish_evaluation_period_view(request, pk):
+    return period_transition_response(request, pk, "publish")
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def close_evaluation_period_view(request, pk):
+    return period_transition_response(request, pk, "close")
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def archive_evaluation_period_view(request, pk):
+    return period_transition_response(request, pk, "archive")
+
+
+def period_transition_response(request, pk, action):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage evaluation periods."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    period = EvaluationPeriod.objects.filter(pk=pk).first()
+    if period is None:
+        return Response(
+            {"error": "Evaluation period was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    reason = ""
+    if action in {"close", "archive"}:
+        serializer = ReasonSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reason = serializer.validated_data["reason"]
+    try:
+        if action == "publish":
+            period = publish_evaluation_period(
+                period=period,
+                actor=request.user,
+            )
+        elif action == "close":
+            period = close_evaluation_period(
+                period=period,
+                actor=request.user,
+                reason=reason,
+            )
+        else:
+            period = archive_evaluation_period(
+                period=period,
+                actor=request.user,
+                reason=reason,
+            )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    period = EvaluationPeriod.objects.select_related("rubric").get(pk=period.pk)
+    return Response(period_payload(period))
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def rubrics_view(request):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage rubric configuration."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if request.method == "GET":
+        rubrics = Rubric.objects.prefetch_related("components").order_by(
+            "family_code",
+            "-version",
+        )
+        return Response([rubric_payload(rubric) for rubric in rubrics])
+    serializer = RubricCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        rubric = create_rubric(
+            actor=request.user,
+            family_code=data["familyCode"],
+            name=data["name"],
+            description=data.get("description", ""),
+            target_mark=data["targetMark"],
+        )
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(rubric_payload(rubric), status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def rubric_detail_view(request, pk):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage rubric configuration."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    rubric = Rubric.objects.prefetch_related("components").filter(pk=pk).first()
+    if rubric is None:
+        return Response(
+            {"error": "Rubric version was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if request.method == "GET":
+        return Response(rubric_payload(rubric, include_audit=True))
+    serializer = RubricUpdateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    values = {}
+    for source, target in (
+        ("name", "name"),
+        ("description", "description"),
+        ("targetMark", "target_mark"),
+        ("isActive", "is_active"),
+    ):
+        if source in data:
+            values[target] = data[source]
+    try:
+        rubric = update_rubric(
+            rubric=rubric,
+            actor=request.user,
+            values=values,
+        )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(rubric_payload(rubric))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def clone_rubric_view(request, pk):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage rubric configuration."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    rubric = Rubric.objects.filter(pk=pk).first()
+    if rubric is None:
+        return Response(
+            {"error": "Rubric version was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    try:
+        cloned = clone_rubric_version(rubric=rubric, actor=request.user)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(rubric_payload(cloned), status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_rubric_component_view(request, pk):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage rubric configuration."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    rubric = Rubric.objects.filter(pk=pk).first()
+    if rubric is None:
+        return Response(
+            {"error": "Rubric version was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    serializer = RubricComponentInputSerializer(
+        data=request.data,
+        context={"create": True},
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        component = create_rubric_component(
+            rubric=rubric,
+            actor=request.user,
+            values=component_values(serializer.validated_data),
+        )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(
+        rubric_component_payload(component),
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def rubric_component_detail_view(request, pk, component_pk):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can manage rubric configuration."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    component = RubricComponent.objects.filter(
+        pk=component_pk,
+        rubric_id=pk,
+    ).first()
+    if component is None:
+        return Response(
+            {"error": "Rubric component was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    serializer = RubricComponentInputSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        component = update_rubric_component(
+            component=component,
+            actor=request.user,
+            values=component_values(serializer.validated_data),
+        )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response(rubric_component_payload(component))
 
 
 @api_view(["GET"])
@@ -146,12 +647,17 @@ def assignment_options_view(request):
         )
     students = StudentResearchProfile.objects.select_related("supervisor").order_by(
         "student_name",
+    ).filter(
+        Q(student__isnull=True) | Q(student__student__status=Student.Status.ACTIVE)
     )
     lecturers = User.objects.filter(
         role=User.Role.LECTURER,
         is_active=True,
+        lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
     ).select_related("lecturer").order_by("full_name")
-    tasks = EvaluationTask.objects.select_related(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related(
         "profile",
         "evaluator",
         "period",
@@ -203,7 +709,10 @@ def my_evaluation_tasks_view(request):
         )
     ensure_active_period_tasks()
     tasks = (
-        EvaluationTask.objects.filter(evaluator=request.user)
+        EvaluationTask.objects.filter(
+            evaluator=request.user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
         .select_related("profile", "period", "period__rubric", "mark_entry")
         .prefetch_related(
             "period__rubric__components",
@@ -227,7 +736,10 @@ def save_draft_view(request, pk):
         context={"task": task},
     )
     serializer.is_valid(raise_exception=True)
-    serializer.save()
+    try:
+        serializer.save()
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
     task = lecturer_task_or_none(request.user, pk)
     return Response(EvaluationTaskSerializer(task).data)
 
@@ -241,7 +753,10 @@ def submit_marks_view(request, pk):
             {"error": "Evaluation task was not found."},
             status=status.HTTP_404_NOT_FOUND,
         )
-    submit_entry(task)
+    try:
+        submit_entry(task)
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
     task = lecturer_task_or_none(request.user, pk)
     return Response(EvaluationTaskSerializer(task).data)
 
@@ -267,6 +782,12 @@ def mark_records_view(request):
         except MarkEntry.DoesNotExist:
             entry = None
         display_status = mark_record_display_status(task, entry)
+        deadline_metadata = mark_deadline_metadata(
+            task.period.closes_at,
+            is_submitted=bool(
+                entry and entry.status == MarkEntry.Status.SUBMITTED
+            ),
+        )
         records.append(
             {
                 "id": f"MRK-{task.pk:05d}",
@@ -289,14 +810,227 @@ def mark_records_view(request):
                     else None
                 ),
                 "status": display_status,
+                "taskLifecycleStatus": task.lifecycle_status,
+                "pausedAt": task.paused_at,
+                "pauseReason": task.pause_reason or None,
+                "retiredAt": task.retired_at,
+                "retirementReason": task.retirement_reason or None,
                 "submittedDate": (
                     entry.submitted_at.strftime("%d %b %Y")
                     if entry and entry.submitted_at
                     else "-"
                 ),
+                **deadline_metadata,
             }
         )
     return Response(records)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def mark_record_detail_view(request, record_id):
+    if not office_only(request.user):
+        return Response(
+            {"error": "Only Office Staff/Admin can view mark record details."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if not record_id.startswith("MRK-") or not record_id[4:].isdigit():
+        return Response(
+            {"error": "Mark record was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    task = (
+        EvaluationTask.objects.filter(pk=int(record_id[4:]))
+        .select_related(
+            "profile",
+            "evaluator",
+            "evaluator__lecturer",
+            "assigned_by",
+            "retired_by",
+            "period",
+            "period__rubric",
+            "mark_entry",
+        )
+        .prefetch_related(
+            "period__rubric__components",
+            "mark_entry__scores__component",
+            "mark_entry__correction_audits__actor",
+            "override_audits__actor",
+            "override_audits__original_evaluator",
+            "override_audits__new_evaluator",
+            "handover_audits__actor",
+            "handover_audits__replacement_task",
+        )
+        .first()
+    )
+    if task is None:
+        return Response(
+            {"error": "Mark record was not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    entry = task_entry_or_none(task)
+    score_map = (
+        {score.component_id: score for score in entry.scores.all()}
+        if entry
+        else {}
+    )
+    deadline = mark_deadline_metadata(
+        task.period.closes_at,
+        is_submitted=bool(
+            entry and entry.status == MarkEntry.Status.SUBMITTED
+        ),
+    )
+    lecturer_profile = getattr(task.evaluator, "lecturer", None)
+    return Response(
+        {
+            "recordId": f"MRK-{task.pk:05d}",
+            "taskId": task.pk,
+            "student": {
+                "studentId": task.profile.matric_no,
+                "name": task.profile.student_name,
+                "programme": task.profile.programme,
+                "semester": task.profile.semester,
+                "researchTitle": task.profile.proposed_topic,
+            },
+            "evaluator": {
+                "userId": task.evaluator_id,
+                "name": task.evaluator.full_name,
+                "email": task.evaluator.email,
+                "staffId": getattr(lecturer_profile, "staff_no", ""),
+                "department": getattr(lecturer_profile, "department", ""),
+                "role": task.evaluator_role,
+                "roleLabel": task.get_evaluator_role_display(),
+            },
+            "assignment": {
+                "assignedAt": task.assigned_at.isoformat(),
+                "assignedBy": (
+                    task.assigned_by.full_name if task.assigned_by else None
+                ),
+                "lifecycleStatus": task.lifecycle_status,
+                "pausedAt": (
+                    task.paused_at.isoformat() if task.paused_at else None
+                ),
+                "pausedBy": (
+                    task.paused_by.full_name if task.paused_by else None
+                ),
+                "pauseReason": task.pause_reason or None,
+                "retiredAt": (
+                    task.retired_at.isoformat() if task.retired_at else None
+                ),
+                "retiredBy": (
+                    task.retired_by.full_name if task.retired_by else None
+                ),
+                "retirementReason": task.retirement_reason or None,
+            },
+            "period": {
+                "id": task.period_id,
+                "name": task.period.name,
+                "semester": task.period.semester,
+                "opensAt": (
+                    task.period.opens_at.isoformat()
+                    if task.period.opens_at
+                    else None
+                ),
+                "closesAt": (
+                    task.period.closes_at.isoformat()
+                    if task.period.closes_at
+                    else None
+                ),
+                "lifecycleStatus": task.period.lifecycle_status,
+                "effectiveStatus": task.period.effective_status,
+                **deadline,
+            },
+            "rubric": {
+                "id": task.period.rubric_id,
+                "familyCode": task.period.rubric.family_code,
+                "name": task.period.rubric.name,
+                "version": task.period.rubric.version,
+                "targetMark": f"{task.period.rubric.target_mark:.2f}",
+                "componentTotal": (
+                    f"{task.period.rubric.component_total:.2f}"
+                ),
+                "components": [
+                    {
+                        **rubric_component_payload(component),
+                        "marksAwarded": (
+                            f"{score_map[component.pk].marks_awarded:.2f}"
+                            if component.pk in score_map
+                            else None
+                        ),
+                        "feedback": (
+                            score_map[component.pk].feedback
+                            if component.pk in score_map
+                            else ""
+                        ),
+                    }
+                    for component in task.period.rubric.components.filter(
+                        is_active=True
+                    ).order_by("display_order", "id")
+                ],
+            },
+            "entry": {
+                "status": (
+                    entry.status
+                    if entry
+                    else MarkEntry.Status.NOT_STARTED
+                ),
+                "totalMark": f"{entry.total_mark:.2f}" if entry else None,
+                "comments": entry.comments if entry else "",
+                "submittedAt": (
+                    entry.submitted_at.isoformat()
+                    if entry and entry.submitted_at
+                    else None
+                ),
+                "updatedAt": (
+                    entry.updated_at.isoformat() if entry else None
+                ),
+                "isLocked": bool(entry and entry.is_locked),
+            },
+            "overrideHistory": [
+                {
+                    "id": audit.pk,
+                    "actorName": audit.actor.full_name,
+                    "originalEvaluator": (
+                        audit.original_evaluator.full_name
+                        if audit.original_evaluator
+                        else None
+                    ),
+                    "newEvaluator": audit.new_evaluator.full_name,
+                    "reason": audit.reason,
+                    "createdAt": audit.created_at.isoformat(),
+                }
+                for audit in task.override_audits.all()
+            ],
+            "correctionHistory": [
+                {
+                    "id": audit.pk,
+                    "action": audit.action,
+                    "actorName": audit.actor.full_name,
+                    "actorRole": audit.actor.get_role_display(),
+                    "reason": audit.reason,
+                    "beforeValues": audit.before_values,
+                    "afterValues": audit.after_values,
+                    "createdAt": audit.created_at.isoformat(),
+                }
+                for audit in (
+                    entry.correction_audits.all() if entry else []
+                )
+            ],
+            "handoverHistory": [
+                {
+                    "id": audit.pk,
+                    "replacementTaskId": audit.replacement_task_id,
+                    "actorName": audit.actor.full_name,
+                    "reason": audit.reason,
+                    "draftSnapshot": audit.draft_snapshot,
+                    "createdAt": audit.created_at.isoformat(),
+                }
+                for audit in task.handover_audits.select_related(
+                    "actor", "replacement_task"
+                )
+            ],
+        }
+    )
 
 
 @api_view(["GET"])
@@ -334,7 +1068,9 @@ def evaluation_preview_tasks_view(request):
             {"error": "Only Office Staff/Admin can view evaluation assignments."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    tasks = EvaluationTask.objects.select_related(
+    tasks = EvaluationTask.objects.filter(
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+    ).select_related(
         "profile",
         "evaluator",
         "period",
@@ -358,7 +1094,10 @@ def generate_period_tasks_view(request, pk):
             {"error": "Evaluation period was not found."},
             status=status.HTTP_404_NOT_FOUND,
         )
-    result = ensure_period_tasks(period, actor=request.user)
+    try:
+        result = ensure_period_tasks(period, actor=request.user)
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
     return Response(
         {
             "createdCount": result["total"],
@@ -420,6 +1159,8 @@ def manual_override_task_view(request, pk):
             reason=request.data.get("reason", ""),
             original_task=original_task,
         )
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
     except DjangoValidationError as exc:
         return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
     task = (

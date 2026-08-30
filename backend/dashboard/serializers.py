@@ -142,6 +142,12 @@ def active_timeline_payload(timeline):
         "id": timeline.id,
         "semester": timeline.semester,
         "session": timeline.session,
+        "semesterId": timeline.academic_semester_id,
+        "semesterCode": (
+            timeline.academic_semester.code
+            if timeline.academic_semester_id
+            else None
+        ),
         "sourceFilename": timeline.source_filename,
         "uploadedAt": timeline.uploaded_at,
         "levels": grouped,

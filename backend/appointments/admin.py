@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
     PanelAppointment,
     PanelRecommendation,
@@ -9,7 +10,35 @@ from .models import (
     SupervisorApplicationDocument,
     SupervisorAppointment,
     SupervisorDocumentRequirement,
+    SupervisorDocumentRequirementAudit,
 )
+
+
+@admin.register(AppointmentLifecycleEvent)
+class AppointmentLifecycleEventAdmin(admin.ModelAdmin):
+    list_display = ("action", "actor", "outcome", "created_at")
+    list_filter = ("action", "outcome", "created_at")
+    readonly_fields = (
+        "supervisor_appointment",
+        "panel_appointment",
+        "actor",
+        "actor_role",
+        "action",
+        "previous_status",
+        "new_status",
+        "outcome",
+        "reason",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(StudentResearchProfile)
@@ -41,7 +70,22 @@ class PanelAppointmentAdmin(admin.ModelAdmin):
 class SupervisorApplicationDocumentInline(admin.TabularInline):
     model = SupervisorApplicationDocument
     extra = 0
-    readonly_fields = ("name", "category", "content_type", "size", "uploaded_at")
+    can_delete = False
+    readonly_fields = (
+        "requirement",
+        "file",
+        "name",
+        "category",
+        "content_type",
+        "size",
+        "requirement_code",
+        "requirement_label",
+        "checksum_sha256",
+        "uploaded_at",
+    )
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class SupervisorWorkflowEventInline(admin.TabularInline):
@@ -110,6 +154,31 @@ class SupervisorDocumentRequirementAdmin(admin.ModelAdmin):
     list_display = ("code", "label", "is_required", "is_active", "display_order")
     list_filter = ("is_required", "is_active")
     search_fields = ("code", "label", "description")
+    readonly_fields = ("code",)
+
+
+@admin.register(SupervisorDocumentRequirementAudit)
+class SupervisorDocumentRequirementAuditAdmin(admin.ModelAdmin):
+    list_display = ("requirement", "action", "actor", "created_at")
+    list_filter = ("action", "created_at")
+    readonly_fields = (
+        "requirement",
+        "actor",
+        "action",
+        "reason",
+        "before_values",
+        "after_values",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AppointmentWorkflowEvent)

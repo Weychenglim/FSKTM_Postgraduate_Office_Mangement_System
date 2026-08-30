@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  Gauge,
   Search,
   SlidersHorizontal,
   X,
@@ -31,9 +32,11 @@ import { getPanelWorkloads } from '../services';
 import { PanelWorkloadRecord } from '../types';
 import { downloadCsv } from '../utils/csvExport';
 import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
+  onOpenCapacity?: () => void;
 }
 
 const itemsPerPage = 5;
@@ -43,7 +46,7 @@ const distributionRows: Array<{ label: string; tone: BadgeTone; key: 'available'
   { label: 'Full Load', tone: 'danger', key: 'fullLoad' },
 ];
 
-export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack }) => {
+export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [records, setRecords] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +146,13 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
       { header: 'Staff ID', value: (record) => record.id },
       { header: 'Lecturer Name', value: (record) => record.name },
       { header: 'Department', value: (record) => record.department },
+      { header: 'Semester Code', value: (record) => record.semesterCode ?? '' },
+      { header: 'Plan Version', value: (record) => record.capacityPlanVersion ?? '' },
+      { header: 'Capacity State', value: (record) => record.capacityState ?? '' },
+      { header: 'Active Load', value: (record) => record.confirmedAppointments },
+      { header: 'Reserved Load', value: (record) => record.pendingNominations },
+      { header: 'Available Slots', value: (record) => record.availableSlots ?? 0 },
+      { header: 'Unavailable Until', value: (record) => record.unavailableUntil ?? '' },
       { header: 'Reserved Panel Seats', value: (record) => record.currentStudents },
       { header: 'Workload Limit', value: (record) => record.workloadLimit },
       { header: 'Utilization Percent', value: (record) => getPanelWorkloadUtilization(record) },
@@ -169,6 +179,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         backLabel="Back to Panel Appointment Management"
         onBack={onBack}
         subtitleClassName="leading-relaxed max-w-3xl"
+        actions={onOpenCapacity ? <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton> : undefined}
       />
 
       <div id="workload-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -353,8 +364,8 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     <td className="data-td text-center font-bold text-slate-400 text-xs">{record.workloadLimit}</td>
                     <td className="data-td">
                       <div className="flex items-center justify-center">
-                        <StatusBadge tone={getStatusBadgeTone(record.availability)} dot className="text-[9px] px-2.5 py-0.5">
-                          {record.availability}
+                        <StatusBadge tone={getStatusBadgeTone(record.capacityState ?? record.availability)} dot className="text-[9px] px-2.5 py-0.5">
+                          {record.capacityState ? capacityStateLabel(record.capacityState) : record.availability}
                         </StatusBadge>
                       </div>
                     </td>
@@ -466,9 +477,14 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                         <h4 className="font-extrabold text-brand-navy text-sm truncate leading-tight">
                           {selectedLecturer.name}
                         </h4>
-                        <StatusBadge tone={getStatusBadgeTone(selectedLecturer.availability)} dot className="text-[8px] px-2 py-0.5">
-                          {selectedLecturer.availability}
+                        <StatusBadge tone={getStatusBadgeTone(selectedLecturer.capacityState ?? selectedLecturer.availability)} dot className="text-[8px] px-2 py-0.5">
+                          {selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}
                         </StatusBadge>
+                      </div>
+                      <div className="mt-3 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
+                        <div className="flex justify-between gap-3"><span>Semester</span><strong>{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
+                        <div className="mt-1.5 flex justify-between gap-3"><span>Capacity plan</span><strong>{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
+                        {selectedLecturer.unavailableUntil && <div className="mt-1.5 flex justify-between gap-3"><span>Unavailable until</span><strong>{selectedLecturer.unavailableUntil}</strong></div>}
                       </div>
                       <div className="mt-2.5 space-y-1.5 text-[11px] font-semibold text-slate-500">
                         <div className="flex justify-between">

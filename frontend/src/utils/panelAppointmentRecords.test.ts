@@ -69,6 +69,17 @@ const records: PanelRecord[] = [
     updatedDate: '06 Jun 2026',
     cancellationReason: 'Student changed research direction.',
   },
+  {
+    recordId: 'appointment-7',
+    id: 'MEA7',
+    studentName: 'Student Seven',
+    programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
+    semester: 'Sem 2 2025/2026',
+    supervisor: 'Dr. Supervisor',
+    panelMember: 'Dr. Former Panel',
+    status: 'Ended',
+    updatedDate: '07 Jun 2026',
+  },
 ];
 
 const summary = getPanelRecordSummary(records);
@@ -76,6 +87,7 @@ const summary = getPanelRecordSummary(records);
 if (summary.withoutPanel !== 1) throw new Error(`Expected 1 no-panel record, got ${summary.withoutPanel}`);
 if (summary.pending !== 2) throw new Error(`Expected 2 pending records, got ${summary.pending}`);
 if (summary.approved !== 1) throw new Error(`Expected 1 approved record, got ${summary.approved}`);
+if (summary.ended !== 1) throw new Error(`Expected 1 ended record, got ${summary.ended}`);
 if (summary.rejected !== 1) throw new Error(`Expected 1 rejected record, got ${summary.rejected}`);
 if (summary.cancelled !== 1) throw new Error(`Expected 1 cancelled record, got ${summary.cancelled}`);
 
@@ -87,6 +99,11 @@ if (cancelledRecords.length !== 1 || cancelledRecords[0].recordId !== 'recommend
 const pendingRecords = filterPanelRecordsByStatusTab(records, 'Pending');
 if (pendingRecords.length !== 2 || pendingRecords.some((record) => !['Pending', 'Recommendation'].includes(record.status))) {
   throw new Error('Pending tab should include pending coordinator and selected-panel recommendation records.');
+}
+
+const endedRecords = filterPanelRecordsByStatusTab(records, 'Ended');
+if (endedRecords.length !== 1 || endedRecords[0].recordId !== 'appointment-7') {
+  throw new Error('Ended tab should include only ended appointments.');
 }
 
 console.log('panelAppointmentRecords tests passed');

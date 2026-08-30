@@ -8,11 +8,32 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.authorization import coordinator_programme
+from accounts.models import Student
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
+from academics.models import AcademicSemester
+from academics.services import current_effective_semester
+from .actions import build_dashboard_tasks
+from .dossiers import build_student_progress_dossier
 from .excel import build_template_workbook, parse_timeline_workbook
-from .models import SemesterTimeline, SemesterTimelineEntry, TimelineAuditLog
+from .models import (
+    SemesterTimeline,
+    SemesterTimelineEntry,
+    TimelineAuditLog,
+    WorkflowReconciliationAudit,
+)
+from .reports import build_workflow_report, build_workflow_report_workbook
+from .reconciliation import (
+    ReconciliationConflict,
+    ReconciliationError,
+    allowed_resolutions,
+    apply_reconciliation_issue,
+    detect_reconciliation_issues,
+    filter_reconciliation_issues,
+    get_reconciliation_issue,
+)
 from .serializers import (
     TimelineAuditLogSerializer,
     TimelineEntryCreateSerializer,
@@ -39,12 +60,211 @@ def admin_required_response(user):
     return None
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_view(request):
+    denied = admin_required_response(request.user)
+    if denied:
+        return Response(
+            {"error": "Only Office Staff/Admin can access workflow reconciliation."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    issues = detect_reconciliation_issues()
+    filtered = filter_reconciliation_issues(issues, request.query_params)
+    try:
+        page = max(int(request.query_params.get("page", 1)), 1)
+        page_size = min(max(int(request.query_params.get("pageSize", 50)), 1), 100)
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "Page and page size must be valid integers."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    start = (page - 1) * page_size
+    summary = {
+        "total": len(issues),
+        "blocking": sum(issue.severity == "BLOCKING" for issue in issues),
+        "warnings": sum(issue.severity == "WARNING" for issue in issues),
+        "repairable": sum(issue.repairability == "REPAIRABLE" for issue in issues),
+        "reviewRequired": sum(
+            issue.repairability == "REVIEW_REQUIRED" for issue in issues
+        ),
+    }
+    programmes = sorted(
+        Student.objects.exclude(programme="")
+        .values_list("programme", flat=True)
+        .distinct()
+    )
+    return Response(
+        {
+            "summary": summary,
+            "count": len(filtered),
+            "page": page,
+            "pageSize": page_size,
+            "availableProgrammes": programmes,
+            "results": [
+                issue.to_dict() for issue in filtered[start : start + page_size]
+            ],
+        }
+    )
+
+
+def reconciliation_admin_required(request):
+    if is_office_admin(request.user):
+        return None
+    return Response(
+        {"error": "Only Office Staff/Admin can access workflow reconciliation."},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_preview_view(request, issue_id):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    issue = get_reconciliation_issue(issue_id)
+    if issue is None:
+        return Response(
+            {"error": "Reconciliation issue not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return Response(
+        {
+            "issue": issue.to_dict(),
+            "allowedResolutions": allowed_resolutions(issue),
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_apply_view(request, issue_id):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    expected_fingerprint = str(request.data.get("expectedFingerprint") or "").strip()
+    reason = str(request.data.get("reason") or "").strip()
+    resolution = request.data.get("resolution")
+    if len(expected_fingerprint) != 64:
+        return Response(
+            {"error": "A valid expectedFingerprint is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not reason:
+        return Response(
+            {"error": "A reason is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not isinstance(resolution, dict):
+        return Response(
+            {"error": "A resolution object is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        result = apply_reconciliation_issue(
+            issue_id=issue_id,
+            expected_fingerprint=expected_fingerprint,
+            reason=reason,
+            resolution=resolution,
+            actor=request.user,
+        )
+    except ReconciliationConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
+    except ReconciliationError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(result)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_reconciliation_audits_view(request):
+    denied = reconciliation_admin_required(request)
+    if denied:
+        return denied
+    audits = WorkflowReconciliationAudit.objects.select_related("actor")[:200]
+    return Response(
+        {
+            "results": [
+                {
+                    "id": audit.pk,
+                    "issueType": audit.issue_type,
+                    "entityType": audit.entity_type,
+                    "entityId": audit.entity_id,
+                    "action": audit.action,
+                    "actor": {
+                        "id": audit.actor_id,
+                        "name": audit.actor.full_name,
+                    },
+                    "reason": audit.reason,
+                    "fingerprint": audit.fingerprint,
+                    "beforeValues": audit.before_values,
+                    "afterValues": audit.after_values,
+                    "affectedRecords": audit.affected_records,
+                    "createdAt": audit.created_at,
+                }
+                for audit in audits
+            ]
+        }
+    )
+
+
 def get_active_timeline():
+    semester = current_effective_semester()
+    if semester is None:
+        return None
     return (
-        SemesterTimeline.objects.filter(is_active=True)
+        SemesterTimeline.objects.filter(
+            is_active=True,
+            academic_semester=semester,
+        )
         .prefetch_related("entries")
-        .select_related("uploaded_by")
+        .select_related("uploaded_by", "academic_semester")
         .first()
+    )
+
+
+def get_timeline_semester(request):
+    raw_id = request.data.get("semesterId") or request.query_params.get(
+        "semesterId"
+    )
+    if raw_id:
+        try:
+            semester = AcademicSemester.objects.get(pk=raw_id)
+        except (AcademicSemester.DoesNotExist, ValueError, TypeError):
+            return None
+        if semester.lifecycle_status not in {
+            AcademicSemester.Lifecycle.DRAFT,
+            AcademicSemester.Lifecycle.ACTIVE,
+        }:
+            return None
+        return semester
+    return current_effective_semester()
+
+
+def get_managed_timeline(request):
+    semester = get_timeline_semester(request)
+    if semester is None:
+        return None
+    return (
+        SemesterTimeline.objects.filter(
+            academic_semester=semester,
+            is_active=True,
+        )
+        .prefetch_related("entries")
+        .select_related("uploaded_by", "academic_semester")
+        .first()
+    )
+
+
+def timeline_locked_response():
+    return Response(
+        {
+            "error": (
+                "Timeline changes require a Draft or Active academic semester."
+            )
+        },
+        status=status.HTTP_409_CONFLICT,
     )
 
 
@@ -61,8 +281,14 @@ def derive_entry_status(deadline_start, deadline_end):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def active_timeline_view(_request):
-    timeline = get_active_timeline()
+def active_timeline_view(request):
+    if request.query_params.get("semesterId"):
+        denied = admin_required_response(request.user)
+        if denied:
+            return denied
+        timeline = get_managed_timeline(request)
+    else:
+        timeline = get_active_timeline()
     if timeline is None:
         return Response(
             {
@@ -108,16 +334,26 @@ def upload_timeline_view(request):
     if errors:
         return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
 
-    semester = str(request.data.get("semester") or "Semester II").strip()
-    session = str(request.data.get("session") or "2025/2026").strip()
-    replaced_existing = SemesterTimeline.objects.filter(is_active=True).exists()
+    academic_semester = get_timeline_semester(request)
+    if academic_semester is None:
+        return timeline_locked_response()
+    semester = academic_semester.get_term_display()
+    session = academic_semester.academic_session
+    replaced_existing = SemesterTimeline.objects.filter(
+        academic_semester=academic_semester,
+        is_active=True,
+    ).exists()
 
     with transaction.atomic():
-        SemesterTimeline.objects.filter(is_active=True).update(
+        SemesterTimeline.objects.filter(
+            academic_semester=academic_semester,
+            is_active=True,
+        ).update(
             is_active=False,
             replaced_at=timezone.now(),
         )
         timeline = SemesterTimeline.objects.create(
+            academic_semester=academic_semester,
             semester=semester,
             session=session,
             source_filename=uploaded_file.name,
@@ -129,7 +365,7 @@ def upload_timeline_view(request):
             for row in rows
         ]
         SemesterTimelineEntry.objects.bulk_create(entries)
-        timeline = get_active_timeline()
+        timeline = get_managed_timeline(request)
         TimelineAuditLog.objects.create(
             actor=request.user,
             timeline=timeline,
@@ -153,11 +389,16 @@ def timeline_entry_list_view(request):
     if denied:
         return denied
 
-    timeline = get_active_timeline()
+    timeline = get_managed_timeline(request)
     if timeline is None:
         return Response(
-            {"error": "No active semester timeline exists. Upload a timeline before adding entries."},
-            status=status.HTTP_400_BAD_REQUEST,
+            {
+                "error": (
+                    "No editable semester timeline exists. Upload a timeline "
+                    "for a Draft or Active semester first."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
         )
 
     serializer = TimelineEntryCreateSerializer(data=request.data)
@@ -208,9 +449,18 @@ def timeline_entry_detail_view(request, pk):
         return denied
 
     try:
-        entry = SemesterTimelineEntry.objects.select_related("timeline").get(pk=pk)
+        entry = SemesterTimelineEntry.objects.select_related(
+            "timeline",
+            "timeline__academic_semester",
+        ).get(pk=pk)
     except SemesterTimelineEntry.DoesNotExist:
         return Response({"error": "Timeline entry was not found."}, status=status.HTTP_404_NOT_FOUND)
+    semester = entry.timeline.academic_semester
+    if semester is None or semester.lifecycle_status not in {
+        AcademicSemester.Lifecycle.DRAFT,
+        AcademicSemester.Lifecycle.ACTIVE,
+    }:
+        return timeline_locked_response()
 
     if request.method == "DELETE":
         timeline = entry.timeline
@@ -270,47 +520,25 @@ def timeline_audit_logs_view(request):
     if denied:
         return denied
 
-    logs = (
-        TimelineAuditLog.objects.select_related("actor", "timeline", "entry")
-        .order_by("-created_at", "-id")[:50]
+    logs = TimelineAuditLog.objects.select_related(
+        "actor",
+        "timeline",
+        "entry",
     )
+    semester = get_timeline_semester(request)
+    if request.query_params.get("semesterId"):
+        if semester is None:
+            return timeline_locked_response()
+        logs = logs.filter(timeline__academic_semester=semester)
+    logs = logs.order_by("-created_at", "-id")[:50]
     return Response({"logs": TimelineAuditLogSerializer(logs, many=True).data})
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_tasks_view(request):
-    tasks = []
-    if is_office_admin(request.user):
-        tasks.append(
-            {
-                "id": "task_upload",
-                "name": "Upload semester timeline",
-                "status": "critical",
-                "statusText": "Required before dashboard timeline is available",
-                "target": "Timeline Management",
-            }
-        )
-        timeline = get_active_timeline()
-        if timeline:
-            owner_entries = timeline.entries.filter(target_roles__contains=["OFFICE_STAFF"])
-            office_named_entries = timeline.entries.filter(action_owner__icontains="office")
-            tdit_entries = timeline.entries.filter(action_owner__icontains="tdit")
-            seen = set()
-            for entry in [*owner_entries, *office_named_entries, *tdit_entries]:
-                if entry.pk in seen:
-                    continue
-                seen.add(entry.pk)
-                tasks.append(
-                    {
-                        "id": f"timeline_{entry.pk}",
-                        "name": entry.title or entry.detail,
-                        "status": derive_entry_status(entry.deadline_start, entry.deadline_end).lower(),
-                        "statusText": entry.week_label or derive_entry_status(entry.deadline_start, entry.deadline_end),
-                        "target": "Timeline Management",
-                    }
-                )
-    return Response({"tasks": tasks})
+    ensure_active_period_tasks()
+    return Response({"tasks": build_dashboard_tasks(request.user)})
 
 
 @api_view(["GET"])
@@ -328,9 +556,16 @@ def dashboard_summary_view(request):
         "panelMarkTasks": 0,
         "backupMarkTasks": 0,
         "submittedMarkEntries": 0,
+        "reconciliationIssues": 0,
+        "reconciliationBlocking": 0,
     }
 
     if request.user.role == User.Role.OFFICE_ADMIN:
+        reconciliation_issues = detect_reconciliation_issues()
+        summary["reconciliationIssues"] = len(reconciliation_issues)
+        summary["reconciliationBlocking"] = sum(
+            issue.severity == "BLOCKING" for issue in reconciliation_issues
+        )
         summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
             status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
         ).count()
@@ -343,12 +578,11 @@ def dashboard_summary_view(request):
         summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
             status=PanelRecommendation.Status.PENDING_COORDINATOR
         ).count()
-        all_tasks = EvaluationTask.objects.all()
+        all_tasks = EvaluationTask.objects.filter(
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
     elif request.user.role == User.Role.COORDINATOR:
-        try:
-            programme = request.user.lecturer.coordinator.programme_managed.strip()
-        except (AttributeError, User.lecturer.RelatedObjectDoesNotExist):
-            programme = ""
+        programme = coordinator_programme(request.user)
         if programme:
             summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
                 student__programme=programme,
@@ -368,7 +602,10 @@ def dashboard_summary_view(request):
             recommended_member=request.user,
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         ).count()
-        all_tasks = EvaluationTask.objects.filter(evaluator=request.user)
+        all_tasks = EvaluationTask.objects.filter(
+            evaluator=request.user,
+            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        )
     else:
         all_tasks = EvaluationTask.objects.none()
 
@@ -394,3 +631,36 @@ def dashboard_summary_view(request):
     ).exclude(pk__in=submitted_task_ids).count()
 
     return Response(summary)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_report_view(request):
+    return Response(build_workflow_report(request.user, request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def workflow_report_export_view(request):
+    report = build_workflow_report(request.user, request.query_params)
+    response = HttpResponse(
+        build_workflow_report_workbook(report),
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    response["Content-Disposition"] = (
+        'attachment; filename="workflow_analytics_report.xlsx"'
+    )
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_progress_dossier_view(request, student_id):
+    return Response(
+        build_student_progress_dossier(
+            request.user,
+            student_id,
+        )
+    )

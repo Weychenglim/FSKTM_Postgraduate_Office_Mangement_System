@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { 
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import {
   Users, 
   Clock, 
   CheckCircle, 
@@ -49,9 +49,11 @@ import {
   PanelCandidate,
   PanelRecommendationDraft,
   PanelRecommendationSupervisee,
+  PanelWorkloadSummary,
   SubmittedRecommendation,
 } from '../types';
 import {
+  ApiError,
   acceptPanelRecommendation,
   approvePanelRecommendationByCoordinator,
   cancelPanelRecommendation,
@@ -64,8 +66,10 @@ import {
   getPanelRecommendations,
   getPanelReviewQueue,
   getPanelReviewHistory,
+  getOwnPanelWorkload,
   rejectPanelRecommendation,
   rejectPanelRecommendationByCoordinator,
+  endPanelAppointment,
 } from '../services';
 import {
   PANEL_RECOMMENDATION_STATUS_LABELS,
@@ -75,25 +79,26 @@ import {
 } from '../utils/panelRecommendationWorkflow';
 import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTable';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
+import { AppointmentEndControl } from './AppointmentEndControl';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
 // PanelAssignment, PanelRecommendationDraft and SubmittedRecommendation now
 // live in src/types.
 
-const RECOMMENDATION_STUDENT = {
-  studentId: 'MEA2209841',
-  studentName: 'Ahmad Luqman',
-  programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
-  intake: 'Sem 1 2025/2026',
-  supervisor: 'Dr. Siti Noor',
-  initials: 'AL',
-  proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
-  area: 'Artificial Intelligence',
-  abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources, aiming to enhance machine translation and speech recognition accuracy in indigenous contexts.',
-};
-
-type RecommendationStudent = typeof RECOMMENDATION_STUDENT;
+interface RecommendationStudent {
+  studentId: string;
+  studentName: string;
+  programme: string;
+  intake: string;
+  supervisor: string;
+  initials: string;
+  proposedTopic: string;
+  area: string;
+  abstract: string;
+}
 
 const toRecommendationStudent = (student: PanelRecommendationSupervisee): RecommendationStudent => ({
   studentId: student.studentId,
@@ -264,6 +269,7 @@ interface PanelRecommendationReviewDrawerProps {
   onAccept?: (recommendation: PanelRecommendationDraft) => void;
   onReject?: (recommendation: PanelRecommendationDraft, reason: string) => void;
   readOnly?: boolean;
+  onAppointmentEnded?: () => Promise<void>;
 }
 
 const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
@@ -274,6 +280,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   onAccept,
   onReject,
   readOnly = false,
+  onAppointmentEnded,
 }) => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
@@ -285,7 +292,9 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 
   if (!isOpen || !recommendation) return null;
 
-  const canAct = !readOnly && canReviewPanelRecommendation(recommendation.status, reviewerRole);
+  const canAct = !readOnly
+    && recommendation.participantEligible !== false
+    && canReviewPanelRecommendation(recommendation.status, reviewerRole);
   const reviewerLabel =
     readOnly
       ? 'Recommendation Record'
@@ -363,6 +372,11 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 <p className="text-[10px] font-mono text-slate-400 font-bold mt-1">
                   {recommendation.recommendedMemberId}
                 </p>
+                {recommendation.unavailableUntil && (
+                  <p className="mt-2 text-[10px] font-bold text-amber-700">
+                    Unavailable for new appointments until {recommendation.unavailableUntil}. This persisted review remains in the queue.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -414,6 +428,28 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
             </div>
 
             <WorkflowAuditLog events={recommendation.workflow} />
+
+            {reviewerRole === 'PROGRAMME_COORDINATOR'
+              && recommendation.appointmentLifecycle?.status === 'ACTIVE'
+              && (
+                <AppointmentEndControl
+                  label="Panel appointment"
+                  onSubmit={async (outcome, reason) => {
+                    await endPanelAppointment(
+                      recommendation.appointmentLifecycle!.appointmentId,
+                      outcome,
+                      reason,
+                    );
+                    await onAppointmentEnded?.();
+                  }}
+                />
+              )}
+
+            {recommendation.participantEligible === false && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; the recommendation is retained as read-only until eligible.
+              </p>
+            )}
 
             {canAct && (
               <div className="space-y-4">
@@ -468,26 +504,31 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
 interface LecturerPanelAppointmentsProps {
   currentUser?: DemoUser | null;
   initialRecommendationId?: string;
+  initialSuperviseeId?: string;
   routeView?: 'list' | 'submitted' | 'reviewed' | 'assignmentDetail';
   routeAssignmentStudentId?: string;
   onNavigateToList?: () => void;
   onNavigateToSubmitted?: () => void;
   onNavigateToReviewed?: () => void;
   onNavigateToAssignment?: (studentId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
   currentUser,
   initialRecommendationId,
+  initialSuperviseeId,
   routeView = 'list',
   routeAssignmentStudentId,
   onNavigateToList,
   onNavigateToSubmitted,
   onNavigateToReviewed,
   onNavigateToAssignment,
+  onNavigateToDossier,
 }) => {
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
+  const openedInitialSupervisee = useRef<string | null>(null);
   
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
@@ -505,7 +546,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   // Panel assignments, recommendation drafts, and the submitted-recommendation
-  // history loaded from appointmentsApi (mock-backed today).
+  // History is loaded from the persisted appointment API.
   const [assignments, setAssignments] = useState<PanelAssignment[]>([]);
   const [submittedRecs, setSubmittedRecs] = useState<PanelRecommendationDraft[]>([]);
   const [panelReviewQueue, setPanelReviewQueue] = useState<PanelRecommendationDraft[]>([]);
@@ -514,6 +555,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [reviewedRequests, setReviewedRequests] = useState<PanelRecommendationDraft[]>([]);
   const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
   const [panelCandidates, setPanelCandidates] = useState<PanelCandidate[]>([]);
+  const [ownPanelCapacity, setOwnPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
   const [selectedSuperviseeId, setSelectedSuperviseeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -532,6 +574,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           getPanelReviewHistory(),
           getEligiblePanelSupervisees(),
           getPanelCandidates(),
+          getOwnPanelWorkload(),
         ]);
 
     load
@@ -542,6 +585,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           setSubmittedRecs([]);
           setPanelRecommendations([]);
           setPanelCandidates([]);
+          setOwnPanelCapacity(null);
           setEligibleSupervisees([]);
           setSelectedSuperviseeId(null);
           setPanelReviewQueue([]);
@@ -551,7 +595,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           return;
         }
 
-        const [asg, drafts, recs, panelQueue, history, eligibleSupervisees, candidates] = result as [
+        const [asg, drafts, recs, panelQueue, history, eligibleSupervisees, candidates, workload] = result as [
           PanelAssignment[],
           PanelRecommendationDraft[],
           SubmittedRecommendation[],
@@ -559,17 +603,25 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           PanelRecommendationDraft[],
           Awaited<ReturnType<typeof getEligiblePanelSupervisees>>,
           PanelCandidate[],
+          PanelWorkloadSummary,
         ];
         setAssignments(asg);
         setSubmittedRecs(drafts);
         setPanelRecommendations(recs);
         setPanelCandidates(candidates);
+        setOwnPanelCapacity(workload);
         setPanelReviewQueue(panelQueue);
         setCoordinatorReviewQueue([]);
         setCoordinatorWorkspace(null);
         setReviewedRequests(history);
         setEligibleSupervisees(eligibleSupervisees);
         setSelectedSuperviseeId((currentId) => {
+          if (
+            initialSuperviseeId
+            && eligibleSupervisees.some((student) => student.studentId === initialSuperviseeId)
+          ) {
+            return initialSuperviseeId;
+          }
           if (currentId && eligibleSupervisees.some((student) => student.studentId === currentId)) {
             return currentId;
           }
@@ -580,7 +632,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
       .finally(() => setLoading(false));
-  }, [isCoordinator]);
+  }, [initialSuperviseeId, isCoordinator]);
 
   useEffect(() => {
     loadData();
@@ -631,14 +683,18 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     () => selectedSupervisee ? toRecommendationStudent(selectedSupervisee) : null,
     [selectedSupervisee],
   );
+  const replacementAssignment = selectedSupervisee?.panelAppointmentId
+    ? selectedSupervisee
+    : null;
 
   // Merge the lecturer's own drafts with the submitted-recommendation history so
   // newly recommended items appear immediately at the top of the table.
   const combinedRecommendations = useMemo(() => {
     const customList = submittedRecs
-      .filter(r => r.studentId !== 'MEA2400712' && r.studentId !== '17204561')
-      .map((r, i) => ({
-        id: r.id !== undefined ? `REC-${String(r.id).padStart(4, '0')}` : `REC-2026-${String(100 + i).slice(1)}`,
+      .map((r) => ({
+        id: r.id !== undefined
+          ? `REC-${String(r.id).padStart(4, '0')}`
+          : `STUDENT-${r.studentId}`,
         recommendationId: r.id,
         studentName: r.studentName,
         studentId: r.studentId,
@@ -654,10 +710,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           ? 'Rejected'
           : 'Pending Approval') as SubmittedRecommendation['status'],
         workflowStatus: r.status,
-        semester: r.semester || 'Sem 1 2025/2026',
+        semester: r.semester || '',
         programme: r.programme,
         researchArea: r.researchArea,
-        abstract: r.abstract ?? recommendationStudent?.abstract ?? '',
+        abstract: r.abstract ?? '',
         justification: r.justification,
         rejectionReason: r.rejectionReason,
         submittedAt: r.submittedAt,
@@ -666,6 +722,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         cancelledAt: r.cancelledAt,
         cancellationReason: r.cancellationReason,
         workflow: r.workflow,
+        waitingSince: r.waitingSince,
+        waitingDays: r.waitingDays,
+        waitingOn: r.waitingOn,
       }));
 
     const seen = new Set<string>();
@@ -680,7 +739,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       seen.add(key);
       return true;
     });
-  }, [submittedRecs, panelRecommendations, recommendationStudent?.abstract]);
+  }, [submittedRecs, panelRecommendations]);
 
   const currentRecommendation = useMemo(
     () => recommendationStudent
@@ -698,13 +757,31 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
   const navigateToList = onNavigateToList ?? (() => undefined);
 
-  const canRecommendForStudent = recommendationStudent
-    ? canCreatePanelRecommendation(submittedRecs, recommendationStudent.studentId)
-    : false;
+  const canRecommendForStudent = Boolean(
+    recommendationStudent && selectedSupervisee?.canRecommend,
+  );
+
+  useEffect(() => {
+    if (
+      routeView !== 'list'
+      || !initialSuperviseeId
+      || recommendationStudent?.studentId !== initialSuperviseeId
+      || !canRecommendForStudent
+      || openedInitialSupervisee.current === initialSuperviseeId
+    ) return;
+    openedInitialSupervisee.current = initialSuperviseeId;
+    setIsRecommendDrawerOpen(true);
+  }, [
+    canRecommendForStudent,
+    initialSuperviseeId,
+    recommendationStudent?.studentId,
+    routeView,
+  ]);
 
   const createRecommendation = async (
     notes: string,
     candidateId: string,
+    replacementReason: string,
   ) => {
     if (!recommendationStudent) {
       triggerToast('No supervisee is available for panel recommendation.');
@@ -722,6 +799,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         recommendedMemberId: candidateId,
         justification: notes,
         status: 'SUBMITTED_TO_PANEL',
+        replacesAppointmentId: replacementAssignment?.panelAppointmentId ?? null,
+        replacementReason: replacementAssignment ? replacementReason : null,
       });
 
       setSubmittedRecs([newRec, ...submittedRecs]);
@@ -734,11 +813,13 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
-  const activeAssignmentsCount = assignments.length;
-  // Use workloadLimit from panelCandidates if current user is found, otherwise default to 10.
-  const currentUserCandidate = panelCandidates.find(c => c.name === currentUser?.fullName);
-  const workloadLimit = currentUserCandidate ? currentUserCandidate.workloadLimit : 10;
-  const activeReviewQueue = isCoordinator ? coordinatorReviewQueue : panelReviewQueue;
+  const activeAssignmentsCount = ownPanelCapacity?.workloadCount ?? assignments.length;
+  const workloadLimit = ownPanelCapacity?.workloadLimit ?? 0;
+  const activeReviewQueue = useMemo(
+    () => [...(isCoordinator ? coordinatorReviewQueue : panelReviewQueue)]
+      .sort(compareLongestWaiting),
+    [coordinatorReviewQueue, isCoordinator, panelReviewQueue],
+  );
   const activeReviewRole: PanelRecommendationReviewerRole = isCoordinator
     ? 'PROGRAMME_COORDINATOR'
     : 'SELECTED_PANEL';
@@ -766,6 +847,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       loadData();
     } catch (e) {
       triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
+      if (e instanceof ApiError && e.status === 409) loadData();
     }
   };
 
@@ -854,19 +936,23 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                     Panel Workload
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 block pt-0.5 uppercase tracking-wider">
-                    Academic Year 2025/2026
+                    Persisted assignments and reservations
                   </span>
                 </div>
-                <StatusBadge tone="success" dot pulse className="px-3 py-1 text-[9px]">
-                  AVAILABLE
+                <StatusBadge tone={ownPanelCapacity?.selectable ? 'success' : 'warning'} dot pulse className="px-3 py-1 text-[9px]">
+                  {ownPanelCapacity?.capacityState ? capacityStateLabel(ownPanelCapacity.capacityState) : 'Not configured'}
                 </StatusBadge>
               </div>
 
               <div className="mt-5">
                 <div className="text-3xl font-black text-brand-navy tracking-tight">
-                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Assignments</span>
+                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Total Load</span>
                 </div>
                 <ProgressBar value={activeAssignmentsCount} max={workloadLimit} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
+                <p className="mt-2 text-[10px] font-bold text-slate-500">
+                  {ownPanelCapacity?.semesterCode ?? 'No active semester'} · {ownPanelCapacity?.capacityPlanVersion ? `Plan v${ownPanelCapacity.capacityPlanVersion}` : 'Plan not configured'}
+                  {ownPanelCapacity?.unavailableUntil ? ` · Unavailable until ${ownPanelCapacity.unavailableUntil}` : ''}
+                </p>
               </div>
             </div>
 
@@ -950,6 +1036,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                     const recommendation = submittedRecs.find((item) => item.studentId === student.studentId);
                     const statusText = recommendation
                       ? PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]
+                      : student.panelAppointmentId
+                      ? 'Panel Active'
                       : student.canRecommend
                       ? 'Recommendation Needed'
                       : 'Recommendation Active';
@@ -1080,7 +1168,11 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                   disabled={!canRecommendForStudent}
                   className="w-full mt-6 py-3.5 bg-brand-navy text-white hover:bg-slate-800 disabled:bg-slate-400 disabled:cursor-not-allowed rounded-xl text-xs font-black tracking-widest uppercase transition-all shadow-sm select-none cursor-pointer text-center"
                 >
-                  {canRecommendForStudent ? 'Recommend Panel Member' : 'Recommendation Already Active'}
+                      {canRecommendForStudent
+                        ? replacementAssignment
+                          ? 'Replace Panel Member'
+                          : 'Recommend Panel Member'
+                        : 'Recommendation Already Active'}
                 </button>
               </div>
 
@@ -1127,31 +1219,32 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs">
               <div className="overflow-x-auto">
-                <table className="data-table min-w-[760px] text-xs">
+                <table className="data-table min-w-[860px] text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
                       <th className="py-4 px-6">Student</th>
                       <th className="py-4 px-6">Selected Panel</th>
                       <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6">Waiting</th>
                       <th className="py-4 px-6 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-brand-navy">
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="p-0">
+                        <td colSpan={5} className="p-0">
                           <LoadingState message="Loading review queue…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={4} className="p-0">
+                        <td colSpan={5} className="p-0">
                           <ErrorState message={error} onRetry={loadData} />
                         </td>
                       </tr>
                     ) : activeReviewQueue.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
+                        <td colSpan={5} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
                           No panel recommendations require your decision right now.
                         </td>
                       </tr>
@@ -1183,19 +1276,31 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                               {PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]}
                             </StatusBadge>
                           </td>
+                          <td className="py-5 px-6 text-[11px] font-bold text-slate-500">
+                            {formatWaitingText(recommendation)}
+                          </td>
                           <td className="py-5 px-6 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedReviewerRole(activeReviewRole);
-                                setSelectedRecommendationReadOnly(false);
-                                setSelectedRecommendation(recommendation);
-                              }}
-                              className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Review</span>
-                            </button>
+                            <div className="flex flex-col items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToDossier?.(recommendation.studentId)}
+                                className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                              >
+                                View Dossier
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedReviewerRole(activeReviewRole);
+                                  setSelectedRecommendationReadOnly(false);
+                                  setSelectedRecommendation(recommendation);
+                                }}
+                                className="inline-flex items-center gap-1.5 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Review</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1214,6 +1319,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                 : 'No programme records can be displayed until a managed programme is assigned.'}
               records={coordinatorWorkspace?.records ?? []}
               showSupervisor
+              onViewDossier={(recommendation) => onNavigateToDossier?.(recommendation.studentId)}
               onView={(recommendation) => {
                 setSelectedReviewerRole('PROGRAMME_COORDINATOR');
                 setSelectedRecommendationReadOnly(true);
@@ -1313,12 +1419,21 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                           </span>
                         </td>
                         <td className="py-5 px-6 text-center">
-                          <button
-                            onClick={() => onNavigateToAssignment?.(asg.studentId)}
-                            className="inline-flex items-center gap-1 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
-                          >
-                            <span>View Assignment</span>
-                          </button>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onNavigateToDossier?.(asg.studentId)}
+                              className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => onNavigateToAssignment?.(asg.studentId)}
+                              className="inline-flex items-center gap-1 bg-brand-navy hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all select-none cursor-pointer shadow-3xs border border-brand-navy"
+                            >
+                              <span>View Assignment</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       ))
@@ -1357,6 +1472,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             title="Reviewed Requests"
             subtitle="Use this page as your read-only history for selected-panel decisions already made."
             records={reviewedRequests}
+            onViewDossier={(recommendation) => onNavigateToDossier?.(recommendation.studentId)}
             onView={(recommendation) => {
               setSelectedReviewerRole('SELECTED_PANEL');
               setSelectedRecommendationReadOnly(true);
@@ -1400,9 +1516,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           isOpen={isRecommendDrawerOpen}
           onClose={() => setIsRecommendDrawerOpen(false)}
           student={recommendationStudent}
-          candidates={panelCandidates}
-          onSubmit={(notes, candidateId) => {
-            createRecommendation(notes, candidateId);
+          candidates={panelCandidates.filter(
+            (candidate) => candidate.staffId !== replacementAssignment?.currentPanelMemberId,
+          )}
+          replacementMember={replacementAssignment?.currentPanelMember}
+          onSubmit={(notes, candidateId, replacementReason) => {
+            createRecommendation(notes, candidateId, replacementReason);
           }}
         />
       )}
@@ -1418,6 +1537,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         onAccept={handleReviewAccept}
         onReject={handleReviewReject}
         readOnly={selectedRecommendationReadOnly}
+        onAppointmentEnded={async () => {
+          setSelectedRecommendation(null);
+          setSelectedRecommendationReadOnly(false);
+          await loadData();
+          triggerToast('Panel appointment ended. Workload and records were refreshed.');
+        }}
       />
 
     </div>

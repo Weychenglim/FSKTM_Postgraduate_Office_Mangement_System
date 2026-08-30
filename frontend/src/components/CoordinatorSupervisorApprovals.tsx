@@ -1,24 +1,34 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
+  ApiError,
   approveSupervisorApplicationByCoordinator,
+  formatSupervisorWaiting,
+  getCoordinatorSupervisorRecords,
   getCoordinatorSupervisorQueue,
+  orderSupervisorQueueOldestFirst,
   rejectSupervisorApplicationByCoordinator,
+  endSupervisorAppointment,
 } from '../services';
 import { SupervisorApplicationRecord } from '../types';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
+import { AppointmentEndControl } from './AppointmentEndControl';
 
 
 interface CoordinatorSupervisorApprovalsProps {
   initialApplicationId?: string;
+  onNavigateToDossier?: (studentId: string) => void;
 }
 
 export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorApprovalsProps> = ({
   initialApplicationId,
+  onNavigateToDossier,
 }) => {
   const [records, setRecords] = useState<SupervisorApplicationRecord[]>([]);
+  const [appointmentRecords, setAppointmentRecords] = useState<SupervisorApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -28,8 +38,14 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   const loadRecords = useCallback(() => {
     setLoading(true);
     setError(null);
-    getCoordinatorSupervisorQueue()
-      .then(setRecords)
+    Promise.all([
+      getCoordinatorSupervisorQueue(),
+      getCoordinatorSupervisorRecords(),
+    ])
+      .then(([queue, history]) => {
+        setRecords(orderSupervisorQueueOldestFirst(queue));
+        setAppointmentRecords(history);
+      })
       .catch((reason) => setError(
         reason instanceof Error ? reason.message : 'Failed to load supervisor approvals.',
       ))
@@ -47,15 +63,20 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
 
   const approve = async (record: SupervisorApplicationRecord) => {
     try {
-      await approveSupervisorApplicationByCoordinator(record.id);
+      const approved = await approveSupervisorApplicationByCoordinator(record.id);
       setRecords((current) => current.filter((item) => item.id !== record.id));
       if (String(rejectingRecordId) === String(record.id)) {
         setRejectingRecordId(null);
         setRejectionReason('');
       }
-      notify(`Supervisor appointment approved for ${record.studentName}.`);
+      notify(
+        approved.researchProfileReady
+          ? `Supervisor appointment approved for ${record.studentName}. The research profile is ready for Panel recommendation.`
+          : `Supervisor appointment approved for ${record.studentName}.`,
+      );
     } catch (reason) {
       notify(reason instanceof Error ? reason.message : 'Approval failed.');
+      if (reason instanceof ApiError && reason.status === 409) loadRecords();
     }
   };
 
@@ -119,14 +140,32 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                     {record.studentId} · {record.programme}
                   </p>
                   <p className="text-xs font-bold text-slate-700">{record.researchTitle}</p>
+                  <p className="text-[11px] font-semibold text-slate-500">
+                    Research area: <strong>{record.researchArea || 'Not recorded'}</strong>
+                  </p>
                   <p className="text-[11px] text-slate-500">
                     Proposed supervisor: <strong>{record.proposedSupervisor}</strong>
+                  </p>
+                  {record.unavailableUntil && (
+                    <p className="text-[11px] font-bold text-amber-700">
+                      Unavailable for new appointments until {record.unavailableUntil}. This pending approval remains recorded.
+                    </p>
+                  )}
+                  <p className="text-[11px] font-bold text-amber-700">
+                    {formatSupervisorWaiting(record)}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <PortalButton
+                    variant="ghost"
+                    onClick={() => onNavigateToDossier?.(record.studentId)}
+                  >
+                    View Dossier
+                  </PortalButton>
+                  <PortalButton
                     variant="secondary"
                     icon={XCircle}
+                    disabled={record.participantEligible === false}
                     onClick={() => {
                       setRejectingRecordId(isRejecting ? null : record.id);
                       setRejectionReason('');
@@ -137,13 +176,18 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   <PortalButton
                     variant="primary"
                     icon={Clock3}
-                    disabled={isRejecting}
+                    disabled={isRejecting || record.participantEligible === false}
                     onClick={() => approve(record)}
                   >
                     Approve
                   </PortalButton>
                 </div>
               </div>
+              {record.participantEligible === false && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                  This Student is {record.participantLifecycleStatus?.toLowerCase()}; the approval remains visible but is non-actionable until eligible.
+                </p>
+              )}
               {isRejecting && (
                 <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/70 p-4">
                   <label
@@ -183,12 +227,71 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                 </div>
               )}
               <div className="mt-4">
+                <SupervisorDocumentsList
+                  applicationId={record.id}
+                  documents={record.documents}
+                  compact
+                />
+              </div>
+              <div className="mt-4">
                 <WorkflowAuditLog events={record.workflow} />
               </div>
             </div>
             );
           })}
         </div>
+      )}
+
+      {!loading && !error && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-black text-brand-navy uppercase tracking-wider">Programme Appointment Records</h2>
+            <p className="text-[11px] font-semibold text-slate-400 mt-1">
+              Active and ended Supervisor appointments in your managed programme.
+            </p>
+          </div>
+          {appointmentRecords.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-xs font-semibold text-slate-400">
+              No approved Supervisor appointments are recorded for this programme.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {appointmentRecords.map((record) => (
+                <div key={`appointment-${record.id}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-black text-brand-navy">{record.studentName}</p>
+                      <StatusBadge tone={record.appointmentLifecycle?.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                        {record.appointmentLifecycle?.status === 'ACTIVE' ? 'Active' : record.appointmentLifecycle?.endOutcome || 'Ended'}
+                      </StatusBadge>
+                    </div>
+                    <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                      {record.studentId} · {record.proposedSupervisor}
+                    </p>
+                    {record.appointmentLifecycle?.endReason && (
+                      <p className="text-[11px] text-slate-500 mt-2">{record.appointmentLifecycle.endReason}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <PortalButton variant="ghost" onClick={() => onNavigateToDossier?.(record.studentId)}>
+                      View Dossier
+                    </PortalButton>
+                    {record.appointmentLifecycle?.status === 'ACTIVE' && (
+                      <AppointmentEndControl
+                        label="Supervisor appointment"
+                        onSubmit={async (outcome, reason) => {
+                          await endSupervisorAppointment(record.appointmentLifecycle!.appointmentId, outcome, reason);
+                          await loadRecords();
+                          notify(`Supervisor appointment ended for ${record.studentName}.`);
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

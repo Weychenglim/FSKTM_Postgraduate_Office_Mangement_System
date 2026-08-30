@@ -2,7 +2,9 @@
 
 ## Product Scope
 
-The application is an FSKTM postgraduate management system frontend for postgraduate administrative workflows.
+The application is **A Web-Based Postgraduate Administrative Workflow, Appointment, and Project Evaluation Management System for FSKTM Coursework Programmes**.
+
+The owned product boundary covers Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking. Measurable outputs are persisted role-scoped workflow status; elapsed waiting duration and responsible stage; authoritative deadlines and Marks completion; immutable decision, appointment, and participant lifecycle audits; lifecycle eligibility enforcement; and role-scoped analytics and exports. Course registration, enrolment, credit accumulation, course scheduling, and general coursework results are explicitly outside this boundary.
 
 The five owned completion modules are Dashboard/Timeline, Supervisor Appointment, Panel Appointment, Marks Entry, and Workflow and Approval Tracking. Notifications/Announcements is a separate integration module owned outside this slice; these workflows may expose audit and routing metadata for it, but this module does not own notification-center behavior.
 
@@ -85,12 +87,12 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Administration Dashboard must not show the old status legend or `View Full Timeline` action below the semester timeline calendar.
 - Administration Dashboard must not show the four placeholder summary cards for students without supervisor, supervisor records, panel records, and mark entry setup.
 - Records Needing Attention must remove the redundant Status column, show zero impact for unfinished dependency rows, omit mark-entry task generation rows for now, and calculate the lecturer panel workload impact count from the persisted panel workload data.
-- Office Monitoring Tasks must show Upload Semester Timeline as done, remove Monitor Mark Submission Status, and mark the remaining mark setup tasks as required action.
+- The shared Dashboard Action Centre must load persisted, role-scoped actions from `/api/dashboard/tasks/`; it must provide loading, error/retry, and empty states and navigate using the returned module, record type, and record ID.
 - `Manage Timeline` must behave as a direct button that navigates to Timeline Management.
 - Dashboard page-level routing must support only `/dashboard` and Office Staff/Admin-only `/dashboard/timeline`; unsupported Dashboard nested URLs must redirect authenticated users back to `/dashboard`.
 - All authenticated users must be able to retrieve the active semester timeline for Dashboard Overview.
 - Student and Lecturer dashboard timeline views must only display entries targeted to their role; Office Staff/Admin dashboard and management views may display all timeline entries.
-- Student and Lecturer dashboard next-action lists must be driven by active semester timeline events filtered by target role, and must show a clear empty state when no active timeline or no role-specific events are available.
+- Student and Lecturer dashboards must retain their role-scoped semester timeline visualization and use the shared persisted Dashboard Action Centre for workflow, Marks, and timeline actions.
 - If no active semester timeline is available, the dashboard must display `No timeline available at now` while keeping the rest of the dashboard available.
 - Office Staff/Admin users must be able to download the official structured Excel timeline template, upload a completed `.xlsx` timeline, replace the active semester timeline, edit individual timeline entries, and trigger audit logging.
 - Office Staff/Admin users must be able to add individual timeline entries to the active timeline, move entries between Research Project 1 and Research Project 2, delete obsolete entries, and see those changes reflected in the schedule, entries table, dashboards, and audit log.
@@ -120,7 +122,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Lecturer Dashboard Overview must show the role-scoped read-only semester timeline without the office-staff Manage Timeline action.
 - Lecturer Dashboard Overview must not show office-staff Records Needing Attention or Office Monitoring Tasks.
 - Lecturer Dashboard Overview must show two dashboard cards: Students Under Supervision and Panel Appointment for Students.
-- Lecturer Dashboard Overview must reuse the shared semester-timeline next-actions list for timeline events targeted to Lecturer.
+- Lecturer Dashboard Overview must reuse the shared persisted Dashboard Action Centre for assigned Supervisor requests, selected-panel reviews, Marks tasks, and Lecturer-targeted timeline actions.
 - Lecturer Supervisor Appointments must support pending supervisor request review, active supervisee detail review, and supervisor request history.
 - Lecturer Supervisor Appointments must expose request history and active supervisee detail as page-level routes at `/supervisor-appointments/history` and `/supervisor-appointments/supervisees/<studentId>`, while keeping review drawers, filters, pagination, and toasts local to the component.
 - Lecturer Supervisor Appointment review drawers must keep approve/reject controls and rejection reason inputs inside the scrollable drawer body so long request details do not leave decision controls fixed outside the scroll region.
@@ -146,7 +148,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Panel recommendation review actions must be role-gated: selected panel members may decide only recommendations submitted to them, and Programme Coordinators may decide only recommendations that have passed selected-panel acceptance.
 - Panel recommendation role-gating must be enforced by the backend API and database workflow, not only by frontend button visibility.
 - Programme Coordinator panel appointment confirmation must use the existing separate `Programme Coordinator` login role.
-- Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, read-only Lecturer-scoped semester timeline, and timeline-driven next actions.
+- Programme Coordinators must have a dedicated dashboard using the Lecturer dashboard structure, a read-only Lecturer-scoped semester timeline, and a persisted action centre limited to Supervisor and Panel approvals in the managed programme.
 - Programme Coordinator dashboard cards must show live supervisor and panel approval counts from persisted backend workflow state, scoped to the coordinator's managed programme.
 - Programme Coordinator panel queues, records, dashboard counts, and decision permissions must be restricted to `Coordinator.programme_managed`.
 - A Programme Coordinator without an assigned managed programme must see an explicit no-programme state, no protected panel records, and no approval actions.
@@ -163,6 +165,43 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Panel workload validation must count confirmed active panel appointments plus submitted/pending nominations, and the UI must explain that this reserved workload is used before submission.
 - Panel appointment APIs must keep the frontend response contract stable while resolving lecturer staff numbers, departments, and student matric numbers from the normalized role-profile tables.
 - Lecturer Marks Entry must support mark-entry task review, mark-entry form access, history review, and submitted mark detail review.
+
+## Workflow Ageing and Deadline Requirements
+
+- Pending Supervisor and Panel approvals must expose derived `waitingSince`, `waitingDays`, and `waitingOn` metadata without storing recurring ageing records or changing immutable workflow audit events.
+- Supervisor submissions wait on `SUPERVISOR` from submission; accepted Supervisor applications wait on `PROGRAMME_COORDINATOR` from the Supervisor decision.
+- Panel submissions wait on `SELECTED_PANEL` from submission; accepted nominations wait on `PROGRAMME_COORDINATOR` from the selected-panel decision.
+- Historical records missing a stage timestamp must fall back to the matching workflow transition and then the record update timestamp. Future or malformed waiting timestamps must display zero elapsed calendar days.
+- Approved, rejected, cancelled, completed, and otherwise terminal workflow records must return null waiting metadata. Approval ageing is informational and must not be described as an SLA, due-soon state, or overdue state.
+- Marks tasks and monitoring records must derive `dueAt`, `daysUntilDue`, and `deadlineState` from `EvaluationPeriod.closes_at`. The supported states are `NO_DEADLINE`, `UPCOMING`, `DUE_TODAY`, `OVERDUE`, and `COMPLETE`; submitted Marks remain locked and do not gain an approval stage.
+- Timeline action metadata must be derived from persisted entry start/end dates without changing timeline persistence or audit behavior.
+- `/api/dashboard/tasks/` must return at most 20 role-scoped actions while retaining its existing fields. Priority order is overdue deadlines, due-today deadlines, oldest waiting approvals, active timeline entries, then upcoming deadlines nearest first.
+- Office Staff/Admin may see actions across all five owned modules. Programme Coordinators may see only managed-programme Supervisor and Panel approvals. Lecturers may see only assigned Supervisor requests, selected-panel reviews, their Marks tasks, and Lecturer timeline entries. Students may see only their own Supervisor wait, generic faculty Panel processing, and Student timeline entries.
+- Student Panel payloads and actions must use `FACULTY_PROCESSING` and must not expose the selected panel, coordinator stage, recommendation ID, or internal workflow timestamps. Students without an active recommendation receive null Panel ageing metadata.
+- Office Supervisor and Panel monitoring lists must provide an optional Longest waiting order while retaining their normal default order. Lecturer and Programme Coordinator approval queues default to oldest waiting first.
+- Existing Supervisor and Panel CSV exports must include waiting metadata. Marks records and Lecturer Marks tasks must display persisted deadline metadata; no separate reporting subsystem is introduced.
+
+## Workflow Analytics and Reporting Requirements
+
+- Authenticated Office Staff/Admin, Programme Coordinator, and Lecturer users must have a read-only workflow analytics workspace at `/dashboard/reports`; Students must not receive this administrative reporting surface.
+- Reports must aggregate only records already authorized for the requesting role. Office Staff/Admin may report across all programmes or one selected programme, Programme Coordinators remain restricted to their managed programme, and Lecturers remain restricted to assigned Supervisor, selected-panel, Marks, and Lecturer-targeted Timeline records.
+- Optional `startDate` and `endDate` filters must use ISO dates and reject malformed or reversed ranges. Supervisor uses submission date, Panel uses submission date with creation fallback, Marks uses evaluation-period closing date with assignment fallback, and Timeline uses deadline start date.
+- Supervisor and Panel reporting must include lifecycle, waiting-owner, informational age-band, and longest-waiting summaries. Age bands are descriptive calendar-day groupings and must not be presented as service levels, due-soon states, or overdue states.
+- Marks reporting must retain its tracking-only model and summarize task status, deadline state, evaluator role, completion, and authorized overdue tasks. Timeline reporting must summarize current status, P1/P2 level, and target role.
+- JSON reports and XLSX exports must use the same role-scoped reporting service and active filters. Export workbooks must contain only sections the requesting role can access and must not persist generated files or database records.
+- Reports show the current persisted state of records selected by their reporting date; they do not reconstruct historical point-in-time snapshots or trend lines.
+
+## Student Progress Dossier Requirements
+
+- The system must provide a read-only progress dossier that aggregates persisted Supervisor, Panel, Marks, active Student-targeted Timeline, and workflow-audit data without creating dossier records or changing workflow state.
+- Office Staff/Admin may view every student and all dossier sections. Programme Coordinators may view managed-programme students with Supervisor, Panel, and Timeline sections only. Lecturers may view only connected students, and each Supervisor, Panel, or Marks section must contain only records assigned to that lecturer.
+- Students may open only their own dossier. Unauthorized and nonexistent matric numbers must return the same `404` response so the endpoint does not disclose whether another student exists.
+- Student dossier payloads must omit internal Panel stages, recommendation identifiers, pending selected-panel identity, evaluator identity, marks, comments, and staff audit actors. Pending Panel work is represented only as `FACULTY_PROCESSING`.
+- Dossiers must show current records before newest-first lifecycle history, reuse existing waiting/deadline derivations, and return null waiting metadata for terminal workflows.
+- Dossier attention must order overdue authorized Marks tasks first, active workflow waits by longest age second, and active/upcoming Student Timeline milestones third.
+- Dossier navigation metadata must use existing module, record type, and record identifier fields. Approval, rejection, cancellation, submission, printing, and export remain in their owning modules.
+- Staff dossier routes use `/dashboard/progress/:studentId`; the Student self-view uses `/dashboard/progress`. The workspace remains outside the sidebar and is opened from existing workflow tables, report attention rows, and the Student Dashboard.
+- Students without a research profile must still receive available Supervisor and Timeline information with empty Panel and Marks sections.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.
@@ -171,10 +210,10 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Toast notifications should appear at the top-right of the viewport, below the sticky top header, and remain above app overlays.
 - Irreversible confirmations such as cancellation, deletion, and final mark submission must use the shared portal confirmation modal instead of browser-native `window.confirm()` dialogs.
 - Dashboard and panel appointment actions must use in-app portal toasts or inline validation instead of browser-default `alert()` popups.
-- Frontend API configuration must be driven by Vite environment variables so mock mode and backend base URL can change without code edits.
-- Lecturer-side panel appointment persistence must use the backend by default through `VITE_USE_PANEL_BACKEND=true`, even while unfinished modules continue using global mock mode.
-- Office Staff dashboard timeline persistence must use the backend by default through `VITE_USE_TIMELINE_BACKEND=true`, even while unfinished modules continue using global mock mode.
-- Backend-shaped demo data should live in shared `src/mocks` and `src/services` modules rather than inside page components.
+- Frontend API base configuration must be driven by Vite environment variables. Global mock mode may remain only for unfinished or teammate-owned modules.
+- Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking must always use Django. Their services and screens must not inspect global mock mode, use module-specific backend switches, or substitute demo records after an API error.
+- Owned workflow screens must expose their existing loading, retry, and authorization states when Django is unavailable or rejects a request.
+- Demo data for unfinished modules must remain outside owned-module services and runtime components.
 - Generated Gemini or AI Studio environment requirements are out of scope for this portal frontend and must not be required to run the app.
 - Demo accounts must use clearly fictional `example.test` emails, `DEMO-*` identifiers, and demonstration-only profile data with no national identity-number patterns.
 - Django demo seeding must require `DEBUG=True`, an explicit `ENABLE_DEMO_ACCOUNTS=true` opt-in, and non-blank per-role passwords supplied only through an ignored local environment file.
@@ -182,12 +221,28 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Production frontend builds must not contain demo passwords, testing-console markup, or testing-console copy even when demo environment variables are supplied to the build process.
 - Refreshing or renaming local demo accounts must preserve existing account identities and their audit, timeline, and appointment history through an optional validated legacy-email mapping.
 - Django REST APIs must require authenticated access by default. Only login, password-reset request, and password-reset confirmation may explicitly allow anonymous DRF requests; `/api/health/` remains a minimal public Django health check.
-- Logout must require a valid authenticated session token.
+- Logout must require a valid authenticated refresh session, blacklist that refresh token, and delete its cookie.
 - Backend role and record scoping is authoritative: students may access only their own records, lecturers only assigned workflow records, Programme Coordinators only their managed programme, and Office Staff/Admin-only monitoring must reject every other role.
 - Letter templates are readable by every authenticated role and writable only by Office Staff/Admin or Programme Coordinator users.
 - Announcements and Notifications are teammate-owned and excluded from behavioral security changes in the current core-API hardening slice.
 - Login must be limited to 10 attempts per minute per client IP, password-reset requests to 5 per hour per client IP, and password-reset confirmations to 10 per hour per client IP, with environment-configurable rates.
 - Authentication throttles must return HTTP `429` with `Retry-After`, and authentication screens must show a clear retry-later message.
+- When `DEBUG=False`, Django startup must fail closed unless `DJANGO_SECRET_KEY` is non-placeholder, at least 50 characters long, and contains at least 5 unique characters; `DJANGO_ALLOWED_HOSTS` must be explicit and non-wildcard; and `CORS_ALLOWED_ORIGINS` must contain at least one valid HTTPS origin.
+- Production requests must use HTTPS redirection, secure HttpOnly `SameSite=Strict` session and CSRF cookies, content-type sniffing protection, a same-origin referrer policy, and frame denial. Local `DEBUG=True` HTTP hosts, CORS origins, and the development secret fallback must remain available.
+- Production HSTS must begin with a staged one-hour duration without subdomain coverage or preload. Raising it to one year and enabling `includeSubDomains` or preload requires verified HTTPS coverage across all subdomains.
+- Forwarded-protocol trust must remain disabled by default and may be enabled only when a trusted reverse proxy strips untrusted client forwarding headers and sets `X-Forwarded-Proto` itself.
+- Access tokens must default to 15 minutes, remain only in frontend memory, and authenticate normal APIs through the bearer header. They must never be stored in browser storage, URLs, or logs.
+- Refresh tokens must default to 7 days, rotate on every renewal, blacklist the replaced token, and remain only in an HttpOnly `SameSite=Strict` cookie scoped to `/api/auth/`; production refresh cookies must be Secure.
+- Login, refresh, and logout must require JSON requests; refresh and logout additionally require a valid refresh cookie. Missing, malformed, expired, replayed, password-invalidated, or inactive-user refresh sessions must return `401` without exposing refresh-token values.
+- Password resets and account deactivation must invalidate existing access and refresh sessions. Application startup and a single authenticated `401` retry may renew through the refresh cookie without converting normal APIs to cookie authentication.
+- Production must serve the React application and Django routes from one HTTPS origin through the tracked Nginx template, with `/api/` and `/admin/` proxied to Django and collected Admin assets served from `/static/`. Unknown hosts must be rejected, canonical redirects must not reflect the request Host header, and Nginx must emit the sole public HSTS header.
+- Production documents must receive a CSP that permits scripts and API connections from the same origin only, prohibits inline scripts, objects, frames, workers, and media, and allowlists only Google Fonts and Unsplash images as external resources.
+- CSP rollout must begin with the report-only include and move to the equivalent enforced include only after all owned role workflows complete without browser-console violations. No unauthenticated CSP collection endpoint is required in this slice.
+- Production Vite builds must explicitly disable source maps and fail their security guard if emitted files contain `.map`, `sourceMappingURL`, inline executable entry scripts, demo credentials, or testing-console content. Nginx must return `404` for all `.map` paths, including maps present in collected third-party static packages.
+- Inline styles remain temporarily permitted for current React dynamic layout behavior, but generated letter documents must register print behavior from the trusted application bundle instead of embedding inline scripts.
+- Frontend build tooling must keep Vite in `devDependencies` only on the patched 6.x line, keep `tsx` and its transitive `esbuild` on advisory-free versions, and provide an `npm run audit:security` command that fails on any known low-or-higher vulnerability.
+- Frontend routing must use patched `react-router` 8.3.0 or newer with React/React DOM 19.2.7 or newer and Node.js 22.22.0 or newer. The removed `react-router-dom` compatibility package must not be reintroduced.
+- All frontend dependency paths must resolve PostCSS to 8.5.18 or newer through the package-level npm override.
 
 ## Student Module Requirements
 
@@ -218,12 +273,19 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 
 ## Five-Module Completion Requirements
 
-- Supervisor Appointment applications must persist project details, proposed supervisor, supporting-document metadata, decisions, reasons, and timestamps.
+- Supervisor Appointment applications must persist project details, proposed supervisor, private supporting-document files and immutable metadata snapshots, decisions, reasons, and timestamps.
 - A student may have only one active supervisor application; rejected applications may be followed by a new application.
 - The requested supervisor decides first, followed by final Programme Coordinator approval scoped to the managed programme.
 - Supervisor and Panel decisions must enforce each lecturer's configured workload limit.
 - Supervisor and Panel workflows must audit actor, role, action, previous status, new status, reason, and timestamp.
 - Supervisor document requirements, workload limits, rubrics, and mark components must remain configurable until official rules are received.
+- Office Staff/Admin must configure Supervisor application document requirements without physical deletion. Requirement codes are immutable; activation, deactivation, ordering, and content changes require audited configuration records, while each submitted application retains the code and label used at submission time.
+- New Supervisor applications must fail closed when no active document requirements exist and must atomically submit multipart research data with at most one file per selected requirement, five files total, and 10 MB combined.
+- Supervisor application documents accept PDF and DOCX only. Django must validate file signatures and package integrity, reject unsafe PDF actions and encrypted, traversing, macro-enabled, oversized, or malformed DOCX content, and prevent duplicate file content within one application.
+- Private Supervisor files must never expose storage URLs. Authenticated attachment downloads are limited to the owning Student, proposed Supervisor, managed-programme Coordinator, and Office Staff/Admin; unauthorized and unknown files return the same not-found response.
+- Historical document metadata without stored content must remain visible as `Legacy Metadata` without a download action. Rejected and cancelled applications retain their immutable documents and workflow history.
+- Student, Lecturer, Coordinator, and Office Supervisor views must render only persisted application fields and documents. They must not fabricate eligibility decisions, supporting files, research content, timestamps, feedback, or appointment letters.
+- Official faculty templates, academic eligibility thresholds, antivirus scanning, post-submission file replacement, Notifications/Announcements, and File Repository integration remain outside Supervisor intake until authoritative rules or teammate-owned interfaces are available.
 - Evaluation task generation must create role-specific mark-entry tasks for both active Supervisor Appointments and active Panel Appointments.
 - Marks Assignment must provide production Office Staff/Admin controls for selecting evaluation periods, generating missing tasks, filtering tasks by role/status, and assigning backup evaluators without raw ID prompts.
 - Office Staff/Admin may add a backup/manual-override evaluator only for exception cases, with a mandatory reason and audit trail; this must not change the official supervisor or panel appointment.
@@ -236,3 +298,136 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Authorized Office Staff/Admin users may correct or reopen submitted marks through Django Admin with a mandatory reason and before/after audit values.
 - Mark totals must be recalculated by the backend and component marks must not exceed configured maximums.
 - Dashboard summaries must use live Supervisor, Panel, and Marks data with role and programme scoping.
+
+## Production Marks Management
+
+- Marks configuration is faculty-wide and persisted. Office Staff/Admin is the only portal role allowed to create or change rubric versions, rubric components, and evaluation periods.
+- Every rubric belongs to a stable version family, has a sequential version number and configurable target mark, and may reference the version it supersedes. A published-period or task-referenced version is immutable and must be cloned before further changes.
+- A rubric version is ready for publication only when it has active components and their maximum marks total exactly the configured target. Components are deactivated rather than physically deleted.
+- Evaluation periods follow `DRAFT`, `PUBLISHED`, `CLOSED`, and `ARCHIVED` lifecycle states. The UI derives `DRAFT`, `SCHEDULED`, `OPEN`, `CLOSED`, or `ARCHIVED` from lifecycle state and Kuala Lumpur timestamps.
+- Draft periods permit configuration changes. Published periods lock their name, semester, and rubric; only a closing-time extension with a mandatory reason is permitted. Closed periods may be archived and archived periods are hidden by default.
+- Publishing requires a ready rubric, a valid opening/closing range, and a unique non-archived faculty-wide name and semester. Evaluation and backup tasks may be created only for published periods that have not ended.
+- Every configuration mutation records an immutable actor, action, entity, reason, before value, after value, and timestamp audit.
+- Lecturer drafts and submissions are accepted only while a period is published and open. Submitted entries remain locked, duplicate submissions conflict, and authoritative totals are recalculated only from persisted component scores.
+- Draft updates remove persisted optional scores omitted from the request. Submission rejects duplicate, unknown, negative, over-maximum, or missing required component scores.
+- State conflicts, locked configuration, duplicate submission, and illegal lifecycle transitions return `409`; malformed input and score validation return `400`.
+- Office Staff/Admin Mark Record Detail must load one persisted record by stable record ID and show assignment, student/research summary, deadline, rubric version, component scores, comments, total, lock state, overrides, and read-only correction history.
+- Office Marks administration routes must fail closed in the frontend for Programme Coordinator, Lecturer, and Student users in addition to backend endpoint authorization.
+- Submitted-mark reopening and direct score or comment corrections remain restricted to audited Django Admin actions. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
+- Marks production screens must not ship mock records, browser-local period/rubric mutations, simulated sync controls, unsupported mark-sheet/PDF downloads, fake supporting documents, or notification dispatch behavior.
+- Marks remains tracking-only with `Not Started`, `Draft`, and `Submitted`; no approval or grade-classification stage is introduced.
+
+## Backend-Only Owned Workflow Boundary
+
+- Appointment and Timeline service functions must call their Django endpoints directly under every Vite environment combination.
+- Supervisor workload monitoring must be derived from active persisted appointments and configured supervisor limits. A Lecturer's own workload must use an authenticated, role-scoped endpoint.
+- Lecturer acceptance of a Supervisor application must remain pending Programme Coordinator approval and must not create or display an active appointment until the backend creates one.
+- Active-supervisee detail, panel candidates, recommendation histories, timeline semester/session metadata, and timeline dates must come from persisted API responses or explicit user input; the UI must not invent fallback identities, records, dates, or files.
+
+## Central Academic Semester Requirements
+
+- Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks, and Workflow/Approval Tracking must share one faculty-wide academic-semester authority. At most one semester may have the persisted `ACTIVE` lifecycle at a time.
+- Academic sessions use consecutive-year values such as `2026/2027`; terms are limited to Semester I, Semester II, or Special Semester. Non-archived semester date ranges must not overlap.
+- Office Staff/Admin alone may create, edit, activate, extend, close, archive, or audit semesters. Every authenticated role may read the minimal active-semester context displayed on its dashboard.
+- Semester lifecycle transitions are one-way: Draft may become Active or Archived, Active may become Closed, and Closed may become Archived. Activation, handover, extension, closure, and archival require immutable audit records and mandatory operational reasons.
+- Activating a replacement semester must atomically close the previous active semester and its published Marks periods. An active semester past its end date is effectively expired and blocks new Supervisor, Panel, and Marks workflows until Office Staff closes or replaces it.
+- New Supervisor applications and Panel recommendations bind to the effective active semester on the server. Clients cannot select or override this relationship; unresolved prior-semester approvals and cancellations remain actionable and are labelled as carryover records.
+- Timeline versions belong to a persisted semester. Office Staff may prepare the current Timeline version for a Draft or Active semester; Closed and Archived semester Timelines are read-only. Role dashboards render only the effective active semester's current Timeline.
+- Marks draft periods may be prepared for Draft or Active semesters. Publishing and task generation require the effective active semester, and the evaluation window must remain within its dates. Extending a semester never changes Marks deadlines automatically.
+- Workflow Reports default to the active semester and permit authorized `all`, `unassigned`, or stable semester-code history filters. Progress dossiers retain authorized complete history.
+- Historical workflow strings remain available for display, but records that cannot be linked without guessing must keep a null semester relationship and display `Legacy / Unassigned`.
+- Appointment and Timeline mock datasets and legacy `VITE_USE_SUPERVISOR_BACKEND`, `VITE_USE_PANEL_BACKEND`, and `VITE_USE_TIMELINE_BACKEND` controls must not be present in source or production artifacts.
+
+## Supervisor-to-Panel Research Profile Handoff
+
+- New Supervisor applications require a persisted free-text Research Area in addition to the research title and abstract. Historical applications may retain a blank legacy value.
+- Final Programme Coordinator approval is the authoritative point at which the system must atomically create or connect the student's research profile and create the active Supervisor appointment.
+- Research profiles provisioned by approval use the Student account's matric number, name, and programme; the approved application's title, abstract, Research Area, and academic-semester label; and the approved Supervisor appointment.
+- Matching unassigned legacy profiles must retain their primary keys. Unused profiles may be refreshed from the approved application, while profiles with Panel or Marks history must not have populated historical research data silently overwritten.
+- Separate user-linked and matric-linked profiles, or downstream-used profiles assigned to a different Supervisor, must fail final approval with `409 Conflict` and no partial appointment, profile, approval event, or state transition.
+- Panel-eligible supervisees require an active approved Supervisor appointment for the authenticated Lecturer. Panel recommendation submission must revalidate that relationship server-side and reject crafted student identifiers.
+- Student Panel status must expose only public readiness states: Supervisor required, Supervisor approval pending, ready for Panel recommendation, faculty processing, or confirmed. Pending internal Panel actors and stages remain private.
+- Marks task generation must resolve the profile created by Supervisor approval and continue producing separate Supervisor and Panel evaluator tasks after the respective appointments become active.
+- Active-supervisee detail must provide a deep action into the existing Panel recommendation workspace with the eligible student preselected; no additional sidebar module is introduced.
+
+## Supervisor and Panel Appointment Closure and Reassignment
+
+- Supervisor and Panel appointments have a persisted active/ended lifecycle, controlled closure outcomes, mandatory reasons, server timestamps, actors, predecessor/successor links, and immutable lifecycle events.
+- The database permits at most one active Supervisor appointment per Student and one active Panel appointment per research profile. Approved applications and recommendations remain historical approval records after an appointment ends.
+- Office Staff/Admin may end any active appointment. Programme Coordinators may end only appointments in their managed programme. Direct closure supports `COMPLETED`, `WITHDRAWN`, and `OTHER`; `REPLACED` is reserved for approved handovers.
+- Students request Supervisor replacement through the existing multipart application with fresh current documents and a reason. Current Supervisors request Panel replacement through the existing recommendation and approval chain.
+- The incumbent remains active during review. Final Coordinator approval atomically ends it as `REPLACED`, activates the successor, updates the research-profile Supervisor when applicable, and records lifecycle events.
+- Supervisor replacement preserves active Panel appointments and system-cancels the outgoing Supervisor's in-flight Panel recommendations with immutable workflow events.
+- Closure retires unfinished official Marks tasks in scheduled/open periods. Draft values are retained in an immutable handover audit, submitted entries remain unchanged, and approved handovers create clean tasks for replacement evaluators.
+- Retired Marks tasks remain visible in authorized history but are excluded from lecturer queues, active totals, overdue totals, reports, dashboard actions, and completion denominators.
+- Monitoring, CSV, Workflow Reports, and Progress Dossiers expose authorized lifecycle metadata. Student Panel views remain redacted, and Notifications/Announcements behavior is unchanged.
+
+## Academic Participant Lifecycle Management
+
+- Office Staff/Admin must manage Student and Lecturer academic lifecycle through the nested `/dashboard/participant-lifecycle` workspace; no sixth sidebar module is introduced.
+- Student lifecycle states are Active, Deferred, Graduated, and Withdrawn. Lecturer lifecycle states are Active, Retiring, and Retired. Every transition requires a reason, server timestamp, Office actor, immutable audit, and transactional side effects.
+- Deferred Students retain active appointments and read-only historical access, cannot start or advance Supervisor/Panel workflows, and have unfinished Marks tasks paused and excluded from operational queues, reports, overdue counts, and completion denominators.
+- Reactivation resumes paused Marks tasks only when their original period still accepts submissions and the relevant appointment remains active; otherwise those tasks are retired with immutable draft/comment snapshots.
+- Withdrawal atomically cancels pending workflows, ends active appointments as Withdrawn, retires unfinished Marks tasks, and preserves submitted Marks and all history. Graduation is blocked by unresolved approvals or unfinished operational Marks tasks, then completes remaining active appointments and preserves read-only access.
+- Retiring Lecturers remain able to resolve existing decisions but are excluded from all new Supervisor, Panel, backup-evaluator, and Marks-task assignments in both candidate queries and direct-ID validation.
+- Final Lecturer retirement requires no active appointments, assigned pending decisions, or managed Programme Coordinator responsibility. It retires remaining unfinished tasks, disables login, revokes refresh sessions, and is terminal in the portal.
+- Student and Lecturer lifecycle fields cannot be edited through ordinary Django Admin forms because that would bypass domain side effects. Immutable lifecycle and task audits remain readable in Django Admin.
+- Office Workflow Reports include participant lifecycle counts and Deferred/Retiring attention records. Internal dossiers include full lifecycle reason/actor/audit data; Student self-view exposes only public status and effective date.
+- `docs/Functional Requirements.pdf` and `docs/Use Case Description.pdf` are unchanged binaries. Their confirmation-letter content and older scope wording require later revision from editable academic source files.
+- Co-supervisor support remains deferred until faculty rules define primary/co-supervisor approval, workload, Panel nomination, and Marks responsibilities.
+
+## Workflow Data Quality and Reconciliation Centre
+
+- Office Staff/Admin must have a live scan of persisted Dashboard/Timeline, Supervisor, Panel, Marks, and Workflow Tracking relationships at `/dashboard/workflow-reconciliation`; no issue-status table or sixth sidebar module is introduced.
+- Each issue has a stable identifier, current-state fingerprint, module, severity (`BLOCKING` or `WARNING`), repairability (`REPAIRABLE` or `REVIEW_REQUIRED`), affected identifiers, dependencies, and navigation metadata.
+- Every repair requires a fresh preview, matching fingerprint, explicit reason, individual confirmation, current-state validation, row locking, and one immutable audit containing actor, action, before/after values, fingerprint, and affected records. Changed or resolved issues return `409 Conflict`.
+- Coordinator scope comes only from `Coordinator.programme_managed` after the Coordinator role gate. A missing profile or blank programme may be repaired only for an existing Lecturer account with Coordinator access and a programme represented by persisted Students.
+- Legacy semester relationships may be assigned only when persisted labels and dates identify one non-conflicting semester. Historical free-text values remain unchanged; ambiguous records stay `Legacy / Unassigned`.
+- Exact-matric unassigned research profiles may be linked only without competing profiles or downstream Panel/Marks history. Profile Supervisor synchronization requires exactly one authoritative active Supervisor appointment.
+- Missing approved Supervisor or Panel handoffs require persisted Coordinator actor/date metadata and valid current identity, programme, semester, participant, workload, appointment, and uniqueness checks. Original approval attribution and date are retained while the present repair is audited separately.
+- Unfinished Marks tasks may be paused, resumed, retired with snapshots, or generated idempotently. Submitted Marks, evaluator attribution, immutable workflow events, and downstream histories must never be rewritten.
+- Role/profile mismatches, downstream-used identity conflicts, and appointment source/replacement-lineage inconsistencies are review-required and expose no Apply action.
+- Office Dashboard and Workflow Reports expose reconciliation counts and blocking attention links. Coordinator, Lecturer, and Student users cannot access reconciliation list, preview, apply, or audit endpoints.
+
+## Lecturer Capacity and Availability Management
+
+- Supervisor and Panel capacity must become semester-specific, versioned, role-specific, and Office-configurable through a workspace outside the sidebar.
+- A semester cannot activate until one complete capacity plan is published for every lifecycle-Active Lecturer who holds a Supervisor or Panel role.
+- Published plans are immutable. Active-semester changes require a new Draft version and atomic publication/supersession with a mandatory reason and immutable audit.
+- Office may record separate Supervisor and Panel unavailability windows within semester dates. Existing appointments remain active; new submissions and final activation must respect effective availability.
+- Reducing capacity below current workload preserves existing appointments, exposes `OVER_CAPACITY`, and blocks new assignments until load falls below the limit.
+- The shared read-only resolver must apply deterministic `INELIGIBLE`, `NOT_CONFIGURED`, `TEMPORARILY_UNAVAILABLE`, `OVER_CAPACITY`, `FULL`, and `AVAILABLE` precedence. Supervisor load counts active appointments globally; Panel load separately counts global active appointments and submitted/pending reservation recommendations. Zero is a valid limit, and resolution never changes existing workflow or appointment state.
+- Candidate queries and final mutation endpoints must use this same authoritative capacity resolver. Students receive only public selectability and, when the final state is `TEMPORARILY_UNAVAILABLE`, the applicable availability end date. Every other state returns a null public availability date, and internal availability reasons must not appear in resolutions or conflict messages.
+- New semesters may copy only the latest strictly prior semester's Published plan, ordered by semester end date and stable ID, into Draft for Office review. Same-semester, overlapping, future-to-past, and arbitrarily older copies are conflicts. Legacy global limits seed only documented migration baselines and are not authoritative for new semester-bound workflows.
+- Capacity plan services create blank Drafts, copy only currently eligible source entries from the allowed prior Published plan, and clone a current Published or Superseded same-semester source into the next version. Every copied or cloned plan records that source through `supersedes`, including cross-semester copies, and exposes the source ID in snapshots and COPY audits. Newly eligible Lecturers and newly acquired roles remain explicit publication blockers instead of receiving guessed limits; ineligible historical source entries and availability windows are not copied. Creation, cloning, entry editing, publication, and new availability restrictions are limited to Draft or Active target semesters; Closed and Archived capacity history is read-only, while historical cancellation remains permitted.
+- Draft entry editing and publication require the caller's current capacity-plan content fingerprint. The fingerprint is derived from canonical plan identity/lifecycle data and ordered entry identities, role limits, and update timestamps. Malformed fingerprints are validation errors; stale fingerprints are lifecycle conflicts detected after row locking and before mutation or audit. API write commands accept exact camelCase `expectedFingerprint` and `expectedVersion` fields; this adds no database column or migration.
+- Publication requires a non-blank reason and complete role-aligned coverage for every lifecycle-Active Lecturer with a Supervisor or Panel profile. After locking the semester and all same-semester plans, publication locks all entries for those plans in deterministic plan/Lecturer/entry order before fingerprint/readiness validation and supersession; cross-semester entries are excluded. It atomically supersedes any current Published plan, publishes the target Draft, and rolls back every lifecycle and audit change if validation or persistence fails. Zero limits and reductions below current load are valid and never alter appointments or workflows.
+- Availability services require a Draft or Active target semester, a lifecycle-Active Lecturer with the requested role, ordered semester-contained dates, a non-blank reason, and no overlapping active same-role window. Supervisor and Panel windows remain independent. Cancellation is append-only, requires its own reason, preserves the original dates/reason, rejects stale or repeated cancellation, remains available after semester closure or role/lifecycle removal only for the same persisted semester/Lecturer/role identity, and cannot reactivate a cancelled window. New fully cancelled rows and cancelled-row identity reassignments still require normal role eligibility.
+- Every plan creation/copy, Draft entry save, publication/supersession, and availability creation/cancellation records an immutable actor-attributed audit with deterministic JSON-safe before/after snapshots and affected plan, semester, Lecturer, and window identifiers.
+- Capacity-plan, entry, availability, cancellation, and capacity-audit management APIs are Office Staff/Admin-only. They expose stable plan/entry/window IDs, semester and version lineage, actors and timestamps, readiness errors, current-published state, current role-specific load/resolution metadata, and internal availability reasons. Other roles receive `403` and never receive these management payloads.
+- Capacity management APIs return `400` for malformed camelCase values, `404` for unknown or unauthorized objects, and `409` for stale versions/fingerprints, invalid lifecycle transitions, overlap, publication/readiness conflicts, and concurrent capacity changes. Plans, entries, windows, and audits have no physical-delete API.
+- Every capacity-management request body uses an exact field allowlist. Unknown, misspelled, wrong-case, snake_case, and surplus keys return `400` before any mutation or audit; clone accepts only an empty object. This strictness is capacity-specific and does not change existing Academic Semester API compatibility.
+- Capacity-plan, capacity-audit, and availability-history lists retain array response bodies but require bounded `limit`/`offset` pagination. The default limit is 25, the maximum limit is 100, offset defaults to zero, and the maximum offset is 1,000,000; malformed, zero/negative limits, negative offsets, or excessive values return `400`. Successful list responses expose `X-Total-Count`, `X-Limit`, and `X-Offset`, including through configured CORS response-header exposure.
+- The Office-only DRF permission is authoritative for every capacity management method. Authenticated Student, Lecturer, and Programme Coordinator requests receive `403` before object lookup or metadata dispatch, including `OPTIONS`, `HEAD`, and unsupported methods.
+- Semester activation must fail closed with `409` unless the locked target Draft semester has exactly one complete Published capacity plan. The shared capacity-readiness rules are authoritative, and the gate runs before closing a prior semester, closing Marks periods, or writing semester/Marks audits.
+- Capacity cutover creates a `MIGRATED_BASELINE` Published plan only for the current Active semester and semesters referenced by unresolved Supervisor or Panel workflows when no Published policy already exists. It preserves prior plan versions, workflow identifiers, relationships, and legacy semester labels; eligible active Lecturer role limits are copied independently and inactive accounts or Lecturers are excluded.
+- Guarded fictional demo seeding publishes a complete policy before activating a newly created demo semester. Reruns are idempotent and neither demo seeding nor shared test fixtures may replace or supersede developer-created capacity plans.
+- Supervisor applications and Panel recommendations must enforce the published policy for the workflow's persisted academic semester during both validated submission and the locked database mutation. Direct Lecturer identifiers, replacement requests, and stale candidate screens cannot bypass this guard; capacity conflicts return `409` and create no workflow, document, appointment, profile, or audit side effect.
+- Existing selected Lecturers remain visible on persisted applications and recommendations after capacity or availability changes. Supervisor and selected-Panel review decisions may continue, but final Programme Coordinator approval must recheck the source semester and leave the workflow in `PENDING_COORDINATOR` when activation is blocked.
+- Supervisor and Panel candidate directories omit `INELIGIBLE` and `TEMPORARILY_UNAVAILABLE` Lecturers. `FULL`, `OVER_CAPACITY`, and `NOT_CONFIGURED` Lecturers remain visible but non-selectable. Candidate and workload rows expose semester, plan/version, state, load, limit, available slots, selectability, and the public availability end date.
+- Panel final approval converts the recommendation's existing reservation into an active appointment. The recommendation being approved is excluded from the activation check so its reserved slot is not counted twice, while every other submitted or pending nomination remains part of global Panel load.
+- Office Workflow Reports and Dashboard actions must expose role-specific capacity-state counts and attention for over-capacity, temporary-unavailability, and active-semester unconfigured policy states. Non-Office reports must not expose the faculty capacity summary or internal availability reasons.
+- Existing Supervisor and Panel report/export rows must include the authorized semester, capacity plan/version, state, limit, current load, available slots, and public availability end date. Capacity reporting remains current-state operational reporting rather than historical reconstruction.
+- Reconciliation must detect missing or incomplete current capacity plans, role/entry drift, multiple Published plans, overlapping active availability windows, and divergence between authoritative Published limits and legacy profile compatibility values. Only a Draft semester with no policy history and exactly one verified prior Published plan may offer `COPY_CAPACITY_PLAN`; every other capacity issue is review-required.
+- Capacity reconciliation repairs must reuse preview fingerprints, mandatory Office reasons, transactional locks, and immutable `WorkflowReconciliationAudit` records. Closed and Archived semesters are historical policy, not missing-plan operational issues.
+- The frontend capacity boundary must use typed, backend-only Django services for plan history, plan creation/copy/clone/publication, Lecturer entry updates, availability creation/cancellation, and immutable audits. No mock or silent fallback may be used for capacity configuration.
+- `/dashboard/lecturer-capacity` is a lazy-loaded Office Staff/Admin route outside the sidebar. Authenticated non-Office users must be redirected to Dashboard before capacity management content is rendered.
+- Shared frontend helpers must provide deterministic capacity labels, zero-safe and 0-100-clamped utilization, role-aware Draft entry validation, semester-bounded availability validation, and clear stale `409` guidance.
+- The Office workspace must expose semester selection, complete plan/version history, blank and copied Draft creation, same-semester cloning, version comparison, role-specific limit editing, readiness blockers, reasoned publication, date-ranged availability, reasoned cancellation, and immutable audit history. Mutating plan and new-availability controls are unavailable for Closed and Archived semesters, while valid historical availability cancellation remains supported.
+- The workspace must use Kuala Lumpur calendar dates for current/upcoming availability, retain an open command drawer when a stale `409` occurs, reload the latest policy, and require explicit reasons and confirmation for publication and cancellation.
+- Office users must be able to reach capacity management from Dashboard, Academic Semester Management, Supervisor Workload Monitoring, Panel Workload Monitoring, and Workflow Reconciliation without adding a sidebar module.
+- Student Supervisor selection and Lecturer Panel nomination must treat backend `selectable` as authoritative. Full, Over Capacity, and Not Configured candidates remain visible but disabled where returned; temporary unavailability may be shown only as a public resume date on an already persisted selection, never with the Office reason.
+- Lecturer Dashboard, Supervisor Appointments, and Panel Appointments must show the authenticated Lecturer's current published-plan version, capacity state, load/limit, and public unavailability date. Panel capacity must include confirmed appointments plus pending nominations and must not use a fabricated fallback limit.
+- A final Supervisor or Panel approval `409` must leave the persisted pending record visible, display the backend conflict, and reload the relevant approval queue. The client must remove a row only after a successful transition.
+- Supervisor and Panel workload CSV exports must include Semester Code, Plan Version, Capacity State, Active Load, Reserved Load, Available Slots, and Unavailable Until. Utilization is null-safe and clamped to 0-100, and internal availability reasons are excluded.
+- Release verification for this feature must cover all owned backend modules, every frontend TypeScript test, dependency audit, lint, production build and artifact guards, plus live role-scoped checks for Office, Lecturer, Programme Coordinator, and Student access. A browser-only visual pass must be recorded separately when the desktop browser runtime is unavailable rather than inferred from API or source-test results.

@@ -52,6 +52,8 @@ export interface SemesterTimelineLevelGroup {
 export interface ActiveSemesterTimeline {
   available: boolean;
   id?: number;
+  semesterId?: number | null;
+  semesterCode?: string | null;
   semester?: string;
   session?: string;
   sourceFilename?: string;

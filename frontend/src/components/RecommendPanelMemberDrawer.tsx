@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   X, 
   Search, 
   CheckCircle, 
@@ -18,7 +18,7 @@ import {
   canSubmitPanelCandidate,
   getPanelCandidateValidationMessage,
 } from '../utils/panelRecommendationWorkflow';
-import { PortalToast } from './PortalPrimitives';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 export interface StudentData {
   studentName: string;
@@ -35,93 +35,43 @@ export interface StudentData {
 interface RecommendPanelMemberDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  student?: StudentData;
-  candidates?: PanelCandidate[];
-  onSubmit?: (notes: string, candidateId: string) => void;
+  student: StudentData;
+  candidates: PanelCandidate[];
+  replacementMember?: string | null;
+  onSubmit: (notes: string, candidateId: string, replacementReason: string) => void;
 }
-
-const defaultStudent: StudentData = {
-  studentName: 'Ahmad Luqman',
-  studentId: 'MEA2209841',
-  programme: 'MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)',
-  intake: 'Sem 1 2025/2026',
-  supervisor: 'Dr. Siti Noor',
-  initials: 'AL',
-  proposedTopic: 'Optimizing Generative Adversarial Networks for Low-Resource Languages',
-  area: 'Artificial Intelligence',
-  abstract: 'This research explores novel architectural improvements for GANs to improve synthetic data quality in languages with limited linguistic resources, aiming to enhance machine translation and speech recognition accuracy in indigenous contexts.'
-};
-
-const DEFAULT_PANEL_CANDIDATES: PanelCandidate[] = [
-  {
-    staffId: 'A004812',
-    name: 'Assoc. Prof. Dr. Amina Malik',
-    department: 'Data Science Department',
-    workloadCount: 2,
-    workloadLimit: 10,
-    canSubmit: true,
-    availability: 'Available',
-    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
-  },
-  {
-    staffId: 'A004918',
-    name: 'Dr. Siti Noor',
-    department: 'Software Engineering Department',
-    workloadCount: 3,
-    workloadLimit: 10,
-    canSubmit: true,
-    availability: 'Available',
-    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
-  },
-  {
-    staffId: 'A002931',
-    name: 'Dr. Robert Chen',
-    department: 'Information Systems Department',
-    workloadCount: 5,
-    workloadLimit: 10,
-    canSubmit: false,
-    availability: 'Workload Full',
-    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
-  },
-  {
-    staffId: 'A003328',
-    name: 'Dr. Aris Ghaffar',
-    department: 'Computer System & Technology Department',
-    workloadCount: 1,
-    workloadLimit: 10,
-    canSubmit: true,
-    availability: 'Available',
-    workloadHelpText: 'Workload includes confirmed active panel appointments and submitted nominations.',
-  }
-];
 
 export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = ({
   isOpen,
   onClose,
-  student = defaultStudent,
+  student,
   candidates,
-  onSubmit
+  replacementMember,
+  onSubmit,
 }) => {
-  const lecturerPool = candidates && candidates.length > 0 ? candidates : DEFAULT_PANEL_CANDIDATES;
-  const [searchTerm, setSearchTerm] = useState('Assoc. Prof. Dr. Amina Malik');
+  const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedLecturer, setSelectedLecturer] = useState<PanelCandidate>(lecturerPool[0]);
+  const [selectedLecturer, setSelectedLecturer] =
+    useState<PanelCandidate | null>(
+      candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit) ?? null,
+    );
   const [recommendationNotes, setRecommendationNotes] = useState('');
+  const [replacementReason, setReplacementReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(null), 3500);
-  };
-
   useEffect(() => {
-    if (!lecturerPool.some(lecturer => lecturer.staffId === selectedLecturer.staffId)) {
-      setSelectedLecturer(lecturerPool[0]);
-      setSearchTerm(lecturerPool[0].name);
+    if (
+      selectedLecturer
+      && candidates.some((lecturer) => lecturer.staffId === selectedLecturer.staffId)
+    ) {
+      return;
     }
-  }, [lecturerPool, selectedLecturer.staffId]);
+    const nextLecturer = candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit)
+      ?? null;
+    setSelectedLecturer(nextLecturer);
+    setSearchTerm(nextLecturer?.name ?? '');
+  }, [candidates, selectedLecturer]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -142,45 +92,53 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     setShowDropdown(false);
   };
 
-  const filteredLecturers = lecturerPool.filter(lec => 
+  const filteredLecturers = candidates.filter(lec =>
     lec.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     lec.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lec.staffId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isSupervisorSelected = selectedLecturer.name === student.supervisor;
+  const isSupervisorSelected = selectedLecturer?.name === student.supervisor;
   const hasRecommendationNotes = recommendationNotes.trim().length > 0;
-  const canSubmitRecommendation = selectedLecturer.canSubmit && canSubmitPanelCandidate({
-    workloadCount: selectedLecturer.workloadCount,
-    workloadLimit: selectedLecturer.workloadLimit,
-    isSupervisor: isSupervisorSelected,
-    hasNotes: hasRecommendationNotes,
-  });
-  const validationMessage = selectedLecturer.canSubmit
-    ? getPanelCandidateValidationMessage({
+  const hasReplacementReason = !replacementMember || replacementReason.trim().length > 0;
+  const canSubmitRecommendation = selectedLecturer !== null
+    && hasReplacementReason
+    && canSubmitPanelCandidate({
+      workloadCount: selectedLecturer.workloadCount,
+      workloadLimit: selectedLecturer.workloadLimit,
+      capacityState: selectedLecturer.capacityState,
+      selectable: selectedLecturer.selectable ?? selectedLecturer.canSubmit,
+      unavailableUntil: selectedLecturer.unavailableUntil,
+      isSupervisor: isSupervisorSelected,
+      hasNotes: hasRecommendationNotes,
+    });
+  const validationMessage = selectedLecturer === null
+    ? 'No eligible panel candidates are available.'
+    : getPanelCandidateValidationMessage({
         workloadCount: selectedLecturer.workloadCount,
         workloadLimit: selectedLecturer.workloadLimit,
+        capacityState: selectedLecturer.capacityState,
+        selectable: selectedLecturer.selectable ?? selectedLecturer.canSubmit,
+        unavailableUntil: selectedLecturer.unavailableUntil,
         isSupervisor: isSupervisorSelected,
         hasNotes: hasRecommendationNotes,
-      })
-    : 'This lecturer has reached the panel workload limit. Please choose another panel member.';
+      });
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (!canSubmitRecommendation) return;
-    if (onSubmit) {
-      onSubmit(recommendationNotes.trim(), selectedLecturer.staffId);
-    } else {
-      showToast(`Recommendation for ${selectedLecturer.name} submitted successfully.`);
-    }
+    if (!canSubmitRecommendation || !selectedLecturer) return;
+    onSubmit(
+      recommendationNotes.trim(),
+      selectedLecturer.staffId,
+      replacementReason.trim(),
+    );
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div id="recommend-panel-drawer-container" className="fixed inset-0 z-50 flex justify-end overflow-hidden">
-          <PortalToast message={toastMessage} tone="success" />
           {/* Backdrop screen dimmer */}
           <motion.div
             id="recommend-panel-backdrop"
@@ -206,7 +164,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
               className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0"
             >
               <h2 id="drawer-main-title" className="text-lg font-bold text-brand-navy font-sans tracking-tight">
-                Recommend Panel Member
+                {replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'}
               </h2>
               <button
                 id="drawer-close-btn"
@@ -233,7 +191,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                   <div className="flex items-center gap-3.5">
                     {/* Student Initials Box */}
                     <div className="w-11 h-11 rounded-full bg-blue-50 border border-blue-100/60 text-blue-600 font-extrabold text-xs flex items-center justify-center shrink-0">
-                      {student.initials || 'AL'}
+                      {student.initials}
                     </div>
                     <div>
                       <h4 id="summary-student-name" className="text-sm font-bold text-brand-navy leading-tight">
@@ -324,6 +282,29 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                 </div>
               </div>
 
+              {replacementMember && (
+                <div className="space-y-2">
+                  <label htmlFor="panel-replacement-reason" className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Replacement reason
+                  </label>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    The current appointment with {replacementMember} remains active until final coordinator approval.
+                  </p>
+                  <textarea
+                    id="panel-replacement-reason"
+                    value={replacementReason}
+                    onChange={(event) => setReplacementReason(event.target.value)}
+                    rows={3}
+                    required
+                    placeholder="Explain why a different panel member is required"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                  />
+                  {submitAttempted && !hasReplacementReason && (
+                    <p className="text-[11px] font-bold text-rose-600">A panel replacement reason is required.</p>
+                  )}
+                </div>
+              )}
+
               {/* SECTION C: Select Panel Member Section */}
               <div id="recommend-select-member" className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -370,13 +351,16 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                               No matching lecturers found
                             </div>
                           ) : (
-                            filteredLecturers.map((lec) => (
+                            filteredLecturers.map((lec) => {
+                              const isSelectable = lec.selectable ?? lec.canSubmit;
+                              return (
                               <button
                                 key={lec.staffId}
                                 type="button"
+                                disabled={!isSelectable}
                                 onClick={() => handleLecturerSelect(lec)}
-                                className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 hover:bg-slate-5/80 hover:bg-slate-50 flex items-center justify-between text-brand-navy transition ${
-                                  selectedLecturer.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
+                                className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-between text-brand-navy transition ${
+                                  selectedLecturer?.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
                                 }`}
                               >
                                 <div className="space-y-0.5">
@@ -384,12 +368,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                                   <span className="text-[10px] text-slate-400 font-semibold block">{lec.department}</span>
                                 </div>
                                 <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                  lec.canSubmit ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                  isSelectable ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
                                 }`}>
-                                  {lec.availability}
+                                  {lec.capacityState ? capacityStateLabel(lec.capacityState) : lec.availability}
                                 </span>
                               </button>
-                            ))
+                              );
+                            })
                           )}
                         </motion.div>
                       )}
@@ -406,15 +391,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <div className="flex items-center gap-3 w-full">
                       {/* Avatar with beautiful sketch style or generic portrait */}
                       <div className="w-11 h-11 rounded-lg bg-[#e0f2fe]/80 border border-blue-200 flex items-center justify-center shrink-0 overflow-hidden">
-                        {selectedLecturer.staffId === 'A004812' ? (
-                          <div id="amina-avatar" className="relative w-full h-full bg-[#1e293b] flex items-center justify-center">
-                            {/* Stylish simplified icon with green scarf look */}
-                            <div className="absolute bottom-0 w-8 h-8 rounded-t-full bg-emerald-600/80" />
-                            <div className="w-4 h-4 rounded-full bg-amber-100 absolute top-2.5" />
-                          </div>
-                        ) : (
-                          <User className="w-5 h-5 text-blue-500" />
-                        )}
+                        <User className="w-5 h-5 text-blue-500" />
                       </div>
 
                       <div className="space-y-0.5 text-left flex-1 min-w-0">
@@ -433,6 +410,11 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                           <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
                             Reserved workload: {selectedLecturer.workloadCount}/{selectedLecturer.workloadLimit}
                           </span>
+                          {selectedLecturer.capacityPlanVersion !== null && selectedLecturer.capacityPlanVersion !== undefined && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-white text-[9px] font-medium text-slate-600 border border-slate-200">
+                              Capacity plan v{selectedLecturer.capacityPlanVersion}
+                            </span>
+                          )}
                         </div>
                         <p className="text-[9.5px] text-slate-400 font-semibold leading-relaxed pt-1">
                           {selectedLecturer.workloadHelpText}
@@ -444,12 +426,14 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <span 
                       id="candidate-avail-badge"
                       className={`text-[9px] font-black uppercase tracking-wider shrink-0 px-2.5 py-1 rounded-md ${
-                        selectedLecturer.canSubmit 
+                        (selectedLecturer.selectable ?? selectedLecturer.canSubmit)
                           ? 'text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db]' 
                           : 'text-rose-600 bg-rose-50 border border-rose-150'
                       }`}
                     >
-                      {selectedLecturer.availability}
+                      {selectedLecturer.capacityState
+                        ? capacityStateLabel(selectedLecturer.capacityState)
+                        : selectedLecturer.availability}
                     </span>
                   </div>
                 )}

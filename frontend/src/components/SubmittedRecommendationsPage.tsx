@@ -50,7 +50,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
 }) => {
   // Controlled vs. self-fetching: when the parent supplies `recommendations`
   // (e.g. LecturerPanelAppointments) use those; otherwise fetch the history
-  // from appointmentsApi (mock-backed today) with loading/error handling.
+  // from the persisted appointment API with loading/error handling.
   const [fetched, setFetched] = useState<SubmittedRecommendation[]>([]);
   const [loading, setLoading] = useState(!recommendationsProp);
   const [error, setError] = useState<string | null>(null);

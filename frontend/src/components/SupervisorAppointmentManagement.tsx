@@ -13,7 +13,6 @@ import {
   Search, 
   SlidersHorizontal, 
   Download, 
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -28,9 +27,18 @@ import {
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { SupervisorRecord } from '../types';
-import { getSupervisorAppointments } from '../services';
+import {
+  formatSupervisorWaiting,
+  getSupervisorAppointments,
+  getSupervisorRecordSummary,
+  orderSupervisorQueueOldestFirst,
+  endSupervisorAppointment,
+} from '../services';
+import { AppointmentEndControl } from './AppointmentEndControl';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
+import { downloadCsv } from '../utils/csvExport';
 
 // SupervisorRecord now lives in src/types.
 
@@ -40,6 +48,9 @@ interface SupervisorAppointmentManagementProps {
   onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
+  onNavigateToRequirements?: () => void;
+  onOpenCapacity?: () => void;
 }
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
@@ -48,6 +59,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
+  onNavigateToDossier,
+  onNavigateToRequirements,
+  onOpenCapacity,
 }) => {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -57,7 +71,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Supervisor appointment records loaded from appointmentsApi (mock-backed today).
+  // Supervisor appointment records are loaded from the persisted Django API.
   const [records, setRecords] = useState<SupervisorRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +95,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
   
   // Tab/status filter state
-  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
+  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Ended' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
 
   // Applied filter state
   const [appliedSearch, setAppliedSearch] = useState('');
   const [appliedProg, setAppliedProg] = useState('All Programmes');
   const [appliedSem, setAppliedSem] = useState('All Semesters');
+  const [sortOrder, setSortOrder] = useState<'default' | 'longestWaiting'>('default');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +123,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setAppliedProg('All Programmes');
     setAppliedSem('All Semesters');
     setActiveTab('All Records');
+    setSortOrder('default');
     setCurrentPage(1);
     showToast("Filters reset to default.");
   };
@@ -133,13 +149,24 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     });
   }, [records, appliedSearch, appliedProg, activeTab]);
 
+  const orderedFilteredRecords = useMemo(
+    () => sortOrder === 'longestWaiting'
+      ? orderSupervisorQueueOldestFirst(filteredRecords)
+      : filteredRecords,
+    [filteredRecords, sortOrder],
+  );
+
   // Paginated records helper
   const paginatedRecords = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
-    return filteredRecords.slice(startIdx, startIdx + itemsPerPage);
-  }, [filteredRecords, currentPage]);
+    return orderedFilteredRecords.slice(startIdx, startIdx + itemsPerPage);
+  }, [orderedFilteredRecords, currentPage]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  const recordSummary = useMemo(() => getSupervisorRecordSummary(records), [records]);
+  const longestWaitingText = recordSummary.longestWaiting
+    ? formatSupervisorWaiting(recordSummary.longestWaiting)
+    : '-';
   const selectedRouteRecord = useMemo(
     () => findSupervisorRecordByRouteKey(records, routeRecordId),
     [records, routeRecordId],
@@ -148,12 +175,32 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
   // Handles export interaction
   const handleExportData = () => {
-    showToast("Downloading supervisor_appointments_report.csv");
+    downloadCsv('supervisor_appointments_report.csv', orderedFilteredRecords, [
+      { header: 'Student ID', value: (record) => record.studentId },
+      { header: 'Student Name', value: (record) => record.studentName },
+      { header: 'Programme', value: (record) => record.programme },
+      { header: 'Supervisor', value: (record) => record.supervisor },
+      { header: 'Status', value: (record) => record.status },
+      { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
+      { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
+      { header: 'Waiting On', value: (record) => record.waitingOn || '' },
+      { header: 'Appointment Status', value: (record) => record.appointmentLifecycle?.status || '' },
+      { header: 'End Outcome', value: (record) => record.appointmentLifecycle?.endOutcome || '' },
+      { header: 'End Reason', value: (record) => record.appointmentLifecycle?.endReason || '' },
+      { header: 'Ended At', value: (record) => record.appointmentLifecycle?.endedAt || '' },
+      { header: 'Ended By', value: (record) => record.appointmentLifecycle?.endedBy || '' },
+      { header: 'Supersedes Appointment ID', value: (record) => record.appointmentLifecycle?.supersedesAppointmentId ?? '' },
+      { header: 'Replacement Appointment ID', value: (record) => record.appointmentLifecycle?.replacementAppointmentId ?? '' },
+      { header: 'Requested Replacement Appointment ID', value: (record) => record.replacesAppointmentId ?? '' },
+      { header: 'Replacement Reason', value: (record) => record.replacementReason || '' },
+      { header: 'Updated Date', value: (record) => record.updatedDate },
+    ]);
+    showToast(`Downloaded supervisor_appointments_report.csv with ${orderedFilteredRecords.length} records.`);
   };
 
   if (routeView === 'workload') {
     return (
-      <SupervisorWorkloadMonitoring onBack={navigateToList} />
+      <SupervisorWorkloadMonitoring onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
     );
   }
 
@@ -192,9 +239,28 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           }}
           subtitleClassName="leading-relaxed"
           actions={(
-            <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-              SESSION 2024/2025
-            </div>
+            <>
+              <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
+                View Dossier
+              </PortalButton>
+              {r.appointmentLifecycle?.status === 'ACTIVE' && (
+                <AppointmentEndControl
+                  label="Supervisor Appointment"
+                  onSubmit={async (outcome, reason) => {
+                    await endSupervisorAppointment(
+                      r.appointmentLifecycle!.appointmentId,
+                      outcome,
+                      reason,
+                    );
+                    showToast('Supervisor appointment ended and workload released.');
+                    await loadRecords();
+                  }}
+                />
+              )}
+              <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+                {r.semester || 'Legacy / Unassigned'}
+              </div>
+            </>
           )}
         />
 
@@ -244,7 +310,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Semester
                   </span>
                   <span className="text-xs font-bold text-brand-navy block mt-1">
-                    {r.semester || 'Sem 1 2024/2025'}
+                    {r.semester || 'Legacy / Unassigned'}
                   </span>
                 </div>
 
@@ -253,7 +319,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Email
                   </span>
                   <span className="text-xs font-semibold text-brand-navy hover:text-blue-600 block mt-1 break-all select-all">
-                    {r.email || `${r.studentName.toLowerCase().replace(/\s+/g, '')}@student.fsktm.edu.my`}
+                    {r.email || 'Not recorded'}
                   </span>
                 </div>
               </div>
@@ -272,35 +338,35 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Appointment ID</span>
                   <span className="font-mono font-black text-brand-navy">
-                    {r.appointmentId || 'SV-APT-2025-014'}
+                    {r.appointmentId || 'Not assigned'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Supervisor</span>
                   <span className="font-black text-brand-navy">
-                    {r.supervisor === 'Not Assigned' ? 'Dr. Siti Noor' : r.supervisor}
+                    {r.supervisor}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Workload</span>
                   <span className="font-black text-brand-navy">
-                    {r.status === 'No Supervisor' ? '4/5 Supervisees' : (r.workloadLimit || '4/5 Supervisees')}
+                    {r.workloadLimit || 'Not available'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Approved Date</span>
                   <span className="font-bold text-brand-navy">
-                    {r.status === 'Pending' || r.status === 'No Supervisor' ? '13 Oct 2025' : (r.approvedDate || '13 Oct 2025')}
+                    {r.approvedDate || '-'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5">
                   <span className="font-semibold text-slate-400 uppercase text-[10px]">Released Date</span>
                   <span className="font-bold text-brand-navy">
-                    {r.status === 'Pending' || r.status === 'No Supervisor' ? '14 Oct 2025' : (r.releasedDate || '14 Oct 2025')}
+                    {r.releasedDate || '-'}
                   </span>
                 </div>
               </div>
@@ -349,10 +415,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-5 space-y-2">
                 <h4 className="text-sm font-extrabold text-brand-navy leading-snug">
-                  {r.researchTopic || '"Blockchain-Based Verification Framework for Academic Credentials"'}
+                  {r.researchTopic || 'No research title recorded'}
                 </h4>
                 <span className="text-[10.5px] font-black text-slate-500 block tracking-wide">
-                  Area: {r.researchArea || 'Blockchain / Academic Credential Verification'}
+                  Area: {r.researchArea || 'Not recorded'}
                 </span>
               </div>
 
@@ -361,7 +427,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   ABSTRACT
                 </span>
                 <p className="text-slate-600 text-xs font-semibold leading-relaxed">
-                  {r.abstract || 'This research explores how blockchain can be used to verify academic credentials securely, reduce document fraud, and improve trust in postgraduate academic records. By leveraging decentralized ledgers and smart contracts, the study aims to create a tamper-proof system for real-time validation of degrees and transcripts across international institutional boundaries.'}
+                  {r.abstract || 'No research abstract recorded.'}
                 </p>
               </div>
             </div>
@@ -399,6 +465,38 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               )}
             </div>
 
+            {r.appointmentLifecycle && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
+                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
+                  <Calendar className="w-4.5 h-4.5 text-brand-navy" />
+                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                    Appointment Lifecycle
+                  </span>
+                </div>
+                {r.appointmentLifecycle.endReason && (
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase text-slate-500">
+                      {r.appointmentLifecycle.endOutcome || 'Ended'}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-700">{r.appointmentLifecycle.endReason}</p>
+                  </div>
+                )}
+                {r.appointmentLifecycle.lifecycle?.length ? (
+                  <div className="space-y-4 border-l-2 border-slate-150 pl-4">
+                    {[...r.appointmentLifecycle.lifecycle].reverse().map((event) => (
+                      <div key={event.id}>
+                        <p className="text-xs font-extrabold text-brand-navy">{event.action.replaceAll('_', ' ')}</p>
+                        <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
+                        {event.reason && <p className="mt-1 text-[10px] font-semibold text-slate-600">{event.reason}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-400">No lifecycle events were recorded for this legacy appointment.</p>
+                )}
+              </div>
+            )}
+
             {/* Related Panel Status Card */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
@@ -411,130 +509,37 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-4 flex items-center justify-between mb-4 shadow-3xs">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-brand-navy text-white font-black text-xs rounded-lg flex items-center justify-center shrink-0">
-                    {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'AM'}
+                    {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : '--'}
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Assoc. Prof. Dr. Amina Malik'}</h5>
+                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Not assigned'}</h5>
                     <p className="text-[10px] font-bold text-slate-400 mt-0.5">Internal Panel Member</p>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Assigned</span>
-                  <span className="text-xs font-black text-brand-navy block mt-1">{r.panelAssignedDate || '22 Nov 2025'}</span>
+                  <span className="text-xs font-black text-brand-navy block mt-1">{r.panelAssignedDate || '-'}</span>
                 </div>
               </div>
 
-              <button 
-                onClick={() => showToast(`Opening panel member record page for ${r.panelMemberName || 'Assoc. Prof. Dr. Amina Malik'}`)} 
-                className="w-full py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center font-sans font-bold"
-              >
-                View Panel Record
-              </button>
+              <p className="text-[10px] font-semibold text-slate-400">
+                Open Panel Appointments for persisted panel workflow details.
+              </p>
             </div>
 
           </div>
 
         </div>
 
-        {/* Related Files block */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left mt-6">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-left shadow-3xs">
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
-                Related Files
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 block mt-1">
-                View and authenticate candidate research papers and credentials slips.
-              </span>
+              <span className="block text-xs font-extrabold uppercase tracking-wider text-brand-navy">Submitted documents</span>
+              <span className="mt-1 block text-[10px] font-bold text-slate-400">Private files attached to this supervisor application.</span>
             </div>
-            <span className="bg-[#f1f5f9] text-slate-650 border border-slate-200 px-3 py-1 font-black uppercase text-[9px] tracking-wider rounded-full">
-              3 Files Uploaded
-            </span>
+            <StatusBadge tone="neutral">{r.documents?.length || 0} recorded</StatusBadge>
           </div>
-
-          <div className="overflow-x-auto text-xs">
-            <table className="data-table min-w-[650px]">
-              <thead>
-                <tr className="data-thead bg-slate-50 select-none">
-                  <th className="data-th">File Name</th>
-                  <th className="data-th">Category</th>
-                  <th className="data-th">Uploaded Date</th>
-                  <th className="data-th text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {/* File 1 */}
-                <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="data-td-strong flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span>Proposal.pdf</span>
-                  </td>
-                  <td className="data-td">
-                    Research Proposal
-                  </td>
-                  <td className="data-td">
-                    10 Oct 2025
-                  </td>
-                  <td className="data-td text-center">
-                    <button 
-                      onClick={() => showToast("Opening document: Proposal.pdf")} 
-                      className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>View</span>
-                    </button>
-                  </td>
-                </tr>
-
-                {/* File 2 */}
-                <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="data-td-strong flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span>Supervisor Appointment Letter.pdf</span>
-                  </td>
-                  <td className="data-td">
-                    Official Letter
-                  </td>
-                  <td className="data-td">
-                    14 Oct 2025
-                  </td>
-                  <td className="data-td text-center">
-                    <button 
-                      onClick={() => showToast("Opening document: Supervisor Appointment Letter.pdf")} 
-                      className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>View</span>
-                    </button>
-                  </td>
-                </tr>
-
-                {/* File 3 */}
-                <tr className="hover:bg-slate-50/50 transition-colors">
-                  <td className="data-td-strong flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span>Student Profile.pdf</span>
-                  </td>
-                  <td className="data-td">
-                    Student Record
-                  </td>
-                  <td className="data-td">
-                    10 Oct 2025
-                  </td>
-                  <td className="data-td text-center">
-                    <button 
-                      onClick={() => showToast("Opening document: Student Profile.pdf")} 
-                      className="inline-flex items-center gap-1.5 hover:text-blue-600 font-extrabold text-blue-500 transition cursor-pointer"
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>View</span>
-                    </button>
-                  </td>
-                </tr>
-
-              </tbody>
-            </table>
-          </div>
+          <SupervisorDocumentsList applicationId={r.applicationId} documents={r.documents} />
         </div>
 
         {/* Notice Alert Banner */}
@@ -563,6 +568,11 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         title="Supervisor Appointment Management"
         subtitle="Monitor supervisor appointment records, workload distribution, and records needing attention."
         subtitleClassName="leading-relaxed max-w-3xl"
+        actions={(
+          <PortalButton variant="secondary" onClick={onNavigateToRequirements}>
+            Document Requirements
+          </PortalButton>
+        )}
       />
 
       {/* 4 Vitals Summary Cards matching wireframe exactly */}
@@ -575,7 +585,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Students Without Supervisor
             </span>
             <span className="text-3xl font-black text-brand-navy block pt-1">
-              12
+              {recordSummary.withoutSupervisor}
             </span>
             <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="danger" pulse />
@@ -594,7 +604,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Pending Records
             </span>
             <span className="text-3xl font-black text-brand-navy block pt-1">
-              8
+              {recordSummary.pending}
             </span>
             <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="info" />
@@ -613,7 +623,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Approved Supervisors
             </span>
             <span className="text-3xl font-black text-slate-850 block pt-1">
-              126
+              {recordSummary.approved}
             </span>
             <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="success" />
@@ -632,7 +642,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               Workload Alerts
             </span>
             <span className="text-3xl font-black text-amber-500 block pt-1">
-              3
+              {recordSummary.workloadAlerts}
             </span>
             <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="warning" pulse />
@@ -729,7 +739,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 
                 <div className="flex flex-wrap gap-1.5">
-                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
+                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Ended', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
                     const isActive = activeTab === tab;
                     return (
                       <button
@@ -774,7 +784,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
           {/* Supervisor Appointment Records Card Table */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
                   Supervisor Appointment Records
@@ -784,17 +794,35 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </span>
               </div>
 
-              <button
-                onClick={handleExportData}
-                className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Export Data</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Sort</span>
+                  <select
+                    value={sortOrder}
+                    onChange={(event) => {
+                      setSortOrder(event.target.value as 'default' | 'longestWaiting');
+                      setCurrentPage(1);
+                    }}
+                    className="form-control form-control-sm min-w-36 normal-case"
+                    aria-label="Sort supervisor appointment records"
+                  >
+                    <option value="default">Default order</option>
+                    <option value="longestWaiting">Longest waiting</option>
+                  </select>
+                </label>
+                <button
+                  onClick={handleExportData}
+                  className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export Data</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="data-table min-w-[700px] text-xs">
+              <table className="data-table min-w-[820px] text-xs">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
                     <th className="data-th">Student ID</th>
@@ -802,6 +830,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     <th className="data-th">Programme</th>
                     <th className="data-th">Supervisor</th>
                     <th className="data-th text-center">Status</th>
+                    <th className="data-th">Waiting</th>
                     <th className="data-th">Updated Date</th>
                     <th className="data-th text-center">Action</th>
                   </tr>
@@ -809,13 +838,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <LoadingState message="Loading supervisor appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -876,6 +905,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                           </div>
                         </td>
 
+                        <td className="data-td font-semibold text-slate-500">
+                          {formatSupervisorWaiting(r)}
+                        </td>
+
                         {/* Updated Date */}
                         <td className="data-td">
                           {r.updatedDate}
@@ -883,22 +916,30 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
                         {/* Action - View Button */}
                         <td className="data-td text-center">
-                          <button
-                            onClick={() => {
-                              onNavigateToRecord?.(supervisorRecordRouteKey(r));
-                              showToast(`Loaded supervisor details for ${r.studentName}`);
-                            }}
-                            className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
-                          >
-                            View
-                          </button>
+                          <div className="flex flex-wrap justify-center gap-2">
+                            <button
+                              onClick={() => onNavigateToDossier?.(r.studentId)}
+                              className="px-3 py-1.5 border border-slate-200 bg-white text-blue-700 font-extrabold text-[10px] uppercase rounded-lg"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => {
+                                onNavigateToRecord?.(supervisorRecordRouteKey(r));
+                                showToast(`Loaded supervisor details for ${r.studentName}`);
+                              }}
+                              className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
 
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
                         No supervisor records found matching the applied criteria.
                       </td>
                     </tr>
@@ -973,7 +1014,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Students without approved supervisor
                   </h4>
                   <span className="text-[10px] font-bold text-rose-600">
-                    12 records outstanding
+                    {recordSummary.withoutSupervisor} records outstanding
                   </span>
                 </div>
                 <button
@@ -991,11 +1032,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
                   <h4 className="font-extrabold text-brand-navy text-xs">
-                    Supervisor records pending over 7 days
+                    Supervisor records awaiting workflow action
                   </h4>
-                  <span className="text-[10px] font-bold text-amber-600">
-                    4 records in queue
-                  </span>
+                  <div className="text-[10px] font-bold text-amber-600 space-y-0.5">
+                    <span className="block">{recordSummary.pending} records in queue</span>
+                    <span className="block">Longest waiting: {longestWaitingText}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -1015,7 +1057,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     Lecturers near workload limit
                   </h4>
                   <span className="text-[10px] font-bold text-amber-600">
-                    3 lecturers identified
+                    {recordSummary.workloadAlerts} workload alert records
                   </span>
                 </div>
                 <button
@@ -1024,23 +1066,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     setCurrentPage(1);
                     showToast("Filtering to 'Workload Alert' records.");
                   }}
-                  className="text-xs font-extrabold text-blue-600 hover:underline cursor-pointer focus:outline-none"
-                >
-                  Open
-                </button>
-              </div>
-
-              <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
-                    Missing confirmation letters
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    2 records requiring file
-                  </span>
-                </div>
-                <button
-                  onClick={() => showToast("Loading checklist validation for outstanding digital acceptance slips...")}
                   className="text-xs font-extrabold text-blue-600 hover:underline cursor-pointer focus:outline-none"
                 >
                   Open
@@ -1060,48 +1085,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             </div>
 
             <div className="p-5 space-y-4 font-sans text-xs">
-              
-              {/* Dr Siti Noor */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-brand-navy font-extrabold">Dr. Siti Noor</span>
-                  <span className="text-amber-600 uppercase text-[9px] tracking-wide font-black">Near Limit</span>
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
-                  <span>4 / 5 students assigned</span>
-                </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: '80%' }} />
-                </div>
-              </div>
-
-              {/* Dr Aris Ghaffar */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-brand-navy font-extrabold">Dr. Aris Ghaffar</span>
-                  <span className="text-red-650 uppercase text-[9px] tracking-wide font-black">Full</span>
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
-                  <span>5 / 5 students assigned</span>
-                </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-red-650 rounded-full" style={{ width: '100%' }} />
-                </div>
-              </div>
-
-              {/* Dr Wey Cheng */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] font-bold">
-                  <span className="text-brand-navy font-extrabold">Dr. Wey Cheng</span>
-                  <span className="text-emerald-600 uppercase text-[9px] tracking-wide font-black">Available</span>
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
-                  <span>3 / 5 students assigned</span>
-                </div>
-                <div className="w-full h-2 bg-slate-105 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '60%' }} />
-                </div>
-              </div>
+              <p className="font-semibold leading-relaxed text-slate-500">
+                Open workload monitoring for current appointment counts, pending reservations, and configured limits.
+              </p>
 
               {/* View All Workload router button */}
               <button
@@ -1126,14 +1112,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               </span>
             </div>
             <p className="text-slate-650 text-xs font-semibold leading-relaxed">
-              All supervisor appointments must be ratified by the Postgraduate Committee after initial department approval.
+              Submission document requirements are centrally configured and snapshot when each application is created.
             </p>
             <button
-              onClick={() => showToast("Opening FSKTM academic policy outline document (PDF)...")}
+              onClick={onNavigateToRequirements}
               className="inline-flex items-center gap-1.5 text-xs font-extrabold text-blue-600 hover:text-blue-800 hover:underline mt-1 cursor-pointer"
             >
-              <span>Read Policy Document</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Manage Document Requirements</span>
             </button>
           </div>
 

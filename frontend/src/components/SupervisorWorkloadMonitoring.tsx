@@ -3,771 +3,530 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Search, 
-  SlidersHorizontal, 
-  Download, 
-  Eye, 
-  Info, 
-  Users, 
-  AlertTriangle, 
-  CheckCircle, 
-  Mail, 
-  BookOpen,
-  AlertCircle,
-  FileText,
-  User,
-  Filter
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  Filter,
+  Gauge,
+  Info,
+  Search,
+  Users,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
-import { RightDrawer } from './RightDrawer';
 
-interface WorkloadRecord {
-  lecturerId: string;
-  lecturerName: string;
-  department: string;
-  currentStudents: number;
-  workloadLimit: number;
-  availability: 'Available' | 'Near Limit' | 'Full Load';
-  email: string;
-  supervisees: Array<{
-    id: string;
-    name: string;
-    programme: string;
-    status: string;
-    topic: string;
-  }>;
-}
+import { getSupervisorWorkloads } from '../services';
+import type { SupervisorWorkloadRecord } from '../types';
+import { downloadCsv } from '../utils/csvExport';
+import { capacityStateLabel, capacityUtilization } from '../utils/lecturerCapacity';
+import {
+  PageHeader,
+  PortalButton,
+  PortalToast,
+  ProgressBar,
+  StatusBadge,
+  StatusDot,
+  getStatusBadgeTone,
+} from './PortalPrimitives';
+import { RightDrawer } from './RightDrawer';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface SupervisorWorkloadMonitoringProps {
   onBack: () => void;
+  onOpenCapacity?: () => void;
 }
 
-export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoringProps> = ({ onBack }) => {
-  // Toast notifications state
+const ITEMS_PER_PAGE = 5;
+
+export const SupervisorWorkloadMonitoring: React.FC<
+  SupervisorWorkloadMonitoringProps
+> = ({ onBack, onOpenCapacity }) => {
+  const [records, setRecords] = useState<SupervisorWorkloadRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  // Static/dynamic lists
-  const rawSupervisorRecords: WorkloadRecord[] = [
-    {
-      lecturerId: 'LEC-001',
-      lecturerName: 'Dr. Siti Noor',
-      department: 'Faculty of Computing',
-      currentStudents: 4,
-      workloadLimit: 10,
-      availability: 'Near Limit',
-      email: 'siti.noor@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2301184', name: 'Sarah Natasha', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Blockchain-Based Verification Framework for Academic Credentials' },
-        { id: 'MEA2401920', name: 'Zahra Ahmed', programme: 'MSc. Computer Science', status: 'Workload Alert', topic: 'Self-Supervised Contrastive Learning in Remote Sensing' },
-        { id: 'MEA2301011', name: 'Adam Harith', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Dynamic Real-time Intrusion Prevention on AWS Gateways' },
-        { id: 'MEA2301140', name: 'Jessica Wong', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Heuristic Query Optimization in Graph DBs' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-002',
-      lecturerName: 'Dr. Aris Ghaffar',
-      department: 'Faculty of Computing',
-      currentStudents: 5,
-      workloadLimit: 10,
-      availability: 'Full Load',
-      email: 'aris.ghaffar@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2401023', name: 'Farah Nabila', programme: 'MSc. Data Science', status: 'Approved', topic: 'Graph Neural Networks for Financial Fraud Identification' },
-        { id: 'MEA2400712', name: 'Nur Aina', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Machine Learning Approaches for Dynamic Malware Classification' },
-        { id: 'MEA2301103', name: 'Tariq Ibrahim', programme: 'MSc. Data Science', status: 'Approved', topic: 'Anomaly Detection in Credit Transactions' },
-        { id: 'MEA2301224', name: 'Siti Aminah', programme: 'MSc. Data Science', status: 'Approved', topic: 'Text Analytics on Multilingual Local Scripts' },
-        { id: 'MEA2301550', name: 'Raju Krishnan', programme: 'MSc. Data Science', status: 'Approved', topic: 'Time-series Forecasting for Retail Stock Optimization' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-003',
-      lecturerName: 'Dr. Wey Cheng',
-      department: 'Faculty of Computing',
-      currentStudents: 3,
-      workloadLimit: 10,
-      availability: 'Available',
-      email: 'weycheng@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2400301', name: 'Lee Wei', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Decentralized Microservice Orchestration with Raft Consensus' },
-        { id: 'MEA2400299', name: 'Shahrul Nizam', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Edge Computing Architectures for Real-time Video Streaming' },
-        { id: 'MEA2400511', name: 'Tan Yu Xuan', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Neural Network Compression for Real-time Inference' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-004',
-      lecturerName: 'Assoc. Prof. Dr. Amina Malik',
-      department: 'Data Science',
-      currentStudents: 2,
-      workloadLimit: 10,
-      availability: 'Available',
-      email: 'amina.malik@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2401788', name: 'Farhan Hanif', programme: 'MSc. Information Technology', status: 'Approved', topic: 'Cloud Resource Orchestration for IoT Event Processing' },
-        { id: 'MEA2401123', name: 'Wong Yee Ling', programme: 'MSc. Data Science', status: 'Approved', topic: 'Natural Language Interfaces for Enterprise DB Analytics' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-005',
-      lecturerName: 'Prof. Dr. Ahmad Kamil',
-      department: 'Software Engineering',
-      currentStudents: 1,
-      workloadLimit: 10,
-      availability: 'Available',
-      email: 'ahmad.kamil@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2401509', name: 'Lim Wei Sheng', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Refactoring Automation of Monolith Heritage Apps to Micro-APIs' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-006',
-      lecturerName: 'Dr. Robert Chen',
-      department: 'Software Engineering',
-      currentStudents: 0,
-      workloadLimit: 10,
-      availability: 'Available',
-      email: 'robert.chen@fsktm.edu.my',
-      supervisees: []
-    },
-    {
-      lecturerId: 'LEC-007',
-      lecturerName: 'Dr. Sarah Lim',
-      department: 'Faculty of Computing',
-      currentStudents: 3,
-      workloadLimit: 10,
-      availability: 'Available',
-      email: 'sarah.lim@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2401415', name: 'Azizul Ibrahim', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Automated Security Patch Verification via Static Code Logic' },
-        { id: 'MEA2401111', name: 'Ahmad Rafiq', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Securing Decentralized Smart Grid Frameworks' },
-        { id: 'MEA2401222', name: 'Nurul Huda', programme: 'MSc. Computer Science', status: 'Approved', topic: 'Image De-noising in Complex Healthcare Diagnostics' }
-      ]
-    },
-    {
-      lecturerId: 'LEC-008',
-      lecturerName: 'Dr. Jane Doe',
-      department: 'Data Science',
-      currentStudents: 4,
-      workloadLimit: 10,
-      availability: 'Near Limit',
-      email: 'jane.doe@fsktm.edu.my',
-      supervisees: [
-        { id: 'MEA2401612', name: 'Siddharth Nair', programme: 'MSc. Data Science', status: 'Approved', topic: 'Clustering Approaches for High-Dimensional Genomic Datasets' },
-        { id: 'MEA2402202', name: 'Mei Ling Lan', programme: 'MSc. Data Science', status: 'Approved', topic: 'Sentiment Extraction on Informal Social Conversational Feeds' },
-        { id: 'MEA2402199', name: 'Zulkifli Razak', programme: 'MSc. Data Science', status: 'Approved', topic: 'Financial Portfolio Re-balancing via Genetic Optimization' },
-        { id: 'MEA2402302', name: 'Anisah Haron', programme: 'MSc. Data Science', status: 'Approved', topic: 'Graph-Based Modeling of Medical Treatment Pathways' }
-      ]
-    }
-  ];
-
-  // Search and Filter States
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDept, setSelectedDept] = useState('All Departments');
-  const [selectedSemester, setSelectedSemester] = useState('Semester 1, 2024/2025');
+  const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
-
-  // Triggered filters state
   const [filters, setFilters] = useState({
     search: '',
     department: 'All Departments',
-    status: 'All Statuses'
+    status: 'All Statuses',
   });
-
-  // Table pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [selectedLecturer, setSelectedLecturer] =
+    useState<SupervisorWorkloadRecord | null>(null);
 
-  // Selected lecturer profile state for detail drawer
-  const [selectedLecturer, setSelectedLecturer] = useState<WorkloadRecord | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  // Apply filters trigger
-  const handleApplyFilters = () => {
-    setFilters({
-      search: searchTerm,
-      department: selectedDept,
-      status: selectedStatus
-    });
-    setCurrentPage(1);
-    showToast("Filters applied successfully.");
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Filtered dataset
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSupervisorWorkloads()
+      .then(setRecords)
+      .catch((reason) => {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'Supervisor workload could not be loaded.',
+        );
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
+
+  const departments = useMemo(
+    () => Array.from(
+      new Set(records.map((record) => record.department).filter(Boolean)),
+    ).sort(),
+    [records],
+  );
+
   const filteredRecords = useMemo(() => {
-    return rawSupervisorRecords.filter(r => {
-      // Search matches lecturer name or department or ID
-      const query = filters.search.toLowerCase();
-      const matchesSearch = query === '' || 
-        r.lecturerName.toLowerCase().includes(query) || 
-        r.lecturerId.toLowerCase().includes(query) ||
-        r.department.toLowerCase().includes(query);
-
-      // Dept matches
-      const matchesDept = filters.department === 'All Departments' || r.department === filters.department;
-
-      // Status matches
-      const matchesStatus = filters.status === 'All Statuses' || r.availability === filters.status;
-
-      return matchesSearch && matchesDept && matchesStatus;
+    const query = filters.search.trim().toLowerCase();
+    return records.filter((record) => {
+      const matchesSearch = !query
+        || record.lecturerName.toLowerCase().includes(query)
+        || record.lecturerId.toLowerCase().includes(query)
+        || record.department.toLowerCase().includes(query);
+      const matchesDepartment = filters.department === 'All Departments'
+        || record.department === filters.department;
+      const matchesStatus = filters.status === 'All Statuses'
+        || record.availability === filters.status;
+      return matchesSearch && matchesDepartment && matchesStatus;
     });
-  }, [filters]);
+  }, [filters, records]);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
-  const paginatedRecords = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredRecords, currentPage]);
+  const summary = useMemo(() => {
+    const total = records.length;
+    const available = records.filter(
+      (record) => record.availability === 'Available',
+    ).length;
+    const nearLimit = records.filter(
+      (record) => record.availability === 'Near Limit',
+    ).length;
+    const fullLoad = records.filter(
+      (record) => record.availability === 'Full Load',
+    ).length;
+    const currentStudents = records.reduce(
+      (totalStudents, record) => totalStudents + record.currentStudents,
+      0,
+    );
+    return {
+      total,
+      available,
+      nearLimit,
+      fullLoad,
+      average: total > 0 ? currentStudents / total : 0,
+    };
+  }, [records]);
 
-  // Summary counts based on RAW (unfiltered) data for overall correctness
-  const totalSupervisorsCount = 42; // Real static figure
-  const countAvailable = 31;       // 73% of 42 is ~31
-  const countNearLimit = 8;
-  const countFullLoad = 3;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRecords.length / ITEMS_PER_PAGE),
+  );
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedRecords = filteredRecords.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE,
+  );
 
-  // Export CSV Action
-  const handleExportCSV = () => {
-    const headers = 'Lecturer ID,Lecturer Name,Department,Current Students,Workload Limit,Availability,Email\n';
-    const rows = filteredRecords.map(r => 
-      `"${r.lecturerId}","${r.lecturerName}","${r.department}",${r.currentStudents},${r.workloadLimit},"${r.availability}","${r.email}"`
-    ).join('\n');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'supervisor_workload_monitoring_report.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const applyFilters = () => {
+    setFilters({
+      search: searchTerm,
+      department: selectedDepartment,
+      status: selectedStatus,
+    });
+    setCurrentPage(1);
+    showToast('Supervisor workload filters applied.');
+  };
 
-    showToast("Exported supervisor_workload_records_report.csv");
+  const exportRecords = () => {
+    downloadCsv(
+      'supervisor-workload-monitoring.csv',
+      filteredRecords,
+      [
+        { header: 'Lecturer ID', value: (record) => record.lecturerId },
+        { header: 'Lecturer Name', value: (record) => record.lecturerName },
+        { header: 'Department', value: (record) => record.department },
+        { header: 'Semester Code', value: (record) => record.semesterCode ?? '' },
+        { header: 'Plan Version', value: (record) => record.capacityPlanVersion ?? '' },
+        { header: 'Capacity State', value: (record) => record.capacityState ?? '' },
+        { header: 'Active Load', value: (record) => record.currentStudents },
+        { header: 'Reserved Load', value: () => 0 },
+        { header: 'Available Slots', value: (record) => record.availableSlots ?? 0 },
+        { header: 'Unavailable Until', value: (record) => record.unavailableUntil ?? '' },
+        { header: 'Current Students', value: (record) => record.currentStudents },
+        { header: 'Workload Limit', value: (record) => record.workloadLimit },
+        { header: 'Availability', value: (record) => record.availability },
+        { header: 'Email', value: (record) => record.email },
+      ],
+    );
+    showToast('Supervisor workload CSV exported.');
   };
 
   return (
-    <div id="workload-monitoring-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
-      
+    <div className="space-y-6 animate-fade-in text-left text-xs">
       <PortalToast message={toastMessage} />
 
       <PageHeader
         title="Supervisor Workload Monitoring"
-        subtitle="Monitor lecturer supervision loads by semester, department, and availability."
+        subtitle="Monitor current active supervision loads and configured capacity."
         backLabel="Back to Supervisor Appointment Management"
         onBack={onBack}
-        subtitleClassName="leading-relaxed"
         actions={(
-        <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-          SESSION 2024/2025
-        </div>
+          <>
+            {onOpenCapacity && <PortalButton icon={Gauge} onClick={onOpenCapacity}>Manage Capacity</PortalButton>}
+            <span className="bg-brand-navy text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-lg">
+              Live workload
+            </span>
+          </>
         )}
       />
 
-      {/* Summary Cards Grid layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Card 1: Total Supervisors */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-3xs relative overflow-hidden flex flex-col justify-between">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Total Supervisors
-          </span>
-          <h2 className="text-3xl font-black text-brand-navy mt-3">
-            {totalSupervisorsCount}
-          </h2>
-        </div>
+      {loading && <LoadingState message="Loading supervisor workload..." />}
+      {!loading && error && (
+        <ErrorState message={error} onRetry={loadRecords} />
+      )}
 
-        {/* Card 2: Available */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-3xs relative overflow-hidden flex flex-col justify-between border-l-4 border-l-emerald-500">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Available
-          </span>
-          <h2 className="text-3xl font-black text-emerald-600 mt-3 flex items-baseline gap-2">
-            <span>{countAvailable}</span>
-            <span className="text-xs font-bold text-slate-400">73%</span>
-          </h2>
-        </div>
-
-        {/* Card 3: Near Limit */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-3xs relative overflow-hidden flex flex-col justify-between border-l-4 border-l-amber-500">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Near Limit
-          </span>
-          <h2 className="text-3xl font-black text-amber-550 mt-3 text-amber-600">
-            {countNearLimit}
-          </h2>
-        </div>
-
-        {/* Card 4: Full Load */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-3xs relative overflow-hidden flex flex-col justify-between border-l-4 border-l-rose-500">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Full Load
-          </span>
-          <h2 className="text-3xl font-black text-rose-500 mt-3">
-            {countFullLoad}
-          </h2>
-        </div>
-
-      </div>
-
-      {/* Middle Block: Filters & Workload Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Filter Card (8 cols) */}
-        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs space-y-5">
-          <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-            <Filter className="w-4 h-4 text-brand-navy" />
-            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-              Filter Supervisors
-            </span>
-          </div>
-
-          <div className="filter-toolbar grid grid-cols-1 md:grid-cols-2 gap-4 text-left font-sans">
-            
-            {/* SEARCH PANEL */}
-            <div className="space-y-1.5 col-span-1 md:col-span-1">
-              <label className="form-label block">
-                Search
-              </label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search lecturer name or department..."
-                  className="form-control form-control-sm pl-10 pr-4"
-                />
-              </div>
-            </div>
-
-            {/* DEPARTMENT FILTER */}
-            <div className="space-y-1.5">
-              <label className="form-label block">
-                Department
-              </label>
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="form-control form-control-sm cursor-pointer"
+      {!loading && !error && (
+        <>
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              ['Total Supervisors', summary.total, 'text-brand-navy'],
+              ['Available', summary.available, 'text-emerald-600'],
+              ['Near Limit', summary.nearLimit, 'text-amber-600'],
+              ['Full Load', summary.fullLoad, 'text-rose-600'],
+            ].map(([label, value, tone]) => (
+              <div
+                key={String(label)}
+                className="bg-white border border-slate-200 rounded-lg p-5 shadow-3xs"
               >
-                <option value="All Departments">All Departments</option>
-                <option value="Faculty of Computing">Faculty of Computing</option>
-                <option value="Data Science">Data Science</option>
-                <option value="Software Engineering">Software Engineering</option>
-              </select>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  {label}
+                </span>
+                <div className={`text-3xl font-black mt-3 ${tone}`}>
+                  {value}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-8 bg-white border border-slate-200 p-6 space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Filter className="w-4 h-4 text-brand-navy" />
+                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                  Filter Supervisors
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label className="space-y-1.5">
+                  <span className="form-label block">Search</span>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      className="form-control form-control-sm pl-10"
+                      placeholder="Name, ID, or department"
+                    />
+                  </div>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="form-label block">Department</span>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(event) => setSelectedDepartment(event.target.value)}
+                    className="form-control form-control-sm"
+                  >
+                    <option>All Departments</option>
+                    {departments.map((department) => (
+                      <option key={department}>{department}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="form-label block">Workload Status</span>
+                  <select
+                    value={selectedStatus}
+                    onChange={(event) => setSelectedStatus(event.target.value)}
+                    className="form-control form-control-sm"
+                  >
+                    <option>All Statuses</option>
+                    <option>Available</option>
+                    <option>Near Limit</option>
+                    <option>Full Load</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex justify-end">
+                <PortalButton onClick={applyFilters} variant="primary" size="sm">
+                  Apply Filters
+                </PortalButton>
+              </div>
             </div>
 
-            {/* SEMESTER FILTER */}
-            <div className="space-y-1.5">
-              <label className="form-label block">
-                Semester
-              </label>
-              <select
-                value={selectedSemester}
-                onChange={(e) => setSelectedSemester(e.target.value)}
-                className="form-control form-control-sm cursor-pointer"
+            <div className="lg:col-span-4 bg-white border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Users className="w-4 h-4 text-brand-navy" />
+                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                  Workload Distribution
+                </h2>
+              </div>
+              {[
+                ['Available', summary.available, 'success'],
+                ['Near Limit', summary.nearLimit, 'warning'],
+                ['Full Load', summary.fullLoad, 'danger'],
+              ].map(([label, value, tone]) => (
+                <div key={String(label)} className="space-y-1.5">
+                  <div className="flex justify-between font-bold text-slate-600">
+                    <span className="flex items-center gap-2">
+                      <StatusDot tone={tone as 'success' | 'warning' | 'danger'} />
+                      {label}
+                    </span>
+                    <span>{value}</span>
+                  </div>
+                  <ProgressBar
+                    value={Number(value)}
+                    max={Math.max(summary.total, 1)}
+                    tone={tone as 'success' | 'warning' | 'danger'}
+                  />
+                </div>
+              ))}
+              <p className="pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                Average active load: {summary.average.toFixed(1)} students per supervisor.
+              </p>
+            </div>
+          </section>
+
+          <section className="bg-white border border-slate-200 overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                  Supervisor Workload Records
+                </h2>
+                <p className="text-[10px] font-semibold text-slate-400 mt-1">
+                  Active appointments against each configured supervision limit.
+                </p>
+              </div>
+              <PortalButton
+                onClick={exportRecords}
+                variant="secondary"
+                size="sm"
+                icon={Download}
               >
-                <option value="Semester 1, 2024/2025">Semester 1, 2024/2025</option>
-                <option value="Semester 2, 2023/2024">Semester 2, 2023/2024</option>
-              </select>
+                Export CSV
+              </PortalButton>
             </div>
 
-            {/* WORKLOAD STATUS FILTER */}
-            <div className="space-y-1.5">
-              <label className="form-label block">
-                Workload Status
-              </label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="form-control form-control-sm cursor-pointer"
-              >
-                <option value="All Statuses">All Statuses</option>
-                <option value="Available">Available Only</option>
-                <option value="Near Limit">Near Limit Only</option>
-                <option value="Full Load">Full Load Only</option>
-              </select>
-            </div>
-
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <PortalButton
-              variant="primary"
-              size="lg"
-              icon={SlidersHorizontal}
-              onClick={handleApplyFilters}
-            >
-              Apply Filters
-            </PortalButton>
-          </div>
-        </div>
-
-        {/* Workload Distribution Card (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-3xs flex flex-col justify-between gap-5 h-full">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-              <Users className="w-4.5 h-4.5 text-brand-navy" />
-              <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
-                Workload Distribution
-              </span>
-            </div>
-
-            {/* Distribution metrics as a visual graph bar list */}
-            <div className="space-y-3 pt-1">
-              
-              {/* Available */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
-                  <span className="flex items-center gap-1.5 text-emerald-600">
-                    <StatusDot tone="success" />
-                    Available
-                  </span>
-                  <span>{countAvailable}</span>
-                </div>
-                <ProgressBar value={countAvailable} max={totalSupervisorsCount} tone="success" trackClassName="h-2 bg-slate-100" />
+            {records.length === 0 ? (
+              <EmptyState
+                title="No supervisor workload records"
+                description="No active supervisor profiles are available."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table min-w-[760px]">
+                  <thead>
+                    <tr className="data-thead">
+                      <th className="data-th">Lecturer</th>
+                      <th className="data-th">Department</th>
+                      <th className="data-th text-center">Current</th>
+                      <th className="data-th text-center">Limit</th>
+                      <th className="data-th text-center">Utilization</th>
+                      <th className="data-th text-center">Status</th>
+                      <th className="data-th text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedRecords.map((record) => (
+                      <tr key={record.lecturerId}>
+                        <td className="data-td">
+                          <div className="font-black text-slate-800">
+                            {record.lecturerName}
+                          </div>
+                          <div className="font-mono text-[10px] text-slate-400 mt-1">
+                            {record.lecturerId}
+                          </div>
+                        </td>
+                        <td className="data-td font-semibold text-slate-500">
+                          {record.department || '-'}
+                        </td>
+                        <td className="data-td text-center font-black">
+                          {record.currentStudents}
+                        </td>
+                        <td className="data-td text-center font-black">
+                          {record.workloadLimit}
+                        </td>
+                        <td className="data-td text-center font-bold text-slate-600">
+                          {capacityUtilization(
+                            record.currentStudents,
+                            record.workloadLimit,
+                          )}%
+                        </td>
+                        <td className="data-td text-center">
+                          <StatusBadge
+                            tone={getStatusBadgeTone(record.capacityState ?? record.availability)}
+                            dot
+                          >
+                            {record.capacityState ? capacityStateLabel(record.capacityState) : record.availability}
+                          </StatusBadge>
+                        </td>
+                        <td className="data-td text-center">
+                          <PortalButton
+                            variant="soft"
+                            size="sm"
+                            icon={Eye}
+                            onClick={() => setSelectedLecturer(record)}
+                          >
+                            View
+                          </PortalButton>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            )}
 
-              {/* Near Limit */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
-                  <span className="flex items-center gap-1.5 text-amber-600">
-                    <StatusDot tone="warning" />
-                    Near Limit
+            {filteredRecords.length > 0 && (
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  Showing {(safePage - 1) * ITEMS_PER_PAGE + 1}-
+                  {Math.min(safePage * ITEMS_PER_PAGE, filteredRecords.length)}
+                  {' '}of {filteredRecords.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <PortalButton
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronLeft}
+                    disabled={safePage === 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    aria-label="Previous workload page"
+                  />
+                  <span className="text-xs font-black text-slate-600">
+                    {safePage}/{totalPages}
                   </span>
-                  <span>{countNearLimit}</span>
+                  <PortalButton
+                    variant="secondary"
+                    size="icon"
+                    icon={ChevronRight}
+                    disabled={safePage === totalPages}
+                    onClick={() => setCurrentPage(
+                      (page) => Math.min(totalPages, page + 1),
+                    )}
+                    aria-label="Next workload page"
+                  />
                 </div>
-                <ProgressBar value={countNearLimit} max={totalSupervisorsCount} tone="warning" trackClassName="h-2 bg-slate-100" />
               </div>
+            )}
+          </section>
 
-              {/* Full Load */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[10.5px] font-extrabold text-slate-755">
-                  <span className="flex items-center gap-1.5 text-rose-500">
-                    <StatusDot tone="danger" />
-                    Full Load
-                  </span>
-                  <span>{countFullLoad}</span>
-                </div>
-                <ProgressBar value={countFullLoad} max={totalSupervisorsCount} tone="danger" trackClassName="h-2 bg-slate-100" />
-              </div>
-
-            </div>
-          </div>
-
-          <div className="pt-2 bg-slate-50 border-t border-slate-100 p-3.5 rounded-xl text-left border border-slate-150">
-            <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-              System-wide average supervision load is 2.8 students per supervisor against a cap of 5.0.
+          <div className="bg-blue-50 border border-blue-100 p-5 flex gap-3">
+            <Info className="w-5 h-5 text-blue-600 shrink-0" />
+            <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+              Workload is calculated from persisted active supervisor appointments.
+              Capacity is resolved from the active semester's published plan.
             </p>
           </div>
-        </div>
+        </>
+      )}
 
-      </div>
-
-      {/* Main Table Block */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
-        
-        {/* Table Header and Export */}
-        <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
-              Supervisor Workload Records
-            </span>
-            <span className="text-[10px] font-bold text-slate-400 block mt-1">
-              Showing active supervision slots and real-time coordinator records.
-            </span>
-          </div>
-
-          <PortalButton
-            onClick={handleExportCSV}
-            variant="secondary"
-            size="sm"
-            icon={Download}
-            className="shrink-0"
-          >
-            Export CSV
-          </PortalButton>
-        </div>
-
-        {/* Workload Table */}
-        <div className="overflow-x-auto text-xs">
-          <table className="data-table min-w-[700px]">
-            <thead>
-              <tr className="data-thead bg-slate-50 select-none">
-                <th className="data-th">Lecturer ID</th>
-                <th className="data-th">Lecturer Name</th>
-                <th className="data-th">Department</th>
-                <th className="data-th text-center">Current Students</th>
-                <th className="data-th text-center">Workload Limit</th>
-                <th className="data-th text-center">Availability</th>
-                <th className="data-th text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              
-              {paginatedRecords.length > 0 ? (
-                paginatedRecords.map((r) => {
-                  const initials = r.lecturerName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase();
-                  
-                  return (
-                    <tr key={r.lecturerId} className="hover:bg-slate-50/50 transition-colors">
-                      {/* ID */}
-                      <td className="data-td font-mono font-bold text-slate-500 whitespace-nowrap">
-                        {r.lecturerId}
-                      </td>
-
-                      {/* Name with initials avatar */}
-                      <td className="data-td font-semibold text-slate-800 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-indigo-50/70 border border-indigo-100 text-indigo-600 font-extrabold text-[10px] rounded-lg flex items-center justify-center shrink-0">
-                            {initials || 'SN'}
-                          </div>
-                          <span className="font-extrabold text-slate-800">{r.lecturerName}</span>
-                        </div>
-                      </td>
-
-                      {/* Department */}
-                      <td className="data-td font-bold text-slate-500">
-                        {r.department}
-                      </td>
-
-                      {/* Current supervison students */}
-                      <td className="data-td text-center font-black text-slate-800 text-sm">
-                        {r.currentStudents}
-                      </td>
-
-                      {/* Workload limit */}
-                      <td className="data-td text-center font-extrabold text-slate-500">
-                        {r.workloadLimit}
-                      </td>
-
-                      {/* Availability status chips */}
-                      <td className="data-td text-center select-none whitespace-nowrap">
-                        <StatusBadge
-                          tone={getStatusBadgeTone(r.availability)}
-                          dot
-                          className="text-[9px] px-2.5 py-0.5"
-                        >
-                          {r.availability}
-                        </StatusBadge>
-                      </td>
-
-                      {/* Action */}
-                      <td className="data-td text-center">
-                        <PortalButton
-                          onClick={() => {
-                            setSelectedLecturer(r);
-                            setIsDrawerOpen(true);
-                            showToast(`Loaded supervisee ledger for ${r.lecturerName}`);
-                          }}
-                          variant="soft"
-                          size="sm"
-                          icon={Eye}
-                        >
-                          View
-                        </PortalButton>
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                    No supervisor records found matching the applied filter criteria.
-                  </td>
-                </tr>
-              )}
-
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Footer: Pagination */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} supervisors
-          </span>
-
-          <div className="flex items-center gap-1">
-            <PortalButton
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              variant="secondary"
-              size="icon"
-              className="w-8 h-8"
-              icon={ChevronLeft}
-              aria-label="Previous page"
-            />
-
-            {Array.from({ length: totalPages }).map((_, idx) => (
-              <PortalButton
-                key={idx}
-                onClick={() => setCurrentPage(idx + 1)}
-                variant={currentPage === idx + 1 ? 'primary' : 'secondary'}
-                size="sm"
-                className="w-8 h-8 p-0 text-xs"
-              >
-                {idx + 1}
-              </PortalButton>
-            ))}
-
-            <PortalButton
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              variant="secondary"
-              size="icon"
-              className="w-8 h-8"
-              icon={ChevronRight}
-              aria-label="Next page"
-            />
-          </div>
-        </div>
-
-      </div>
-
-      {/* Notice Banner */}
-      <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs">
-        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
-            Confidential Administrative View
-          </span>
-          <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500 text-slate-500">
-            This module displays comprehensive real-time supervisor listings and availability quotas. Changes to capacity rules, student linkages, or email communication should be carried out via the related panel and mark entry configuration screens.
-          </p>
-        </div>
-      </div>
-
-      {/* Detail Right Drawer */}
       <RightDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        title={selectedLecturer ? `LECTURER WORKLOAD DETAIL: ${selectedLecturer.lecturerId}` : 'Lecturer Workload Detail'}
+        isOpen={selectedLecturer !== null}
+        onClose={() => setSelectedLecturer(null)}
+        title={selectedLecturer
+          ? `Supervisor Workload: ${selectedLecturer.lecturerId}`
+          : 'Supervisor Workload'}
       >
         {selectedLecturer && (
-          <div className="space-y-6 font-sans text-left text-xs">
-            {/* Lecturer quick metadata */}
-            <div className="flex items-center gap-4 bg-slate-50 p-4 border border-slate-105 rounded-2xl">
-              <div className="w-12 h-12 bg-brand-navy text-white font-black text-sm rounded-xl flex items-center justify-center shrink-0">
-                {selectedLecturer.lecturerName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-extrabold text-brand-navy">
-                  {selectedLecturer.lecturerName}
-                </h4>
-                <p className="text-[10px] text-slate-400 font-bold">{selectedLecturer.department}</p>
-              </div>
+          <div className="space-y-5">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="text-sm font-black text-brand-navy">
+                {selectedLecturer.lecturerName}
+              </h3>
+              <p className="text-xs font-semibold text-slate-500 mt-1">
+                {selectedLecturer.department || 'Department not recorded'}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {selectedLecturer.email}
+              </p>
             </div>
-
-            {/* Email and slots status */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider">Email Address</span>
-                <span className="text-xs font-bold text-brand-navy block mt-1 truncate">{selectedLecturer.email}</span>
-              </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-[9px] font-extrabold text-slate-400 block uppercase tracking-wider">Availability</span>
-                <div className="mt-1">
-                  <StatusBadge
-                    tone={getStatusBadgeTone(selectedLecturer.availability)}
-                    dot
-                    className="text-[9px] px-2 py-0.5"
-                  >
-                    {selectedLecturer.availability}
-                  </StatusBadge>
-                </div>
-              </div>
-            </div>
-
-            {/* Slot progress bar */}
-            <div className="space-y-2 border-t border-slate-100 pt-4">
-              <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                <span>Active Supervisee Allocation Slots</span>
-                <span className="text-brand-navy font-black text-xs">
-                  {selectedLecturer.currentStudents} / {selectedLecturer.workloadLimit}
+              <div className="bg-slate-50 p-3">
+                <span className="text-[9px] font-black uppercase text-slate-400">
+                  Active students
                 </span>
-              </div>
-              <ProgressBar
-                value={selectedLecturer.currentStudents}
-                max={selectedLecturer.workloadLimit}
-                tone={selectedLecturer.availability === 'Available' ? 'success' : selectedLecturer.availability === 'Near Limit' ? 'warning' : 'danger'}
-                trackClassName="h-2.5 bg-slate-100"
-              />
-            </div>
-
-            {/* Supervisees list table */}
-            <div className="space-y-3 pt-3 border-t border-slate-100">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                Supervisee Students list ({selectedLecturer.currentStudents})
-              </span>
-
-              {selectedLecturer.supervisees.length > 0 ? (
-                <div className="border border-slate-150 rounded-2xl overflow-hidden shadow-3xs">
-                  <div className="divide-y divide-slate-100 font-sans">
-                    {selectedLecturer.supervisees.map((st) => (
-                      <div key={st.id} className="p-4 hover:bg-slate-55/65 bg-slate-50/20 transition-colors">
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <span className="font-extrabold text-slate-800 text-xs block">{st.name}</span>
-                            <span className="text-[10px] font-mono font-bold text-slate-400 block mt-0.5">{st.id}</span>
-                          </div>
-                          <span className="inline-flex items-center px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md border border-indigo-100 text-[8px] font-black uppercase tracking-wider shrink-0 select-none">
-                            {st.status}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-bold block mt-1.5 leading-relaxed">{st.programme}</span>
-                        <p className="text-[9.5px] italic text-slate-400 mt-2 bg-white p-2 border border-slate-100 rounded-lg">"{st.topic}"</p>
-                      </div>
-                    ))}
-                  </div>
+                <div className="text-xl font-black text-brand-navy mt-1">
+                  {selectedLecturer.currentStudents}
                 </div>
+              </div>
+              <div className="bg-slate-50 p-3">
+                <span className="text-[9px] font-black uppercase text-slate-400">
+                  Configured limit
+                </span>
+                <div className="text-xl font-black text-brand-navy mt-1">
+                  {selectedLecturer.workloadLimit}
+                </div>
+              </div>
+            </div>
+            <div className="border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
+              <div className="flex justify-between gap-3"><span>Semester</span><strong>{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span>Capacity plan</span><strong>{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span>Capacity state</span><strong>{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</strong></div>
+              {selectedLecturer.unavailableUntil && <div className="mt-2 flex justify-between gap-3"><span>Unavailable until</span><strong>{selectedLecturer.unavailableUntil}</strong></div>}
+            </div>
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                Active supervisees
+              </h4>
+              {selectedLecturer.supervisees.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No active supervisees.
+                </p>
               ) : (
-                <div className="py-8 flex flex-col items-center justify-center text-center space-y-2 border border-dashed border-slate-205 rounded-2xl">
-                  <Users className="w-6 h-6 text-slate-300" />
-                  <span className="font-bold text-slate-400 text-[10px] uppercase">No active assignment slots</span>
-                  <p className="text-[9px] text-slate-400 max-w-xs leading-relaxed">Lecturer currently has 0 active student supervision appointments assigned.</p>
+                <div className="space-y-3">
+                  {selectedLecturer.supervisees.map((supervisee) => (
+                    <div
+                      key={supervisee.id}
+                      className="border border-slate-200 p-3"
+                    >
+                      <div className="flex justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-black text-brand-navy">
+                            {supervisee.name}
+                          </div>
+                          <div className="font-mono text-[10px] text-slate-400 mt-1">
+                            {supervisee.id}
+                          </div>
+                        </div>
+                        <StatusBadge tone="success">
+                          {supervisee.status}
+                        </StatusBadge>
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-600 mt-3">
+                        {supervisee.topic}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-2">
+                        {supervisee.programme} · Appointed {supervisee.appointmentDate}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-
-            {/* Admin trigger actions */}
-            <div className="space-y-2 border-t border-slate-100 pt-5">
-              <PortalButton
-                onClick={() => {
-                  showToast(`Drafting notification email to ${selectedLecturer.lecturerName}...`);
-                }} 
-                variant="primary"
-                size="md"
-                icon={Mail}
-                fullWidth
-              >
-                Email Official Workload Inquiry
-              </PortalButton>
-
-              <PortalButton
-                onClick={() => {
-                  showToast("Please use the Marks Entry Period Configuration module to audit evaluation quotas.");
-                }} 
-                variant="secondary"
-                size="md"
-                fullWidth
-              >
-                View Connected Panel Records
-              </PortalButton>
-            </div>
-
           </div>
         )}
       </RightDrawer>
-
     </div>
   );
 };

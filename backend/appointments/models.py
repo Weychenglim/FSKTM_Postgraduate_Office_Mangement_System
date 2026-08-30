@@ -1,4 +1,8 @@
+import uuid
+from pathlib import Path
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -50,6 +54,7 @@ class PanelRecommendation(models.Model):
             "CANCELLED_BY_SUPERVISOR",
             "Cancelled by Supervisor",
         )
+        CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
     ACTIVE_STATUSES = (
@@ -67,6 +72,21 @@ class PanelRecommendation(models.Model):
         on_delete=models.PROTECT,
         related_name="panel_recommendations",
     )
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="panel_recommendations",
+        null=True,
+        blank=True,
+    )
+    replaces_appointment = models.ForeignKey(
+        "PanelAppointment",
+        on_delete=models.PROTECT,
+        related_name="replacement_recommendations",
+        null=True,
+        blank=True,
+    )
+    replacement_reason = models.TextField(blank=True)
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -103,7 +123,6 @@ class PanelRecommendation(models.Model):
                     status__in=[
                         "SUBMITTED_TO_PANEL",
                         "PENDING_COORDINATOR",
-                        "APPROVED",
                     ]
                 ),
                 name="one_active_panel_recommendation_per_student",
@@ -127,7 +146,14 @@ class PanelAppointment(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
+        ENDED = "ENDED", "Ended"
         COMPLETED = "COMPLETED", "Completed"
+
+    class EndOutcome(models.TextChoices):
+        COMPLETED = "COMPLETED", "Completed"
+        REPLACED = "REPLACED", "Replaced"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+        OTHER = "OTHER", "Other"
 
     recommendation = models.OneToOneField(
         PanelRecommendation,
@@ -154,15 +180,43 @@ class PanelAppointment(models.Model):
         on_delete=models.PROTECT,
         related_name="approved_panel_appointments",
     )
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="replacement_appointment",
+        null=True,
+        blank=True,
+    )
     appointment_date = models.DateField(default=timezone.localdate)
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE
+    )
+    end_outcome = models.CharField(
+        max_length=16,
+        choices=EndOutcome.choices,
+        blank=True,
+    )
+    end_reason = models.TextField(blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ended_panel_appointments",
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-appointment_date", "profile__student_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile"],
+                condition=Q(status="ACTIVE"),
+                name="one_active_panel_appointment_per_profile",
+            )
+        ]
 
     def __str__(self):
         return f"{self.profile.matric_no} panel: {self.panel_member}"
@@ -189,6 +243,7 @@ class SupervisorApplication(models.Model):
             "CANCELLED_BY_STUDENT",
             "Cancelled by Student",
         )
+        CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
     ACTIVE_STATUSES = (
@@ -202,12 +257,28 @@ class SupervisorApplication(models.Model):
         on_delete=models.PROTECT,
         related_name="supervisor_applications",
     )
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="supervisor_applications",
+        null=True,
+        blank=True,
+    )
+    replaces_appointment = models.ForeignKey(
+        "SupervisorAppointment",
+        on_delete=models.PROTECT,
+        related_name="replacement_applications",
+        null=True,
+        blank=True,
+    )
+    replacement_reason = models.TextField(blank=True)
     proposed_supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="supervisor_applications_to_review",
     )
     research_title = models.CharField(max_length=500)
+    research_area = models.CharField(max_length=255, blank=True, default="")
     research_abstract = models.TextField()
     status = models.CharField(
         max_length=32,
@@ -234,7 +305,6 @@ class SupervisorApplication(models.Model):
                     status__in=[
                         "SUBMITTED_TO_SUPERVISOR",
                         "PENDING_COORDINATOR",
-                        "APPROVED",
                     ]
                 ),
                 name="one_active_supervisor_application_per_student",
@@ -252,22 +322,61 @@ class SupervisorApplication(models.Model):
         return f"{self.student.matric_no} -> {self.proposed_supervisor}"
 
 
+def supervisor_document_upload_path(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return (
+        f"supervisor-applications/{instance.application_id}/"
+        f"{uuid.uuid4().hex}{extension}"
+    )
+
+
 class SupervisorApplicationDocument(models.Model):
-    """Metadata for documents supplied with a supervisor request."""
+    """Immutable private document supplied with a supervisor request."""
 
     application = models.ForeignKey(
         SupervisorApplication,
         on_delete=models.CASCADE,
         related_name="documents",
     )
+    requirement = models.ForeignKey(
+        "SupervisorDocumentRequirement",
+        on_delete=models.PROTECT,
+        related_name="application_documents",
+        null=True,
+        blank=True,
+    )
+    file = models.FileField(
+        upload_to=supervisor_document_upload_path,
+        max_length=500,
+        null=True,
+        blank=True,
+    )
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=64)
     content_type = models.CharField(max_length=128, blank=True)
     size = models.PositiveBigIntegerField(default=0)
+    requirement_code = models.SlugField(max_length=64, blank=True)
+    requirement_label = models.CharField(max_length=255, blank=True)
+    checksum_sha256 = models.CharField(max_length=64, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["uploaded_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["application", "requirement"],
+                condition=Q(requirement__isnull=False),
+                name="one_supervisor_document_per_requirement",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Submitted supervisor application documents are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Submitted supervisor application documents are immutable.")
 
 
 class SupervisorDocumentRequirement(models.Model):
@@ -283,6 +392,49 @@ class SupervisorDocumentRequirement(models.Model):
     class Meta:
         ordering = ["display_order", "label"]
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            persisted_code = type(self).objects.only("code").get(pk=self.pk).code
+            if self.code != persisted_code:
+                raise ValidationError("Document requirement codes are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Document requirements cannot be deleted; deactivate them instead.")
+
+
+class SupervisorDocumentRequirementAudit(models.Model):
+    class Action(models.TextChoices):
+        CREATE = "CREATE", "Create"
+        UPDATE = "UPDATE", "Update"
+
+    requirement = models.ForeignKey(
+        SupervisorDocumentRequirement,
+        on_delete=models.PROTECT,
+        related_name="audits",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="supervisor_document_requirement_audits",
+    )
+    action = models.CharField(max_length=16, choices=Action.choices)
+    reason = models.TextField(blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Supervisor document requirement audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Supervisor document requirement audits are immutable.")
+
 
 class SupervisorAppointment(models.Model):
     """Final active supervisor assignment created after coordinator approval."""
@@ -290,6 +442,12 @@ class SupervisorAppointment(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         ENDED = "ENDED", "Ended"
+
+    class EndOutcome(models.TextChoices):
+        COMPLETED = "COMPLETED", "Completed"
+        REPLACED = "REPLACED", "Replaced"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+        OTHER = "OTHER", "Other"
 
     application = models.OneToOneField(
         SupervisorApplication,
@@ -311,6 +469,13 @@ class SupervisorAppointment(models.Model):
         on_delete=models.PROTECT,
         related_name="approved_supervisor_appointments",
     )
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="replacement_appointment",
+        null=True,
+        blank=True,
+    )
     appointment_date = models.DateField(default=timezone.localdate)
     status = models.CharField(
         max_length=16,
@@ -318,11 +483,94 @@ class SupervisorAppointment(models.Model):
         default=Status.ACTIVE,
         db_index=True,
     )
+    end_outcome = models.CharField(
+        max_length=16,
+        choices=EndOutcome.choices,
+        blank=True,
+    )
+    end_reason = models.TextField(blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ended_supervisor_appointments",
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-appointment_date", "student__matric_no"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=Q(status="ACTIVE"),
+                name="one_active_supervisor_appointment_per_student",
+            )
+        ]
+
+
+class AppointmentLifecycleEvent(models.Model):
+    """Immutable audit for appointment activation, closure, and handover."""
+
+    class Action(models.TextChoices):
+        ACTIVATED = "ACTIVATED", "Activated"
+        ENDED = "ENDED", "Ended"
+        REPLACED = "REPLACED", "Replaced"
+
+    supervisor_appointment = models.ForeignKey(
+        SupervisorAppointment,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_events",
+        null=True,
+        blank=True,
+    )
+    panel_appointment = models.ForeignKey(
+        PanelAppointment,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_events",
+        null=True,
+        blank=True,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="appointment_lifecycle_events",
+    )
+    actor_role = models.CharField(max_length=64)
+    action = models.CharField(max_length=16, choices=Action.choices)
+    previous_status = models.CharField(max_length=16, blank=True)
+    new_status = models.CharField(max_length=16)
+    outcome = models.CharField(max_length=16, blank=True)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        supervisor_appointment__isnull=False,
+                        panel_appointment__isnull=True,
+                    )
+                    | Q(
+                        supervisor_appointment__isnull=True,
+                        panel_appointment__isnull=False,
+                    )
+                ),
+                name="lifecycle_event_has_exactly_one_appointment",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Appointment lifecycle events are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Appointment lifecycle events are immutable.")
 
 
 class AppointmentWorkflowEvent(models.Model):
@@ -380,7 +628,35 @@ def count_supervisor_workload(supervisor):
     ).count()
 
 
-def supervisor_workload_limit(supervisor):
+def _capacity_user(subject):
+    if hasattr(subject, "is_active") and hasattr(subject, "role"):
+        return subject
+    lecturer = getattr(subject, "lecturer", None)
+    if lecturer is not None:
+        return lecturer.user
+    return getattr(subject, "user", subject)
+
+
+def supervisor_workload_limit(supervisor, semester=None):
+    if semester is not None:
+        from academics.capacity import (
+            CapacityRole,
+            CapacityState,
+            resolve_lecturer_capacity,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=_capacity_user(supervisor),
+            semester=semester,
+            role=CapacityRole.SUPERVISOR,
+        )
+        if result.state in {
+            CapacityState.NOT_CONFIGURED,
+            CapacityState.INELIGIBLE,
+        }:
+            return 0
+        return result.limit
+
     try:
         return supervisor.lecturer.supervisor.max_supervisees
     except (AttributeError, models.ObjectDoesNotExist):
@@ -401,8 +677,27 @@ def count_panel_workload(panel_member):
     return active_appointments + pending_nominations
 
 
-def panel_workload_limit(panel_member):
+def panel_workload_limit(panel_member, semester=None):
     """Return the configured limit for a panel lecturer, with a safe default."""
+
+    if semester is not None:
+        from academics.capacity import (
+            CapacityRole,
+            CapacityState,
+            resolve_lecturer_capacity,
+        )
+
+        result = resolve_lecturer_capacity(
+            user=_capacity_user(panel_member),
+            semester=semester,
+            role=CapacityRole.PANEL,
+        )
+        if result.state in {
+            CapacityState.NOT_CONFIGURED,
+            CapacityState.INELIGIBLE,
+        }:
+            return 0
+        return result.limit
 
     try:
         return panel_member.lecturer.panel.max_appointments

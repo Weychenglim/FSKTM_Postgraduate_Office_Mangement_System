@@ -3,108 +3,184 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Marks Entry & Management API (UC24–UC29). Returns mock data for now.
-
-import {
+import type {
   EvaluationPeriodOption,
   EvaluationPreviewTask,
   EvaluationTask,
-  MarksAssignmentOptions,
   MarkRecord,
+  MarkRecordDetail,
+  MarksAssignmentOptions,
   RubricComponent,
+  RubricVersion,
 } from '../types';
-import { MOCK_MARK_RECORDS, MOCK_EVALUATION_TASKS } from '../mocks/marks';
-import { MOCK_EVALUATION_PREVIEW_TASKS } from '../mocks/evaluationTasks';
-import { MOCK_RUBRIC_COMPONENTS } from '../mocks/rubrics';
-import { USE_MOCKS, mockResponse, request } from './apiClient';
-
-const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
-  if (value === undefined || value.trim() === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
-};
-
-const USE_MARKS_BACKEND = parseBooleanEnv(import.meta.env.VITE_USE_MARKS_BACKEND, true);
-const USE_MARKS_MOCKS = USE_MOCKS && !USE_MARKS_BACKEND;
+import { buildMarkScorePayload } from '../utils/marksProductionManagement';
+import { request } from './apiClient';
 
 export async function getMarkRecords(): Promise<MarkRecord[]> {
-  if (USE_MARKS_MOCKS) return mockResponse(MOCK_MARK_RECORDS);
   return request<MarkRecord[]>('/marks/');
 }
 
+export async function getMarkRecordById(id: string): Promise<MarkRecordDetail> {
+  return request<MarkRecordDetail>(`/marks/records/${encodeURIComponent(id)}/`);
+}
+
 export async function getEvaluationPreviewTasks(): Promise<EvaluationPreviewTask[]> {
-  if (USE_MARKS_MOCKS) return mockResponse(MOCK_EVALUATION_PREVIEW_TASKS);
   return request<EvaluationPreviewTask[]>('/marks/evaluation-tasks/');
 }
 
-export async function getEvaluationPeriods(): Promise<EvaluationPeriodOption[]> {
-  if (USE_MARKS_MOCKS) {
-    return mockResponse([
-      {
-        id: 1,
-        name: 'Semester 1 Evaluation',
-        semester: 'Sem 1 2025/2026',
-        rubricId: 1,
-        rubricName: 'EE Evaluation Rubric',
-        opensAt: '2025-12-01T00:00:00+08:00',
-        closesAt: '2025-12-10T23:59:00+08:00',
-        isOpen: true,
-        taskTotals: {
-          total: MOCK_EVALUATION_PREVIEW_TASKS.length,
-          supervisor: MOCK_EVALUATION_PREVIEW_TASKS.filter((task) => task.evaluatorRole === 'SUPERVISOR').length,
-          panel: MOCK_EVALUATION_PREVIEW_TASKS.filter((task) => (task.evaluatorRole || 'PANEL') === 'PANEL').length,
-          backup: MOCK_EVALUATION_PREVIEW_TASKS.filter((task) => task.evaluatorRole === 'BACKUP').length,
-          submitted: 0,
-          incomplete: MOCK_EVALUATION_PREVIEW_TASKS.length,
-          overdue: 0,
-        },
-      },
-    ]);
-  }
-  return request<EvaluationPeriodOption[]>('/marks/periods/');
+export async function getEvaluationPeriods(
+  includeArchived = false,
+): Promise<EvaluationPeriodOption[]> {
+  const query = includeArchived ? '?includeArchived=true' : '';
+  return request<EvaluationPeriodOption[]>(`/marks/periods/${query}`);
+}
+
+export async function getEvaluationPeriod(
+  periodId: number,
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>(`/marks/periods/${periodId}/`);
+}
+
+export type EvaluationPeriodPayload = {
+  name: string;
+  semesterId: number;
+  rubricId: number;
+  opensAt: string | null;
+  closesAt: string | null;
+};
+
+export async function createEvaluationPeriod(
+  payload: EvaluationPeriodPayload,
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>('/marks/periods/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateEvaluationPeriod(
+  periodId: number,
+  payload: Partial<EvaluationPeriodPayload> & { reason?: string },
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>(`/marks/periods/${periodId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function publishEvaluationPeriod(
+  periodId: number,
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>(
+    `/marks/periods/${periodId}/publish/`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export async function closeEvaluationPeriod(
+  periodId: number,
+  reason: string,
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>(
+    `/marks/periods/${periodId}/close/`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
+export async function archiveEvaluationPeriod(
+  periodId: number,
+  reason: string,
+): Promise<EvaluationPeriodOption> {
+  return request<EvaluationPeriodOption>(
+    `/marks/periods/${periodId}/archive/`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
+export async function getRubricVersions(): Promise<RubricVersion[]> {
+  return request<RubricVersion[]>('/marks/rubrics/');
+}
+
+export async function getRubricVersion(
+  rubricId: number,
+): Promise<RubricVersion> {
+  return request<RubricVersion>(`/marks/rubrics/${rubricId}/`);
+}
+
+export type RubricPayload = {
+  familyCode: string;
+  name: string;
+  description: string;
+  targetMark: string;
+};
+
+export async function createRubricVersion(
+  payload: RubricPayload,
+): Promise<RubricVersion> {
+  return request<RubricVersion>('/marks/rubrics/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateRubricVersion(
+  rubricId: number,
+  payload: Partial<Omit<RubricPayload, 'familyCode'>> & {
+    isActive?: boolean;
+  },
+): Promise<RubricVersion> {
+  return request<RubricVersion>(`/marks/rubrics/${rubricId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cloneRubricVersion(
+  rubricId: number,
+): Promise<RubricVersion> {
+  return request<RubricVersion>(`/marks/rubrics/${rubricId}/clone/`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export type RubricComponentPayload = {
+  code: string;
+  name: string;
+  description: string;
+  maxMarks: string;
+  required: boolean;
+  isActive: boolean;
+  displayOrder: number;
+};
+
+export async function createRubricComponent(
+  rubricId: number,
+  payload: RubricComponentPayload,
+): Promise<RubricComponent> {
+  return request<RubricComponent>(
+    `/marks/rubrics/${rubricId}/components/`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function updateRubricComponent(
+  rubricId: number,
+  componentId: number,
+  payload: Partial<RubricComponentPayload>,
+): Promise<RubricComponent> {
+  return request<RubricComponent>(
+    `/marks/rubrics/${rubricId}/components/${componentId}/`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
+}
+
+export async function getRubricComponents(): Promise<RubricComponent[]> {
+  const rubrics = await getRubricVersions();
+  return rubrics.flatMap((rubric) => rubric.components);
 }
 
 export async function getMarksAssignmentOptions(): Promise<MarksAssignmentOptions> {
-  if (USE_MARKS_MOCKS) {
-    return mockResponse({
-      students: MOCK_EVALUATION_PREVIEW_TASKS.map((task) => ({
-        studentId: task.studentId,
-        studentName: task.studentName,
-        programme: 'Postgraduate Programme',
-        semester: task.semester,
-        researchTitle: task.researchTitle,
-        supervisorName: 'Assigned Supervisor',
-      })),
-      lecturers: [
-        {
-          userId: 1,
-          staffId: 'L84920',
-          fullName: 'Dr. Sarah Lim',
-          department: 'Software Engineering',
-          email: 'sarah.lim@fsktm.edu.my',
-        },
-        {
-          userId: 2,
-          staffId: 'A004812',
-          fullName: 'Assoc. Prof. Dr. Amina Malik',
-          department: 'Artificial Intelligence',
-          email: 'amina.malik@fsktm.edu.my',
-        },
-        {
-          userId: 3,
-          staffId: 'A003328',
-          fullName: 'Dr. Robert Chen',
-          department: 'Data Science',
-          email: 'robert.chen@fsktm.edu.my',
-        },
-      ],
-      tasks: MOCK_EVALUATION_PREVIEW_TASKS.map((task, index) => ({
-        ...task,
-        taskId: index + 1,
-        periodId: 1,
-        evaluatorId: index + 1,
-      })),
-    });
-  }
   return request<MarksAssignmentOptions>('/marks/assignment-options/');
 }
 
@@ -114,14 +190,6 @@ export async function generateEvaluationTasks(periodId: number): Promise<{
   panelCreatedCount: number;
   totalCount: number;
 }> {
-  if (USE_MARKS_MOCKS) {
-    return mockResponse({
-      createdCount: 0,
-      supervisorCreatedCount: 0,
-      panelCreatedCount: 0,
-      totalCount: MOCK_EVALUATION_PREVIEW_TASKS.length,
-    });
-  }
   return request(`/marks/periods/${periodId}/generate-tasks/`, {
     method: 'POST',
   });
@@ -136,43 +204,14 @@ export async function createBackupEvaluationTask(
     originalTaskId?: number;
   },
 ): Promise<EvaluationTask> {
-  if (USE_MARKS_MOCKS) {
-    const task: EvaluationTask = {
-      id: Date.now(),
-      studentId: payload.studentId,
-      studentName: 'Backup Evaluator Student',
-      initials: 'BE',
-      researchTitle: 'Manual backup evaluation task',
-      semester: 'Sem 1 2025/2026',
-      deadline: '-',
-      status: 'NOT STARTED',
-      evaluatorRole: 'BACKUP',
-      evaluatorRoleLabel: 'Backup / Manual Override',
-      components: [],
-    };
-    return mockResponse(task);
-  }
-  const created = await request<EvaluationTask>(`/marks/periods/${periodId}/manual-overrides/`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const created = await request<EvaluationTask>(
+    `/marks/periods/${periodId}/manual-overrides/`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
   return withLegacyRubricFields(created);
 }
 
-export async function getRubricComponents(): Promise<RubricComponent[]> {
-  if (USE_MARKS_MOCKS) return mockResponse(MOCK_RUBRIC_COMPONENTS);
-  return request<RubricComponent[]>('/marks/rubric-components/');
-}
-
-export async function getMarkRecordById(id: string): Promise<MarkRecord | undefined> {
-  if (USE_MARKS_MOCKS) return mockResponse(MOCK_MARK_RECORDS.find((r) => r.id === id));
-  const records = await getMarkRecords();
-  return records.find((record) => record.id === id);
-}
-
-// Lecturer-facing: evaluation tasks assigned to the logged-in lecturer (UC24).
 export async function getEvaluationTasks(): Promise<EvaluationTask[]> {
-  if (USE_MARKS_MOCKS) return mockResponse(MOCK_EVALUATION_TASKS);
   const tasks = await request<EvaluationTask[]>('/marks/my-evaluation-tasks/');
   return tasks.map(withLegacyRubricFields);
 }
@@ -210,49 +249,54 @@ function withLegacyRubricFields(task: EvaluationTask): EvaluationTask {
     if (!fields) continue;
     (normalized as unknown as Record<string, unknown>)[fields.score] =
       component.marksAwarded === null ? undefined : Number(component.marksAwarded);
-    (normalized as unknown as Record<string, unknown>)[fields.feedback] = component.feedback;
+    (normalized as unknown as Record<string, unknown>)[fields.feedback] =
+      component.feedback;
   }
   return normalized;
 }
 
 function taskScores(task: EvaluationTask) {
-  return (task.components || []).map((component) => {
+  const components = (task.components || []).map((component) => {
     const fields = legacyScoreFields[component.code];
-    const score = fields
-      ? (task[fields.score] as number | undefined)
-      : component.marksAwarded === null
-      ? 0
-      : Number(component.marksAwarded);
-    const feedback = fields
-      ? (task[fields.feedback] as string | undefined)
-      : component.feedback;
+    if (!fields) return component;
+    const legacyScore = task[fields.score] as number | undefined;
     return {
-      componentId: component.id,
-      marksAwarded: score ?? 0,
-      feedback: feedback || '',
+      ...component,
+      marksAwarded: legacyScore === undefined
+        ? component.marksAwarded
+        : String(legacyScore),
+      feedback:
+        (task[fields.feedback] as string | undefined) ?? component.feedback,
     };
   });
+  return buildMarkScorePayload(components);
 }
 
-export async function saveMarkDraft(task: EvaluationTask): Promise<EvaluationTask> {
-  if (USE_MARKS_MOCKS) return mockResponse({ ...task, status: 'DRAFT SAVED' });
+export async function saveMarkDraft(
+  task: EvaluationTask,
+): Promise<EvaluationTask> {
   if (!task.id) throw new Error('Evaluation task ID is missing.');
-  const updated = await request<EvaluationTask>(`/marks/tasks/${task.id}/draft/`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      scores: taskScores(task),
-      comments: task.comments || '',
-    }),
-  });
+  const updated = await request<EvaluationTask>(
+    `/marks/tasks/${task.id}/draft/`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        scores: taskScores(task),
+        comments: task.comments || '',
+      }),
+    },
+  );
   return withLegacyRubricFields(updated);
 }
 
-export async function submitMarkEntry(task: EvaluationTask): Promise<EvaluationTask> {
-  if (USE_MARKS_MOCKS) return mockResponse({ ...task, status: 'SUBMITTED' });
+export async function submitMarkEntry(
+  task: EvaluationTask,
+): Promise<EvaluationTask> {
   if (!task.id) throw new Error('Evaluation task ID is missing.');
   await saveMarkDraft(task);
-  const submitted = await request<EvaluationTask>(`/marks/tasks/${task.id}/submit/`, {
-    method: 'POST',
-  });
+  const submitted = await request<EvaluationTask>(
+    `/marks/tasks/${task.id}/submit/`,
+    { method: 'POST' },
+  );
   return withLegacyRubricFields(submitted);
 }

@@ -9,7 +9,6 @@ import {
   Clock, 
   CheckCircle, 
   ChevronRight, 
-  FileText, 
   SlidersHorizontal,
   Mail, 
   Phone,
@@ -30,8 +29,7 @@ import {
   LayoutDashboard,
   Filter,
   Check,
-  Building,
-  Download
+  Building
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -40,14 +38,19 @@ import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
-import { SupervisorRequest, ActiveSuperviseeRow } from '../types';
+import { SupervisorDocumentsList } from './SupervisorDocumentsList';
+import { SupervisorRequest, ActiveSuperviseeRow, SupervisorWorkloadSummary } from '../types';
 import {
   acceptSupervisorApplication,
+  formatSupervisorWaiting,
   getSupervisorApplication,
   getSupervisorRequests,
   getActiveSupervisees,
+  getOwnSupervisorWorkload,
+  orderSupervisorQueueOldestFirst,
   rejectSupervisorApplication,
 } from '../services';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -74,6 +77,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   badgeType = 'success',
   progress
 }) => {
+  const utilization = progress && progress.max > 0
+    ? Math.min(100, Math.max(0, (progress.current / progress.max) * 100))
+    : 0;
+
   return (
     <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-auto relative overflow-hidden group hover:border-[#cbd5e1] transition-all duration-300">
       <div className="flex justify-between items-start">
@@ -114,11 +121,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
           <div className="w-full bg-[#f1f5f9] rounded-full h-2 overflow-hidden">
             <div 
               className="bg-brand-navy h-full rounded-full transition-all duration-500"
-              style={{ width: `${(progress.current / progress.max) * 100}%` }}
+              style={{ width: `${utilization}%` }}
             />
           </div>
           <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Progress Load: {Math.round((progress.current / progress.max) * 100)}%</span>
+            <span>Progress Load: {Math.round(utilization)}%</span>
             <span>Capacity</span>
           </div>
         </div>
@@ -251,92 +258,6 @@ export const InfoCard: React.FC<InfoCardProps> = ({
   );
 };
 
-interface DocumentCardProps {
-  fileName: string;
-  onDownload?: () => void;
-}
-
-export const DocumentCard: React.FC<DocumentCardProps> = ({
-  fileName,
-  onDownload
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-white hover:border-slate-305 transition-colors select-none">
-      <div className="flex items-center gap-2.5">
-        <FileText className="w-4.5 h-4.5 text-rose-500 stroke-[2]" />
-        <span className="text-xs font-bold text-slate-700">{fileName}</span>
-      </div>
-      <button 
-        onClick={onDownload}
-        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer group"
-        title="Download File"
-      >
-        <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-650 transition-colors" />
-      </button>
-    </div>
-  );
-};
-
-interface ProgressTimelineItem {
-  id: string;
-  label: string;
-  subtext?: string;
-  status: 'completed' | 'active' | 'pending';
-}
-
-interface ProgressTimelineProps {
-  items: ProgressTimelineItem[];
-}
-
-export const ProgressTimeline: React.FC<ProgressTimelineProps> = ({ items }) => {
-  return (
-    <div className="space-y-4">
-      {items.map((item, index) => {
-        const isLast = index === items.length - 1;
-        return (
-          <div key={item.id} className="relative flex gap-4 text-left group">
-            {/* Left Timeline Indicator node */}
-            <div className="flex flex-col items-center shrink-0">
-              <div className={`z-10 w-6 h-6 rounded-full flex items-center justify-center border font-sans text-[10px] font-bold ${
-                item.status === 'completed'
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  : item.status === 'active'
-                  ? 'bg-brand-navy text-white border-brand-navy ring-4 ring-slate-100'
-                  : 'bg-white text-slate-300 border-slate-200'
-              }`}>
-                {item.status === 'completed' ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3.5]" />
-                ) : item.status === 'active' ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-white block animate-pulse" />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-200 block" />
-                )}
-              </div>
-              {!isLast && (
-                <div className={`w-[2px] h-10 -mb-4 mt-1 grow ${
-                  item.status === 'completed' ? 'bg-emerald-100' : 'bg-slate-100'
-                }`} />
-              )}
-            </div>
-
-            {/* Timeline Content right */}
-            <div className="pt-0.5 space-y-0.5 select-none">
-              <h5 className={`text-xs font-extrabold ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
-                {item.label}
-              </h5>
-              {item.subtext && (
-                <p className={`text-[10px] font-bold ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
-                  {item.subtext}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 interface FormTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
 }
@@ -389,8 +310,11 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 
   if (!isOpen || !request) return null;
   const canAct =
-    request.status === 'SUBMITTED_TO_SUPERVISOR'
-    || request.status === 'Pending Review';
+    request.participantEligible !== false
+    && (
+      request.status === 'SUBMITTED_TO_SUPERVISOR'
+      || request.status === 'Pending Review'
+    );
 
   const handleRejectClick = () => {
     if (!rejectReason.trim()) {
@@ -439,66 +363,30 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             {/* Research Abstract */}
             <InfoCard label="RESEARCH ABSTRACT">
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
-                {request.abstract || "This research aims to investigate the efficiency of Federated Learning (FL) architectures in heterogeneous healthcare environments. The study will focus on developing a secure model aggregation protocol that maintains differential privacy without significantly sacrificing predictive accuracy..."}
+                {request.abstract || 'No research abstract was provided with this application.'}
               </div>
             </InfoCard>
 
-            {/* Proposed Area & Eligibility indicators side-by-side matches perfect layout */}
-            <div className="grid grid-cols-2 gap-4 border-b border-slate-100 pb-5 select-none text-left">
-              <InfoCard label="PROPOSED AREA">
-                <span className="text-xs font-extrabold text-brand-navy">
-                  Distributed Systems & Security
-                </span>
-              </InfoCard>
-
-              <InfoCard label="ELIGIBILITY">
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#00a15c]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00a15c] animate-pulse" />
-                  Verified
-                </span>
-              </InfoCard>
-            </div>
+            <InfoCard label="RESEARCH AREA">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
+                {request.researchArea || 'Not recorded'}
+              </div>
+            </InfoCard>
 
             {/* Supporting Documents Section */}
-            <InfoCard label="DOCUMENTS">
-              <DocumentCard 
-                fileName="Detailed_Proposal.pdf" 
-                onDownload={() => alert("Downloading Detailed_Proposal.pdf file archive.")}
-              />
-            </InfoCard>
-
-            {/* Request Progress Timeline */}
-            <InfoCard label="REQUEST PROGRESS">
-              <ProgressTimeline 
-                items={[
-                  {
-                    id: 'submitted',
-                    label: 'Application Submitted',
-                    subtext: '14 May 2024, 09:30 AM',
-                    status: 'completed'
-                  },
-                  {
-                    id: 'review',
-                    label: 'Supervisor Review',
-                    subtext: 'Awaiting your decision',
-                    status: 'active'
-                  },
-                  {
-                    id: 'approval',
-                    label: 'Programme Coordinator Approval',
-                    subtext: 'Pending action',
-                    status: 'pending'
-                  },
-                  {
-                    id: 'letter',
-                    label: 'Confirmation Letter Generated',
-                    status: 'pending'
-                  }
-                ]}
-              />
-            </InfoCard>
+            <SupervisorDocumentsList
+              applicationId={request.id}
+              documents={request.documents}
+              compact
+            />
 
             <WorkflowAuditLog events={request.workflow} />
+
+            {request.participantEligible === false && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                This Student is {request.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
+              </p>
+            )}
 
             {canAct ? (
             <div className="pt-5 border-t border-slate-100 space-y-4">
@@ -546,17 +434,9 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 // ==================== SPECIFIC PORTAL COMPONENT PARTS ====================
 
 interface RequestCardProps {
-  request: {
-    studentId: string;
-    studentName: string;
-    programme: string;
-    proposedTopic: string;
-    submittedDate: string;
-    receivedTime: string;
-    status: string;
-  };
+  request: SupervisorRequest;
   onOpen: () => void;
-  onViewHistory: () => void;
+  onViewDossier: () => void;
 }
 
 /**
@@ -565,7 +445,7 @@ interface RequestCardProps {
 export const RequestCard: React.FC<RequestCardProps> = ({
   request,
   onOpen,
-  onViewHistory
+  onViewDossier,
 }) => {
   const initials = request.studentName
     .split(' ')
@@ -593,6 +473,9 @@ export const RequestCard: React.FC<RequestCardProps> = ({
               <p className="text-[10px] text-slate-400 font-bold mt-0.5">
                 Submitted: {request.submittedDate}
               </p>
+              <p className="text-[10px] text-amber-700 font-bold mt-1">
+                {formatSupervisorWaiting(request)}
+              </p>
             </div>
           </div>
 
@@ -616,6 +499,13 @@ export const RequestCard: React.FC<RequestCardProps> = ({
       </div>
 
       <div className="mt-6 pt-1 flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={onViewDossier}
+          className="w-full py-2 text-center text-blue-700 font-black uppercase text-[10px] tracking-wider hover:underline"
+        >
+          View Dossier
+        </button>
         <button
           type="button"
           onClick={onOpen}
@@ -649,6 +539,7 @@ export const EmptyStateCard: React.FC = () => {
 interface DataTableProps {
   data: ActiveSuperviseeRow[];
   onOpenRow: (row: ActiveSuperviseeRow) => void;
+  onViewDossier: (studentId: string) => void;
   onFilterClick: () => void;
 }
 
@@ -658,6 +549,7 @@ interface DataTableProps {
 export const DataTable: React.FC<DataTableProps> = ({
   data,
   onOpenRow,
+  onViewDossier,
   onFilterClick
 }) => {
   return (
@@ -729,12 +621,21 @@ export const DataTable: React.FC<DataTableProps> = ({
                       <StatusChip status={row.status} />
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <button
-                        onClick={() => onOpenRow(row)}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onViewDossier(row.studentId)}
+                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                        >
+                          View Dossier
+                        </button>
+                        <button
+                          onClick={() => onOpenRow(row)}
                         className="px-4.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
-                      >
-                        Open
-                      </button>
+                        >
+                          Open
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -757,6 +658,8 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToList?: () => void;
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
+  onNavigateToPanelRecommendation?: (studentId: string) => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
@@ -767,12 +670,13 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToList,
   onNavigateToHistory,
   onNavigateToSupervisee,
+  onNavigateToDossier,
+  onNavigateToPanelRecommendation,
 }) => {
-  // Supervisory load counter (workload widget). Stays local UI state: it tracks
-  // remaining slots and is nudged as the lecturer approves/rejects requests.
-  const [summaryLoad, setSummaryLoad] = useState({ current: 3, max: 5 });
+  const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
+  const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
 
-  // Pending requests + active supervisees loaded from appointmentsApi (mock-backed today).
+  // Pending requests, active supervisees, and workload come from Django.
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
   const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -781,10 +685,19 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([getSupervisorRequests(), getActiveSupervisees()])
-      .then(([requests, active]) => {
-        setRequestsList(requests);
+    Promise.all([
+      getSupervisorRequests(),
+      getActiveSupervisees(),
+      getOwnSupervisorWorkload(),
+    ])
+      .then(([requests, active, workload]) => {
+        setRequestsList(orderSupervisorQueueOldestFirst(requests));
         setSupervisees(active);
+        setSummaryLoad({
+          current: workload.currentStudents,
+          max: workload.workloadLimit,
+        });
+        setCapacity(workload);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
       .finally(() => setLoading(false));
@@ -811,6 +724,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           ...request,
           ...detail,
           proposedTopic: detail.researchTitle,
+          researchArea: detail.researchArea,
           abstract: detail.researchAbstract,
           submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
         });
@@ -848,22 +762,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
   };
 
-  const buildSuperviseeProfile = (supe: ActiveSuperviseeRow) => ({
-      ...supe,
-      programme: supe.studentId.startsWith('WEA') ? 'MSc. Computer Science' : 'MSc. Software Engineering',
-      email: `${supe.studentName.toLowerCase().replace(/\s+/g, '')}@um.edu.my`,
-      phone: '+60 3-7967 6300',
-      office: 'Block A, Level 3, Room 12',
-      coSupervisor: 'Assoc. Prof. Dr. Amina Malik',
-      progressReport: 'Satisfactory (Satisfactory achievement across Milestone 2 targets.)',
-      recentMilestone: 'Milestone 2 Defense Confirmed (Approved: Apr 2026)',
-      abstract: 'This dissertation investigates security paradigms and computational enhancements, testing deployment structures onto simulated container clusters inside Universiti Malaya’s computing infrastructure.'
-    });
-
   const selectedSupervisee = useMemo(() => {
     if (!routeSuperviseeStudentId) return null;
-    const supervisee = supervisees.find((item) => String(item.studentId) === String(routeSuperviseeStudentId));
-    return supervisee ? buildSuperviseeProfile(supervisee) : null;
+    return supervisees.find(
+      (item) => String(item.studentId) === String(routeSuperviseeStudentId),
+    ) ?? null;
   }, [supervisees, routeSuperviseeStudentId]);
 
   const navigateToList = onNavigateToList ?? (() => undefined);
@@ -884,18 +787,9 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         showToast(reason instanceof Error ? reason.message : 'Failed to accept supervisor request.');
         return;
       }
-      const newActive: ActiveSuperviseeRow = {
-        studentId: studentReq.studentId,
-        studentName: studentReq.studentName,
-        researchTitle: studentReq.proposedTopic,
-        appointmentDate: '28 May 2026', // Current mocked Date
-        status: 'Active'
-      };
-      setSupervisees(prev => [newActive, ...prev]);
-      setSummaryLoad(prev => ({ ...prev, current: Math.min(prev.max, prev.current + 1) }));
-      setRequestsList(prev => prev.filter(r => r.studentId !== id));
+      await loadData();
       setDetailRejectReason('');
-      showToast(`Appointment approved! ${studentReq.studentName} is now added to your supervisee roster.`);
+      showToast(`${studentReq.studentName}'s request was forwarded to the Programme Coordinator.`);
       setIsDrawerOpen(false);
       navigateToList();
     }
@@ -947,16 +841,16 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
             <SummaryCard
               title="Supervisory Load"
-              subtext="ACADEMIC YEAR 2024/2025"
+              subtext={`${capacity?.semesterCode ?? 'No active semester'} · ${capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}`}
               value=""
-              badge="Available"
-              badgeType="success"
+              badge={capacity?.capacityState ? capacityStateLabel(capacity.capacityState) : 'Not configured'}
+              badgeType={capacity?.selectable ? 'success' : 'warning'}
               progress={summaryLoad}
             />
             <SummaryCard
               title="Pending Requests"
               value={`${requestsList.length} New`}
-              subtext="Requires review within 7 days."
+              subtext="Awaiting your review."
               badge={requestsList.length > 0 ? "Needs Review" : "Up-To-Date"}
               badgeType={requestsList.length > 0 ? 'warning' : 'success'}
             />
@@ -991,7 +885,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                   <RequestCard
                     request={req}
                     onOpen={() => handleOpenRequest(req)}
-                    onViewHistory={() => alert("Routing to appointment records.")}
+                    onViewDossier={() => onNavigateToDossier?.(req.studentId)}
                   />
                 </div>
               ))}
@@ -1012,6 +906,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           <DataTable
             data={supervisees}
             onOpenRow={handleOpenSupervisee}
+            onViewDossier={(studentId) => onNavigateToDossier?.(studentId)}
             onFilterClick={() => showToast("Filters initialized. Click on candidate rows to begin edit updates.")}
           />
 
@@ -1090,7 +985,12 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                     REMAINING SEATS
                   </span>
                   <span className="text-xs font-extrabold text-[#00a15c] block mt-1">
-                    {summaryLoad.max - summaryLoad.current} / {summaryLoad.max} Slots Available
+                    {capacity?.availableSlots ?? Math.max(summaryLoad.max - summaryLoad.current, 0)}
+                    {' '}/ {summaryLoad.max} Slots Available
+                  </span>
+                  <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                    {capacity?.semesterCode ?? 'No active semester'} · {capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}
+                    {capacity?.unavailableUntil ? ` · Unavailable until ${capacity.unavailableUntil}` : ''}
                   </span>
                 </div>
               </div>
@@ -1117,6 +1017,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
               </div>
 
               {/* Action operations controls */}
+              {selectedRequest.participantEligible === false ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-[11px] font-bold text-amber-800">
+                  This Student is {selectedRequest.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
+                </p>
+              ) : (
               <div className="border-t border-slate-100 pt-6 space-y-4">
                 <FormTextarea
                   label="REASON FOR REJECTION"
@@ -1152,6 +1057,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
                   </button>
                 </div>
               </div>
+              )}
 
             </div>
 
@@ -1177,8 +1083,8 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         >
           <ActiveSuperviseeDetail 
             onBack={navigateToList}
-            studentId={selectedSupervisee.studentId}
-            studentName={selectedSupervisee.studentName}
+            onRecommendPanel={onNavigateToPanelRecommendation}
+            supervisee={selectedSupervisee}
           />
         </motion.div>
       )}

@@ -4,15 +4,21 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Award, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
+import { AlertTriangle, Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
-import { TimelineNextActions } from './TimelineNextActions';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
-import { getDashboardSummary } from '../services';
-import { DashboardSummary } from '../types';
+import { MonitoringTasksCard } from './MonitoringTasksCard';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { getDashboardSummary, getOwnPanelWorkload, getOwnSupervisorWorkload } from '../services';
+import { DashboardSummary, DashboardTask, PanelWorkloadSummary, SupervisorWorkloadSummary } from '../types';
+import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
+import { capacityStateLabel, capacityUtilization } from '../utils/lecturerCapacity';
 
 interface LecturerDashboardProps {
+  lifecycleStatus?: string | null;
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
 }
 
 interface LecturerSummaryCardProps {
@@ -68,17 +74,34 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
   </button>
 );
 
-export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigateToTab }) => {
+export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
+  lifecycleStatus,
+  onNavigateToTab,
+  onNavigateToRoute,
+}) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [supervisorCapacity, setSupervisorCapacity] = useState<SupervisorWorkloadSummary | null>(null);
+  const [panelCapacity, setPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
 
   useEffect(() => {
     getDashboardSummary().then(setSummary).catch(() => setSummary(null));
+    getOwnSupervisorWorkload().then(setSupervisorCapacity).catch(() => setSupervisorCapacity(null));
+    getOwnPanelWorkload().then(setPanelCapacity).catch(() => setPanelCapacity(null));
   }, []);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
   };
 
   return (
@@ -88,7 +111,58 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigate
       <PageHeader
         title="Lecturer Dashboard"
         subtitle="Track your semester timeline, supervisee records, panel appointments, and upcoming academic actions."
+        actions={(
+          <PortalButton
+            variant="secondary"
+            icon={BarChart3}
+            onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+          >
+            View Workflow Reports
+          </PortalButton>
+        )}
       />
+
+      {lifecycleStatus === 'RETIRING' && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <strong className="block">Retirement transition in progress</strong>
+            <p className="mt-1 text-[11px]">You may resolve existing decisions, but new Supervisor, Panel, and Marks assignments are unavailable.</p>
+          </div>
+        </div>
+      )}
+
+      <ActiveSemesterContext />
+
+      <section className="grid gap-3 md:grid-cols-2" aria-label="Your semester capacity">
+        {[
+          { label: 'Supervisor capacity', value: supervisorCapacity },
+          { label: 'Panel capacity', value: panelCapacity },
+        ].map(({ label, value }) => (
+          <div key={label} className="border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">{label}</p>
+                <p className="mt-2 text-xl font-black text-brand-navy">
+                  {value ? `${value.workloadCount ?? value.currentStudents} / ${value.workloadLimit}` : 'Unavailable'}
+                </p>
+              </div>
+              {value?.capacityState && <StatusBadge tone={value.selectable ? 'success' : 'warning'}>{capacityStateLabel(value.capacityState)}</StatusBadge>}
+            </div>
+            {value && (
+              <>
+                <div className="mt-3 h-2 overflow-hidden bg-slate-100">
+                  <div className="h-full bg-brand-navy" style={{ width: `${capacityUtilization(value.workloadCount ?? value.currentStudents, value.workloadLimit)}%` }} />
+                </div>
+                <p className="mt-2 text-[10px] font-bold text-slate-500">
+                  {value.semesterCode ?? 'No active semester'} · {value.capacityPlanVersion ? `Plan v${value.capacityPlanVersion}` : 'Plan not configured'}
+                  {value.unavailableUntil ? ` · Unavailable until ${value.unavailableUntil}` : ''}
+                </p>
+              </>
+            )}
+          </div>
+        ))}
+      </section>
 
       <DashboardTimeline
         showManageTimeline={false}
@@ -129,10 +203,9 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({ onNavigate
         />
       </div>
 
-      <TimelineNextActions
-        title="Next Lecturer Actions"
-        visibleRoles={['LECTURER']}
-        onNavigateToTab={onNavigateToTab}
+      <MonitoringTasksCard
+        title="Lecturer Action Centre"
+        onTaskClick={navigateToAction}
       />
     </div>
   );

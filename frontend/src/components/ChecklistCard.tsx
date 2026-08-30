@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Clock3 } from 'lucide-react';
 
 export interface ChecklistItem {
   id: string;
@@ -28,13 +28,6 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
         <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
           Evaluation Setup Checklist
         </h3>
-        <button 
-          title="Setup guide information"
-          className="text-slate-400 hover:text-slate-600 transition-colors"
-          onClick={() => alert("Setup Checklist Guide: Admin Secretariat must accomplish all four preliminary phases to auto-generate exam lists and activate candidate marking portals.")}
-        >
-          <HelpCircle className="w-4.5 h-4.5" />
-        </button>
       </div>
       <p className="text-slate-500 text-xs font-medium mb-6">
         Complete these setup steps before lecturers begin mark entry.
@@ -50,7 +43,11 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
             <div className="flex items-center gap-3.5">
               {/* Checkmark bullet */}
               <div className="shrink-0">
-                <CheckCircle2 className="w-5.5 h-5.5 text-emerald-500 fill-emerald-50/50" />
+                {item.status === 'COMPLETED' ? (
+                  <CheckCircle2 className="w-5.5 h-5.5 text-emerald-500 fill-emerald-50/50" />
+                ) : (
+                  <Clock3 className="w-5.5 h-5.5 text-amber-500" />
+                )}
               </div>
               <span className="text-slate-800 font-bold text-[13px] tracking-tight group-hover:text-slate-950 transition-colors">
                 {item.taskName}
@@ -59,7 +56,11 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
 
             {/* Status indicators & Actions */}
             <div className="flex items-center gap-4">
-              <span className="px-2.5 py-1 text-[10px] font-extrabold tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-100/60 rounded-md">
+              <span className={`px-2.5 py-1 text-[10px] font-extrabold tracking-wider border rounded-md ${
+                item.status === 'COMPLETED'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-100/60'
+                  : 'bg-amber-50 text-amber-800 border-amber-100'
+              }`}>
                 {item.status}
               </span>
               
