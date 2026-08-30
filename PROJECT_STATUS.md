@@ -2,6 +2,7 @@
 
 ## Lecturer Capacity and Availability Management
 
+- Consolidated `Lim_Branch` with the latest `origin/main` through an ancestry-only merge that produced no file-content changes. Post-merge verification passes all 409 Accounts/Academics/Appointments/Dashboard/Marks tests, Django system and migration-drift checks, all 44 frontend `.test.ts` scripts, dependency audit with zero findings, TypeScript lint, production build, and production demo/CSP/artifact guards.
 - Approved a semester-specific, versioned capacity design for independent Supervisor and Panel limits, date-ranged role availability, fail-closed semester activation, and immutable operational audits.
 - Existing appointments remain valid when capacity is reduced or availability changes. Over-capacity and unavailable Lecturers are blocked from new assignment activation without automatic workflow cancellation.
 - New semesters can copy the previous published plan into Draft for Office review. Existing global limits seed documented cutover baselines only.
