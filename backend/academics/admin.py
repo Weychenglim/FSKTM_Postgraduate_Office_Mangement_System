@@ -102,10 +102,7 @@ class SemesterCapacityPlanAdmin(admin.ModelAdmin):
                     )
                     .get(pk=obj.pk)
                 )
-                if (
-                    persisted.lifecycle_status
-                    != SemesterCapacityPlan.Lifecycle.DRAFT
-                ):
+                if persisted.lifecycle_status != SemesterCapacityPlan.Lifecycle.DRAFT:
                     raise ValidationError(
                         "Capacity plan is no longer Draft; reload and retry."
                     )
@@ -207,4 +204,3 @@ class LecturerCapacityAuditAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
-
