@@ -1,8 +1,20 @@
 from django.urls import path
 
-from . import views
+from . import views, co_supervision_views
 
 urlpatterns = [
+    path("co-supervisor/", co_supervision_views.workspace_view),
+    path("co-supervisor/students/<int:student_id>/", co_supervision_views.team_view),
+    path(
+        "co-supervisor/students/<int:student_id>/candidates/",
+        co_supervision_views.candidates_view,
+    ),
+    path("co-supervisor/nominations/", co_supervision_views.nominations_view),
+    path(
+        "co-supervisor/nominations/<int:pk>/<str:action>/",
+        co_supervision_views.decision_view,
+    ),
+    path("co-supervisor/appointments/<int:pk>/end/", co_supervision_views.end_view),
     path("supervisor/", views.supervisor_records_view),
     path("supervisor/workload/", views.supervisor_workload_view),
     path(

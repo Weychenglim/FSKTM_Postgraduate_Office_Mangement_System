@@ -20,6 +20,7 @@ from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimeline, SemesterTimelineEntry
 from .reconciliation import detect_reconciliation_issues
+from .co_supervision_tracking import co_supervisor_actions
 
 User = get_user_model()
 MAX_DASHBOARD_ACTIONS = 20
@@ -410,6 +411,7 @@ def build_dashboard_tasks(user, *, now=None):
     )
     tasks = [
         *_supervisor_actions(user, now),
+        *co_supervisor_actions(user, now),
         *_panel_actions(user, now),
         *_mark_actions(user, now),
         *_timeline_actions(user, now),

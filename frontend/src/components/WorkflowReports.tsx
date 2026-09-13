@@ -18,6 +18,7 @@ import type {
 import { downloadWorkflowReport, getWorkflowReport } from '../services';
 import {
   formatReportMetric,
+  canOpenReportDossier,
   reportLabel,
   resolveWorkflowReportRecordRoute,
 } from '../utils/workflowReports';
@@ -361,7 +362,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                         </td>
                         <td className="data-td text-right">
                           <div className="flex flex-wrap justify-end gap-2">
-                            {item.studentId && (
+                            {canOpenReportDossier(item) && (
                               <PortalButton
                                 size="sm"
                                 variant="ghost"
@@ -375,7 +376,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                               variant="ghost"
                               onClick={() => onNavigateToRoute(resolveWorkflowReportRecordRoute(item))}
                             >
-                              Open
+                              {item.recordType.startsWith('CO_SUPERVISOR_') ? 'View team' : 'Open'}
                             </PortalButton>
                           </div>
                         </td>

@@ -35,6 +35,7 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
+import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -235,6 +236,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
         title="Supervisor Appointment"
         subtitle="View your current supervisor details and track submitted supervisor appointment applications."
       />
+      <SupervisoryTeamManagement />
 
       {/* ========================================================================= */}
       {/* 1. HERO SECTION: CURRENT APPROVED SUPERVISOR CARD                        */}

@@ -292,11 +292,20 @@ def supervisor_workload_row(lecturer, academic_semester=None):
             "application",
         )
     )
+    from .models import CoSupervisorAppointment
+
+    supporting = list(
+        CoSupervisorAppointment.objects.filter(
+            supervisor=lecturer, status="ACTIVE"
+        ).select_related(
+            "student__user", "nomination__primary_appointment__application"
+        )
+    )
     capacity = capacity_workload_payload(
         lecturer=lecturer,
         academic_semester=academic_semester,
         role=CapacityRole.SUPERVISOR,
-        fallback_load=len(active_appointments),
+        fallback_load=len(active_appointments) + len(supporting),
     )
     workload_count = capacity["workloadCount"]
     workload_limit = capacity["workloadLimit"]
@@ -320,8 +329,21 @@ def supervisor_workload_row(lecturer, academic_semester=None):
                 "status": "Approved",
                 "topic": appointment.application.research_title,
                 "appointmentDate": format_display_date(appointment.appointment_date),
+                "supervisionRole": "PRIMARY",
             }
             for appointment in active_appointments
+        ]
+        + [
+            {
+                "id": appointment.student.matric_no,
+                "name": appointment.student.user.full_name,
+                "programme": appointment.student.programme,
+                "status": "Approved",
+                "topic": appointment.nomination.primary_appointment.application.research_title,
+                "appointmentDate": format_display_date(appointment.appointment_date),
+                "supervisionRole": "CO_SUPERVISOR",
+            }
+            for appointment in supporting
         ],
     }
 
@@ -1192,6 +1214,15 @@ def coordinator_approve_view(request, pk):
                 "The selected panel lecturer is not eligible for a new appointment.",
                 status.HTTP_409_CONFLICT,
             )
+        from .co_supervision import assert_no_supporting_role, CoSupervisionConflict
+
+        try:
+            assert_no_supporting_role(
+                student_id=recommendation.profile.student_id,
+                candidate_id=recommendation.recommended_member_id,
+            )
+        except CoSupervisionConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         Lecturer.objects.select_for_update().get(
             pk=recommendation.recommended_member_id
         )

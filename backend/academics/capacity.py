@@ -57,12 +57,16 @@ def _workloads(*, user, role, exclude_panel_recommendation_id=None):
         PanelAppointment,
         PanelRecommendation,
         SupervisorAppointment,
+        CoSupervisorAppointment,
     )
 
     if role == CapacityRole.SUPERVISOR:
         active_load = SupervisorAppointment.objects.filter(
             supervisor=user,
             status=SupervisorAppointment.Status.ACTIVE,
+        ).count()
+        active_load += CoSupervisorAppointment.objects.filter(
+            supervisor=user, status=CoSupervisorAppointment.Status.ACTIVE
         ).count()
         return _non_negative(active_load), 0
 

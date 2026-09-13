@@ -5,6 +5,8 @@ from django.utils import timezone
 from appointments.appointment_lifecycle import end_appointment
 from appointments.models import (
     AppointmentWorkflowEvent,
+    CoSupervisorNomination,
+    CoSupervisorAppointment,
     PanelAppointment,
     PanelRecommendation,
     StudentResearchProfile,
@@ -77,6 +79,12 @@ def student_blockers(student):
             status=PanelAppointment.Status.ACTIVE
         )
     return {
+        "pendingCoSupervisorNominations": student.co_supervisor_nominations.filter(
+            status__in=CoSupervisorNomination.PENDING_STATUSES
+        ).count(),
+        "activeCoSupervisorAppointments": student.co_supervisor_appointments.filter(
+            status="ACTIVE"
+        ).count(),
         "pendingSupervisorApplications": supervisor_pending.count(),
         "pendingPanelRecommendations": panel_pending.count(),
         "activeSupervisorAppointments": student.supervisor_appointments.filter(
@@ -93,6 +101,12 @@ def lecturer_blockers(lecturer):
     coordinator = Coordinator.objects.filter(lecturer=lecturer).first()
     tasks = _unfinished_tasks(EvaluationTask.objects.filter(evaluator=user))
     return {
+        "pendingCoSupervisorNominations": CoSupervisorNomination.objects.filter(
+            candidate=user, status__in=CoSupervisorNomination.PENDING_STATUSES
+        ).count(),
+        "activeCoSupervisorAppointments": CoSupervisorAppointment.objects.filter(
+            supervisor=user, status="ACTIVE"
+        ).count(),
         "pendingSupervisorApplications": SupervisorApplication.objects.filter(
             proposed_supervisor=user,
             status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -144,6 +158,17 @@ def serialize_student(student, include_audits=True):
             ]
         ).select_related("proposed_supervisor")
     ]
+    pending_work.extend(
+        {
+            "recordType": "CO_SUPERVISOR_NOMINATION",
+            "recordId": row.pk,
+            "status": row.status,
+            "assignedTo": row.candidate.full_name,
+        }
+        for row in student.co_supervisor_nominations.filter(
+            status__in=CoSupervisorNomination.PENDING_STATUSES
+        ).select_related("candidate")
+    )
     profile = _profile_for_student(student)
     if profile:
         pending_work.extend(
@@ -205,6 +230,17 @@ def serialize_lecturer(lecturer, include_audits=True):
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         ).select_related("profile")
     )
+    pending_work.extend(
+        {
+            "recordType": "CO_SUPERVISOR_NOMINATION",
+            "recordId": row.pk,
+            "status": row.status,
+            "studentId": row.student.matric_no,
+        }
+        for row in CoSupervisorNomination.objects.filter(
+            candidate=lecturer.user, status__in=CoSupervisorNomination.PENDING_STATUSES
+        ).select_related("student")
+    )
     return {
         "participantType": "LECTURER",
         "identifier": lecturer.staff_no,
@@ -264,7 +300,23 @@ def _cancel_panel_recommendation(recommendation, *, actor, reason):
 
 
 def _cancel_student_pending_work(student, *, actor, reason):
-    affected = {"supervisorApplications": [], "panelRecommendations": []}
+    from appointments.co_supervision import cancel_locked
+
+    affected = {
+        "supervisorApplications": [],
+        "panelRecommendations": [],
+        "coSupervisorNominations": [],
+    }
+    for row in student.co_supervisor_nominations.select_for_update().filter(
+        status__in=CoSupervisorNomination.PENDING_STATUSES
+    ):
+        cancel_locked(
+            row,
+            actor=actor,
+            reason=reason,
+            action="OFFICE_CANCEL_PARTICIPANT_LIFECYCLE",
+        )
+        affected["coSupervisorNominations"].append(row.pk)
     applications = student.supervisor_applications.select_for_update().filter(
         status__in=[
             SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -289,7 +341,20 @@ def _cancel_student_pending_work(student, *, actor, reason):
 
 
 def _end_student_appointments(student, *, actor, outcome, reason):
-    affected = {"supervisorAppointments": [], "panelAppointments": []}
+    from appointments.co_supervision import end_appointment as end_co_appointment
+
+    affected = {
+        "supervisorAppointments": [],
+        "panelAppointments": [],
+        "coSupervisorAppointments": [],
+    }
+    for row_id in student.co_supervisor_appointments.filter(
+        status="ACTIVE"
+    ).values_list("pk", flat=True):
+        end_co_appointment(
+            appointment_id=row_id, actor=actor, outcome=outcome, reason=reason
+        )
+        affected["coSupervisorAppointments"].append(row_id)
     for appointment_id in list(
         student.supervisor_appointments.filter(
             status=SupervisorAppointment.Status.ACTIVE
@@ -380,6 +445,9 @@ def transition_student(*, matric_no, actor, target_status, reason):
     elif target == Student.Status.GRADUATED:
         blockers = student_blockers(student)
         blocking = {
+            "pendingCoSupervisorNominations": blockers[
+                "pendingCoSupervisorNominations"
+            ],
             "pendingSupervisorApplications": blockers["pendingSupervisorApplications"],
             "pendingPanelRecommendations": blockers["pendingPanelRecommendations"],
             "unfinishedMarksTasks": blockers["unfinishedMarksTasks"],
@@ -469,6 +537,8 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
     if target_status == Lecturer.Lifecycle.RETIRED:
         blockers = lecturer_blockers(lecturer)
         required_zero = [
+            "pendingCoSupervisorNominations",
+            "activeCoSupervisorAppointments",
             "pendingSupervisorApplications",
             "pendingPanelRecommendations",
             "activeSupervisorAppointments",
@@ -516,6 +586,32 @@ def cancel_pending_work(*, participant, actor, record_type, record_id, reason):
             raise ParticipantLifecycleConflict("The Lecturer must be Retiring first.")
         allowed_student = None
         allowed_lecturer = participant.user
+    if record_type == "CO_SUPERVISOR_NOMINATION":
+        from appointments.co_supervision import cancel_locked
+
+        reference = CoSupervisorNomination.objects.get(pk=record_id)
+        Student.objects.select_for_update().get(pk=reference.student_id)
+        nomination = CoSupervisorNomination.objects.select_for_update().get(
+            pk=record_id
+        )
+        if allowed_student and nomination.student_id != allowed_student.pk:
+            raise ParticipantLifecycleConflict(
+                "The workflow does not belong to this Student."
+            )
+        if allowed_lecturer and nomination.candidate_id != allowed_lecturer.pk:
+            raise ParticipantLifecycleConflict(
+                "The workflow is not assigned to this Lecturer."
+            )
+        if nomination.status not in CoSupervisorNomination.PENDING_STATUSES:
+            raise ParticipantLifecycleConflict(
+                "The co-supervisor workflow is no longer pending."
+            )
+        return cancel_locked(
+            nomination,
+            actor=actor,
+            reason=reason,
+            action="OFFICE_CANCEL_PARTICIPANT_LIFECYCLE",
+        )
     if record_type == "SUPERVISOR_APPLICATION":
         application = SupervisorApplication.objects.select_for_update().get(pk=record_id)
         if allowed_student and application.student_id != allowed_student.pk:
@@ -542,4 +638,6 @@ def cancel_pending_work(*, participant, actor, record_type, record_id, reason):
             raise ParticipantLifecycleConflict("The Panel workflow is no longer pending.")
         _cancel_panel_recommendation(recommendation, actor=actor, reason=reason)
         return recommendation
-    raise ValueError("Select Supervisor Application or Panel Recommendation.")
+    raise ValueError(
+        "Select Supervisor Application, Co-Supervisor Nomination, or Panel Recommendation."
+    )

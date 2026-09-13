@@ -153,6 +153,7 @@ export interface StudentProgressAttentionItem extends StudentProgressTarget {
 }
 
 export interface StudentProgressDossier {
+  supervisoryTeam?: import('./coSupervision').SupervisoryTeam | null;
   generatedAt: string;
   visibility: StudentProgressVisibility;
   student: StudentProgressIdentity;

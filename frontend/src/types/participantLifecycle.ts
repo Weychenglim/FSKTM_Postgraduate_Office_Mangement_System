@@ -8,6 +8,8 @@ export type ParticipantLifecycleStatus =
   | 'RETIRED';
 
 export interface ParticipantBlockers {
+  pendingCoSupervisorNominations?: number;
+  activeCoSupervisorAppointments?: number;
   pendingSupervisorApplications: number;
   pendingPanelRecommendations: number;
   activeSupervisorAppointments: number;
@@ -17,7 +19,7 @@ export interface ParticipantBlockers {
 }
 
 export interface ParticipantPendingWork {
-  recordType: 'SUPERVISOR_APPLICATION' | 'PANEL_RECOMMENDATION';
+  recordType: 'SUPERVISOR_APPLICATION' | 'PANEL_RECOMMENDATION' | 'CO_SUPERVISOR_NOMINATION';
   recordId: number;
   status: string;
   assignedTo?: string;

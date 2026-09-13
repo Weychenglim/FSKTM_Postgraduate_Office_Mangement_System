@@ -439,7 +439,10 @@ def _capacity_reconciliation_issues():
 
 
 def detect_reconciliation_issues():
+    from .co_supervision_tracking import co_supervisor_reconciliation_issues
+
     issues = _capacity_reconciliation_issues()
+    issues.extend(co_supervisor_reconciliation_issues())
     for coordinator in Coordinator.objects.select_related("lecturer__user").filter(
         programme_managed=""
     ):
