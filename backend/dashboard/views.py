@@ -10,7 +10,11 @@ from rest_framework.response import Response
 
 from accounts.authorization import coordinator_programme
 from accounts.models import Student
-from appointments.models import PanelRecommendation, SupervisorApplication
+from appointments.models import (
+    CoSupervisorNomination,
+    PanelRecommendation,
+    SupervisorApplication,
+)
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
 from academics.models import AcademicSemester
@@ -613,6 +617,19 @@ def dashboard_summary_view(request):
         task__in=all_tasks,
         status=MarkEntry.Status.SUBMITTED,
     ).values_list("task_id", flat=True)
+    from .co_supervision_tracking import scoped_nominations
+
+    co_nominations = scoped_nominations(request.user)
+    if request.user.role == User.Role.LECTURER:
+        co_nominations = co_nominations.filter(candidate=request.user)
+    if request.user.role in {User.Role.OFFICE_ADMIN, User.Role.LECTURER}:
+        summary["pendingSupervisorRequests"] += co_nominations.filter(
+            status=CoSupervisorNomination.Status.SUBMITTED_TO_CO_SUPERVISOR
+        ).count()
+    if request.user.role in {User.Role.OFFICE_ADMIN, User.Role.COORDINATOR}:
+        summary["pendingSupervisorApprovals"] += co_nominations.filter(
+            status=CoSupervisorNomination.Status.PENDING_COORDINATOR
+        ).count()
     summary["supervisorMarkTasks"] = all_tasks.filter(
         evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
     ).count()

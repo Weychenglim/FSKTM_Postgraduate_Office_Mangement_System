@@ -175,6 +175,15 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalConflict(
             "The proposed supervisor is not eligible for a new appointment."
         )
+    from .co_supervision import assert_no_supporting_role, CoSupervisionConflict
+
+    try:
+        assert_no_supporting_role(
+            student_id=application.student_id,
+            candidate_id=application.proposed_supervisor_id,
+        )
+    except CoSupervisionConflict as exc:
+        raise SupervisorApprovalConflict(str(exc)) from exc
     Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
     try:
         assert_capacity_allows_assignment(

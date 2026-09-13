@@ -31,6 +31,10 @@ export const canAccessWorkflowReports = (role: UserRole): boolean =>
   || role === 'Programme Coordinator'
   || role === 'Lecturer';
 
+export const canOpenReportDossier = (
+  item: Pick<WorkflowReportAttentionItem, 'recordType' | 'studentId'>,
+): boolean => Boolean(item.studentId) && !item.recordType.startsWith('CO_SUPERVISOR_');
+
 export const resolveWorkflowReportRecordRoute = (
   item: Pick<WorkflowReportAttentionItem, 'recordType' | 'recordId'>,
 ): string => {
@@ -42,6 +46,9 @@ export const resolveWorkflowReportRecordRoute = (
   }
   if (item.recordType === 'SUPERVISOR_APPLICATION') {
     return routeForSupervisorApplication(item.recordId);
+  }
+  if (item.recordType === 'CO_SUPERVISOR_NOMINATION' || item.recordType === 'CO_SUPERVISOR_APPOINTMENT') {
+    return APP_ROUTES.supervisorAppointments;
   }
   if (item.recordType === 'PANEL_RECOMMENDATION') {
     return routeForPanelRecommendation(item.recordId);

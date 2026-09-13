@@ -167,6 +167,8 @@ export const SupervisorWorkloadMonitoring: React.FC<
         { header: 'Workload Limit', value: (record) => record.workloadLimit },
         { header: 'Availability', value: (record) => record.availability },
         { header: 'Email', value: (record) => record.email },
+        { header: 'Primary Supervisees', value: (record) => record.supervisees.filter(student => student.supervisionRole !== 'CO_SUPERVISOR').length },
+        { header: 'Co-Supervisees', value: (record) => record.supervisees.filter(student => student.supervisionRole === 'CO_SUPERVISOR').length },
       ],
     );
     showToast('Supervisor workload CSV exported.');
@@ -518,6 +520,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                       </p>
                       <p className="text-[10px] text-slate-400 mt-2">
                         {supervisee.programme} · Appointed {supervisee.appointmentDate}
+                        {' · '}{supervisee.supervisionRole === 'CO_SUPERVISOR' ? 'Co-supervisor' : 'Primary supervisor'}
                       </p>
                     </div>
                   ))}

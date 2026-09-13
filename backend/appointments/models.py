@@ -511,6 +511,152 @@ class SupervisorAppointment(models.Model):
         ]
 
 
+class CoSupervisorNomination(models.Model):
+    """A supporting supervisor nomination; primary academic duties stay unchanged."""
+
+    class Status(models.TextChoices):
+        SUBMITTED_TO_CO_SUPERVISOR = (
+            "SUBMITTED_TO_CO_SUPERVISOR",
+            "Awaiting co-supervisor",
+        )
+        PENDING_COORDINATOR = "PENDING_COORDINATOR", "Awaiting coordinator"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED_BY_CO_SUPERVISOR = (
+            "REJECTED_BY_CO_SUPERVISOR",
+            "Rejected by co-supervisor",
+        )
+        REJECTED_BY_COORDINATOR = "REJECTED_BY_COORDINATOR", "Rejected by coordinator"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    PENDING_STATUSES = (Status.SUBMITTED_TO_CO_SUPERVISOR, Status.PENDING_COORDINATOR)
+    student = models.ForeignKey(
+        "accounts.Student",
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_nominations",
+    )
+    primary_appointment = models.ForeignKey(
+        SupervisorAppointment,
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_nominations",
+    )
+    nominator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="submitted_co_supervisor_nominations",
+    )
+    candidate = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_nominations_to_review",
+    )
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_nominations",
+    )
+    replaces_appointment = models.ForeignKey(
+        "CoSupervisorAppointment",
+        on_delete=models.PROTECT,
+        related_name="replacement_nominations",
+        null=True,
+        blank=True,
+    )
+    justification = models.TextField()
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.SUBMITTED_TO_CO_SUPERVISOR,
+        db_index=True,
+    )
+    reason = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    candidate_decided_at = models.DateTimeField(null=True, blank=True)
+    coordinator_decided_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "candidate"],
+                condition=Q(
+                    status__in=["SUBMITTED_TO_CO_SUPERVISOR", "PENDING_COORDINATOR"]
+                ),
+                name="unique_pending_co_supervisor_candidate",
+            ),
+            models.UniqueConstraint(
+                fields=["replaces_appointment"],
+                condition=Q(
+                    status__in=["SUBMITTED_TO_CO_SUPERVISOR", "PENDING_COORDINATOR"]
+                ),
+                name="unique_pending_co_supervisor_replacement",
+            ),
+        ]
+
+
+class CoSupervisorAppointment(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        ENDED = "ENDED", "Ended"
+
+    EndOutcome = SupervisorAppointment.EndOutcome
+    nomination = models.OneToOneField(
+        CoSupervisorNomination, on_delete=models.PROTECT, related_name="appointment"
+    )
+    student = models.ForeignKey(
+        "accounts.Student",
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_appointments",
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="co_supervisor_appointments",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="approved_co_supervisor_appointments",
+    )
+    supersedes = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="replacement_appointment",
+        null=True,
+        blank=True,
+    )
+    appointment_date = models.DateField(default=timezone.localdate)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.ACTIVE, db_index=True
+    )
+    end_outcome = models.CharField(
+        max_length=16, choices=EndOutcome.choices, blank=True
+    )
+    end_reason = models.TextField(blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ended_co_supervisor_appointments",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-appointment_date", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "supervisor"],
+                condition=Q(status="ACTIVE"),
+                name="unique_active_co_supervisor_candidate",
+            )
+        ]
+
+
 class AppointmentLifecycleEvent(models.Model):
     """Immutable audit for appointment activation, closure, and handover."""
 
@@ -528,6 +674,13 @@ class AppointmentLifecycleEvent(models.Model):
     )
     panel_appointment = models.ForeignKey(
         PanelAppointment,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_events",
+        null=True,
+        blank=True,
+    )
+    co_supervisor_appointment = models.ForeignKey(
+        CoSupervisorAppointment,
         on_delete=models.PROTECT,
         related_name="lifecycle_events",
         null=True,
@@ -554,10 +707,17 @@ class AppointmentLifecycleEvent(models.Model):
                     Q(
                         supervisor_appointment__isnull=False,
                         panel_appointment__isnull=True,
+                        co_supervisor_appointment__isnull=True,
                     )
                     | Q(
                         supervisor_appointment__isnull=True,
                         panel_appointment__isnull=False,
+                        co_supervisor_appointment__isnull=True,
+                    )
+                    | Q(
+                        supervisor_appointment__isnull=True,
+                        panel_appointment__isnull=True,
+                        co_supervisor_appointment__isnull=False,
                     )
                 ),
                 name="lifecycle_event_has_exactly_one_appointment",
@@ -590,6 +750,13 @@ class AppointmentWorkflowEvent(models.Model):
         null=True,
         blank=True,
     )
+    co_supervisor_nomination = models.ForeignKey(
+        CoSupervisorNomination,
+        on_delete=models.PROTECT,
+        related_name="workflow_events",
+        null=True,
+        blank=True,
+    )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -610,22 +777,42 @@ class AppointmentWorkflowEvent(models.Model):
                     Q(
                         panel_recommendation__isnull=False,
                         supervisor_application__isnull=True,
+                        co_supervisor_nomination__isnull=True,
                     )
                     | Q(
                         panel_recommendation__isnull=True,
                         supervisor_application__isnull=False,
+                        co_supervisor_nomination__isnull=True,
+                    )
+                    | Q(
+                        panel_recommendation__isnull=True,
+                        supervisor_application__isnull=True,
+                        co_supervisor_nomination__isnull=False,
                     )
                 ),
                 name="workflow_event_has_exactly_one_record",
             )
         ]
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Appointment workflow events are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Appointment workflow events are immutable.")
+
 
 def count_supervisor_workload(supervisor):
-    return SupervisorAppointment.objects.filter(
-        supervisor=supervisor,
-        status=SupervisorAppointment.Status.ACTIVE,
-    ).count()
+    return (
+        SupervisorAppointment.objects.filter(
+            supervisor=supervisor,
+            status=SupervisorAppointment.Status.ACTIVE,
+        ).count()
+        + CoSupervisorAppointment.objects.filter(
+            supervisor=supervisor, status=CoSupervisorAppointment.Status.ACTIVE
+        ).count()
+    )
 
 
 def _capacity_user(subject):

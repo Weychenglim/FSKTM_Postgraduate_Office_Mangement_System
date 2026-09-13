@@ -5,7 +5,13 @@ import {
   canAccessWorkflowReports,
   formatReportMetric,
   resolveWorkflowReportRecordRoute,
+  canOpenReportDossier,
 } from './workflowReports';
+
+assert.equal(canOpenReportDossier({ recordType: 'CO_SUPERVISOR_NOMINATION', studentId: 'PG001' }), false);
+assert.equal(canOpenReportDossier({ recordType: 'CO_SUPERVISOR_APPOINTMENT', studentId: 'PG001' }), false);
+assert.equal(canOpenReportDossier({ recordType: 'SUPERVISOR_APPLICATION', studentId: 'PG001' }), true);
+assert.equal(canOpenReportDossier({ recordType: 'SUPERVISOR_APPLICATION', studentId: null }), false);
 
 assert.equal(
   buildWorkflowReportQuery({

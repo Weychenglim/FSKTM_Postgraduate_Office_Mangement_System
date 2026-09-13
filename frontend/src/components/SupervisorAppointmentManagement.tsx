@@ -39,6 +39,7 @@ import {
 import { AppointmentEndControl } from './AppointmentEndControl';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
 import { downloadCsv } from '../utils/csvExport';
+import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 
 // SupervisorRecord now lives in src/types.
 
@@ -576,6 +577,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       />
 
       {/* 4 Vitals Summary Cards matching wireframe exactly */}
+      <SupervisoryTeamManagement />
       <div id="sup-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* Students Without Supervisor */}

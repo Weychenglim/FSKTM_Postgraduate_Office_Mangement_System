@@ -51,6 +51,7 @@ import {
   rejectSupervisorApplication,
 } from '../services';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
+import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -829,6 +830,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
             subtitleClassName="leading-relaxed max-w-4xl"
             className="select-none"
           />
+          <SupervisoryTeamManagement onChanged={loadData} />
 
           {loading ? (
             <LoadingState message="Loading supervisor appointments…" />

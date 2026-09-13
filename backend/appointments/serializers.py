@@ -462,6 +462,15 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
         return appointment_lifecycle_serializer_payload(appointment)
 
 
+def enforce_no_supporting_role(student_id, candidate_id):
+    from .co_supervision import assert_no_supporting_role, CoSupervisionConflict
+
+    try:
+        assert_no_supporting_role(student_id=student_id, candidate_id=candidate_id)
+    except CoSupervisionConflict as exc:
+        raise serializers.ValidationError(str(exc)) from exc
+
+
 class PanelRecommendationCreateSerializer(serializers.Serializer):
     studentId = serializers.CharField()
     recommendedMemberId = serializers.CharField()
@@ -528,6 +537,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 "The selected panel lecturer is not available for new assignments."
             )
 
+        enforce_no_supporting_role(profile.student_id, recommended_member.pk)
         if recommended_member.pk == user.pk:
             raise serializers.ValidationError(
                 "A supervisor cannot recommend themself as panel member."
@@ -602,6 +612,15 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     "This student's lifecycle status does not permit a new panel recommendation."
                 )
+        enforce_no_supporting_role(
+            profile.student_id, validated_data["recommended_member"].pk
+        )
+        if not SupervisorAppointment.objects.filter(
+            student_id=profile.student_id,
+            supervisor=self.context["request"].user,
+            status="ACTIVE",
+        ).exists():
+            raise NoActiveSupervisorAppointment()
         users = [self.context["request"].user, validated_data["recommended_member"]]
         lecturers = {
             row.pk: row
@@ -975,6 +994,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "The selected supervisor is not available for new assignments."
             )
+        enforce_no_supporting_role(student.pk, supervisor.pk)
         active_appointment = SupervisorAppointment.objects.filter(
             student=student,
             status=SupervisorAppointment.Status.ACTIVE,
@@ -1034,6 +1054,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         student = Student.objects.select_for_update().get(
             pk=validated_data["student"].pk
         )
+        enforce_no_supporting_role(student.pk, validated_data["supervisor"].pk)
         lecturer = Lecturer.objects.select_for_update().get(
             pk=validated_data["supervisor"].pk
         )

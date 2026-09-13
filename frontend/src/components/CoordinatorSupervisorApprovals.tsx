@@ -16,6 +16,7 @@ import { ErrorState, LoadingState } from './StateViews';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { AppointmentEndControl } from './AppointmentEndControl';
+import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 
 
 interface CoordinatorSupervisorApprovalsProps {
@@ -103,6 +104,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
         title="Supervisor Appointment Approvals"
         subtitle="Review supervisor requests accepted by lecturers in your managed programme."
       />
+      <SupervisoryTeamManagement />
 
       {loading ? (
         <LoadingState message="Loading supervisor approvals…" />

@@ -21,6 +21,7 @@ export interface AppointmentCapacityMetadata {
 }
 
 export type WorkflowWaitingOn =
+  | 'CO_SUPERVISOR'
   | 'SUPERVISOR'
   | 'SELECTED_PANEL'
   | 'PROGRAMME_COORDINATOR'
@@ -190,6 +191,7 @@ export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
   availability: 'Available' | 'Near Limit' | 'Full Load';
   email: string;
   supervisees: Array<{
+    supervisionRole?: 'PRIMARY' | 'CO_SUPERVISOR';
     id: string;
     name: string;
     programme: string;

@@ -410,6 +410,16 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
 
       {activeTab === 'SUPERVISOR' && dossier.supervisor && (
         <section className="space-y-4">
+          {dossier.supervisoryTeam ? <PortalCard padding="md">
+            <h2 className="text-sm font-bold text-brand-navy">Supervisory team</h2>
+            <p className="mt-2 text-sm">Primary: {dossier.supervisoryTeam.primarySupervisor?.name ?? 'Awaiting primary appointment'}</p>
+            <div className="mt-3 space-y-2">{dossier.supervisoryTeam.appointments.map(appointment => <div key={appointment.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+              <span className="font-semibold">{appointment.supervisor.name}</span> · Co-supervisor · {formatProgressStatus(appointment.status)}
+              <p className="mt-1 text-xs text-slate-500">Since {dateText(appointment.appointmentDate)}{appointment.endedAt ? ` · Ended ${dateText(appointment.endedAt)} · ${appointment.endReason}` : ''}</p>
+            </div>)}</div>
+            {dossier.supervisoryTeam.nominations.length ? <p className="mt-3 text-xs text-slate-600">{dossier.supervisoryTeam.nominations.filter(nomination => ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status)).length} pending supporting nominations</p> : null}
+            <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View team and history</PortalButton>
+          </PortalCard> : null}
           <h2 className="text-sm font-black text-brand-navy">Supervisor lifecycle</h2>
           {dossier.supervisor.records.length === 0 ? (
             <EmptyState title="No Supervisor records" description="No persisted Supervisor applications are available." />

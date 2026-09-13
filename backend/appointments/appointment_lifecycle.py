@@ -114,6 +114,14 @@ def _end_locked(appointment, *, actor, outcome, reason, replacement_evaluator=No
         outcome=outcome,
         reason=reason,
     )
+    if isinstance(appointment, SupervisorAppointment):
+        from .co_supervision import cancel_primary_pending
+
+        cancel_primary_pending(
+            appointment,
+            actor=actor,
+            reason="Automatically cancelled because the originating primary supervisor appointment ended.",
+        )
     _retire_marks(
         appointment,
         actor=actor,
@@ -137,6 +145,16 @@ def end_appointment(*, model, appointment_id, actor, outcome, reason):
         raise AppointmentLifecycleConflict(
             "Select Completed, Withdrawn, or Other for a direct closure."
         )
+    from accounts.models import Student
+
+    source = model.objects.get(pk=appointment_id)
+    student_id = (
+        source.student_id
+        if model is SupervisorAppointment
+        else source.profile.student_id
+    )
+    if student_id:
+        Student.objects.select_for_update().get(pk=student_id)
     appointment = (
         model.objects.select_for_update()
         .select_related(

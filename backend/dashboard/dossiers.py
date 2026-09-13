@@ -644,6 +644,11 @@ def build_student_progress_dossier(user, student_id, now=None):
     now = now or timezone.now()
     profile = _research_profile(student)
     visibility, visible_set = _resolve_access(user, student, profile)
+    from appointments.co_supervision import can_read_team, serialize_team
+
+    supervisory_team = (
+        serialize_team(student, user) if can_read_team(user, student) else None
+    )
     ordered_sections = [
         section
         for section in (
@@ -735,7 +740,9 @@ def build_student_progress_dossier(user, student_id, now=None):
                                 "actor": audit.actor.full_name,
                                 "createdAt": _iso(audit.created_at),
                             }
-                            for audit in student.lifecycle_audits.select_related("actor")
+                            for audit in student.lifecycle_audits.select_related(
+                                "actor"
+                            )
                         ],
                     }
                     if visibility == "INTERNAL"
@@ -754,6 +761,7 @@ def build_student_progress_dossier(user, student_id, now=None):
             ),
         },
         "visibleSections": ordered_sections,
+        "supervisoryTeam": supervisory_team,
         "overview": {
             "supervisorStatus": (
                 supervisor_current["status"] if supervisor_current else None
@@ -762,7 +770,8 @@ def build_student_progress_dossier(user, student_id, now=None):
             "marksStatus": marks["summaryStatus"] if marks else None,
             "activeTimelineEntries": sum(
                 entry["status"] in {"ACTIVE", "DEADLINE"}
-                for entry in timeline["entries"] if timeline
+                for entry in timeline["entries"]
+                if timeline
             ),
             "attentionCount": len(attention),
         },

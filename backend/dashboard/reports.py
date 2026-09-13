@@ -21,6 +21,7 @@ from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimelineEntry
 from .reconciliation import detect_reconciliation_issues
+from .co_supervision_tracking import scoped_nominations
 
 User = get_user_model()
 AUTHORIZED_ROLES = {
@@ -368,6 +369,90 @@ def _supervisor_rows(
                     role=CapacityRole.SUPERVISOR,
                 ),
                 **_semester_row(application.academic_semester),
+            }
+        )
+    return rows
+
+
+def _co_supervisor_rows(user, programme, start_date, end_date, now, selector, semester):
+    from appointments.ageing import elapsed_calendar_days
+    from appointments.co_supervision import can_read_team
+    from appointments.models import CoSupervisorNomination
+
+    records = _filter_semester(
+        scoped_nominations(user, programme), "academic_semester", selector, semester
+    )
+    rows = []
+    for nomination in records.select_related(
+        "appointment__ended_by",
+        "appointment__replacement_appointment",
+        "student__user__research_profile",
+    ):
+        if not _within_range(nomination.submitted_at, start_date, end_date):
+            continue
+        waiting_since = None
+        waiting_on = None
+        if nomination.status in CoSupervisorNomination.PENDING_STATUSES:
+            waiting_on = "CO_SUPERVISOR"
+            waiting_since = nomination.submitted_at
+            if nomination.status == CoSupervisorNomination.Status.PENDING_COORDINATOR:
+                waiting_on = "PROGRAMME_COORDINATOR"
+                waiting_since = nomination.candidate_decided_at or nomination.updated_at
+        waiting_days = elapsed_calendar_days(waiting_since, now=now)
+        appointment = getattr(nomination, "appointment", None)
+        successor = (
+            getattr(appointment, "replacement_appointment", None)
+            if appointment
+            else None
+        )
+        profile = (
+            getattr(nomination.student.user, "research_profile", None)
+            if can_read_team(user, nomination.student)
+            else None
+        )
+        rows.append(
+            {
+                "recordType": "CO_SUPERVISOR_NOMINATION",
+                "recordId": str(nomination.pk),
+                "supervisionRole": "CO_SUPERVISOR",
+                "studentId": nomination.student.matric_no,
+                "studentName": nomination.student.user.full_name,
+                "programme": nomination.student.programme,
+                "researchTitle": profile.proposed_topic if profile else "",
+                "researchArea": profile.research_area if profile else "",
+                "assignee": nomination.candidate.full_name,
+                "nominator": nomination.nominator.full_name,
+                "status": nomination.status,
+                "reportDate": _iso(nomination.submitted_at),
+                "waitingSince": _iso(waiting_since),
+                "waitingDays": waiting_days,
+                "waitingOn": waiting_on,
+                "ageBand": _age_band(waiting_days),
+                "appointmentStatus": appointment.status if appointment else None,
+                "appointmentOutcome": (
+                    appointment.end_outcome or None if appointment else None
+                ),
+                "appointmentEndedAt": (
+                    _iso(appointment.ended_at) if appointment else None
+                ),
+                "appointmentEndReason": (
+                    appointment.end_reason or None if appointment else None
+                ),
+                "appointmentEndedBy": (
+                    appointment.ended_by.full_name
+                    if appointment and appointment.ended_by_id
+                    else None
+                ),
+                "supersedesAppointmentId": (
+                    appointment.supersedes_id if appointment else None
+                ),
+                "replacementAppointmentId": successor.pk if successor else None,
+                **_capacity_fields(
+                    lecturer=nomination.candidate,
+                    semester=nomination.academic_semester,
+                    role=CapacityRole.SUPERVISOR,
+                ),
+                **_semester_row(nomination.academic_semester),
             }
         )
     return rows
@@ -768,6 +853,19 @@ def build_workflow_report(user, query_params=None, now=None):
         semester_selector,
         selected_semester,
     )
+    for row in supervisor_rows:
+        row["supervisionRole"] = "PRIMARY"
+    supervisor_rows.extend(
+        _co_supervisor_rows(
+            user,
+            programme,
+            start_date,
+            end_date,
+            now,
+            semester_selector,
+            selected_semester,
+        )
+    )
     panel_rows = _panel_rows(
         user,
         programme,
@@ -988,6 +1086,8 @@ def build_workflow_report_workbook(report):
         ("capacityLoad", "Capacity Load"),
         ("availableSlots", "Available Slots"),
         ("unavailableUntil", "Unavailable Until"),
+        ("recordType", "Record Type"),
+        ("supervisionRole", "Supervision Role"),
     ]
     _append_sheet(
         workbook,
