@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CoSupervisorNominationCard, CoSupervisorAppointmentCard } from './SupervisoryTeamManagement';
+import { CoSupervisorNominationCard, CoSupervisorAppointmentCard, SupervisoryTeamTimeline } from './SupervisoryTeamManagement';
 import type { CoSupervisorNomination, CoSupervisorAppointment } from '../types/coSupervision';
 
 const nomination: CoSupervisorNomination = {
@@ -26,3 +26,16 @@ assert.match(ended, /Research changed/);
 assert.doesNotMatch(ended, />End appointment</);
 assert.doesNotMatch(ended, />Replace</);
 console.log('Supervisory team role-specific rendering passed');
+
+const timeline = renderToStaticMarkup(<SupervisoryTeamTimeline entries={[
+  { id: 'panel-current-status', title: 'Panel appointment', date: null, status: 'FACULTY_PROCESSING' },
+]} />);
+assert.match(timeline, /Faculty processing/);
+assert.doesNotMatch(timeline, /FACULTY_PROCESSING|Invalid Date|null|undefined/);
+const confirmed = renderToStaticMarkup(<SupervisoryTeamTimeline entries={[
+  { id: 'panel-current-status', title: 'Panel appointment', date: '2026-09-15', status: 'CONFIRMED' },
+]} />);
+assert.match(confirmed, /Confirmed/);
+assert.match(confirmed, /2026/);
+assert.equal(renderToStaticMarkup(<SupervisoryTeamTimeline entries={[]} />), '');
+console.log('Student-safe supervisory timeline rendering passed');

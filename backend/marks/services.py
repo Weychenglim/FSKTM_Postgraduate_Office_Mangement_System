@@ -28,6 +28,7 @@ from .models import (
     Rubric,
     RubricComponent,
 )
+from .targeting import normalize_period_targeting, period_recipients, profile_in_scope
 
 
 User = get_user_model()
@@ -107,6 +108,9 @@ def _period_snapshot(period):
             else None
         ),
         "rubricId": period.rubric_id,
+        "programmeScope": period.programme_scope,
+        "programmes": period.programmes,
+        "evaluatorRoles": period.evaluator_roles,
         "opensAt": period.opens_at.isoformat() if period.opens_at else None,
         "closesAt": period.closes_at.isoformat() if period.closes_at else None,
         "lifecycleStatus": period.lifecycle_status,
@@ -352,6 +356,9 @@ def create_evaluation_period(
     rubric,
     opens_at,
     closes_at,
+    programme_scope="ALL",
+    programmes=None,
+    evaluator_roles=None,
 ):
     _assert_office_admin(actor)
     if opens_at and closes_at and opens_at >= closes_at:
@@ -364,7 +371,7 @@ def create_evaluation_period(
             "Evaluation periods can only be prepared for Draft or Active semesters."
         )
     _validate_period_dates(academic_semester, opens_at, closes_at)
-    period = EvaluationPeriod.objects.create(
+    period = EvaluationPeriod(
         name=str(name).strip(),
         semester=academic_semester.label,
         academic_semester=academic_semester,
@@ -372,7 +379,12 @@ def create_evaluation_period(
         opens_at=opens_at,
         closes_at=closes_at,
         lifecycle_status=EvaluationPeriod.Lifecycle.DRAFT,
+        programme_scope=programme_scope,
+        programmes=[] if programmes is None else programmes,
+        evaluator_roles=["SUPERVISOR", "PANEL"] if evaluator_roles is None else evaluator_roles,
     )
+    normalize_period_targeting(period)
+    period.save()
     _configuration_audit(
         entity_type=MarksConfigurationAudit.EntityType.PERIOD,
         entity_id=period.pk,
@@ -399,6 +411,9 @@ def update_evaluation_period(*, period, actor, values, reason=""):
             "rubric",
             "opens_at",
             "closes_at",
+            "programme_scope",
+            "programmes",
+            "evaluator_roles",
         ):
             if field in values:
                 setattr(period, field, values[field])
@@ -427,6 +442,7 @@ def update_evaluation_period(*, period, actor, values, reason=""):
             raise ValidationError(
                 "Opening timestamp must be before closing timestamp."
             )
+        normalize_period_targeting(period)
         action = "UPDATE"
     elif period.lifecycle_status == EvaluationPeriod.Lifecycle.PUBLISHED:
         if set(values) != {"closes_at"}:
@@ -477,6 +493,7 @@ def publish_evaluation_period(*, period, actor):
     )
     if period.lifecycle_status != EvaluationPeriod.Lifecycle.DRAFT:
         raise ValidationError("Only draft evaluation periods can be published.")
+    normalize_period_targeting(period)
     if period.academic_semester_id is None or not period.academic_semester.is_active:
         raise MarksStateConflict(
             "Evaluation periods can only be published for the active academic semester."
@@ -591,66 +608,28 @@ def ensure_period_tasks(period, *, actor=None):
         "supervisor": 0,
         "panel": 0,
     }
-    supervisor_appointments = SupervisorAppointment.objects.filter(
-        status=SupervisorAppointment.Status.ACTIVE,
-        student__status=Student.Status.ACTIVE,
-        supervisor__is_active=True,
-        supervisor__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-    ).select_related("student", "student__user", "supervisor")
-    for appointment in supervisor_appointments:
-        student = Student.objects.select_for_update().get(pk=appointment.student_id)
-        lecturer = Lecturer.objects.select_for_update().get(
-            pk=appointment.supervisor_id
-        )
-        if (
-            student.status != Student.Status.ACTIVE
-            or lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE
-        ):
-            continue
-        profile = StudentResearchProfile.objects.filter(
-            matric_no=appointment.student.matric_no
-        ).first()
-        if profile is None:
+    initial = period_recipients(period)
+    initial_keys = {row.key for row in initial}
+    # Lock students before lecturers, in stable order, as appointment services do.
+    list(Student.objects.select_for_update().filter(
+        pk__in={row.student.pk for row in initial if row.student},
+    ).order_by("pk"))
+    list(Lecturer.objects.select_for_update().filter(
+        pk__in={row.evaluator.pk for row in initial},
+    ).order_by("pk"))
+    for row in period_recipients(period):
+        if row.key not in initial_keys:
+            # A new candidate outside this lock set is picked up on the next run.
             continue
         _, was_created = EvaluationTask.objects.get_or_create(
-            profile=profile,
-            evaluator=appointment.supervisor,
+            profile=row.profile,
+            evaluator=row.evaluator,
             period=period,
-            evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
+            evaluator_role=row.role,
             lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
             defaults={"assigned_by": actor},
         )
-        created["supervisor"] += int(was_created)
-
-    panel_appointments = PanelAppointment.objects.filter(
-        status=PanelAppointment.Status.ACTIVE,
-        panel_member__is_active=True,
-        panel_member__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-    ).filter(
-        Q(profile__student__isnull=True)
-        | Q(profile__student__student__status=Student.Status.ACTIVE)
-    ).select_related("profile", "panel_member")
-    for appointment in panel_appointments:
-        if appointment.profile.student_id:
-            student = Student.objects.select_for_update().get(
-                pk=appointment.profile.student_id
-            )
-            if student.status != Student.Status.ACTIVE:
-                continue
-        lecturer = Lecturer.objects.select_for_update().get(
-            pk=appointment.panel_member_id
-        )
-        if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
-            continue
-        _, was_created = EvaluationTask.objects.get_or_create(
-            profile=appointment.profile,
-            evaluator=appointment.panel_member,
-            period=period,
-            evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
-            lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-            defaults={"assigned_by": actor},
-        )
-        created["panel"] += int(was_created)
+        created[row.role.lower()] += int(was_created)
 
     created["total"] = created["supervisor"] + created["panel"]
     created["period_total"] = EvaluationTask.objects.filter(
@@ -699,6 +678,16 @@ def create_backup_evaluation_task(
             raise ValidationError(
                 "The student's lifecycle status does not permit a new evaluation task."
             )
+    profile = StudentResearchProfile.objects.select_related("student__student").get(pk=profile.pk)
+    if not profile_in_scope(period, profile):
+        raise ValidationError("Student is outside the evaluation period's selected programmes.")
+    if original_task and (
+        original_task.period_id != period.pk
+        or original_task.profile_id != profile.pk
+        or original_task.evaluator_role not in period.evaluator_roles
+        or original_task.evaluator_role not in {"SUPERVISOR", "PANEL"}
+    ):
+        raise ValidationError("Original task must match this period, student, and an included official evaluator role.")
     lecturer = Lecturer.objects.select_for_update().get(pk=evaluator.pk)
     if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
         raise ValidationError("Backup evaluator is no longer available.")
@@ -774,7 +763,7 @@ def retire_official_evaluation_tasks(
             ]
         )
         replacement_task = None
-        if replacement_evaluator is not None:
+        if replacement_evaluator is not None and profile_in_scope(task.period, profile, evaluator_role):
             replacement_task, _ = EvaluationTask.objects.get_or_create(
                 profile=profile,
                 evaluator=replacement_evaluator,
@@ -842,6 +831,8 @@ def ensure_replacement_evaluation_tasks(
         if old_entry and old_entry.status == MarkEntry.Status.SUBMITTED:
             continue
         if old_task.period.status_at() not in {"SCHEDULED", "OPEN"}:
+            continue
+        if not profile_in_scope(old_task.period, profile, evaluator_role):
             continue
         replacement_task, created = EvaluationTask.objects.get_or_create(
             profile=profile,

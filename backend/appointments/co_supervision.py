@@ -35,6 +35,7 @@ from .models import (
     AppointmentLifecycleEvent,
 )
 from .notifications import publish_workflow_notification
+from .student_panel import student_panel_timeline
 
 
 class CoSupervisionConflict(Exception):
@@ -706,7 +707,9 @@ def serialize_team(student, actor):
                 "status": row.status,
             }
         )
-    if profile:
+    if profile and actor.role == User.Role.STUDENT:
+        timeline.extend(student_panel_timeline(profile))
+    elif profile:
         for row in profile.panel_recommendations.all():
             timeline.append(
                 {

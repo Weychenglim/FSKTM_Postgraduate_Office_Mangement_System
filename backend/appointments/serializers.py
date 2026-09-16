@@ -1298,20 +1298,9 @@ class StudentPanelAppointmentSerializer(serializers.Serializer):
 
 
 def student_panel_appointment_payload(profile):
-    appointment = (
-        PanelAppointment.objects.filter(
-            profile=profile,
-            status=PanelAppointment.Status.ACTIVE,
-        )
-        .select_related(
-            "panel_member",
-            "panel_member__lecturer",
-            "supervisor",
-            "recommendation",
-            "recommendation__academic_semester",
-        )
-        .first()
-    )
+    from .student_panel import current_student_panel_records
+
+    appointment, recommendation = current_student_panel_records(profile)
     base = {
         "status": "PENDING",
         "readinessState": "READY_FOR_PANEL_RECOMMENDATION",
@@ -1333,15 +1322,6 @@ def student_panel_appointment_payload(profile):
         "waitingOn": None,
     }
     if not appointment:
-        recommendation = (
-            profile.panel_recommendations.filter(
-                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
-            )
-            .prefetch_related("workflow_events")
-            .select_related("academic_semester")
-            .order_by("-updated_at", "-id")
-            .first()
-        )
         if recommendation:
             return {
                 **base,

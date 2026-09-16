@@ -87,6 +87,9 @@ class EvaluationPeriodAdmin(admin.ModelAdmin):
     readonly_fields = (
         "name",
         "semester",
+        "programme_scope",
+        "programmes",
+        "evaluator_roles",
         "rubric",
         "opens_at",
         "closes_at",

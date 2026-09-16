@@ -24,7 +24,8 @@ From this `backend/` folder:
 # 1. Virtualenv + dependencies
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade "pip>=26.2,<27"
+python -m pip install -r requirements.txt
 
 # 2. Environment (set PostgreSQL plus local demo flags/passwords in .env)
 Copy-Item .env.example .env

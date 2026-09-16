@@ -38,6 +38,7 @@ import {
 } from '../services';
 import {
   formatPeriodStatus,
+  formatPeriodTargeting,
   marksMutationErrorMessage,
 } from '../utils/marksProductionManagement';
 
@@ -323,7 +324,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               title="Evaluation Period"
               badgeText={selectedPeriod ? formatPeriodStatus(selectedPeriod.effectiveStatus) : 'Not selected'}
               badgeType={selectedPeriod?.effectiveStatus === 'OPEN' ? 'active' : 'generated'}
-              subtext={selectedPeriod ? `${selectedPeriod.name} · ${selectedPeriod.semester}` : 'No period selected'}
+              subtext={selectedPeriod ? `${selectedPeriod.name} · ${selectedPeriod.semester} · ${formatPeriodTargeting(selectedPeriod)}` : 'No period selected'}
               icon={Calendar}
               onClick={() => {}}
             />
@@ -386,7 +387,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="">Select period</option>
                     {periods.map((period) => (
                       <option key={period.id} value={period.id}>
-                        {period.name} · {period.semester}
+                        {period.name} · {period.semester} · {formatPeriodTargeting(period)}
                       </option>
                     ))}
                   </select>
@@ -397,6 +398,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     Selected Period
                   </span>
                   <p className="font-black text-brand-navy">{selectedPeriod?.rubricName || 'No rubric selected'}</p>
+                  {selectedPeriod ? <p className="mt-1 text-xs text-slate-600">{formatPeriodTargeting(selectedPeriod)}</p> : null}
                   <p className="text-slate-500 font-semibold mt-1">
                     {formatDate(selectedPeriod?.opensAt || null)} → {formatDate(selectedPeriod?.closesAt || null)}
                   </p>
@@ -655,7 +657,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     >
                       <option value="">Select period</option>
                       {periods.map((period) => (
-                        <option key={period.id} value={period.id}>{period.name} · {period.semester}</option>
+                        <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>
                       ))}
                     </select>
                   </label>

@@ -7,6 +7,8 @@ urlpatterns = [
     path("", views.mark_records_view),
     path("records/<str:record_id>/", views.mark_record_detail_view),
     path("periods/", views.evaluation_periods_view),
+    path("programme-options/", views.evaluation_programme_options_view),
+    path("periods/<int:pk>/recipient-preview/", views.evaluation_recipient_preview_view),
     path("periods/<int:pk>/", views.evaluation_period_detail_view),
     path(
         "periods/<int:pk>/publish/",

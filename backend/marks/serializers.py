@@ -82,6 +82,9 @@ class RubricComponentInputSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodCreateSerializer(serializers.Serializer):
+    programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
+    programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
+    evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
     name = serializers.CharField(max_length=255)
     semester = serializers.CharField(max_length=128, required=False)
     semesterId = serializers.IntegerField(min_value=1, required=False)
@@ -91,6 +94,9 @@ class EvaluationPeriodCreateSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodUpdateSerializer(serializers.Serializer):
+    programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
+    programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
+    evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
     name = serializers.CharField(max_length=255, required=False)
     semester = serializers.CharField(max_length=128, required=False)
     semesterId = serializers.IntegerField(min_value=1, required=False)

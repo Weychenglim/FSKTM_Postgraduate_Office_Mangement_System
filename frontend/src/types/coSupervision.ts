@@ -48,7 +48,7 @@ export interface SupervisoryTeam {
   appointments: CoSupervisorAppointment[];
   nominations: CoSupervisorNomination[];
   canNominate: boolean;
-  timeline?: { id: number | string; title: string; date?: string; status?: string }[];
+  timeline?: { id: number | string; title: string; date?: string | null; status?: string }[];
 }
 export interface CoSupervisorCandidate extends TeamPerson {
   selectable: boolean;

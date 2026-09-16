@@ -112,6 +112,10 @@ class RubricComponent(models.Model):
         return f"{self.rubric.code}: {self.name}"
 
 
+def default_evaluator_roles():
+    return ["SUPERVISOR", "PANEL"]
+
+
 class EvaluationPeriod(models.Model):
     class Lifecycle(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
@@ -121,6 +125,12 @@ class EvaluationPeriod(models.Model):
 
     name = models.CharField(max_length=255)
     semester = models.CharField(max_length=128)
+    programme_scope = models.CharField(
+        max_length=8, choices=[("ALL", "All programmes"), ("SELECTED", "Selected programmes")],
+        default="ALL",
+    )
+    programmes = models.JSONField(default=list, blank=True)
+    evaluator_roles = models.JSONField(default=default_evaluator_roles)
     academic_semester = models.ForeignKey(
         "academics.AcademicSemester",
         on_delete=models.PROTECT,
