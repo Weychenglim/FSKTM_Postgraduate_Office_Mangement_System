@@ -979,37 +979,9 @@ def _detect_marks_issues():
     for period in EvaluationPeriod.objects.select_related("academic_semester").all():
         if not period.accepts_submissions:
             continue
-        expected = set()
-        for appointment in SupervisorAppointment.objects.filter(
-            status=SupervisorAppointment.Status.ACTIVE,
-            student__status=Student.Status.ACTIVE,
-            supervisor__is_active=True,
-            supervisor__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-        ).select_related("student"):
-            profile = StudentResearchProfile.objects.filter(
-                matric_no__iexact=appointment.student.matric_no
-            ).first()
-            if profile:
-                expected.add(
-                    (
-                        profile.pk,
-                        appointment.supervisor_id,
-                        EvaluationTask.EvaluatorRole.SUPERVISOR,
-                    )
-                )
-        for appointment in PanelAppointment.objects.filter(
-            status=PanelAppointment.Status.ACTIVE,
-            panel_member__is_active=True,
-            panel_member__lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
-        ).select_related("profile"):
-            if profile_student_is_workflow_eligible(appointment.profile):
-                expected.add(
-                    (
-                        appointment.profile_id,
-                        appointment.panel_member_id,
-                        EvaluationTask.EvaluatorRole.PANEL,
-                    )
-                )
+        from marks.targeting import period_recipients
+
+        expected = {row.key for row in period_recipients(period)}
         existing = set(
             EvaluationTask.objects.filter(
                 period=period,

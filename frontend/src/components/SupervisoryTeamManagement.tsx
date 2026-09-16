@@ -11,6 +11,17 @@ const labels: Record<CoSupervisorAction, string> = { accept: 'Accept', reject: '
 const statusLabels: Record<string, string> = { SUBMITTED_TO_CO_SUPERVISOR: 'Awaiting co-supervisor', PENDING_COORDINATOR: 'Awaiting coordinator', APPROVED: 'Approved', REJECTED_BY_CO_SUPERVISOR: 'Rejected by co-supervisor', REJECTED_BY_COORDINATOR: 'Rejected by coordinator', CANCELLED: 'Cancelled', ACTIVE: 'Active', ENDED: 'Ended' };
 const displayDate = (value: string) => new Date(value).toLocaleDateString('en-MY', { year: 'numeric', month: 'short', day: 'numeric' });
 
+export function SupervisoryTeamTimeline({ entries }: { entries: SupervisoryTeam['timeline'] }) {
+  const timelineStatusLabels: Record<string, string> = { ...statusLabels, FACULTY_PROCESSING: 'Faculty processing', CONFIRMED: 'Confirmed' };
+  return entries?.length ? <details>
+    <summary className="cursor-pointer text-sm font-semibold">Timeline and progress</summary>
+    <ol className="mt-2 space-y-2 text-sm">{entries.map(entry => <li key={entry.id}>
+      {entry.title}{entry.date ? ` · ${displayDate(entry.date)}` : ''}
+      {entry.status ? ` · ${timelineStatusLabels[entry.status] ?? entry.status.replaceAll('_', ' ').toLowerCase()}` : ''}
+    </li>)}</ol>
+  </details> : null;
+}
+
 function TeamHistory({ events }: { events: TeamAudit[] }) {
   return events.length ? <details className="mt-3 text-xs text-slate-600">
     <summary className="cursor-pointer font-semibold">Audit history ({events.length})</summary>
@@ -173,7 +184,7 @@ export function SupervisoryTeamManagement({ onChanged }: { onChanged?: () => voi
           {team.canNominate ? <PortalButton size="sm" disabled={busy} onClick={() => begin({ kind: 'nominate', team, replacement: null })}>Nominate co-supervisor</PortalButton> : null}
           {team.appointments.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={row} busy={busy} canReplace={team.canNominate && row.status === 'ACTIVE' && !team.nominations.some(nomination => nomination.replacesAppointmentId === row.id && ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status))} onEnd={appointment => begin({ kind: 'end', appointment })} onReplace={replacement => begin({ kind: 'nominate', team, replacement })} />)}
           {team.nominations.length ? <details><summary className="cursor-pointer text-sm font-semibold">Nomination history ({team.nominations.length})</summary><div className="mt-3 space-y-3">{team.nominations.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={(nomination, action) => begin({ kind: 'decision', nomination, action })} />)}</div></details> : null}
-          {team.timeline?.length ? <details><summary className="cursor-pointer text-sm font-semibold">Timeline and progress</summary><ol className="mt-2 space-y-2 text-sm">{team.timeline.map(entry => <li key={entry.id}>{entry.title}{entry.date ? ` · ${displayDate(entry.date)}` : ''}{entry.status ? ` · ${entry.status}` : ''}</li>)}</ol></details> : null}
+          <SupervisoryTeamTimeline entries={team.timeline} />
         </div>
       </details>)}
       {teams.length > 8 ? <div className="flex items-center justify-between text-xs"><PortalButton size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</PortalButton><span>Page {currentPage} of {pageCount}</span><PortalButton size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</PortalButton></div> : null}

@@ -110,6 +110,9 @@ export interface EvaluationPeriodOption {
   semesterCode: string | null;
   rubricId: number;
   rubricName: string;
+  programmeScope: 'ALL' | 'SELECTED';
+  programmes: string[];
+  evaluatorRoles: Array<'SUPERVISOR' | 'PANEL'>;
   opensAt: string | null;
   closesAt: string | null;
   isOpen: boolean;
@@ -121,6 +124,23 @@ export interface EvaluationPeriodOption {
   rubric?: RubricVersion;
   auditEvents?: MarksConfigurationAuditEvent[];
   taskTotals: EvaluationTaskTotals;
+}
+
+export interface EvaluationRecipientPreview {
+  periodId: number;
+  generatedAt: string;
+  recipients: Array<{
+    studentId: number | null;
+    matricNo: string;
+    studentName: string;
+    programme: string;
+    evaluatorId: number;
+    evaluatorName: string;
+    evaluatorRole: 'SUPERVISOR' | 'PANEL';
+    taskStatus: 'EXISTING' | 'NEW';
+  }>;
+  totals: { students: number; supervisor: number; panel: number; total: number; existing: number; new: number };
+  missingAppointments: { supervisor: number; panel: number };
 }
 
 export interface MarkRecordDetail extends DeadlineMetadata {

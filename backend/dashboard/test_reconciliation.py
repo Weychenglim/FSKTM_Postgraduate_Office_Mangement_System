@@ -597,7 +597,10 @@ class WorkflowReconciliationApiTests(TestCase):
             lecturer=coordinator_lecturer,
             programme_managed=PROGRAMME,
         )
-        decided_at = timezone.now() - timezone.timedelta(days=2)
+        # Exercise the UTC/local calendar boundary regardless of the run time.
+        decided_at = (timezone.now() - timezone.timedelta(days=2)).replace(
+            hour=18, minute=0, second=0, microsecond=0,
+        )
         application = SupervisorApplication.objects.create(
             student=self.student,
             proposed_supervisor=self.lecturer,
@@ -631,7 +634,7 @@ class WorkflowReconciliationApiTests(TestCase):
             application=application
         )
         self.assertEqual(supervisor_appointment.approved_by_id, coordinator_user.pk)
-        self.assertEqual(supervisor_appointment.appointment_date, decided_at.date())
+        self.assertEqual(supervisor_appointment.appointment_date, timezone.localdate(decided_at))
         profile = StudentResearchProfile.objects.get(student=self.student_user)
         self.assertEqual(profile.supervisor_id, self.lecturer.pk)
 
@@ -663,7 +666,7 @@ class WorkflowReconciliationApiTests(TestCase):
         self.assertEqual(panel_result.status_code, status.HTTP_200_OK)
         panel_appointment = PanelAppointment.objects.get(recommendation=recommendation)
         self.assertEqual(panel_appointment.approved_by_id, coordinator_user.pk)
-        self.assertEqual(panel_appointment.appointment_date, decided_at.date())
+        self.assertEqual(panel_appointment.appointment_date, timezone.localdate(decided_at))
         self.assertTrue(
             AppointmentLifecycleEvent.objects.filter(
                 panel_appointment=panel_appointment,

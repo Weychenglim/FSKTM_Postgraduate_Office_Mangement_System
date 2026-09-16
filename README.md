@@ -45,7 +45,8 @@ the backend. Production builds remove the entire demo console.
 Set-Location backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade "pip>=26.2,<27"
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 # In the ignored .env, explicitly enable demo accounts and set all four
 # DEMO_*_PASSWORD values before seeding.

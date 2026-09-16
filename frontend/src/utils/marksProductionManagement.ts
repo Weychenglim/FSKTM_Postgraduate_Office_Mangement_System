@@ -5,6 +5,44 @@ import type {
   EvaluationPeriodLifecycle,
 } from '../types/marks';
 
+type PeriodTargeting = {
+  programmeScope?: string;
+  programmes?: string[];
+  evaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
+};
+
+export function validatePeriodTargeting(target: PeriodTargeting): string | null {
+  if (!['ALL', 'SELECTED'].includes(target.programmeScope || '')) return 'Choose a programme scope.';
+  if (target.programmeScope === 'SELECTED' && !target.programmes?.length) return 'Select at least one programme.';
+  if (!target.evaluatorRoles?.length) return 'Select at least one evaluator role.';
+  return null;
+}
+
+export function formatPeriodTargeting(target: PeriodTargeting): string {
+  const programmes = target.programmeScope === 'SELECTED' ? (target.programmes || []).join(', ') : 'All programmes';
+  const roles = (target.evaluatorRoles || ['SUPERVISOR', 'PANEL']).map((role) => role === 'SUPERVISOR' ? 'Supervisor' : 'Panel').join(' and ');
+  return `${programmes} · ${roles}`;
+}
+
+export type PeriodPreviewApproval = {
+  periodId: number;
+  formSnapshot: string;
+  periodSnapshot: string;
+};
+
+export function canPublishPeriodPreview(
+  period: { id: number; lifecycleStatus: string } | null,
+  formSnapshot: string,
+  savedFormSnapshot: string,
+  preview: PeriodPreviewApproval | null,
+): boolean {
+  return Boolean(period && period.lifecycleStatus === 'DRAFT' && preview
+    && preview.periodId === period.id
+    && formSnapshot === savedFormSnapshot
+    && preview.formSnapshot === formSnapshot
+    && preview.periodSnapshot === JSON.stringify(period));
+}
+
 export function replaceEvaluationTask(
   tasks: EvaluationTask[],
   updatedTask: EvaluationTask,

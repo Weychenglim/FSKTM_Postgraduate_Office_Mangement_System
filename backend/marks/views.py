@@ -13,6 +13,7 @@ from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
 from .deadlines import mark_deadline_metadata
+from .targeting import programme_options, recipient_preview
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -113,6 +114,9 @@ def period_task_totals(period):
 
 def period_payload(period):
     return {
+        "programmeScope": period.programme_scope,
+        "programmes": period.programmes,
+        "evaluatorRoles": period.evaluator_roles,
         "id": period.pk,
         "name": period.name,
         "semester": period.semester,
@@ -321,6 +325,9 @@ def evaluation_periods_view(request):
                 rubric=rubric,
                 opens_at=serializer.validated_data.get("opensAt"),
                 closes_at=serializer.validated_data.get("closesAt"),
+                programme_scope=serializer.validated_data.get("programmeScope", "ALL"),
+                programmes=serializer.validated_data.get("programmes", []),
+                evaluator_roles=serializer.validated_data.get("evaluatorRoles", ["SUPERVISOR", "PANEL"]),
             )
         except MarksStateConflict as exc:
             return state_conflict_response(exc)
@@ -382,6 +389,9 @@ def evaluation_period_detail_view(request, pk):
         ("name", "name"),
         ("opensAt", "opens_at"),
         ("closesAt", "closes_at"),
+        ("programmeScope", "programme_scope"),
+        ("programmes", "programmes"),
+        ("evaluatorRoles", "evaluator_roles"),
     ):
         if source in data:
             values[target] = data[source]
@@ -415,6 +425,25 @@ def evaluation_period_detail_view(request, pk):
     except DjangoValidationError as exc:
         return django_validation_response(exc)
     return Response(period_payload(period))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def evaluation_programme_options_view(request):
+    if not office_only(request.user):
+        return Response({"error": "Only Office Staff/Admin can view programme options."}, status=403)
+    return Response(programme_options())
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def evaluation_recipient_preview_view(request, pk):
+    if not office_only(request.user):
+        return Response({"error": "Only Office Staff/Admin can preview recipients."}, status=403)
+    period = EvaluationPeriod.objects.filter(pk=pk).first()
+    if period is None:
+        return Response({"error": "Evaluation period was not found."}, status=404)
+    return Response(recipient_preview(period))
 
 
 @api_view(["POST"])

@@ -5,6 +5,7 @@
 
 import type {
   EvaluationPeriodOption,
+  EvaluationRecipientPreview,
   EvaluationPreviewTask,
   EvaluationTask,
   MarkRecord,
@@ -47,7 +48,18 @@ export type EvaluationPeriodPayload = {
   rubricId: number;
   opensAt: string | null;
   closesAt: string | null;
+  programmeScope?: 'ALL' | 'SELECTED';
+  programmes?: string[];
+  evaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
 };
+
+export async function getMarksProgrammeOptions(): Promise<string[]> {
+  return request<string[]>('/marks/programme-options/');
+}
+
+export async function getEvaluationRecipientPreview(periodId: number): Promise<EvaluationRecipientPreview> {
+  return request<EvaluationRecipientPreview>(`/marks/periods/${periodId}/recipient-preview/`);
+}
 
 export async function createEvaluationPeriod(
   payload: EvaluationPeriodPayload,

@@ -1,5 +1,21 @@
 # Architecture and Coding Design
 
+## Evaluation Period Targeting (2026-09-16)
+
+- Marks migration `0008_evaluation_period_targeting` adds `programme_scope`, programme-name JSON selections, and evaluator-role JSON selections to EvaluationPeriod with ALL/both-role defaults. It preserves existing periods, appointments, tasks, and Marks. API fields are `programmeScope`, `programmes`, and `evaluatorRoles`; omitted create fields retain legacy defaults.
+- `marks/targeting.py` centralizes validation, normalized programme matching, current official recipients, programme options, and recipient preview. Linked Student programme values take precedence; unlinked research profiles retain legacy lookup. Draft configuration changes record targeting in immutable configuration-audit snapshots; published targeting cannot be edited. Django admin exposes targeting read-only to preserve the audited Office mutation path.
+- Office-only GET `/api/marks/programme-options/` returns distinct nonblank programme options from existing Student/research data. GET `/api/marks/periods/<id>/recipient-preview/` returns current recipients, generated timestamp, role/student/task totals, and missing eligible appointments without generating tasks. Preview supports Draft configuration, and empty results do not prohibit publication.
+- Task generation locks the period, then candidate students and lecturers in primary-key order, and repeats shared eligibility selection before writes. Candidates outside the original lock set wait for the next existing generation trigger. Reconciliation consumes the same selector. Replacement creation applies current programme/role scope while retaining existing lifecycle audits and submitted Marks; backup creation validates programme and original-task boundaries.
+- The Office period form captures scope and roles explicitly, retains saved programme options, and requires saved unchanged configuration plus a refreshed preview before publication. Edits, period changes, saves, and workspace reloads invalidate previews; pending responses use request counters to avoid restoring stale approval state. Period lists and assignment selectors display targeting summaries. No new top-level module or publication-token API is introduced.
+- Verification covers API/service scope, preview side effects, lifecycle preservation, legacy migration, concurrency, UI validation and rendering, broader affected-module regressions, and production build guards. Recreate parallel PostgreSQL test clones after schema changes; `--keepdb` may leave existing clones at an older schema.
+
+## Student Panel Team Projection (2026-09-15)
+
+- `appointments/student_panel.py` shares current appointment/recommendation selection between the existing Student Panel payload and the restricted team timeline. Active appointments take precedence; otherwise only pending workload-reserved recommendations qualify.
+- `serialize_team` applies the public projection for Student actors before returning team detail, workspace, or embedded dossier responses. The entry is allowlisted to `id`, `title`, `date`, and `status`; its constant key is `panel-current-status`, its pending date is null, and confirmation uses the appointment's ISO date. Staff retain existing internal workflow entries.
+- The shared frontend timeline renderer displays readable statuses and omits absent dates; the TypeScript contract explicitly allows null dates. No endpoint or database migration is introduced.
+- Regression coverage exercises the three response paths through pending, terminal, confirmed, and replacement states, preserves staff access, and tests undated and confirmed frontend rendering.
+
 ## Tech Stack
 
 - React 19 with TypeScript
@@ -330,6 +346,12 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Student and Lecturer candidate controls consume `selectable` rather than recalculating eligibility in React. `panelRecommendationWorkflow` retains legacy count fallback for backward compatibility but gives persisted capacity state/selectability precedence and formats only the public `unavailableUntil` date. Final-approval `409` handlers preserve local queue rows and refresh them from Django.
 - Lecturer Dashboard and appointment workspaces consume both own-workload endpoints. Office workload monitors use the same metadata for state chips, detail context, bounded utilization, and CSV columns; Supervisor reserved load is zero under the current policy, while Panel active and reserved columns map to confirmed appointments and pending nominations.
 - The approved detailed design is recorded in `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`. Tasks 1-10 cover the complete backend policy boundary, enforcement, reporting/reconciliation, Office workspace, and role-scoped presentation. Final integration verification uses the full owned-module backend suite, every frontend test and production guard, and a live four-role HTTP matrix; browser-only visual interaction remains a distinct smoke surface and is never inferred from transport-level success.
+## Dependency Security Maintenance — September 2026
+
+- Backend requirements now exclude the audited vulnerable Django, REST framework, and sqlparse releases while retaining Django 5.2 LTS and bounding DRF to 3.17. The explicit sqlparse floor constrains Django's transitive dependency on fresh installations. Pip is environment tooling, so its upgrade is documented in setup commands rather than added as an application dependency.
+- The frontend lockfile updates Browserslist, baseline-browser-mapping, and their browser-data dependencies within the existing dependency graph. No application APIs, database schema, or direct frontend dependency ranges change.
+- Upgrade references: [Django 5.2.17](https://docs.djangoproject.com/en/5.2/releases/5.2.17/) and [DRF 3.17.2](https://www.django-rest-framework.org/community/release-notes/#3172). Verification consists of installed-environment and npm audits, dependency consistency, existing backend/frontend regressions, Django checks, and the production build/guards.
+
 ## Co-Supervisor Implementation — September 2026
 
 The approved extension introduces dedicated supporting nomination and appointment records in Appointments, preserving the primary SupervisorAppointment and StudentResearchProfile supervisor relationship. Co-supervision uses the shared semester capacity resolver, programme-scoped approval, transactional student/lecturer locks, and immutable audits. Supporting appointments never generate Marks tasks. Dedicated restricted team API responses separate supporting read access from application documents, evaluation drafts, scores, and internal dossiers. Existing Supervisor screens host team management; Dashboard tracking, reports, lifecycle and reconciliation consume supporting records.

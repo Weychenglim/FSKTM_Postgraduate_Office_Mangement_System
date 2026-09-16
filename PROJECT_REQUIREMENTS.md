@@ -1,5 +1,20 @@
 # Project Requirements
 
+## Programme-Scoped Evaluation Periods (2026-09-16)
+
+- Office configures each Marks period for all programmes or selected programmes, and Supervisor, Panel, or both official evaluator roles. Selected scope requires at least one nonblank programme and every period requires at least one official role. One rubric remains attached to each period; co-supervisors never receive official evaluator tasks through their supporting role.
+- Programme matching trims whitespace and ignores case. Linked Student programme data is authoritative, including a blank value; only unlinked legacy profiles use their stored programme. Existing periods and API requests omitting targeting retain all programmes and both roles.
+- Targeting is editable only in Draft and appears in configuration audits. Office reviews a refreshed, read-only recipient preview before UI publication, including current student/evaluator pairs, new/existing task counts, and missing eligible appointments. Empty periods may be published with a warning. Preview is an estimate; later eligible appointments receive tasks through existing generation triggers.
+- Preview, generation, and missing-task reconciliation use the same official-role selection. New task creation rechecks eligibility under transaction locks. Programme changes preserve existing tasks and Marks history but govern new assignments, including replacement tasks.
+- Manual backup assignments must stay within the period's programme scope. A linked original task must belong to the same period and student and use an included official role; standalone backups retain existing reasoned audit behavior within scope.
+- Individual rosters, cohorts/stages, separate role rubrics, and coordinator-role redesign remain outside this slice.
+
+## Student Panel Privacy in Supervisory Teams (2026-09-15)
+
+- Student team detail, workspace, and embedded dossier timelines expose only the current public Panel state. Pending recommendations show `FACULTY_PROCESSING` without recommendation identifiers or internal timestamps; confirmed active appointments show `CONFIRMED` and the public appointment date.
+- A confirmed active appointment takes precedence while a replacement is pending. With no active appointment or pending recommendation, the team timeline omits the Panel entry; rejected, cancelled, and ended attempts do not create student team history entries.
+- The public timeline uses a stable key unrelated to internal records. Existing staff visibility, team authorization, and standalone Panel/dossier history policies remain unchanged.
+
 ## Product Scope
 
 The application is **A Web-Based Postgraduate Administrative Workflow, Appointment, and Project Evaluation Management System for FSKTM Coursework Programmes**.
@@ -14,6 +29,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 
 ## Repository Organization Requirements
 
+- The backend security baseline requires Django `>=5.2.17,<5.3`, Django REST framework `>=3.17.2,<3.18`, and sqlparse `>=0.6.0,<0.7`. Environment setup must upgrade pip to `>=26.2,<27`; frontend installations must use the reviewed lockfile and the existing Node.js `>=22.22.0` requirement.
 - The project root must remain the workspace entry point.
 - `PROJECT_REQUIREMENTS.md`, `ARCHITECTURE_AND_CODING_DESIGN.md`, and `PROJECT_STATUS.md` must stay at the project root.
 - Frontend source, configuration, package files, and frontend runtime assets must live under `frontend/`.
