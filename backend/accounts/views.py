@@ -150,9 +150,16 @@ def change_password_view(request):
     request.user.set_password(serializer.validated_data["new_password"])
     request.user.must_change_password = False
     request.user.save(update_fields=["password", "must_change_password"])
-    # The existing access token stays valid until it expires; the frontend
-    # re-authenticates on the next login.
-    return Response({"message": "Your password has been updated."})
+    blacklist_user_refresh_tokens(request.user)
+
+    refresh = RefreshToken.for_user(request.user)
+    response = Response(
+        {
+            "message": "Your password has been updated.",
+            "token": str(refresh.access_token),
+        }
+    )
+    return set_refresh_cookie(response, refresh)
 
 
 @api_view(["GET", "PUT", "PATCH"])

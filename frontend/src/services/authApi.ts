@@ -103,13 +103,14 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
-  await request('/auth/me/change-password/', {
+  const res = await request<{ token: string }>('/auth/me/change-password/', {
     method: 'POST',
     body: JSON.stringify({
       current_password: currentPassword,
       new_password: newPassword,
     }),
   });
+  setAuthToken(res.token);
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

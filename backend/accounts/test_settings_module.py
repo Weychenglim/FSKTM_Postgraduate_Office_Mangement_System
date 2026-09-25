@@ -8,7 +8,7 @@ settings.
 
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from .models import NotificationPreference
 
@@ -112,6 +112,42 @@ class SettingsModuleTests(APITestCase):
         )
         self.other.refresh_from_db()
         self.assertTrue(self.other.check_password("other-pw-5523"))
+
+    def test_change_password_keeps_this_session_and_revokes_old_tokens(self):
+        login = self.client.post(
+            "/api/auth/login/",
+            {"identifier": self.user.email, "password": CURRENT},
+            format="json",
+            REMOTE_ADDR="192.0.2.90",
+        )
+        old_access = login.data["token"]
+        old_refresh = login.cookies["fsktm_refresh_token"].value
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {old_access}")
+        response = self.client.post(
+            "/api/auth/me/change-password/",
+            {"current_password": CURRENT, "new_password": NEXT},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self.client.get("/api/auth/me/").status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['token']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self.client.post("/api/auth/refresh/", {}, format="json").status_code,
+            status.HTTP_200_OK,
+        )
+
+        stale = APIClient()
+        stale.cookies["fsktm_refresh_token"] = old_refresh
+        self.assertEqual(
+            stale.post("/api/auth/refresh/", {}, format="json").status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
 
     # ── Notification preferences ─────────────────────────────────────────────
 
