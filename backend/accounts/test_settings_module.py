@@ -208,6 +208,7 @@ class AuthenticationHardeningTests(APITestCase):
         response = self.client.post(
             "/api/auth/login/",
             {"identifier": self.user.email, "password": CURRENT},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data["error"], "Invalid credentials.")
@@ -216,11 +217,14 @@ class AuthenticationHardeningTests(APITestCase):
         unknown = self.client.post(
             "/api/auth/login/",
             {"identifier": "nobody@example.test", "password": "whatever-1234"},
+            format="json",
         )
         wrong = self.client.post(
             "/api/auth/login/",
             {"identifier": self.user.email, "password": "whatever-1234"},
+            format="json",
         )
+        self.assertEqual(unknown.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(unknown.status_code, wrong.status_code)
         self.assertEqual(unknown.data, wrong.data)
 

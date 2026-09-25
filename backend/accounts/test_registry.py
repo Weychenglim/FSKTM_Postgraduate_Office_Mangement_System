@@ -260,6 +260,7 @@ class StudentRegistryApiTests(APITestCase):
             login = self.client.post(
                 "/api/auth/login/",
                 {"identifier": self.NEW_STUDENT["email"], "password": attempt},
+                format="json",
             )
             self.assertIn(
                 login.status_code,
