@@ -12,4 +12,20 @@ urlpatterns = [
     path("timeline/entries/<int:pk>/", views.timeline_entry_detail_view),
     path("tasks/", views.dashboard_tasks_view),
     path("summary/", views.dashboard_summary_view),
+    path("reports/", views.workflow_report_view),
+    path("reports/export/", views.workflow_report_export_view),
+    path("reconciliation/", views.workflow_reconciliation_view),
+    path(
+        "reconciliation/issues/<str:issue_id>/preview/",
+        views.workflow_reconciliation_preview_view,
+    ),
+    path(
+        "reconciliation/issues/<str:issue_id>/apply/",
+        views.workflow_reconciliation_apply_view,
+    ),
+    path("reconciliation/audits/", views.workflow_reconciliation_audits_view),
+    path(
+        "progress/<str:student_id>/",
+        views.student_progress_dossier_view,
+    ),
 ]

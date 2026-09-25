@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { 
+import React, { useCallback, useEffect, useState } from 'react';
+import {
   Users, 
   Search, 
-  Upload, 
   ArrowLeft, 
   Send, 
   HelpCircle, 
@@ -20,22 +19,34 @@ import {
   Info
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { StudentSupervisorApplication, SupervisorCandidate } from '../types';
+import { StudentSupervisorApplication, SupervisorApplicationRecord, SupervisorCandidate, SupervisorDocumentRequirement } from '../types';
 import {
   createSupervisorApplication,
+  getActiveSupervisorDocumentRequirements,
   getSupervisorCandidates,
   toStudentSupervisorApplication,
 } from '../services';
+import {
+  buildSupervisorApplicationFormData,
+  formatSupervisorDocumentSize,
+  SUPERVISOR_DOCUMENT_MAX_TOTAL_BYTES,
+  validateSupervisorDocumentFile,
+  validateSupervisorDocumentSelection,
+} from '../utils/supervisorDocuments';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
+import { ErrorState, LoadingState } from './StateViews';
 
 interface SupervisorAppointmentApplicationPageProps {
   onBack: () => void;
   onSuccess: (newApplication: StudentSupervisorApplication) => void;
+  replacementApplication?: SupervisorApplicationRecord | null;
 }
 
 export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmentApplicationPageProps> = ({
   onBack,
-  onSuccess
+  onSuccess,
+  replacementApplication,
 }) => {
   // Stepper tracking - decorative/informational as matched in screenshots
   const steps = [
@@ -45,25 +56,54 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   ];
 
   // Form Fields
-  const [researchTitle, setResearchTitle] = useState('');
-  const [researchAbstract, setResearchAbstract] = useState('');
+  const [researchTitle, setResearchTitle] = useState(replacementApplication?.researchTitle || '');
+  const [researchArea, setResearchArea] = useState(replacementApplication?.researchArea || '');
+  const [researchAbstract, setResearchAbstract] = useState(replacementApplication?.researchAbstract || '');
+  const [replacementReason, setReplacementReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [requirements, setRequirements] = useState<SupervisorDocumentRequirement[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Map<string, File>>(new Map());
+  const [requirementsLoading, setRequirementsLoading] = useState(true);
+  const [requirementsError, setRequirementsError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [supervisors, setSupervisors] = useState<SupervisorCandidate[]>([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(true);
+  const [supervisorsError, setSupervisorsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadSupervisors = useCallback(() => {
+    setLoadingSupervisors(true);
+    setSupervisorsError(null);
     getSupervisorCandidates()
       .then(setSupervisors)
       .catch((reason) => {
-        alert(reason instanceof Error ? reason.message : 'Failed to load supervisor candidates.');
-      });
+        setSupervisorsError(
+          reason instanceof Error
+            ? reason.message
+            : 'Failed to load supervisor candidates.',
+        );
+      })
+      .finally(() => setLoadingSupervisors(false));
   }, []);
+
+  useEffect(() => {
+    loadSupervisors();
+  }, [loadSupervisors]);
+
+  const loadRequirements = useCallback(() => {
+    setRequirementsLoading(true);
+    setRequirementsError(null);
+    getActiveSupervisorDocumentRequirements()
+      .then(setRequirements)
+      .catch((reason) => setRequirementsError(
+        reason instanceof Error ? reason.message : 'Document requirements could not be loaded.',
+      ))
+      .finally(() => setRequirementsLoading(false));
+  }, []);
+
+  useEffect(() => loadRequirements(), [loadRequirements]);
 
   // Filtering based on search query
   const filteredSupervisors = supervisors.filter(sv => 
@@ -71,91 +111,75 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     sv.domain.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Drag and drop handling
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropFiles = (Array.from(e.dataTransfer.files) as File[]).filter(file => 
-        file.type === "application/pdf" || 
-        file.name.endsWith(".docx") || 
-        file.name.endsWith(".doc")
-      );
-      if (dropFiles.length > 0) {
-        setUploadedFiles(prev => [...prev, ...dropFiles]);
-      } else {
-        alert("Unsupported file format! Only PDF, DOCX format documents accepted.");
+  const setRequirementFile = (code: string, file: File | null) => {
+    if (file) {
+      const fileError = validateSupervisorDocumentFile(file);
+      if (fileError) {
+        setFormError(fileError);
+        return;
+      }
+      const prospectiveFiles = new Map(selectedFiles);
+      prospectiveFiles.set(code, file);
+      const totalBytes = [...prospectiveFiles.values()].reduce((total, item) => total + item.size, 0);
+      if (totalBytes > SUPERVISOR_DOCUMENT_MAX_TOTAL_BYTES) {
+        setFormError('Supervisor application documents must not exceed 10 MB combined.');
+        return;
       }
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectFiles = (Array.from(e.target.files) as File[]).filter(file => 
-        file.type === "application/pdf" || 
-        file.name.endsWith(".docx") || 
-        file.name.endsWith(".doc")
-      );
-      if (selectFiles.length > 0) {
-        setUploadedFiles(prev => [...prev, ...selectFiles]);
-      } else {
-        alert("Unsupported file format! Only PDF, DOCX format documents accepted.");
-      }
-    }
-  };
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
+    setSelectedFiles((current) => {
+      const next = new Map(current);
+      if (file) next.set(code, file);
+      else next.delete(code);
+      return next;
+    });
+    setFormError(null);
   };
 
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     if (!researchTitle.trim()) {
-      alert("Please provide your proposed Research Title.");
+      setFormError("Provide your proposed research title.");
+      return;
+    }
+    if (!researchArea.trim()) {
+      setFormError("Provide your research area.");
       return;
     }
     if (!researchAbstract.trim()) {
-      alert("Please provide your Research Abstract.");
+      setFormError("Provide your research abstract.");
       return;
     }
     if (!selectedSupervisorId) {
-      alert("Please choose a proposed research supervisor from the matching matrix.");
+      setFormError("Choose a proposed research supervisor.");
       return;
     }
-    if (uploadedFiles.length === 0) {
-      alert("Please upload at least one supporting document (e.g. Research Proposal outline files).");
+    if (replacementApplication && !replacementReason.trim()) {
+      setFormError('Provide a reason for changing Supervisor.');
+      return;
+    }
+    const documentError = validateSupervisorDocumentSelection(requirements, selectedFiles);
+    if (documentError) {
+      setFormError(documentError);
       return;
     }
 
     setSubmitting(true);
     try {
-      const record = await createSupervisorApplication({
+      const body = buildSupervisorApplicationFormData({
         proposedSupervisorId: selectedSupervisorId,
         researchTitle: researchTitle.trim(),
+        researchArea: researchArea.trim(),
         researchAbstract: researchAbstract.trim(),
-        documents: uploadedFiles.map((file) => ({
-          name: file.name,
-          category: 'RESEARCH_PROPOSAL',
-          contentType: file.type,
-          size: file.size,
-        })),
-      });
+        replacesAppointmentId: replacementApplication?.appointmentLifecycle?.appointmentId,
+        replacementReason: replacementReason.trim(),
+      }, selectedFiles);
+      const record = await createSupervisorApplication(body);
       onSuccess(toStudentSupervisorApplication(record));
     } catch (reason) {
-      alert(reason instanceof Error ? reason.message : 'Failed to submit supervisor application.');
+      setFormError(reason instanceof Error ? reason.message : 'Supervisor application could not be submitted.');
     } finally {
       setSubmitting(false);
     }
@@ -165,8 +189,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     <form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
       
       <PageHeader
-        title="Supervisor Appointment Application"
-        subtitle="Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty's research pillars."
+        title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'}
+        subtitle={replacementApplication
+          ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
+          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'}
         backLabel="Back to Supervisor Appointments"
         onBack={onBack}
         subtitleClassName="max-w-4xl leading-relaxed"
@@ -206,6 +232,22 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           Research Project Details
         </h3>
 
+        {replacementApplication && (
+          <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <label htmlFor="replacement-reason-input" className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+              Replacement reason
+            </label>
+            <textarea
+              id="replacement-reason-input"
+              rows={3}
+              value={replacementReason}
+              onChange={(event) => setReplacementReason(event.target.value)}
+              placeholder="Explain why a different Supervisor is requested"
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800"
+            />
+          </div>
+        )}
+
         {/* Input Field: Research Title */}
         <div className="space-y-1.5">
           <label htmlFor="research-title-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
@@ -218,6 +260,21 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             onChange={(e) => setResearchTitle(e.target.value)}
             placeholder="Enter the full working title of your research"
             className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-805 text-slate-800 placeholder-slate-400 transition"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="research-area-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+            Research Area
+          </label>
+          <input
+            id="research-area-input"
+            type="text"
+            value={researchArea}
+            onChange={(e) => setResearchArea(e.target.value)}
+            placeholder="For example, Human-Centred Artificial Intelligence"
+            maxLength={255}
+            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 transition"
           />
         </div>
 
@@ -272,25 +329,34 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
             {/* Render matched supervisors lists */}
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-              {filteredSupervisors.length > 0 ? (
+              {loadingSupervisors ? (
+                <LoadingState message="Loading eligible supervisors..." />
+              ) : supervisorsError ? (
+                <ErrorState
+                  message={supervisorsError}
+                  onRetry={loadSupervisors}
+                />
+              ) : filteredSupervisors.length > 0 ? (
                 filteredSupervisors.map((sv) => {
                   const isSelected = selectedSupervisorId === sv.id;
-                  const isFull = sv.filled >= sv.total;
+                  const isSelectable = sv.selectable ?? sv.filled < sv.total;
+                  const capacityLabel = sv.capacityState
+                    ? capacityStateLabel(sv.capacityState)
+                    : isSelectable ? 'Available' : 'Full';
                   
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={sv.id}
                       onClick={() => {
-                        if (!isFull) {
-                          setSelectedSupervisorId(sv.id);
-                        } else {
-                          alert(`Sorry, ${sv.name} has reached maximum advisory capacity of ${sv.total} slots.`);
-                        }
+                        setSelectedSupervisorId(sv.id);
+                        setFormError(null);
                       }}
-                      className={`flex items-center justify-between p-3.5 border rounded-xl transition cursor-pointer text-left select-none ${
+                      disabled={!isSelectable}
+                      className={`flex w-full items-center justify-between p-3.5 border rounded-xl transition cursor-pointer text-left select-none ${
                         isSelected 
                           ? 'bg-indigo-50/40 border-indigo-400 shadow-3xs' 
-                          : isFull 
+                          : !isSelectable
                             ? 'bg-slate-50/50 border-slate-200/50 opacity-60 cursor-not-allowed' 
                             : 'bg-white border-slate-200/80 hover:bg-slate-50'
                       }`}
@@ -314,14 +380,14 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
                       {/* Right capacity indicator slots chip */}
                       <StatusBadge
-                        tone={isFull ? 'danger' : isSelected ? 'brand' : 'neutral'}
+                        tone={!isSelectable ? 'danger' : isSelected ? 'brand' : 'neutral'}
                         dot
                         className="py-1.5 text-[9px]"
                       >
-                        <span>{sv.filled}/{sv.total} Slots Filled</span>
+                        <span>{capacityLabel} · {sv.filled}/{sv.total} filled</span>
                       </StatusBadge>
 
-                    </div>
+                    </button>
                   );
                 })
               ) : (
@@ -340,10 +406,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
               </div>
               <div className="space-y-1.5 pt-0.5 select-none">
                 <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider">
-                  Academic Matching Rule
+                  Supervisor selection
                 </h4>
                 <p className="text-slate-500 text-[11px] font-semibold leading-relaxed">
-                  System automatically filters supervisors based on your registered research domain (<strong className="text-slate-800">Cybersecurity</strong>). Please select a supervisor with available capacity.
+                  Search the persisted supervisor directory by name or specialization, then select a supervisor with available capacity.
                 </p>
               </div>
             </div>
@@ -361,84 +427,77 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           Supporting Documents
         </h3>
 
-        {/* Upload Dropzone interaction wrapper */}
-        <div 
-          onDragEnter={handleDrag}
-          onDragOver={handleDrag}
-          onDragLeave={handleDrag}
-          onDrop={handleDrop}
-          onClick={triggerFileInput}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center justify-center items-center flex flex-col gap-4 cursor-pointer transition select-none ${
-            dragActive 
-              ? 'border-indigo-55 bg-indigo-50/40 border-indigo-500' 
-              : 'border-slate-250 border-slate-200/85 hover:border-indigo-400 hover:bg-slate-50/20'
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            accept=".pdf,.docx,.doc"
-            className="hidden"
-          />
-
-          <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500 border border-slate-100/90 shadow-2xs">
-            <Upload className="w-5 h-5 text-indigo-500 stroke-[2.3]" />
+        {requirementsLoading ? (
+          <LoadingState message="Loading document requirements..." />
+        ) : requirementsError ? (
+          <ErrorState message={requirementsError} onRetry={loadRequirements} />
+        ) : requirements.length === 0 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+            Document requirements are not configured. Contact the Postgraduate Office before submitting.
           </div>
-
-          <div className="space-y-1">
-            <p className="text-sm font-extrabold text-brand-navy tracking-tight">
-              Drag and drop your proposal files
-            </p>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              PDF, DOCX format only. Maximum file size 10MB.
-            </p>
-          </div>
-
-          <PortalButton
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerFileInput();
-            }}
-            variant="primary"
-            size="md"
-            icon={FileText}
-          >
-            Browse Files
-          </PortalButton>
-        </div>
-
-        {/* List of successfully uploaded proposal files */}
-        {uploadedFiles.length > 0 && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block leading-none">
-              Uploaded Proposal Documents ({uploadedFiles.length})
-            </span>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {uploadedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/60 rounded-xl">
-                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span className="text-xs font-bold text-slate-700 truncate">{file.name}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        ) : (
+          <div className="space-y-3">
+            {requirements.map((requirement) => {
+              const file = selectedFiles.get(requirement.code);
+              return (
+                <div
+                  key={requirement.code}
+                  data-requirement-dropzone={requirement.code}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setRequirementFile(requirement.code, event.dataTransfer.files?.[0] ?? null);
+                  }}
+                  className="grid gap-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-colors hover:border-blue-400 md:grid-cols-[1fr_220px] md:items-center"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-extrabold text-slate-800">{requirement.label}</p>
+                      <StatusBadge tone={requirement.isRequired ? 'warning' : 'neutral'}>
+                        {requirement.isRequired ? 'Required' : 'Optional'}
+                      </StatusBadge>
+                    </div>
+                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-slate-500">
+                      {requirement.description || 'Attach the relevant supporting document.'}
+                    </p>
+                    {file && (
+                      <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="max-w-xs truncate">{file.name}</span>
+                        <span className="font-mono text-slate-400">{formatSupervisorDocumentSize(file.size)}</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  <PortalButton
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setUploadedFiles(prev => prev.filter((_, i) => i !== idx));
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="px-1 py-0.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                  >
-                    Remove
-                  </PortalButton>
+                  <div className="flex items-center justify-end gap-2">
+                    <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase text-brand-navy hover:bg-slate-50">
+                      {file ? 'Replace file' : 'Choose or drop file'}
+                      <input
+                        type="file"
+                        accept=".pdf,.docx"
+                        className="hidden"
+                        onChange={(event) => {
+                          setRequirementFile(requirement.code, event.target.files?.[0] ?? null);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                    {file && (
+                      <PortalButton type="button" variant="ghost" size="sm" onClick={() => setRequirementFile(requirement.code, null)}>
+                        Remove
+                      </PortalButton>
+                    )}
+                  </div>
                 </div>
-              ))}
+              );
+            })}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-400">
+              <span>PDF or DOCX; one file per requirement; 10 MB combined</span>
+              <span>
+                {requirements.filter((item) => item.isRequired && selectedFiles.has(item.code)).length}
+                {' / '}
+                {requirements.filter((item) => item.isRequired).length} required complete;{' '}
+                {formatSupervisorDocumentSize([...selectedFiles.values()].reduce((total, item) => total + item.size, 0))} selected
+              </span>
             </div>
           </div>
         )}
@@ -455,7 +514,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         <div className="flex gap-2.5 w-full sm:w-auto">
           <PortalButton
             type="submit"
-            disabled={submitting}
+            disabled={submitting || requirementsLoading || Boolean(requirementsError) || requirements.length === 0}
             variant="primary"
             size="lg"
             icon={Send}
@@ -465,6 +524,12 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           </PortalButton>
         </div>
       </div>
+
+      {formError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700" role="alert">
+          {formError}
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 7. SUPPORTING CARDS FOOTER CONTAINER                                     */}
@@ -477,10 +542,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             <ShieldCheck className="w-5 h-5 stroke-[2.3]" />
           </div>
           <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Eligibility Checked
+            Submission prerequisites
           </h4>
           <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-            Your current credit hours and CGPA meet the minimum requirements for supervisor appointment.
+            Submission is available when an active semester, supervisor capacity, and configured document requirements are available.
           </p>
         </div>
 
@@ -493,7 +558,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             Review Process
           </h4>
           <p className="text-slate-500 text-xs font-semibold leading-relaxed font-sans">
-            Applications are reviewed within <strong className="text-slate-800">7-10 working days</strong> by the Departmental Research Committee.
+            Review progress follows the recorded faculty workflow. No formal turnaround target is currently configured.
           </p>
         </div>
 

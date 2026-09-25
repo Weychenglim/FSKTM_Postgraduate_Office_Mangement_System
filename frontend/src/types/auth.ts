@@ -17,4 +17,6 @@ export interface DemoUser {
   avatarUrl?: string;
   studentId?: string;
   staffId?: string;
+  participantLifecycleStatus?: string | null;
+  accountAccess?: 'ACTIVE' | 'READ_ONLY' | 'DISABLED';
 }

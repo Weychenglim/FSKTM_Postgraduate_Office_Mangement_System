@@ -10,7 +10,8 @@ recommendation workflow now has real database persistence when
 ## Stack
 
 - Django 5.2 (LTS) + Django REST Framework
-- JWT auth via `djangorestframework-simplejwt` (Bearer access token, 8h)
+- JWT auth via `djangorestframework-simplejwt` (15-minute bearer access token,
+  7-day rotating HttpOnly refresh cookie, and server-side blacklist)
 - PostgreSQL (reuses the project's `fsktm_pg_office` database)
 - Custom user model `accounts.User` (login by email / student ID / staff ID)
 - `appointments` app for student research profiles, panel recommendations, and final panel appointments
@@ -23,7 +24,8 @@ From this `backend/` folder:
 # 1. Virtualenv + dependencies
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade "pip>=26.2,<27"
+python -m pip install -r requirements.txt
 
 # 2. Environment (set PostgreSQL plus local demo flags/passwords in .env)
 Copy-Item .env.example .env
@@ -40,18 +42,27 @@ python manage.py runserver 8000
 ```
 
 The frontend (`npm run dev`, port 3000) proxies `/api` to `http://localhost:8000`.
+For production, follow [`deploy/nginx/README.md`](../deploy/nginx/README.md) to
+build the frontend, collect Django Admin static files, and roll the same-origin
+Content Security Policy from report-only mode to enforcement.
 
 ## Auth endpoints (`/api/auth/`)
 
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |
-| POST | `login/` | `{identifier, password}` | `{token, user}` |
-| POST | `logout/` | - | `{message}` |
+| POST | `login/` | `{identifier, password}` | `{token, user}` plus refresh cookie |
+| POST | `refresh/` | `{}` plus refresh cookie | `{token}` plus rotated refresh cookie |
+| POST | `logout/` | `{}` plus refresh cookie | `{message}` and cookie deletion |
 | GET | `me/` | - (`Authorization: Bearer <token>`) | `user` |
 | POST | `password-reset/` | `{email}` | `{message}` |
 | POST | `password-reset/confirm/` | `{uid, token, new_password}` | `{message}` / 400 |
 
 `user` shape: `{ id, email, role, fullName, department, studentId, staffId }`.
+
+Normal APIs remain bearer-authenticated. Frontend JavaScript keeps the access
+token in memory and cannot read the HttpOnly refresh cookie. Login, refresh, and
+logout use JSON requests; run `python manage.py migrate` after installation so
+SimpleJWT's outstanding-token and blacklist tables are available.
 
 ## Panel appointment endpoints (`/api/appointments/panel/`)
 

@@ -4,16 +4,22 @@
  */
 
 import React, { useState } from 'react';
-import { Award, ChevronRight, UserCheck } from 'lucide-react';
+import { AlertTriangle, Award, ChevronRight, Files, UserCheck } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
-import { TimelineNextActions } from './TimelineNextActions';
-import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
+import { MonitoringTasksCard } from './MonitoringTasksCard';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import type { DashboardTask } from '../types';
+import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface StudentDashboardProps {
   studentName: string;
   studentId?: string;
   programme?: string;
+  lifecycleStatus?: string | null;
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
 }
 
 interface StatusCardProps {
@@ -70,13 +76,25 @@ const StatusCard: React.FC<StatusCardProps> = ({
 );
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
-  onNavigateToTab
+  studentId,
+  lifecycleStatus,
+  onNavigateToTab,
+  onNavigateToRoute,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
   };
 
   return (
@@ -86,7 +104,28 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       <PageHeader
         title="Student Dashboard"
         subtitle="Track your semester timeline, appointment status, submissions, and official document requests."
+        actions={studentId && onNavigateToRoute ? (
+          <PortalButton
+            variant="primary"
+            icon={Files}
+            onClick={() => onNavigateToRoute(routeForStudentProgress())}
+          >
+            View My Progress
+          </PortalButton>
+        ) : undefined}
       />
+
+      {lifecycleStatus && lifecycleStatus !== 'ACTIVE' && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <strong className="block">Academic status: {lifecycleStatus.charAt(0) + lifecycleStatus.slice(1).toLowerCase()}</strong>
+            <p className="mt-1 text-[11px]">Your historical records remain available, but new workflow submissions and academic decisions are currently read-only.</p>
+          </div>
+        </div>
+      )}
+
+      <ActiveSemesterContext />
 
       <DashboardTimeline
         showManageTimeline={false}
@@ -117,10 +156,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         />
       </div>
 
-      <TimelineNextActions
-        title="Next Student Actions"
-        visibleRoles={['STUDENT']}
-        onNavigateToTab={onNavigateToTab}
+      <MonitoringTasksCard
+        title="Student Action Centre"
+        onTaskClick={navigateToAction}
       />
     </div>
   );

@@ -18,12 +18,13 @@ import {
   deleteTimelineEntry,
   downloadTimelineTemplate,
   getActiveTimeline,
+  getAcademicSemesters,
   getTimelineAuditLogs,
   saveBlob,
   timelineEntryToLegacy,
   updateTimelineEntry,
 } from '../services';
-import { ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
+import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
@@ -31,11 +32,13 @@ import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
+import { formatSemesterLifecycle } from '../utils/academicSemesters';
 
 // TimelineEntry now lives in src/types.
 
 interface TimelineManagementProps {
   onBack: () => void;
+  onManageSemesters: () => void;
 }
 
 const formatDisplayDate = (value?: string) => {
@@ -51,7 +54,7 @@ const formatDisplayDate = (value?: string) => {
 
 const formatSessionTitle = (session?: string) => {
   const match = session?.match(/\d{4}\/\d{4}/);
-  return `Session ${match ? match[0] : session || '2025/2026'}`;
+  return match ? `Session ${match[0]}` : session || 'No active session';
 };
 
 const actionLabel = (action: TimelineAuditLog['action']) => {
@@ -95,7 +98,10 @@ const initials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'OS';
 
-export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }) => {
+export const TimelineManagement: React.FC<TimelineManagementProps> = ({
+  onBack,
+  onManageSemesters,
+}) => {
   // Toast overlay
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
@@ -111,6 +117,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
+  const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<TimelineAuditLog[]>([]);
   const [auditPage, setAuditPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -127,10 +135,22 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
     setAuditPage((page) => clampPage(page, auditLogs.length, auditPageSize));
   }, [auditLogs.length]);
 
+  const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) ?? null;
+
   const loadEntries = useCallback(() => {
+    if (!selectedSemesterId) {
+      setTimeline(null);
+      setEntries([]);
+      setAuditLogs([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
-    Promise.all([getActiveTimeline(), getTimelineAuditLogs()])
+    Promise.all([
+      getActiveTimeline(selectedSemesterId),
+      getTimelineAuditLogs(selectedSemesterId),
+    ])
       .then(([activeTimeline, logs]) => {
         setTimeline(activeTimeline);
         setEntries(activeTimeline.available
@@ -141,6 +161,27 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load timeline entries.'))
       .finally(() => setLoading(false));
+  }, [selectedSemesterId]);
+
+  useEffect(() => {
+    getAcademicSemesters()
+      .then((rows) => {
+        const editable = rows.filter((semester) => (
+          semester.lifecycleStatus === 'DRAFT' || semester.lifecycleStatus === 'ACTIVE'
+        ));
+        setSemesters(editable);
+        setSelectedSemesterId((current) => (
+          current && editable.some((semester) => semester.id === current)
+            ? current
+            : editable.find((semester) => semester.effectiveStatus === 'ACTIVE')?.id
+              ?? editable[0]?.id
+              ?? null
+        ));
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load academic semesters.');
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -192,7 +233,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
   };
 
   const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
-    createTimelineEntry(newEntryVal)
+    createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
         setEntries(prev => [...prev, normalizedEntry]);
@@ -303,6 +344,30 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
           </>
         )}
       />
+
+      <div className="flex flex-wrap items-end justify-between gap-3 border-y border-slate-200 bg-white px-4 py-3">
+        <label className="min-w-[260px] text-sm font-semibold text-slate-700">
+          Timeline semester
+          <select
+            value={selectedSemesterId ?? ''}
+            onChange={(event) => setSelectedSemesterId(Number(event.target.value))}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            {!semesters.length ? <option value="">No Draft or Active semesters</option> : null}
+            {semesters.map((semester) => (
+              <option key={semester.id} value={semester.id}>
+                {semester.label} - {formatSemesterLifecycle(semester.effectiveStatus)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <PortalButton
+          variant="secondary"
+          onClick={onManageSemesters}
+        >
+          Manage semesters
+        </PortalButton>
+      </div>
 
       {/* Grid: Four Top Summary Cards matching mock parameters exactly */}
       <div id="timeline-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -651,6 +716,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         isOpen={addDrawerOpen}
         onClose={() => setAddDrawerOpen(false)}
         onSave={handleAddEntry}
+        timelineLabel={timeline?.available
+          ? `${timeline.semester} ${timeline.session}`
+          : 'the active timeline'}
       />
 
       {/* Edit Timeline Slide-in Drawer */}
@@ -662,13 +730,18 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({ onBack }
         }}
         entry={editingEntry}
         onSave={handleEditEntry}
+        timelineLabel={timeline?.available
+          ? `${timeline.semester} ${timeline.session}`
+          : 'the active timeline'}
       />
 
       {/* Upload Timeline Slide-in Drawer */}
       <UploadTimelineDrawer 
-        isOpen={uploadDrawerOpen} 
+        isOpen={uploadDrawerOpen && Boolean(selectedSemester)}
         onClose={() => setUploadDrawerOpen(false)} 
-        onImportSuccess={handleImportSuccess} 
+        onImportSuccess={handleImportSuccess}
+        semesterId={selectedSemester?.id ?? 0}
+        semesterLabel={selectedSemester?.label ?? 'No semester selected'}
       />
 
       {/* Delete Confirmation Modal */}

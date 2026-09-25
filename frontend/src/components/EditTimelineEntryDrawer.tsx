@@ -29,13 +29,15 @@ interface EditTimelineEntryDrawerProps {
   onClose: () => void;
   entry: TimelineEntry | null;
   onSave: (updatedEntry: TimelineEntry) => void;
+  timelineLabel: string;
 }
 
 export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = ({
   isOpen,
   onClose,
   entry,
-  onSave
+  onSave,
+  timelineLabel,
 }) => {
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
@@ -181,7 +183,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                     Target Context Info
                   </span>
                   <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    You are updating a postgraduate calendar milestone event for <strong className="font-extrabold text-indigo-650">Sem 1 2025/2026</strong>. Changes reflect instantly to all system modules.
+                    You are updating a milestone in <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
                   </p>
                 </div>
 

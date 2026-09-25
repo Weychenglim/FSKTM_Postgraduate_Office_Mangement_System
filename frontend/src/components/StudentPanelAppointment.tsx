@@ -15,6 +15,8 @@ import { PageHeader, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { getStudentPanelAppointment } from '../services';
 import { StudentPanelAppointmentView } from '../types';
+import { formatWaitingText } from '../utils/workflowAgeing';
+import { getPanelReadinessCopy } from '../utils/panelReadiness';
 
 interface StudentPanelAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -64,6 +66,9 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
   }, [loadAppointment]);
 
   const isConfirmed = appointment?.status === 'CONFIRMED';
+  const readinessCopy = appointment
+    ? getPanelReadinessCopy(appointment.readinessState)
+    : null;
   const panelInitials = useMemo(
     () => getInitials(appointment?.panelMemberName),
     [appointment?.panelMemberName],
@@ -74,7 +79,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
       <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
         <PageHeader
           title="Panel Appointment"
-          subtitle="View your appointed panel after Programme Coordinator confirmation."
+          subtitle="Track faculty processing and view your appointed panel once confirmed."
           className="border-b border-slate-100 pb-5 select-none"
         />
         <LoadingState message="Loading your panel appointment..." />
@@ -87,7 +92,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
       <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
         <PageHeader
           title="Panel Appointment"
-          subtitle="View your appointed panel after Programme Coordinator confirmation."
+          subtitle="Track faculty processing and view your appointed panel once confirmed."
           className="border-b border-slate-100 pb-5 select-none"
         />
         <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} />
@@ -99,7 +104,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
     <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
       <PageHeader
         title="Panel Appointment"
-        subtitle="View your appointed panel after Programme Coordinator confirmation."
+        subtitle="Track faculty processing and view your appointed panel once confirmed."
         className="border-b border-slate-100 pb-5 select-none"
       />
 
@@ -113,10 +118,10 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
 
               <div className="space-y-2 text-left">
                 <h2 className="text-xl md:text-2xl font-black text-brand-navy tracking-tight">
-                  Your panel appointment is not available yet.
+                  {readinessCopy?.title}
                 </h2>
                 <p className="text-slate-500 text-xs md:text-sm font-semibold leading-relaxed max-w-2xl">
-                  Your appointed panel will appear here after the selected panel lecturer accepts the nomination and the Programme Coordinator confirms the appointment.
+                  {readinessCopy?.detail}
                 </p>
               </div>
 
@@ -124,6 +129,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
 
               <div className="flex flex-wrap gap-x-8 gap-y-4 text-left select-none">
                 <InfoItem label="Programme" value={appointment.programme} />
+                <InfoItem label="Current Progress" value={formatWaitingText(appointment)} />
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
                     <Calendar className="w-4 h-4 text-brand-navy" />
@@ -167,7 +173,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
                     Appointed Panel Not Confirmed
                   </h3>
                   <p className="text-slate-400 text-xs font-medium leading-relaxed">
-                    Confirmed panel member details will appear here once Programme Coordinator confirmation is complete.
+                    Panel member details remain private while faculty processing is in progress.
                   </p>
                 </div>
 
@@ -194,9 +200,9 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
                 </div>
 
                 {[
-                  ['1', 'Supervisor Recommendation', 'Your supervisor submits one recommended panel lecturer.'],
-                  ['2', 'Selected Panel Review', 'The nominated panel lecturer accepts or rejects the appointment.'],
-                  ['3', 'Programme Coordinator Confirmation', 'The coordinator confirms the appointed panel before it appears here.'],
+                  ['1', 'Faculty Processing', 'The faculty reviews and processes the appointment through its internal workflow.'],
+                  ['2', 'Appointment Confirmation', 'Your appointment becomes visible here once processing is complete.'],
+                  ['3', 'Panel Details Available', 'You can then view the confirmed panel member and appointment information.'],
                 ].map(([step, title, copy]) => (
                   <div key={step} className="flex gap-4 items-start">
                     <div className="w-6 h-6 rounded-full bg-slate-800 text-indigo-300 flex items-center justify-center text-[10px] font-black shrink-0 border border-slate-700">

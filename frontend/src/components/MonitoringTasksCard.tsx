@@ -1,89 +1,183 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Calendar, Sliders, CheckSquare, UploadCloud } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Award,
+  CalendarDays,
+  ChevronRight,
+  ClipboardCheck,
+  ListChecks,
+  UserCheck,
+  type LucideIcon,
+} from 'lucide-react';
+import type { DashboardTask } from '../types';
+import {
+  formatDeadlineText,
+  formatWaitingText,
+} from '../utils/workflowAgeing';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 
-interface MonitoringTask {
-  id: string;
-  name: string;
-  status: string;
-  statusText: string;
-  icon: any;
-}
-
 interface MonitoringTasksCardProps {
-  onTaskClick?: (taskId: string) => void;
+  title?: string;
+  onTaskClick?: (task: DashboardTask) => void;
+  className?: string;
 }
 
-const defaultTasks: MonitoringTask[] = [
-  {
-    id: 'task_upload',
-    name: 'Upload semester timeline',
-    status: 'completed',
-    statusText: 'Done',
-    icon: UploadCloud,
-  },
-  {
-    id: 'task_config',
-    name: 'Configure mark entry period',
-    status: 'warning',
-    statusText: 'Required Action',
-    icon: CheckSquare,
-  },
-  {
-    id: 'task_rubric',
-    name: 'Define rubric components',
-    status: 'warning',
-    statusText: 'Required Action',
-    icon: Sliders,
-  },
-  {
-    id: 'task_generate',
-    name: 'Generate evaluation tasks',
-    status: 'warning',
-    statusText: 'Required Action',
-    icon: Calendar,
-  },
-];
+interface MonitoringTasksCardViewProps extends MonitoringTasksCardProps {
+  tasks: DashboardTask[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}
 
-export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = ({ onTaskClick }) => {
-  return (
-    <div
-      id="monitoring-tasks-sidebar-card"
-      className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm space-y-4 text-left font-sans"
-    >
-      <h4 className="text-[14px] font-black text-brand-navy tracking-tight">
-        Office Monitoring Tasks
-      </h4>
+const loadDashboardTasks = async (): Promise<{ tasks: DashboardTask[] }> => {
+  const { getDashboardTasks } = await import('../services/timelineApi');
+  return getDashboardTasks();
+};
 
-      <div className="divide-y divide-[#efecf6]/10 divide-slate-100 flex flex-col pt-1">
-        {defaultTasks.map((task) => {
-          const IconComponent = task.icon;
+const iconForTask = (task: DashboardTask): LucideIcon => {
+  if (task.targetModule === 'SUPERVISOR_APPOINTMENTS') return UserCheck;
+  if (task.targetModule === 'PANEL_APPOINTMENTS') return Award;
+  if (task.targetModule === 'MARKS') return ClipboardCheck;
+  if (task.targetModule === 'DASHBOARD') return CalendarDays;
+  return ListChecks;
+};
+
+const taskMetadataText = (task: DashboardTask): string => {
+  if (
+    task.waitingOn
+    || task.waitingSince
+    || (task.waitingDays !== null && task.waitingDays !== undefined)
+  ) {
+    return formatWaitingText(task);
+  }
+
+  if (task.deadlineState) {
+    return formatDeadlineText(task);
+  }
+
+  return task.statusText;
+};
+
+export const MonitoringTasksCardView: React.FC<MonitoringTasksCardViewProps> = ({
+  title = 'Action Centre',
+  tasks,
+  loading,
+  error,
+  onRetry,
+  onTaskClick,
+  className = '',
+}) => (
+  <section
+    id="dashboard-action-centre"
+    aria-labelledby="dashboard-action-centre-title"
+    className={`bg-white border border-slate-200 rounded-lg p-5 shadow-sm text-left font-sans ${className}`}
+  >
+    <div className="flex items-center justify-between gap-3">
+      <h2
+        id="dashboard-action-centre-title"
+        className="text-sm font-black text-brand-navy tracking-tight"
+      >
+        {title}
+      </h2>
+      {!loading && !error && (
+        <StatusBadge tone="neutral" className="shrink-0">
+          {tasks.length} {tasks.length === 1 ? 'item' : 'items'}
+        </StatusBadge>
+      )}
+    </div>
+
+    {loading ? (
+      <LoadingState message="Loading action centre..." className="py-10" />
+    ) : error ? (
+      <ErrorState message={error} onRetry={onRetry} className="py-10" />
+    ) : tasks.length === 0 ? (
+      <EmptyState
+        icon={ListChecks}
+        title="No actions waiting"
+        className="py-10"
+      />
+    ) : (
+      <div className="divide-y divide-slate-100 pt-2">
+        {tasks.map((task) => {
+          const Icon = iconForTask(task);
           return (
-            <div
+            <button
               key={task.id}
-              onClick={() => onTaskClick?.(task.id)}
-              className="py-4 flex items-start gap-4 transition-all hover:bg-slate-50/50 px-2 rounded-xl cursor-pointer"
+              type="button"
+              onClick={() => onTaskClick?.(task)}
+              className="w-full py-4 px-1 flex items-center justify-between gap-4 text-left hover:bg-slate-50/70 transition-colors cursor-pointer"
             >
-              <div className="p-2 sm:p-2.5 bg-[#f1f5f9] rounded-xl text-brand-navy shrink-0">
-                <IconComponent className="w-4 h-4 text-slate-600" />
-              </div>
-              <div className="space-y-0.5 text-left min-w-0">
-                <span className="text-xs font-bold text-brand-navy block leading-snug">
-                  {task.name}
+              <span className="flex items-center gap-3 min-w-0">
+                <span className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                  <Icon className="w-4 h-4" />
                 </span>
-                <StatusBadge tone={getStatusBadgeTone(task.status)} className="px-2 py-0.5 text-[8px] rounded-md">
-                  {task.statusText}
-                </StatusBadge>
-              </div>
-            </div>
+                <span className="min-w-0">
+                  <span className="text-xs font-black text-brand-navy block leading-snug">
+                    {task.name}
+                  </span>
+                  <StatusBadge
+                    tone={getStatusBadgeTone(task.status)}
+                    className="mt-1.5 max-w-full normal-case"
+                  >
+                    {taskMetadataText(task)}
+                  </StatusBadge>
+                </span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </button>
           );
         })}
       </div>
-    </div>
+    )}
+  </section>
+);
+
+export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = (props) => {
+  const [tasks, setTasks] = useState<DashboardTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTasks = useCallback(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    loadDashboardTasks()
+      .then((result) => {
+        if (active) setTasks(result.tasks);
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setTasks([]);
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'Failed to load dashboard actions.',
+        );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => loadTasks(), [loadTasks]);
+
+  return (
+    <MonitoringTasksCardView
+      {...props}
+      tasks={tasks}
+      loading={loading}
+      error={error}
+      onRetry={loadTasks}
+    />
   );
 };

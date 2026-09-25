@@ -4,27 +4,28 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  ChevronRight
-} from 'lucide-react';
+import { BarChart3, ChevronRight, Gauge, ShieldAlert, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { getDashboardSummary, getPanelWorkloads } from '../services';
-import { DashboardAttentionRow, DashboardSummary } from '../types';
+import { DashboardAttentionRow, DashboardSummary, DashboardTask } from '../types';
+import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { MarkRecordStatusTab } from '../utils/markRecords';
+import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
+import { ActiveSemesterContext } from './ActiveSemesterContext';
 
 interface AdministrationDashboardProps {
   onNavigateToTab: (tabName: string) => void;
+  onNavigateToRoute?: (route: string) => void;
   onNavigateToMarksRecords?: (statusTab?: MarkRecordStatusTab) => void;
-  onShowModal?: (modalType: 'period' | 'rubric' | 'generate' | 'help') => void;
   onNavigateToTimeline?: () => void;
 }
 
 export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = ({ 
   onNavigateToTab,
+  onNavigateToRoute,
   onNavigateToMarksRecords,
-  onShowModal,
   onNavigateToTimeline
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -109,6 +110,19 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
     },
   ], [panelWorkloadCount, panelWorkloadLoadFailed, summary]);
 
+  const navigateToAction = (task: DashboardTask) => {
+    const route = resolveDashboardTaskRoute(task);
+    if (onNavigateToRoute) {
+      onNavigateToRoute(route);
+      return;
+    }
+    if (task.targetModule === 'DASHBOARD' && onNavigateToTimeline) {
+      onNavigateToTimeline();
+      return;
+    }
+    onNavigateToTab(sidebarItemForPath(route));
+  };
+
   return (
     <div id="admin-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       
@@ -118,6 +132,42 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
       <PageHeader
         title="Administration Dashboard"
         subtitle="Overview administrative status, timeline intervals, and records requiring office review."
+        actions={(
+          <>
+            <PortalButton
+              variant="secondary"
+              icon={Gauge}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardLecturerCapacity)}
+            >
+              Lecturer Capacity
+            </PortalButton>
+            <PortalButton
+              variant="secondary"
+              icon={ShieldAlert}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardWorkflowReconciliation)}
+            >
+              Reconcile Workflows
+            </PortalButton>
+            <PortalButton
+              variant="secondary"
+              icon={UsersRound}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardParticipantLifecycle)}
+            >
+              Manage Participants
+            </PortalButton>
+            <PortalButton
+              variant="secondary"
+              icon={BarChart3}
+              onClick={() => onNavigateToRoute?.(APP_ROUTES.dashboardReports)}
+            >
+              View Workflow Reports
+            </PortalButton>
+          </>
+        )}
+      />
+
+      <ActiveSemesterContext
+        onManage={() => onNavigateToRoute?.(APP_ROUTES.dashboardSemesters)}
       />
 
       {/* 1. Semester Timeline Section */}
@@ -185,23 +235,9 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
           </div>
         </div>
 
-        {/* Right (35% approx): Office Monitoring Tasks List Panel */}
+        {/* Right (35% approx): persisted role-scoped action centre */}
         <div className="lg:col-span-4">
-          <MonitoringTasksCard 
-            onTaskClick={(taskId) => {
-              if (taskId === 'task_upload') {
-                onNavigateToTimeline?.();
-              } else if (taskId === 'task_config') {
-                onNavigateToTab('Marks Entry');
-              } else if (taskId === 'task_rubric') {
-                onNavigateToTab('Marks Entry');
-              } else if (taskId === 'task_generate') {
-                onNavigateToTab('Marks Entry');
-              } else {
-                triggerToast(`Accessing task audit trail log for ID: ${taskId}...`);
-              }
-            }}
-          />
+          <MonitoringTasksCard onTaskClick={navigateToAction} />
         </div>
 
       </div>

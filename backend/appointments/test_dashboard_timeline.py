@@ -4,10 +4,13 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import OfficeStaff, Student
+from academics.models import AcademicSemester
+from academics.test_capacity_helpers import publish_test_capacity_plan
 from openpyxl import Workbook, load_workbook
 
 from dashboard.upload_security import (
@@ -15,7 +18,6 @@ from dashboard.upload_security import (
     MAX_TIMELINE_UNCOMPRESSED_BYTES,
     MAX_TIMELINE_UPLOAD_BYTES,
 )
-
 
 User = get_user_model()
 
@@ -99,7 +101,23 @@ class DashboardTimelineApiTests(APITestCase):
             full_name="Timeline Student",
             role=User.Role.STUDENT,
         )
-        Student.objects.create(user=self.student, matric_no="S10001", programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)")
+        Student.objects.create(
+            user=self.student,
+            matric_no="S10001",
+            programme="MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+        )
+        today = timezone.localdate()
+        self.academic_semester = AcademicSemester.objects.create(
+            code=f"{today.year}-{today.year + 1}-S1",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SEMESTER_I,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=120),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.admin,
+            activated_at=timezone.now(),
+        )
+        publish_test_capacity_plan(self.academic_semester, self.admin)
 
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
@@ -138,7 +156,9 @@ class DashboardTimelineApiTests(APITestCase):
             ],
         ]
 
-    def test_active_timeline_returns_not_available_payload_when_no_active_timeline_exists(self):
+    def test_active_timeline_returns_not_available_payload_when_no_active_timeline_exists(
+        self,
+    ):
         self.authenticate(self.student)
 
         response = self.client.get("/api/dashboard/timeline/active/")
@@ -166,8 +186,13 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(admin_template.status_code, status.HTTP_200_OK)
         self.assertIn("spreadsheetml.sheet", admin_template["Content-Type"])
-        self.assertIn("FSKTM_Semester_Timeline_Template.xlsx", admin_template["Content-Disposition"])
-        workbook = load_workbook(SimpleUploadedFile("template.xlsx", admin_template.content))
+        self.assertIn(
+            "FSKTM_Semester_Timeline_Template.xlsx",
+            admin_template["Content-Disposition"],
+        )
+        workbook = load_workbook(
+            SimpleUploadedFile("template.xlsx", admin_template.content)
+        )
         headers = [cell.value for cell in workbook.active[1]]
         self.assertEqual(headers, REQUIRED_HEADERS)
         self.assertNotIn("Step", headers)
@@ -179,17 +204,25 @@ class DashboardTimelineApiTests(APITestCase):
         response = self.client.post(
             "/api/dashboard/timeline/upload/",
             {
-                "semester": "Semester II",
-                "session": "2025/2026",
-                "file": workbook_upload(self.valid_rows(), filename="sem2-timeline.xlsx"),
+                "semesterId": self.academic_semester.pk,
+                "file": workbook_upload(
+                    self.valid_rows(), filename="sem2-timeline.xlsx"
+                ),
             },
             format="multipart",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["importedCount"], 3)
-        self.assertEqual(response.data["timeline"]["semester"], "Semester II")
-        self.assertEqual(response.data["timeline"]["session"], "2025/2026")
+        self.assertEqual(response.data["timeline"]["semester"], "Semester I")
+        self.assertEqual(
+            response.data["timeline"]["session"],
+            self.academic_semester.academic_session,
+        )
+        self.assertEqual(
+            response.data["timeline"]["semesterId"],
+            self.academic_semester.pk,
+        )
         self.assertEqual(response.data["timeline"]["levels"][0]["level"], "P1")
         self.assertEqual(len(response.data["timeline"]["levels"][0]["entries"]), 2)
         self.assertEqual(response.data["timeline"]["levels"][1]["level"], "P2")
@@ -198,9 +231,18 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(active.status_code, status.HTTP_200_OK)
         self.assertEqual(active.data["available"], True)
         self.assertEqual(active.data["levels"][0]["entries"][0]["step"], 1)
-        self.assertEqual(active.data["levels"][0]["entries"][0]["title"], "Supervisor appointment request")
-        self.assertEqual(active.data["levels"][0]["entries"][0]["detail"], "Students submit appointment of supervisor forms.")
-        self.assertEqual(active.data["levels"][0]["entries"][0]["targetRoles"], ["STUDENT", "LECTURER"])
+        self.assertEqual(
+            active.data["levels"][0]["entries"][0]["title"],
+            "Supervisor appointment request",
+        )
+        self.assertEqual(
+            active.data["levels"][0]["entries"][0]["detail"],
+            "Students submit appointment of supervisor forms.",
+        )
+        self.assertEqual(
+            active.data["levels"][0]["entries"][0]["targetRoles"],
+            ["STUDENT", "LECTURER"],
+        )
 
         from dashboard.models import TimelineAuditLog
 
@@ -224,7 +266,11 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("errors", response.data)
-        self.assertTrue(any("Missing required columns" in error for error in response.data["errors"]))
+        self.assertTrue(
+            any(
+                "Missing required columns" in error for error in response.data["errors"]
+            )
+        )
 
     def test_upload_rejects_files_larger_than_ten_megabytes(self):
         self.authenticate(self.admin)
@@ -240,7 +286,9 @@ class DashboardTimelineApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, {"errors": ["Timeline file must be 10 MB or smaller."]})
+        self.assertEqual(
+            response.data, {"errors": ["Timeline file must be 10 MB or smaller."]}
+        )
 
     def test_upload_rejects_renamed_non_xlsx_extension(self):
         self.authenticate(self.admin)
@@ -416,7 +464,12 @@ class DashboardTimelineApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue(any("Deadline End cannot be before Deadline Start" in error for error in response.data["errors"]))
+        self.assertTrue(
+            any(
+                "Deadline End cannot be before Deadline Start" in error
+                for error in response.data["errors"]
+            )
+        )
 
     def test_upload_rejects_target_roles_outside_student_lecturer_office_staff(self):
         self.authenticate(self.admin)
@@ -444,13 +497,22 @@ class DashboardTimelineApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue(any("Invalid target role(s): ALL" in error for error in response.data["errors"]))
+        self.assertTrue(
+            any(
+                "Invalid target role(s): ALL" in error
+                for error in response.data["errors"]
+            )
+        )
 
     def test_upload_replaces_previous_active_timeline(self):
         self.authenticate(self.admin)
         first = self.client.post(
             "/api/dashboard/timeline/upload/",
-            {"semester": "Semester I", "session": "2025/2026", "file": workbook_upload(self.valid_rows())},
+            {
+                "semester": "Semester I",
+                "session": "2025/2026",
+                "file": workbook_upload(self.valid_rows()),
+            },
             format="multipart",
         )
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
@@ -461,7 +523,18 @@ class DashboardTimelineApiTests(APITestCase):
                 "semester": "Semester II",
                 "session": "2025/2026",
                 "file": workbook_upload(
-                    [["P2", "Marks entry", "Student marks entry period.", "Student / Examiner", date(2026, 6, 8), date(2026, 7, 10), "Week 13 - 16", "STUDENT,LECTURER"]],
+                    [
+                        [
+                            "P2",
+                            "Marks entry",
+                            "Student marks entry period.",
+                            "Student / Examiner",
+                            date(2026, 6, 8),
+                            date(2026, 7, 10),
+                            "Week 13 - 16",
+                            "STUDENT,LECTURER",
+                        ]
+                    ],
                     filename="replacement.xlsx",
                 ),
             },
@@ -474,7 +547,9 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(SemesterTimeline.objects.count(), 2)
         self.assertEqual(SemesterTimeline.objects.filter(is_active=True).count(), 1)
-        self.assertEqual(SemesterTimeline.objects.get(is_active=True).semester, "Semester II")
+        self.assertEqual(
+            SemesterTimeline.objects.get(is_active=True).semester, "Semester I"
+        )
 
     def test_office_admin_can_patch_timeline_entry_and_audit_change(self):
         self.authenticate(self.admin)
@@ -524,7 +599,9 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(response.data["step"], 2)
 
         active = self.client.get("/api/dashboard/timeline/active/")
-        p2_entries = [group for group in active.data["levels"] if group["level"] == "P2"][0]["entries"]
+        p2_entries = [
+            group for group in active.data["levels"] if group["level"] == "P2"
+        ][0]["entries"]
         self.assertTrue(any(entry["id"] == entry_id for entry in p2_entries))
 
     def test_office_admin_can_create_timeline_entry_and_audit_change(self):
@@ -602,9 +679,7 @@ class DashboardTimelineApiTests(APITestCase):
 
         active = self.client.get("/api/dashboard/timeline/active/")
         remaining_ids = [
-            entry["id"]
-            for group in active.data["levels"]
-            for entry in group["entries"]
+            entry["id"] for group in active.data["levels"] for entry in group["entries"]
         ]
         self.assertNotIn(entry_id, remaining_ids)
 
@@ -616,7 +691,11 @@ class DashboardTimelineApiTests(APITestCase):
         self.authenticate(self.admin)
         upload = self.client.post(
             "/api/dashboard/timeline/upload/",
-            {"file": workbook_upload(self.valid_rows(), filename="timeline-audit.xlsx")},
+            {
+                "file": workbook_upload(
+                    self.valid_rows(), filename="timeline-audit.xlsx"
+                )
+            },
             format="multipart",
         )
         entry_id = upload.data["timeline"]["levels"][0]["entries"][0]["id"]
@@ -657,7 +736,9 @@ class DashboardTimelineApiTests(APITestCase):
             },
             format="json",
         )
-        delete_response = self.client.delete(f"/api/dashboard/timeline/entries/{entry_id}/")
+        delete_response = self.client.delete(
+            f"/api/dashboard/timeline/entries/{entry_id}/"
+        )
         audit_response = self.client.get("/api/dashboard/timeline/audit-logs/")
 
         self.assertEqual(create_response.status_code, status.HTTP_403_FORBIDDEN)
@@ -665,6 +746,8 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(audit_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_office_staff_tasks_include_timeline_owner_tasks(self):
+        from dashboard.models import SemesterTimelineEntry
+
         self.authenticate(self.admin)
         upload = self.client.post(
             "/api/dashboard/timeline/upload/",
@@ -672,6 +755,12 @@ class DashboardTimelineApiTests(APITestCase):
             format="multipart",
         )
         self.assertEqual(upload.status_code, status.HTTP_201_CREATED)
+        active_entry = SemesterTimelineEntry.objects.get(
+            title="Step 2 decision notice",
+        )
+        active_entry.deadline_start = timezone.localdate()
+        active_entry.deadline_end = timezone.localdate()
+        active_entry.save(update_fields=["deadline_start", "deadline_end"])
 
         response = self.client.get("/api/dashboard/tasks/")
 

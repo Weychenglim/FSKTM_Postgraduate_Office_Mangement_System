@@ -4,6 +4,8 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   PANEL_RECOMMENDATION_STATUS_LABELS,
   canSubmitPanelCandidate,
@@ -105,6 +107,79 @@ assert.equal(
 assert.match(
   getPanelCandidateValidationMessage({ workloadCount: 3, workloadLimit: 5, isSupervisor: false, hasNotes: false }),
   /justification/i,
+);
+
+assert.equal(canSubmitPanelCandidate({
+  capacityState: 'OVER_CAPACITY',
+  selectable: false,
+  hasNotes: true,
+  isSupervisor: false,
+}), false);
+assert.equal(canSubmitPanelCandidate({
+  capacityState: 'FULL',
+  selectable: false,
+  hasNotes: true,
+  isSupervisor: false,
+}), false);
+assert.match(
+  getPanelCandidateValidationMessage({
+    capacityState: 'TEMPORARILY_UNAVAILABLE',
+    unavailableUntil: '2026-10-03',
+    selectable: false,
+    hasNotes: true,
+    isSupervisor: false,
+  }),
+  /3 Oct 2026/i,
+);
+assert.match(
+  getPanelCandidateValidationMessage({
+    capacityState: 'NOT_CONFIGURED',
+    selectable: false,
+    hasNotes: true,
+    isSupervisor: false,
+  }),
+  /not configured/i,
+);
+
+const studentSupervisorSource = readFileSync(
+  resolve('src/components/SupervisorAppointmentApplicationPage.tsx'),
+  'utf8',
+);
+assert.doesNotMatch(studentSupervisorSource, /\balert\s*\(/);
+assert.doesNotMatch(studentSupervisorSource, /availabilityReason|internalReason/);
+const studentSupervisorTrackingSource = readFileSync(
+  resolve('src/components/StudentSupervisorAppointment.tsx'),
+  'utf8',
+);
+assert.match(studentSupervisorTrackingSource, /unavailableUntil/);
+assert.doesNotMatch(studentSupervisorTrackingSource, /availabilityReason|internalReason/);
+
+const coordinatorSupervisorSource = readFileSync(
+  resolve('src/components/CoordinatorSupervisorApprovals.tsx'),
+  'utf8',
+);
+const coordinatorApproveSource = coordinatorSupervisorSource.slice(
+  coordinatorSupervisorSource.indexOf('const approve'),
+  coordinatorSupervisorSource.indexOf('const reject'),
+);
+assert.match(
+  coordinatorApproveSource,
+  /catch\s*\([^)]*\)\s*\{[\s\S]{0,400}loadRecords\(\)/,
+  'Coordinator capacity conflicts must refresh the pending Supervisor queue.',
+);
+
+const lecturerPanelSource = readFileSync(
+  resolve('src/components/LecturerPanelAppointments.tsx'),
+  'utf8',
+);
+const panelApprovalSource = lecturerPanelSource.slice(
+  lecturerPanelSource.indexOf('const handleReviewAccept'),
+  lecturerPanelSource.indexOf('const handleReviewReject'),
+);
+assert.match(
+  panelApprovalSource,
+  /catch\s*\([^)]*\)\s*\{[\s\S]{0,400}loadData\(\)/,
+  'Panel approval conflicts must refresh the persisted pending queue.',
 );
 
 console.log('panelRecommendationWorkflow tests passed');

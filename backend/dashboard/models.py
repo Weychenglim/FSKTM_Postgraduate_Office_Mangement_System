@@ -1,9 +1,17 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
 
 class SemesterTimeline(models.Model):
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester",
+        on_delete=models.PROTECT,
+        related_name="timelines",
+        null=True,
+        blank=True,
+    )
     semester = models.CharField(max_length=128)
     session = models.CharField(max_length=64)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -22,9 +30,12 @@ class SemesterTimeline(models.Model):
         ordering = ["-uploaded_at", "-created_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="one_active_semester_timeline",
+                fields=["academic_semester"],
+                condition=Q(
+                    is_active=True,
+                    academic_semester__isnull=False,
+                ),
+                name="one_current_timeline_per_semester",
             )
         ]
 
@@ -111,3 +122,40 @@ class TimelineAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action}: {self.summary}"
+
+
+class WorkflowReconciliationAudit(models.Model):
+    """Append-only record of an Office-authorized data repair."""
+
+    issue_type = models.CharField(max_length=64, db_index=True)
+    entity_type = models.CharField(max_length=64)
+    entity_id = models.CharField(max_length=64)
+    action = models.CharField(max_length=64)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="workflow_reconciliation_audits",
+    )
+    reason = models.TextField()
+    fingerprint = models.CharField(max_length=64)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    affected_records = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["entity_type", "entity_id"],
+                name="reconcile_entity_idx",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Workflow reconciliation audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Workflow reconciliation audits are immutable.")

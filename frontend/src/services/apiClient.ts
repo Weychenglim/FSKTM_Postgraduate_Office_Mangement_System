@@ -6,14 +6,12 @@
 /**
  * Thin API client shared by every *Api.ts service.
  *
- * Today the services return mock data through `mockResponse`, but they already
- * have the async (Promise) shape a real backend will use. When the backend is
- * ready:
- *   1. Set VITE_USE_MOCKS=false and VITE_API_BASE_URL to the backend URL.
- *   2. Replace the `mockResponse(...)` body of each service function with the
- *      matching `request(...)` call that is already stubbed alongside it.
- * Components calling the services do not change.
+ * Dashboard/Timeline, Supervisor, Panel, Marks, and Workflow services always
+ * call Django. `USE_MOCKS` remains available only to unfinished or
+ * teammate-owned modules while their persistence integrations are completed.
  */
+
+import { AuthSession } from './authSession';
 
 const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined || value.trim() === '') return fallback;
@@ -26,11 +24,15 @@ const parseNumberEnv = (value: string | undefined, fallback: number): number => 
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
-export const USE_MOCKS = parseBooleanEnv(import.meta.env.VITE_USE_MOCKS, true);
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || '/api';
+export const USE_MOCKS = parseBooleanEnv(import.meta.env?.VITE_USE_MOCKS, true);
+export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL?.trim() || '/api';
+const authSession = new AuthSession(
+  (input, init) => fetch(input, init),
+  `${API_BASE_URL}/auth/refresh/`,
+);
 
 // Simulated network latency for mock responses (ms).
-const MOCK_LATENCY_MS = parseNumberEnv(import.meta.env.VITE_MOCK_LATENCY_MS, 500);
+const MOCK_LATENCY_MS = parseNumberEnv(import.meta.env?.VITE_MOCK_LATENCY_MS, 500);
 
 export class ApiError extends Error {
   status?: number;
@@ -78,42 +80,20 @@ export async function mockResponse<T>(
 
 // ─── Token management ────────────────────────────────────────────────────────
 
-// Persisted in localStorage so the session survives a page refresh / new tab.
-const AUTH_TOKEN_KEY = 'fsktm_auth_token';
-
-function readStoredToken(): string | null {
-  try {
-    return localStorage.getItem(AUTH_TOKEN_KEY);
-  } catch {
-    // Storage blocked (e.g. private mode) — fall back to in-memory only.
-    return null;
-  }
-}
-
-// Seed from storage at module load so a refresh keeps the user logged in.
-let _authToken: string | null = readStoredToken();
-
 export function setAuthToken(token: string): void {
-  _authToken = token;
-  try {
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
-  } catch {
-    /* storage unavailable — keep the in-memory token for this tab */
-  }
+  authSession.setAccessToken(token);
 }
 
 export function clearAuthToken(): void {
-  _authToken = null;
-  try {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
+  authSession.clearAccessToken();
 }
 
-/** Whether a token is currently held (used to bootstrap the session on load). */
 export function getAuthToken(): string | null {
-  return _authToken;
+  return authSession.getAccessToken();
+}
+
+export function refreshAuthToken(): Promise<string | null> {
+  return authSession.refreshAccessToken();
 }
 
 // ─── HTTP helper ─────────────────────────────────────────────────────────────
@@ -137,19 +117,21 @@ function messageFromErrorBody(body: unknown): string | null {
   return null;
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options?: { retryAuth?: boolean },
+): Promise<T> {
   const isFormDataBody = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const headers: Record<string, string> = {
     ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  if (_authToken) {
-    headers['Authorization'] = `Bearer ${_authToken}`;
-  }
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  const res = await sessionFetch(
+    path,
+    { ...init, headers },
+    options?.retryAuth ?? true,
+  );
   if (!res.ok) return raiseForStatus(res);
   // 204 No Content (or empty body) → nothing to parse.
   if (res.status === 204) return undefined as T;
@@ -169,16 +151,25 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * call to fail with an opaque message.
  */
 function handleUnauthorized(): void {
-  if (!_authToken) return;
   clearAuthToken();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
   }
 }
 
+async function sessionFetch(
+  path: string,
+  init: RequestInit,
+  retryAuth = true,
+): Promise<Response> {
+  const hadSession = authSession.getAccessToken() !== null;
+  const res = await authSession.fetch(`${API_BASE_URL}${path}`, init, retryAuth);
+  if (res.status === 401 && hadSession) handleUnauthorized();
+  return res;
+}
+
 /** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
 async function raiseForStatus(res: Response): Promise<never> {
-  if (res.status === 401) handleUnauthorized();
   let message = `Request failed: ${res.status} ${res.statusText}`;
   try {
     const extracted = messageFromErrorBody(await res.json());
@@ -201,10 +192,7 @@ export async function requestMultipart<T>(
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  if (_authToken) {
-    headers['Authorization'] = `Bearer ${_authToken}`;
-  }
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await sessionFetch(path, {
     method: 'POST',
     ...init,
     body: formData,
@@ -220,10 +208,7 @@ export async function requestBlob(path: string, init?: RequestInit): Promise<Blo
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  if (_authToken) {
-    headers['Authorization'] = `Bearer ${_authToken}`;
-  }
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  const res = await sessionFetch(path, { ...init, headers });
   if (!res.ok) return raiseForStatus(res);
   return res.blob();
 }

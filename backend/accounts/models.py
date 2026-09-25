@@ -105,6 +105,18 @@ class User(AbstractBaseUser, PermissionsMixin):
             "department": department,
             "studentId": student_no,
             "staffId": staff_no,
+            "participantLifecycleStatus": (
+                student.status.upper()
+                if student
+                else lecturer.lifecycle_status if lecturer else None
+            ),
+            "accountAccess": (
+                "DISABLED"
+                if not self.is_active
+                else "READ_ONLY"
+                if student and student.status != Student.Status.ACTIVE
+                else "ACTIVE"
+            ),
         }
 
 
@@ -129,6 +141,15 @@ class Student(models.Model):
         max_length=16, choices=Status.choices, default=Status.ACTIVE
     )
     intake_semester = models.CharField(max_length=32, blank=True, default="")
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    status_changed_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="student_status_changes",
+        null=True,
+        blank=True,
+    )
+    status_reason = models.TextField(blank=True)
 
     def __str__(self):
         return f"{self.matric_no} — {self.user.full_name}"
@@ -222,6 +243,11 @@ class Lecturer(models.Model):
     """Academic staff profile. A lecturer may additionally act as a Coordinator,
     Supervisor, and/or Panel member (overlapping specializations below)."""
 
+    class Lifecycle(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        RETIRING = "RETIRING", "Retiring"
+        RETIRED = "RETIRED", "Retired"
+
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, primary_key=True, related_name="lecturer"
     )
@@ -229,12 +255,80 @@ class Lecturer(models.Model):
     department = models.CharField(max_length=255, blank=True, default="")
     title = models.CharField(max_length=64, blank=True, default="")
     specialization = models.CharField(max_length=255, blank=True, default="")
+    lifecycle_status = models.CharField(
+        max_length=16,
+        choices=Lifecycle.choices,
+        default=Lifecycle.ACTIVE,
+        db_index=True,
+    )
+    lifecycle_changed_at = models.DateTimeField(null=True, blank=True)
+    lifecycle_changed_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="lecturer_lifecycle_changes",
+        null=True,
+        blank=True,
+    )
+    lifecycle_reason = models.TextField(blank=True)
 
     def __str__(self):
         return f"{self.staff_no} — {self.user.full_name}"
 
 
 # ── Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel) ───
+
+
+class ParticipantLifecycleAudit(models.Model):
+    """Append-only audit for authoritative Student/Lecturer lifecycle changes."""
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_audits",
+        null=True,
+        blank=True,
+    )
+    lecturer = models.ForeignKey(
+        Lecturer,
+        on_delete=models.PROTECT,
+        related_name="lifecycle_audits",
+        null=True,
+        blank=True,
+    )
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="participant_lifecycle_audits",
+    )
+    previous_status = models.CharField(max_length=32)
+    new_status = models.CharField(max_length=32)
+    reason = models.TextField()
+    affected_records = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(student__isnull=False, lecturer__isnull=True)
+                    | models.Q(student__isnull=True, lecturer__isnull=False)
+                ),
+                name="participant_audit_exactly_one_subject",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError("Participant lifecycle audits are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        raise ValidationError("Participant lifecycle audits are immutable.")
 
 
 class Coordinator(models.Model):

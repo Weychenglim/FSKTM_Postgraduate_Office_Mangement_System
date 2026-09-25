@@ -36,7 +36,7 @@ interface SupervisorRequestHistoryProps {
 }
 
 export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack }) => {
-  // Decided supervisor requests loaded from appointmentsApi (mock-backed today).
+  // Decided supervisor requests are loaded from the persisted appointment API.
   const [allHistoryRecords, setAllHistoryRecords] = useState<SupervisorRequestHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

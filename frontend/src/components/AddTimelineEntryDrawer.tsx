@@ -28,12 +28,14 @@ interface AddTimelineEntryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (newEntry: Omit<TimelineEntry, 'id'>) => void;
+  timelineLabel: string;
 }
 
 export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
   isOpen,
   onClose,
-  onSave
+  onSave,
+  timelineLabel,
 }) => {
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
@@ -47,8 +49,8 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
     if (isOpen) {
       setEventName('');
       setCategory('Research Project (P1)');
-      setStartDate('2026-03-16');
-      setEndDate('2026-03-20');
+      setStartDate('');
+      setEndDate('');
       setTargetRole(['STUDENT']);
       setDescription('');
     }
@@ -153,7 +155,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                     Postgraduate Milestone Info
                   </span>
                   <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    Create a new calendar session milestone for <strong className="font-extrabold text-indigo-650">Sem 1 2025/2026</strong>. Please confirm start & end ranges.
+                    Create a new milestone for <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
                   </p>
                 </div>
 

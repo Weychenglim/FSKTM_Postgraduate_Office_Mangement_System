@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { RouteScrollSnapshot, shouldResetWindowScroll } from '../utils/routeScrollRestoration';
 
 export const RouteScrollRestoration = () => {

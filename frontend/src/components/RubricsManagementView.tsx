@@ -1,719 +1,584 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { SummaryCard } from './SummaryCard';
-import { FilterCard } from './FilterCard';
-import { ValidationCard } from './ValidationCard';
-import { RecentUpdatesCard } from './RecentUpdatesCard';
-import { ActionButton } from './ActionButton';
-import { FormInput } from './FormInput';
-import { FormTextarea } from './FormTextarea';
-import { FormSelect } from './FormSelect';
-import { ToggleSwitch } from './ToggleSwitch';
-import { RightDrawer } from './RightDrawer';
-import { RequirementChecklist } from './RequirementChecklist';
-import { 
-  ChevronLeft,
-  Sliders, 
-  Plus, 
-  Eye, 
-  ChevronRight, 
-  ListRestart, 
-  Download, 
-  Copy, 
-  CheckCircle2, 
-  Trash2,
-  X,
-  FileCheck2,
-  AlertTriangle
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  Copy,
+  Edit3,
+  Layers3,
+  Plus,
+  Save,
+  XCircle,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalConfirmModal, PortalToast } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
-import { RubricComponent } from '../types';
-import { getRubricComponents } from '../services';
 
-// RubricComponent now lives in src/types.
+import {
+  cloneRubricVersion,
+  createRubricComponent,
+  createRubricVersion,
+  getRubricVersion,
+  getRubricVersions,
+  updateRubricComponent,
+  updateRubricVersion,
+} from '../services';
+import type { RubricComponent, RubricVersion } from '../types';
+import { marksMutationErrorMessage } from '../utils/marksProductionManagement';
+import {
+  PageHeader,
+  PortalButton,
+  PortalCard,
+  PortalToast,
+  StatusBadge,
+} from './PortalPrimitives';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface RubricsManagementViewProps {
   onBack: () => void;
 }
 
-export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({ onBack }) => {
-  // Rubric components loaded from marksApi (mock-backed today).
-  const [rubrics, setRubrics] = useState<RubricComponent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type RubricForm = {
+  familyCode: string;
+  name: string;
+  description: string;
+  targetMark: string;
+};
 
-  const loadRubrics = useCallback(() => {
+type ComponentForm = {
+  id: number | null;
+  code: string;
+  name: string;
+  description: string;
+  maxMarks: string;
+  required: boolean;
+  isActive: boolean;
+  displayOrder: string;
+};
+
+const EMPTY_RUBRIC: RubricForm = {
+  familyCode: '',
+  name: '',
+  description: '',
+  targetMark: '100.00',
+};
+
+const EMPTY_COMPONENT: ComponentForm = {
+  id: null,
+  code: '',
+  name: '',
+  description: '',
+  maxMarks: '',
+  required: true,
+  isActive: true,
+  displayOrder: '1',
+};
+
+export const RubricsManagementView: React.FC<RubricsManagementViewProps> = ({
+  onBack,
+}) => {
+  const [rubrics, setRubrics] = useState<RubricVersion[]>([]);
+  const [selected, setSelected] = useState<RubricVersion | null>(null);
+  const [rubricForm, setRubricForm] = useState<RubricForm>(EMPTY_RUBRIC);
+  const [componentForm, setComponentForm] = useState<ComponentForm>(EMPTY_COMPONENT);
+  const [creatingFamily, setCreatingFamily] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3500);
+  };
+
+  const loadRubrics = useCallback(async () => {
     setLoading(true);
     setError(null);
-    getRubricComponents()
-      .then(setRubrics)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load rubric components.'))
-      .finally(() => setLoading(false));
-  }, []);
+    try {
+      const rows = await getRubricVersions();
+      setRubrics(rows);
+      if (!selected && rows[0]) {
+        setSelected(rows[0]);
+        setRubricForm({
+          familyCode: rows[0].familyCode,
+          name: rows[0].name,
+          description: rows[0].description,
+          targetMark: rows[0].targetMark,
+        });
+      }
+    } catch (loadError) {
+      setError(marksMutationErrorMessage(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }, [selected]);
 
   useEffect(() => {
-    loadRubrics();
-  }, [loadRubrics]);
+    void loadRubrics();
+  }, []);
 
-  // Selected filters
-  const [semester, setSemester] = useState('Sem 1 2025/2026');
-  const [stage, setStage] = useState('EE Evaluation');
-
-  // Modals state
-  const [activeModal, setActiveModal] = useState<'preview' | 'add' | 'edit' | null>(null);
-  const [selectedRubricId, setSelectedRubricId] = useState<string | null>(null);
-
-  // Add/Edit Form state
-  const [formName, setFormName] = useState('');
-  const [formDesc, setFormDesc] = useState('');
-  const [formMaxMarks, setFormMaxMarks] = useState(20);
-  const [formRequired, setFormRequired] = useState(true);
-  const [formStatus, setFormStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
-  const [formDisplayOrder, setFormDisplayOrder] = useState<number>(3);
-
-  // Simulated score slider states for form previewing
-  const [previewScores, setPreviewScores] = useState<Record<string, number>>({
-    '1': 16,
-    '2': 18,
-    '3': 22,
-    '4': 15,
-    '5': 14
-  });
-
-  // Calculate sum of max marks
-  const totalMaxMarks = rubrics.reduce((acc, r) => acc + r.maxMarks, 0);
-
-  // Toast / System Alerts
-  const [toast, setToast] = useState<string | null>(null);
-  const [pendingDeleteRubric, setPendingDeleteRubric] = useState<RubricComponent | null>(null);
-
-  const triggerToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
+  const selectRubric = async (rubric: RubricVersion) => {
+    setError(null);
+    try {
+      const detail = await getRubricVersion(rubric.id);
+      setSelected(detail);
+      setRubricForm({
+        familyCode: detail.familyCode,
+        name: detail.name,
+        description: detail.description,
+        targetMark: detail.targetMark,
+      });
+      setComponentForm(EMPTY_COMPONENT);
+      setCreatingFamily(false);
+    } catch (loadError) {
+      setError(marksMutationErrorMessage(loadError));
+    }
   };
 
-  // Open Edit Dialog
-  const handleOpenEdit = (rubric: RubricComponent) => {
-    setSelectedRubricId(rubric.id);
-    setFormName(rubric.name);
-    setFormDesc(rubric.description);
-    setFormMaxMarks(rubric.maxMarks);
-    setFormRequired(rubric.required);
-    setFormStatus(rubric.status);
-    setFormDisplayOrder(rubric.displayOrder || (rubric.id === '1' ? 1 : rubric.id === '2' ? 2 : rubric.id === '3' ? 3 : rubric.id === '4' ? 4 : 5));
-    setActiveModal('edit');
+  const replaceRubric = (updated: RubricVersion) => {
+    setRubrics((current) => {
+      const exists = current.some((rubric) => rubric.id === updated.id);
+      return exists
+        ? current.map((rubric) => rubric.id === updated.id ? updated : rubric)
+        : [updated, ...current];
+    });
+    setSelected(updated);
+    setRubricForm({
+      familyCode: updated.familyCode,
+      name: updated.name,
+      description: updated.description,
+      targetMark: updated.targetMark,
+    });
   };
 
-  // Open Add Dialog
-  const handleOpenAdd = () => {
-    setFormName('');
-    setFormDesc('');
-    setFormMaxMarks(10);
-    setFormRequired(true);
-    setFormStatus('ACTIVE');
-    setFormDisplayOrder(rubrics.length + 1);
-    setActiveModal('add');
+  const beginFamily = () => {
+    setCreatingFamily(true);
+    setSelected(null);
+    setRubricForm(EMPTY_RUBRIC);
+    setComponentForm(EMPTY_COMPONENT);
+    setError(null);
   };
 
-  // Handle Edit Submission
-  const handleSaveEdit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!formName.trim()) return;
-
-    setRubrics(prev => prev.map(r => r.id === selectedRubricId ? {
-      ...r,
-      name: formName,
-      description: formDesc,
-      maxMarks: formMaxMarks,
-      required: formRequired,
-      status: formStatus,
-      displayOrder: formDisplayOrder
-    } : r));
-
-    setActiveModal(null);
-    triggerToast(`Rubric component "${formName}" updated successfully.`);
+  const saveRubric = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = creatingFamily
+        ? await createRubricVersion(rubricForm)
+        : await updateRubricVersion(selected!.id, {
+            name: rubricForm.name,
+            description: rubricForm.description,
+            targetMark: rubricForm.targetMark,
+          });
+      replaceRubric(updated);
+      setCreatingFamily(false);
+      showToast(creatingFamily ? 'Rubric family created.' : 'Rubric version updated.');
+    } catch (saveError) {
+      setError(marksMutationErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Handle Add Submission
-  const handleSaveAdd = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!formName.trim()) return;
+  const cloneSelected = async () => {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const cloned = await cloneRubricVersion(selected.id);
+      setRubrics((current) => [
+        cloned,
+        ...current.map((rubric) => (
+          rubric.familyCode === cloned.familyCode
+            ? { ...rubric, isActive: rubric.id === cloned.id }
+            : rubric
+        )),
+      ]);
+      replaceRubric(cloned);
+      showToast(`Rubric version ${cloned.version} created.`);
+    } catch (cloneError) {
+      setError(marksMutationErrorMessage(cloneError));
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    const newId = String(Date.now());
-    const newRubric: RubricComponent = {
-      id: newId,
-      name: formName,
-      description: formDesc,
-      maxMarks: formMaxMarks,
-      required: formRequired,
-      status: formStatus,
-      displayOrder: formDisplayOrder
+  const editComponent = (component: RubricComponent) => {
+    setComponentForm({
+      id: Number(component.id),
+      code: component.code || '',
+      name: component.name,
+      description: component.description,
+      maxMarks: String(component.maxMarks),
+      required: component.required,
+      isActive: component.isActive ?? component.status === 'ACTIVE',
+      displayOrder: String(component.displayOrder ?? 0),
+    });
+  };
+
+  const saveComponent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    const payload = {
+      code: componentForm.code,
+      name: componentForm.name,
+      description: componentForm.description,
+      maxMarks: componentForm.maxMarks,
+      required: componentForm.required,
+      isActive: componentForm.isActive,
+      displayOrder: Number(componentForm.displayOrder),
     };
-
-    setRubrics(prev => [...prev, newRubric]);
-    setActiveModal(null);
-    triggerToast(`New rubric component "${formName}" added successfully.`);
+    try {
+      if (componentForm.id) {
+        await updateRubricComponent(selected.id, componentForm.id, payload);
+      } else {
+        await createRubricComponent(selected.id, payload);
+      }
+      const refreshed = await getRubricVersion(selected.id);
+      replaceRubric(refreshed);
+      setComponentForm({
+        ...EMPTY_COMPONENT,
+        displayOrder: String(refreshed.components.length + 1),
+      });
+      showToast(componentForm.id ? 'Rubric component updated.' : 'Rubric component added.');
+    } catch (componentError) {
+      setError(marksMutationErrorMessage(componentError));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteComponent = (id: string) => {
-    const item = rubrics.find(r => r.id === id);
-    if (item) setPendingDeleteRubric(item);
+  const deactivateComponent = async (component: RubricComponent) => {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateRubricComponent(
+        selected.id,
+        Number(component.id),
+        { isActive: false },
+      );
+      const refreshed = await getRubricVersion(selected.id);
+      replaceRubric(refreshed);
+      showToast('Rubric component deactivated.');
+    } catch (componentError) {
+      setError(marksMutationErrorMessage(componentError));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const confirmDeleteComponent = () => {
-    if (!pendingDeleteRubric) return;
-    setRubrics(prev => prev.filter(r => r.id !== pendingDeleteRubric.id));
-    triggerToast(`Removed "${pendingDeleteRubric.name}" from rubrics.`);
-    setPendingDeleteRubric(null);
-  };
-
-  // Handle duplicate / clone
-  const handleCloneToNext = () => {
-    triggerToast(`Successfully cloned all 5 assessment components into next semester ("Sem 2 2025/2026").`);
-  };
-
-  // Export PDF definition template
-  const handleExportPDF = () => {
-    triggerToast("Generating FSKTM Rubrics Portfolio Document PDF. Download started.");
-  };
-
-  // Helper score calculator for preview
-  const previewScoreSum = (Object.values(previewScores) as number[]).reduce((a: number, b: number) => a + b, 0);
+  const familyGroups = useMemo(() => {
+    const groups = new Map<string, RubricVersion[]>();
+    for (const rubric of rubrics) {
+      groups.set(rubric.familyCode, [
+        ...(groups.get(rubric.familyCode) || []),
+        rubric,
+      ]);
+    }
+    return [...groups.entries()];
+  }, [rubrics]);
 
   return (
-    <div id="rubrics-root-frame" className="space-y-8 animate-fade-in relative text-left">
-      
+    <div id="rubric-version-management" className="space-y-7 animate-fade-in">
       <PortalToast message={toast} />
-      <PortalConfirmModal
-        isOpen={Boolean(pendingDeleteRubric)}
-        title="Remove rubric component?"
-        message={pendingDeleteRubric ? `Remove "${pendingDeleteRubric.name}" from the evaluation criteria? This affects the current rubric setup shown in this workspace.` : ''}
-        confirmLabel="Remove Component"
-        cancelLabel="Keep Component"
-        tone="danger"
-        onConfirm={confirmDeleteComponent}
-        onCancel={() => setPendingDeleteRubric(null)}
-      />
-
       <PageHeader
-        title="Rubric Components Management"
-        subtitle="Define rubric components, maximum marks, and validation rules for mark entry."
+        title="Rubric Version Management"
+        subtitle="Maintain faculty-wide marking criteria without changing the meaning of historical submissions."
         backLabel="Back to Marks & Evaluation Management"
         onBack={onBack}
-        subtitleClassName="leading-relaxed"
         actions={(
-          <>
-          <button
-            onClick={() => setActiveModal('preview')}
-            className="px-4 py-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-xl text-xs font-bold tracking-tight flex items-center gap-2.5 transition-all cursor-pointer shadow-xs select-none"
-          >
-            <Eye className="w-4.5 h-4.5 text-slate-500" />
-            <span>Preview Mark Entry Form</span>
-          </button>
-
-          <button
-            onClick={handleOpenAdd}
-            className="px-4.5 py-3 bg-brand-navy text-white hover:bg-slate-800 rounded-xl text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 transition-all cursor-pointer shadow-sm select-none"
-          >
-            <Plus className="w-4.5 h-4.5 text-blue-400" />
-            <span>Add Component</span>
-          </button>
-          </>
+          <PortalButton icon={Plus} variant="primary" onClick={beginFamily}>
+            New rubric family
+          </PortalButton>
         )}
       />
 
-      {/* 4 Top Summary Card Statistics info */}
-      <div id="metric-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <SummaryCard
-          title="Active Semester"
-          badgeText={semester}
-          badgeType="active"
-          subtext="Grading Session Workspace"
-          onClick={() => {}}
-        />
-        <SummaryCard
-          title="Evaluation Stage"
-          badgeText={stage}
-          badgeType="active"
-          subtext="Target Phase Scale"
-          onClick={() => {}}
-        />
-        <SummaryCard
-          title="Components"
-          badgeText={`${rubrics.length} Total`}
-          badgeType="generated"
-          subtext="Assessment Categories"
-          onClick={() => {}}
-        />
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 pl-6 text-left shadow-3xs relative overflow-hidden flex flex-col justify-between min-h-[110px]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-              Total Marks
-            </span>
-            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[8px] font-extrabold tracking-wider rounded-md uppercase">
-              Balanced
-            </span>
-          </div>
-          <div className="flex items-center gap-2.5 mt-2.5">
-            <span className="text-brand-navy font-extrabold text-[22px] tracking-tight">
-              {totalMaxMarks} <span className="text-slate-400 text-sm font-medium">/ 100</span>
-            </span>
-          </div>
-          {/* Decorative side accent border indicating balancing weight status */}
-          <div className="absolute top-0 right-0 h-full w-1.5 bg-emerald-500" />
-        </div>
-      </div>
+      {error ? <ErrorState message={error} onRetry={loadRubrics} /> : null}
 
-      {/* Standardized filters with Status READY chip */}
-      <FilterCard
-        semester={semester}
-        setSemester={setSemester}
-        stage={stage}
-        setStage={setStage}
-        onExportAction={() => triggerToast("Sharing Rubrics definition configuration to panel supervisors...")}
-      />
-
-      {/* Main Core Layout grid: Left Columns (Rubric Components list) & Right Column (Validation / updates) */}
-      <div id="columns-matrix" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left Span (8 out of 12 columns): Components Table list */}
-        <div id="components-panel-container" className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
-            
-            {/* Components table header info */}
-            <div className="flex items-center justify-between pb-5 border-b border-slate-100 mb-5">
-              <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
-                Rubric Components
-              </h3>
-
-              <button
-                onClick={() => triggerToast('Adjust layout hierarchies. Drag-and-drop hierarchy active.')}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 cursor-pointer select-none"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-                <span>Reorder Components</span>
-              </button>
-            </div>
-
-            {/* Rubrics table representation */}
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[620px]">
-                <thead>
-                  <tr className="data-thead">
-                    <th className="data-th">Component</th>
-                    <th className="data-th">Description</th>
-                    <th className="data-th text-center">Max Marks</th>
-                    <th className="data-th text-center">Required</th>
-                    <th className="data-th text-center">Status</th>
-                    <th className="data-th text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-0">
-                        <LoadingState message="Loading rubric components…" />
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={6} className="p-0">
-                        <ErrorState message={error} onRetry={loadRubrics} />
-                      </td>
-                    </tr>
-                  ) : rubrics.map((rub) => (
-                    <tr
-                      key={rub.id}
-                      className="hover:bg-slate-50/40 transition-colors group"
-                    >
-                      <td className="data-td-strong">
-                        {rub.name}
-                      </td>
-                      <td className="data-td max-w-[200px] leading-relaxed">
-                        {rub.description}
-                      </td>
-                      <td className="data-td text-center font-mono">
-                        {rub.maxMarks}
-                      </td>
-                      <td className="data-td text-center">
-                        {rub.required ? 'Yes' : 'No'}
-                      </td>
-                      <td className="data-td text-center">
-                        <span className="inline-flex px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-extrabold tracking-wide uppercase">
-                          {rub.status}
-                        </span>
-                      </td>
-                      <td className="data-td text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => handleOpenEdit(rub)}
-                            className="text-xs font-bold text-blue-650 hover:text-blue-800 transition-colors cursor-pointer select-none"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteComponent(rub.id)}
-                            className="text-xs font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer select-none"
-                            title="Delete Component"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* Dynamic Weights Sum block */}
-                  <tr className="bg-slate-50/70 border-t border-slate-200">
-                    <td className="py-4 px-5 font-extrabold text-xs text-brand-navy">
-                      Total:
-                    </td>
-                    <td className="py-4 px-5" />
-                    <td className="py-4 px-5 text-center font-extrabold text-sm text-blue-700 font-mono">
-                      {totalMaxMarks} marks
-                    </td>
-                    <td className="py-4 px-5" />
-                    <td className="py-4 px-5" />
-                    <td className="py-4 px-5" />
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Validation Indicator Warning if weighting values doesn't add up to 100 */}
-            {totalMaxMarks !== 100 && (
-              <div id="weight-alert-block" className="mt-6 flex items-start gap-3 p-4 bg-rose-50 border border-rose-100 text-rose-900 rounded-2xl text-xs text-left">
-                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                <div className="flex flex-col font-semibold leading-relaxed">
-                  <span className="font-bold">Invalid Rubrics Balance:</span>
-                  <span className="text-slate-600 font-medium mt-1">Rubric weights sum currently totals {totalMaxMarks} marks instead of exactly 100. Modify assessments to meet requirements.</span>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-
-        {/* Right Span (4 out of 12 columns): Validation guidance and logs actions */}
-        <div id="validation-logs-column" className="lg:col-span-4 space-y-6">
-          
-          {/* Validation card conditions */}
-          <ValidationCard />
-
-          {/* Updates feed list */}
-          <RecentUpdatesCard onViewHistory={() => triggerToast("Accessing administrative audit trail log index...")} />
-
-          {/* Bottom administrative command buttons */}
-          <div id="extra-actions-block" className="space-y-3 pt-2">
-            <button
-              onClick={handleExportPDF}
-              className="w-full py-3 px-4 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#1e40af] border border-[#bfdbfe] rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer shadow-xs select-none"
-            >
-              <Download className="w-4 h-4 text-blue-600" />
-              <span>Export PDF Definition</span>
-            </button>
-
-            <button
-              onClick={handleCloneToNext}
-              className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer shadow-xs select-none"
-            >
-              <Copy className="w-4 h-4 text-slate-400" />
-              <span>Clone to Next Semester</span>
-            </button>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Global Interactive Overlays (Preview / Add / Edit Dialogs) */}
-      {createPortal(
-        <AnimatePresence>
-        {activeModal && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            
-            {/* Blur close context backdrop */}
-            <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
-
-            {/* Modal layout box */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
-            >
-              
-              {/* Top dismissal X */}
-              <button
-                onClick={() => setActiveModal(null)}
-                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Dismiss overlay"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* MODAL CASE A: PREVIEW MARK ENTRY FORM */}
-              {activeModal === 'preview' && (
-                <div className="flex flex-col space-y-5">
-                  <div className="flex items-center gap-2.5 text-slate-900 border-b border-slate-100 pb-4">
-                    <FileCheck2 className="w-5.5 h-5.5 text-blue-600" />
-                    <h3 className="text-lg font-extrabold tracking-tight">Preview Mark Entry Form</h3>
-                  </div>
-
-                  <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                    This simulates the mark sheet panel members use for assessing candidate coursework. Drag the sliders to test input scores against the rubric maximum limits.
-                  </p>
-
-                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-                    {rubrics.map((rub) => {
-                      const score = previewScores[rub.id] || 0;
-                      return (
-                        <div key={rub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-extrabold text-brand-navy">
-                              {rub.name} <span className="text-slate-400">({rub.maxMarks} max)</span>
-                            </span>
-                            <span className="font-mono font-extrabold text-blue-650">
-                              {score} / {rub.maxMarks}
-                            </span>
-                          </div>
-
-                          <input
-                            type="range"
-                            min="0"
-                            max={rub.maxMarks}
-                            value={score}
-                            onChange={(e) => setPreviewScores({
-                              ...previewScores,
-                              [rub.id]: parseInt(e.target.value, 10)
-                            })}
-                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0c1424]"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Calculated metrics */}
-                  <div className="p-3.5 bg-slate-100 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold font-sans">
-                    <span className="text-slate-500">Combined Preview Score:</span>
-                    <span className="text-sm font-mono text-brand-navy">
-                      {previewScoreSum} / {totalMaxMarks} marks
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => setActiveModal(null)}
-                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center"
-                  >
-                    Close Preview Desk
-                  </button>
-                </div>
-              )}
-
-              {/* MODAL CASE B: ADD ASSESSMENT */}
-              {activeModal === 'add' && (
-                <form onSubmit={handleSaveAdd} className="flex flex-col space-y-5">
-                  <div className="flex items-center gap-2.5 text-slate-900 border-b border-slate-100 pb-4">
-                    <Sliders className="w-5.5 h-5.5 text-indigo-500" />
-                    <h3 className="text-lg font-extrabold tracking-tight">
-                      Add Rubric Component
-                    </h3>
-                  </div>
-
-                  <div className="space-y-4">
-                    <FormInput
-                      id="name"
-                      label="Component Title"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="e.g. Thesis Dissertation Progress"
-                      required
-                    />
-
-                    <FormTextarea
-                      id="desc"
-                      label="Description"
-                      value={formDesc}
-                      onChange={(e) => setFormDesc(e.target.value)}
-                      placeholder="Explain evaluation parameters and marking criteria details..."
-                      rows={3}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormInput
-                        id="max-marks"
-                        label="Max Marks Range"
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={formMaxMarks}
-                        onChange={(e) => setFormMaxMarks(parseInt(e.target.value, 10))}
-                        required
-                      />
-
-                      <FormInput
-                        id="display-order"
-                        label="Display Order"
-                        type="number"
-                        min="1"
-                        value={formDisplayOrder}
-                        onChange={(e) => setFormDisplayOrder(parseInt(e.target.value, 10))}
-                        required
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between border border-slate-205 p-3.5 rounded-xl bg-slate-50">
-                      <ToggleSwitch
-                        id="add-required"
-                        checked={formRequired}
-                        onChange={setFormRequired}
-                        label="Required Component"
-                      />
-                      
-                      <select
-                        value={formStatus}
-                        onChange={(e) => setFormStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
-                        className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1.5 rounded-lg focus:outline-none cursor-pointer"
+      {loading ? (
+        <LoadingState message="Loading rubric versions..." />
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-6 items-start">
+          <section className="space-y-4" aria-label="Rubric version families">
+            {familyGroups.length === 0 ? (
+              <EmptyState
+                title="No rubric versions"
+                description="Create a rubric family, then add its assessment components."
+              />
+            ) : familyGroups.map(([familyCode, versions]) => (
+              <div key={familyCode} className="border border-slate-200 bg-white p-4 rounded-lg">
+                <p className="text-[10px] font-extrabold uppercase text-slate-400">
+                  {familyCode}
+                </p>
+                <div className="mt-3 space-y-2">
+                  {[...versions]
+                    .sort((left, right) => right.version - left.version)
+                    .map((rubric) => (
+                      <button
+                        key={rubric.id}
+                        type="button"
+                        onClick={() => void selectRubric(rubric)}
+                        className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+                          selected?.id === rubric.id
+                            ? 'border-brand-navy bg-slate-50'
+                            : 'border-slate-100 hover:border-slate-300'
+                        }`}
                       >
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition cursor-pointer"
-                  >
-                    Confirm Component Addition
-                  </button>
-                </form>
-              )}
-
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
-
-      {/* RIGHT SIDE DRAWER FOR EDIT OPERATION (Sparsely customized for edit rubric component drawer) */}
-      <RightDrawer
-        isOpen={activeModal === 'edit'}
-        onClose={() => setActiveModal(null)}
-        title="Edit Rubric Component"
-      >
-        <div id="drawer-form-container" className="flex flex-col h-full justify-between space-y-6">
-          <div className="space-y-5 text-left">
-            <FormInput
-              id="edit-name"
-              label="Component Name"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="e.g. Methodology"
-              required
-            />
-
-            <FormTextarea
-              id="edit-description"
-              label="Description"
-              value={formDesc}
-              onChange={(e) => setFormDesc(e.target.value)}
-              placeholder="Explain evaluation parameters and marking criteria details..."
-              rows={4}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormInput
-                id="edit-max-marks"
-                label="Max Marks"
-                type="number"
-                min="1"
-                max="100"
-                value={formMaxMarks}
-                onChange={(e) => setFormMaxMarks(parseInt(e.target.value, 10))}
-                required
-              />
-
-              <FormInput
-                id="edit-display-order"
-                label="Display Order"
-                type="number"
-                min="1"
-                value={formDisplayOrder}
-                onChange={(e) => setFormDisplayOrder(parseInt(e.target.value, 10))}
-                required
-              />
-            </div>
-
-            {/* Custom Interactive card exactly as in the visual presentation design */}
-            <div className="flex items-center justify-between border border-[#d3dfef]/70 p-4 rounded-2xl bg-white shadow-xs">
-              <ToggleSwitch
-                id="edit-required"
-                checked={formRequired}
-                onChange={setFormRequired}
-                label="Required Component"
-              />
-              
-              <div className="relative">
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
-                  className="text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-100 pl-3 pr-7 py-1.5 rounded-lg focus:outline-none cursor-pointer hover:bg-blue-100/75 transition-colors appearance-none"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e40af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    backgroundSize: '12px'
-                  }}
-                >
-                  <option value="ACTIVE">Status: Active</option>
-                  <option value="INACTIVE">Status: Inactive</option>
-                </select>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-extrabold text-brand-navy">
+                            Version {rubric.version}
+                          </span>
+                          <StatusBadge tone={rubric.isReady ? 'success' : 'warning'}>
+                            {rubric.isReady ? 'Ready' : 'Needs work'}
+                          </StatusBadge>
+                        </div>
+                        <p className="mt-2 truncate text-xs font-semibold text-slate-600">
+                          {rubric.name}
+                        </p>
+                      </button>
+                    ))}
+                </div>
               </div>
-            </div>
+            ))}
+          </section>
 
-            {/* System requirements dynamic checks checklist with nested display cards */}
-            <RequirementChecklist
-              checks={[
-                { id: 'req1', label: 'Component name is required', status: formName.trim().length > 0 },
-                { id: 'req2', label: 'Max marks must be greater than 0', status: formMaxMarks > 0 },
-                { id: 'req3', label: 'Total rubric marks must remain 100', status: totalMaxMarks === 100 },
-                { id: 'req4', label: 'Display order must be unique', status: !rubrics.some(r => r.id !== selectedRubricId && r.displayOrder === formDisplayOrder) }
-              ]}
-            />
-          </div>
+          <div className="space-y-6">
+            <PortalCard padding="lg" className="rounded-lg">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-extrabold text-brand-navy">
+                    {creatingFamily ? 'Create rubric family' : selected?.name || 'Select a rubric'}
+                  </h2>
+                  {selected ? (
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {selected.familyCode} · version {selected.version}
+                    </p>
+                  ) : null}
+                </div>
+                {selected ? (
+                  <div className="flex gap-2">
+                    <StatusBadge tone={selected.isLocked ? 'neutral' : 'info'}>
+                      {selected.isLocked ? 'Locked' : 'Editable'}
+                    </StatusBadge>
+                    <StatusBadge tone={selected.isReady ? 'success' : 'warning'}>
+                      {selected.isReady ? 'Ready' : 'Unbalanced'}
+                    </StatusBadge>
+                  </div>
+                ) : null}
+              </div>
 
-          {/* Action buttons drawer sticky line-footer */}
-          <div className="pt-6 border-t border-slate-100 flex items-center gap-3.5">
-            <button
-              type="button"
-              onClick={() => setActiveModal(null)}
-              className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-xs"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSaveEdit()}
-              className="flex-1 py-3 bg-brand-navy hover:bg-slate-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 text-center select-none cursor-pointer shadow-sm"
-            >
-              Save Changes
-            </button>
+              {(creatingFamily || selected) ? (
+                <form onSubmit={saveRubric} className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="text-xs font-bold text-slate-700">
+                    Family code
+                    <input
+                      required
+                      disabled={!creatingFamily}
+                      value={rubricForm.familyCode}
+                      onChange={(event) => setRubricForm((current) => ({ ...current, familyCode: event.target.value }))}
+                      className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700">
+                    Target mark
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      disabled={Boolean(selected?.isLocked)}
+                      value={rubricForm.targetMark}
+                      onChange={(event) => setRubricForm((current) => ({ ...current, targetMark: event.target.value }))}
+                      className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 md:col-span-2">
+                    Name
+                    <input
+                      required
+                      disabled={Boolean(selected?.isLocked)}
+                      value={rubricForm.name}
+                      onChange={(event) => setRubricForm((current) => ({ ...current, name: event.target.value }))}
+                      className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 md:col-span-2">
+                    Description
+                    <textarea
+                      rows={3}
+                      disabled={Boolean(selected?.isLocked)}
+                      value={rubricForm.description}
+                      onChange={(event) => setRubricForm((current) => ({ ...current, description: event.target.value }))}
+                      className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100"
+                    />
+                  </label>
+                  <div className="md:col-span-2 flex flex-wrap gap-2 border-t border-slate-100 pt-5">
+                    {(creatingFamily || !selected?.isLocked) ? (
+                      <PortalButton type="submit" icon={Save} variant="primary" isLoading={saving}>
+                        {creatingFamily ? 'Create family' : 'Save version'}
+                      </PortalButton>
+                    ) : null}
+                    {selected?.isLocked ? (
+                      <PortalButton icon={Copy} variant="soft" isLoading={saving} onClick={() => void cloneSelected()}>
+                        Clone new version
+                      </PortalButton>
+                    ) : null}
+                  </div>
+                </form>
+              ) : null}
+            </PortalCard>
+
+            {selected ? (
+              <PortalCard padding="none" className="overflow-hidden rounded-lg">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                  <div>
+                    <h2 className="text-sm font-extrabold text-brand-navy">Assessment components</h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selected.componentTotal} of {selected.targetMark} marks configured
+                    </p>
+                  </div>
+                  {selected.isReady ? (
+                    <StatusBadge tone="success" icon={CheckCircle2}>Balanced</StatusBadge>
+                  ) : (
+                    <StatusBadge tone="warning" icon={XCircle}>Target mismatch</StatusBadge>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="data-table min-w-[700px]">
+                    <thead>
+                      <tr className="data-thead">
+                        <th className="data-th">Order</th>
+                        <th className="data-th">Component</th>
+                        <th className="data-th">Maximum</th>
+                        <th className="data-th">Required</th>
+                        <th className="data-th">Status</th>
+                        <th className="data-th text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.components.map((component) => (
+                        <tr key={component.id}>
+                          <td className="data-td">{component.displayOrder}</td>
+                          <td className="data-td">
+                            <span className="block font-bold text-slate-800">{component.name}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{component.code}</span>
+                          </td>
+                          <td className="data-td font-bold">{component.maxMarks}</td>
+                          <td className="data-td">{component.required ? 'Yes' : 'No'}</td>
+                          <td className="data-td">
+                            <StatusBadge tone={(component.isActive ?? component.status === 'ACTIVE') ? 'success' : 'neutral'}>
+                              {(component.isActive ?? component.status === 'ACTIVE') ? 'Active' : 'Inactive'}
+                            </StatusBadge>
+                          </td>
+                          <td className="data-td">
+                            <div className="flex justify-end gap-2">
+                              <PortalButton
+                                size="icon"
+                                variant="ghost"
+                                icon={Edit3}
+                                title="Edit component"
+                                disabled={selected.isLocked}
+                                onClick={() => editComponent(component)}
+                              />
+                              {(component.isActive ?? component.status === 'ACTIVE') ? (
+                                <PortalButton
+                                  size="icon"
+                                  variant="danger"
+                                  icon={XCircle}
+                                  title="Deactivate component"
+                                  disabled={selected.isLocked}
+                                  onClick={() => void deactivateComponent(component)}
+                                />
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {!selected.isLocked ? (
+                  <form onSubmit={saveComponent} className="border-t border-slate-100 bg-slate-50 p-5">
+                    <div className="mb-4 flex items-center gap-2">
+                      <Layers3 className="h-4 w-4 text-slate-500" />
+                      <h3 className="text-xs font-extrabold uppercase text-slate-600">
+                        {componentForm.id ? 'Edit component' : 'Add component'}
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                      <input
+                        required
+                        placeholder="Code"
+                        value={componentForm.code}
+                        onChange={(event) => setComponentForm((current) => ({ ...current, code: event.target.value }))}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs"
+                      />
+                      <input
+                        required
+                        placeholder="Component name"
+                        value={componentForm.name}
+                        onChange={(event) => setComponentForm((current) => ({ ...current, name: event.target.value }))}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs"
+                      />
+                      <input
+                        required
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Maximum mark"
+                        value={componentForm.maxMarks}
+                        onChange={(event) => setComponentForm((current) => ({ ...current, maxMarks: event.target.value }))}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs"
+                      />
+                      <input
+                        required
+                        type="number"
+                        min="0"
+                        placeholder="Display order"
+                        value={componentForm.displayOrder}
+                        onChange={(event) => setComponentForm((current) => ({ ...current, displayOrder: event.target.value }))}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs"
+                      />
+                      <textarea
+                        rows={2}
+                        placeholder="Description"
+                        value={componentForm.description}
+                        onChange={(event) => setComponentForm((current) => ({ ...current, description: event.target.value }))}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs md:col-span-2 xl:col-span-3"
+                      />
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={componentForm.required}
+                          onChange={(event) => setComponentForm((current) => ({ ...current, required: event.target.checked }))}
+                          className="h-4 w-4 accent-brand-navy"
+                        />
+                        Required
+                      </label>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <PortalButton type="submit" icon={Save} variant="primary" isLoading={saving}>
+                        {componentForm.id ? 'Save component' : 'Add component'}
+                      </PortalButton>
+                      {componentForm.id ? (
+                        <PortalButton variant="ghost" onClick={() => setComponentForm(EMPTY_COMPONENT)}>
+                          Cancel
+                        </PortalButton>
+                      ) : null}
+                    </div>
+                  </form>
+                ) : null}
+              </PortalCard>
+            ) : null}
           </div>
         </div>
-      </RightDrawer>
-
+      )}
     </div>
   );
 };

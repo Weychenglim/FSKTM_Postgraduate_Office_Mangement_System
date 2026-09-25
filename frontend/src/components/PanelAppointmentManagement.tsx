@@ -47,6 +47,7 @@ import { downloadCsv } from '../utils/csvExport';
 import { filterPanelRecordsByStatusTab, getPanelRecordSummary, PanelRecordStatusTab } from '../utils/panelAppointmentRecords';
 import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
+import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface AttentionItem {
@@ -64,6 +65,8 @@ interface PanelAppointmentManagementProps {
   onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
+  onNavigateToDossier?: (studentId: string) => void;
+  onOpenCapacity?: () => void;
 }
 
 export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
@@ -72,9 +75,11 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
+  onNavigateToDossier,
+  onOpenCapacity,
 }) => {
 
-  // Panel records loaded from appointmentsApi (mock-backed today).
+  // Panel records are loaded from the persisted Django API.
   const [records, setRecords] = useState<PanelRecord[]>([]);
   const [workloadRows, setWorkloadRows] = useState<PanelWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +112,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   const [searchQuery, setSearchQuery] = useState('');
   const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
   const [semesterFilter, setSemesterFilter] = useState('All Semesters');
+  const [recordOrder, setRecordOrder] = useState<'default' | 'longest'>('default');
 
   // Interactive pill filter selection
   const [activeTab, setActiveTab] = useState<PanelRecordStatusTab>('All Records');
@@ -159,7 +165,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
     [records],
   );
 
-  const statusTabs: PanelRecordStatusTab[] = ['All Records', 'No Panel', 'Pending', 'Approved', 'Rejected', 'Cancelled'];
+  const statusTabs: PanelRecordStatusTab[] = ['All Records', 'No Panel', 'Pending', 'Approved', 'Ended', 'Rejected', 'Cancelled'];
 
   // Status-tab quick filtering
   const filteredRecords = useMemo(() => {
@@ -183,8 +189,11 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
       return matchSearch && matchProg && matchSem;
     });
-    return filterPanelRecordsByStatusTab(recordsMatchingFields, activeTab);
-  }, [records, appliedFilters, activeTab]);
+    const statusFilteredRecords = filterPanelRecordsByStatusTab(recordsMatchingFields, activeTab);
+    return recordOrder === 'longest'
+      ? [...statusFilteredRecords].sort(compareLongestWaiting)
+      : statusFilteredRecords;
+  }, [records, appliedFilters, activeTab, recordOrder]);
 
   // Paginated chunk
   const paginatedRecords = useMemo(
@@ -232,6 +241,16 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       { header: 'Rejection Stage', value: (record) => record.rejectionStage || '' },
       { header: 'Rejection Reason', value: (record) => record.rejectionReason || '' },
       { header: 'Cancellation Reason', value: (record) => record.cancellationReason || '' },
+      { header: 'Appointment Status', value: (record) => record.appointmentLifecycle?.status || '' },
+      { header: 'End Outcome', value: (record) => record.appointmentLifecycle?.endOutcome || '' },
+      { header: 'End Reason', value: (record) => record.appointmentLifecycle?.endReason || '' },
+      { header: 'Ended At', value: (record) => record.appointmentLifecycle?.endedAt || '' },
+      { header: 'Ended By', value: (record) => record.appointmentLifecycle?.endedBy || '' },
+      { header: 'Supersedes Appointment ID', value: (record) => record.appointmentLifecycle?.supersedesAppointmentId ?? '' },
+      { header: 'Replacement Appointment ID', value: (record) => record.appointmentLifecycle?.replacementAppointmentId ?? '' },
+      { header: 'Waiting Since', value: (record) => record.waitingSince || '' },
+      { header: 'Waiting Days', value: (record) => record.waitingDays ?? '' },
+      { header: 'Waiting On', value: (record) => record.waitingOn || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
     showToast(`Downloaded panel_appointments_report.csv with ${filteredRecords.length} records.`);
@@ -268,6 +287,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
           <PanelAppointmentDetail
             onBack={navigateToList}
             record={selectedRouteRecord}
+            onLifecycleChanged={loadRecords}
           />
         ) : (
           <EmptyState
@@ -282,7 +302,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
       {/* RENDER PATH 2: WORKLOAD MONITORING LIST */}
       {routeView === 'workload' && (
-        <PanelWorkloadMonitoring onBack={navigateToList} />
+        <PanelWorkloadMonitoring onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
       )}
 
 
@@ -440,7 +460,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                 </div>
 
                 {/* Dropdowns side-by-side row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
                   {/* Programme Selection */}
                   <div>
@@ -478,6 +498,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                         {semesterOptions.map((semester) => (
                           <option key={semester}>{semester}</option>
                         ))}
+                      </select>
+                      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="panel-record-order" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Order
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="panel-record-order"
+                        value={recordOrder}
+                        onChange={(event) => {
+                          setRecordOrder(event.target.value as 'default' | 'longest');
+                          setCurrentPage(1);
+                        }}
+                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
+                      >
+                        <option value="default">Default order</option>
+                        <option value="longest">Longest waiting</option>
                       </select>
                       <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
                     </div>
@@ -560,26 +601,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               <table className="data-table table-fixed text-[11px]">
                 <thead>
                   <tr className="data-thead bg-slate-50">
-                    <th className="data-th px-3 w-[17%]">Student ID / Name</th>
-                    <th className="data-th px-3 w-[18%]">Programme / Sem</th>
-                    <th className="data-th px-3 w-[14%]">Supervisor</th>
-                    <th className="data-th px-3 w-[18%]">Panel Member</th>
-                    <th className="data-th px-3 w-[14%]">Status</th>
-                    <th className="data-th px-3 w-[10%]">Updated</th>
-                    <th className="data-th px-3 w-[9%] text-right">Action</th>
+                    <th className="data-th px-3 w-[15%]">Student ID / Name</th>
+                    <th className="data-th px-3 w-[16%]">Programme / Sem</th>
+                    <th className="data-th px-3 w-[12%]">Supervisor</th>
+                    <th className="data-th px-3 w-[15%]">Panel Member</th>
+                    <th className="data-th px-3 w-[12%]">Status</th>
+                    <th className="data-th px-3 w-[14%]">Waiting</th>
+                    <th className="data-th px-3 w-[9%]">Updated</th>
+                    <th className="data-th px-3 w-[7%] text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
 
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <LoadingState message="Loading panel appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={7} className="p-0">
+                      <td colSpan={8} className="p-0">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -657,6 +699,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           )}
                         </td>
 
+                        <td className="data-td px-3 align-top text-[10px] font-bold text-slate-500 leading-relaxed">
+                          {formatWaitingText(rec)}
+                        </td>
+
                         {/* Action date */}
                         <td className="data-td px-3 align-top font-bold text-slate-500 font-mono text-[10px] whitespace-normal">
                           {rec.updatedDate}
@@ -664,19 +710,27 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
                         {/* Action button trigger View detail */}
                         <td className="data-td px-3 align-top text-right">
-                          <button
-                            onClick={() => handleViewDetail(rec)}
-                            className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
-                          >
-                            View
-                          </button>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <button
+                              onClick={() => onNavigateToDossier?.(rec.id)}
+                              className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                            >
+                              View Dossier
+                            </button>
+                            <button
+                              onClick={() => handleViewDetail(rec)}
+                              className="py-1.5 px-3.5 bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition cursor-pointer shadow-3xs"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
 
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 font-bold whitespace-nowrap">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-bold whitespace-nowrap">
                         No panel appointment records meet the applied search and status parameters.
                       </td>
                     </tr>

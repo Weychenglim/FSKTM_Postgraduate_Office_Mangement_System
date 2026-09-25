@@ -13,6 +13,12 @@ const canaries = {
   VITE_DEMO_LECTURER_PASSWORD: 'PRODUCTION-CANARY-LECT-7a26',
   VITE_DEMO_STUDENT_PASSWORD: 'PRODUCTION-CANARY-STUDENT-3d85',
 };
+const legacyOwnedBackendFlags = {
+  VITE_USE_MOCKS: 'true',
+  VITE_USE_SUPERVISOR_BACKEND: 'false',
+  VITE_USE_PANEL_BACKEND: 'false',
+  VITE_USE_TIMELINE_BACKEND: 'false',
+};
 
 async function collectBundleText(directory: string): Promise<string> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -22,7 +28,7 @@ async function collectBundleText(directory: string): Promise<string> {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       contents.push(await collectBundleText(entryPath));
-    } else if (/\.(?:html|js)$/u.test(entry.name)) {
+    } else if (/\.(?:css|html|js)$/u.test(entry.name)) {
       contents.push(await readFile(entryPath, 'utf8'));
     }
   }
@@ -30,9 +36,29 @@ async function collectBundleText(directory: string): Promise<string> {
   return contents.join('\n');
 }
 
+async function collectBundlePaths(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const paths: string[] = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      paths.push(...await collectBundlePaths(entryPath));
+    } else {
+      paths.push(entryPath);
+    }
+  }
+
+  return paths;
+}
+
 const outputDirectory = await mkdtemp(path.join(tmpdir(), 'fsktm-production-security-'));
 const previousEnvironment = Object.fromEntries(
-  ['VITE_ENABLE_DEMO_LOGIN', ...Object.keys(canaries)].map((name) => [
+  [
+    'VITE_ENABLE_DEMO_LOGIN',
+    ...Object.keys(canaries),
+    ...Object.keys(legacyOwnedBackendFlags),
+  ].map((name) => [
     name,
     process.env[name],
   ]),
@@ -41,6 +67,7 @@ const previousEnvironment = Object.fromEntries(
 try {
   process.env.VITE_ENABLE_DEMO_LOGIN = 'true';
   Object.assign(process.env, canaries);
+  Object.assign(process.env, legacyOwnedBackendFlags);
 
   const loadedEnvironment = loadEnv('production', frontendRoot, 'VITE_');
   for (const [name, canary] of Object.entries(canaries)) {
@@ -59,6 +86,7 @@ try {
   });
 
   const bundleText = await collectBundleText(outputDirectory);
+  const bundlePaths = await collectBundlePaths(outputDirectory);
   for (const canary of Object.values(canaries)) {
     assert.equal(bundleText.includes(canary), false, `production bundle contains ${canary}`);
   }
@@ -66,6 +94,46 @@ try {
   assert.equal(bundleText.includes('Portal Testing Console'), false);
   assert.equal(bundleText.includes('click any character role'), false);
   assert.equal(bundleText.includes('DEMO-STUDENT-001'), false);
+  for (const marksCanary of [
+    'MOCK_MARK_RECORDS',
+    'MOCK_MARK_RUBRIC_BREAKDOWN',
+    'VITE_USE_MARKS_BACKEND',
+    'Notify panel members',
+  ]) {
+    assert.equal(
+      bundleText.includes(marksCanary),
+      false,
+      `production bundle contains legacy Marks content: ${marksCanary}`,
+    );
+  }
+  for (const ownedMockCanary of [
+    'MOCK_SUPERVISOR_APPOINTMENTS',
+    'MOCK_PANEL_APPOINTMENTS',
+    'MOCK_TIMELINE_ENTRIES',
+    'VITE_USE_SUPERVISOR_BACKEND',
+    'VITE_USE_PANEL_BACKEND',
+    'VITE_USE_TIMELINE_BACKEND',
+    'Download supervisor appointment forms and research intent',
+  ]) {
+    assert.equal(
+      bundleText.includes(ownedMockCanary),
+      false,
+      `production bundle contains owned-module mock content: ${ownedMockCanary}`,
+    );
+  }
+  assert.equal(
+    bundlePaths.some((filePath) => filePath.endsWith('.map')),
+    false,
+    'production bundle contains source-map files',
+  );
+  assert.doesNotMatch(bundleText, /sourceMappingURL/iu);
+
+  const indexHtml = await readFile(path.join(outputDirectory, 'index.html'), 'utf8');
+  assert.doesNotMatch(
+    indexHtml,
+    /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/iu,
+    'production index contains an inline executable script',
+  );
 } finally {
   for (const [name, value] of Object.entries(previousEnvironment)) {
     if (value === undefined) {

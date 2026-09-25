@@ -14,12 +14,15 @@ import {
 } from 'lucide-react';
 import { PageHeader, StatusBadge } from './PortalPrimitives';
 import { PanelRecord } from '../types';
+import { endPanelAppointment } from '../services';
+import { AppointmentEndControl } from './AppointmentEndControl';
 import { PanelWorkflowItem, PanelWorkflowTimeline } from './PanelWorkflowTimeline';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface PanelAppointmentDetailProps {
   onBack: () => void;
   record?: PanelRecord | null;
+  onLifecycleChanged?: () => Promise<void> | void;
 }
 
 const statusTone = (status?: PanelRecord['status']) => {
@@ -145,6 +148,7 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
 export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
   onBack,
   record,
+  onLifecycleChanged,
 }) => {
   const session = sessionFrom(record?.semester);
   const panelAssigned = record?.panelMember && !['Not Assigned', 'Pending'].includes(record.panelMember);
@@ -158,9 +162,24 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
         onBack={onBack}
         subtitleClassName="max-w-2xl"
         actions={(
-          <span className="inline-flex items-center px-4 py-2 bg-brand-navy text-white text-[11px] font-black tracking-widest rounded-lg uppercase">
-            Session {session}
-          </span>
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            <span className="inline-flex items-center px-4 py-2 bg-brand-navy text-white text-[11px] font-black tracking-widest rounded-lg uppercase">
+              Session {session}
+            </span>
+            {record?.appointmentLifecycle?.status === 'ACTIVE' && (
+              <AppointmentEndControl
+                label="Panel Appointment"
+                onSubmit={async (outcome, reason) => {
+                  await endPanelAppointment(
+                    record.appointmentLifecycle!.appointmentId,
+                    outcome,
+                    reason,
+                  );
+                  await onLifecycleChanged?.();
+                }}
+              />
+            )}
+          </div>
         )}
       />
 
@@ -359,6 +378,17 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
         </div>
       </div>
       <WorkflowAuditLog events={record?.workflow} />
+      {record?.appointmentLifecycle?.status !== 'ACTIVE' && record?.appointmentLifecycle && (
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-xs font-black uppercase text-brand-navy">Appointment closure</h3>
+          <p className="mt-2 text-xs font-bold text-slate-700">
+            {record.appointmentLifecycle.endOutcome || 'Ended'}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {record.appointmentLifecycle.endReason || 'No legacy closure reason recorded.'}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

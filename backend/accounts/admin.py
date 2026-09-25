@@ -14,6 +14,7 @@ from .models import (
     Lecturer,
     OfficeStaff,
     Panel,
+    ParticipantLifecycleAudit,
     Student,
     StudentRegistry,
     Supervisor,
@@ -26,8 +27,10 @@ from .models import (
 
 class StudentInline(admin.StackedInline):
     model = Student
+    fk_name = "user"
     extra = 0
     verbose_name_plural = "Student profile"
+    readonly_fields = ("status", "status_changed_at", "status_changed_by", "status_reason")
 
 
 class OfficeStaffInline(admin.StackedInline):
@@ -38,8 +41,15 @@ class OfficeStaffInline(admin.StackedInline):
 
 class LecturerInline(admin.StackedInline):
     model = Lecturer
+    fk_name = "user"
     extra = 0
     verbose_name_plural = "Lecturer profile"
+    readonly_fields = (
+        "lifecycle_status",
+        "lifecycle_changed_at",
+        "lifecycle_changed_by",
+        "lifecycle_reason",
+    )
 
 
 @admin.register(User)
@@ -113,11 +123,19 @@ class LecturerAdmin(admin.ModelAdmin):
         "staff_no",
         "full_name",
         "department",
+        "lifecycle_status",
         "is_coordinator",
         "is_supervisor",
         "is_panel",
     )
     search_fields = ("staff_no", "user__full_name", "user__email")
+    list_filter = ("lifecycle_status",)
+    readonly_fields = (
+        "lifecycle_status",
+        "lifecycle_changed_at",
+        "lifecycle_changed_by",
+        "lifecycle_reason",
+    )
 
     @admin.display(description="Name")
     def full_name(self, obj):
@@ -148,6 +166,12 @@ class StudentAdmin(admin.ModelAdmin):
     list_display = ("matric_no", "full_name", "programme", "status", "has_registry")
     list_filter = ("status",)
     search_fields = ("matric_no", "user__full_name", "user__email")
+    readonly_fields = (
+        "status",
+        "status_changed_at",
+        "status_changed_by",
+        "status_reason",
+    )
 
     @admin.display(description="Name")
     def full_name(self, obj):
@@ -166,3 +190,45 @@ class OfficeStaffAdmin(admin.ModelAdmin):
     @admin.display(description="Name")
     def full_name(self, obj):
         return obj.user.full_name
+
+
+@admin.register(ParticipantLifecycleAudit)
+class ParticipantLifecycleAuditAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "participant",
+        "previous_status",
+        "new_status",
+        "actor",
+    )
+    list_filter = ("new_status", "created_at")
+    search_fields = (
+        "student__matric_no",
+        "student__user__full_name",
+        "lecturer__staff_no",
+        "lecturer__user__full_name",
+        "reason",
+    )
+    readonly_fields = (
+        "student",
+        "lecturer",
+        "actor",
+        "previous_status",
+        "new_status",
+        "reason",
+        "affected_records",
+        "created_at",
+    )
+
+    @admin.display(description="Participant")
+    def participant(self, obj):
+        return obj.student or obj.lecturer
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return bool(obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False

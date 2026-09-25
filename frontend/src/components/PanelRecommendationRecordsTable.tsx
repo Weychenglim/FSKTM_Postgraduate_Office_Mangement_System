@@ -14,6 +14,7 @@ interface PanelRecommendationRecordsTableProps {
   subtitle: string;
   records: PanelRecommendationDraft[];
   onView: (record: PanelRecommendationDraft) => void;
+  onViewDossier?: (record: PanelRecommendationDraft) => void;
   showSupervisor?: boolean;
 }
 
@@ -32,6 +33,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
   subtitle,
   records,
   onView,
+  onViewDossier,
   showSupervisor = false,
 }) => {
   const [query, setQuery] = useState('');
@@ -147,14 +149,25 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
                       : record.submittedDate}
                   </td>
                   <td className="data-td text-right">
-                    <button
-                      type="button"
-                      onClick={() => onView(record)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View
-                    </button>
+                    <div className="flex flex-col items-end gap-1.5">
+                      {onViewDossier && (
+                        <button
+                          type="button"
+                          onClick={() => onViewDossier(record)}
+                          className="text-[9px] font-black uppercase text-blue-700 hover:underline"
+                        >
+                          View Dossier
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onView(record)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-blue-600 font-extrabold text-[10px] uppercase tracking-wider"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -56,6 +56,12 @@ export function canAccessModule(role: string | undefined, moduleId: string): boo
   return (allowed as string[]).includes(moduleId);
 }
 
+export function canAccessMarksAdministration(
+  role: string | undefined,
+): boolean {
+  return role === 'Office Staff/Admin';
+}
+
 /** Filters a list of modules down to those the role may access. */
 export function allowedModulesFor(role: string | undefined, modules: SidebarItemId[]): SidebarItemId[] {
   if (!role) return modules;

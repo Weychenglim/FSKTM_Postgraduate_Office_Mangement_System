@@ -5,6 +5,7 @@ export type PanelRecordStatusTab =
   | 'No Panel'
   | 'Pending'
   | 'Approved'
+  | 'Ended'
   | 'Rejected'
   | 'Cancelled';
 
@@ -12,6 +13,7 @@ export interface PanelRecordSummary {
   withoutPanel: number;
   pending: number;
   approved: number;
+  ended: number;
   rejected: number;
   cancelled: number;
 }
@@ -20,6 +22,7 @@ export const getPanelRecordSummary = (records: PanelRecord[]): PanelRecordSummar
   withoutPanel: records.filter((record) => record.status === 'No Panel').length,
   pending: records.filter((record) => record.status === 'Pending' || record.status === 'Recommendation').length,
   approved: records.filter((record) => record.status === 'Approved').length,
+  ended: records.filter((record) => record.status === 'Ended').length,
   rejected: records.filter((record) => record.status === 'Rejected').length,
   cancelled: records.filter((record) => record.status === 'Cancelled').length,
 });

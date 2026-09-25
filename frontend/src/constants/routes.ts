@@ -7,6 +7,12 @@ export const APP_ROUTES = {
   resetPassword: '/reset-password',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
+  dashboardSemesters: '/dashboard/semesters',
+  dashboardReports: '/dashboard/reports',
+  dashboardProgress: '/dashboard/progress',
+  dashboardParticipantLifecycle: '/dashboard/participant-lifecycle',
+  dashboardWorkflowReconciliation: '/dashboard/workflow-reconciliation',
+  dashboardLecturerCapacity: '/dashboard/lecturer-capacity',
   registry: '/registry',
   faq: '/faq',
   files: '/files',
@@ -14,6 +20,7 @@ export const APP_ROUTES = {
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',
   supervisorAppointmentHistory: '/supervisor-appointments/history',
+  supervisorAppointmentRequirements: '/supervisor-appointments/requirements',
   supervisorAppointmentSupervisees: '/supervisor-appointments/supervisees',
   letters: '/letters',
   announcements: '/announcements',
@@ -65,6 +72,21 @@ export const routeForSidebarItem = (item: SidebarItemId | string): string =>
 
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 
+export const routeForDashboardSemesters = (): string => APP_ROUTES.dashboardSemesters;
+
+export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
+
+export const routeForParticipantLifecycle = (): string => APP_ROUTES.dashboardParticipantLifecycle;
+
+export const routeForWorkflowReconciliation = (): string => APP_ROUTES.dashboardWorkflowReconciliation;
+
+export const routeForLecturerCapacity = (): string => APP_ROUTES.dashboardLecturerCapacity;
+
+export const routeForStudentProgress = (studentId?: string): string =>
+  studentId
+    ? `${APP_ROUTES.dashboardProgress}/${encodeURIComponent(studentId)}`
+    : APP_ROUTES.dashboardProgress;
+
 export const routeForMarkRecord = (recordId: string): string =>
   `${APP_ROUTES.marksRecords}/${encodeURIComponent(recordId)}`;
 
@@ -80,11 +102,17 @@ export const routeForSupervisorNewApplication = (): string =>
 export const routeForSupervisorHistory = (): string =>
   APP_ROUTES.supervisorAppointmentHistory;
 
+export const routeForSupervisorRequirements = (): string =>
+  APP_ROUTES.supervisorAppointmentRequirements;
+
 export const routeForSupervisorSupervisee = (studentId: string): string =>
   `${APP_ROUTES.supervisorAppointmentSupervisees}/${encodeURIComponent(studentId)}`;
 
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
+
+export const routeForPanelRecommendationStart = (studentId: string): string =>
+  `${APP_ROUTES.panelAppointments}?student=${encodeURIComponent(studentId)}`;
 
 export const routeForPanelRecord = (recordId: string): string =>
   `${APP_ROUTES.panelAppointmentRecords}/${encodeURIComponent(recordId)}`;
@@ -116,7 +144,17 @@ export const isKnownAppPath = (pathname: string): boolean => {
   }
 
   if (pathname === APP_ROUTES.dashboard || pathname.startsWith(`${APP_ROUTES.dashboard}/`)) {
-    return pathname === APP_ROUTES.dashboard || pathname === APP_ROUTES.dashboardTimeline;
+    return (
+      pathname === APP_ROUTES.dashboard
+      || pathname === APP_ROUTES.dashboardTimeline
+      || pathname === APP_ROUTES.dashboardSemesters
+      || pathname === APP_ROUTES.dashboardReports
+      || pathname === APP_ROUTES.dashboardProgress
+      || pathname === APP_ROUTES.dashboardParticipantLifecycle
+      || pathname === APP_ROUTES.dashboardWorkflowReconciliation
+      || pathname === APP_ROUTES.dashboardLecturerCapacity
+      || /^\/dashboard\/progress\/[^/]+$/.test(pathname)
+    );
   }
 
   if (pathname === APP_ROUTES.supervisorAppointments || pathname.startsWith(`${APP_ROUTES.supervisorAppointments}/`)) {
@@ -126,6 +164,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
       || pathname === APP_ROUTES.supervisorAppointmentWorkload
       || pathname === APP_ROUTES.supervisorAppointmentNew
       || pathname === APP_ROUTES.supervisorAppointmentHistory
+      || pathname === APP_ROUTES.supervisorAppointmentRequirements
       || /^supervisees\/[^/]+$/.test(supervisorSubpath)
       || /^[^/]+$/.test(supervisorSubpath)
     );

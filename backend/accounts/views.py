@@ -10,11 +10,19 @@ from django.db.models import Q
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.exceptions import UnsupportedMediaType
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .authentication import RefreshCookieAuthentication
 from .models import NotificationPreference
 from .serializers import (
     ChangePasswordSerializer,
@@ -23,6 +31,11 @@ from .serializers import (
     NotificationPreferenceSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+)
+from .session_tokens import (
+    blacklist_user_refresh_tokens,
+    delete_refresh_cookie,
+    set_refresh_cookie,
 )
 from .throttles import (
     ChangePasswordRateThrottle,
@@ -34,11 +47,17 @@ from .throttles import (
 User = get_user_model()
 
 
+def _require_json_request(request):
+    if request.content_type != "application/json":
+        raise UnsupportedMediaType(request.content_type or "missing")
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginRateThrottle])
 def login_view(request):
     """Authenticate by email / student ID / staff ID (case-insensitive)."""
+    _require_json_request(request)
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)  # 400 on missing fields
     identifier = serializer.validated_data["identifier"].strip()
@@ -70,15 +89,32 @@ def login_view(request):
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
     refresh = RefreshToken.for_user(user)
-    return Response({"token": str(refresh.access_token), "user": user.to_public_dict()})
+    response = Response(
+        {"token": str(refresh.access_token), "user": user.to_public_dict()}
+    )
+    return set_refresh_cookie(response, refresh)
 
 
 @api_view(["POST"])
+@authentication_classes([RefreshCookieAuthentication])
+@permission_classes([IsAuthenticated])
+def refresh_view(request):
+    _require_json_request(request)
+    serializer = TokenRefreshSerializer(data={"refresh": str(request.auth)})
+    serializer.is_valid(raise_exception=True)
+    response = Response({"token": serializer.validated_data["access"]})
+    return set_refresh_cookie(response, serializer.validated_data["refresh"])
+
+
+@api_view(["POST"])
+@authentication_classes([RefreshCookieAuthentication])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
-    """Stateless JWT logout — the client discards the token. Endpoint exists so
-    the frontend has a stable call and we can add token blacklisting later."""
-    return Response({"message": "Logged out successfully."})
+    """Revoke the authenticated refresh session and remove its cookie."""
+    _require_json_request(request)
+    request.auth.blacklist()
+    response = Response({"message": "Logged out successfully."})
+    return delete_refresh_cookie(response)
 
 
 @api_view(["GET", "PATCH"])
@@ -266,4 +302,5 @@ def password_reset_confirm_view(request):
     user.set_password(new_password)
     user.must_change_password = False
     user.save(update_fields=["password", "must_change_password"])
+    blacklist_user_refresh_tokens(user)
     return Response({"message": "Your password has been reset. You can now sign in."})

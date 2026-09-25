@@ -30,12 +30,16 @@ interface UploadTimelineDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onImportSuccess?: (events: TimelineEntry[], importedCount?: number) => void;
+  semesterId: number;
+  semesterLabel: string;
 }
 
 export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
   isOpen,
   onClose,
-  onImportSuccess
+  onImportSuccess,
+  semesterId,
+  semesterLabel,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
@@ -160,7 +164,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     });
     triggerToast('Uploading timeline file for backend validation...');
 
-    uploadTimelineFile(uploadedFile)
+    uploadTimelineFile(uploadedFile, semesterId)
       .then((result) => {
         const importedEntries = result.timeline.levels.flatMap((group) =>
           group.entries.map(timelineEntryToLegacy)
@@ -216,9 +220,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
       triggerToast('Error: Please select or drop an Excel timeline file first.');
       return;
     }
-
     setIsImporting(true);
-    uploadTimelineFile(uploadedFile)
+    uploadTimelineFile(uploadedFile, semesterId)
       .then((result) => {
         const importedEntries = result.timeline.levels.flatMap((group) =>
           group.entries.map(timelineEntryToLegacy)
@@ -316,16 +319,12 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                 id="drawer-target-semester-card"
                 className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4.5 space-y-3.5"
               >
-                <div className="grid grid-cols-12 gap-1 items-baseline">
-                  <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
-                    Target semester
-                  </div>
-                  <div className="col-span-7 text-brand-navy font-black text-right text-xs">
-                    Sem 1 2025/2026
-                  </div>
+                <div>
+                  <span className="form-label block">Target semester</span>
+                  <p className="mt-1 text-sm font-black text-brand-navy">{semesterLabel}</p>
                 </div>
 
-                <div className="grid grid-cols-12 gap-1 items-baseline pt-0.5 border-t border-slate-100">
+                <div className="grid grid-cols-12 gap-1 items-baseline pt-3 border-t border-slate-100">
                   <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
                     Upload type
                   </div>

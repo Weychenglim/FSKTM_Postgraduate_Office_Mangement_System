@@ -18,7 +18,7 @@ const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean 
 };
 
 const USE_REGISTRY_BACKEND = parseBooleanEnv(
-  import.meta.env.VITE_USE_REGISTRY_BACKEND,
+  import.meta.env?.VITE_USE_REGISTRY_BACKEND,
   true,
 );
 

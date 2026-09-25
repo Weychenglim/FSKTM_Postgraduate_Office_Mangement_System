@@ -5,12 +5,22 @@ from io import StringIO
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from appointments.models import StudentResearchProfile
+from appointments.models import (
+    StudentResearchProfile,
+    SupervisorApplication,
+    SupervisorAppointment,
+    SupervisorDocumentRequirement,
+)
+from academics.models import (
+    AcademicSemester,
+    LecturerCapacityEntry,
+    SemesterCapacityPlan,
+)
 from dashboard.models import SemesterTimeline
 
 from .models import OfficeStaff, StudentRegistry, User
-
 
 DEMO_SETTINGS = {
     "DEBUG": True,
@@ -91,6 +101,25 @@ class SeedUsersCommandTests(TestCase):
                 DEMO_SETTINGS["DEMO_STUDENT_PASSWORD"]
             )
         )
+
+    def test_creates_one_generic_supervisor_document_requirement_without_replacing_configuration(
+        self,
+    ):
+        self.run_seed()
+
+        requirement = SupervisorDocumentRequirement.objects.get()
+        self.assertEqual(requirement.code, "research-proposal")
+        self.assertEqual(requirement.label, "Research Proposal")
+        self.assertTrue(requirement.is_required)
+        self.assertTrue(requirement.is_active)
+
+        requirement.label = "Office Configured Proposal"
+        requirement.save(update_fields=["label"])
+        self.run_seed()
+
+        self.assertEqual(SupervisorDocumentRequirement.objects.count(), 1)
+        requirement.refresh_from_db()
+        self.assertEqual(requirement.label, "Office Configured Proposal")
 
     def test_uses_only_clearly_fictional_demo_identities(self):
         self.run_seed()
@@ -178,9 +207,13 @@ class SeedUsersCommandTests(TestCase):
 
     def test_repeated_seeding_is_idempotent(self):
         self.run_seed()
-        initial_user_ids = list(User.objects.order_by("email").values_list("pk", flat=True))
+        initial_user_ids = list(
+            User.objects.order_by("email").values_list("pk", flat=True)
+        )
         initial_profile_ids = list(
-            StudentResearchProfile.objects.order_by("matric_no").values_list("pk", flat=True)
+            StudentResearchProfile.objects.order_by("matric_no").values_list(
+                "pk", flat=True
+            )
         )
 
         self.run_seed()
@@ -196,4 +229,71 @@ class SeedUsersCommandTests(TestCase):
                 )
             ),
             initial_profile_ids,
+        )
+
+    def test_panel_demo_profiles_have_confirmed_supervisor_handoffs(self):
+        self.run_seed()
+
+        for profile in StudentResearchProfile.objects.select_related("student"):
+            application = SupervisorApplication.objects.get(
+                student__user=profile.student,
+                status=SupervisorApplication.Status.APPROVED,
+            )
+            appointment = SupervisorAppointment.objects.get(
+                application=application,
+                status=SupervisorAppointment.Status.ACTIVE,
+            )
+            self.assertEqual(appointment.supervisor, profile.supervisor)
+            self.assertEqual(application.research_title, profile.proposed_topic)
+            self.assertEqual(application.research_area, profile.research_area)
+
+    def test_seeding_creates_semester_only_when_none_exists(self):
+        self.run_seed()
+        seeded = AcademicSemester.objects.get()
+        self.assertEqual(seeded.lifecycle_status, "ACTIVE")
+        self.assertTrue(seeded.label.startswith("Semester I "))
+
+        seeded.ends_on = seeded.ends_on + timezone.timedelta(days=1)
+        seeded.save(update_fields=["ends_on"])
+        preserved_end = seeded.ends_on
+
+        self.run_seed()
+
+        self.assertEqual(AcademicSemester.objects.count(), 1)
+        seeded.refresh_from_db()
+        self.assertEqual(seeded.ends_on, preserved_end)
+
+    def test_seeding_publishes_one_complete_demo_capacity_plan_idempotently(self):
+        self.run_seed()
+
+        semester = AcademicSemester.objects.get()
+        plan = SemesterCapacityPlan.objects.get(
+            academic_semester=semester,
+            lifecycle_status=SemesterCapacityPlan.Lifecycle.PUBLISHED,
+        )
+        entries = {
+            entry.lecturer.staff_no: entry
+            for entry in LecturerCapacityEntry.objects.filter(plan=plan).select_related(
+                "lecturer"
+            )
+        }
+        self.assertEqual(
+            set(entries),
+            {"DEMO-LECT-001", "DEMO-PANEL-001"},
+        )
+        self.assertEqual(entries["DEMO-LECT-001"].supervisor_limit, 5)
+        self.assertEqual(entries["DEMO-LECT-001"].panel_limit, 10)
+        self.assertIsNone(entries["DEMO-PANEL-001"].supervisor_limit)
+        self.assertEqual(entries["DEMO-PANEL-001"].panel_limit, 10)
+        plan_ids = list(
+            SemesterCapacityPlan.objects.order_by("pk").values_list("pk", flat=True)
+        )
+
+        self.run_seed()
+
+        self.assertEqual(
+            list(
+                SemesterCapacityPlan.objects.order_by("pk").values_list("pk", flat=True)
+            ),
+            plan_ids,
         )
