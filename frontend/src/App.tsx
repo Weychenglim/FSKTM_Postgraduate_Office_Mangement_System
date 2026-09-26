@@ -690,7 +690,9 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
-              <StudentRegistry />
+              <StudentRegistry
+                onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
+              />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
               isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />

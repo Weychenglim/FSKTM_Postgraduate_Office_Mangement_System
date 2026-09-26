@@ -26,6 +26,7 @@ const USE_REGISTRY_BACKEND = parseBooleanEnv(
 export interface StudentRecordUpdate {
   programme?: string;
   academicStatus?: StudentRecord['academicStatus'];
+  statusReason?: string;
   accountStatus?: StudentRecord['accountStatus'];
   phone?: string;
   semester?: string;

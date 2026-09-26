@@ -1,10 +1,16 @@
 """Student Registry API coverage: role gating, read shape, and updates."""
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Student, StudentRegistry
+from academics.models import AcademicSemester
+from appointments.models import SupervisorApplication, SupervisorAppointment
+
+from .models import Lecturer, ParticipantLifecycleAudit, Student, StudentRegistry, Supervisor
 
 User = get_user_model()
 
@@ -17,6 +23,7 @@ class StudentRegistryApiTests(APITestCase):
             password="pw-admin-7781",
             full_name="Registry Admin",
             role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
         )
         cls.lecturer = User.objects.create_user(
             email="registry-lect@example.test",
@@ -106,12 +113,94 @@ class StudentRegistryApiTests(APITestCase):
             {
                 "programme": "MASTER OF CYBER SECURITY (COURSEWORK)",
                 "academicStatus": Student.Status.DEFERRED,
+                "statusReason": "Deferment approved for medical leave.",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.student.refresh_from_db()
         self.assertEqual(self.student.programme, "MASTER OF CYBER SECURITY (COURSEWORK)")
         self.assertEqual(self.student.status, Student.Status.DEFERRED)
+
+    def test_status_change_requires_a_reason(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {
+                "programme": "MASTER OF CYBER SECURITY (COURSEWORK)",
+                "academicStatus": Student.Status.DEFERRED,
+                "statusReason": "   ",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("statusReason", response.data)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status, Student.Status.ACTIVE)
+        self.assertEqual(self.student.programme, "MASTER OF DATA SCIENCE (COURSEWORK)")
+
+    def test_status_change_is_recorded_by_the_participant_lifecycle(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {
+                "academicStatus": Student.Status.DEFERRED,
+                "statusReason": "Deferment approved for medical leave.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["academicStatus"], Student.Status.DEFERRED)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status_changed_by, self.admin)
+        self.assertEqual(self.student.status_reason, "Deferment approved for medical leave.")
+        audit = ParticipantLifecycleAudit.objects.get(student=self.student)
+        self.assertEqual(audit.previous_status, "ACTIVE")
+        self.assertEqual(audit.new_status, "DEFERRED")
+        self.assertEqual(audit.actor, self.admin)
+
+    def test_unchanged_status_needs_no_reason(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {"academicStatus": Student.Status.ACTIVE, "phone": "012-9990000"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(ParticipantLifecycleAudit.objects.filter(student=self.student).exists())
+
+    def test_terminal_status_cannot_be_reversed_and_nothing_else_changes(self):
+        self.student.status = Student.Status.GRADUATED
+        self.student.save(update_fields=["status"])
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {
+                "programme": "MASTER OF CYBER SECURITY (COURSEWORK)",
+                "academicStatus": Student.Status.ACTIVE,
+                "statusReason": "Reopening the record.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("blockers", response.data)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status, Student.Status.GRADUATED)
+        self.assertEqual(self.student.programme, "MASTER OF DATA SCIENCE (COURSEWORK)")
+
+    def test_status_change_needs_lifecycle_office_rights(self):
+        office_without_staff_flag = User.objects.create_user(
+            email="registry-office-plain@example.test",
+            password="pw-office-7790",
+            full_name="Plain Office",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        self.client.force_authenticate(office_without_staff_flag)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {
+                "academicStatus": Student.Status.DEFERRED,
+                "statusReason": "Deferment approved for medical leave.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status, Student.Status.ACTIVE)
 
     def test_account_status_toggles_user_active_flag(self):
         self.client.force_authenticate(self.admin)
@@ -308,6 +397,16 @@ class StudentRegistryApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_registration_must_start_active(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            "/api/registry/students/",
+            {**self.NEW_STUDENT, "academicStatus": Student.Status.WITHDRAWN},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("academicStatus", response.data)
+        self.assertFalse(Student.objects.filter(matric_no=self.NEW_STUDENT["id"]).exists())
+
     def test_registered_student_can_start_a_password_reset(self):
         """Registration relies on the reset flow to set the first password."""
         self.client.force_authenticate(self.admin)
@@ -324,3 +423,80 @@ class StudentRegistryApiTests(APITestCase):
         self.client.force_authenticate(self.lecturer)
         response = self.client.get("/api/registry/students/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class RegistryStatusWorkflowTests(APITestCase):
+    """Registry status changes must carry the lifecycle's workflow effects."""
+
+    def setUp(self):
+        self.office = User.objects.create_user(
+            email="registry-workflow-office@example.test",
+            password="pw-office-8801",
+            full_name="Workflow Office",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        student_user = User.objects.create_user(
+            email="registry-workflow-student@example.test",
+            password="pw-student-8802",
+            full_name="Workflow Student",
+            role=User.Role.STUDENT,
+        )
+        self.student = Student.objects.create(
+            user=student_user,
+            matric_no="DEMO-WGA230077",
+            programme="MASTER OF DATA SCIENCE (COURSEWORK)",
+        )
+        supervisor_user = User.objects.create_user(
+            email="registry-workflow-lecturer@example.test",
+            password="pw-lect-8803",
+            full_name="Workflow Supervisor",
+            role=User.Role.LECTURER,
+        )
+        lecturer = Lecturer.objects.create(
+            user=supervisor_user, staff_no="REG-LECT-001", department="Computer Science"
+        )
+        Supervisor.objects.create(lecturer=lecturer, max_supervisees=5)
+        today = timezone.localdate()
+        semester = AcademicSemester.objects.create(
+            code="REG-WORKFLOW",
+            academic_session=f"{today.year}/{today.year + 1}",
+            term=AcademicSemester.Term.SPECIAL,
+            starts_on=today - timedelta(days=30),
+            ends_on=today + timedelta(days=60),
+            lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
+            created_by=self.office,
+        )
+        application = SupervisorApplication.objects.create(
+            student=self.student,
+            academic_semester=semester,
+            proposed_supervisor=supervisor_user,
+            research_title="Registry lifecycle integrity",
+            research_area="Information Systems",
+            research_abstract="Registry changes that respect workflow state.",
+            status=SupervisorApplication.Status.APPROVED,
+        )
+        self.appointment = SupervisorAppointment.objects.create(
+            application=application,
+            student=self.student,
+            supervisor=supervisor_user,
+            approved_by=self.office,
+        )
+
+    def test_withdrawal_from_registry_ends_the_active_supervisor_appointment(self):
+        self.client.force_authenticate(self.office)
+        response = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/",
+            {
+                "academicStatus": Student.Status.WITHDRAWN,
+                "statusReason": "Student withdrew from the programme.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status, Student.Status.WITHDRAWN)
+        self.appointment.refresh_from_db()
+        self.assertEqual(self.appointment.status, SupervisorAppointment.Status.ENDED)
+        self.assertEqual(
+            self.appointment.end_outcome, SupervisorAppointment.EndOutcome.WITHDRAWN
+        )

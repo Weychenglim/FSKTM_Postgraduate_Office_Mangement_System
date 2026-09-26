@@ -24,6 +24,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Student, StudentRegistry
+from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
 
 User = get_user_model()
 
@@ -128,6 +129,13 @@ class StudentRecordCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("An account with this email already exists.")
         return email
 
+    def validate_academicStatus(self, value):
+        if value != Student.Status.ACTIVE:
+            raise serializers.ValidationError(
+                "New students start as Active. Change the status afterwards with a reason."
+            )
+        return value
+
 
 class StudentRecordUpdateSerializer(serializers.Serializer):
     """Fields Office Staff may correct from the Registry screen."""
@@ -135,6 +143,9 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     programme = serializers.ChoiceField(choices=APPROVED_PROGRAMMES, required=False)
     academicStatus = serializers.ChoiceField(
         choices=Student.Status.choices, required=False
+    )
+    statusReason = serializers.CharField(
+        max_length=1000, allow_blank=True, required=False
     )
     accountStatus = serializers.ChoiceField(
         choices=["Verified", "Suspended"], required=False
@@ -289,14 +300,38 @@ def student_record_detail_view(request, matric_no):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
+    status_change = "academicStatus" in data and data["academicStatus"] != student.status
+    reason = data.get("statusReason", "").strip()
+    if status_change and not reason:
+        return Response(
+            {"statusReason": ["A reason is required to change the academic status."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     with transaction.atomic():
+        if status_change:
+            try:
+                transition_student(
+                    matric_no=student.matric_no,
+                    actor=request.user,
+                    target_status=data["academicStatus"].upper(),
+                    reason=reason,
+                )
+            except PermissionError as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            except ParticipantLifecycleConflict as exc:
+                return Response(
+                    {"error": str(exc), "blockers": exc.blockers},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            except ValueError as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            student.refresh_from_db()
+
         student_fields = []
         if "programme" in data:
             student.programme = data["programme"]
             student_fields.append("programme")
-        if "academicStatus" in data:
-            student.status = data["academicStatus"]
-            student_fields.append("status")
         if "intakeDate" in data:
             student.intake_semester = data["intakeDate"]
             student_fields.append("intake_semester")

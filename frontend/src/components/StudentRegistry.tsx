@@ -44,7 +44,8 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from '.
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import { StudentAcademicStatus, StudentAccountStatus, StudentRecord } from '../types';
-import { createStudent, getStudents, updateStudent } from '../services';
+import { ApiError, createStudent, getParticipant, getStudents, updateStudent } from '../services';
+import { describeBlockers, studentStatusOptions } from '../utils/registryStatus';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import {
   CSV_TEMPLATE,
@@ -167,7 +168,11 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
   );
 };
 
-export const StudentRegistry: React.FC = () => {
+interface StudentRegistryProps {
+  onOpenParticipantLifecycle?: () => void;
+}
+
+export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticipantLifecycle }) => {
   // Master Student Registry State — loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,6 +259,50 @@ export const StudentRegistry: React.FC = () => {
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3800);
+  };
+
+  const [statusTarget, setStatusTarget] = useState<StudentAcademicStatus | ''>('');
+  const [statusReason, setStatusReason] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
+
+  useEffect(() => {
+    setStatusTarget('');
+    setStatusReason('');
+    setStatusError(null);
+    setStatusBlockers([]);
+  }, [viewingStudent?.id]);
+
+  const handleStatusChange = async () => {
+    if (!viewingStudent || !statusTarget || !statusReason.trim()) return;
+    const student = viewingStudent;
+    setStatusSaving(true);
+    setStatusError(null);
+    setStatusBlockers([]);
+    try {
+      const updated = await updateStudent(student.id, {
+        academicStatus: statusTarget,
+        statusReason: statusReason.trim(),
+      });
+      setViewingStudent(updated);
+      setStatusTarget('');
+      setStatusReason('');
+      loadStudents();
+      triggerToast(`${student.name} is now ${updated.academicStatus}.`);
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Could not change the academic status.');
+      if (err instanceof ApiError && err.status === 409) {
+        try {
+          const record = await getParticipant('STUDENT', student.id);
+          setStatusBlockers(describeBlockers({ ...record.blockers }));
+        } catch {
+          setStatusBlockers([]);
+        }
+      }
+    } finally {
+      setStatusSaving(false);
+    }
   };
 
   // Checkbox multi utility handlers
@@ -1941,6 +1990,69 @@ export const StudentRegistry: React.FC = () => {
                     <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone}</span>
                   </div>
 
+                </div>
+
+                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
+                  <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
+                    Change Academic Status
+                  </h4>
+                  {studentStatusOptions(viewingStudent.academicStatus).length === 0 ? (
+                    <p className="text-[10.5px] text-slate-500 font-bold">
+                      {viewingStudent.academicStatus} is a final status. No further changes are available.
+                    </p>
+                  ) : (
+                    <>
+                      <select
+                        value={statusTarget}
+                        onChange={(e) => setStatusTarget(e.target.value as StudentAcademicStatus | '')}
+                        disabled={statusSaving}
+                        className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
+                      >
+                        <option value="">Select new status</option>
+                        {studentStatusOptions(viewingStudent.academicStatus).map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={statusReason}
+                        onChange={(e) => setStatusReason(e.target.value)}
+                        disabled={statusSaving}
+                        rows={2}
+                        maxLength={1000}
+                        placeholder="Reason for the change (required)"
+                        className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg resize-none focus:outline-none focus:border-blue-400"
+                      />
+                      {statusError && (
+                        <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold space-y-1.5">
+                          <p>{statusError}</p>
+                          {statusBlockers.length > 0 && (
+                            <ul className="list-disc pl-4 font-semibold">
+                              {statusBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+                            </ul>
+                          )}
+                          {statusBlockers.length > 0 && onOpenParticipantLifecycle && (
+                            <button
+                              type="button"
+                              onClick={onOpenParticipantLifecycle}
+                              className="underline font-black text-rose-800 cursor-pointer"
+                            >
+                              Resolve in Participant Lifecycle
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleStatusChange}
+                          disabled={statusSaving || !statusTarget || !statusReason.trim()}
+                          className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {statusSaving ? 'Saving…' : 'Apply Status Change'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Verification checklists timelines */}
