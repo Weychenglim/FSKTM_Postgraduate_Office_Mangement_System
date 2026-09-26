@@ -1,5 +1,28 @@
 # Project Status
 
+## Sign-In Safety: Session Expiry, Forced Password Change, Access Links (2026-09-26)
+
+- **Session expiry (UC01).** When a signed-in session can no longer be refreshed, the login card now shows "Your session has expired. Please sign in again." A normal sign-out shows no message.
+- **Forced password change (UC02).**
+  - The user payload now includes `mustChangePassword`.
+  - `accounts.password_policy.PasswordPolicyJWTAuthentication`, registered as the DRF default authentication class, answers flagged accounts with 403 and code `password_change_required` everywhere except `GET /api/auth/me/` and `POST /api/auth/me/change-password/`. Refresh and logout keep their own cookie authentication, so they still work.
+  - The frontend holds flagged users on a full-screen change-password step before the app shell, and returns to it if any request reports `password_change_required`. The Settings password form is now a shared `PasswordChangeForm` component.
+  - The Office marks dashboard preload waits until the password has been changed.
+  - The flag is set by an administrator, for example in Django admin. New accounts still use activation links rather than temporary passwords.
+- **Office-sent access links (UC02).**
+  - `POST /api/registry/students/<matric>/send-access-link/` (Office only) resends the activation email to accounts that were never activated and sends a password-reset email otherwise. It refuses suspended accounts with 409 and reports whether the email was sent.
+  - It is throttled per student account (`REGISTRY_ACCESS_LINK_THROTTLE_RATE`, default 3/hour); requests refused for non-office users do not count toward the limit.
+  - The action sits in the Registry student panel rather than in the table row, so the office can see the account's state before sending.
+  - `send_password_reset_email` now reports whether the email was sent; the anonymous reset endpoint still ignores that result.
+- `backend/.env.example` now also documents `AUTH_CHANGE_PASSWORD_THROTTLE_RATE` and `REGISTRY_ACCESS_LINK_THROTTLE_RATE`.
+- **Verification.**
+  - **Backend:** **563 tests passed** across all seven apps on four PostgreSQL workers, including 12 new ones (5 for the forced password change, 7 for access links). With the default authentication class switched back to plain JWT, the enforcement test fails.
+  - **Frontend:** all **52 test scripts** pass, including new render and wiring tests and an API-client test for the `password_change_required` event. TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` also pass.
+- **Live smoke check** against the development database, using temporary accounts that were deleted afterwards and SMTP disabled for the server process:
+  - The flagged login reports the flag, is refused elsewhere with `password_change_required`, changes the password, and then regains access with the flag cleared.
+  - Access links return an activation link for a never-activated account and a reset link for an activated one, and a suspended account gets 409. Both emails were printed to the console, not sent.
+  - Browser visual acceptance remains unverified.
+
 ## Registry Status Changes Use the Participant Lifecycle (2026-09-26)
 
 - Fixed an integration bug between Registry Management and the participant lifecycle. The Registry update endpoint assigned `Student.status` directly, so withdrawing or graduating a student from the Registry left active appointments open, did not pause or retire Marks tasks, did not cancel pending work, and wrote no audit record.

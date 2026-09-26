@@ -7,7 +7,7 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 | Phase | Scope | Size | Status | Commit(s) |
 |---|---|---|---|---|
 | 1 | Registry status changes go through participant lifecycle (bug) | S | Done | `9534304` |
-| 2 | Sign-in safety: session-expired message, forced password change, office-sent access links (UC01, UC02) | M | Not started | |
+| 2 | Sign-in safety: session-expired message, forced password change, office-sent access links (UC01, UC02) | M | Done | `b909876` |
 | 3 | Student import: server-side CSV + XLSX with real import history (UC04) | L | Not started | |
 | 4 | Registry search and role-scoped read access (UC05) | M | Not started | |
 | 5 | Letter templates: archive, placeholder registry and validation (UC21) | M | Not started | |
@@ -76,6 +76,12 @@ for f in $(find src -name "*.test.ts" -o -name "*.test.tsx"); do npx tsx "$f" ||
 From the repo root: `git diff --check`.
 
 All of it must pass, including the teammate's tests. If a phase touches an HTTP flow, also run a live smoke check against `runserver` using temporary accounts (`smoke.*@example.test`) and delete them afterwards; never use or change real or demo accounts. If a phase adds migrations, apply them to the dev database only after taking a `pg_dump -Fc` backup into `Final Year Project/db-backups/`.
+
+Smoke-check cautions:
+- **Email.** `backend/.env` holds real Gmail SMTP credentials. Start the smoke server with `EMAIL_HOST_PASSWORD=""` in its environment so Django falls back to the console backend (`load_dotenv` does not override variables that are already set). Otherwise every activation, reset, or notification email really goes out.
+- **Audits.** `ParticipantLifecycleAudit` rows are protected from deletion. Never trigger a successful lifecycle transition on the dev database, or the temporary accounts can no longer be deleted; cover that path with tests instead.
+- **Tokens.** Before deleting temporary users, delete their `OutstandingToken` rows too.
+- **Shutdown.** Stop the server by the PID listening on its port.
 
 ## Design Decisions Already Made
 
