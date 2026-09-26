@@ -1,5 +1,27 @@
 # Project Status
 
+## Server-Side Student Import With Real History (2026-09-26)
+
+- **Import endpoint.** `POST /api/registry/students/import/` (Office only) accepts CSV or XLSX up to 2 MB and 1,000 student rows. XLSX is opened read-only after a ZIP signature check.
+  - It validates the header row and every row: required matric number and name, a valid email, an approved programme (any letter case), no duplicate matric number or email within the file, and none already registered. Rows are never auto-corrected.
+  - `dryRun=true` returns per-row statuses without writing anything.
+  - A commit creates each Ready row on its own through the same code path as single registration, skips duplicates, leaves other problem rows out, and sends activation emails.
+- **History.** Each commit is recorded as a `RegistryImportBatch` (migration `accounts.0006_registry_import_batch`) with counts, the uploader's name, and the rows that need attention. `GET /api/registry/imports/?limit=` lists them.
+- **Programme list.** `APPROVED_PROGRAMMES` moved to `accounts/programmes.py`, and a backend test fails if it drifts from `frontend/src/constants/programmes.ts`. A frontend test likewise checks that the template headers match the backend's `IMPORT_HEADERS`.
+- **Registry import screen.**
+  - Accepts XLSX as well as CSV and gets its preview from the server. Edited rows are sent back to the server to be checked again.
+  - Rows are keyed by line, so duplicate IDs in a file no longer collide.
+  - After an import, only the rows that were not created stay on screen for correction.
+  - Recent Imports shows real batches, "View All" loads up to 50, and each batch's problem rows can be downloaded as CSV.
+- **Removed invented content** from the import screen: the pre-filled file name, two fake import-history entries, "security scan" wording, the hardcoded 1,248/86 counts (now real registered and awaiting-activation counts), and column and guideline text that did not match the importer.
+- The browser-side validation in `utils/csvImport.ts` was retired. Its test cases now run as backend tests, and the module keeps only the template and the CSV builder for reviewed rows.
+- **Verification.** **578 backend tests passed** across all seven apps, including 15 new import tests, and all **53 frontend test scripts** passed. TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` also pass. The new migration was applied to the development database after a `pg_dump` backup.
+- **Live smoke check** with SMTP disabled for the server process:
+  - A CSV preview and commit created one row and left out one with a bad programme.
+  - An XLSX preview and commit created one row and skipped a row already registered by the CSV run.
+  - A `.txt` upload was refused, and Recent Imports listed both runs.
+  - The temporary accounts, imported students, and batches were deleted afterwards. Browser visual acceptance remains unverified.
+
 ## Sign-In Safety: Session Expiry, Forced Password Change, Access Links (2026-09-26)
 
 - **Session expiry (UC01).** When a signed-in session can no longer be refreshed, the login card now shows "Your session has expired. Please sign in again." A normal sign-out shows no message.
