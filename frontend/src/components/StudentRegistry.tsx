@@ -43,24 +43,35 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
-import { StudentAcademicStatus, StudentAccountStatus, StudentRecord } from '../types';
+import {
+  ImportPreviewRow,
+  RegistryImportBatch,
+  StudentAcademicStatus,
+  StudentAccountStatus,
+  StudentRecord,
+} from '../types';
 import {
   ApiError,
+  commitStudentImport,
   createStudent,
   getParticipant,
+  getRecentImports,
   getStudents,
+  previewStudentImport,
   sendAccessLink,
   updateStudent,
 } from '../services';
 import { describeBlockers, studentStatusOptions } from '../utils/registryStatus';
-import { PROGRAMME_OPTIONS } from '../constants/programmes';
-import {
-  CSV_TEMPLATE,
-  ParsedImportRow,
-  normaliseProgramme,
-  parseStudentCsv,
-  revalidateRows,
-} from '../utils/csvImport';
+import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
+import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
+
+const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
+  student_id: 'Matric number, unique',
+  full_name: "Student's full name",
+  programme: 'An approved programme',
+  email: 'Valid email, unique',
+  phone: 'Optional',
+};
 
 // ==================== COMPONENT PATTERNS TYPES ====================
 
@@ -237,22 +248,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
 
   // Bulk CSV Import Session States
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>({
-    name: 'student_registry_intake_sem1_2025.csv',
-    size: '42.8 KB'
-  });
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [rowsEdited, setRowsEdited] = useState(false);
   const [isProcessingCsv, setIsProcessingCsv] = useState(false);
   const [showRequiredColumns, setShowRequiredColumns] = useState(false);
 
   // Dynamic CSV preview records
-  // Populated only by parsing an uploaded file — never pre-seeded, so nothing
-  // can be committed that did not come from the office's own CSV.
-  const [csvPreviewRecords, setCsvPreviewRecords] = useState<ParsedImportRow[]>([]);
+  // Populated only by the server's check of an uploaded file — never pre-seeded,
+  // so nothing can be committed that did not come from the office's own file.
+  const [csvPreviewRecords, setCsvPreviewRecords] = useState<ImportPreviewRow[]>([]);
   const [csvFatalError, setCsvFatalError] = useState<string | null>(null);
-  const [csvProgress, setCsvProgress] = useState<{ done: number; total: number } | null>(null);
 
-  // Record being edited inside CSV preview list
-  const [editingCsvRecordId, setEditingCsvRecordId] = useState<string | null>(null);
+  const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
+  const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
+  const [showAllImports, setShowAllImports] = useState(false);
+
+  // Record being edited inside CSV preview list, identified by its file line
+  const [editingCsvLine, setEditingCsvLine] = useState<number | null>(null);
   const [editRowFields, setEditRowFields] = useState({
     name: '',
     programme: '',
@@ -470,7 +483,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      void parseCsvFile(file);
+      void previewImportFile(file);
     }
   };
 
@@ -478,7 +491,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      void parseCsvFile(file);
+      void previewImportFile(file);
     }
   };
 
@@ -486,37 +499,55 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
     fileInputRef.current?.click();
   };
 
-  // Reads the uploaded file and stages its real contents. This previously
-  // ignored the file and staged four hardcoded demo students, which became
-  // dangerous once the commit button started writing to the database.
-  const parseCsvFile = async (file: File) => {
+  const loadRecentImports = useCallback((limit: number) => {
+    setRecentImportsError(null);
+    getRecentImports(limit)
+      .then(setRecentImports)
+      .catch((err) => setRecentImportsError(err instanceof Error ? err.message : 'Could not load recent imports.'));
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'register' && registerActiveTab === 'bulk') {
+      loadRecentImports(showAllImports ? 50 : 5);
+    }
+  }, [currentView, registerActiveTab, showAllImports, loadRecentImports]);
+
+  const clearImport = () => {
+    setUploadedFile(null);
+    setSourceFile(null);
+    setRowsEdited(false);
+    setCsvPreviewRecords([]);
+    setCsvFatalError(null);
+    setEditingCsvLine(null);
+  };
+
+  // The server checks the file (CSV or XLSX) and returns each row's status;
+  // nothing is created until the reviewer commits.
+  const previewImportFile = async (file: File) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
+    setEditingCsvLine(null);
     try {
-      const text = await file.text();
-      const { rows, fatal } = parseStudentCsv(text);
-      if (fatal) {
-        setCsvPreviewRecords([]);
-        setCsvFatalError(fatal);
-        setUploadedFile(null);
-        triggerToast(fatal);
-        return;
-      }
+      const { rows } = await previewStudentImport(file);
       setCsvPreviewRecords(rows);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
+      setSourceFile(file);
+      setRowsEdited(false);
       const ready = rows.filter(r => r.status === 'Ready').length;
-      triggerToast(`Parsed ${rows.length} rows — ${ready} ready, ${rows.length - ready} need attention.`);
-    } catch {
-      setCsvFatalError('That file could not be read.');
-      triggerToast('That file could not be read.');
+      triggerToast(`Checked ${rows.length} rows — ${ready} ready, ${rows.length - ready} need attention.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'That file could not be read.';
+      clearImport();
+      setCsvFatalError(message);
+      triggerToast(message);
     } finally {
       setIsProcessingCsv(false);
     }
   };
 
   // Multi edit save handler inside CSV validation table
-  const handleStartEditingRow = (item: ParsedImportRow) => {
-    setEditingCsvRecordId(item.id);
+  const handleStartEditingRow = (item: ImportPreviewRow) => {
+    setEditingCsvLine(item.line);
     setEditRowFields({
       name: item.name,
       programme: item.programme,
@@ -525,79 +556,101 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
     });
   };
 
-  const handleSaveEditedRow = () => {
-    if (!editRowFields.name || !editRowFields.id) {
-      alert('Name and ID are required.');
+  const handleSaveEditedRow = async () => {
+    if (!editRowFields.name.trim() || !editRowFields.id.trim()) {
+      triggerToast('Name and ID are required.');
       return;
     }
 
-    setCsvPreviewRecords(prev => {
-      const edited = prev.map(rec => {
-        if (rec.id !== editingCsvRecordId) return rec;
-        return {
-          ...rec,
-          id: editRowFields.id.trim(),
-          name: editRowFields.name.trim(),
-          programme: editRowFields.programme.trim(),
-          email: editRowFields.email.trim(),
-        };
-      });
-      // Re-run the real validator over the edited set rather than guessing a
-      // status here, so an edit cannot mark a still-invalid row as Ready.
-      return revalidateRows(edited);
-    });
+    const edited = csvPreviewRecords.map(rec => (
+      rec.line !== editingCsvLine
+        ? rec
+        : {
+            ...rec,
+            id: editRowFields.id.trim(),
+            name: editRowFields.name.trim(),
+            programme: editRowFields.programme.trim(),
+            email: editRowFields.email.trim(),
+          }
+    ));
 
-    setEditingCsvRecordId(null);
-    triggerToast('Review record credentials updated successfully.');
+    // The server re-checks the whole edited set, so an edit can never mark a
+    // still-invalid row as Ready.
+    setIsProcessingCsv(true);
+    try {
+      const reviewed = new File([rowsToCsv(edited)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
+      const { rows } = await previewStudentImport(reviewed);
+      setCsvPreviewRecords(rows);
+      setRowsEdited(true);
+      setEditingCsvLine(null);
+      triggerToast('Row updated and checked again.');
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'Could not check the edited rows.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
   };
 
-  // Commit verified CSV records to registry database
+  // Creates every Ready row; duplicates are skipped and other problem rows are
+  // left out. The server records the run for Recent Imports.
   const handleCommitVerifiedCsv = async () => {
-    const unreadyCount = csvPreviewRecords.filter(r => r.status !== 'Ready').length;
-    if (unreadyCount > 0) {
-      triggerToast(`There are still ${unreadyCount} records with validation failures. Please fix issues or use single student entry.`);
-      return;
-    }
+    if (csvPreviewRecords.length === 0) return;
+    const file = rowsEdited || !sourceFile
+      ? new File([rowsToCsv(csvPreviewRecords)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' })
+      : sourceFile;
 
     setSaving(true);
-    setCsvProgress({ done: 0, total: csvPreviewRecords.length });
+    setCsvFatalError(null);
+    try {
+      const { batch, rows } = await commitStudentImport(file);
+      loadStudents();
+      loadRecentImports(showAllImports ? 50 : 5);
 
-    // Sequential: each row creates a login account, and one row's failure must
-    // not stop the rest. Committed rows are dropped from the preview as we go,
-    // so a retry after fixing a bad row does not re-submit the successes.
-    const failures: string[] = [];
-    let created = 0;
-    for (const item of csvPreviewRecords) {
-      try {
-        await createStudent({
-          id: item.id,
-          name: item.name,
-          email: item.email,
-          programme: item.programme,
-          phone: item.phone,
-          semester: '',
-          academicStatus: 'Active',
-        });
-        created += 1;
-        setCsvPreviewRecords(prev => prev.filter(r => r.id !== item.id));
-      } catch (err) {
-        failures.push(`line ${item.line} (${item.id}): ${err instanceof Error ? err.message : 'failed'}`);
+      const emailNote = batch.invitationsFailed > 0
+        ? ` ${batch.invitationsFailed} activation email(s) could not be sent — use Send Activation Link on those students.`
+        : '';
+      const leftOver = rows.filter(r => r.result !== 'created');
+      if (leftOver.length === 0) {
+        clearImport();
+        setCurrentView('list');
+        triggerToast(`Created ${batch.created} student accounts.${emailNote}`);
+        return;
       }
-      setCsvProgress(p => (p ? { ...p, done: p.done + 1 } : p));
-    }
-    setSaving(false);
-    setCsvProgress(null);
 
-    loadStudents();
-    if (failures.length === 0) {
-      setCurrentView('list');
-      setUploadedFile(null);
-      triggerToast(`Created ${created} accounts for ready student records successfully!`);
-    } else {
-      // Keep the reviewer on this screen so the rejected rows can be corrected.
-      setCsvFatalError(`${failures.length} row(s) failed:\n${failures.join('\n')}`);
-      triggerToast(`Created ${created}. ${failures.length} row(s) failed — see the list below.`);
+      // Keep the reviewer here with only the rows that were not created, so
+      // they can be corrected and imported again.
+      setCsvPreviewRecords(leftOver);
+      setRowsEdited(true);
+      setCsvFatalError(
+        [
+          `Created ${batch.created}, skipped ${batch.skipped}, not imported ${batch.failed}.${emailNote}`,
+          ...leftOver.map(r => `line ${r.line} (${r.id || 'no id'}): ${r.issue}`),
+        ].join('\n'),
+      );
+      triggerToast(`Created ${batch.created}. ${leftOver.length} row(s) were not imported — see the list below.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'The import could not be completed.';
+      setCsvFatalError(message);
+      triggerToast(message);
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const downloadImportProblems = (batch: RegistryImportBatch) => {
+    const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+    const csv = [
+      'line,student_id,result,issue',
+      ...batch.problems.map(p => [p.line, p.id, p.result, p.issue].map(quote).join(',')),
+    ].join('\n');
+    const url = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', reviewedFileName(batch.fileName).replace('-reviewed.csv', '-problems.csv'));
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
   };
 
   // CSV template generator downloder
@@ -643,7 +696,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
   // Render variables for Bulk Indicators
   const readyCsvCount = csvPreviewRecords.filter(r => r.status === 'Ready').length;
   const warningCsvCount = csvPreviewRecords.filter(r => r.status === 'Missing Email').length;
-  const duplicateCsvCount = csvPreviewRecords.filter(r => r.status === 'Duplicate In File').length;
+  const duplicateCsvCount = csvPreviewRecords.filter(
+    r => r.status === 'Duplicate In File' || r.status === 'Already Registered',
+  ).length;
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
@@ -1094,9 +1149,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                   <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-brand-navy">CSV Upload</h3>
+                        <h3 className="text-sm font-black text-brand-navy">File Upload</h3>
                         <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                          Drag and drop your formatted student registry CSV file below.
+                          Drag and drop your student registry CSV or XLSX file below.
                         </p>
                       </div>
                       
@@ -1122,16 +1177,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                       <input 
                         ref={fileInputRef}
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx"
                         className="hidden"
-                        onChange={handleFileChange}
+                        onChange={(e) => {
+                          handleFileChange(e);
+                          e.target.value = '';
+                        }}
                       />
 
                       {/* Display files status or drag guidelines */}
                       {isProcessingCsv ? (
                         <div className="space-y-2 py-4">
                           <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-                          <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Cryptographic validation and anti-injection scan...</span>
+                          <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Checking the file…</span>
                         </div>
                       ) : uploadedFile ? (
                         <div className="space-y-3 py-2">
@@ -1140,18 +1198,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           </div>
                           <div>
                             <span className="text-[12px] font-black text-slate-800 block select-all">{uploadedFile.name}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • Security Clean</span>
+                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
                           </div>
-                          <button 
+                          <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setUploadedFile(null);
-                              triggerToast('Current CSV file cleared.');
+                              clearImport();
+                              triggerToast('Current file cleared.');
                             }}
                             className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
                           >
-                            Upload Different CSV
+                            Upload Different File
                           </button>
                         </div>
                       ) : (
@@ -1161,7 +1219,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           </div>
                           <div>
                             <span className="text-xs font-black text-slate-800 block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or tab-delimited sheets (Max. 10MB)</span>
+                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
                           </div>
                         </div>
                       )}
@@ -1178,25 +1236,27 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           className="text-slate-500 hover:text-slate-800 text-[10.5px] font-black flex items-center gap-1 cursor-pointer transition uppercase tracking-wide"
                         >
                           <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${showRequiredColumns ? 'rotate-180' : ''}`} />
-                          <span>Required CSV Columns</span>
+                          <span>Required Columns</span>
                         </button>
-                        
+
                         <AnimatePresence>
                           {showRequiredColumns && (
-                            <motion.div 
+                            <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
                               className="mt-2.5 bg-[#f8fafc] border border-slate-150 rounded-xl p-3 text-[10.5px] text-slate-600 space-y-1 max-w-sm"
                             >
                               <div className="font-bold flex justify-between uppercase text-[9px] text-slate-400 pb-1 border-b border-slate-200/50">
-                                <span>CSV Header Name</span>
-                                <span>Constraint Info</span>
+                                <span>Column</span>
+                                <span>Rule</span>
                               </div>
-                              <div className="flex justify-between font-semibold"><code className="font-mono text-indigo-600 text-[9.5px]">student_id</code> <span>Unique WXX style ID</span></div>
-                              <div className="flex justify-between font-semibold"><code className="font-mono text-indigo-600 text-[9.5px]">full_name</code> <span>Letters only, capitalised</span></div>
-                              <div className="flex justify-between font-semibold"><code className="font-mono text-indigo-600 text-[9.5px]">programme_mapped</code> <span>CS, SE or IS codes</span></div>
-                              <div className="flex justify-between font-semibold"><code className="font-mono text-indigo-600 text-[9.5px]">administrative_email</code> <span>Valid institutional inbox</span></div>
+                              {CSV_HEADERS.map((header) => (
+                                <div key={header} className="flex justify-between font-semibold">
+                                  <code className="font-mono text-indigo-600 text-[9.5px]">{header}</code>
+                                  <span>{IMPORT_COLUMN_RULES[header]}</span>
+                                </div>
+                              ))}
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -1256,15 +1316,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           <span>{duplicateCsvCount} Duplicate</span>
                         </div>
 
-                        {/* Import progress — one account is created per row, so
-                            a large intake takes a visible amount of time. */}
-                        {csvProgress && (
-                          <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-blue-50 text-blue-700 border-blue-200">
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                            <span>Creating {csvProgress.done} / {csvProgress.total}</span>
-                          </div>
-                        )}
-
                       </div>
 
                       {/* Parse failures and per-row commit failures */}
@@ -1294,11 +1345,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-xs">
                           {csvPreviewRecords.map((item) => {
-                            const isBeingEdited = editingCsvRecordId === item.id;
-                            
+                            const isBeingEdited = editingCsvLine === item.line;
+
                             if (isBeingEdited) {
                               return (
-                                <tr key={item.id} className="bg-amber-50/60 font-medium">
+                                <tr key={item.line} className="bg-amber-50/60 font-medium">
                                   <td className="data-td">
                                     <input 
                                       type="text" 
@@ -1334,17 +1385,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                                   </td>
                                   <td className="data-td text-center">
                                     <div className="flex items-center justify-center gap-1.5">
-                                      <button 
-                                        type="button" 
+                                      <button
+                                        type="button"
                                         onClick={handleSaveEditedRow}
-                                        className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer"
+                                        disabled={isProcessingCsv}
+                                        className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50"
                                         title="Confirm Changes"
                                       >
                                         <Check className="w-3.5 h-3.5" />
                                       </button>
-                                      <button 
-                                        type="button" 
-                                        onClick={() => setEditingCsvRecordId(null)}
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingCsvLine(null)}
                                         className="p-1 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded text-[10px] uppercase font-bold cursor-pointer"
                                         title="Discard Changes"
                                       >
@@ -1357,7 +1409,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                             }
 
                             return (
-                              <tr key={item.id} className="hover:bg-slate-50/50 transition">
+                              <tr key={item.line} className="hover:bg-slate-50/50 transition">
                                 <td className="data-td font-bold font-mono text-slate-600">{item.id}</td>
                                 <td className="data-td font-extrabold text-slate-850">{item.name}</td>
                                 <td className="data-td font-bold text-slate-500">{item.programme}</td>
@@ -1425,16 +1477,22 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                             matric number would attach a real account to the
                             wrong person. */}
 
+                        {csvPreviewRecords.length > readyCsvCount && (
+                          <span className="text-[10px] font-semibold text-slate-500 max-w-[220px] text-right">
+                            Rows that are not Ready are left out and listed after the import.
+                          </span>
+                        )}
+
                         {/* Commit validated records to database */}
                         <button
                           type="button"
                           onClick={handleCommitVerifiedCsv}
-                          disabled={saving || csvPreviewRecords.length === 0}
+                          disabled={saving || isProcessingCsv || readyCsvCount === 0}
                           className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <UserCheck className="w-4 h-4 text-indigo-300" />
                           <span>
-                            {saving ? 'Creating accounts…' : 'Create Accounts for Ready Records'}
+                            {saving ? 'Creating accounts…' : `Create ${readyCsvCount} Ready Account${readyCsvCount === 1 ? '' : 's'}`}
                           </span>
                         </button>
 
@@ -1741,47 +1799,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                 </div>
 
                 <div className="space-y-4 text-xs">
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Ensure all date fields are in stable <strong className="text-slate-800 font-bold">YYYY-MM-DD</strong> format before saving sheets.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Programme codes must match existing official <strong className="text-slate-800 font-bold">SIS codes</strong> mapped for computing curricula.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Student IDs must be <strong className="text-slate-800 font-bold">unique</strong> across the administrative postgraduate registry.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Emails must be valid and preferably institutional <strong className="text-slate-800 font-bold">@mail.um.edu.my</strong> addresses.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Staged CSV limit is strictly enforced at <strong className="text-slate-800 font-bold">Max 1000 records</strong> per bulk run.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                    <p className="text-slate-650 font-medium leading-relaxed">
-                      Always remove any header rows unless using the system database <strong className="text-slate-800 font-bold">Excel/CSV Template</strong> document.
-                    </p>
-                  </div>
+                  {[
+                    <>Keep the header row <strong className="text-slate-800 font-bold">{CSV_HEADERS.join(', ')}</strong>. The template has the exact layout.</>,
+                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; letter case does not matter.</>,
+                    <>Matric numbers and emails must be <strong className="text-slate-800 font-bold">unique</strong> in the file and not already registered. Duplicates are skipped and listed.</>,
+                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password.</>,
+                    <>CSV or XLSX, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
+                  ].map((guideline, index) => (
+                    <div key={index} className="flex gap-3">
+                      <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
+                      <p className="text-slate-650 font-medium leading-relaxed">{guideline}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1793,10 +1822,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                       <Layers className="w-4.5 h-4.5" />
                     </div>
                     <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
-                      Current Semester Overview
+                      Registry Snapshot
                     </h3>
                   </div>
-                  <span className="text-[9px] bg-slate-100 font-black tracking-wide uppercase px-2 py-0.5 rounded text-slate-500">Sem 1</span>
                 </div>
 
                 {/* Sub bento items */}
@@ -1805,7 +1833,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                   {/* Item 1: Total count */}
                   <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
                     <span className="text-[9.5px] uppercase font-black text-slate-400 block tracking-wide">Total Registered</span>
-                    <h3 className="text-2xl font-black text-blue-700 tracking-tight font-sans mt-1">1,248</h3>
+                    <h3 className="text-2xl font-black text-blue-700 tracking-tight font-sans mt-1">{students.length.toLocaleString()}</h3>
                     <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
                       <GraduationCap className="w-8 h-8" />
                     </div>
@@ -1813,8 +1841,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
 
                   {/* Item 2: Pending count */}
                   <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                    <span className="text-[9.5px] uppercase font-black text-slate-400 block tracking-wide">Pending Reg.</span>
-                    <h3 className="text-2xl font-black text-amber-700 tracking-tight font-sans mt-1">86</h3>
+                    <span className="text-[9.5px] uppercase font-black text-slate-400 block tracking-wide">Awaiting Activation</span>
+                    <h3 className="text-2xl font-black text-amber-700 tracking-tight font-sans mt-1">
+                      {students.filter(s => s.activated === false).length.toLocaleString()}
+                    </h3>
                     <div className="absolute right-3 bottom-2 text-amber-600/15">
                       <ShieldAlert className="w-8 h-8" />
                     </div>
@@ -1834,61 +1864,56 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                       Recent Imports
                     </h3>
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={() => triggerToast('Historical log archive is up-to-date.')}
+                  <button
+                    type="button"
+                    onClick={() => setShowAllImports(!showAllImports)}
                     className="text-blue-600 hover:text-blue-800 text-[10.5px] font-black uppercase tracking-wider"
                   >
-                    View All
+                    {showAllImports ? 'Show Recent' : 'View All'}
                   </button>
                 </div>
 
                 <div className="space-y-3">
-                  
-                  {/* Log item 1 */}
-                  <div className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <FileSpreadsheet className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all">Intake_Sem1_2023.csv</span>
-                        <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 24, 2023 • 142 records</span>
-                      </div>
-                    </div>
-
-                    <button 
-                      type="button"
-                      onClick={() => triggerToast('Downloaded backup log for intake semester 1_23.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
-                      title="Download Log backup"
+                  {recentImportsError && (
+                    <p className="text-[10.5px] font-semibold text-rose-600">{recentImportsError}</p>
+                  )}
+                  {!recentImportsError && recentImports.length === 0 && (
+                    <p className="text-[10.5px] font-semibold text-slate-400">No imports yet.</p>
+                  )}
+                  {recentImports.map((batch) => (
+                    <div
+                      key={batch.id}
+                      className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                          <FileSpreadsheet className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-brand-navy text-[11px] block truncate select-all" title={batch.fileName}>
+                            {batch.fileName}
+                          </span>
+                          <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
+                            {new Date(batch.createdAt).toLocaleDateString()} • {batch.created} created, {batch.skipped} skipped, {batch.failed} not imported
+                          </span>
+                          {batch.uploadedBy && (
+                            <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
+                          )}
+                        </div>
+                      </div>
 
-                  {/* Log item 2 */}
-                  <div className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <FileSpreadsheet className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <span className="font-extrabold text-brand-navy text-[11px] block max-w-[120px] truncate select-all font-sans">Late_Registrations_Oct.csv</span>
-                        <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">Oct 28, 2023 • 12 records</span>
-                      </div>
+                      {batch.problems.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => downloadImportProblems(batch)}
+                          className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
+                          title="Download the rows that need attention"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-
-                    <button 
-                      type="button"
-                      onClick={() => triggerToast('Downloaded backup log for late registrations.')}
-                      className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer"
-                      title="Download Log backup"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
+                  ))}
                 </div>
               </div>
 

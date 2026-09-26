@@ -8,9 +8,20 @@
 // unreachable *and* mocks are enabled, so the screen still renders offline;
 // writes always go to the backend (they require an Office Staff/Admin session).
 
-import { StudentRecord } from '../types';
+import {
+  ImportCommitResponse,
+  ImportPreviewResponse,
+  RegistryImportBatch,
+  StudentRecord,
+} from '../types';
 import { MOCK_STUDENTS } from '../mocks/students';
-import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
+import {
+  USE_MOCKS,
+  isTransportFailure,
+  mockResponse,
+  request,
+  requestMultipart,
+} from './apiClient';
 
 const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined || value.trim() === '') return fallback;
@@ -105,4 +116,31 @@ export async function sendAccessLink(id: string): Promise<AccessLinkResult> {
     `/registry/students/${encodeURIComponent(id)}/send-access-link/`,
     { method: 'POST' },
   );
+}
+
+const importForm = (file: File, dryRun: boolean): FormData => {
+  const form = new FormData();
+  form.append('file', file);
+  if (dryRun) form.append('dryRun', 'true');
+  return form;
+};
+
+/** Check every row of a CSV or XLSX file without creating anything. */
+export async function previewStudentImport(file: File): Promise<ImportPreviewResponse> {
+  return requestMultipart<ImportPreviewResponse>(
+    '/registry/students/import/',
+    importForm(file, true),
+  );
+}
+
+/** Create the ready rows, skip duplicates, and record the batch. */
+export async function commitStudentImport(file: File): Promise<ImportCommitResponse> {
+  return requestMultipart<ImportCommitResponse>(
+    '/registry/students/import/',
+    importForm(file, false),
+  );
+}
+
+export async function getRecentImports(limit = 5): Promise<RegistryImportBatch[]> {
+  return request<RegistryImportBatch[]>(`/registry/imports/?limit=${limit}`);
 }

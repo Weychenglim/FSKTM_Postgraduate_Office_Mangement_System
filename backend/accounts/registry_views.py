@@ -23,22 +23,16 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Student, StudentRegistry
+from .models import RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
+from .programmes import APPROVED_PROGRAMMES
+from .registry_import import ImportFileError, read_import_file, validate_import_rows
 from .throttles import AccessLinkRateThrottle
 from .views import send_password_reset_email
 
 User = get_user_model()
 
 # Mirrors the palette the Registry Management screen already renders.
-# The system programme list from PROJECT_REQUIREMENTS.md. Mirrored in
-# frontend/src/constants/programmes.ts — keep the two in step.
-APPROVED_PROGRAMMES = [
-    "MASTER OF DATA SCIENCE (COURSEWORK)",
-    "MASTER OF CYBER SECURITY (COURSEWORK)",
-    "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
-]
-
 AVATAR_PALETTE = [
     "bg-blue-100 text-blue-850 border-blue-200",
     "bg-indigo-100 text-indigo-850 border-indigo-200",
@@ -215,38 +209,47 @@ def send_activation_email(user) -> bool:
         return False
 
 
-def _create_student(request):
+def _register_student(data):
     """Create the login account and the Student profile in one transaction.
 
     No password is set. The account starts with an unusable password and the
     student chooses their own through the activation link, so the office never
     handles or transmits a temporary credential.
+
+    Returns ``(student, invitation_sent)``; raises ``IntegrityError`` if the
+    matric number or email was taken after validation.
     """
+    with transaction.atomic():
+        user = User(
+            email=data["email"],
+            full_name=data["name"].strip(),
+            role=User.Role.STUDENT,
+            phone=data.get("phone", ""),
+        )
+        user.set_unusable_password()
+        user.save()
+
+        student = Student.objects.create(
+            user=user,
+            matric_no=data["id"],
+            programme=data.get("programme", ""),
+            status=data.get("academicStatus", Student.Status.ACTIVE),
+            intake_semester=data.get("intakeDate", ""),
+        )
+        semester = data.get("semester", "")
+        if semester:
+            StudentRegistry.objects.create(student=student, current_semester=semester)
+
+    invitation_sent = send_activation_email(user) if data.get("sendInvite", True) else False
+    return student, invitation_sent
+
+
+def _create_student(request):
     serializer = StudentRecordCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    data = serializer.validated_data
 
     try:
-        with transaction.atomic():
-            user = User(
-                email=data["email"],
-                full_name=data["name"].strip(),
-                role=User.Role.STUDENT,
-                phone=data.get("phone", ""),
-            )
-            user.set_unusable_password()
-            user.save()
-
-            student = Student.objects.create(
-                user=user,
-                matric_no=data["id"],
-                programme=data.get("programme", ""),
-                status=data.get("academicStatus", Student.Status.ACTIVE),
-                intake_semester=data.get("intakeDate", ""),
-            )
-            semester = data.get("semester", "")
-            if semester:
-                StudentRegistry.objects.create(student=student, current_semester=semester)
+        student, invitation_sent = _register_student(serializer.validated_data)
     except IntegrityError:
         # The serializer's uniqueness checks leave a small window before the
         # insert; the database is the authority, so report the conflict rather
@@ -257,11 +260,120 @@ def _create_student(request):
         )
 
     payload = to_record(student)
-    if data.get("sendInvite", True):
-        payload["invitationSent"] = send_activation_email(user)
-    else:
-        payload["invitationSent"] = False
+    payload["invitationSent"] = invitation_sent
     return Response(payload, status=status.HTTP_201_CREATED)
+
+
+def _first_error(errors):
+    for messages in errors.values():
+        if messages:
+            return str(messages[0])
+    return "The record could not be created."
+
+
+def _import_row(row):
+    serializer = StudentRecordCreateSerializer(
+        data={
+            "id": row["id"],
+            "name": row["name"],
+            "email": row["email"],
+            "programme": row["programme"],
+            "phone": row["phone"],
+        }
+    )
+    if not serializer.is_valid():
+        return {**row, "result": "failed", "issue": _first_error(serializer.errors)}
+    try:
+        _, invitation_sent = _register_student(serializer.validated_data)
+    except IntegrityError:
+        return {
+            **row,
+            "result": "failed",
+            "issue": "this matric number or email was registered during the import",
+        }
+    return {**row, "result": "created", "invitationSent": invitation_sent}
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def student_import_view(request):
+    """Bulk-import students from a CSV or XLSX file (UC04).
+
+    ``dryRun`` checks every row and writes nothing. Otherwise each Ready row is
+    created on its own, duplicates are skipped, other problem rows are left
+    out, and the run is recorded as a ``RegistryImportBatch``.
+    """
+    _require_office_admin(request)
+
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return Response(
+            {"error": "Choose a CSV or XLSX file to import."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        rows = validate_import_rows(read_import_file(uploaded))
+    except ImportFileError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    if str(request.data.get("dryRun", "")).lower() in {"1", "true", "yes"}:
+        return Response({"fileName": uploaded.name, "rows": rows})
+
+    results = []
+    for row in rows:
+        if row["status"] == "Ready":
+            results.append(_import_row(row))
+        elif row["status"] in {"Duplicate In File", "Already Registered"}:
+            results.append({**row, "result": "skipped"})
+        else:
+            results.append({**row, "result": "failed"})
+
+    created = [r for r in results if r["result"] == "created"]
+    problems = [
+        {"line": r["line"], "id": r["id"], "result": r["result"], "issue": r["issue"]}
+        for r in results
+        if r["result"] != "created"
+    ]
+    problems += [
+        {
+            "line": r["line"],
+            "id": r["id"],
+            "result": "created",
+            "issue": "activation email could not be sent",
+        }
+        for r in created
+        if not r["invitationSent"]
+    ]
+    batch = RegistryImportBatch.objects.create(
+        file_name=uploaded.name[:255],
+        uploaded_by=request.user,
+        uploaded_by_name=request.user.full_name,
+        total_rows=len(results),
+        created_count=len(created),
+        skipped_count=sum(1 for r in results if r["result"] == "skipped"),
+        failed_count=sum(1 for r in results if r["result"] == "failed"),
+        invitations_failed=sum(1 for r in created if not r["invitationSent"]),
+        problems=problems,
+    )
+    return Response(
+        {"batch": batch.to_public_dict(), "rows": results},
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def import_batches_view(request):
+    """Most recent bulk imports, newest first (``?limit=``, 1–50, default 5)."""
+    _require_office_admin(request)
+    try:
+        limit = int(request.query_params.get("limit", 5))
+    except ValueError:
+        limit = 5
+    limit = max(1, min(limit, 50))
+    return Response(
+        [batch.to_public_dict() for batch in RegistryImportBatch.objects.all()[:limit]]
+    )
 
 
 def _find_student(matric_no):

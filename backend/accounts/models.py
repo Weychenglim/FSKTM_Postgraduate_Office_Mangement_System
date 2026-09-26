@@ -412,3 +412,44 @@ class NotificationPreference(models.Model):
 
     def __str__(self):
         return f"Notification preferences — {self.user.email}"
+
+
+class RegistryImportBatch(models.Model):
+    """One committed Student Registry bulk import (UC04)."""
+
+    file_name = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_imports",
+    )
+    uploaded_by_name = models.CharField(max_length=255, blank=True, default="")
+    total_rows = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    invitations_failed = models.PositiveIntegerField(default=0)
+    problems = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def to_public_dict(self):
+        return {
+            "id": self.pk,
+            "fileName": self.file_name,
+            "uploadedBy": self.uploaded_by_name,
+            "totalRows": self.total_rows,
+            "created": self.created_count,
+            "skipped": self.skipped_count,
+            "failed": self.failed_count,
+            "invitationsFailed": self.invitations_failed,
+            "problems": self.problems,
+            "createdAt": self.created_at.isoformat(),
+        }
+
+    def __str__(self):
+        return f"{self.file_name} — {self.created_count} created"

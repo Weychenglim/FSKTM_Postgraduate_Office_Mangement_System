@@ -30,3 +30,47 @@ export interface StudentRecord {
   activated?: boolean;
   lastLogin?: string | null;
 }
+
+export type ImportRowStatus =
+  | 'Ready'
+  | 'Missing Field'
+  | 'Missing Email'
+  | 'Bad Programme'
+  | 'Duplicate In File'
+  | 'Already Registered';
+
+export interface ImportPreviewRow {
+  line: number;
+  id: string;
+  name: string;
+  programme: string;
+  email: string;
+  phone: string;
+  status: ImportRowStatus;
+  issue: string;
+  result?: 'created' | 'skipped' | 'failed';
+  invitationSent?: boolean;
+}
+
+export interface RegistryImportBatch {
+  id: number;
+  fileName: string;
+  uploadedBy: string;
+  totalRows: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  invitationsFailed: number;
+  problems: { line: number; id: string; result: string; issue: string }[];
+  createdAt: string;
+}
+
+export interface ImportPreviewResponse {
+  fileName: string;
+  rows: ImportPreviewRow[];
+}
+
+export interface ImportCommitResponse {
+  batch: RegistryImportBatch;
+  rows: ImportPreviewRow[];
+}
