@@ -27,4 +27,6 @@ export interface StudentRecord {
   phone: string;
   supervisor: string;
   intakeDate: string;
+  activated?: boolean;
+  lastLogin?: string | null;
 }

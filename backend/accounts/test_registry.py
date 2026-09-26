@@ -3,6 +3,9 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.core.cache import cache
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -500,3 +503,86 @@ class RegistryStatusWorkflowTests(APITestCase):
         self.assertEqual(
             self.appointment.end_outcome, SupervisorAppointment.EndOutcome.WITHDRAWN
         )
+
+
+@override_settings(REGISTRY_ACCESS_LINK_THROTTLE_RATE="2/hour")
+class RegistryAccessLinkTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.office = User.objects.create_user(
+            email="access-office@example.test",
+            password="pw-office-9901",
+            full_name="Access Office",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        self.lecturer = User.objects.create_user(
+            email="access-lecturer@example.test",
+            password="pw-lect-9902",
+            full_name="Access Lecturer",
+            role=User.Role.LECTURER,
+        )
+        new_user = User(
+            email="access-new@example.test",
+            full_name="Never Activated",
+            role=User.Role.STUDENT,
+        )
+        new_user.set_unusable_password()
+        new_user.save()
+        self.new_student = Student.objects.create(user=new_user, matric_no="DEMO-WGA240001")
+        active_user = User.objects.create_user(
+            email="access-active@example.test",
+            password="pw-student-9903",
+            full_name="Already Active",
+            role=User.Role.STUDENT,
+        )
+        self.active_student = Student.objects.create(
+            user=active_user, matric_no="DEMO-WGA240002"
+        )
+
+    def _send(self, matric_no, user=None):
+        self.client.force_authenticate(user or self.office)
+        return self.client.post(f"/api/registry/students/{matric_no}/send-access-link/")
+
+    def test_unactivated_student_gets_the_activation_link(self):
+        response = self._send(self.new_student.matric_no)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"kind": "activation", "sent": True})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Activate", mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].to, ["access-new@example.test"])
+
+    def test_activated_student_gets_a_password_reset_link(self):
+        response = self._send(self.active_student.matric_no)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"kind": "reset", "sent": True})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, "Reset your FSKTM PG Office password")
+
+    def test_suspended_account_is_refused(self):
+        self.active_student.user.is_active = False
+        self.active_student.user.save(update_fields=["is_active"])
+        response = self._send(self.active_student.matric_no)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_only_the_office_can_send(self):
+        response = self._send(self.new_student.matric_no, user=self.lecturer)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unknown_student_is_not_found(self):
+        self.assertEqual(self._send("DEMO-NOBODY").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_links_are_throttled_per_student(self):
+        for _ in range(2):
+            self.assertEqual(self._send(self.new_student.matric_no).status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._send(self.new_student.matric_no).status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        self.assertEqual(self._send(self.active_student.matric_no).status_code, status.HTTP_200_OK)
+
+    def test_refused_requests_do_not_spend_the_office_budget(self):
+        for _ in range(3):
+            self._send(self.new_student.matric_no, user=self.lecturer)
+        self.assertEqual(self._send(self.new_student.matric_no).status_code, status.HTTP_200_OK)

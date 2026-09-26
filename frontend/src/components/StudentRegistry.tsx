@@ -44,7 +44,14 @@ import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from '.
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import { StudentAcademicStatus, StudentAccountStatus, StudentRecord } from '../types';
-import { ApiError, createStudent, getParticipant, getStudents, updateStudent } from '../services';
+import {
+  ApiError,
+  createStudent,
+  getParticipant,
+  getStudents,
+  sendAccessLink,
+  updateStudent,
+} from '../services';
 import { describeBlockers, studentStatusOptions } from '../utils/registryStatus';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import {
@@ -302,6 +309,27 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
       }
     } finally {
       setStatusSaving(false);
+    }
+  };
+
+  const [sendingAccessLink, setSendingAccessLink] = useState(false);
+
+  const handleSendAccessLink = async () => {
+    if (!viewingStudent) return;
+    const student = viewingStudent;
+    setSendingAccessLink(true);
+    try {
+      const result = await sendAccessLink(student.id);
+      const link = result.kind === 'activation' ? 'Activation link' : 'Password reset link';
+      triggerToast(
+        result.sent
+          ? `${link} emailed to ${student.email}.`
+          : `${link} could not be sent. Check the mail settings and try again.`,
+      );
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'Could not send the access link.');
+    } finally {
+      setSendingAccessLink(false);
     }
   };
 
@@ -2104,7 +2132,22 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                 </span>
 
                 <div className="flex gap-2">
-                  
+
+                  {viewingStudent.accountStatus === 'Verified' && (
+                    <button
+                      type="button"
+                      disabled={sendingAccessLink}
+                      onClick={handleSendAccessLink}
+                      className="px-4 py-2 bg-white border border-slate-200 text-slate-700 uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
+                    >
+                      {sendingAccessLink
+                        ? 'Sending…'
+                        : viewingStudent.activated === false
+                          ? 'Send Activation Link'
+                          : 'Send Reset Link'}
+                    </button>
+                  )}
+
                   {/* Reinstate a suspended account */}
                   {viewingStudent.accountStatus === 'Suspended' && (
                     <button

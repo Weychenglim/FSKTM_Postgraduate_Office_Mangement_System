@@ -93,3 +93,16 @@ export async function createStudent(input: StudentRecordCreate): Promise<Student
     body: JSON.stringify(input),
   });
 }
+
+export interface AccessLinkResult {
+  kind: 'activation' | 'reset';
+  sent: boolean;
+}
+
+/** Email the student an activation link, or a reset link once activated. */
+export async function sendAccessLink(id: string): Promise<AccessLinkResult> {
+  return request<AccessLinkResult>(
+    `/registry/students/${encodeURIComponent(id)}/send-access-link/`,
+    { method: 'POST' },
+  );
+}

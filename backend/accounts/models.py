@@ -117,6 +117,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                 if student and student.status != Student.Status.ACTIVE
                 else "ACTIVE"
             ),
+            "mustChangePassword": self.must_change_password,
         }
 
 

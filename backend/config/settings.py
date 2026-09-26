@@ -210,11 +210,15 @@ AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE = os.getenv(
 AUTH_CHANGE_PASSWORD_THROTTLE_RATE = os.getenv(
     "AUTH_CHANGE_PASSWORD_THROTTLE_RATE", "10/hour"
 )
+# Office-sent activation or reset links, counted per student account.
+REGISTRY_ACCESS_LINK_THROTTLE_RATE = os.getenv(
+    "REGISTRY_ACCESS_LINK_THROTTLE_RATE", "3/hour"
+)
 
 # ── Django REST Framework + SimpleJWT ────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.password_policy.PasswordPolicyJWTAuthentication",
     ),
     # APIs are private by default. Authentication endpoints opt into AllowAny.
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),

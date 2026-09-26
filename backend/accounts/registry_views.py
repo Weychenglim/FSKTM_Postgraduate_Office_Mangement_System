@@ -18,13 +18,15 @@ from django.db.models import Q
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import serializers, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
+from .throttles import AccessLinkRateThrottle
+from .views import send_password_reset_email
 
 User = get_user_model()
 
@@ -262,19 +264,15 @@ def _create_student(request):
     return Response(payload, status=status.HTTP_201_CREATED)
 
 
-@api_view(["GET", "PATCH"])
-@permission_classes([IsAuthenticated])
-def student_record_detail_view(request, matric_no):
-    """Retrieve or correct one student's registry record."""
-    _require_office_admin(request)
-
+def _find_student(matric_no):
+    """Return ``(student, None)`` or ``(None, error_response)``."""
     matches = list(
         Student.objects.select_related("user", "registry").filter(
             matric_no__iexact=matric_no
         )[:2]
     )
     if not matches:
-        return Response(
+        return None, Response(
             {"error": f"No student found with matric number '{matric_no}'."},
             status=status.HTTP_404_NOT_FOUND,
         )
@@ -282,7 +280,7 @@ def student_record_detail_view(request, matric_no):
         # `matric_no` is unique but case-sensitively so, so `iexact` can match
         # more than one row. Picking one arbitrarily previously edited (and
         # suspended) the wrong student, so refuse instead of guessing.
-        return Response(
+        return None, Response(
             {
                 "error": (
                     f"More than one student matches '{matric_no}' when case is "
@@ -291,7 +289,18 @@ def student_record_detail_view(request, matric_no):
             },
             status=status.HTTP_409_CONFLICT,
         )
-    student = matches[0]
+    return matches[0], None
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def student_record_detail_view(request, matric_no):
+    """Retrieve or correct one student's registry record."""
+    _require_office_admin(request)
+
+    student, error = _find_student(matric_no)
+    if error:
+        return error
 
     if request.method == "GET":
         return Response(to_record(student))
@@ -361,3 +370,26 @@ def student_record_detail_view(request, matric_no):
 
     student.refresh_from_db()
     return Response(to_record(student))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AccessLinkRateThrottle])
+def student_access_link_view(request, matric_no):
+    """Email a student a way back in: the activation link if they never set a
+    password, otherwise a password-reset link."""
+    _require_office_admin(request)
+
+    student, error = _find_student(matric_no)
+    if error:
+        return error
+    user = student.user
+    if not user.is_active:
+        return Response(
+            {"error": "Reinstate this account before sending an access link."},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    if user.has_usable_password():
+        return Response({"kind": "reset", "sent": send_password_reset_email(user)})
+    return Response({"kind": "activation", "sent": send_activation_email(user)})

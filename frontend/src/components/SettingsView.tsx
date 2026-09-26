@@ -22,11 +22,11 @@ import {
   Bell,
   Save,
   LogOut,
-  KeyRound,
 } from 'lucide-react';
 import { DemoUser } from '../types';
 import * as authApi from '../services/authApi';
 import { FormInput } from './FormInput';
+import { PasswordChangeForm } from './PasswordChangeForm';
 import { ToggleSwitch } from './ToggleSwitch';
 import {
   PageHeader,
@@ -83,41 +83,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
       showToast(err instanceof Error ? err.message : 'Could not save contact details.', 'danger');
     } finally {
       setSavingContact(false);
-    }
-  };
-
-  // ── Password ───────────────────────────────────────────────────────────────
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [pwErrors, setPwErrors] = useState<{ current?: string; next?: string; confirm?: string }>({});
-  const [savingPassword, setSavingPassword] = useState(false);
-
-  const handleSavePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errors: typeof pwErrors = {};
-    if (!currentPassword) errors.current = 'Enter your current password.';
-    if (newPassword.length < 8) errors.next = 'Use at least 8 characters.';
-    if (confirmPassword !== newPassword) errors.confirm = 'Passwords do not match.';
-    setPwErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setSavingPassword(true);
-    try {
-      await authApi.changePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      showToast('Password updated successfully.');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not update password.';
-      // "Your current password is incorrect." belongs under Current Password,
-      // not New Password — anything else is a rule about the new value.
-      const isCurrentPasswordError = /current password/i.test(message);
-      setPwErrors(isCurrentPasswordError ? { current: message } : { next: message });
-      showToast(message, 'danger');
-    } finally {
-      setSavingPassword(false);
     }
   };
 
@@ -246,42 +211,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
           {/* Security */}
           <PortalCard>
             <SectionTitle icon={ShieldCheck} title="Security" subtitle="Update your account password." />
-            <form onSubmit={handleSavePassword} className="mt-5">
-              <FormInput
-                id="settings-current-pw"
-                label="Current Password"
-                type="password"
-                icon={KeyRound}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                error={pwErrors.current}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
-                <FormInput
-                  id="settings-new-pw"
-                  label="New Password"
-                  type="password"
-                  icon={KeyRound}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  error={pwErrors.next}
-                />
-                <FormInput
-                  id="settings-confirm-pw"
-                  label="Confirm New Password"
-                  type="password"
-                  icon={KeyRound}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  error={pwErrors.confirm}
-                />
-              </div>
-              <div className="flex justify-end">
-                <PortalButton type="submit" variant="primary" size="md" icon={Save}>
-                  Update Password
-                </PortalButton>
-              </div>
-            </form>
+            <PasswordChangeForm
+              idPrefix="settings"
+              onChanged={() => showToast('Password updated successfully.')}
+              onError={(message) => showToast(message, 'danger')}
+            />
           </PortalCard>
 
           {/* Notification preferences */}

@@ -222,7 +222,7 @@ def my_letter_details_view(request):
     return Response(data)
 
 
-def _send_password_reset_email(user):
+def send_password_reset_email(user) -> bool:
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     reset_link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
@@ -239,13 +239,14 @@ def _send_password_reset_email(user):
     # fail_silently: an SMTP outage otherwise turned this endpoint into a
     # registered/unregistered oracle (500 for a real address, 200 for an
     # unknown one) despite the deliberately generic response body.
-    send_mail(
+    sent = send_mail(
         subject,
         message,
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
         fail_silently=True,
     )
+    return bool(sent)
 
 
 @api_view(["POST"])
@@ -260,7 +261,7 @@ def password_reset_view(request):
 
     user = User.objects.filter(email__iexact=email, is_active=True).first()
     if user is not None:
-        _send_password_reset_email(user)
+        send_password_reset_email(user)
 
     return Response(
         {"message": "If that email is registered, a password reset link has been sent."}

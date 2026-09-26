@@ -10,4 +10,9 @@ urlpatterns = [
         registry_views.student_record_detail_view,
         name="registry-student-detail",
     ),
+    path(
+        "students/<str:matric_no>/send-access-link/",
+        registry_views.student_access_link_view,
+        name="registry-student-access-link",
+    ),
 ]

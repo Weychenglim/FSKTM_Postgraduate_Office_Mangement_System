@@ -49,6 +49,9 @@ export const delay = (ms: number): Promise<void> =>
 /** Fired when the backend rejects our token, so the app can return to login. */
 export const SESSION_EXPIRED_EVENT = 'fsktm:session-expired';
 
+/** Fired when the backend holds the account until its password is changed. */
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'fsktm:password-change-required';
+
 /**
  * Whether a failed request may fall back to mock data.
  *
@@ -172,7 +175,11 @@ async function sessionFetch(
 async function raiseForStatus(res: Response): Promise<never> {
   let message = `Request failed: ${res.status} ${res.statusText}`;
   try {
-    const extracted = messageFromErrorBody(await res.json());
+    const body = await res.json();
+    if (res.status === 403 && body?.code === 'password_change_required' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT));
+    }
+    const extracted = messageFromErrorBody(body);
     if (extracted) message = extracted;
   } catch {
     /* error body was not JSON — keep the status-based message */
