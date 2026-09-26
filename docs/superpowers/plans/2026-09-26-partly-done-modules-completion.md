@@ -6,7 +6,7 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 
 | Phase | Scope | Size | Status | Commit(s) |
 |---|---|---|---|---|
-| 1 | Registry status changes go through participant lifecycle (bug) | S | Not started | |
+| 1 | Registry status changes go through participant lifecycle (bug) | S | Done | `9534304` |
 | 2 | Sign-in safety: session-expired message, forced password change, office-sent access links (UC01, UC02) | M | Not started | |
 | 3 | Student import: server-side CSV + XLSX with real import history (UC04) | L | Not started | |
 | 4 | Registry search and role-scoped read access (UC05) | M | Not started | |
@@ -145,13 +145,13 @@ Frontend script test:
 
 ## Phase 3 — Student Import: Server-Side CSV + XLSX With Real History (UC04)
 
-**Current state.** The browser parses CSV only (`frontend/src/utils/csvImport.ts`) and posts one row at a time. XLSX is not accepted. The "Recent Imports" panel in `StudentRegistry.tsx` is hardcoded ("View All" only shows a toast), and the upload box starts pre-filled with a fake file `student_registry_intake_sem1_2025.csv`. The approved programme list exists only in `frontend/src/constants/programmes.ts`.
+**Current state.** The browser parses CSV only (`frontend/src/utils/csvImport.ts`) and posts one row at a time. XLSX is not accepted. The "Recent Imports" panel in `StudentRegistry.tsx` is hardcoded ("View All" only shows a toast), and the upload box starts pre-filled with a fake file `student_registry_intake_sem1_2025.csv`. The approved programme list lives in `frontend/src/constants/programmes.ts` and is copied by hand as `APPROVED_PROGRAMMES` in `backend/accounts/registry_views.py`, with nothing checking that the two match.
 
 **Start here.** `frontend/src/utils/csvImport.ts` and `csvImport.test.ts` (headers, validation rules, template), `frontend/src/components/StudentRegistry.tsx` (import drawer, preview, Recent Imports panel), `backend/accounts/registry_views.py` (`_create_student`, `send_activation_email`, serializer validation), `backend/requirements.txt` (`openpyxl` is already installed).
 
 **Tasks.**
 1. **Canonical programme list in the backend.**
-   - Add a backend constant, for example `accounts/programmes.py`, with the same values as `constants/programmes.ts`.
+   - Move `APPROVED_PROGRAMMES` out of `registry_views.py` into its own module, for example `accounts/programmes.py`, so import and announcements can reuse it.
    - Registry registration and import validate against it.
    - Add a test that reads the TypeScript file and asserts the two lists are identical, so they cannot drift.
 2. **Import endpoint** `POST /api/registry/students/import/` (office only, multipart, one file):
@@ -186,6 +186,10 @@ Frontend script test:
 
 **Current state.** The frontend filters by programme, semester and academic status (`selectedProgramme`, `selectedSemester`, `selectedAcademicStatus` in `StudentRegistry.tsx`). The API filters only by `search` and `status`. There is no supervisor filter or supervisor column. The API is office-only, but `frontend/src/auth/permissions.ts` gives Programme Coordinators every module, so a coordinator who opens Registry gets an error.
 
+The screen also still shows invented content:
+- All five summary cards are fabricated. They start from `totalStudentsOverall = 1248 + (students.length - 6)`, and `inactiveStudentsMetric` is a flat `145`. The "Intake Semester 1 2025" subtext is hardcoded too.
+- The student panel's "Secured Verification Milestones" box includes "Credentials Review Verified by Wey Cheng" (a hardcoded name) and "Graduation Thesis Submission Logged". It also labels the intake date as the account-creation date.
+
 **Start here.** `backend/accounts/registry_views.py` (`student_records_view`, `to_record`), `backend/appointments/models.py` (`SupervisorAppointment`: `student`, `supervisor`, `status`, read only), `backend/accounts/models.py` (`Coordinator.programme_managed`, the `Lecturer` profile), `frontend/src/auth/permissions.ts`, `frontend/src/components/StudentRegistry.tsx`.
 
 **Tasks.**
@@ -202,12 +206,16 @@ Frontend script test:
    - Coordinators and lecturers get the Registry without write actions: no register, import, verify, status or account changes.
    - The Reset button clears every filter, including supervisor.
    - Show "No matching students found" when there are no results.
+4. **Remove invented content.**
+   - Compute the summary cards from real records: total, active, deferred, graduated or withdrawn, and new this intake. Use either the loaded list or a small summary endpoint; the list is not paginated today, so **verify** that before choosing.
+   - Replace the milestones box with facts the record actually has: whether the account is activated, its account status, and the last login. Otherwise remove the box.
 
 **Tests.**
 - The supervisor field and filter are correct, including a student with no supervisor.
 - Coordinator and lecturer scoping is right, and neither can see students outside their scope.
 - Every write returns 403 for those roles.
 - There are no extra queries per row: `assertNumQueries` on a list of several students.
+- A frontend script test for the summary-count helper, and a source check that none of the old fabricated constants remain.
 
 **Done when** a live smoke check with temporary office, coordinator and lecturer accounts shows the right rows and actions for each.
 
