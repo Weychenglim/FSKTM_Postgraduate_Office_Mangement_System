@@ -1,5 +1,28 @@
 # Project Status
 
+## Letter Templates: Archive and Placeholder Validation (2026-09-27)
+
+- **Archived status.** Letter templates gain an `Archived` status (migration `letters.0002_template_archived_status`). Archived templates keep their wording, never appear to students (hidden from the list, 403 by id), and can be restored to Draft or Active. The editor hides them behind a "Show archived templates" toggle, and the status field offers Archived.
+- **Placeholder registry.** `letters/placeholders.py` lists all 16 supported placeholders with a label and the source of each value. `GET /api/letter-templates/placeholders/` exposes the list to signed-in users, and the editor's insert buttons now come from it, showing the source as a tooltip.
+- **Validation.**
+  - Creating a template, changing its content, or publishing it now rejects unknown tags (for example `{{STUDNET_NAME}}`) and malformed ones (`{{NAME}`, `{NAME}}`, `{{ name }}`). The response is 400 with `unknownPlaceholders` and `malformedPlaceholders`, and the message is shown under the content field.
+  - A legacy template with a bad tag can still be archived, but cannot be published until it is fixed.
+  - All four templates in the development database pass the new check.
+- **Editor.**
+  - The "Preview" buttons used to show a canned "validated successfully" message without checking anything. They are now "Check" actions that run the same rules as the server.
+  - The live preview marks unknown tags in red.
+- **Supervisor in letters.** `/api/auth/me/letter-details/` now fills `supervisorName` from the student's current primary supervisor instead of leaving it blank, so `{{SUPERVISOR_NAME}}` has a real source.
+- **Parity.** A frontend test reads `letters/placeholders.py` and checks that `LETTER_PLACEHOLDERS` (tags and labels) matches it, that `substitutePlaceholders` fills every tag, and that the editor check agrees with the server rules.
+- **Verification.**
+  - **Backend:** **595 tests passed**, including 9 new letter-template tests and a letter-details supervisor test.
+  - **Frontend:** all **55 test scripts** passed.
+  - TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` pass. The migration was applied to the development database after a `pg_dump` backup.
+- **Live smoke check** with temporary office and student accounts, all deleted afterwards:
+  - A typo and a missing brace were each rejected with a clear message.
+  - A valid template was created, archived (hidden from the student), and restored.
+  - The placeholder endpoint listed all 16 tags and refused anonymous access.
+  - Browser visual acceptance remains unverified.
+
 ## Registry Supervisor Data and Role-Scoped Read Access (2026-09-27)
 
 - **Supervisor data.**

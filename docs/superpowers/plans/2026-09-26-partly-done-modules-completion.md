@@ -10,7 +10,7 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 | 2 | Sign-in safety: session-expired message, forced password change, office-sent access links (UC01, UC02) | M | Done | `b909876` |
 | 3 | Student import: server-side CSV + XLSX with real import history (UC04) | L | Done | `639afe6` |
 | 4 | Registry search and role-scoped read access (UC05) | M | Done | `9547ca4` |
-| 5 | Letter templates: archive, placeholder registry and validation (UC21) | M | Not started | |
+| 5 | Letter templates: archive, placeholder registry and validation (UC21) | M | Done | `16fe84c` |
 | 6 | Saved letter requests: reference numbers, history, Word export, notification (UC23) | L | Not started | |
 | 7 | Announcement scheduling, expiry, and registry targeting (UC30) | M | Not started | |
 | 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Not started | |
