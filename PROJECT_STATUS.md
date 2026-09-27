@@ -1,5 +1,34 @@
 # Project Status
 
+## Registry Supervisor Data and Role-Scoped Read Access (2026-09-27)
+
+- **Supervisor data.**
+  - Registry records now carry `supervisor` and `supervisorStaffNo` from the student's active primary `SupervisorAppointment`. The data is only read from the appointments module, never written.
+  - One prefetch loads it, and a test confirms the list's query count does not grow with the number of students.
+  - `GET /api/registry/students/?supervisor=` matches a supervisor's name or staff number.
+- **Read scope (UC05).**
+  - Office Staff/Admin read every record.
+  - Programme Coordinators read their managed programme, reusing `accounts.authorization.coordinator_programme`.
+  - Coordinators and Lecturers also read the students they currently supervise or co-supervise.
+  - A record outside the caller's scope returns 404, and every write, import, access-link, and import-history endpoint stays Office-only.
+  - The two older tests that expected lecturers to be refused outright now expect a scoped, read-only registry.
+- **Frontend.**
+  - Lecturers now have the Registry module. Coordinators and lecturers see it read-only: no register, import, bulk verify, status change, access link or reinstate actions, and no staff and lecturer tab.
+  - Added a Supervisor column and a supervisor filter (including "No supervisor yet"). Reset clears every filter, and an empty result reads "No matching students found".
+  - The programme, semester, and status filters previously offered values no record could match ("PhD (CS)", "Master (SE)", fixed semester strings, and "Pending"/"Suspended" as academic statuses). They now use the approved programme list, the semesters present in the data, and the four real statuses.
+- **Removed invented content.**
+  - All five summary cards were fabricated (for example `1248 + (students.length - 6)` and a flat `145`). They are now computed from the loaded records: total, active, deferred, graduated or withdrawn, and awaiting activation. "New this intake" was replaced with "awaiting activation" because intake values are free text, with no reliable "latest intake".
+  - The student panel's "verification milestones", including a hardcoded staff name, now show the account's real activation state, sign-in access, and last sign-in.
+- **Verification.**
+  - **Backend:** **585 tests passed**, including 7 new scope tests.
+  - **Frontend:** all **54 test scripts** passed, including new summary-helper tests and a source guard against the fabricated values and unguarded write actions.
+  - TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` pass. No migration was needed.
+- **Live smoke check.** Temporary office, coordinator, lecturer, and student accounts plus a temporary Draft semester and appointment were used, then deleted.
+  - Office saw all three test students with the supervisor details, and the filter matched.
+  - The coordinator saw only the student in their programme, and the lecturer saw only their supervisee; each got 404 for the other student and 403 for writes.
+  - The student got 403.
+  - Browser visual acceptance remains unverified.
+
 ## Server-Side Student Import With Real History (2026-09-26)
 
 - **Import endpoint.** `POST /api/registry/students/import/` (Office only) accepts CSV or XLSX up to 2 MB and 1,000 student rows. XLSX is opened read-only after a ZIP signature check.
