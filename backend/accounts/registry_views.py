@@ -1,11 +1,11 @@
 """Student Registry API (UC05-UC09), mounted under ``/api/registry/``.
 
-Office Staff/Admin manage postgraduate student records here. The read shape
-matches the frontend ``StudentRecord`` type so the existing Registry Management
-screen can switch from mocks without changing its rendering.
+Office Staff/Admin manage postgraduate student records here; Programme
+Coordinators and Lecturers get read-only access to the students in their scope.
+The read shape matches the frontend ``StudentRecord`` type.
 
-Supervisor is intentionally returned blank: the supervisor relationship lives in
-the teammate-owned ``appointments`` app, and this module does not reach into it.
+The supervisor shown on a record is read, never written, from the student's
+active primary ``SupervisorAppointment`` in the ``appointments`` app.
 """
 
 from django.conf import settings
@@ -14,7 +14,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import serializers, status
@@ -23,6 +23,9 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from appointments.models import CoSupervisorAppointment, SupervisorAppointment
+
+from .authorization import coordinator_programme
 from .models import RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
 from .programmes import APPROVED_PROGRAMMES
@@ -66,10 +69,64 @@ def _registry_or_none(student):
         return None
 
 
+def _registry_scope(user):
+    """Students ``user`` may read, or ``None`` when they have no registry access.
+
+    Office Staff/Admin read everything. Programme Coordinators read their
+    managed programme, and Coordinators and Lecturers read the students they
+    currently supervise or co-supervise.
+    """
+    if user.is_superuser or user.role == User.Role.OFFICE_ADMIN:
+        return Student.objects.all()
+    if user.role not in (User.Role.COORDINATOR, User.Role.LECTURER):
+        return None
+    scope = Q(
+        supervisor_appointments__supervisor=user,
+        supervisor_appointments__status=SupervisorAppointment.Status.ACTIVE,
+    ) | Q(
+        co_supervisor_appointments__supervisor=user,
+        co_supervisor_appointments__status=CoSupervisorAppointment.Status.ACTIVE,
+    )
+    programme = coordinator_programme(user)
+    if programme:
+        scope |= Q(programme__iexact=programme)
+    return Student.objects.filter(scope).distinct()
+
+
+def _require_registry_reader(request):
+    scope = _registry_scope(request.user)
+    if scope is None:
+        raise PermissionDenied("You do not have access to the student registry.")
+    return scope
+
+
+def _active_supervision():
+    return Prefetch(
+        "supervisor_appointments",
+        queryset=SupervisorAppointment.objects.filter(
+            status=SupervisorAppointment.Status.ACTIVE
+        ).select_related("supervisor__lecturer"),
+        to_attr="active_supervision",
+    )
+
+
+def _supervisor_of(student):
+    supervision = getattr(student, "active_supervision", None)
+    if supervision is None:
+        supervision = list(
+            student.supervisor_appointments.filter(
+                status=SupervisorAppointment.Status.ACTIVE
+            ).select_related("supervisor__lecturer")
+        )
+    return supervision[0].supervisor if supervision else None
+
+
 def to_record(student) -> dict:
     """Shape a Student (+ optional registry row) as the frontend expects."""
     user = student.user
     registry = _registry_or_none(student)
+    supervisor = _supervisor_of(student)
+    supervisor_profile = supervisor._related_or_none("lecturer") if supervisor else None
     return {
         "id": student.matric_no,
         "name": user.full_name,
@@ -82,8 +139,8 @@ def to_record(student) -> dict:
         or student.intake_semester,
         "email": user.email,
         "phone": user.phone,
-        # Owned by the appointments module; not read from here.
-        "supervisor": "",
+        "supervisor": supervisor.full_name if supervisor else "",
+        "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
         # Lets the office spot accounts that were registered but never
         # activated — e.g. because the invitation bounced.
@@ -154,13 +211,14 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def student_records_view(request):
-    """List student registry records, or register a new student."""
-    _require_office_admin(request)
-
+    """List the records the caller may read, or register a new student."""
     if request.method == "POST":
+        _require_office_admin(request)
         return _create_student(request)
 
-    queryset = Student.objects.select_related("user", "registry").all()
+    queryset = _require_registry_reader(request).select_related(
+        "user", "registry"
+    ).prefetch_related(_active_supervision())
     search = (request.query_params.get("search") or "").strip()
     if search:
         queryset = queryset.filter(
@@ -172,6 +230,15 @@ def student_records_view(request):
     academic_status = (request.query_params.get("status") or "").strip()
     if academic_status:
         queryset = queryset.filter(status__iexact=academic_status)
+    supervisor = (request.query_params.get("supervisor") or "").strip()
+    if supervisor:
+        queryset = queryset.filter(
+            Q(supervisor_appointments__status=SupervisorAppointment.Status.ACTIVE)
+            & (
+                Q(supervisor_appointments__supervisor__full_name__icontains=supervisor)
+                | Q(supervisor_appointments__supervisor__lecturer__staff_no__iexact=supervisor)
+            )
+        ).distinct()
 
     return Response([to_record(student) for student in queryset])
 
@@ -376,10 +443,15 @@ def import_batches_view(request):
     )
 
 
-def _find_student(matric_no):
-    """Return ``(student, None)`` or ``(None, error_response)``."""
+def _find_student(matric_no, queryset=None):
+    """Return ``(student, None)`` or ``(None, error_response)``.
+
+    Pass the caller's registry scope as ``queryset`` so a student outside it
+    reads as not found rather than confirming the record exists.
+    """
+    queryset = Student.objects.all() if queryset is None else queryset
     matches = list(
-        Student.objects.select_related("user", "registry").filter(
+        queryset.select_related("user", "registry").filter(
             matric_no__iexact=matric_no
         )[:2]
     )
@@ -407,15 +479,17 @@ def _find_student(matric_no):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def student_record_detail_view(request, matric_no):
-    """Retrieve or correct one student's registry record."""
-    _require_office_admin(request)
+    """Retrieve one student's registry record, or correct it (Office only)."""
+    if request.method == "GET":
+        student, error = _find_student(matric_no, _require_registry_reader(request))
+        if error:
+            return error
+        return Response(to_record(student))
 
+    _require_office_admin(request)
     student, error = _find_student(matric_no)
     if error:
         return error
-
-    if request.method == "GET":
-        return Response(to_record(student))
 
     serializer = StudentRecordUpdateSerializer(data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)

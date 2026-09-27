@@ -55,10 +55,13 @@ class StudentRegistryApiTests(APITestCase):
         response = self.client.get("/api/registry/students/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_lecturer_is_forbidden(self):
+    def test_lecturer_without_supervisees_sees_no_students(self):
         self.client.force_authenticate(self.lecturer)
         response = self.client.get("/api/registry/students/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        detail = self.client.get(f"/api/registry/students/{self.student.matric_no}/")
+        self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_student_cannot_read_the_registry(self):
         self.client.force_authenticate(self.student_user)
@@ -424,7 +427,8 @@ class StudentRegistryApiTests(APITestCase):
         self.lecturer.is_staff = True
         self.lecturer.save(update_fields=["is_staff"])
         self.client.force_authenticate(self.lecturer)
-        response = self.client.get("/api/registry/students/")
+        self.assertEqual(self.client.get("/api/registry/students/").data, [])
+        response = self.client.post("/api/registry/students/", self.NEW_STUDENT)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 

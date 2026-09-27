@@ -26,6 +26,7 @@ export interface StudentRecord {
   email: string;
   phone: string;
   supervisor: string;
+  supervisorStaffNo?: string;
   intakeDate: string;
   activated?: boolean;
   lastLogin?: string | null;

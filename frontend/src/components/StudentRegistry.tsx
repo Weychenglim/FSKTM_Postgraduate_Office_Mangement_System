@@ -15,7 +15,6 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight, 
-  Sparkles, 
   UserSquare, 
   UserCheck, 
   GraduationCap, 
@@ -61,7 +60,15 @@ import {
   sendAccessLink,
   updateStudent,
 } from '../services';
-import { describeBlockers, studentStatusOptions } from '../utils/registryStatus';
+import {
+  describeBlockers,
+  distinctValues,
+  studentStatusOptions,
+  summariseRegistry,
+} from '../utils/registryStatus';
+
+const NO_SUPERVISOR = '__none__';
+const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 
@@ -187,10 +194,14 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 };
 
 interface StudentRegistryProps {
+  readOnly?: boolean;
   onOpenParticipantLifecycle?: () => void;
 }
 
-export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticipantLifecycle }) => {
+export const StudentRegistry: React.FC<StudentRegistryProps> = ({
+  readOnly = false,
+  onOpenParticipantLifecycle,
+}) => {
   // Master Student Registry State — loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,6 +233,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
   const [selectedProgramme, setSelectedProgramme] = useState<string>('All');
   const [selectedSemester, setSelectedSemester] = useState<string>('All');
   const [selectedAcademicStatus, setSelectedAcademicStatus] = useState<string>('All');
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('All');
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
@@ -676,18 +688,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           student.email.toLowerCase().includes(searchLower);
 
     const matchesProgramme = selectedProgramme === 'All' || student.programme === selectedProgramme;
-    const matchesSemester = selectedSemester === 'All' || student.semester.includes(selectedSemester);
+    const matchesSemester = selectedSemester === 'All' || student.semester === selectedSemester;
     const matchesAcademic = selectedAcademicStatus === 'All' || student.academicStatus === selectedAcademicStatus;
+    const matchesSupervisor = selectedSupervisor === 'All'
+      || (selectedSupervisor === NO_SUPERVISOR ? !student.supervisor : student.supervisor === selectedSupervisor);
 
-    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic;
+    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic && matchesSupervisor;
   });
 
-  // Calculate dynamic outputs for the overall metrics
-  const totalStudentsOverall = 1248 + (students.length - 6);
-  const activeStudentsMetric = 982 + (students.length - 6);
-  const inactiveStudentsMetric = 145;
-  const pendingStudentsMetric = 39 + students.filter(s => s.academicStatus === 'Deferred').length;
-  const newThisSemesterMetric = 79 + (students.length - 6);
+  const summary = summariseRegistry(students);
+  const semesterOptions = distinctValues(students.map(s => s.semester));
+  const supervisorOptions = distinctValues(students.map(s => s.supervisor));
+  const columnCount = readOnly ? 6 : 7;
 
   // Paginated students records 
   const displayedStudents = filteredStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -715,68 +727,72 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
           
           <PageHeader
             title="Student Registry"
-            subtitle="University Postgraduate Secretariat"
+            subtitle={readOnly ? 'Read-only view of the students in your scope' : 'University Postgraduate Secretariat'}
             actions={
               <div className="flex items-center gap-3 select-none">
                 <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
                   Export CSV
                 </PortalButton>
-                <PortalButton
-                  onClick={() => {
-                    setCurrentView('register');
-                    setRegisterActiveTab('bulk');
-                  }}
-                  variant="primary"
-                  size="md"
-                  icon={UserPlus}
-                >
-                  Register New Students
-                </PortalButton>
+                {!readOnly && (
+                  <PortalButton
+                    onClick={() => {
+                      setCurrentView('register');
+                      setRegisterActiveTab('bulk');
+                    }}
+                    variant="primary"
+                    size="md"
+                    icon={UserPlus}
+                  >
+                    Register New Students
+                  </PortalButton>
+                )}
               </div>
             }
           />
 
           {/* Module switcher below the heading */}
-          <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
-            <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />
-          </div>
+          {!readOnly && (
+            <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
+              <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />
+            </div>
+          )}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
-          <div id="student-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <SummaryCard 
-              title="Total Students" 
-              value={totalStudentsOverall.toLocaleString()} 
-              subtext="Registered Enrolled Candidates" 
-              colorClass="bg-blue-50/50 text-blue-600 border-blue-100" 
-              icon={GraduationCap} 
+          <div id="student-summary-cards" className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8 ${readOnly ? 'mt-6' : ''}`}>
+            <SummaryCard
+              title="Total Students"
+              value={summary.total.toLocaleString()}
+              subtext={readOnly ? 'In your scope' : 'In the registry'}
+              colorClass="bg-blue-50/50 text-blue-600 border-blue-100"
+              icon={GraduationCap}
             />
-            <SummaryCard 
-              title="Active Students" 
-              value={activeStudentsMetric.toLocaleString()} 
-              subtext="Current Active Semesters" 
-              colorClass="bg-emerald-50/50 text-[#00a15c] border-[#bef5db]" 
-              icon={UserCheck} 
+            <SummaryCard
+              title="Active"
+              value={summary.active.toLocaleString()}
+              subtext="Currently studying"
+              colorClass="bg-emerald-50/50 text-[#00a15c] border-[#bef5db]"
+              icon={UserCheck}
             />
-            <SummaryCard 
-              title="Inactive" 
-              value={inactiveStudentsMetric.toLocaleString()} 
-              subtext="Graduated / On Leave" 
-              colorClass="bg-slate-50 text-slate-500 border-slate-200" 
-              icon={UserSquare} 
+            <SummaryCard
+              title="Deferred"
+              value={summary.deferred.toLocaleString()}
+              subtext="On approved deferment"
+              colorClass="bg-amber-50/60 text-[#ea580c] border-[#ffedd5]"
+              icon={Calendar}
             />
-            <SummaryCard 
-              title="Pending Verification" 
-              value={pendingStudentsMetric.toLocaleString()} 
-              subtext="Requires Credentials Review" 
-              colorClass="bg-amber-50/60 text-[#ea580c] border-[#ffedd5]" 
-              icon={ShieldAlert} 
+            <SummaryCard
+              title="Graduated / Withdrawn"
+              value={summary.exited.toLocaleString()}
+              subtext="No longer studying"
+              colorClass="bg-slate-50 text-slate-500 border-slate-200"
+              icon={UserSquare}
             />
-            <SummaryCard 
-              title="New This Semester" 
-              value={newThisSemesterMetric.toLocaleString()} 
-              subtext="Intake Semester 1 2025" 
-              colorClass="bg-purple-50/50 text-purple-600 border-purple-100" 
-              icon={Sparkles} 
+            <SummaryCard
+              title="Awaiting Activation"
+              value={summary.awaitingActivation.toLocaleString()}
+              subtext="Password not set yet"
+              colorClass="bg-purple-50/50 text-purple-600 border-purple-100"
+              icon={ShieldAlert}
             />
           </div>
 
@@ -817,9 +833,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
                   >
                     <option value="All">Programme: All</option>
-                    <option value="PhD (CS)">PhD (Computer Science)</option>
-                    <option value="Master (SE)">Master (Software Eng.)</option>
-                    <option value="PhD (IS)">PhD (Info Systems)</option>
+                    {PROGRAMME_OPTIONS.map((programme) => (
+                      <option key={programme} value={programme}>{programme}</option>
+                    ))}
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
                 </div>
@@ -835,8 +851,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
                   >
                     <option value="All">Semester: All</option>
-                    <option value="25/2026">Sem 1 2025/2026</option>
-                    <option value="24/2025">Sem 2 2024/2025</option>
+                    {semesterOptions.map((semester) => (
+                      <option key={semester} value={semester}>{semester}</option>
+                    ))}
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
                 </div>
@@ -852,10 +869,28 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
                   >
                     <option value="All">Status: All</option>
-                    <option value="Active">Active</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Graduated">Graduated</option>
-                    <option value="Suspended">Suspended</option>
+                    {ACADEMIC_STATUSES.map((academicStatus) => (
+                      <option key={academicStatus} value={academicStatus}>{academicStatus}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
+                </div>
+
+                {/* Selector: Supervisor */}
+                <div className="relative">
+                  <select
+                    value={selectedSupervisor}
+                    onChange={(e) => {
+                      setSelectedSupervisor(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                  >
+                    <option value="All">Supervisor: All</option>
+                    <option value={NO_SUPERVISOR}>No supervisor yet</option>
+                    {supervisorOptions.map((supervisor) => (
+                      <option key={supervisor} value={supervisor}>{supervisor}</option>
+                    ))}
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
                 </div>
@@ -868,6 +903,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     setSelectedProgramme('All');
                     setSelectedSemester('All');
                     setSelectedAcademicStatus('All');
+                    setSelectedSupervisor('All');
                     setCurrentPage(1);
                     setSelectedRowIds({});
                     triggerToast('All filtering properties reset successfully.');
@@ -881,7 +917,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
             </div>
 
             {/* Bulk Action verification Bar */}
-            {Object.values(selectedRowIds).some(v => v) && (
+            {!readOnly && Object.values(selectedRowIds).some(v => v) && (
               <div className="bg-indigo-50/70 border-b border-indigo-100 p-3.5 flex items-center justify-between text-left select-none animate-fade-in px-6">
                 <div className="flex items-center gap-2.5 text-slate-900">
                   <StatusDot tone="info" pulse className="w-2 h-2" />
@@ -915,19 +951,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
               <table className="data-table">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th w-12 text-center">
-                      <input
-                        type="checkbox"
-                        onChange={handleToggleAll}
-                        checked={filteredStudents.length > 0 && filteredStudents.every(it => selectedRowIds[it.id])}
-                        className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                      />
-                    </th>
+                    {!readOnly && (
+                      <th className="data-th w-12 text-center">
+                        <input
+                          type="checkbox"
+                          onChange={handleToggleAll}
+                          checked={filteredStudents.length > 0 && filteredStudents.every(it => selectedRowIds[it.id])}
+                          className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
+                        />
+                      </th>
+                    )}
                     <th className="data-th">
                       Student Candidate
                     </th>
                     <th className="data-th">
                       Programme
+                    </th>
+                    <th className="data-th">
+                      Supervisor
                     </th>
                     <th className="data-th text-center">
                       Academic Status
@@ -943,20 +984,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-0">
+                      <td colSpan={columnCount} className="p-0">
                         <LoadingState message="Loading students…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={6} className="p-0">
+                      <td colSpan={columnCount} className="p-0">
                         <ErrorState message={error} onRetry={loadStudents} />
                       </td>
                     </tr>
                   ) : displayedStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 font-extrabold select-none">
-                        No registry rows matching the current query. Try redefining your search filters.
+                      <td colSpan={columnCount} className="py-12 text-center text-slate-400 font-extrabold select-none">
+                        No matching students found. Adjust the search or filters and try again.
                       </td>
                     </tr>
                   ) : (
@@ -968,14 +1009,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           className={`data-row ${isChecked ? 'bg-brand-navy/[0.01]' : ''}`}
                         >
                           {/* Selector column */}
-                          <td className="data-td w-12 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleRow(student.id)}
-                              className="rounded text-slate-950 focus:ring-slate-955 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                            />
-                          </td>
+                          {!readOnly && (
+                            <td className="data-td w-12 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleRow(student.id)}
+                                className="rounded text-slate-950 focus:ring-slate-955 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
+                              />
+                            </td>
+                          )}
 
                           {/* Student identity details */}
                           <td className="data-td">
@@ -997,6 +1040,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                           {/* Programme column */}
                           <td className="data-td">
                             <ProgrammeChip label={student.programme} />
+                          </td>
+
+                          <td className="data-td">
+                            {student.supervisor ? (
+                              <div className="text-left">
+                                <span className="text-[11.5px] font-extrabold text-slate-800 block">{student.supervisor}</span>
+                                {student.supervisorStaffNo && (
+                                  <span className="text-[10px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-slate-400">Not assigned</span>
+                            )}
                           </td>
 
                           {/* Academic status column */}
@@ -1034,13 +1090,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
             <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-[#e2e8f0] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
               
               <div className="text-[11px] text-slate-500 font-bold text-left">
-                Showing <strong className="text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
+                Showing <strong className="text-slate-800">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
                 <strong className="text-slate-800">
                   {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
                 </strong>{' '}
                 of <strong className="text-slate-800">{filteredStudents.length}</strong> entries{' '}
                 <span className="text-slate-400 font-semibold">
-                  (Total {totalStudentsOverall.toLocaleString()} overall)
+                  (Total {summary.total.toLocaleString()} overall)
                 </span>
               </div>
 
@@ -1098,7 +1154,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
       {/* ========================================================== */}
       {/* SCREEN B: REGISTER NEW STUDENTS (CSV IMPORT & MANUAL FORM) */}
       {/* ========================================================== */}
-      {currentView === 'register' && (
+      {currentView === 'register' && !readOnly && (
         <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
           
           <PageHeader
@@ -2021,7 +2077,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
                       Academic Supervisor
                     </span>
-                    <span className="text-slate-850 font-black block pt-0.5">{viewingStudent.supervisor}</span>
+                    <span className="text-slate-850 font-black block pt-0.5">
+                      {viewingStudent.supervisor || 'Not assigned'}
+                      {viewingStudent.supervisorStaffNo && (
+                        <span className="font-mono font-semibold text-slate-500 text-[10px] ml-1.5">{viewingStudent.supervisorStaffNo}</span>
+                      )}
+                    </span>
                   </div>
 
                   {/* Contact Email */}
@@ -2045,6 +2106,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
 
                 </div>
 
+                {!readOnly && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
                   <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
                     Change Academic Status
@@ -2107,43 +2169,43 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                     </>
                   )}
                 </div>
+                )}
 
-                {/* Verification checklists timelines */}
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 space-y-3">
                   <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
-                    Secured Verification Milestones
+                    Account
                   </h4>
 
                   <div className="space-y-2 text-[10.5px]">
                     <div className="flex items-center gap-2">
-                      <div className="w-4.5 h-4.5 rounded-full bg-emerald-100 text-[#00a15c] flex items-center justify-center text-[10px] font-bold">✓</div>
-                      <span className="text-slate-700 font-bold">Postgraduate Portal Account Created - {viewingStudent.intakeDate}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
                       <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        viewingStudent.accountStatus === 'Verified' 
-                          ? 'bg-emerald-100 text-[#00a15c]' 
-                          : 'bg-amber-100 text-[#ea580c]'
+                        viewingStudent.activated === false ? 'bg-amber-100 text-[#ea580c]' : 'bg-emerald-100 text-[#00a15c]'
                       }`}>
-                        {viewingStudent.accountStatus === 'Verified' ? '✓' : '!'}
+                        {viewingStudent.activated === false ? '!' : '✓'}
                       </div>
-                      <span className={`font-bold ${viewingStudent.accountStatus === 'Verified' ? 'text-slate-700' : 'text-amber-700 font-extrabold'}`}>
-                        {viewingStudent.accountStatus === 'Verified' 
-                          ? 'Credentials Review Verified by Wey Cheng' 
-                          : 'Pending Document Authentications'}
+                      <span className="text-slate-700 font-bold">
+                        {viewingStudent.activated === false
+                          ? 'Not activated — the student has not set a password yet'
+                          : 'Activated'}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        viewingStudent.academicStatus === 'Graduated' 
-                          ? 'bg-blue-100 text-blue-600' 
-                          : 'bg-slate-200 text-slate-500'
+                        viewingStudent.accountStatus === 'Verified' ? 'bg-emerald-100 text-[#00a15c]' : 'bg-amber-100 text-[#ea580c]'
                       }`}>
-                        {viewingStudent.academicStatus === 'Graduated' ? '✓' : '•'}
+                        {viewingStudent.accountStatus === 'Verified' ? '✓' : '!'}
                       </div>
-                      <span className="text-slate-500">Graduation Thesis Submission Logged</span>
+                      <span className="text-slate-700 font-bold">
+                        {viewingStudent.accountStatus === 'Verified' ? 'Sign-in allowed' : 'Suspended — sign-in blocked'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-4.5 h-4.5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">•</div>
+                      <span className="text-slate-500 font-semibold">
+                        Last sign-in: {viewingStudent.lastLogin ? new Date(viewingStudent.lastLogin).toLocaleString() : 'Never'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2158,7 +2220,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
 
                 <div className="flex gap-2">
 
-                  {viewingStudent.accountStatus === 'Verified' && (
+                  {!readOnly && viewingStudent.accountStatus === 'Verified' && (
                     <button
                       type="button"
                       disabled={sendingAccessLink}
@@ -2174,7 +2236,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({ onOpenParticip
                   )}
 
                   {/* Reinstate a suspended account */}
-                  {viewingStudent.accountStatus === 'Suspended' && (
+                  {!readOnly && viewingStudent.accountStatus === 'Suspended' && (
                     <button
                       type="button"
                       disabled={saving}

@@ -728,6 +728,7 @@ export default function App() {
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
+                readOnly={currentUser.role !== 'Office Staff/Admin'}
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
