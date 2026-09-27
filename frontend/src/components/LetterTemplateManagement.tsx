@@ -28,14 +28,27 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { LetterTemplate } from '../types';
-import { LETTER_PLACEHOLDERS, LETTERHEAD, renderLetterBodyHtml } from '../utils/letterDocument';
+import { LetterPlaceholder, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
+  LETTER_PLACEHOLDERS,
+  LETTERHEAD,
+  findPlaceholderProblems,
+  renderLetterBodyHtml,
+} from '../utils/letterDocument';
+import {
+  ApiError,
+  getLetterPlaceholders,
   getLetterTemplates,
   createLetterTemplate,
   updateLetterTemplate,
   deleteLetterTemplate,
 } from '../services';
+
+const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
+  [
+    unknown.length ? `Unknown placeholder(s): ${unknown.join(', ')}.` : '',
+    malformed.length ? `Malformed placeholder(s): ${malformed.join(', ')}. Write them as {{NAME}}.` : '',
+  ].filter(Boolean).join(' ');
 
 // LetterTemplate now lives in src/types.
 
@@ -61,7 +74,10 @@ export const LetterTemplateManagement: React.FC = () => {
   const [editorName, setEditorName] = useState('');
   const [editorType, setEditorType] = useState('');
   const [editorContent, setEditorContent] = useState('');
-  const [editorStatus, setEditorStatus] = useState<'Active' | 'Draft'>('Active');
+  const [editorStatus, setEditorStatus] = useState<LetterTemplateStatus>('Active');
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [placeholders, setPlaceholders] = useState<LetterPlaceholder[] | null>(null);
 
   // Editor textarea ref + the caret position to restore after inserting a tag,
   // so a placeholder lands at the cursor (not the end) and the caret follows it.
@@ -84,6 +100,10 @@ export const LetterTemplateManagement: React.FC = () => {
     loadTemplates();
   }, [loadTemplates]);
 
+  useEffect(() => {
+    getLetterPlaceholders().then(setPlaceholders).catch(() => setPlaceholders(null));
+  }, []);
+
   // Sync editor fields when selected template changes
   useEffect(() => {
     if (!selectedTemplate) return;
@@ -91,6 +111,7 @@ export const LetterTemplateManagement: React.FC = () => {
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
     setEditorStatus(selectedTemplate.status);
+    setContentError(null);
   }, [selectedTemplate]);
 
   // After an inserted tag changes the content, refocus the textarea and move the
@@ -106,11 +127,14 @@ export const LetterTemplateManagement: React.FC = () => {
     }
   }, [editorContent]);
 
-  // Available placeholder tags — the canonical set (incl. visa/immigration
-  // fields) so any template, including the student-pass letter, can be authored.
-  const placeholderTags = LETTER_PLACEHOLDERS.map((p) => ({
+  // Available placeholder tags come from the server's registry, the same list
+  // it validates against; the local copy covers the moment before it loads.
+  const placeholderTags = (
+    placeholders ?? LETTER_PLACEHOLDERS.map((p) => ({ ...p, source: '' }))
+  ).map((p) => ({
     label: `+ ${p.label}`,
     tag: p.tag,
+    source: p.source,
   }));
 
   // Quick Insertion Helper — insert the tag at the caret (or over the current
@@ -154,7 +178,9 @@ export const LetterTemplateManagement: React.FC = () => {
       setSelectedTemplate(updated);
       triggerToast(`Template "${updated.name}" saved.`);
     } catch (e) {
-      triggerToast(e instanceof Error ? `Save failed: ${e.message}` : 'Save failed.');
+      const message = e instanceof Error ? e.message : 'Save failed.';
+      if (e instanceof ApiError && e.status === 400) setContentError(message);
+      triggerToast(`Save failed: ${message}`);
     } finally {
       setSaving(false);
     }
@@ -183,11 +209,21 @@ export const LetterTemplateManagement: React.FC = () => {
     setEditorType(selectedTemplate.type);
     setEditorContent(selectedTemplate.content);
     setEditorStatus(selectedTemplate.status);
+    setContentError(null);
     triggerToast('Reverted unsaved changes back to the saved template.');
   };
 
-  const handlePreviewLetterPop = () => {
-    triggerToast('Initiating visual layout assertion check... Letter template validated successfully.');
+  const handleCheckPlaceholders = () => {
+    const problems = findPlaceholderProblems(editorContent);
+    const message = describePlaceholderProblems(problems);
+    if (message) {
+      setContentError(message);
+      triggerToast(message);
+      return;
+    }
+    setContentError(null);
+    const used = new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+    triggerToast(`All ${used} placeholder${used === 1 ? '' : 's'} in this template are supported.`);
   };
 
   // Wrap the current selection (or insert a stub) with a markup marker, e.g.
@@ -238,9 +274,12 @@ export const LetterTemplateManagement: React.FC = () => {
   };
 
   // Filter computation
-  const filteredTemplates = templates.filter(t => 
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const archivedCount = templates.filter(t => t.status === 'Archived').length;
+  const filteredTemplates = templates.filter(t =>
+    (showArchived || t.status !== 'Archived') && (
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   return (
@@ -286,6 +325,16 @@ export const LetterTemplateManagement: React.FC = () => {
               />
             </div>
 
+            {archivedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchived(!showArchived)}
+                className="text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                {showArchived ? 'Hide archived templates' : `Show archived templates (${archivedCount})`}
+              </button>
+            )}
+
             {/* Template Card Buttons list */}
             <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
               {loading ? (
@@ -317,7 +366,12 @@ export const LetterTemplateManagement: React.FC = () => {
                         </span>
                         
                         {/* Status chip */}
-                        <StatusBadge tone={isActive ? 'brand' : 'neutral'} className="px-2 py-0.5 text-[8px] rounded-md">{tpl.status}</StatusBadge>
+                        <StatusBadge
+                          tone={isActive ? 'brand' : tpl.status === 'Archived' ? 'warning' : 'neutral'}
+                          className="px-2 py-0.5 text-[8px] rounded-md"
+                        >
+                          {tpl.status}
+                        </StatusBadge>
                       </div>
 
                       {/* Description blurb */}
@@ -395,10 +449,10 @@ export const LetterTemplateManagement: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handlePreviewLetterPop}
+                  onClick={handleCheckPlaceholders}
                   className="px-3.5 py-1.5 bg-[#1e293b] hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer"
                 >
-                  Preview
+                  Check Tags
                 </button>
 
                 <button
@@ -474,6 +528,7 @@ export const LetterTemplateManagement: React.FC = () => {
                       key={p.tag}
                       type="button"
                       onClick={() => handleInsertTag(p.tag)}
+                      title={p.source || undefined}
                       className="px-3 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] border border-blue-200 text-blue-700 hover:text-blue-800 text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs"
                     >
                       {p.label}
@@ -549,12 +604,22 @@ export const LetterTemplateManagement: React.FC = () => {
                   ref={editorTextareaRef}
                   rows={8}
                   value={editorContent}
-                  onChange={(e) => setEditorContent(e.target.value)}
+                  onChange={(e) => {
+                    setEditorContent(e.target.value);
+                    setContentError(null);
+                  }}
+                  aria-invalid={contentError ? true : undefined}
                   className="w-full p-4 text-xs font-semibold text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition"
                   placeholder="Draft your main letter content using placeholder keys..."
                 />
 
               </div>
+
+              {contentError && (
+                <p role="alert" className="-mt-4 text-[11px] font-bold text-rose-600">
+                  {contentError}
+                </p>
+              )}
 
               {/* Dynamic Simulated A4 Document sheet Paper Block exactly as in layout mockup */}
               <div className="border border-slate-200 rounded-xl bg-slate-100/70 p-4">
@@ -659,11 +724,12 @@ export const LetterTemplateManagement: React.FC = () => {
                       <select
                         aria-label="Template Status Option"
                         value={editorStatus}
-                        onChange={(e) => setEditorStatus(e.target.value as 'Active' | 'Draft')}
+                        onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
                         className="bg-transparent border-none text-xs font-black text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
                       >
                         <option value="Active">● Active / Live</option>
                         <option value="Draft">● Draft / Sandbox</option>
+                        <option value="Archived">● Archived / Retired</option>
                       </select>
                     </div>
                   </div>
@@ -701,10 +767,10 @@ export const LetterTemplateManagement: React.FC = () => {
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
                   <button
                     type="button"
-                    onClick={handlePreviewLetterPop}
+                    onClick={handleCheckPlaceholders}
                     className="w-full md:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
                   >
-                    Preview Letter
+                    Check Placeholders
                   </button>
 
                   <button

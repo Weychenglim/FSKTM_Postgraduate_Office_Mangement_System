@@ -8,7 +8,7 @@
 // unreachable *and* mocks are enabled, so the UI still renders offline; writes
 // always go to the backend (they require an authenticated staff user).
 
-import { LetterTemplate } from '../types';
+import { LetterPlaceholder, LetterTemplate } from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
 import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
 
@@ -91,4 +91,9 @@ export async function updateLetterTemplate(
 
 export async function deleteLetterTemplate(id: string): Promise<void> {
   await request<void>(`/letter-templates/${id}/`, { method: 'DELETE' });
+}
+
+/** The placeholders a template may use, with labels and value sources. */
+export async function getLetterPlaceholders(): Promise<LetterPlaceholder[]> {
+  return request<LetterPlaceholder[]>('/letter-templates/placeholders/');
 }

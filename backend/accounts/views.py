@@ -22,6 +22,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from appointments.models import SupervisorAppointment
+
 from .authentication import RefreshCookieAuthentication
 from .models import NotificationPreference
 from .serializers import (
@@ -182,6 +184,17 @@ def notification_preferences_view(request):
     return Response(preference.to_public_dict())
 
 
+def _current_supervisor_name(student):
+    appointment = (
+        SupervisorAppointment.objects.filter(
+            student=student, status=SupervisorAppointment.Status.ACTIVE
+        )
+        .select_related("supervisor")
+        .first()
+    )
+    return appointment.supervisor.full_name if appointment else ""
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_letter_details_view(request):
@@ -203,7 +216,7 @@ def my_letter_details_view(request):
         "matricNumber": student.matric_no,
         "programName": student.programme,
         "currentStatus": student.status,
-        "supervisorName": "",  # no system data source for the supervisor yet
+        "supervisorName": _current_supervisor_name(student),
         # Registry-backed fields — blank until a registry row exists.
         "passportNumber": "",
         "country": "",

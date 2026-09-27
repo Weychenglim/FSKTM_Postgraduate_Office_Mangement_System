@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import LetterTemplate
+from .placeholders import placeholder_catalogue, placeholder_problems
 from .serializers import LetterTemplateSerializer
 
 # Roles allowed to manage (write) templates. Students/lecturers are read-only.
@@ -42,9 +43,35 @@ def _require_content(template):
     return None
 
 
+def _placeholder_errors(content):
+    """Error body when ``content`` uses unknown or malformed tags, otherwise None."""
+    unknown, malformed = placeholder_problems(content)
+    if not unknown and not malformed:
+        return None
+    problems = []
+    if unknown:
+        problems.append(f"Unknown placeholder(s): {', '.join(unknown)}.")
+    if malformed:
+        problems.append(
+            f"Malformed placeholder(s): {', '.join(malformed)}. Write them as {{{{NAME}}}}."
+        )
+    return {
+        "content": " ".join(problems),
+        "unknownPlaceholders": unknown,
+        "malformedPlaceholders": malformed,
+    }
+
+
 def _actor(request):
     user = request.user
     return getattr(user, "full_name", "") or getattr(user, "email", "Office Staff")
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def placeholders_list(request):
+    """The placeholders a template may use, with labels and where each value comes from."""
+    return Response(placeholder_catalogue())
 
 
 @api_view(["GET", "POST"])
@@ -71,6 +98,9 @@ def templates_list(request):
             {"content": "Letter content is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    invalid = _placeholder_errors(serializer.validated_data["content"])
+    if invalid:
+        return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
     template = LetterTemplate.objects.create(
         modified_by=_actor(request), **serializer.to_model_kwargs()
     )
@@ -105,6 +135,11 @@ def templates_detail(request, pk):
         setattr(template, field, value)
 
     invalid = _require_content(template)
+    if not invalid and (
+        "content" in serializer.validated_data
+        or template.status == LetterTemplate.Status.ACTIVE
+    ):
+        invalid = _placeholder_errors(template.content)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 

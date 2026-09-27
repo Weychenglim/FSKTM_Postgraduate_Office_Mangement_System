@@ -174,3 +174,14 @@ class RegistryScopeTests(APITestCase):
             response = self.client.get("/api/registry/students/")
         self.assertEqual(len(response.data), 9)
         self.assertEqual(len(after.captured_queries), len(before.captured_queries))
+
+    def test_letter_details_name_the_current_primary_supervisor(self):
+        self.client.force_authenticate(self.supervised.user)
+        response = self.client.get("/api/auth/me/letter-details/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["supervisorName"], "Dr Supervisor")
+        for student in (self.unrelated, self.formerly_supervised):
+            self.client.force_authenticate(student.user)
+            self.assertEqual(
+                self.client.get("/api/auth/me/letter-details/").data["supervisorName"], ""
+            )

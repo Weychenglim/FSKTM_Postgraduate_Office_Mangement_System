@@ -70,6 +70,28 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
+const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
+const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
+const STRAY_BRACES_RE = /\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}/g;
+
+/**
+ * The same check the server runs before saving (`letters/placeholders.py`):
+ * tags that are not supported, and `{{`/`}}` pairs that are not a well-formed
+ * `{{NAME}}` tag.
+ */
+export function findPlaceholderProblems(content: string): { unknown: string[]; malformed: string[] } {
+  const unknown: string[] = [];
+  const malformed: string[] = [];
+  for (const [token, name] of content.matchAll(TOKEN_RE)) {
+    if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
+    else if (!KNOWN_TAGS.has(token)) unknown.push(token);
+  }
+  for (const stray of content.replace(TOKEN_RE, '').match(STRAY_BRACES_RE) ?? []) {
+    malformed.push(stray.trim());
+  }
+  return { unknown: [...new Set(unknown)], malformed: [...new Set(malformed)] };
+}
+
 /**
  * Fallback for a placeholder we have no value for: a blank line the postgraduate
  * office completes by hand. Registry-backed fields (passport, country, semesters…)
@@ -144,12 +166,14 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean): string 
   s = s.replace(/__([^_]+?)__/g, '<u>$1</u>'); // underline (double underscore)
   s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>'); // italic (single asterisk)
   if (highlightPlaceholders) {
-    s = s.replace(
-      /\{\{[A-Z_]+\}\}/g,
-      (tag) =>
-        `<span style="background:#0c1424;color:#a5b4fc;font-family:ui-monospace,monospace;` +
-        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`,
-    );
+    s = s.replace(/\{\{[A-Z_]+\}\}/g, (tag) => {
+      const known = KNOWN_TAGS.has(tag);
+      return (
+        `<span${known ? '' : ' title="Unknown placeholder"'} style="background:${known ? '#0c1424' : '#fee2e2'};` +
+        `color:${known ? '#a5b4fc' : '#b91c1c'};font-family:ui-monospace,monospace;` +
+        `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`
+      );
+    });
   }
   return s;
 }
