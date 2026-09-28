@@ -10,6 +10,8 @@ import {
 
 assert.equal(canOpenReportDossier({ recordType: 'CO_SUPERVISOR_NOMINATION', studentId: 'PG001' }), false);
 assert.equal(canOpenReportDossier({ recordType: 'CO_SUPERVISOR_APPOINTMENT', studentId: 'PG001' }), false);
+assert.equal(canOpenReportDossier({ recordType: 'RESEARCH_AMENDMENT', studentId: 'PG001' }), false);
+assert.equal(resolveWorkflowReportRecordRoute({ recordType: 'RESEARCH_AMENDMENT', recordId: '4' }), '/supervisor-appointments');
 assert.equal(canOpenReportDossier({ recordType: 'SUPERVISOR_APPLICATION', studentId: 'PG001' }), true);
 assert.equal(canOpenReportDossier({ recordType: 'SUPERVISOR_APPLICATION', studentId: null }), false);
 

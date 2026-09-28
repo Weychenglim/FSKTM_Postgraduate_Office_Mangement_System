@@ -412,7 +412,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             </td>
                             {/* Deadline */}
                             <td className={`py-4.5 pr-2 font-extrabold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
-                              <span className="block">{task.deadline}</span>
+                              <span className="block">{task.effectiveDueAt ? new Date(task.effectiveDueAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }) + ' (Malaysia)' : task.deadline}</span>
+                              {task.completionWindow ? <span className="block text-sky-700">Completion window · {task.completionWindow.status}</span> : null}
                               <span className="text-[10px] font-bold block mt-1">
                                 {formatDeadlineText(task)}
                               </span>
@@ -420,6 +421,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             {/* Status */}
                             <td className="py-4.5 pr-2">
                               <StatusChip type={task.status} />
+                              {task.periodEffectiveStatus ? <span className="block text-xs text-slate-500">Period: {task.periodEffectiveStatus}</span> : null}
                             </td>
                             {/* Action Button */}
                             <td className="py-4.5 text-center">
@@ -431,7 +433,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                                 >
                                   View Dossier
                                 </button>
-                                {task.status === 'SUBMITTED' ? (
+                                {task.status === 'SUBMITTED' || task.canEdit !== true ? (
                                   <button
                                     type="button"
                                     onClick={() => handleOpenForm(task)}

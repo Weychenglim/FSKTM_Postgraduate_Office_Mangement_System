@@ -4,7 +4,7 @@ from django.http import Http404
 from django.utils import timezone
 
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_manages_programme
 from accounts.models import Student
 from appointments.ageing import (
     panel_waiting_metadata,
@@ -87,8 +87,7 @@ def _resolve_access(user, student, profile):
             SECTION_TIMELINE,
         }
     if user.role == User.Role.COORDINATOR:
-        programme = coordinator_programme(user)
-        if not programme or student.programme != programme:
+        if not coordinator_manages_programme(user, student.programme):
             raise Http404
         return "INTERNAL", {
             SECTION_SUPERVISOR,
@@ -406,24 +405,28 @@ def _marks_records(profile, user, visibility, now):
             profile=profile,
         )
         .select_related(
-            "evaluator",
+            "evaluator__lecturer",
+            "profile__student__student",
             "period",
             "period__academic_semester",
             "mark_entry",
         )
         .order_by("-period__closes_at", "-assigned_at", "-id")
+        .prefetch_related("completion_windows__granted_by")
     )
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
 
     rows = []
     for task in tasks:
+        from marks.completion_windows import task_due_at
+
         try:
             entry = task.mark_entry
         except MarkEntry.DoesNotExist:
             entry = None
         deadline = mark_deadline_metadata(
-            task.period.closes_at,
+            task_due_at(task, now=now),
             is_submitted=bool(entry and entry.status == MarkEntry.Status.SUBMITTED),
             now=now,
         )
@@ -645,6 +648,7 @@ def build_student_progress_dossier(user, student_id, now=None):
     profile = _research_profile(student)
     visibility, visible_set = _resolve_access(user, student, profile)
     from appointments.co_supervision import can_read_team, serialize_team
+    from .amendment_tracking import amendment_dossier
 
     supervisory_team = (
         serialize_team(student, user) if can_read_team(user, student) else None
@@ -762,6 +766,7 @@ def build_student_progress_dossier(user, student_id, now=None):
         },
         "visibleSections": ordered_sections,
         "supervisoryTeam": supervisory_team,
+        "researchAmendments": amendment_dossier(user, student, now),
         "overview": {
             "supervisorStatus": (
                 supervisor_current["status"] if supervisor_current else None

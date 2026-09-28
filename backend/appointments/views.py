@@ -11,7 +11,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from announcements.models import Notification
-from accounts.authorization import coordinator_programme
+from accounts.authorization import (
+    coordinator_programme, coordinator_programmes, coordinator_scope_q,
+    coordinator_manages_programme, programme_coordinators,
+)
 from accounts.eligibility import (
     profile_student_is_workflow_eligible,
     student_is_workflow_eligible,
@@ -506,14 +509,6 @@ def record_workflow_event(
     )
 
 
-def programme_coordinators(programme):
-    return User.objects.filter(
-        role=User.Role.COORDINATOR,
-        is_active=True,
-        lecturer__coordinator__programme_managed=programme,
-    )
-
-
 def notify_workflow(
     *,
     recipients,
@@ -566,9 +561,8 @@ def can_view_panel_recommendation(user, recommendation):
     )
 
 
-def coordinator_can_access_recommendation(user, recommendation):
-    programme = coordinator_programme(user)
-    return bool(programme) and recommendation.profile.programme == programme
+def coordinator_can_access_recommendation(user, recommendation, *, lock=False):
+    return coordinator_manages_programme(user, recommendation.profile.programme, lock=lock)
 
 
 @api_view(["GET"])
@@ -901,12 +895,9 @@ def coordinator_queue_view(request):
             "Only Programme Coordinators can view coordinator review queues.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     recommendations = PanelRecommendation.objects.filter(
+        coordinator_scope_q(request.user, "profile__programme"),
         status=PanelRecommendation.Status.PENDING_COORDINATOR,
-        profile__programme=programme,
     ).select_related(
         "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
     )
@@ -923,10 +914,12 @@ def coordinator_workspace_view(request):
         )
 
     programme = coordinator_programme(request.user)
-    if not programme:
+    programmes = coordinator_programmes(request.user)
+    if not programmes:
         return Response(
             {
                 "programme": "",
+                "programmes": [],
                 "pendingCount": 0,
                 "queue": [],
                 "records": [],
@@ -935,7 +928,7 @@ def coordinator_workspace_view(request):
         )
 
     recommendations = (
-        PanelRecommendation.objects.filter(profile__programme=programme)
+        PanelRecommendation.objects.filter(coordinator_scope_q(request.user, "profile__programme"))
         .select_related(
             "profile",
             "supervisor",
@@ -952,6 +945,7 @@ def coordinator_workspace_view(request):
     return Response(
         {
             "programme": programme,
+            "programmes": programmes,
             "pendingCount": len(queue),
             "queue": PanelRecommendationSerializer(queue, many=True).data,
             "records": PanelRecommendationSerializer(recommendations, many=True).data,
@@ -1226,6 +1220,8 @@ def coordinator_approve_view(request, pk):
         Lecturer.objects.select_for_update().get(
             pk=recommendation.recommended_member_id
         )
+        if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
         if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
             return error_response(
                 "This recommendation is not awaiting Programme Coordinator review.",
@@ -1317,6 +1313,15 @@ def coordinator_reject_view(request, pk):
     reason_serializer.is_valid(raise_exception=True)
     reason = reason_serializer.validated_data["reason"]
     with transaction.atomic():
+        if recommendation.profile.student_id:
+            Student.objects.select_for_update().get(pk=recommendation.profile.student_id)
+        recommendation = PanelRecommendation.objects.select_for_update(of=("self",)).select_related("profile").get(pk=pk)
+        if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
+        if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
+            return error_response("This recommendation is no longer awaiting coordinator review.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.REJECTED_BY_COORDINATOR
         recommendation.coordinator_rejection_reason = str(reason).strip()
@@ -1366,9 +1371,8 @@ def assignments_view(request):
     return Response(PanelAssignmentSerializer(appointments, many=True).data)
 
 
-def supervisor_programme_access(user, application):
-    programme = coordinator_programme(user)
-    return bool(programme) and application.student.programme == programme
+def supervisor_programme_access(user, application, *, lock=False):
+    return coordinator_manages_programme(user, application.student.programme, lock=lock)
 
 
 def get_supervisor_application(pk):
@@ -1893,11 +1897,8 @@ def supervisor_coordinator_queue_view(request):
             "Only Programme Coordinators can view supervisor approvals.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     applications = SupervisorApplication.objects.filter(
-        student__programme=programme,
+        coordinator_scope_q(request.user, "student__programme"),
         status=SupervisorApplication.Status.PENDING_COORDINATOR,
     ).select_related("student", "student__user", "proposed_supervisor")
     return Response(SupervisorApplicationSerializer(applications, many=True).data)
@@ -1911,12 +1912,9 @@ def supervisor_coordinator_records_view(request):
             "Only Programme Coordinators can view supervisor appointment records.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     applications = (
         SupervisorApplication.objects.filter(
-            student__programme=programme,
+            coordinator_scope_q(request.user, "student__programme"),
             status=SupervisorApplication.Status.APPROVED,
             appointment__isnull=False,
         )
@@ -2002,6 +2000,14 @@ def supervisor_coordinator_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        Student.objects.select_for_update().get(pk=application.student_id)
+        application = SupervisorApplication.objects.select_for_update(of=("self",)).select_related("student__user", "proposed_supervisor").get(pk=pk)
+        if not supervisor_programme_access(request.user, application, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
+        if application.status != SupervisorApplication.Status.PENDING_COORDINATOR:
+            return error_response("This application is no longer awaiting coordinator review.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.REJECTED_BY_COORDINATOR
         application.coordinator_rejection_reason = reason_serializer.validated_data[

@@ -279,6 +279,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           ) : (
             <div className="space-y-5">
               {report.supervisor && <WorkflowSection title="Supervisor Appointments" summary={report.supervisor} />}
+              {report.researchAmendments && <WorkflowSection title="Research Amendments and Transfers" summary={report.researchAmendments} />}
               {report.panel && <WorkflowSection title="Panel Appointments" summary={report.panel} />}
 
               {report.marks && (

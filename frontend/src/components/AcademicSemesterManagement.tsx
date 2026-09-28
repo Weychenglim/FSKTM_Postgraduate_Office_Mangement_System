@@ -1,3 +1,5 @@
+import { ClosureReview } from './ClosureReview';
+import type { ClosureApproval } from '../types/marks';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Archive,
@@ -163,7 +165,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         ? await updateAcademicSemester(selected.id, form)
         : await createAcademicSemester(form);
       await loadSemesters();
-      setAudits(await getAcademicSemesterAudits(selected.id));
+      setAudits(await getAcademicSemesterAudits(saved.id));
       beginEdit(saved);
       showToast(selected ? 'Draft semester updated.' : 'Draft semester created.');
     } catch (saveError) {
@@ -173,15 +175,15 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
     }
   };
 
-  const runTransition = async () => {
+  const runTransition = async (approval?: ClosureApproval) => {
     if (!selected || !transition || !reason.trim()) return;
     setSaving(true);
     setError(null);
     try {
       if (transition === 'activate') {
-        await activateAcademicSemester(selected.id, reason.trim());
+        await activateAcademicSemester(selected.id, reason.trim(), approval);
       } else if (transition === 'close') {
-        await closeAcademicSemester(selected.id, reason.trim());
+        await closeAcademicSemester(selected.id, reason.trim(), approval);
       } else if (transition === 'archive') {
         await archiveAcademicSemester(selected.id, reason.trim());
       } else {
@@ -193,6 +195,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       showToast(`Semester ${transition === 'extend' ? 'extended' : `${transition}d`}.`);
     } catch (transitionError) {
       setError(academicSemesterErrorMessage(transitionError));
+      if (approval) throw transitionError;
     } finally {
       setSaving(false);
     }
@@ -460,15 +463,16 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
               placeholder="Record the operational reason for this change."
             />
           </label>
+          {(transition === 'close' || transition === 'activate') ? <ClosureReview key={`${selected.id}-${transition}`} kind={transition === 'activate' ? 'handover' : 'semester'} id={selected.id} disabled={saving || !reason.trim()} onConfirm={runTransition} /> : null}
           <div className="mt-4 flex gap-2">
-            <PortalButton
+            {transition !== 'close' && transition !== 'activate' ? <PortalButton
               icon={transition === 'extend' ? RefreshCw : CheckCircle2}
               variant="primary"
               disabled={saving || !reason.trim() || (transition === 'extend' && extensionEnd <= selected.endsOn)}
-              onClick={runTransition}
+              onClick={() => void runTransition()}
             >
               Confirm
-            </PortalButton>
+            </PortalButton> : null}
             <PortalButton variant="secondary" onClick={() => setTransition(null)}>
               Cancel
             </PortalButton>

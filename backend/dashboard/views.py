@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_scope_q
 from accounts.models import Student
 from appointments.models import (
     CoSupervisorNomination,
@@ -586,16 +586,14 @@ def dashboard_summary_view(request):
             lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
         )
     elif request.user.role == User.Role.COORDINATOR:
-        programme = coordinator_programme(request.user)
-        if programme:
-            summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
-                student__programme=programme,
-                status=SupervisorApplication.Status.PENDING_COORDINATOR,
-            ).count()
-            summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
-                profile__programme=programme,
-                status=PanelRecommendation.Status.PENDING_COORDINATOR,
-            ).count()
+        summary["pendingSupervisorApprovals"] = SupervisorApplication.objects.filter(
+            coordinator_scope_q(request.user, "student__programme"),
+            status=SupervisorApplication.Status.PENDING_COORDINATOR,
+        ).count()
+        summary["pendingPanelApprovals"] = PanelRecommendation.objects.filter(
+            coordinator_scope_q(request.user, "profile__programme"),
+            status=PanelRecommendation.Status.PENDING_COORDINATOR,
+        ).count()
         all_tasks = EvaluationTask.objects.none()
     elif request.user.role == User.Role.LECTURER:
         summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
@@ -633,6 +631,11 @@ def dashboard_summary_view(request):
     summary["supervisorMarkTasks"] = all_tasks.filter(
         evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
     ).count()
+    from appointments.models import ResearchAmendment
+    from appointments.research_amendments import scoped_requests
+    summary["pendingResearchAmendments"] = scoped_requests(request.user).filter(
+        status__in=ResearchAmendment.PENDING_STATUSES
+    ).count()
     summary["panelMarkTasks"] = all_tasks.filter(
         evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
     ).count()
@@ -643,9 +646,16 @@ def dashboard_summary_view(request):
     summary["incompleteMarkEntries"] = all_tasks.exclude(
         pk__in=submitted_task_ids
     ).count()
-    summary["overdueMarkEntries"] = all_tasks.filter(
-        period__closes_at__lt=timezone.now()
-    ).exclude(pk__in=submitted_task_ids).count()
+    from marks.completion_windows import task_due_at
+
+    now = timezone.now()
+    summary["overdueMarkEntries"] = sum(
+        due is not None and due < now
+        for task in all_tasks.exclude(pk__in=submitted_task_ids).select_related(
+            "period__academic_semester", "mark_entry"
+        ).prefetch_related("completion_windows__granted_by")
+        for due in [task_due_at(task, now=now)]
+    )
 
     return Response(summary)
 

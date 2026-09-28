@@ -1,4 +1,5 @@
 import type {
+  ClosureApproval,
   AcademicSemester,
   AcademicSemesterAudit,
   AcademicSemesterInput,
@@ -32,19 +33,19 @@ export function updateAcademicSemester(
   });
 }
 
-function transitionSemester(id: number, action: string, reason: string): Promise<AcademicSemester> {
+function transitionSemester(id: number, action: string, reason: string, approval?: ClosureApproval): Promise<AcademicSemester> {
   return request<AcademicSemester>(`/academics/semesters/${id}/${action}/`, {
     method: 'POST',
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, ...approval }),
   });
 }
 
-export function activateAcademicSemester(id: number, reason: string): Promise<AcademicSemester> {
-  return transitionSemester(id, 'activate', reason);
+export function activateAcademicSemester(id: number, reason: string, approval?: ClosureApproval): Promise<AcademicSemester> {
+  return transitionSemester(id, 'activate', reason, approval);
 }
 
-export function closeAcademicSemester(id: number, reason: string): Promise<AcademicSemester> {
-  return transitionSemester(id, 'close', reason);
+export function closeAcademicSemester(id: number, reason: string, approval?: ClosureApproval): Promise<AcademicSemester> {
+  return transitionSemester(id, 'close', reason, approval);
 }
 
 export function archiveAcademicSemester(id: number, reason: string): Promise<AcademicSemester> {

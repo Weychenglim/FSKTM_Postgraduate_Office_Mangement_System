@@ -16,7 +16,7 @@ from academics.capacity import (
     resolve_lecturer_capacity,
 )
 from academics.services import current_effective_semester
-from accounts.authorization import coordinator_manages_programme
+from accounts.authorization import coordinator_manages_programme, coordinator_scope_q, programme_coordinators
 from accounts.eligibility import (
     user_is_assignable_lecturer,
     student_is_workflow_eligible,
@@ -49,9 +49,9 @@ class CoSupervisionForbidden(Exception):
 MAX_CO_SUPERVISORS = 2
 
 
-def can_manage(actor, student):
+def can_manage(actor, student, *, lock=False):
     return actor.role == User.Role.OFFICE_ADMIN or coordinator_manages_programme(
-        actor, student.programme
+        actor, student.programme, lock=lock
     )
 
 
@@ -93,10 +93,7 @@ def visible_students(actor):
     if actor.role == User.Role.OFFICE_ADMIN:
         return rows
     if actor.role == User.Role.COORDINATOR:
-        from accounts.authorization import coordinator_programme
-
-        programme = coordinator_programme(actor)
-        return rows.filter(programme__iexact=programme) if programme else rows.none()
+        return rows.filter(coordinator_scope_q(actor, "programme"))
     if actor.role == User.Role.STUDENT:
         return rows.filter(user=actor)
     return rows.filter(
@@ -261,11 +258,7 @@ def _workflow(row, actor, action, previous="", reason=""):
         user.pk: user for user in [row.candidate, row.nominator, row.student.user]
     }
     if row.status == CoSupervisorNomination.Status.PENDING_COORDINATOR:
-        for user in User.objects.filter(
-            role=User.Role.COORDINATOR,
-            is_active=True,
-            lecturer__coordinator__programme_managed__iexact=row.student.programme,
-        ):
+        for user in programme_coordinators(row.student.programme):
             recipients[user.pk] = user
     for recipient in recipients.values():
         publish_workflow_notification(
@@ -303,6 +296,11 @@ def nominate(
     student = (
         Student.objects.select_for_update().select_related("user").get(pk=student_id)
     )
+    from .research_amendments import assert_no_pending_transfer, AmendmentConflict
+    try:
+        assert_no_pending_transfer(student.pk)
+    except AmendmentConflict as exc:
+        raise CoSupervisionConflict(str(exc)) from exc
     primary = active_primary(student)
     if primary is None or primary.supervisor_id != actor.pk:
         raise CoSupervisionForbidden(
@@ -529,6 +527,10 @@ def decide(*, nomination_id, actor, action, reason=""):
             exclude_nomination=row.pk,
             replaces=row.replaces_appointment,
         )
+    if action in {"approve", "coordinator-reject"} and not coordinator_manages_programme(
+        actor, student.programme, lock=True,
+    ):
+        raise CoSupervisionForbidden("Your authority for this programme is no longer active.")
     if action == "accept":
         row.status, row.candidate_decided_at = "PENDING_COORDINATOR", now
     elif action == "reject":
@@ -571,7 +573,7 @@ def end_appointment(*, appointment_id, actor, reason, outcome):
     ref = CoSupervisorAppointment.objects.only("student_id").get(pk=appointment_id)
     student = Student.objects.select_for_update().get(pk=ref.student_id)
     row = CoSupervisorAppointment.objects.select_for_update().get(pk=appointment_id)
-    if not can_manage(actor, student):
+    if not can_manage(actor, student, lock=True):
         raise CoSupervisionForbidden(
             "This appointment is outside your lifecycle management scope."
         )

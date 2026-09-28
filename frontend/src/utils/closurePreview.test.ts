@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { ClosurePreviewSession } from './closurePreview';
+const session=new ClosurePreviewSession();
+const preview:any={previewToken:'first',requiresAcknowledgement:true};
+const first=session.begin();
+assert.equal(session.approval(preview,true),null);
+const second=session.begin();
+assert.equal(session.accept(first,preview),false,'late response from previous selection must be discarded');
+assert.equal(session.accept(second,preview),true);
+assert.equal(session.approval(preview,false),null,'unfinished tasks require acknowledgement');
+assert.deepEqual(session.approval(preview,true),{previewToken:'first',acknowledgeUnfinished:true});
+session.invalidate();
+assert.equal(session.approval(preview,true),null,'a stale approval must never survive refresh or conflict');
+assert.equal(session.accept(second,preview),false);
+console.log('Closure preview race and acknowledgement validation passed');

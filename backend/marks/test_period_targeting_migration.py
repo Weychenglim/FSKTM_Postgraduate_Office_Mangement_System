@@ -9,8 +9,9 @@ class PeriodTargetingMigrationTests(TransactionTestCase):
     def test_existing_periods_retain_all_programmes_and_both_official_roles(self):
         executor = MigrationExecutor(connection)
         latest = executor.loader.graph.leaf_nodes()
-        before = [("marks", "0007_evaluationtask_pause_reason_evaluationtask_paused_at_and_more")]
-        after = [("marks", "0008_evaluation_period_targeting")]
+        other_apps = [node for node in latest if node[0] != "marks"]
+        before = [*other_apps, ("marks", "0007_evaluationtask_pause_reason_evaluationtask_paused_at_and_more")]
+        after = [*other_apps, ("marks", "0008_evaluation_period_targeting")]
         try:
             executor.migrate(before)
             old_apps = executor.loader.project_state(before).apps

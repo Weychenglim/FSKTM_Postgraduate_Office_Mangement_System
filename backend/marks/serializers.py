@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
+from .completion_windows import task_access, task_due_at, lock_tasks, task_window_active
 from .deadlines import mark_deadline_metadata
 from .models import EvaluationPeriod, EvaluationTask, MarkEntry, MarkScore
 from .services import MarksStateConflict
@@ -161,11 +162,14 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
             "deadlineState",
         ]
 
+    def to_representation(self, obj):
+        return {**super().to_representation(obj), **task_access(obj)}
+
     def get_initials(self, obj):
         return initials(obj.profile.student_name)
 
     def get_deadline(self, obj):
-        closes_at = obj.period.closes_at
+        closes_at = task_due_at(obj)
         return closes_at.strftime("%d %b %Y") if closes_at else "-"
 
     def get_status(self, obj):
@@ -199,7 +203,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
         except MarkEntry.DoesNotExist:
             is_submitted = False
         cache[obj.pk] = mark_deadline_metadata(
-            obj.period.closes_at,
+            task_due_at(obj),
             is_submitted=is_submitted,
         )
         self._deadline_metadata_cache = cache
@@ -279,9 +283,7 @@ class MarkDraftSerializer(serializers.Serializer):
     @transaction.atomic
     def save(self):
         task = self.context["task"]
-        task.period = EvaluationPeriod.objects.select_for_update().get(
-            pk=task.period_id,
-        )
+        task = lock_tasks([task.pk])[0]
         assert_task_accepts_marks(task)
         entry, _ = MarkEntry.objects.select_for_update().get_or_create(task=task)
         if entry.status == MarkEntry.Status.SUBMITTED:
@@ -317,7 +319,7 @@ class MarkDraftSerializer(serializers.Serializer):
 
 
 def assert_task_accepts_marks(task):
-    if not task.period.accepts_submissions:
+    if not task_access(task)["canEdit"]:
         raise MarksStateConflict(
             "Marks can only be saved while the evaluation period is open."
         )
@@ -325,9 +327,7 @@ def assert_task_accepts_marks(task):
 
 @transaction.atomic
 def submit_entry(task):
-    task.period = EvaluationPeriod.objects.select_for_update().get(
-        pk=task.period_id,
-    )
+    task = lock_tasks([task.pk])[0]
     try:
         entry = MarkEntry.objects.select_for_update().get(task=task)
     except MarkEntry.DoesNotExist as exc:
@@ -348,7 +348,10 @@ def submit_entry(task):
         raise serializers.ValidationError(
             "All required rubric components must be entered before submission."
         )
+    entry.submitted_due_at = task_due_at(task)
+    entry.submitted_completion_window = task_window_active(task)
+    entry.submitted_due_recorded = True
     entry.status = MarkEntry.Status.SUBMITTED
     entry.submitted_at = timezone.now()
-    entry.save(update_fields=["status", "submitted_at", "updated_at"])
+    entry.save(update_fields=["status", "submitted_at", "updated_at", "submitted_due_at", "submitted_completion_window", "submitted_due_recorded"])
     return entry

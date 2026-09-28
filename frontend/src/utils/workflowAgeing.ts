@@ -18,6 +18,9 @@ const WAITING_ON_LABELS: Record<WorkflowWaitingOn, string> = {
   SUPERVISOR: 'Supervisor',
   SELECTED_PANEL: 'Selected Panel',
   PROGRAMME_COORDINATOR: 'Programme Coordinator',
+  COORDINATOR: 'Programme Coordinator',
+  SOURCE_COORDINATOR: 'Source Programme Coordinator',
+  DESTINATION_COORDINATOR: 'Destination Programme Coordinator',
   FACULTY_PROCESSING: 'Faculty Processing',
 };
 

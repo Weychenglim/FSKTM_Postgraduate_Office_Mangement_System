@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 
 from django.db.models import Q
 
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_scope_q
 from accounts.models import User
 from appointments.co_supervision import nominations_queryset
 from appointments.models import (
@@ -19,8 +19,7 @@ from appointments.models import (
 def scoped_nominations(user, programme=None):
     rows = nominations_queryset()
     if user.role == User.Role.COORDINATOR:
-        scope = coordinator_programme(user)
-        rows = rows.filter(student__programme=scope) if scope else rows.none()
+        rows = rows.filter(coordinator_scope_q(user, "student__programme"))
     elif user.role == User.Role.LECTURER:
         rows = rows.filter(Q(candidate=user) | Q(nominator=user))
     elif user.role == User.Role.STUDENT:
@@ -28,7 +27,7 @@ def scoped_nominations(user, programme=None):
     elif user.role != User.Role.OFFICE_ADMIN:
         return rows.none()
     if programme:
-        rows = rows.filter(student__programme=programme)
+        rows = rows.filter(student__programme__trim__iexact=programme)
     return rows
 
 

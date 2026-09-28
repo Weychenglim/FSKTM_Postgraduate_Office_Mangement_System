@@ -1,8 +1,9 @@
-from django.urls import path
+from django.urls import include, path
 
 from . import views, co_supervision_views
 
 urlpatterns = [
+    path("research-amendments/", include("appointments.amendment_urls")),
     path("co-supervisor/", co_supervision_views.workspace_view),
     path("co-supervisor/students/<int:student_id>/", co_supervision_views.team_view),
     path(

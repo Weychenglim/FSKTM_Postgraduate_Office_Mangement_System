@@ -15,6 +15,7 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
+from .completion_windows import invalidate_task_windows
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -537,14 +538,23 @@ def publish_evaluation_period(*, period, actor):
 
 
 @transaction.atomic
-def close_evaluation_period(*, period, actor, reason):
+def close_evaluation_period(*, period, actor, reason, preview_token=None, acknowledge_unfinished=False):
     _assert_office_admin(actor)
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("A closing reason is required.")
-    period = EvaluationPeriod.objects.select_for_update().get(pk=period.pk)
+    from academics.models import AcademicSemester
+    from academics.services import SemesterConflict
+    from .closure_preview import validate_period_closure, assert_period_archive_allowed
+    if period.academic_semester_id:
+        AcademicSemester.objects.select_for_update().get(pk=period.academic_semester_id)
+    period = EvaluationPeriod.objects.select_for_update(no_key=True).get(pk=period.pk)
     if period.lifecycle_status != EvaluationPeriod.Lifecycle.PUBLISHED:
         raise MarksStateConflict("Only published periods can be closed.")
+    try:
+        validate_period_closure(period, preview_token=preview_token, acknowledge_unfinished=acknowledge_unfinished)
+    except SemesterConflict as exc:
+        raise MarksStateConflict(str(exc)) from exc
     before = _period_snapshot(period)
     period.lifecycle_status = EvaluationPeriod.Lifecycle.CLOSED
     period.closed_at = timezone.now()
@@ -574,9 +584,18 @@ def archive_evaluation_period(*, period, actor, reason):
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("An archival reason is required.")
-    period = EvaluationPeriod.objects.select_for_update().get(pk=period.pk)
+    from academics.models import AcademicSemester
+    from academics.services import SemesterConflict
+    from .closure_preview import validate_period_closure, assert_period_archive_allowed
+    if period.academic_semester_id:
+        AcademicSemester.objects.select_for_update().get(pk=period.academic_semester_id)
+    period = EvaluationPeriod.objects.select_for_update(no_key=True).get(pk=period.pk)
     if period.lifecycle_status != EvaluationPeriod.Lifecycle.CLOSED:
         raise MarksStateConflict("Only closed periods can be archived.")
+    try:
+        assert_period_archive_allowed(period)
+    except SemesterConflict as exc:
+        raise MarksStateConflict(str(exc)) from exc
     before = _period_snapshot(period)
     period.lifecycle_status = EvaluationPeriod.Lifecycle.ARCHIVED
     period.archived_at = timezone.now()
@@ -735,7 +754,7 @@ def retire_official_evaluation_tasks(
             evaluator=evaluator,
             evaluator_role=evaluator_role,
             lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-            period__lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+            period__lifecycle_status__in=[EvaluationPeriod.Lifecycle.PUBLISHED, EvaluationPeriod.Lifecycle.CLOSED],
         )
         .select_related("period", "mark_entry")
     )
@@ -747,9 +766,8 @@ def retire_official_evaluation_tasks(
             entry = None
         if entry and entry.status == MarkEntry.Status.SUBMITTED:
             continue
-        if task.period.status_at() not in {"SCHEDULED", "OPEN"}:
-            continue
         snapshot = _draft_snapshot(task)
+        invalidate_task_windows(task, actor, reason)
         task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
         task.retired_at = timezone.now()
         task.retired_by = actor
@@ -763,7 +781,7 @@ def retire_official_evaluation_tasks(
             ]
         )
         replacement_task = None
-        if replacement_evaluator is not None and profile_in_scope(task.period, profile, evaluator_role):
+        if replacement_evaluator is not None and task.period.accepts_submissions and profile_in_scope(task.period, profile, evaluator_role):
             replacement_task, _ = EvaluationTask.objects.get_or_create(
                 profile=profile,
                 evaluator=replacement_evaluator,
@@ -818,7 +836,7 @@ def ensure_replacement_evaluation_tasks(
             profile=profile,
             evaluator=evaluator,
             evaluator_role=evaluator_role,
-            period__lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
+            period__lifecycle_status__in=[EvaluationPeriod.Lifecycle.PUBLISHED, EvaluationPeriod.Lifecycle.CLOSED],
         )
         .select_related("period", "mark_entry")
         .order_by("period_id", "pk")
@@ -901,6 +919,7 @@ def pause_student_evaluation_tasks(*, profile, actor, reason):
         if _task_is_submitted(task):
             continue
         snapshot = _task_entry_snapshot(task)
+        invalidate_task_windows(task, actor, reason)
         task.lifecycle_status = EvaluationTask.Lifecycle.PAUSED
         task.paused_at = timezone.now()
         task.paused_by = actor
@@ -971,6 +990,7 @@ def resume_student_evaluation_tasks(*, profile, actor, reason):
             )
             resumed.append(task)
         else:
+            invalidate_task_windows(task, actor, reason)
             task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
             action = EvaluationTaskLifecycleAudit.Action.RETIRED
             task.retired_at = timezone.now()
@@ -1012,6 +1032,7 @@ def retire_participant_evaluation_tasks(*, tasks, actor, reason):
         if _task_is_submitted(task):
             continue
         snapshot = _task_entry_snapshot(task)
+        invalidate_task_windows(task, actor, reason)
         task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
         task.retired_at = timezone.now()
         task.retired_by = actor
@@ -1052,6 +1073,7 @@ def reconcile_evaluation_task(*, task_id, action, actor, reason):
             EvaluationTask.Lifecycle.PAUSED,
         }:
             raise MarksStateConflict("The evaluation task is no longer active or paused.")
+        invalidate_task_windows(task, actor, reason)
         task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
         task.retired_at = timezone.now()
         task.retired_by = actor
@@ -1065,6 +1087,7 @@ def reconcile_evaluation_task(*, task_id, action, actor, reason):
     elif action == EvaluationTaskLifecycleAudit.Action.PAUSED:
         if task.lifecycle_status != EvaluationTask.Lifecycle.ACTIVE:
             raise MarksStateConflict("Only an active evaluation task can be paused.")
+        invalidate_task_windows(task, actor, reason)
         task.lifecycle_status = EvaluationTask.Lifecycle.PAUSED
         task.paused_at = timezone.now()
         task.paused_by = actor

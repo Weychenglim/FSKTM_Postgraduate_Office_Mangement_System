@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { ResearchAmendmentCard } from './ResearchAmendments';
+const row: any = { id: 1, kind: 'TRANSFER', status: 'PENDING_SOURCE_COORDINATOR', studentName: 'Student One', matricNo: 'M123', sourceProgramme: 'Old programme', destinationProgramme: 'New programme', before: {title:'Old title',abstract:'Old abstract',programme:'Old programme'}, after: {title:'New title',abstract:'New abstract',programme:'New programme'}, reason:'Changed research focus', stageLabel:'Source coordinator review', canDecide:false, canCancel:false, teamSnapshot:[], unfinishedTaskCount:2, events:[] };
+const render = (value: any) => renderToStaticMarkup(<ResearchAmendmentCard row={value} busy={false} onAction={() => {}} />);
+const readonly = render(row);
+assert.match(readonly, /Old title/);
+assert.match(readonly, /New title/);
+assert.match(readonly, /Source coordinator review/);
+assert.match(readonly, /2 unfinished/);
+assert.doesNotMatch(readonly, />Approve</);
+assert.doesNotMatch(readonly, />Cancel request</);
+assert.match(render({...row,canDecide:true}), />Approve</);
+assert.match(render({...row,canCancel:true}), />Cancel request</);
+console.log('Research amendment capability rendering passed');

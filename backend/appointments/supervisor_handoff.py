@@ -7,7 +7,7 @@ from academics.capacity import (
     CapacityRole,
     assert_capacity_allows_assignment,
 )
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_manages_programme
 from accounts.eligibility import (
     student_is_workflow_eligible,
     user_is_assignable_lecturer,
@@ -39,7 +39,9 @@ class SupervisorApprovalForbidden(Exception):
 
 def _profile_has_downstream_history(profile):
     return (
-        profile.panel_recommendations.exists()
+        profile.revision > 0
+        or profile.revisions.exists()
+        or profile.panel_recommendations.exists()
         or profile.panel_appointments.exists()
         or profile.evaluation_tasks.exists()
     )
@@ -139,11 +141,7 @@ def approve_supervisor_application(*, application_id, actor):
         raise SupervisorApprovalForbidden(
             "Only Programme Coordinators can approve supervisor applications."
         )
-    programme = coordinator_programme(actor)
-    if (
-        not programme
-        or programme.casefold() != application.student.programme.strip().casefold()
-    ):
+    if not coordinator_manages_programme(actor, application.student.programme):
         raise SupervisorApprovalForbidden(
             "This application is outside your managed programme."
         )
@@ -185,6 +183,8 @@ def approve_supervisor_application(*, application_id, actor):
     except CoSupervisionConflict as exc:
         raise SupervisorApprovalConflict(str(exc)) from exc
     Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
+    if not coordinator_manages_programme(actor, application.student.programme, lock=True):
+        raise SupervisorApprovalForbidden("Your authority for this programme is no longer active.")
     try:
         assert_capacity_allows_assignment(
             user=application.proposed_supervisor,

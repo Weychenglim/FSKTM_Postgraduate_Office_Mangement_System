@@ -11,6 +11,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .forms import UserCreationForm, UserChangeForm
 from .models import (
     Coordinator,
+    CoordinatorDelegation,
     Lecturer,
     OfficeStaff,
     Panel,
@@ -31,6 +32,13 @@ class StudentInline(admin.StackedInline):
     extra = 0
     verbose_name_plural = "Student profile"
     readonly_fields = ("status", "status_changed_at", "status_changed_by", "status_reason")
+
+    def get_readonly_fields(self, request, obj=None):
+        from appointments.models import StudentResearchProfile
+        fields = super().get_readonly_fields(request, obj)
+        if obj and StudentResearchProfile.objects.filter(student_id=obj.pk).exists():
+            return (*fields, "programme")
+        return fields
 
 
 class OfficeStaffInline(admin.StackedInline):
@@ -177,6 +185,13 @@ class StudentAdmin(admin.ModelAdmin):
     def full_name(self, obj):
         return obj.user.full_name
 
+    def get_readonly_fields(self, request, obj=None):
+        from appointments.models import StudentResearchProfile
+        fields = super().get_readonly_fields(request, obj)
+        if obj and StudentResearchProfile.objects.filter(student_id=obj.pk).exists():
+            return (*fields, "programme")
+        return fields
+
     @admin.display(boolean=True, description="Registry details")
     def has_registry(self, obj):
         return StudentRegistry.objects.filter(pk=obj.pk).exists()
@@ -229,6 +244,21 @@ class ParticipantLifecycleAuditAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return bool(obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CoordinatorDelegation)
+class CoordinatorDelegationAdmin(admin.ModelAdmin):
+    list_display = ('programme', 'coordinator', 'starts_on', 'ends_on', 'granted_by', 'revoked_at')
+    readonly_fields = tuple(field.name for field in CoordinatorDelegation._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
     def has_delete_permission(self, request, obj=None):
         return False

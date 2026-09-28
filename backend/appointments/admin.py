@@ -47,6 +47,9 @@ class StudentResearchProfileAdmin(admin.ModelAdmin):
     search_fields = ("matric_no", "student_name", "proposed_topic", "supervisor__full_name")
     list_filter = ("programme", "semester")
 
+    def get_readonly_fields(self, request, obj=None):
+        return ("proposed_topic", "abstract", "programme", "revision") if obj else ("revision",)
+
 
 @admin.register(PanelRecommendation)
 class PanelRecommendationAdmin(admin.ModelAdmin):

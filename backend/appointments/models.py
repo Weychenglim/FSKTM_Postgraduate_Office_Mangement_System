@@ -27,6 +27,7 @@ class StudentResearchProfile(models.Model):
     proposed_topic = models.CharField(max_length=500)
     research_area = models.CharField(max_length=255, blank=True)
     abstract = models.TextField(blank=True)
+    revision = models.PositiveIntegerField(default=0)
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -801,6 +802,106 @@ class AppointmentWorkflowEvent(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Appointment workflow events are immutable.")
+
+
+class AmendmentHistoryQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Amendment history is immutable; use audited services.")
+
+    def delete(self):
+        raise ValidationError("Amendment history cannot be deleted.")
+
+    def bulk_create(self, objs, **kwargs):
+        if kwargs.get("update_conflicts"):
+            raise ValidationError("Amendment history cannot be overwritten.")
+        return super().bulk_create(objs, **kwargs)
+
+
+class ImmutableAmendmentRecord(models.Model):
+    objects = AmendmentHistoryQuerySet.as_manager()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or (self.pk and type(self).objects.filter(pk=self.pk).exists()):
+            raise ValidationError("Amendment history is immutable; use audited services.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Amendment history cannot be deleted.")
+
+
+class ResearchAmendment(ImmutableAmendmentRecord):
+    class Kind(models.TextChoices):
+        RESEARCH = "RESEARCH", "Research amendment"
+        TRANSFER = "TRANSFER", "Programme transfer"
+
+    class Status(models.TextChoices):
+        PENDING_SUPERVISOR = "PENDING_SUPERVISOR", "Awaiting primary supervisor"
+        PENDING_COORDINATOR = "PENDING_COORDINATOR", "Awaiting programme coordinator"
+        PENDING_SOURCE_COORDINATOR = "PENDING_SOURCE_COORDINATOR", "Awaiting source coordinator"
+        PENDING_DESTINATION_COORDINATOR = "PENDING_DESTINATION_COORDINATOR", "Awaiting destination coordinator"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    PENDING_STATUSES = (Status.PENDING_SUPERVISOR, Status.PENDING_COORDINATOR,
+                        Status.PENDING_SOURCE_COORDINATOR, Status.PENDING_DESTINATION_COORDINATOR)
+    student = models.ForeignKey("accounts.Student", on_delete=models.PROTECT, related_name="research_amendments")
+    profile = models.ForeignKey(StudentResearchProfile, on_delete=models.PROTECT, related_name="amendments")
+    initiated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="initiated_research_amendments")
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    status = models.CharField(max_length=40, choices=Status.choices, db_index=True)
+    source_programme = models.CharField(max_length=255)
+    destination_programme = models.CharField(max_length=255, blank=True)
+    before_values = models.JSONField()
+    after_values = models.JSONField()
+    baseline_revision = models.PositiveIntegerField()
+    team_snapshot = models.JSONField(default=dict)
+    semester_snapshot = models.JSONField(default=dict)
+    academic_semester = models.ForeignKey("academics.AcademicSemester", on_delete=models.PROTECT, null=True, blank=True)
+    reason = models.TextField()
+    student_name = models.CharField(max_length=255)
+    matric_no = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["student"], condition=Q(status__in=["PENDING_SUPERVISOR", "PENDING_COORDINATOR", "PENDING_SOURCE_COORDINATOR", "PENDING_DESTINATION_COORDINATOR"]), name="one_pending_research_amendment_per_student")]
+
+
+class ResearchAmendmentEvent(ImmutableAmendmentRecord):
+    request = models.ForeignKey(ResearchAmendment, on_delete=models.PROTECT, related_name="events")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor_role = models.CharField(max_length=64)
+    actor_name = models.CharField(max_length=255)
+    action = models.CharField(max_length=32)
+    previous_status = models.CharField(max_length=40, blank=True)
+    new_status = models.CharField(max_length=40)
+    reason = models.TextField(blank=True)
+    retain_team = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+
+class ResearchProfileRevision(ImmutableAmendmentRecord):
+    profile = models.ForeignKey(StudentResearchProfile, on_delete=models.PROTECT, related_name="revisions")
+    revision = models.PositiveIntegerField()
+    kind = models.CharField(max_length=16)
+    request = models.OneToOneField(ResearchAmendment, on_delete=models.PROTECT, null=True, blank=True, related_name="applied_revision")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["profile_id", "revision"]
+        constraints = [models.UniqueConstraint(fields=["profile", "revision"], name="unique_research_profile_revision")]
 
 
 def count_supervisor_workload(supervisor):

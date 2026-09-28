@@ -4,6 +4,7 @@
  */
 
 import type {
+  ClosureApproval,
   EvaluationPeriodOption,
   EvaluationRecipientPreview,
   EvaluationPreviewTask,
@@ -92,10 +93,11 @@ export async function publishEvaluationPeriod(
 export async function closeEvaluationPeriod(
   periodId: number,
   reason: string,
+  approval?: ClosureApproval,
 ): Promise<EvaluationPeriodOption> {
   return request<EvaluationPeriodOption>(
     `/marks/periods/${periodId}/close/`,
-    { method: 'POST', body: JSON.stringify({ reason }) },
+    { method: 'POST', body: JSON.stringify({ reason, ...approval }) },
   );
 }
 

@@ -3,7 +3,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_manages_programme
 
 from .models import (
     AppointmentLifecycleEvent,
@@ -28,13 +28,12 @@ def _appointment_programme(appointment):
     return appointment.profile.programme.strip()
 
 
-def assert_can_manage_appointment(actor, appointment):
+def assert_can_manage_appointment(actor, appointment, *, lock=False):
     if actor.role == User.Role.OFFICE_ADMIN:
         return
     if (
         actor.role == User.Role.COORDINATOR
-        and coordinator_programme(actor).casefold()
-        == _appointment_programme(appointment).casefold()
+        and coordinator_manages_programme(actor, _appointment_programme(appointment), lock=lock)
     ):
         return
     raise AppointmentLifecycleForbidden(
@@ -116,6 +115,13 @@ def _end_locked(appointment, *, actor, outcome, reason, replacement_evaluator=No
     )
     if isinstance(appointment, SupervisorAppointment):
         from .co_supervision import cancel_primary_pending
+        from .research_amendments import cancel_pending_amendments
+
+        cancel_pending_amendments(
+            appointment.student_id, actor,
+            "Automatically cancelled because the primary supervisor appointment ended.",
+            research_only=True,
+        )
 
         cancel_primary_pending(
             appointment,
@@ -162,7 +168,7 @@ def end_appointment(*, model, appointment_id, actor, outcome, reason):
         )
         .get(pk=appointment_id)
     )
-    assert_can_manage_appointment(actor, appointment)
+    assert_can_manage_appointment(actor, appointment, lock=True)
     return _end_locked(
         appointment,
         actor=actor,

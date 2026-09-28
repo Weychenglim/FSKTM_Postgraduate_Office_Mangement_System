@@ -315,7 +315,8 @@ class MarkEntryAdmin(admin.ModelAdmin):
         "task__profile__student_name",
         "task__evaluator__full_name",
     )
-    readonly_fields = ("status", "total_mark", "submitted_at", "created_at", "updated_at")
+    readonly_fields = ("status", "total_mark", "submitted_at", "created_at", "updated_at",
+                       "submitted_due_at", "submitted_due_recorded", "submitted_completion_window")
 
     def save_model(self, request, obj, form, change):
         if not change:

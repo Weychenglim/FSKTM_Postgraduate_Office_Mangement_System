@@ -20,6 +20,7 @@ import {
 } from '../utils/participantLifecycle';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { CoordinatorDelegations } from './CoordinatorDelegations';
 
 interface ParticipantLifecycleManagementProps {
   onBack: () => void;
@@ -156,6 +157,8 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
           </>
         )}
       />
+
+      <CoordinatorDelegations office />
 
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">

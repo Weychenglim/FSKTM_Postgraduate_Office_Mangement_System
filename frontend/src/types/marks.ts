@@ -15,6 +15,13 @@ export type DeadlineState =
   | 'COMPLETE';
 
 export interface DeadlineMetadata {
+  effectiveDueAt?: string | null;
+  periodEffectiveStatus?: EvaluationPeriodEffectiveStatus;
+  periodLifecycleStatus?: EvaluationPeriodLifecycle;
+  canEdit?: boolean;
+  canSubmit?: boolean;
+  canGrantCompletionWindow?: boolean;
+  completionWindow?: CompletionWindow | null;
   dueAt?: string | null;
   daysUntilDue?: number | null;
   deadlineState?: DeadlineState | null;
@@ -310,3 +317,26 @@ export interface EvaluationTask extends DeadlineMetadata {
   totalMark?: string | null;
   components?: EvaluationTaskComponent[];
 }
+
+export interface CompletionWindow {
+  id: number;
+  taskId: number;
+  deadline: string;
+  status: string;
+  reason: string;
+  grantedBy: { id: number; name: string };
+  createdAt: string;
+  revokedAt: string | null;
+  revocationReason: string;
+  supersedesId: number | null;
+  canRevoke: boolean;
+}
+export interface ClosureCounts { submitted: number; notStarted: number; draft: number; paused: number; activeWindows: number; unfinished: number }
+export interface ClosurePreview {
+  previewToken: string;
+  semesterId: number | null;
+  periods: Array<ClosureCounts & { periodId: number; name: string }>;
+  totals: ClosureCounts;
+  requiresAcknowledgement: boolean;
+}
+export interface ClosureApproval { previewToken: string; acknowledgeUnfinished: boolean }

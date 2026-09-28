@@ -10,7 +10,7 @@ from accounts.eligibility import (
     student_is_workflow_eligible,
     user_is_assignable_lecturer,
 )
-from accounts.authorization import coordinator_manages_programme
+from accounts.authorization import coordinator_manages_programme, programme_coordinators
 from accounts.models import Coordinator, Lecturer, Panel, Student, Supervisor, User
 from academics.capacity_services import (
     CapacityLifecycleConflict,
@@ -440,9 +440,11 @@ def _capacity_reconciliation_issues():
 
 def detect_reconciliation_issues():
     from .co_supervision_tracking import co_supervisor_reconciliation_issues
+    from .amendment_tracking import amendment_reconciliation_issues
 
     issues = _capacity_reconciliation_issues()
     issues.extend(co_supervisor_reconciliation_issues())
+    issues.extend(amendment_reconciliation_issues())
     for coordinator in Coordinator.objects.select_related("lecturer__user").filter(
         programme_managed=""
     ):
@@ -539,16 +541,8 @@ def detect_reconciliation_issues():
             status=PanelRecommendation.Status.PENDING_COORDINATOR
         ).values_list("profile__programme", flat=True)
     )
-    managed_programmes = {
-        _normalized(programme)
-        for programme in Coordinator.objects.filter(
-            lecturer__user__role=User.Role.COORDINATOR
-        )
-        .exclude(programme_managed="")
-        .values_list("programme_managed", flat=True)
-    }
     for programme in sorted(filter(None, pending_programmes)):
-        if _normalized(programme) in managed_programmes:
+        if programme_coordinators(programme).exists():
             continue
         issues.append(
             ReconciliationIssue(
@@ -897,7 +891,7 @@ def _detect_marks_issues():
             EvaluationTask.Lifecycle.ACTIVE,
             EvaluationTask.Lifecycle.PAUSED,
         ]
-    ).select_related("profile", "evaluator", "evaluator__lecturer", "period")
+    ).select_related("profile__student__student", "evaluator__lecturer", "period__academic_semester", "mark_entry").prefetch_related("completion_windows__granted_by")
     submitted_ids = set(
         MarkEntry.objects.filter(
             task__in=tasks,
@@ -910,9 +904,12 @@ def _detect_marks_issues():
         student = _task_student(task)
         student_status = student.status if student else None
         appointment_valid = _task_evaluator_and_appointment_valid(task)
-        period_valid = task.period.accepts_submissions
+        from marks.completion_windows import task_window_active
+
+        period_valid = task.period.accepts_submissions or bool(task_window_active(task))
         action = None
         reason = None
+        review_required = False
         if task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE:
             if student and student.status == Student.Status.DEFERRED:
                 action = "PAUSE_MARKS_TASK"
@@ -926,8 +923,14 @@ def _detect_marks_issues():
                 action = "RETIRE_MARKS_TASK"
                 reason = "The evaluator assignment has no eligible active appointment."
             elif not period_valid:
-                action = "RETIRE_MARKS_TASK"
-                reason = "The evaluation period no longer accepts submissions."
+                semester = task.period.academic_semester
+                if (task.period.effective_status == "CLOSED" and semester
+                        and semester.lifecycle_status != AcademicSemester.Lifecycle.ARCHIVED):
+                    review_required = True
+                    reason = "The evaluation period closed with unfinished work; Office must review a completion window or task retirement."
+                else:
+                    action = "RETIRE_MARKS_TASK"
+                    reason = "The evaluation period no longer accepts submissions."
         elif task.lifecycle_status == EvaluationTask.Lifecycle.PAUSED:
             if student and student.status == Student.Status.DEFERRED:
                 continue
@@ -942,7 +945,7 @@ def _detect_marks_issues():
             else:
                 action = "RETIRE_MARKS_TASK"
                 reason = "The paused task can no longer return to an eligible workflow."
-        if action is None:
+        if action is None and not review_required:
             continue
         issues.append(
             ReconciliationIssue(
@@ -952,7 +955,7 @@ def _detect_marks_issues():
                 module="MARKS",
                 issue_type="MARKS_TASK_INCONSISTENT",
                 severity="BLOCKING",
-                repairability="REPAIRABLE",
+                repairability="REVIEW_REQUIRED" if review_required else "REPAIRABLE",
                 title="Evaluation task lifecycle is inconsistent",
                 summary=reason,
                 record_type="EVALUATION_TASK",
@@ -967,7 +970,7 @@ def _detect_marks_issues():
                     "evaluatorId": task.evaluator_id,
                     "evaluatorRole": task.evaluator_role,
                 },
-                suggestion={"action": action},
+                suggestion={"action": action} if action else {},
                 navigation={
                     "targetModule": "MARKS",
                     "recordType": "MARKS_TASK",

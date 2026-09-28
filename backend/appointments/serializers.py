@@ -47,6 +47,19 @@ class CapacityUnavailable(APIException):
     default_code = "lecturer_capacity_unavailable"
 
 
+class ProgrammeTransferPending(APIException):
+    status_code = 409
+    default_code = "programme_transfer_pending"
+
+
+def enforce_no_pending_transfer(student_id):
+    from .research_amendments import assert_no_pending_transfer, AmendmentConflict
+    try:
+        assert_no_pending_transfer(student_id)
+    except AmendmentConflict as exc:
+        raise ProgrammeTransferPending(str(exc)) from exc
+
+
 def enforce_capacity(*, user, semester, role):
     try:
         return assert_capacity_allows_assignment(
@@ -608,6 +621,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         profile = validated_data["profile"]
         if profile.student_id:
             student = Student.objects.select_for_update().get(pk=profile.student_id)
+            enforce_no_pending_transfer(student.pk)
             if student.status != Student.Status.ACTIVE:
                 raise serializers.ValidationError(
                     "This student's lifecycle status does not permit a new panel recommendation."
@@ -1054,6 +1068,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         student = Student.objects.select_for_update().get(
             pk=validated_data["student"].pk
         )
+        enforce_no_pending_transfer(student.pk)
         enforce_no_supporting_role(student.pk, validated_data["supervisor"].pk)
         lecturer = Lecturer.objects.select_for_update().get(
             pk=validated_data["supervisor"].pk

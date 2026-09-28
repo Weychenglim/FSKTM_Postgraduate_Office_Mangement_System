@@ -96,7 +96,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             department, student_no, staff_no = "", None, None
 
+        delegation_details = {}
+        if self.role == self.Role.COORDINATOR:
+            from .authorization import coordinator_programmes
+            from .delegations import serialize_delegation
+            delegation_details = {
+                "effectiveProgrammes": coordinator_programmes(self),
+                "coordinatorDelegations": [serialize_delegation(row, self) for row in self.coordinator_delegations.select_related("coordinator", "granted_by", "revoked_by")],
+            }
         return {
+            **delegation_details,
             "id": str(self.pk),
             "email": self.email,
             "role": self.role,
@@ -372,3 +381,55 @@ class Panel(models.Model):
 
     def __str__(self):
         return f"Panel — {self.lecturer.user.full_name}"
+
+
+class CoordinatorDelegationQuerySet(models.QuerySet):
+    def bulk_create(self, objs, batch_size=None, ignore_conflicts=False,
+                    update_conflicts=False, update_fields=None, unique_fields=None):
+        from django.core.exceptions import ValidationError
+        if update_conflicts:
+            raise ValidationError('Delegation records cannot be overwritten by an upsert.')
+        return super().bulk_create(
+            objs, batch_size=batch_size, ignore_conflicts=ignore_conflicts,
+            update_conflicts=False, update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+
+    def update(self, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError('Delegation records are immutable; use the revocation service.')
+
+    def delete(self):
+        from django.core.exceptions import ValidationError
+        raise ValidationError('Delegation records cannot be deleted.')
+
+
+class CoordinatorDelegation(models.Model):
+    coordinator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='coordinator_delegations')
+    programme = models.CharField(max_length=255)
+    starts_on = models.DateField()
+    ends_on = models.DateField()
+    justification = models.TextField()
+    granted_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='granted_coordinator_delegations')
+    created_at = models.DateTimeField(default=timezone.now)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='revoked_coordinator_delegations', null=True, blank=True)
+    revocation_reason = models.TextField(blank=True)
+    objects = CoordinatorDelegationQuerySet.as_manager()
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(ends_on__gte=models.F('starts_on')), name='delegation_valid_dates'),
+            models.CheckConstraint(condition=(models.Q(revoked_at__isnull=True, revoked_by__isnull=True, revocation_reason='') | (models.Q(revoked_at__isnull=False, revoked_by__isnull=False) & ~models.Q(revocation_reason=''))), name='delegation_revocation_complete'),
+        ]
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        if not self._state.adding or (self.pk and type(self).objects.filter(pk=self.pk).exists()):
+            raise ValidationError('Delegation records are immutable; use the revocation service.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError('Delegation records cannot be deleted.')

@@ -25,6 +25,9 @@ export type WorkflowWaitingOn =
   | 'SUPERVISOR'
   | 'SELECTED_PANEL'
   | 'PROGRAMME_COORDINATOR'
+  | 'COORDINATOR'
+  | 'SOURCE_COORDINATOR'
+  | 'DESTINATION_COORDINATOR'
   | 'FACULTY_PROCESSING';
 
 export interface WorkflowAgeingMetadata {
@@ -272,6 +275,7 @@ export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
 
 export interface CoordinatorPanelWorkspace {
   programme: string;
+  programmes?: string[];
   pendingCount: number;
   queue: PanelRecommendationDraft[];
   records: PanelRecommendationDraft[];

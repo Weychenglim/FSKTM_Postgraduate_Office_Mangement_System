@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { CoordinatorDelegationCard } from './CoordinatorDelegations';
+import { coordinatorProgrammeNames, malaysiaToday, validateDelegation } from '../utils/coordinatorDelegations';
+import type { CoordinatorDelegation } from '../types/coordinatorDelegation';
+
+const row: CoordinatorDelegation = { id: 1, programme: 'MSc Computing', coordinator: { id: 2, name: 'Dr Acting' }, startsOn: '2026-09-18', endsOn: '2026-09-30', justification: 'Annual leave coverage', status: 'ACTIVE', grantedBy: { id: 3, name: 'Office User' }, createdAt: '2026-09-18T01:00:00Z', revokedAt: null, revokedBy: null, revocationReason: '', canRevoke: true };
+const render = (office: boolean, grant = row) => renderToStaticMarkup(<CoordinatorDelegationCard grant={grant} office={office} onRevoke={() => {}} />);
+assert.match(render(true), /Revoke/);
+assert.doesNotMatch(render(false), />Revoke</);
+assert.match(render(false), /Annual leave coverage/);
+assert.match(render(false), /2026-09-30/);
+assert.doesNotMatch(render(true, { ...row, canRevoke: false }), />Revoke</);
+assert.match(render(false, { ...row, status: 'REVOKED', revokedAt: '2026-09-19T01:00:00Z', revokedBy: row.grantedBy, revocationReason: 'Returned early' }), /Returned early/);
+assert.equal(malaysiaToday(new Date('2026-09-17T16:00:00Z')), '2026-09-18');
+const values = { programme: row.programme, coordinatorId: 2, startsOn: row.startsOn, endsOn: row.startsOn, justification: row.justification };
+assert.equal(validateDelegation(values, '2026-09-18'), null);
+assert.match(validateDelegation({ ...values, startsOn: '2026-09-17' }, '2026-09-18')!, /today/);
+assert.match(validateDelegation({ ...values, endsOn: '2026-09-17' }, '2026-09-18')!, /end date/i);
+assert.match(validateDelegation({ ...values, justification: ' ' }, '2026-09-18')!, /justification/i);
+assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular', programmes: ['Regular', 'Acting'] }), ['Regular', 'Acting']);
+assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular', programmes: [] }), []);
+assert.deepEqual(coordinatorProgrammeNames({ programme: 'Regular' }), ['Regular']);
+console.log('Coordinator delegation role rendering and Malaysia date validation passed');

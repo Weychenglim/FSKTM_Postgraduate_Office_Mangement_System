@@ -9,6 +9,8 @@ import { MonitoringTasksCard } from './MonitoringTasksCard';
 import { ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
+import { CoordinatorDelegations } from './CoordinatorDelegations';
+import { coordinatorProgrammeNames } from '../utils/coordinatorDelegations';
 
 interface CoordinatorDashboardProps {
   onNavigateToTab: (tabName: string) => void;
@@ -105,7 +107,9 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
     window.setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const hasProgramme = Boolean(workspace?.programme);
+  const programmes = coordinatorProgrammeNames(workspace);
+  const programmeLabel = programmes.join(', ');
+  const hasProgramme = programmes.length > 0;
   const navigateToAction = (task: DashboardTask) => {
     const route = resolveDashboardTaskRoute(task);
     if (onNavigateToRoute) {
@@ -121,7 +125,7 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
       <PageHeader
         title="Programme Coordinator Dashboard"
         subtitle={hasProgramme
-          ? `Monitor semester actions and final approvals for ${workspace?.programme}.`
+          ? `Monitor semester actions and final approvals for ${programmeLabel}.`
           : 'Monitor semester actions and programme approval responsibilities.'}
         actions={(
           <PortalButton
@@ -135,6 +139,8 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
       />
 
       <ActiveSemesterContext />
+
+      {!loading && !error && <CoordinatorDelegations regularProgramme={workspace?.programme} effectiveProgrammes={programmes} onRefreshScope={loadWorkspace} />}
 
       <DashboardTimeline
         showManageTimeline={false}
@@ -152,7 +158,7 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
             title="Supervisor Approvals"
             value={hasProgramme ? String(summary?.pendingSupervisorApprovals ?? 0) : '0'}
             subtext={hasProgramme
-              ? `Supervisor applications awaiting your final decision for ${workspace?.programme}.`
+              ? `Supervisor applications awaiting your final decision for ${programmeLabel}.`
               : 'No managed programme is assigned to this coordinator account.'}
             badge={hasProgramme ? 'Final approval queue' : 'No programme assigned'}
             badgeTone={hasProgramme && (summary?.pendingSupervisorApprovals ?? 0) > 0 ? 'warning' : 'info'}
@@ -165,7 +171,7 @@ export const CoordinatorDashboard: React.FC<CoordinatorDashboardProps> = ({
             title="Panel Approvals"
             value={hasProgramme ? String(workspace?.pendingCount ?? 0) : '0'}
             subtext={hasProgramme
-              ? `Panel recommendations awaiting your final decision for ${workspace?.programme}.`
+              ? `Panel recommendations awaiting your final decision for ${programmeLabel}.`
               : 'No managed programme is assigned to this coordinator account.'}
             badge={hasProgramme ? 'Final approval queue' : 'No programme assigned'}
             badgeTone={hasProgramme && (workspace?.pendingCount ?? 0) > 0 ? 'warning' : 'info'}

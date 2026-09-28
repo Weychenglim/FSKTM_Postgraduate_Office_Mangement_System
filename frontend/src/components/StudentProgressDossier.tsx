@@ -420,6 +420,16 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
             {dossier.supervisoryTeam.nominations.length ? <p className="mt-3 text-xs text-slate-600">{dossier.supervisoryTeam.nominations.filter(nomination => ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status)).length} pending supporting nominations</p> : null}
             <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View team and history</PortalButton>
           </PortalCard> : null}
+          {dossier.researchAmendments?.length ? <PortalCard padding="md">
+            <h2 className="text-sm font-bold text-brand-navy">Research amendments and programme transfers</h2>
+            <div className="mt-3 space-y-3">{dossier.researchAmendments.map(row => <div key={row.id} className="border-b border-slate-100 pb-3 text-sm">
+              <p className="font-semibold">{row.kind === 'TRANSFER' ? 'Programme transfer' : 'Research amendment'} · {row.stageLabel}</p>
+              <p>{row.before.title} → {row.after.title}</p>
+              {row.kind === 'TRANSFER' ? <p>{row.sourceProgramme} → {row.destinationProgramme}</p> : null}
+              <p className="mt-1 text-xs text-slate-500">{dateText(row.updatedAt)} · {row.reason}</p>
+            </div>)}</div>
+            <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View amendment history</PortalButton>
+          </PortalCard> : null}
           <h2 className="text-sm font-black text-brand-navy">Supervisor lifecycle</h2>
           {dossier.supervisor.records.length === 0 ? (
             <EmptyState title="No Supervisor records" description="No persisted Supervisor applications are available." />

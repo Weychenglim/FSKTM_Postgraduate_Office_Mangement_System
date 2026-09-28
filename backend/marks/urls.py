@@ -4,6 +4,10 @@ from . import views
 
 
 urlpatterns = [
+    path("periods/<int:pk>/closure-preview/", views.period_closure_preview_view),
+    path("tasks/<int:pk>/completion-windows/", views.completion_window_history_view),
+    path("completion-windows/", views.completion_window_grant_view),
+    path("completion-windows/<int:pk>/revoke/", views.completion_window_revoke_view),
     path("", views.mark_records_view),
     path("records/<str:record_id>/", views.mark_record_detail_view),
     path("periods/", views.evaluation_periods_view),

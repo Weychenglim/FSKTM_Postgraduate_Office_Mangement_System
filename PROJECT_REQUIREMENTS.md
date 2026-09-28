@@ -1,5 +1,37 @@
 # Project Requirements
 
+## Release preparation (2026-09-29)
+
+- Complete regression verification and isolated role-based acceptance before releasing the acting-coordinator, Marks completion-window and research-amendment changes.
+- Verify database backup restoration without changing working academic records. Prepare deployment, private-media backup, rollback and faculty acceptance instructions while hosting remains undecided.
+- Research workflow actions must display readable programme, source and destination coordinator stage labels.
+
+## Audited Research Amendments and Programme Transfers (2026-09-26)
+
+- Students request substantive title/abstract changes through primary-supervisor endorsement and coordinator approval. Office may apply minor corrections with a reason and an explicit declaration that research meaning is unchanged.
+- Office initiates programme transfers through source-coordinator endorsement and destination-coordinator approval. Both explicitly review retention of the current supervisory team and Panel. Transfers atomically update Student and research-profile programmes without changing appointments, workload, existing Marks, drafts or completion windows.
+- One amendment may be pending per student. Transfers require resolved appointment nominations and block new nominations while pending. Proposals are immutable; corrections require cancellation and a new request. Decisions recheck eligibility, current authority, profile revision and the reviewed team.
+- Immutable before/after revisions and decision history preserve original applications. Primary handover cancels pending research requests; graduation/withdrawal cancel pending amendments. Deferred students cannot receive decisions. Unlinked legacy profiles remain outside this workflow.
+- Existing screens and tracking expose scoped amendment history, stages and outcomes without granting supporting supervisors administrative-note access. Academic decisions are never automatically repaired by reconciliation.
+- Supervisor handover preserves recorded research baselines and approved revisions; replacement application wording cannot silently rewrite recorded research history.
+
+## Task-Specific Marks Completion Windows (2026-09-22)
+
+- Office may grant selected existing, active, unsubmitted and eligible evaluation tasks an immediate, reasoned completion deadline, either extending a Published period's effective deadline or allowing recovery after period/semester closure. Supervisor, Panel and existing Backup tasks are supported; windows create no assignments and never reopen submitted Marks.
+- Draft or unopened periods, archived periods/semesters, paused/retired tasks and ineligible participants or required appointments cannot receive effective windows. Expiry and reasoned revocation remove exceptional access while ordinary submission rules remain available where applicable.
+- Windows retain immutable grant, replacement and revocation history, survive semester handover, and never transfer to a replacement evaluator. Task pause or retirement permanently ends their authority. Submission preserves the deadline and window used.
+- Office previews unfinished work before period closure, semester closure or handover and acknowledges it using a current server-issued preview token. Archived records remain locked; active windows on unfinished tasks block archival.
+- Existing screens, Dashboard actions/counts, reports/exports, dossiers and reconciliation share task-level deadline rules without expanding role-based access. Otherwise eligible closed-period work remains available for an Office recovery decision instead of automatic retirement solely due to closure.
+- Existing assigned tasks retain their ordinary open-period submission access; exceptional completion grants additionally require the current eligible appointment. Published periods without a finite deadline do not need an individual extension. Submitted results retain the deadline used even if it was unlimited.
+
+## Temporary Acting-Coordinator Delegation (2026-09-20)
+
+- Office may grant an active existing Coordinator account temporary full coordinator access to an additional recognised programme. Its regular coordinator retains authority. Only one non-revoked acting assignment may overlap a programme's inclusive Malaysia start/end dates, including concurrent requests.
+- Grants require justification and a start date today or later; grant fields are immutable. Corrections require reasoned revocation and a new grant. A coordinator may cover multiple additional programmes, but cannot be delegated their own regular programme.
+- Active grants cover existing pending Supervisor, Panel, and co-supervisor requests and the same programme-scoped lifecycle, Dashboard, dossier, report/export and notification access. Programme records stay in place and historical decision actors remain unchanged. Every request rechecks effective authority; final decisions serialize against revocation.
+- Expiry and revocation remove delegated record access without a background job. Office retains all delegation history; recipients retain their own assignment history. Active and future grants block retirement until revoked, and inactive accounts never retain effective delegated access.
+- Delegations belong to programmes and survive regular-coordinator changes until expiry or revocation. Permanent coordinator replacement, Lecturer-account access, identity linking and new self-approval policies remain deferred.
+
 ## Programme-Scoped Evaluation Periods (2026-09-16)
 
 - Office configures each Marks period for all programmes or selected programmes, and Supervisor, Panel, or both official evaluator roles. Selected scope requires at least one nonblank programme and every period requires at least one official role. One rubric remains attached to each period; co-supervisors never receive official evaluator tasks through their supporting role.
