@@ -1,3 +1,4 @@
+from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
@@ -984,9 +985,14 @@ def review_history_view(request):
 @permission_classes([IsAuthenticated])
 def cancel_panel_recommendation_view(request, pk):
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         try:
+            student_id = PanelRecommendation.objects.values_list("profile__student_id", flat=True).get(pk=pk)
+            if student_id:
+                Student.objects.select_for_update().get(pk=student_id)
             recommendation = (
-                PanelRecommendation.objects.select_for_update()
+                PanelRecommendation.objects.select_for_update(of=("self",))
                 .select_related("profile", "supervisor", "recommended_member")
                 .get(pk=pk)
             )
@@ -995,6 +1001,10 @@ def cancel_panel_recommendation_view(request, pk):
                 "Panel recommendation was not found.",
                 status.HTTP_404_NOT_FOUND,
             )
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if request.user.pk != recommendation.supervisor_id:
             return error_response(
                 "Only the submitting supervisor can cancel this recommendation.",
@@ -1066,6 +1076,15 @@ def panel_accept_view(request, pk):
         return participant_ineligible_response()
 
     with transaction.atomic():
+        recommendation = lock_request(recommendation)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if recommendation.status != "SUBMITTED_TO_PANEL":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.PENDING_COORDINATOR
         recommendation.panel_decided_at = timezone.now()
@@ -1119,6 +1138,15 @@ def panel_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        recommendation = lock_request(recommendation)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if recommendation.status != "SUBMITTED_TO_PANEL":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.REJECTED_BY_PANEL
         recommendation.panel_rejection_reason = reason_serializer.validated_data[
@@ -1182,7 +1210,9 @@ def coordinator_approve_view(request, pk):
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
+    from .capacity_reassessment import lock_policy_semesters, assert_request_capacity, consume
     with transaction.atomic():
+        lock_policy_semesters()
         if recommendation.profile.student_id:
             locked_student = Student.objects.select_for_update().get(
                 pk=recommendation.profile.student_id
@@ -1228,12 +1258,7 @@ def coordinator_approve_view(request, pk):
                 status.HTTP_409_CONFLICT,
             )
         try:
-            assert_capacity_allows_assignment(
-                user=recommendation.recommended_member,
-                semester=recommendation.academic_semester,
-                role=CapacityRole.PANEL,
-                exclude_panel_recommendation_id=recommendation.pk,
-            )
+            capacity_result = assert_request_capacity(recommendation)
         except CapacityConflict as exc:
             return error_response(str(exc), status.HTTP_409_CONFLICT)
         previous_status = recommendation.status
@@ -1258,6 +1283,7 @@ def coordinator_approve_view(request, pk):
         except AppointmentLifecycleConflict as exc:
             transaction.set_rollback(True)
             return error_response(str(exc), status.HTTP_409_CONFLICT)
+        consume(recommendation, request.user, capacity_result)
         record_workflow_event(
             actor=request.user,
             action="COORDINATOR_APPROVE",
@@ -1313,9 +1339,15 @@ def coordinator_reject_view(request, pk):
     reason_serializer.is_valid(raise_exception=True)
     reason = reason_serializer.validated_data["reason"]
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         if recommendation.profile.student_id:
             Student.objects.select_for_update().get(pk=recommendation.profile.student_id)
         recommendation = PanelRecommendation.objects.select_for_update(of=("self",)).select_related("profile").get(pk=pk)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
             return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
         if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
@@ -1680,9 +1712,14 @@ def supervisor_application_detail_view(request, pk):
 @permission_classes([IsAuthenticated])
 def cancel_supervisor_application_view(request, pk):
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         try:
+            student_id = SupervisorApplication.objects.values_list("student_id", flat=True).get(pk=pk)
+            if student_id:
+                Student.objects.select_for_update().get(pk=student_id)
             application = (
-                SupervisorApplication.objects.select_for_update()
+                SupervisorApplication.objects.select_for_update(of=("self",))
                 .select_related(
                     "student",
                     "student__user",
@@ -1696,6 +1733,10 @@ def cancel_supervisor_application_view(request, pk):
                 "Supervisor application was not found.",
                 status.HTTP_404_NOT_FOUND,
             )
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if request.user.pk != application.student.user_id:
             return error_response(
                 "Only the student who submitted this request can cancel it.",
@@ -1798,6 +1839,15 @@ def supervisor_accept_view(request, pk):
     if not student_is_workflow_eligible(application.student):
         return participant_ineligible_response()
     with transaction.atomic():
+        application = lock_request(application)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if application.status != "SUBMITTED_TO_SUPERVISOR":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.PENDING_COORDINATOR
         application.supervisor_decided_at = timezone.now()
@@ -1851,6 +1901,15 @@ def supervisor_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        application = lock_request(application)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if application.status != "SUBMITTED_TO_SUPERVISOR":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
         application.supervisor_rejection_reason = reason_serializer.validated_data[
@@ -2000,8 +2059,14 @@ def supervisor_coordinator_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         Student.objects.select_for_update().get(pk=application.student_id)
         application = SupervisorApplication.objects.select_for_update(of=("self",)).select_related("student__user", "proposed_supervisor").get(pk=pk)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if not supervisor_programme_access(request.user, application, lock=True):
             return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
         if application.status != SupervisorApplication.Status.PENDING_COORDINATOR:

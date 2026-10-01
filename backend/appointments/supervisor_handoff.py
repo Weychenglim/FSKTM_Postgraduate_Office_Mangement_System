@@ -119,6 +119,8 @@ def _resolve_research_profile(application):
 
 @transaction.atomic
 def approve_supervisor_application(*, application_id, actor):
+    from .capacity_reassessment import lock_policy_semesters, assert_request_capacity, consume
+    lock_policy_semesters()
     student_id = (
         SupervisorApplication.objects.only("student_id")
         .get(pk=application_id)
@@ -186,11 +188,7 @@ def approve_supervisor_application(*, application_id, actor):
     if not coordinator_manages_programme(actor, application.student.programme, lock=True):
         raise SupervisorApprovalForbidden("Your authority for this programme is no longer active.")
     try:
-        assert_capacity_allows_assignment(
-            user=application.proposed_supervisor,
-            semester=application.academic_semester,
-            role=CapacityRole.SUPERVISOR,
-        )
+        capacity_result = assert_request_capacity(application)
     except CapacityConflict as exc:
         raise SupervisorApprovalConflict(str(exc)) from exc
 
@@ -252,4 +250,5 @@ def approve_supervisor_application(*, application_id, actor):
         new_status=application.status,
         supervisor_application=application,
     )
+    consume(application, actor, capacity_result)
     return application, True

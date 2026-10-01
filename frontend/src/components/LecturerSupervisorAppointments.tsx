@@ -830,7 +830,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
             subtitleClassName="leading-relaxed max-w-4xl"
             className="select-none"
           />
-          <SupervisoryTeamManagement onChanged={loadData} />
+          <SupervisoryTeamManagement role="Lecturer" onChanged={loadData} />
 
           {loading ? (
             <LoadingState message="Loading supervisor appointments…" />

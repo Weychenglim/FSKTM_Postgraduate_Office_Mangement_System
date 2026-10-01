@@ -1219,10 +1219,10 @@ def _apply_semester_assignment(issue, resolution):
         raise ReconciliationConflict(
             "The selected semester is not the current unambiguous suggestion."
         )
-    record = model.objects.select_for_update().filter(pk=issue.record_id).first()
     semester = (
-        AcademicSemester.objects.select_for_update().filter(pk=semester_id).first()
+        AcademicSemester.objects.select_for_update(no_key=True).filter(pk=semester_id).first()
     )
+    record = model.objects.select_for_update().filter(pk=issue.record_id).first()
     if record is None or semester is None:
         raise ReconciliationConflict(
             "The affected record or semester no longer exists."
@@ -1404,6 +1404,14 @@ def _approval_event_for(source):
 
 
 def _apply_supervisor_handoff(issue, actor):
+    from appointments.capacity_reassessment import lock_policy_semesters
+
+    lock_policy_semesters()
+    student_id = SupervisorApplication.objects.filter(pk=issue.record_id).values_list(
+        "student_id", flat=True
+    ).first()
+    if student_id:
+        Student.objects.select_for_update().filter(pk=student_id).first()
     application = (
         SupervisorApplication.objects.select_for_update(of=("self",))
         .select_related(
@@ -1477,6 +1485,14 @@ def _apply_supervisor_handoff(issue, actor):
 
 
 def _apply_panel_handoff(issue, actor):
+    from appointments.capacity_reassessment import lock_policy_semesters
+
+    lock_policy_semesters()
+    student_id = PanelRecommendation.objects.filter(pk=issue.record_id).values_list(
+        "profile__student_id", flat=True
+    ).first()
+    if student_id:
+        Student.objects.select_for_update().filter(pk=student_id).first()
     recommendation = (
         PanelRecommendation.objects.select_for_update(of=("self",))
         .select_related(

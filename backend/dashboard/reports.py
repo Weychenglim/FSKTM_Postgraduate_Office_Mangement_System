@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from openpyxl import Workbook
+from openpyxl.cell.cell import Cell
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -1013,13 +1014,24 @@ def build_workflow_report(user, query_params=None, now=None):
     }
 
 
+def _append_literal_row(sheet, values):
+    cells = []
+    for value in values:
+        cell = Cell(sheet, value=value)
+        if isinstance(value, str):
+            # openpyxl infers formulas and error cells from string content.
+            # Report text must remain literal without changing numeric cells.
+            cell.data_type = "s"
+        cells.append(cell)
+    sheet.append(cells)
+
+
 def _append_sheet(workbook, title, headers, rows):
     sheet = workbook.create_sheet(title=title)
-    sheet.append([label for _key, label in headers])
+    _append_literal_row(sheet, [label for _key, label in headers])
     for row in rows:
-        sheet.append([row.get(key) for key, _label in headers])
+        _append_literal_row(sheet, [row.get(key) for key, _label in headers])
     for column_index, (_key, label) in enumerate(headers, start=1):
-        sheet.cell(1, column_index, label)
         sheet.cell(1, column_index).font = Font(bold=True, color="FFFFFF")
         sheet.cell(1, column_index).fill = PatternFill("solid", fgColor="1E3A5F")
         column_widths = [
@@ -1060,7 +1072,7 @@ def build_workflow_report_workbook(report):
             for key, value in report["participantLifecycle"].items()
         )
     for row in summary_rows:
-        summary.append(row)
+        _append_literal_row(summary, row)
     summary["A1"].font = Font(bold=True)
     summary.column_dimensions["A"].width = 28
     summary.column_dimensions["B"].width = 30

@@ -207,13 +207,7 @@ export function marksMutationErrorMessage(error: unknown): string {
   return 'Marks configuration could not be saved. Try again.';
 }
 
-export function toDateTimeLocalValue(value: string | null | undefined): string {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
+export { toMalaysiaDateTimeLocalValue as toDateTimeLocalValue } from './malaysiaDateTime';
 
 export function buildMarkScorePayload(
   components: EvaluationTaskComponent[],

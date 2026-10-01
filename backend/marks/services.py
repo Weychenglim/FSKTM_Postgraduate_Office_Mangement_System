@@ -621,7 +621,9 @@ def archive_evaluation_period(*, period, actor, reason):
 
 @transaction.atomic
 def ensure_period_tasks(period, *, actor=None):
-    period = EvaluationPeriod.objects.select_for_update().get(pk=period.pk)
+    # Replacement holds a Student lock while inserting a task with this period
+    # FK. Allow that insert to finish while generation waits for the Student.
+    period = EvaluationPeriod.objects.select_for_update(no_key=True).get(pk=period.pk)
     _assert_period_allows_task_creation(period)
     created = {
         "supervisor": 0,
@@ -674,7 +676,7 @@ def create_backup_evaluation_task(
     original_task=None,
 ):
     _assert_office_admin(actor)
-    period = EvaluationPeriod.objects.select_for_update().get(pk=period.pk)
+    period = EvaluationPeriod.objects.select_for_update(no_key=True).get(pk=period.pk)
     _assert_period_allows_task_creation(period)
     reason = str(reason).strip()
     if not reason:
@@ -710,12 +712,26 @@ def create_backup_evaluation_task(
     lecturer = Lecturer.objects.select_for_update().get(pk=evaluator.pk)
     if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
         raise ValidationError("Backup evaluator is no longer available.")
-    task, _ = EvaluationTask.objects.get_or_create(
+    # Historical assignments are retained, but must never be returned as a new
+    # usable assignment. Period/Student/Lecturer locks serialize this decision.
+    existing = EvaluationTask.objects.filter(
         profile=profile,
         evaluator=evaluator,
         period=period,
         evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
-        defaults={"assigned_by": actor},
+    ).exclude(lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
+    if existing.exists():
+        raise MarksStateConflict(
+            "This evaluator already has a backup assignment for this student and period. "
+            "Review the existing task instead of assigning it again."
+        )
+    task = EvaluationTask.objects.create(
+        profile=profile,
+        evaluator=evaluator,
+        period=period,
+        evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
+        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
+        assigned_by=actor,
     )
     EvaluationTaskOverrideAudit.objects.create(
         task=task,

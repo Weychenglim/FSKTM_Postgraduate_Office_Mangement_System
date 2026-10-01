@@ -832,6 +832,31 @@ class ImmutableAmendmentRecord(models.Model):
         raise ValidationError("Amendment history cannot be deleted.")
 
 
+class CapacityReassessmentEvent(ImmutableAmendmentRecord):
+    """Append-only grant, replacement, revocation and policy consumption ledger."""
+    supervisor_application = models.ForeignKey(SupervisorApplication, null=True, blank=True, on_delete=models.PROTECT, related_name="capacity_reassessments")
+    co_supervisor_nomination = models.ForeignKey(CoSupervisorNomination, null=True, blank=True, on_delete=models.PROTECT, related_name="capacity_reassessments")
+    panel_recommendation = models.ForeignKey(PanelRecommendation, null=True, blank=True, on_delete=models.PROTECT, related_name="capacity_reassessments")
+    authorization = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="authorization_events")
+    target_semester = models.ForeignKey("academics.AcademicSemester", on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor_role = models.CharField(max_length=64)
+    actor_name = models.CharField(max_length=255)
+    action = models.CharField(max_length=16, choices=[(v, v) for v in ("GRANTED", "REPLACED", "REVOKED", "CONSUMED")])
+    reason = models.TextField(blank=True)
+    request_status = models.CharField(max_length=40)
+    policy = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+        constraints = [models.CheckConstraint(condition=(
+            Q(supervisor_application__isnull=False, co_supervisor_nomination__isnull=True, panel_recommendation__isnull=True)
+            | Q(supervisor_application__isnull=True, co_supervisor_nomination__isnull=False, panel_recommendation__isnull=True)
+            | Q(supervisor_application__isnull=True, co_supervisor_nomination__isnull=True, panel_recommendation__isnull=False)
+        ), name="capacity_reassessment_one_request")]
+
+
 class ResearchAmendment(ImmutableAmendmentRecord):
     class Kind(models.TextChoices):
         RESEARCH = "RESEARCH", "Research amendment"

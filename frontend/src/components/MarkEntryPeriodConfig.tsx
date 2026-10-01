@@ -54,6 +54,7 @@ import {
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { malaysiaDeadline, formatMalaysiaDateTime as displayDateTime } from '../utils/malaysiaDateTime';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -116,19 +117,6 @@ export const MarkEntryRecipientPreview: React.FC<{ preview: EvaluationRecipientP
     </div> : null}
   </section>
 );
-
-const displayDateTime = (value: string | null) => {
-  if (!value) return 'Not configured';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return 'Invalid date';
-  return parsed.toLocaleString('en-MY', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   onBack,
@@ -273,8 +261,8 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
         name: form.name.trim(),
         semesterId: Number(form.semesterId),
         rubricId: Number(form.rubricId),
-        opensAt: form.opensAt ? new Date(form.opensAt).toISOString() : null,
-        closesAt: form.closesAt ? new Date(form.closesAt).toISOString() : null,
+        opensAt: form.opensAt ? malaysiaDeadline(form.opensAt) : null,
+        closesAt: form.closesAt ? malaysiaDeadline(form.closesAt) : null,
         programmeScope: form.programmeScope as 'ALL' | 'SELECTED',
         programmes: form.programmeScope === 'SELECTED' ? form.programmes : [],
         evaluatorRoles: form.evaluatorRoles,
@@ -556,7 +544,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
               </fieldset>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block text-xs font-bold text-slate-700">
-                  Opens at
+                  Opens at (Malaysia, UTC+08:00)
                   <input
                     required
                     type="datetime-local"
@@ -567,7 +555,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   />
                 </label>
                 <label className="block text-xs font-bold text-slate-700">
-                  Closes at
+                  Closes at (Malaysia, UTC+08:00)
                   <input
                     required
                     type="datetime-local"

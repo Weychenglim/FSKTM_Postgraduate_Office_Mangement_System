@@ -6,6 +6,8 @@ import type { CoSupervisorAction, CoSupervisorAppointment, CoSupervisorCandidate
 import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { ResearchAmendments } from './ResearchAmendments';
+import { CapacityReassessments } from './CapacityReassessments';
+import type { UserRole } from '../types/auth';
 
 const inputClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-navy';
 const labels: Record<CoSupervisorAction, string> = { accept: 'Accept', reject: 'Reject', approve: 'Approve', 'coordinator-reject': 'Reject', cancel: 'Cancel nomination' };
@@ -107,7 +109,7 @@ type EditAction = { kind: 'nominate'; team: SupervisoryTeam; replacement: CoSupe
   | { kind: 'decision'; nomination: CoSupervisorNomination; action: CoSupervisorAction }
   | { kind: 'end'; appointment: CoSupervisorAppointment };
 
-export function SupervisoryTeamManagement({ onChanged }: { onChanged?: () => void }) {
+export function SupervisoryTeamManagement({ onChanged, role }: { onChanged?: () => void; role?: UserRole }) {
   const [workspace, setWorkspace] = useState<SupervisoryWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +194,7 @@ export function SupervisoryTeamManagement({ onChanged }: { onChanged?: () => voi
       {history.length || historicalNominations.length ? <details><summary className="cursor-pointer text-sm font-semibold">My previous supporting appointments and nominations</summary><div className="mt-3 space-y-3">{history.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={row} busy={busy} canReplace={false} onEnd={() => {}} onReplace={() => {}} />)}{historicalNominations.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={() => {}} />)}</div></details> : null}
       {!teams.length && !reviews.length && !history.length && !historicalNominations.length ? <EmptyState title={query ? 'No matching teams' : 'No supervisory team records yet'} description="Supporting appointments and nominations will appear here when available." /> : null}
     </> : null}
+    <CapacityReassessments role={role} onChanged={() => { void load(); onChanged?.(); }} />
     <ResearchAmendments onChanged={() => { void load(); onChanged?.(); }} />
   </section>;
 }

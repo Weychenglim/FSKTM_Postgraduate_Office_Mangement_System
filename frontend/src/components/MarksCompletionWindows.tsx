@@ -2,17 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { CompletionWindow, EvaluationPreviewTask } from '../types/marks';
 import { grantCompletionWindows, getCompletionWindows, revokeCompletionWindow } from '../services/marksCompletionApi';
 import { PortalButton } from './PortalPrimitives';
+import { malaysiaDeadline, formatMalaysiaDateTime as date } from '../utils/malaysiaDateTime';
 
-export function malaysiaDeadline(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw new Error('Enter a valid Malaysia date and time.');
-  const parsed = new Date(`${value}:00+08:00`);
-  if (!Number.isFinite(parsed.getTime()) || new Date(parsed.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16) !== value) throw new Error('Enter a valid deadline.');
-  return parsed.toISOString();
-}
-const date = (value: string) => new Date(value).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+export { malaysiaDeadline } from '../utils/malaysiaDateTime';
 export function CompletionWindowHistory({ windows, onRevoke }: { windows: CompletionWindow[]; onRevoke: (window: CompletionWindow) => void }) {
   return <div className="divide-y divide-slate-200">{windows.length ? windows.map(window => <article key={window.id} className="space-y-1 py-3 text-sm">
-    <p className="font-bold">{window.status} · Due {date(window.deadline)} (Malaysia)</p>
+    <p className="font-bold">{window.status} · Due {date(window.deadline)}</p>
     <p>{window.reason}</p><p className="text-slate-500">Granted by {window.grantedBy.name} · {date(window.createdAt)}</p>
     {window.supersedesId ? <p>Replaces window #{window.supersedesId}</p> : null}
     {window.revokedAt ? <p>Revoked {date(window.revokedAt)} · {window.revocationReason}</p> : null}

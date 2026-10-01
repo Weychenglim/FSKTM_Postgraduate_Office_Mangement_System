@@ -236,7 +236,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
         title="Supervisor Appointment"
         subtitle="View your current supervisor details and track submitted supervisor appointment applications."
       />
-      <SupervisoryTeamManagement />
+      <SupervisoryTeamManagement role="Student" />
 
       {/* ========================================================================= */}
       {/* 1. HERO SECTION: CURRENT APPROVED SUPERVISOR CARD                        */}

@@ -1,5 +1,28 @@
 # Project Status
 
+## Logical Configuration Corrections (completed 2026-10-01)
+
+- Implemented the three approved follow-up fixes: literal spreadsheet exports, fresh backup assignments after retirement, and consistent Malaysia deadline entry/display. Prior carryover changes remain preserved.
+- Backup regressions reproduced the original failures before the service change; 24 focused backup/targeting/handover checks passed afterward. XLSX round-trip and CSV prefix tests also failed before their fixes and passed afterward. Final integrated verification passes **166 affected backend tests** across Marks, Dashboard and appointment lifecycle in **148.956 seconds**, including concurrent duplicate backup requests. All **60 frontend scripts**, TypeScript lint, production build and production artifact guards pass. The timezone tests also pass under UTC, Asia/Kuala_Lumpur and America/New_York. Django system checks, migration-drift checks and whitespace checks pass. Independent scoped review found no remaining actionable issues. No new migration is required; browser walkthroughs were not rerun.
+- Coordinator account identity remains deferred; Settings persistence is outside this fix slice. No commit, push or deployment is included.
+
+
+## Follow-up Logical Configuration Review (2026-09-30)
+
+- A bounded follow-up inspection found three additional issues: spreadsheet formula interpretation of user text, retired backup-task reuse on reassignment, and inconsistent browser-local versus Malaysia deadline entry. The first two were reproduced using an isolated Django test database; a timezone probe confirmed the third. These findings were subsequently fixed and verified in the 2026-10-01 correction slice above.
+- Details and recommended controls are recorded in `docs/LOGICAL_CONFIGURATION_REVIEW_2026-09-30.md`. The earlier passing regression results do not cover these newly identified scenarios. No application code, development academic data, commits or pushes were changed by this review.
+- Coordinator/lecturer cross-account identity remains the deferred item from the original edge-case list. Wider-application Settings persistence and faculty/staging acceptance remain separate known gaps; completion of the original list is not a claim of production readiness.
+
+
+## Carryover Capacity Reassessment (completed 2026-09-30)
+
+- User approved reasoned Office reassessment of pending Closed-semester Supervisor, co-supervisor and Panel requests against the effective Active semester capacity policy. Original request history remains unchanged; no capacity bypass or automatic approval is introduced.
+- Implemented the append-only capacity reassessment ledger, staff-scoped API, Office controls and coordinator history in existing Supervisor Appointment screens. Authorizations preserve the original request and recheck current policy at activation; archived manual decisions are locked. Latest-event tokens reject stale forms after revocation.
+- Verification: all **573 backend regression tests passed** across Accounts, Academics, Appointments, Dashboard and Marks in **436.311 seconds** on two PostgreSQL workers. The final archive-guard regression and corrected real-deferral fixture both passed separately (**2 focused checks**, one additional distinct test). Coverage includes migration preservation, reassessment decisions, permissions, capacity exhaustion and PostgreSQL concurrency. All **58 frontend scripts**, TypeScript lint, production build and artifact guards passed; the final event-token change was rechecked with its affected tests, lint, build and guards. Final Django system and migration-drift checks pass.
+- Applied `appointments.0015_capacity_reassessment` to the local development database. Before/after row counts and content fingerprints match across all **44 existing Accounts/Academics/Appointments/Marks models**; no existing academic data changed. Verification evidence is retained outside Git in the local temporary directory.
+- Independent review findings for stale authorization after revocation and incomplete archived-decision guards were fixed; bounded re-review reports no remaining substantive findings. Browser initialization timed out, so browser acceptance remains unverified. Changes remain uncommitted on `codex/carryover-capacity`; no push or deployment was performed.
+
+
 ## Audited Research Amendments and Programme Transfers (2026-09-29)
 
 - Implemented request/revision workflows, reasoned Office corrections, source/destination transfer approvals, existing-screen controls, lifecycle/nominations integration and scoped Dashboard/report/XLSX/dossier tracking. A repeated approval cannot advance a second stage implicitly, even when the same coordinator manages both programmes.

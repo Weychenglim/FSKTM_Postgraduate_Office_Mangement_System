@@ -104,7 +104,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
         title="Supervisor Appointment Approvals"
         subtitle="Review supervisor requests accepted by lecturers in your managed programme."
       />
-      <SupervisoryTeamManagement />
+      <SupervisoryTeamManagement role="Programme Coordinator" />
 
       {loading ? (
         <LoadingState message="Loading supervisor approvals…" />

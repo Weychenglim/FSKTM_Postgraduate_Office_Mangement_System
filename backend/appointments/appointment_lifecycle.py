@@ -192,6 +192,7 @@ def activate_replacement(
         assert_capacity_allows_assignment,
     )
     from accounts.models import Lecturer
+    from .capacity_reassessment import capacity_semester
 
     if model is SupervisorAppointment:
         capacity_user = replacement_source.proposed_supervisor
@@ -205,7 +206,7 @@ def activate_replacement(
     try:
         assert_capacity_allows_assignment(
             user=capacity_user,
-            semester=replacement_source.academic_semester,
+            semester=capacity_semester(replacement_source),
             role=capacity_role,
             exclude_panel_recommendation_id=excluded_recommendation_id,
         )

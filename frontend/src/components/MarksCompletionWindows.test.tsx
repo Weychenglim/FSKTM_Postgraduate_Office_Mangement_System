@@ -6,6 +6,7 @@ import { ClosureSummary } from './ClosureReview';
 const row:any={id:1,taskId:2,deadline:'2026-10-01T04:00:00Z',status:'ACTIVE',reason:'Complete original draft',grantedBy:{id:3,name:'Office Staff'},createdAt:'2026-09-22T01:00:00Z',revokedAt:null,revocationReason:'',supersedesId:null,canRevoke:true};
 const render=(window:any)=>renderToStaticMarkup(<CompletionWindowHistory windows={[window]} onRevoke={()=>{}}/>);
 assert.match(render(row),/Revoke window/);
+assert.match(render(row),/12:00 pm \(Malaysia, UTC\+08:00\)/);
 assert.doesNotMatch(render({...row,status:'EXPIRED',canRevoke:false}),/Revoke window/);
 assert.match(render({...row,status:'REVOKED',canRevoke:false,revokedAt:row.createdAt,revocationReason:'Wrong task'}),/Wrong task/);
 assert.equal(malaysiaDeadline('2026-10-01T12:00'),'2026-10-01T04:00:00.000Z');

@@ -237,7 +237,7 @@ def _check_candidate(
                 "A student may have at most two active or pending co-supervisor positions."
             )
     try:
-        assert_capacity_allows_assignment(
+        return assert_capacity_allows_assignment(
             user=candidate, semester=semester, role=CapacityRole.SUPERVISOR
         )
     except CapacityConflict as exc:
@@ -460,6 +460,8 @@ def end_locked(row, *, actor, outcome, reason):
 
 @transaction.atomic
 def decide(*, nomination_id, actor, action, reason=""):
+    from .capacity_reassessment import lock_policy_semesters, capacity_semester, consume, assert_not_archived
+    lock_policy_semesters()
     ref = CoSupervisorNomination.objects.only("student_id").get(pk=nomination_id)
     student = (
         Student.objects.select_for_update()
@@ -478,6 +480,10 @@ def decide(*, nomination_id, actor, action, reason=""):
         )
         .get(pk=nomination_id)
     )
+    try:
+        assert_not_archived(row)
+    except CapacityConflict as exc:
+        raise CoSupervisionConflict(str(exc)) from exc
     if action not in {"accept", "reject", "approve", "coordinator-reject", "cancel"}:
         raise ValueError("Unknown nomination action.")
     # Authorize actor separately from stale state so retries receive a conflict.
@@ -519,11 +525,15 @@ def decide(*, nomination_id, actor, action, reason=""):
             raise CoSupervisionConflict(
                 "The originating primary supervisor appointment has ended."
             )
-        _check_candidate(
+        try:
+            assessed_semester = capacity_semester(row)
+        except CapacityConflict as exc:
+            raise CoSupervisionConflict(str(exc)) from exc
+        capacity_result = _check_candidate(
             student=student,
             candidate=row.candidate,
             primary=primary,
-            semester=row.academic_semester,
+            semester=assessed_semester,
             exclude_nomination=row.pk,
             replaces=row.replaces_appointment,
         )
@@ -554,6 +564,8 @@ def decide(*, nomination_id, actor, action, reason=""):
             supersedes=row.replaces_appointment,
         )
         _lifecycle(appointment, actor, "ACTIVATED")
+        # Snapshot the checked policy before the new appointment changes workload.
+        consume(row, actor, capacity_result)
     row.reason = reason if action in {"reject", "coordinator-reject"} else ""
     row.save(
         update_fields=[
