@@ -1,11 +1,17 @@
 # Project Status
 
+## Main Branch Integration (2026-10-03)
+
+- Settings persistence was committed as `98a173d`. The carryover/configuration branch, including the preceding coordinator-delegation, Marks recovery and research-amendment work, was integrated and pushed to `main` at `11e91ae`.
+- Merging the remote main history introduced no file changes relative to the tested Settings commit. Existing verification results above remain applicable; no additional test run is claimed for this Git-only integration.
+- Browser acceptance remains blocked by the recorded browser-tool initialization error. Coordinator identity policy remains deferred. No deployment was performed.
+
 ## Account Settings Persistence (completed 2026-10-02)
 
 - Completed real own-account phone and announcement-preference persistence, validated password changes, session revocation and truthful unavailable-notification labels. The user confirmed that email remains Office-managed. No additional academic or coordinator authority is introduced.
 - Backend verification: Accounts and Announcements suites passed **87 tests**; the final Settings/migration subset passed **14 tests**, including five added cases (**92 distinct affected tests** overall). Django checks and migration-drift checks pass. The additive migration preserves existing account credentials, contact data, account flags and linked Student details.
 - Frontend verification: **62 scripts** passed, along with TypeScript lint, production build and artifact guards. Review identified expired-token recovery and delayed-response session races; fixes and regression checks pass. Final affected API/session/rendering tests, lint, build and artifact guards pass. Independent re-review found no further actionable issues. Browser interaction acceptance remains pending.
-- Applied Accounts migration `0006_user_announcement_alerts` to the local development database. Before/after account row counts and content fingerprints match for all pre-existing fields; existing accounts retain enabled announcement delivery by default. Settings is prepared for integration on `codex/carryover-capacity`; the preceding carryover/configuration work was committed and pushed as `1e1894e`.
+- Applied Accounts migration `0006_user_announcement_alerts` to the local development database. Before/after account row counts and content fingerprints match for all pre-existing fields; existing accounts retain enabled announcement delivery by default. Settings was committed as `98a173d` and integrated into `main`; the preceding carryover/configuration work was committed as `1e1894e`.
 - Browser acceptance attempted on 2026-10-03: browser automation failed before opening the app (`failed to write kernel assets: The system cannot find the path specified`), including one retry after resetting the browser runtime. No UI acceptance pass is claimed. Remaining manual checks: on a synthetic account, save a phone number and announcement preference, reload and confirm persistence; verify a rejected password change shows an error without a success message; change the password successfully, confirm return to login, and sign in with the new password. Repeat Settings access for Student, Lecturer, Coordinator and Office roles. Confirm email is read-only and unsupported notification services are labelled unavailable.
 
 ## Logical Configuration Corrections (completed 2026-10-01)
