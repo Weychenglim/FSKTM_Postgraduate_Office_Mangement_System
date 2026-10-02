@@ -1,5 +1,13 @@
 # Architecture and Coding Design
 
+## Account Settings Architecture (2026-10-01)
+
+- `GET/PATCH /api/auth/settings/` returns the caller's public account, notification preferences and delivery capabilities. PATCH accepts only phone and strictly boolean `preferences.announcementAlerts`; protected or unknown fields are rejected. Existing `User.phone` persists contact information; additive Accounts migration `0006_user_announcement_alerts` defaults current and future accounts to receiving announcements.
+- `POST /api/auth/settings/password/` locks the caller's user row, rechecks account eligibility/current password, applies user-aware Django validators, clears the temporary-password flag, and blacklists outstanding refresh tokens. Existing password-hash JWT revocation invalidates prior access tokens. Responses clear the refresh cookie; a per-user throttle permits five attempts per hour.
+- Announcement fan-out filters opt-outs for nonurgent announcements only. It does not delete historical notifications, change attachment authorization, or suppress workflow events.
+- Typed Settings API calls are always backend-backed. The existing Settings component disables writes during load, load failure and save; App synchronizes returned contact data. Password changes use authenticated refresh/retry and route back to login with feedback. An authentication session version guards delayed password-change and refresh responses against replacing or clearing a newer login.
+- Verification includes authenticated permission/validation tests, token invalidation, preference delivery/history checks, migration preservation, frontend API/session-race tests and Settings rendering checks.
+
 ## Release verification and operations (2026-09-29)
 
 - `deploy/RELEASE_RUNBOOK.md` documents the existing Nginx/Django/PostgreSQL deployment pattern, environment settings, verification commands, backup/restore rehearsal, acceptance and rollback. Hosting and the production WSGI runtime remain deployment decisions; no public server was provisioned.

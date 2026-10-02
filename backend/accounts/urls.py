@@ -8,6 +8,8 @@ urlpatterns = [
     path("refresh/", views.refresh_view, name="refresh"),
     path("logout/", views.logout_view, name="logout"),
     path("me/", views.me_view, name="me"),
+    path("settings/", views.settings_view, name="settings"),
+    path("settings/password/", views.settings_password_view, name="settings-password"),
     path("me/letter-details/", views.my_letter_details_view, name="my-letter-details"),
     path("password-reset/", views.password_reset_view, name="password-reset"),
     path(

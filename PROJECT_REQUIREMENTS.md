@@ -1,5 +1,12 @@
 # Project Requirements
 
+## Account Settings Persistence (2026-10-01)
+
+- Authenticated users can update their own phone number and nonurgent in-app announcement preference. Email remains Office-managed; self-service Settings cannot change account identity, role, programme or another user's data.
+- Password changes require the current password and the configured Django password validation rules. Successful changes end existing access/refresh sessions and require sign-in again; passwords retain intentional whitespace.
+- Announcement preferences apply to future nonurgent announcement notifications. Urgent announcements, academic workflow notifications, existing notification history and authorized attachment access remain available. Email notifications, scheduled deadline reminders and weekly digests remain unavailable and must not appear to be configurable working services.
+- Settings must load persisted values, expose loading/failure states, prevent duplicate saves, and report success only after the backend accepts a write. A delayed request from an older login must not terminate a newer session.
+
 ## Release preparation (2026-09-29)
 
 - Complete regression verification and isolated role-based acceptance before releasing the acting-coordinator, Marks completion-window and research-amendment changes.

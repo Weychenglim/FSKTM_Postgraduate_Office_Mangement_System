@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Q
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -14,7 +15,7 @@ from rest_framework.decorators import (
     permission_classes,
     throttle_classes,
 )
-from rest_framework.exceptions import UnsupportedMediaType
+from rest_framework.exceptions import PermissionDenied, UnsupportedMediaType
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
@@ -22,6 +23,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .authentication import RefreshCookieAuthentication
 from .serializers import (
+    AccountSettingsSerializer,
+    SettingsPasswordSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -32,6 +35,7 @@ from .session_tokens import (
     set_refresh_cookie,
 )
 from .throttles import (
+    SettingsPasswordRateThrottle,
     LoginRateThrottle,
     PasswordResetConfirmRateThrottle,
     PasswordResetRateThrottle,
@@ -107,6 +111,58 @@ def logout_view(request):
 def me_view(request):
     """Return the authenticated user (for session restore on the frontend)."""
     return Response(request.user.to_public_dict())
+
+
+def _settings_payload(user):
+    return {
+        "user": user.to_public_dict(),
+        "preferences": {"announcementAlerts": user.announcement_alerts},
+        "capabilities": {
+            "emailNotifications": False,
+            "deadlineReminders": False,
+            "weeklySummary": False,
+        },
+    }
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def settings_view(request):
+    user = request.user
+    if request.method == "PATCH":
+        _require_json_request(request)
+        serializer = AccountSettingsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        fields = []
+        if "phone" in serializer.validated_data:
+            user.phone = serializer.validated_data["phone"]
+            fields.append("phone")
+        if "preferences" in serializer.validated_data:
+            user.announcement_alerts = serializer.validated_data["preferences"]["announcementAlerts"]
+            fields.append("announcement_alerts")
+        if fields:
+            user.save(update_fields=fields)
+    return Response(_settings_payload(user))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([SettingsPasswordRateThrottle])
+def settings_password_view(request):
+    _require_json_request(request)
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=request.user.pk)
+        if not user.is_active:
+            raise PermissionDenied("This account is disabled.")
+        serializer = SettingsPasswordSerializer(data=request.data, context={"user": user})
+        serializer.is_valid(raise_exception=True)
+        if not user.check_password(serializer.validated_data["currentPassword"]):
+            return Response({"currentPassword": ["Current password is incorrect."]}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(serializer.validated_data["newPassword"])
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+        blacklist_user_refresh_tokens(user)
+    return delete_refresh_cookie(Response({"message": "Password updated. Please sign in again."}))
 
 
 @api_view(["GET"])

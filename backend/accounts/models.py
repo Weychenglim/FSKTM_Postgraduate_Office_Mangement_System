@@ -50,6 +50,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=64, choices=Role.choices, default=Role.STUDENT)
     phone = models.CharField(max_length=32, blank=True, default="")
+    announcement_alerts = models.BooleanField(default=True)
     # Set True when an account is created with a temporary password (FR-04); the
     # login flow can then force a password change on first sign-in.
     must_change_password = models.BooleanField(default=False)

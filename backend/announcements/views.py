@@ -80,6 +80,9 @@ def _user_is_targeted(user, announcement):
 
 def _fan_out(announcement):
     """Create one notification per targeted recipient. Returns the count."""
+    recipients = _recipients_for(announcement.target)
+    if announcement.priority != Announcement.Priority.URGENT:
+        recipients = recipients.filter(announcement_alerts=True)
     notifications = [
         Notification(
             recipient=recipient,
@@ -95,7 +98,7 @@ def _fan_out(announcement):
             module_label="Announcement",
             announcement=announcement,
         )
-        for recipient in _recipients_for(announcement.target)
+        for recipient in recipients
     ]
     Notification.objects.bulk_create(notifications)
     return len(notifications)

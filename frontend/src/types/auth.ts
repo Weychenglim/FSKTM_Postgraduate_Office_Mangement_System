@@ -12,6 +12,7 @@ export interface DemoUser {
   email: string;
   role: UserRole;
   fullName: string;
+  phone?: string;
   department: string;
   avatarUrl?: string;
   studentId?: string;

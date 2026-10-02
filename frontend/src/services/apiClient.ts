@@ -77,6 +77,10 @@ export function getAuthToken(): string | null {
   return authSession.getAccessToken();
 }
 
+export function getAuthSessionVersion(): number {
+  return authSession.getSessionVersion();
+}
+
 export function refreshAuthToken(): Promise<string | null> {
   return authSession.refreshAccessToken();
 }

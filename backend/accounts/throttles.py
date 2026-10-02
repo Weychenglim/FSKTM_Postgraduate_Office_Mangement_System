@@ -26,3 +26,13 @@ class PasswordResetRateThrottle(SettingsRateThrottle):
 class PasswordResetConfirmRateThrottle(SettingsRateThrottle):
     scope = "auth_password_reset_confirm"
     setting_name = "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE"
+
+
+class SettingsPasswordRateThrottle(SimpleRateThrottle):
+    scope = "auth_settings_password"
+    rate = "5/hour"
+
+    def get_cache_key(self, request, view):
+        if not request.user.is_authenticated:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": request.user.pk}

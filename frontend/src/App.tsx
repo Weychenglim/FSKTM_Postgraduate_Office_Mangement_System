@@ -402,6 +402,7 @@ export default function App() {
                 onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
                 onLoginSuccess={handleSuccessfulLogin}
               />
+              {appToastMessage && <p role="status" className="mt-4 text-sm text-slate-700">{appToastMessage}</p>}
             </div>
           </div>
         </AuthLayout>
@@ -798,7 +799,11 @@ export default function App() {
                 }}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
-              <SettingsView currentUser={currentUser} onLogout={handleLogout} />
+              <SettingsView currentUser={currentUser} onLogout={handleLogout} onUserUpdated={(updated) => setCurrentUser((existing) => existing?.id === updated.id ? updated : existing)} onPasswordChanged={() => {
+                setCurrentUser(null);
+                navigate(APP_ROUTES.login, { replace: true });
+                showAppToast('Password updated. Please sign in again.');
+              }} />
             ) : (
               /* Placeholder message for other sidebar routes */
               <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto my-12 shadow-sm">
