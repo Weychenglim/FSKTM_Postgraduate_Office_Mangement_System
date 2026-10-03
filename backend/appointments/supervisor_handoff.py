@@ -25,6 +25,7 @@ from .appointment_lifecycle import (
     AppointmentLifecycleConflict,
     activate_replacement,
 )
+from .role_integrity import AppointmentRoleConflict, assert_no_panel_role
 
 User = get_user_model()
 
@@ -128,7 +129,7 @@ def approve_supervisor_application(*, application_id, actor):
     )
     from accounts.models import Student
 
-    Student.objects.select_for_update().get(pk=student_id)
+    student = Student.objects.select_for_update().get(pk=student_id)
     application = (
         SupervisorApplication.objects.select_for_update(of=("self",))
         .select_related(
@@ -185,6 +186,10 @@ def approve_supervisor_application(*, application_id, actor):
     except CoSupervisionConflict as exc:
         raise SupervisorApprovalConflict(str(exc)) from exc
     Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
+    try:
+        assert_no_panel_role(student=student, candidate_id=application.proposed_supervisor_id)
+    except AppointmentRoleConflict as exc:
+        raise SupervisorApprovalConflict(str(exc)) from exc
     if not coordinator_manages_programme(actor, application.student.programme, lock=True):
         raise SupervisorApprovalForbidden("Your authority for this programme is no longer active.")
     try:

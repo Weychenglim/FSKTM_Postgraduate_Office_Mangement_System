@@ -127,7 +127,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
     studentName = serializers.CharField(source="profile.student_name")
     initials = serializers.SerializerMethodField()
     researchTitle = serializers.CharField(source="profile.proposed_topic")
-    semester = serializers.CharField(source="profile.semester")
+    semester = serializers.CharField(source="period.semester")
     deadline = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     evaluatorRole = serializers.CharField(source="evaluator_role")
@@ -251,7 +251,9 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
 
 class ScoreInputSerializer(serializers.Serializer):
     componentId = serializers.IntegerField()
-    marksAwarded = serializers.DecimalField(max_digits=7, decimal_places=2)
+    marksAwarded = serializers.DecimalField(
+        max_digits=7, decimal_places=2, min_value=Decimal("0.00")
+    )
     feedback = serializers.CharField(required=False, allow_blank=True)
 
 

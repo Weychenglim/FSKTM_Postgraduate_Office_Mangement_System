@@ -1,5 +1,20 @@
 # Project Status
 
+## Owned-module integrity fixes (completed 2026-10-04)
+
+- Implemented reciprocal primary/Panel conflict checks at submission, final approval and shared activation (including Office reconciliation repairs), accepted the Add Entry `semesterId`, closed appointment/configuration admin writes, added nonnegative Marks input validation and corrected period-based task semesters/dynamic Lecturer filters. Existing appointments, drafts, history, initial profile provisioning and audited Marks correction remain covered.
+- Regression tests reproduced the original defects before fixes. The full Accounts/Academics/Appointments/Dashboard/Marks suite passes **623 tests** in **519.465 seconds** using two PostgreSQL workers (**29 new tests** beyond the reviewed 594-test baseline). Initial 24-test, expanded 104-test and final 28-test focused runs also pass, including competing submissions, Office repair rollback and controlled missing-Student handling. Evidence is in the ignored `backend/final-fix-full.log`, `final-fix-focused.log`, `final-fix-affected.log` and `final-fix-review-green.log` files.
+- All 63 frontend scripts, TypeScript lint, production build and both artifact guards pass. Django system checks, migration-drift checks and whitespace checks pass; no migration or dependency change is required. Independent read-only re-review reports no remaining important findings.
+- The user authorized committing and pushing the verified fixes on 2026-10-04, followed by shared-cache configuration and browser acceptance. Hosting/faculty acceptance and coordinator identity policy remain release/deferred work; no public deployment is claimed.
+- Manual browser acceptance remains pending: verify Office Add Entry against selected Draft/Active semesters; Student replacement candidates/submission and Coordinator overlap rejection; Lecturer current/historical Marks filters and rejected negative drafts; and read-only governed Django admin detail screens. Use synthetic accounts and an isolated acceptance database. The original 2026-10-03 review handoff remains preserved as historical evidence; its five findings are addressed by this slice.
+
+## Final Owned-Module Review (2026-10-03)
+
+- Reviewed only the five owned modules and their shared configuration dependencies at `main` / `256ee60`. No application code changed. The existing owned/backend regression suite passed **594 tests**, but targeted review uncovered gaps not covered by that suite.
+- Confirmed development findings at review time (subsequently addressed in the completion section above): primary Supervisor replacement overlapping the student's active Panel role; frontend selected-semester Timeline creation rejection; Django-admin bypasses of governed appointment/configuration services; negative new Marks scores causing insertion failure; and incorrect Lecturer Marks task-semester data/hardcoded filters.
+- Three isolated diagnostic probes confirmed role overlap, negative-score database failure and stale task-semester presentation. Direct serializer/admin-form inspection confirmed the Timeline rejection and editable administrative fields. Probe successes confirm bugs, not corrected behavior.
+- Findings, evidence, limitations, production configuration dependencies and next-session instructions are recorded in `docs/HANDOFF_FINAL_OWNED_MODULE_REVIEW_2026-10-03.md`. Parallel reviewers stopped at a usage limit; the listed findings were subsequently verified directly. Browser acceptance remains pending. No fixes, commit, push or deployment were performed in this review.
+
 ## Main Branch Integration (2026-10-03)
 
 - Settings persistence was committed as `98a173d`. The carryover/configuration branch, including the preceding coordinator-delegation, Marks recovery and research-amendment work, was integrated and pushed to `main` at `11e91ae`.

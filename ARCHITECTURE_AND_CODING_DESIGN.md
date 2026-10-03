@@ -1,5 +1,13 @@
 # Architecture and Coding Design
 
+## Owned-module integrity correction design (2026-10-03)
+
+- Reciprocal primary/Panel role checks share a focused Appointments helper. Serializers revalidate during creation under the existing Student/lecturer locks, and final approvals check before profile handover, closure, capacity consumption or workflow events. Shared appointment activation also enforces these checks for Office reconciliation handoff repairs, whose outer transaction rolls back profile resolution on conflict. Student-account and legacy matric-number links identify conflicting Panel records.
+- Timeline creation explicitly accepts the optional selected-semester input and retains the existing authoritative Draft/Active resolver. The selection never supplies derived entry status, ordering or ownership.
+- Governed appointment/configuration ModelAdmins deny add/change/delete permissions and expose every persisted field as read-only. Existing research profiles are inspection-only while initial provisioning remains possible. Marks correction services remain unchanged.
+- Nested score input enforces a decimal minimum of zero before any insert, retaining the database nonnegative constraint. Evaluation task serialization reads `period.semester`; the Lecturer screen derives distinct options and combined filters from its existing assignment response.
+- Regression coverage includes real API payloads, late role conflicts between validation and save, final-approval rollback, admin forms and POST boundaries, draft/submission preservation, retained-profile semesters and current/historical frontend filters. No schema migration or new dependency is intended.
+
 ## Account Settings Architecture (2026-10-01)
 
 - `GET/PATCH /api/auth/settings/` returns the caller's public account, notification preferences and delivery capabilities. PATCH accepts only phone and strictly boolean `preferences.announcementAlerts`; protected or unknown fields are rejected. Existing `User.phone` persists contact information; additive Accounts migration `0006_user_announcement_alerts` defaults current and future accounts to receiving announcements.

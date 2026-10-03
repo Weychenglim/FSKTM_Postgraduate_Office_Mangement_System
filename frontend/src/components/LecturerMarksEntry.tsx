@@ -29,6 +29,7 @@ import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import { replaceEvaluationTask } from '../utils/marksProductionManagement';
+import { getMarkTaskSemesters, filterMarkTasks } from '../utils/marksSemesterFilters';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
 
@@ -156,17 +157,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   };
 
   // Filter computation
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = 
-      task.studentName.toLowerCase().includes(filteredSearch.toLowerCase()) ||
-      task.studentId.toLowerCase().includes(filteredSearch.toLowerCase()) ||
-      task.researchTitle.toLowerCase().includes(filteredSearch.toLowerCase());
-    
-    const matchesSem = filteredSemester === 'All Semesters' ? true : task.semester === filteredSemester;
-    const matchesStatus = filteredStatus === 'All Statuses' ? true : task.status === filteredStatus;
-
-    return matchesSearch && matchesSem && matchesStatus;
-  });
+  const semesterOptions = getMarkTaskSemesters(tasks);
+  const filteredTasks = filterMarkTasks(tasks, filteredSearch, filteredSemester, filteredStatus);
 
   // Calculate dynamic summary stats
   const statAssigned = tasks.length;
@@ -291,8 +283,9 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
                 >
                   <option>All Semesters</option>
-                  <option>Sem 1 2025/2026</option>
-                  <option>Sem 2 2024/2025</option>
+                  {semesterOptions.map(semester => (
+                    <option key={semester} value={semester}>{semester}</option>
+                  ))}
                 </select>
               </div>
 

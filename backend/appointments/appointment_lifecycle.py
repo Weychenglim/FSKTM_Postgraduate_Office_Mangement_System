@@ -193,6 +193,11 @@ def activate_replacement(
     )
     from accounts.models import Lecturer
     from .capacity_reassessment import capacity_semester
+    from .role_integrity import (
+        AppointmentRoleConflict,
+        assert_no_panel_role,
+        assert_no_primary_role,
+    )
 
     if model is SupervisorAppointment:
         capacity_user = replacement_source.proposed_supervisor
@@ -204,13 +209,21 @@ def activate_replacement(
         excluded_recommendation_id = replacement_source.pk
     Lecturer.objects.select_for_update().get(pk=capacity_user.pk)
     try:
+        if model is SupervisorAppointment:
+            assert_no_panel_role(
+                student=replacement_source.student, candidate_id=capacity_user.pk
+            )
+        else:
+            assert_no_primary_role(
+                profile=replacement_source.profile, candidate_id=capacity_user.pk
+            )
         assert_capacity_allows_assignment(
             user=capacity_user,
             semester=capacity_semester(replacement_source),
             role=capacity_role,
             exclude_panel_recommendation_id=excluded_recommendation_id,
         )
-    except CapacityConflict as exc:
+    except (CapacityConflict, AppointmentRoleConflict) as exc:
         raise AppointmentLifecycleConflict(str(exc)) from exc
 
     target_id = replacement_source.replaces_appointment_id

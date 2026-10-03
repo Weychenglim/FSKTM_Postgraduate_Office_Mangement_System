@@ -1,5 +1,13 @@
 # Project Requirements
 
+## Owned-module integrity corrections (2026-10-03)
+
+- A lecturer cannot hold an active or pending primary Supervisor and Panel role for the same student. Submission and final approval must recheck both directions, including replacements and retained/unlinked matric-number profiles; rejection preserves existing appointments and history.
+- Add Timeline Entry accepts the Office form's selected `semesterId`. The backend resolves the timeline and permits changes only for Draft or Active semesters; status, ordering and timeline identifiers remain system-derived.
+- Django admin provides inspection of governed appointment requests, appointments, document requirements and audit history. Academic/configuration writes use the existing audited workflows. Initial research-profile provisioning and audited Marks corrections remain supported.
+- Marks scores must be nonnegative and within the component maximum. Invalid drafts return validation errors without changing persisted scores, comments or submission state.
+- Lecturer task semesters come from each evaluation period, including historical assignments after profile handover. Semester filter options come from returned assignments rather than fixed academic-year labels.
+
 ## Account Settings Persistence (2026-10-01)
 
 - Authenticated users can update their own phone number and nonurgent in-app announcement preference. Email remains Office-managed; self-service Settings cannot change account identity, role, programme or another user's data.

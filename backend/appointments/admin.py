@@ -14,6 +14,22 @@ from .models import (
 )
 
 
+class ReadOnlyWorkflowAdmin(admin.ModelAdmin):
+    """Governed writes belong to the audited application services."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(AppointmentLifecycleEvent)
 class AppointmentLifecycleEventAdmin(admin.ModelAdmin):
     list_display = ("action", "actor", "outcome", "created_at")
@@ -48,11 +64,17 @@ class StudentResearchProfileAdmin(admin.ModelAdmin):
     list_filter = ("programme", "semester")
 
     def get_readonly_fields(self, request, obj=None):
-        return ("proposed_topic", "abstract", "programme", "revision") if obj else ("revision",)
+        return tuple(field.name for field in self.model._meta.fields) if obj else ("revision",)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PanelRecommendation)
-class PanelRecommendationAdmin(admin.ModelAdmin):
+class PanelRecommendationAdmin(ReadOnlyWorkflowAdmin):
     list_display = ("profile", "recommended_member", "supervisor", "status", "updated_at")
     search_fields = (
         "profile__matric_no",
@@ -64,7 +86,7 @@ class PanelRecommendationAdmin(admin.ModelAdmin):
 
 
 @admin.register(PanelAppointment)
-class PanelAppointmentAdmin(admin.ModelAdmin):
+class PanelAppointmentAdmin(ReadOnlyWorkflowAdmin):
     list_display = ("profile", "panel_member", "supervisor", "approved_by", "appointment_date", "status")
     search_fields = ("profile__matric_no", "profile__student_name", "panel_member__full_name")
     list_filter = ("status", "appointment_date")
@@ -106,9 +128,15 @@ class SupervisorWorkflowEventInline(admin.TabularInline):
         "created_at",
     )
 
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(SupervisorApplication)
-class SupervisorApplicationAdmin(admin.ModelAdmin):
+class SupervisorApplicationAdmin(ReadOnlyWorkflowAdmin):
     list_display = (
         "student",
         "proposed_supervisor",
@@ -136,7 +164,7 @@ class SupervisorApplicationAdmin(admin.ModelAdmin):
 
 
 @admin.register(SupervisorAppointment)
-class SupervisorAppointmentAdmin(admin.ModelAdmin):
+class SupervisorAppointmentAdmin(ReadOnlyWorkflowAdmin):
     list_display = (
         "student",
         "supervisor",
@@ -153,7 +181,7 @@ class SupervisorAppointmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(SupervisorDocumentRequirement)
-class SupervisorDocumentRequirementAdmin(admin.ModelAdmin):
+class SupervisorDocumentRequirementAdmin(ReadOnlyWorkflowAdmin):
     list_display = ("code", "label", "is_required", "is_active", "display_order")
     list_filter = ("is_required", "is_active")
     search_fields = ("code", "label", "description")
@@ -185,7 +213,7 @@ class SupervisorDocumentRequirementAuditAdmin(admin.ModelAdmin):
 
 
 @admin.register(AppointmentWorkflowEvent)
-class AppointmentWorkflowEventAdmin(admin.ModelAdmin):
+class AppointmentWorkflowEventAdmin(ReadOnlyWorkflowAdmin):
     list_display = (
         "action",
         "actor",

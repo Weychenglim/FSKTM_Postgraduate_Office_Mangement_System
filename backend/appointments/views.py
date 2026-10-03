@@ -1,5 +1,6 @@
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -32,6 +33,11 @@ from academics.capacity import (
 from academics.services import current_effective_semester
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .role_integrity import (
+    AppointmentRoleConflict,
+    assert_no_primary_role,
+    panel_role_candidate_ids,
+)
 from .models import (
     AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
@@ -1250,6 +1256,13 @@ def coordinator_approve_view(request, pk):
         Lecturer.objects.select_for_update().get(
             pk=recommendation.recommended_member_id
         )
+        try:
+            assert_no_primary_role(
+                profile=recommendation.profile,
+                candidate_id=recommendation.recommended_member_id,
+            )
+        except AppointmentRoleConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
             return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
         if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
@@ -1583,13 +1596,18 @@ def supervisor_candidates_view(request):
     academic_semester = current_effective_semester()
     if academic_semester is None:
         return Response([])
+    try:
+        student = request.user.student
+    except ObjectDoesNotExist:
+        return error_response("The student profile is not available.")
+    conflicting_ids = panel_role_candidate_ids(student)
     candidates = list(
         User.objects.filter(
             role=User.Role.LECTURER,
             is_active=True,
             lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
             lecturer__supervisor__isnull=False,
-        ).select_related("lecturer", "lecturer__supervisor")
+        ).exclude(pk__in=conflicting_ids).select_related("lecturer", "lecturer__supervisor")
     )
     resolutions = {
         candidate.pk: resolve_lecturer_capacity(

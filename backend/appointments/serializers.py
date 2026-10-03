@@ -15,6 +15,11 @@ from academics.services import current_effective_semester
 from accounts.models import Lecturer, Student
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .role_integrity import (
+    AppointmentRoleConflict,
+    assert_no_panel_role,
+    assert_no_primary_role,
+)
 from .models import (
     PANEL_WORKLOAD_LIMIT,
     PanelAppointment,
@@ -484,6 +489,13 @@ def enforce_no_supporting_role(student_id, candidate_id):
         raise serializers.ValidationError(str(exc)) from exc
 
 
+def enforce_role_separation(check, **kwargs):
+    try:
+        check(**kwargs)
+    except AppointmentRoleConflict as exc:
+        raise serializers.ValidationError(str(exc)) from exc
+
+
 class PanelRecommendationCreateSerializer(serializers.Serializer):
     studentId = serializers.CharField()
     recommendedMemberId = serializers.CharField()
@@ -555,6 +567,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "A supervisor cannot recommend themself as panel member."
             )
+
+        enforce_role_separation(
+            assert_no_primary_role, profile=profile, candidate_id=recommended_member.pk
+        )
 
         if profile.panel_recommendations.filter(
             status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
@@ -651,6 +667,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "A selected Lecturer is no longer available for new assignments."
             )
+        enforce_role_separation(
+            assert_no_primary_role, profile=profile,
+            candidate_id=validated_data["recommended_member"].pk,
+        )
         enforce_capacity(
             user=validated_data["recommended_member"],
             semester=validated_data["academic_semester"],
@@ -1009,6 +1029,9 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
                 "The selected supervisor is not available for new assignments."
             )
         enforce_no_supporting_role(student.pk, supervisor.pk)
+        enforce_role_separation(
+            assert_no_panel_role, student=student, candidate_id=supervisor.pk
+        )
         active_appointment = SupervisorAppointment.objects.filter(
             student=student,
             status=SupervisorAppointment.Status.ACTIVE,
@@ -1072,6 +1095,10 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         enforce_no_supporting_role(student.pk, validated_data["supervisor"].pk)
         lecturer = Lecturer.objects.select_for_update().get(
             pk=validated_data["supervisor"].pk
+        )
+        enforce_role_separation(
+            assert_no_panel_role, student=student,
+            candidate_id=validated_data["supervisor"].pk,
         )
         if student.status != Student.Status.ACTIVE:
             raise serializers.ValidationError(
