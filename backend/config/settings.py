@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 import os
 
 from .production_security import (
@@ -182,12 +183,23 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Development uses a process-local cache. Multi-worker production deployments
-# must replace this with a shared cache so throttle counters remain consistent.
+# Production workers share throttle history in the configured PostgreSQL DB.
+# Run createcachetable before starting them; development can opt in to exercise
+# the same backend. Reject typos and process-local production configuration.
+cache_backend = os.getenv("DJANGO_CACHE_BACKEND", "").strip().lower()
+cache_backend = cache_backend or ("locmem" if DEBUG else "database")
+if cache_backend not in ("locmem", "database") or (not DEBUG and cache_backend == "locmem"):
+    raise ImproperlyConfigured(
+        "DJANGO_CACHE_BACKEND must be database in production; development also supports locmem."
+    )
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "fsktm-pg-office-api",
+        "BACKEND": (
+            "django.core.cache.backends.db.DatabaseCache" if cache_backend == "database"
+            else "django.core.cache.backends.locmem.LocMemCache"
+        ),
+        "LOCATION": "fsktm_api_cache" if cache_backend == "database" else "fsktm-pg-office-api",
+        "OPTIONS": {"MAX_ENTRIES": 10000},
     }
 }
 

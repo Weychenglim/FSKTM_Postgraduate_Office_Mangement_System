@@ -1,5 +1,11 @@
 # Architecture and Coding Design
 
+## Timeline acceptance correction design (2026-10-05)
+
+- `TimelineManagement` owns the selected-semester payload and passes it to the presentational `SemesterTimeline`. Its stable refresh callback reads the latest selection; version guards discard obsolete responses, and loading clears calendar, entry and audit data together. A guarded semester-list loader supports Retry before any semester is selected and ignores responses after unmount.
+- Dashboard admin uses a focused read-only mixin for `SemesterTimeline`, its entry inline and `TimelineAuditLog`. Django view permissions remain effective; even superuser POSTs cannot add, change or delete governed Timeline records. Office API mutation and audit services are unchanged.
+- Verification combines selected-calendar rendering regressions, real admin POST/inline boundaries, and isolated browser checks of rapid selection, failed selection, initial semester bootstrap and Retry recovery. No schema or dependency change is required.
+
 ## Owned-module integrity correction design (2026-10-03)
 
 - Reciprocal primary/Panel role checks share a focused Appointments helper. Serializers revalidate during creation under the existing Student/lecturer locks, and final approvals check before profile handover, closure, capacity consumption or workflow events. Shared appointment activation also enforces these checks for Office reconciliation handoff repairs, whose outer transaction rolls back profile resolution on conflict. Student-account and legacy matric-number links identify conflicting Panel records.
@@ -229,7 +235,8 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Accounts, Supervisor, Panel, Dashboard, Marks, and Letters enforce role and object/programme scope in backend queries and decision handlers. Frontend route visibility is never treated as authorization.
 - Announcement/Notification ownership, draft visibility, and attachment authorization remain deferred to the teammate-owned module and require a dedicated review before production.
 - `accounts.throttles` provides separate settings-backed, per-client-IP scopes for login, password-reset request, and password-reset confirmation. `DRF_NUM_PROXIES=0` makes `REMOTE_ADDR` authoritative until a known proxy chain is configured.
-- Development throttle counters use Django's local-memory cache. A shared Redis-compatible cache is a production prerequisite before running multiple API workers; otherwise each worker would enforce an independent counter.
+- `DJANGO_CACHE_BACKEND` accepts `database` or development-only `locmem`. Blank selects local memory with DEBUG enabled and Django's PostgreSQL `DatabaseCache` with DEBUG disabled; production rejects local memory and all unsupported values. All workers use the same configured database and dedicated `fsktm_api_cache` table, with a 10,000-entry cache capacity. Run `createcachetable` in the target environment before starting workers; no dependency or model migration is added.
+- Independent-process HTTP regression probes consume login, reset and confirmation budgets against one isolated PostgreSQL test database and assert HTTP 429 with `Retry-After` from a subsequent process. DRF's non-atomic cache history updates still permit some overrun under simultaneous requests. Cache culling/clearing resets histories; monitor capacity and do not clear the table during routine worker restarts.
 - Frontend authentication forms centralize `429` handling in `src/utils/authErrorMessage.ts` and retain endpoint-provided messages for other API errors.
 - `config.production_security.validate_production_environment` runs during settings import when `DEBUG=False`, before Django application initialization. It raises `ImproperlyConfigured` for unsafe secret keys, missing or wildcard hosts, and missing, malformed, or non-HTTPS CORS origins.
 - Production settings enable HTTPS redirection, secure strict cookies, nosniff, same-origin referrers, frame denial, and a staged HSTS policy. Development keeps local HTTP defaults and does not enable those production transport controls.

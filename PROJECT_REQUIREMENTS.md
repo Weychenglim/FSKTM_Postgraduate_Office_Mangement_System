@@ -1,5 +1,15 @@
 # Project Requirements
 
+## Shared production authentication cache (2026-10-04)
+
+- All API workers must share authentication throttle history through the same PostgreSQL database cache. Production startup rejects process-local or unsupported cache configuration; local single-process development retains its existing default.
+- Cache-table provisioning and cross-worker verification are deployment gates. Shared history does not promise exact limits for simultaneous requests; the existing DRF throttles remain approximate under concurrency.
+
+## Timeline acceptance corrections (2026-10-05)
+
+- Office Timeline Management must show the selected semester consistently in its summary, calendar, entries and audit history. Loading or failed selections must suppress previously loaded records; Retry must recover both initial semester-list failures and selected Timeline failures.
+- Django admin may inspect Timeline headers, inline entries and audit logs. Add, edit, delete and bulk-delete actions must be unavailable there, preserving the validated and audited Office workflow.
+
 ## Owned-module integrity corrections (2026-10-03)
 
 - A lecturer cannot hold an active or pending primary Supervisor and Panel role for the same student. Submission and final approval must recheck both directions, including replacements and retained/unlinked matric-number profiles; rejection preserves existing appointments and history.

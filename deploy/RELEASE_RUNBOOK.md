@@ -5,6 +5,11 @@ server, or production database has been provisioned. The existing reference
 deployment is Linux with Nginx, PostgreSQL, and a managed Django WSGI process.
 Use a separate staging database and synthetic accounts for acceptance testing.
 
+Local synthetic browser acceptance and its limits are recorded in
+[`BROWSER_ACCEPTANCE_2026-10-05.md`](../docs/BROWSER_ACCEPTANCE_2026-10-05.md).
+Repeat the release gates on the actual host; local results do not verify its
+HTTPS, proxy routing, email delivery or recovery configuration.
+
 ## Decisions before provisioning
 
 - Confirm the faculty's hosting owner, domain, TLS certificate management,
@@ -58,6 +63,9 @@ database, mail, or Django secrets.
 - Configure `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` for the
   intended environment. Use restricted application credentials; do not reuse
   the local PostgreSQL superuser for public hosting.
+- Set `DJANGO_CACHE_BACKEND=database` (also the `DEBUG=False` default). Every
+  worker must connect to the same primary database and `fsktm_api_cache` table.
+  Production rejects `locmem`; do not change this to a per-worker cache.
 - Set `ENABLE_DEMO_ACCOUNTS=False` and leave demo passwords unset. Build with
   `VITE_ENABLE_DEMO_LOGIN=false`, `VITE_USE_MOCKS=false`, and
   `VITE_API_BASE_URL=/api`. Do not copy local demo environment files to staging.
@@ -73,6 +81,7 @@ new release directory, load the target environment and run:
 python manage.py check --deploy
 python manage.py migrate --plan
 python manage.py migrate --noinput
+python manage.py createcachetable
 python manage.py collectstatic --noinput
 ```
 
@@ -83,6 +92,34 @@ documents behind authenticated download endpoints, not an unrestricted static
 media alias. Check `nginx -t`, enable HTTPS, and follow the documented CSP
 report-only-to-enforcement rollout. Verify secure cookies and redirects on the
 real HTTPS origin before opening the service to users.
+
+## Shared-cache preflight
+
+`createcachetable` creates the dedicated cache table if absent and preserves an
+existing table. Run it with the deployed production environment before workers
+serve authentication requests. The provisioning identity needs schema-creation
+permission; the runtime identity needs SELECT/INSERT/UPDATE/DELETE on this table.
+An unavailable table/database causes request errors; there is no silent fallback
+to a process-local cache. This cache holds expiring throttle histories rather
+than academic records. Do not clear it during worker restarts or rolling releases.
+
+In isolated staging, start at least two API workers with the same configuration.
+Route four invalid login attempts from one test IP to worker A and six to worker
+B; the next attempt through either worker must return 429 and a positive
+`Retry-After`. Repeat the reset-request budget as 2 + 3 attempts and confirmation
+as 4 + 6 attempts. Keep the IP stable, use synthetic nonexistent accounts, and
+avoid real reset emails. Confirm different IPs and endpoint scopes remain
+independent. Repeat through the real proxy to verify `DRF_NUM_PROXIES` identifies
+the client IP correctly. Repository subprocess regressions prove sharing locally;
+they do not validate a future hosting proxy or load balancer.
+
+The default cache capacity is 10,000 entries. Monitor table size, database load
+and culling at the expected client volume. DRF history updates are non-atomic,
+so simultaneous requests can exceed the nominal limit even with a shared cache.
+Use the hosting edge's approved abuse protection when required; these application
+throttles are not a guarantee against denial-of-service or brute-force attacks.
+See [Django database-cache setup](https://docs.djangoproject.com/en/5.2/topics/cache/#database-caching)
+and [DRF concurrency guidance](https://www.django-rest-framework.org/api-guide/throttling/#a-note-on-concurrency).
 
 ## Backup and restore rehearsal
 
@@ -131,6 +168,21 @@ Use synthetic records in staging and record results for each role:
    unfinished task, including expiry/revocation and closed-period completion.
 7. Review reports, XLSX exports, dossiers, and reconciliation. Verify existing
    submitted Marks and private application documents remain protected.
+8. Office creates Add Entry milestones in selected Draft and Active semesters.
+   Reload each timeline and verify its own entry and immutable ADD_ENTRY audit.
+9. Student replacement candidates exclude the same student's active/pending
+   Panel member. Verify a stale conflicting request cannot gain final approval;
+   the primary appointment/profile/history remain unchanged.
+10. Lecturer filters current and historical Marks by evaluation-period semester,
+    including a retained older research-profile label. Reject a negative score
+    without a saved draft; save valid scores and inspect historical read-only marks.
+11. Governed Django admin detail screens have no add/save/delete actions for
+    appointment requests/appointments/configuration/audits. Academic changes use
+    the application workflows; audited Marks correction remains available.
+12. Check persisted phone and announcement preference after reload for Student,
+    Lecturer, Coordinator and Office. Email remains Office-managed and unavailable
+    notification services are labelled. A human performs password entry/change,
+    then verifies logout and subsequent sign-in with the new password.
 
 Obtain faculty acceptance of policies, templates, and representative cases before
 production release. Keep screenshots/demo evidence free of real student data.
