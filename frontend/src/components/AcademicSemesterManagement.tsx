@@ -47,6 +47,7 @@ import {
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 
 interface AcademicSemesterManagementProps {
   onBack: () => void;
@@ -82,6 +83,9 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const [includeArchived, setIncludeArchived] = useState(false);
   const [selected, setSelected] = useState<AcademicSemester | null>(null);
   const [audits, setAudits] = useState<AcademicSemesterAudit[]>([]);
+  const [auditsLoading, setAuditsLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditAttempt, setAuditAttempt] = useState(0);
   const [form, setForm] = useState<AcademicSemesterInput>(EMPTY_FORM);
   const [transition, setTransition] = useState<TransitionAction | null>(null);
   const [reason, setReason] = useState('');
@@ -110,6 +114,22 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   useEffect(() => {
     void loadSemesters();
   }, [loadSemesters]);
+
+  useEffect(() => {
+    let current = true;
+    setAudits([]);
+    setAuditError(null);
+    setAuditsLoading(Boolean(selected));
+    if (selected) {
+      getAcademicSemesterAudits(selected.id)
+        .then((rows) => { if (current) setAudits(rows); })
+        .catch(() => {
+          if (current) setAuditError('Semester audit history could not be loaded. Try again.');
+        })
+        .finally(() => { if (current) setAuditsLoading(false); });
+    }
+    return () => { current = false; };
+  }, [selected, auditAttempt]);
 
   const active = semesters.find((semester) => semester.lifecycleStatus === 'ACTIVE') ?? null;
   const visible = useMemo(
@@ -142,9 +162,6 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
     setTransition(null);
     setReason('');
     setExtensionEnd(semester.endsOn);
-    getAcademicSemesterAudits(semester.id)
-      .then(setAudits)
-      .catch(() => setAudits([]));
   };
 
   const saveDraft = async (event: React.FormEvent) => {
@@ -165,7 +182,6 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         ? await updateAcademicSemester(selected.id, form)
         : await createAcademicSemester(form);
       await loadSemesters();
-      setAudits(await getAcademicSemesterAudits(saved.id));
       beginEdit(saved);
       showToast(selected ? 'Draft semester updated.' : 'Draft semester created.');
     } catch (saveError) {
@@ -483,7 +499,9 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       {selected ? (
         <section className="border-y border-slate-200 py-5">
           <h2 className="text-sm font-bold text-slate-900">Semester audit history</h2>
-          {!audits.length ? (
+          {auditsLoading ? <LoadingState message="Loading semester audit history…" />
+            : auditError ? <ErrorState message={auditError} onRetry={() => setAuditAttempt((value) => value + 1)} />
+            : !audits.length ? (
             <p className="mt-2 text-sm text-slate-500">No audit events are available.</p>
           ) : (
             <div className="mt-3 divide-y divide-slate-200">
@@ -497,7 +515,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
                     <p className="text-xs text-slate-500">{audit.actor}</p>
                   </div>
                   <time className="text-xs text-slate-500 md:text-right">
-                    {new Date(audit.createdAt).toLocaleString('en-MY')}
+                    {formatMalaysiaDateTime(audit.createdAt)}
                   </time>
                 </div>
               ))}

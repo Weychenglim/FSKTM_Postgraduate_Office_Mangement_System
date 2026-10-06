@@ -1,5 +1,12 @@
 # Project Requirements
 
+## Full workflow acceptance corrections (2026-10-06)
+
+- A first Panel nomination must omit an absent replacement reason; genuine replacement nominations still require the validated reason.
+- Coordinator decisions must refresh their pending queue, appointment history and supervisory teams. Semester lifecycle changes must refresh the selected semester's audit history, with failed reads shown as retryable errors.
+- Appointment timestamp dates and semester audit times use Asia/Kuala_Lumpur, consistently with the faculty's existing Malaysia deadlines. Date-only appointment values retain their calendar date.
+- Verify the owned Student request → Supervisor acceptance → Coordinator approval → Panel appointment → both Marks submissions → semester closure workflow with synthetic, isolated data and persisted audit assertions.
+
 ## Shared production authentication cache (2026-10-04)
 
 - All API workers must share authentication throttle history through the same PostgreSQL database cache. Production startup rejects process-local or unsupported cache configuration; local single-process development retains its existing default.

@@ -8,11 +8,12 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { ResearchAmendments } from './ResearchAmendments';
 import { CapacityReassessments } from './CapacityReassessments';
 import type { UserRole } from '../types/auth';
+import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 
 const inputClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-navy';
 const labels: Record<CoSupervisorAction, string> = { accept: 'Accept', reject: 'Reject', approve: 'Approve', 'coordinator-reject': 'Reject', cancel: 'Cancel nomination' };
 const statusLabels: Record<string, string> = { SUBMITTED_TO_CO_SUPERVISOR: 'Awaiting co-supervisor', PENDING_COORDINATOR: 'Awaiting coordinator', APPROVED: 'Approved', REJECTED_BY_CO_SUPERVISOR: 'Rejected by co-supervisor', REJECTED_BY_COORDINATOR: 'Rejected by coordinator', CANCELLED: 'Cancelled', ACTIVE: 'Active', ENDED: 'Ended' };
-const displayDate = (value: string) => new Date(value).toLocaleDateString('en-MY', { year: 'numeric', month: 'short', day: 'numeric' });
+const displayDate = formatMalaysiaDate;
 
 export function SupervisoryTeamTimeline({ entries }: { entries: SupervisoryTeam['timeline'] }) {
   const timelineStatusLabels: Record<string, string> = { ...statusLabels, FACULTY_PROCESSING: 'Faculty processing', CONFIRMED: 'Confirmed' };
@@ -109,7 +110,7 @@ type EditAction = { kind: 'nominate'; team: SupervisoryTeam; replacement: CoSupe
   | { kind: 'decision'; nomination: CoSupervisorNomination; action: CoSupervisorAction }
   | { kind: 'end'; appointment: CoSupervisorAppointment };
 
-export function SupervisoryTeamManagement({ onChanged, role }: { onChanged?: () => void; role?: UserRole }) {
+export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0 }: { onChanged?: () => void; role?: UserRole; refreshVersion?: number }) {
   const [workspace, setWorkspace] = useState<SupervisoryWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +136,7 @@ export function SupervisoryTeamManagement({ onChanged, role }: { onChanged?: () 
     catch (failure) { if (version.current === token) { setWorkspace(null); setError(failure instanceof Error ? failure.message : 'The supervisory team could not be loaded.'); } }
     finally { if (version.current === token) setLoading(false); }
   }, []);
-  useEffect(() => { void load(); return () => { version.current += 1; }; }, [load]);
+  useEffect(() => { void load(); return () => { version.current += 1; }; }, [load, refreshVersion]);
   const run = async (operation: () => Promise<unknown>) => {
     if (mutating.current) return;
     mutating.current = true; setBusy(true); setNotice(null);

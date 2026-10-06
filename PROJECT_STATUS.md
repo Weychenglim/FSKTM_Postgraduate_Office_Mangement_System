@@ -1,5 +1,12 @@
 # Project Status
 
+## Full workflow browser integration (completed 2026-10-06)
+
+- User authorized a complete Student request, Supervisor review, Coordinator approval, Panel appointment, Marks submission and semester-closure walkthrough across the five owned modules.
+- The isolated synthetic browser chain reached semester closure: one approved primary appointment, one distinct confirmed Panel appointment, two submitted evaluations (85/100 and 80/100), a Closed evaluation period and a Closed semester. Persisted assertions passed after each transition; the Office reconciliation scan shows zero inconsistencies and submitted Marks remain read-only.
+- Corrected the null optional Panel payload, stale Coordinator approval history/team data, stale semester-closure audit history and inconsistent UTC/Malaysia appointment dates. Separate-fixture browser rechecks confirm automatic approval refresh and audit Retry after a completed closure; exactly one closure audit remains. Independent scoped re-review reports no remaining important findings.
+- All **222 Appointments tests** pass in **1902.342 seconds** using two PostgreSQL workers. All **66 frontend scripts**, lint, build and production guards pass; date checks pass under UTC, Malaysia and New York. Django checks, migration-drift checks and whitespace checks pass. No schema or dependency change is required. Existing development and prior acceptance data remain separate. Evidence and remaining production/policy limits are recorded in `docs/WORKFLOW_INTEGRATION_ACCEPTANCE_2026-10-06.md`; no additional full 623-test backend run is claimed.
+
 ## Shared cache and local release acceptance (completed 2026-10-05)
 
 - The five owned-module fixes were committed and pushed to `main` as `30c63ba`.

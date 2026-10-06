@@ -33,6 +33,7 @@ import {
   AppointmentLifecycle,
 } from '../types';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
+import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { request, requestBlob, requestMultipart } from './apiClient';
 
 const ACTIVE_SUPERVISOR_WAITING_STATUSES = new Set([
@@ -202,12 +203,12 @@ export async function createPanelRecommendation(
     justification: string;
     status: PanelRecommendationDraft['status'];
     replacesAppointmentId?: number | null;
-    replacementReason?: string;
+    replacementReason?: string | null;
   },
 ): Promise<PanelRecommendationDraft> {
   return request<PanelRecommendationDraft>('/appointments/panel/recommendations/', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, replacementReason: payload.replacementReason ?? undefined }),
   });
 }
 
@@ -435,11 +436,7 @@ export function toStudentSupervisorApplication(
     title: record.researchTitle,
     researchArea: record.researchArea,
     supervisor: record.proposedSupervisor,
-    date: new Date(record.submittedAt).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }),
+    date: formatMalaysiaDate(record.submittedAt),
     status,
     workflowStatus: record.status,
     workflow: record.workflow,

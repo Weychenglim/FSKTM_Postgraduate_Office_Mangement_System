@@ -1,5 +1,12 @@
 # Architecture and Coding Design
 
+## Full workflow acceptance correction design (2026-10-06)
+
+- The Panel service normalizes a null/absent optional replacement reason to omission at the JSON boundary. Backend replacement validation remains authoritative.
+- Coordinator decisions reload queue/history and increment an explicit supervisory-team refresh version after primary appointment changes. Coordinator and team loaders discard obsolete responses; Coordinator cleanup also prevents updates after unmount.
+- Semester audit loading follows the selected semester object, including lifecycle refreshes. Effect cleanup rejects stale responses; read failures have their own Retry and cannot turn a completed lifecycle write into a reported mutation failure.
+- Appointments' existing backend date formatter converts aware datetimes to Asia/Kuala_Lumpur before extracting the date. Frontend timestamp presentation shares the Malaysia date helper; date-only appointment values remain unchanged. Verification includes UTC-midnight boundary regressions and real browser workflow transitions. No dependency or schema change is required.
+
 ## Timeline acceptance correction design (2026-10-05)
 
 - `TimelineManagement` owns the selected-semester payload and passes it to the presentational `SemesterTimeline`. Its stable refresh callback reads the latest selection; version guards discard obsolete responses, and loading clears calendar, entry and audit data together. A guarded semester-list loader supports Retry before any semester is selected and ignores responses after unmount.

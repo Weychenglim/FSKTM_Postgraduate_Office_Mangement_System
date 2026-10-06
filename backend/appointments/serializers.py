@@ -1,6 +1,10 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
@@ -127,7 +131,9 @@ def student_no_for_user(user):
 def format_display_date(value):
     if not value:
         return ""
-    if hasattr(value, "date"):
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = timezone.localtime(value, ZoneInfo("Asia/Kuala_Lumpur"))
         value = value.date()
     return value.strftime("%d %b %Y")
 
