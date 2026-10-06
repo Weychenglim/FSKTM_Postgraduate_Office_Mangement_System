@@ -1,5 +1,10 @@
 # Architecture and Coding Design
 
+## Local whole-system testing setup (2026-10-06)
+
+- The latest-main manual testing server uses the existing development database, loopback Django port 8000 and Vite port 3001, with `/api` proxying, matching frontend/CORS origin and mock/demo-login flags disabled. Docker retains its existing port 3000. No schema or application behavior changed for this setup.
+- Private launchers, logs and verified local account credentials use ignored `.env.*` files. The committed whole-system guide records actual persistence boundaries and additional actor requirements; missing Registry/general Files/FAQ integrations are not obscured by mock acceptance.
+
 ## Full workflow acceptance correction design (2026-10-06)
 
 - The Panel service normalizes a null/absent optional replacement reason to omission at the JSON boundary. Backend replacement validation remains authoritative.

@@ -1,5 +1,10 @@
 # Project Requirements
 
+## Whole-system manual acceptance coverage (2026-10-06)
+
+- The testing handoff covers every sidebar module plus authentication, settings, academic/configuration lifecycle, reporting, delegation, research amendments, supporting supervision, replacement and late-completion branches.
+- Live persistence, local prototypes and missing backend integrations must be identified explicitly; a prototype interaction must not count as full end-to-end acceptance. Test actor/scope prerequisites and current database state must be recorded without committing credentials.
+
 ## Full workflow acceptance corrections (2026-10-06)
 
 - A first Panel nomination must omit an absent replacement reason; genuine replacement nominations still require the validated reason.

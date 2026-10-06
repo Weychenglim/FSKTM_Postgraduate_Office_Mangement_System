@@ -1,5 +1,11 @@
 # Project Status
 
+## Latest-main server and whole-system test handoff (2026-10-06)
+
+- Confirmed the application fixes are on `main` and remote, then started loopback Django on port 8000 and Vite on port 3001 against `fsktm_pg_office`; mock/demo login is disabled. Docker's existing port 3000 was preserved. Django checks, migration state, direct/proxied health and real Office browser sign-in/dashboard were verified.
+- Inventoried all eight development accounts and checked their configured passwords without changing accounts or access. The private account sheet/launchers/logs remain ignored. The Coordinator currently has Cyber Security scope; the human tester must grant acting AI scope through Office UI before the fresh Student's approval flow.
+- Added `docs/WHOLE_SYSTEM_END_TO_END_TEST_GUIDE.md` covering all modules and advanced lifecycle branches. Registry, general Files and FAQ persistence remain incomplete; some positive replacement/transfer/supporting-supervision scenarios need additional actors. The guide records these prerequisites and integration gaps. Whole-system manual acceptance is not claimed complete by preparing this handoff.
+
 ## Full workflow browser integration (completed 2026-10-06)
 
 - User authorized a complete Student request, Supervisor review, Coordinator approval, Panel appointment, Marks submission and semester-closure walkthrough across the five owned modules.
