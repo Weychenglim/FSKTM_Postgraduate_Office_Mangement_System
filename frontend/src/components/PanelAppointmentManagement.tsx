@@ -46,6 +46,7 @@ import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { downloadCsv } from '../utils/csvExport';
 import { filterPanelRecordsByStatusTab, getPanelRecordSummary, PanelRecordStatusTab } from '../utils/panelAppointmentRecords';
 import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
+import { capacityStateLabel } from '../utils/lecturerCapacity';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 
@@ -68,6 +69,38 @@ interface PanelAppointmentManagementProps {
   onNavigateToDossier?: (studentId: string) => void;
   onOpenCapacity?: () => void;
 }
+
+export const PanelWorkloadSnapshotRow = ({ record: w }: { record: PanelWorkloadRecord }) => {
+  const label = w.capacityState ? capacityStateLabel(w.capacityState) : w.availability;
+  const tone = w.capacityState
+    ? w.capacityState === 'AVAILABLE' ? 'available'
+      : w.capacityState === 'FULL' || w.capacityState === 'OVER_CAPACITY' ? 'full'
+      : w.capacityState === 'INELIGIBLE' ? 'neutral' : 'warning'
+    : w.availability === 'Full Load' ? 'full' : w.availability === 'Near Limit' ? 'warning' : 'available';
+  return (
+  <div className="space-y-1.5">
+    <div className="flex items-center justify-between text-[11px] font-bold">
+      <span className="text-slate-800">{w.name}</span>
+      <span className={`text-[9px] font-black ${
+        tone === 'full' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' :
+        tone === 'neutral' ? 'text-slate-500' : 'text-emerald-600'
+      }`}>{label.toUpperCase()}</span>
+    </div>
+    <div className="flex items-center justify-between text-[10px] text-slate-450">
+      <span>{w.currentStudents} / {w.workloadLimit} reserved panel seats</span>
+    </div>
+    {w.capacityState === 'TEMPORARILY_UNAVAILABLE' && w.unavailableUntil && (
+      <p className="text-[10px] text-amber-700">Unavailable until {w.unavailableUntil}</p>
+    )}
+    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div className={`h-full rounded-full ${
+        tone === 'full' ? 'bg-red-600' : tone === 'warning' ? 'bg-amber-500' :
+        tone === 'neutral' ? 'bg-slate-400' : 'bg-emerald-500'
+      }`} style={{ width: `${getPanelWorkloadUtilization(w)}%` }} />
+    </div>
+  </div>
+  );
+};
 
 export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
   routeView = 'list',
@@ -690,7 +723,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                             </span>
                           ) : rec.status === 'Cancelled' ? (
                             <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase border border-slate-200">
-                              Cancelled by Supervisor
+                              Cancelled
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 bg-rose-50 text-rose-605 text-[10px] font-black rounded-full uppercase border border-red-100">
@@ -843,28 +876,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
                 <div className="space-y-4 text-left">
                   {workloadSnapshotRows.length > 0 ? workloadSnapshotRows.map((w) => (
-                    <div key={w.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold">
-                        <span className="text-slate-800">{w.name}</span>
-                        <span className={`text-[9px] font-black ${
-                          w.availability === 'Full Load' ? 'text-red-600' :
-                          w.availability === 'Near Limit' ? 'text-amber-600' :
-                          'text-emerald-600'
-                        }`}>
-                          {w.availability.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-450">
-                        <span>{w.currentStudents} / {w.workloadLimit} reserved panel seats</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${
-                          w.availability === 'Full Load' ? 'bg-red-600' :
-                          w.availability === 'Near Limit' ? 'bg-amber-500' :
-                          'bg-emerald-500'
-                        }`} style={{ width: `${getPanelWorkloadUtilization(w)}%` }} />
-                      </div>
-                    </div>
+                    <PanelWorkloadSnapshotRow key={w.id} record={w} />
                   )) : (
                     <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-[11px] font-bold text-slate-400">
                       No panel workload records available yet.

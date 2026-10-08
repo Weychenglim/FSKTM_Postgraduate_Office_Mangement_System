@@ -163,7 +163,10 @@ def panel_record_from_recommendation(recommendation):
         PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
     ]:
         display_status = "Rejected"
-    elif recommendation.status == PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR:
+    elif recommendation.status in [
+        PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+        PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+    ]:
         display_status = "Cancelled"
     else:
         display_status = "Approved"
@@ -974,7 +977,10 @@ def review_history_view(request):
         )
         .filter(
             Q(panel_decided_at__isnull=False)
-            | Q(status=PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR)
+            | Q(status__in=[
+                PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
+                PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+            ])
         )
         .select_related(
             "profile",
@@ -2181,7 +2187,10 @@ def supervisor_request_history_view(request):
         )
         .filter(
             Q(supervisor_decided_at__isnull=False)
-            | Q(status=SupervisorApplication.Status.CANCELLED_BY_STUDENT)
+            | Q(status__in=[
+                SupervisorApplication.Status.CANCELLED_BY_STUDENT,
+                SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+            ])
         )
         .select_related("student", "student__user")
     )
@@ -2197,7 +2206,10 @@ def supervisor_request_history_view(request):
                 "decision": (
                     "Cancelled"
                     if application.status
-                    == SupervisorApplication.Status.CANCELLED_BY_STUDENT
+                    in [
+                        SupervisorApplication.Status.CANCELLED_BY_STUDENT,
+                        SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+                    ]
                     else (
                         "Rejected"
                         if application.status
@@ -2250,7 +2262,10 @@ def supervisor_records_view(request):
             SupervisorApplication.Status.REJECTED_BY_COORDINATOR,
         ]:
             return "Rejected"
-        if application.status == SupervisorApplication.Status.CANCELLED_BY_STUDENT:
+        if application.status in [
+            SupervisorApplication.Status.CANCELLED_BY_STUDENT,
+            SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+        ]:
             return "Cancelled"
         return "Pending"
 

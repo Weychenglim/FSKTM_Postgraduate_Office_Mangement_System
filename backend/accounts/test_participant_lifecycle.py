@@ -484,3 +484,46 @@ class ParticipantLifecycleTests(APITestCase):
         )
         stale = self._transition_student("DEFERRED")
         self.assertEqual(stale.status_code, status.HTTP_409_CONFLICT)
+
+    def test_office_lifecycle_cancellation_is_not_a_pending_supervisor_record(self):
+        self.application.status = SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
+        self.application.save(update_fields=['status'])
+        self.assertEqual(self._transition_student('WITHDRAWN').status_code, 200)
+        self.client.force_authenticate(self.office)
+        records = self.client.get('/api/appointments/supervisor/')
+        row = next(row for row in records.data if row['applicationId'] == self.application.pk)
+        self.assertEqual(row['status'], 'Cancelled')
+        self.assertEqual(row['cancellationReason'], 'Lifecycle transition reason')
+        self.client.force_authenticate(self.supervisor_user)
+        history = self.client.get('/api/appointments/supervisor/request-history/')
+        row = next(row for row in history.data if row['requestId'] == f'SV-REQ-{self.application.pk:05d}')
+        self.assertEqual(row['decision'], 'Cancelled')
+        self.assertEqual(row['decisionReason'], 'Lifecycle transition reason')
+
+    def test_retiring_lecturer_can_resolve_existing_supervisor_request(self):
+        self.application.status = SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR
+        self.application.save(update_fields=['status'])
+        self.assertEqual(self._transition_lecturer('RETIRING').status_code, 200)
+        self.client.force_authenticate(self.supervisor_user)
+        response = self.client.post(
+            f'/api/appointments/supervisor/applications/{self.application.pk}/supervisor-reject/',
+            {'reason': 'Existing request resolved during retirement preparation'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.status, SupervisorApplication.Status.REJECTED_BY_SUPERVISOR)
+
+    def test_office_lifecycle_panel_cancellation_is_not_approved_or_hidden(self):
+        recommendation = PanelRecommendation.objects.create(
+            profile=self.profile, academic_semester=self.semester,
+            supervisor=self.supervisor_user, recommended_member=self.panel_user,
+            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+        )
+        self.assertEqual(self._transition_student('WITHDRAWN').status_code, 200)
+        self.client.force_authenticate(self.office)
+        records = self.client.get('/api/appointments/panel/')
+        row = next(row for row in records.data if row['recommendationId'] == recommendation.pk)
+        self.assertEqual(row['status'], 'Cancelled')
+        self.client.force_authenticate(self.panel_user)
+        history = self.client.get('/api/appointments/panel/review-history/')
+        self.assertIn(recommendation.pk, [row['id'] for row in history.data])

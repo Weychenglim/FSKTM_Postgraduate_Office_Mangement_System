@@ -103,6 +103,9 @@ SimpleJWT's outstanding-token and blacklist tables are available.
 | GET | `periods/` | Office Staff/Admin |
 | GET | `assignment-options/` | Office Staff/Admin |
 | GET | `rubric-components/` | Office Staff/Admin |
+| GET | `records/<recordId>/` | Office Staff/Admin |
+| POST | `records/<recordId>/correct/` | Office role + staff + `marks.change_markentry` |
+| POST | `records/<recordId>/reopen/` | Office role + staff + `marks.change_markentry` |
 | POST | `periods/<id>/generate-tasks/` | Office Staff/Admin |
 | POST | `periods/<id>/manual-overrides/` | Office Staff/Admin |
 | GET | `my-evaluation-tasks/` | Lecturer |
@@ -110,7 +113,9 @@ SimpleJWT's outstanding-token and blacklist tables are available.
 | POST | `tasks/<id>/submit/` | Assigned lecturer |
 
 Submitted marks are locked. Authorized Office Staff/Admin users correct or reopen
-them through Django Admin with a mandatory reason and audit record.
+them through the existing Office portal record detail with a mandatory reason,
+reviewed record version and audit record. Reopening requires an open period;
+reasoned corrections remain permitted after closure. Django admin is inspection-only.
 Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.

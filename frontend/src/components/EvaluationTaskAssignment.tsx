@@ -40,6 +40,7 @@ import {
 import {
   formatPeriodStatus,
   formatPeriodTargeting,
+  getMarksAssignmentStudents,
   marksMutationErrorMessage,
 } from '../utils/marksProductionManagement';
 
@@ -203,9 +204,15 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     [tasks, selectedPeriod, selectedPeriodId],
   );
 
-  const studentsForPeriod = useMemo(() => options.students.filter((student) => (
-    !selectedPeriod || student.semester === selectedPeriod.semester || !student.semester
-  )), [options.students, selectedPeriod]);
+  const studentsForPeriod = useMemo(
+    () => getMarksAssignmentStudents(options.students, selectedPeriod),
+    [options.students, selectedPeriod],
+  );
+  const selectedBackupPeriod = periods.find((period) => String(period.id) === backupForm.periodId);
+  const backupStudentsForPeriod = useMemo(
+    () => getMarksAssignmentStudents(options.students, selectedBackupPeriod),
+    [options.students, selectedBackupPeriod],
+  );
 
   const originalTaskOptions = useMemo(() => options.tasks.filter((task) => (
     (!backupForm.periodId || !task.periodId || String(task.periodId) === backupForm.periodId)
@@ -658,6 +665,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       onChange={(event) => setBackupForm((current) => ({
                         ...current,
                         periodId: event.target.value,
+                        studentId: '',
                         originalTaskId: '',
                       }))}
                     >
@@ -680,7 +688,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       }))}
                     >
                       <option value="">Select student</option>
-                      {studentsForPeriod.map((student) => (
+                      {backupStudentsForPeriod.map((student) => (
                         <option key={student.studentId} value={student.studentId}>
                           {student.studentName} · {student.studentId}
                         </option>

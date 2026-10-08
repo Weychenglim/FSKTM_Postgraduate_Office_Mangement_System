@@ -1,10 +1,12 @@
 from decimal import Decimal
+import json
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare, salted_hmac
 from django.utils.text import slugify
 
 from academics.models import AcademicSemester
@@ -15,7 +17,7 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
-from .completion_windows import invalidate_task_windows
+from .completion_windows import invalidate_task_windows, lock_tasks
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -1150,6 +1152,29 @@ def reconcile_evaluation_task(*, task_id, action, actor, reason):
     return task
 
 
+def submitted_marks_version(entry):
+    """Bind a reviewed form to its exact entry state without exposing audit data."""
+    values = {
+        "entryId": entry.pk,
+        "status": entry.status,
+        "updatedAt": entry.updated_at.isoformat(),
+        "submittedAt": entry.submitted_at.isoformat() if entry.submitted_at else None,
+        "totalMark": str(entry.total_mark),
+        "comments": entry.comments,
+        "scores": {str(score.component_id): str(score.marks_awarded) for score in entry.scores.all()},
+    }
+    return salted_hmac("marks.submitted-edit", json.dumps(values, sort_keys=True), algorithm="sha256").hexdigest()
+
+
+def _lock_reviewed_mark_entry(entry, expected_version):
+    # Match closure/submission lock ordering so reopening cannot race period closure.
+    lock_tasks([entry.task_id])
+    entry = MarkEntry.objects.select_for_update(of=("self",)).select_related("task__period__academic_semester").get(pk=entry.pk)
+    if expected_version is not None and not constant_time_compare(submitted_marks_version(entry), expected_version):
+        raise MarksStateConflict("This mark record changed. Reload it and review the latest values.")
+    return entry
+
+
 @transaction.atomic
 def correct_submitted_marks(
     *,
@@ -1158,12 +1183,13 @@ def correct_submitted_marks(
     score_values,
     reason,
     comments=None,
+    expected_version=None,
 ):
     _assert_office_admin(actor)
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("A correction reason is required.")
-    entry = MarkEntry.objects.select_for_update().get(pk=entry.pk)
+    entry = _lock_reviewed_mark_entry(entry, expected_version)
     if entry.status != MarkEntry.Status.SUBMITTED:
         raise ValidationError("Only submitted marks can be corrected.")
     before = entry_snapshot(entry)
@@ -1171,6 +1197,11 @@ def correct_submitted_marks(
         score.component_id: score
         for score in entry.scores.select_related("component")
     }
+    if expected_version is not None and not (
+        any(component_id not in scores or scores[component_id].marks_awarded != Decimal(value) for component_id, value in score_values.items())
+        or (comments is not None and entry.comments != str(comments))
+    ):
+        raise ValidationError("Change at least one score or the overall comments before saving a correction.")
     for component_id, value in score_values.items():
         if component_id not in scores:
             raise ValidationError("The selected rubric component is not part of this entry.")
@@ -1195,16 +1226,12 @@ def correct_submitted_marks(
 
 
 @transaction.atomic
-def reopen_submitted_marks(*, entry, actor, reason):
+def reopen_submitted_marks(*, entry, actor, reason, expected_version=None):
     _assert_office_admin(actor)
     reason = str(reason).strip()
     if not reason:
         raise ValidationError("A reopening reason is required.")
-    entry = (
-        MarkEntry.objects.select_for_update()
-        .select_related("task__period")
-        .get(pk=entry.pk)
-    )
+    entry = _lock_reviewed_mark_entry(entry, expected_version)
     if entry.status != MarkEntry.Status.SUBMITTED:
         raise ValidationError("Only submitted marks can be reopened.")
     if not entry.task.period.accepts_submissions:

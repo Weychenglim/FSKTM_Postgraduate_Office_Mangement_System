@@ -23,7 +23,7 @@ const statusTone = (status: PanelRecommendationDraft['status']) => {
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') {
     return 'danger' as const;
   }
-  if (status === 'CANCELLED_BY_SUPERVISOR') return 'neutral' as const;
+  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE') return 'neutral' as const;
   if (status === 'PENDING_COORDINATOR') return 'warning' as const;
   return 'info' as const;
 };
@@ -89,6 +89,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
             <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
+            <option value="Cancelled">Cancelled</option>
           </select>
         </div>
 
@@ -131,7 +132,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
                         {record.selectedPanelDecision === 'ACCEPTED' ? 'Accepted' : 'Rejected'}
                       </StatusBadge>
                     ) : (
-                      <span className="text-slate-400 font-bold">Awaiting decision</span>
+                      <span className="text-slate-400 font-bold">{record.status === 'CANCELLED_BY_SUPERVISOR' || record.status === 'CANCELLED_BY_OFFICE' ? 'Cancelled before decision' : 'Awaiting decision'}</span>
                     )}
                   </td>
                   <td className="data-td">

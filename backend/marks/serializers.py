@@ -257,6 +257,40 @@ class ScoreInputSerializer(serializers.Serializer):
     feedback = serializers.CharField(required=False, allow_blank=True)
 
 
+class SubmittedMarksReasonSerializer(serializers.Serializer):
+    reason = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    expectedVersion = serializers.CharField(allow_blank=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise serializers.ValidationError("Unexpected fields are not permitted for this operation.")
+        return attrs
+
+
+class SubmittedScoreCorrectionSerializer(serializers.Serializer):
+    componentId = serializers.IntegerField(min_value=1)
+    marksAwarded = serializers.DecimalField(max_digits=7, decimal_places=2, min_value=Decimal("0.00"))
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and set(data) - set(self.fields):
+            raise serializers.ValidationError("Only component scores may be corrected here.")
+        return super().to_internal_value(data)
+
+
+class SubmittedMarksCorrectionSerializer(SubmittedMarksReasonSerializer):
+    scores = SubmittedScoreCorrectionSerializer(many=True, required=False, default=list)
+    comments = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        ids = [score['componentId'] for score in attrs['scores']]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Each component may appear only once.")
+        if not ids and 'comments' not in attrs:
+            raise serializers.ValidationError("Supply a score or overall-comment correction.")
+        return attrs
+
+
 class MarkDraftSerializer(serializers.Serializer):
     scores = ScoreInputSerializer(many=True)
     comments = serializers.CharField(required=False, allow_blank=True)

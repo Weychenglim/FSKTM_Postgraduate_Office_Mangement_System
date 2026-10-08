@@ -1,14 +1,18 @@
 # Whole-system manual end-to-end test guide
 
-Prepared 6 October 2026 from the latest local `main`, the current development database and the actual frontend/backend routes. This is a test plan, not a claim that every scenario below has passed.
+For a shorter first run, use the [simple role-by-role testing guide](SIMPLE_END_TO_END_TEST_GUIDE.md). It also explains the Office account's Marks-only Django admin permissions and separates working flows from missing integrations.
+
+Participant lifecycle browser results and corrected record/dossier displays are recorded in [8 October acceptance](PARTICIPANT_LIFECYCLE_ACCEPTANCE_2026-10-08.md). Test daily lifecycle operations through Dashboard → Manage Participants; Django admin remains an inspection surface. Supporting-appointment, coordinator responsibility/delegation and other unexercised compound branches remain separate acceptance work.
+
+Prepared 6 October 2026; refreshed 8 October 2026 for the current local `main` working tree, development database and actual frontend/backend routes, including submitted Marks portal actions. This is a test plan, not a claim that every scenario below has passed.
 
 ## Running application and account sheet
 
 - Portal: **http://127.0.0.1:3001/**. Django: **http://127.0.0.1:8000/**; admin: **http://127.0.0.1:8000/admin/**.
 - The local backend uses the existing **fsktm_pg_office** development database. The isolated acceptance databases from earlier sessions are separate.
-- Port 3000 is occupied by Docker. This session uses port 3001 with real authentication, `/api` proxying to port 8000, and **mock mode/demo login disabled**.
+- The existing Docker stack uses port 3000 when running. This session uses port 3001 with real authentication, `/api` proxying to port 8000, and **mock mode/demo login disabled**.
 - All eight existing accounts are active. Their configured passwords were verified against their stored hashes and written to the **private, ignored** local file `backend/.env.local-test-accounts.md`. Passwords are deliberately absent from this committed guide. No password or account authority was changed during setup.
-- Email delivery currently uses the Django console backend. Reset emails/links appear in the ignored `backend/.env.local-server-backend.log`; no real mailbox delivery is claimed.
+- Email delivery currently uses the Django console backend. Reset emails/links from the current launcher appear in the ignored `backend/.env.portal-main-server.log`; request/server diagnostics appear in `backend/.env.portal-main-server.err`. No real mailbox delivery is claimed.
 - Use one role at a time and **Sign Out** before switching. Normal tabs share the refresh cookie; use distinct browser profiles/browsers for simultaneous actors.
 - Prefix new records with `E2E-20261006` (or today's date). Test writes persist in this development database. Do semester closure, archival, retirement and password changes last.
 
@@ -97,7 +101,7 @@ Use **DEMO-STUDENT-001**, **DEMO-LECT-001**, and the coordinator with acting AI 
 - [ ] Submit the complete valid Draft. It becomes Submitted/read-only. Refresh and try to open its edit route: a second submission or ordinary edit must not overwrite it.
 - [ ] Panel submits **30/40 + 50/60 = 80/100** for Student 001. Verify independence from the Supervisor's score and actor.
 - [ ] Complete the remaining assigned tasks for Students 003/004. Office monitoring should reach **6/6 submitted, 0 incomplete** for this period. Filter/select the specific period so other test periods do not confuse totals.
-- [ ] Office opens records and verifies all exact component scores/totals, submitted dates/evaluators, filters and export. If testing authorized Marks correction/reopening in Django admin, use the Office account, record a reason and verify correction audit plus the intended lock/reopen state. Routine admin saves must not bypass governed period/rubric/appointment workflows.
+- [ ] Office opens records and verifies all exact component scores/totals, submitted dates/evaluators, filters and export. Test correction/reopening through Marks Entry → View Mark Records → record detail, using an Office staff account with `marks.change_markentry`. Require a reason and confirmation; verify before/after audit, refreshed total, retained submission on correction and preserved Draft on reopening. Test a stale second tab and closed-period reopening rejection. Django admin must expose inspection only with no save/correction/reopening controls or governed model bypasses. See [portal acceptance](MARKS_PORTAL_ACTIONS_ACCEPTANCE_2026-10-07.md) for verified examples.
 
 ## 7. Reports, dossiers, audits and notifications
 

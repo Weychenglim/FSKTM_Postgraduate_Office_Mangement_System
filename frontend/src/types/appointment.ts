@@ -238,7 +238,8 @@ export type PanelRecommendationStatus =
   | 'PENDING_COORDINATOR'
   | 'REJECTED_BY_COORDINATOR'
   | 'APPROVED'
-  | 'CANCELLED_BY_SUPERVISOR';
+  | 'CANCELLED_BY_SUPERVISOR'
+  | 'CANCELLED_BY_OFFICE';
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
@@ -372,6 +373,7 @@ export interface SubmittedRecommendation extends WorkflowAgeingMetadata {
   rejectionReason?: string;
   submittedAt?: string | null;
   panelDecisionAt?: string | null;
+  selectedPanelDecision?: 'ACCEPTED' | 'REJECTED' | null;
   coordinatorDecisionAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string;
@@ -440,6 +442,7 @@ export type SupervisorApplicationWorkflowStatus =
   | 'PENDING_COORDINATOR'
   | 'REJECTED_BY_COORDINATOR'
   | 'CANCELLED_BY_STUDENT'
+  | 'CANCELLED_BY_OFFICE'
   | 'APPROVED';
 
 export interface SupervisorWorkflowEvent {
