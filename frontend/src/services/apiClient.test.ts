@@ -122,4 +122,17 @@ try {
   assert.equal(session.getAccessToken(), null);
 }
 
+for (const outcome of ['success', 'failure', 'network'] as const) {
+  let finish!: (value: Response) => void;
+  let fail!: (error: Error) => void;
+  const session = new AuthSession((() => new Promise<Response>((resolve, reject) => { finish = resolve; fail = reject; })) as typeof fetch, '/api/auth/refresh/');
+  session.setAccessToken('session-a');
+  const pending = session.refreshAccessToken();
+  session.setAccessToken('session-b');
+  if (outcome === 'network') fail(new Error('disconnected'));
+  else finish(new Response(JSON.stringify({ token: 'old-session-renewal' }), { status: outcome === 'success' ? 200 : 401 }));
+  assert.equal(await pending, null);
+  assert.equal(session.getAccessToken(), 'session-b', 'an old refresh must not replace or clear a new login');
+}
+
 console.log('JWT API session tests passed.');

@@ -6,18 +6,22 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from openpyxl import Workbook
+from openpyxl.cell.cell import Cell
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from academics.capacity import CapacityRole, CapacityState, resolve_lecturer_capacity
 from academics.models import AcademicSemester
-from accounts.authorization import coordinator_programme
+from accounts.authorization import (
+    coordinator_programme, coordinator_programmes, coordinator_scope_q,
+)
 from accounts.models import Lecturer, Panel, Student, Supervisor
 from appointments.ageing import panel_waiting_metadata, supervisor_waiting_metadata
 from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
+from marks.completion_windows import task_due_at, task_access
 
 from .models import SemesterTimelineEntry
 from .reconciliation import detect_reconciliation_issues
@@ -247,15 +251,11 @@ def _scope_supervisor_records(user, programme, selector, semester):
         "appointment__supersedes",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
-        records = (
-            records.filter(student__programme=programme)
-            if programme
-            else records.none()
-        )
+        records = records.filter(coordinator_scope_q(user, "student__programme"))
     elif user.role == User.Role.LECTURER:
         records = records.filter(proposed_supervisor=user)
-    elif programme:
-        records = records.filter(student__programme=programme)
+    if programme:
+        records = records.filter(student__programme__trim__iexact=programme)
     return _filter_semester(
         records,
         "academic_semester",
@@ -274,15 +274,11 @@ def _scope_panel_records(user, programme, selector, semester):
         "panel_appointment__supersedes",
     ).prefetch_related("workflow_events")
     if user.role == User.Role.COORDINATOR:
-        records = (
-            records.filter(profile__programme=programme)
-            if programme
-            else records.none()
-        )
+        records = records.filter(coordinator_scope_q(user, "profile__programme"))
     elif user.role == User.Role.LECTURER:
         records = records.filter(recommended_member=user)
-    elif programme:
-        records = records.filter(profile__programme=programme)
+    if programme:
+        records = records.filter(profile__programme__trim__iexact=programme)
     return _filter_semester(
         records,
         "academic_semester",
@@ -559,12 +555,12 @@ def _mark_rows(
     tasks = EvaluationTask.objects.filter(
         lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
     ).select_related(
-        "profile",
-        "evaluator",
+        "profile__student__student",
+        "evaluator__lecturer",
         "period",
         "period__academic_semester",
         "mark_entry",
-    )
+    ).prefetch_related("completion_windows__granted_by")
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
     elif programme:
@@ -578,7 +574,8 @@ def _mark_rows(
 
     rows = []
     for task in tasks:
-        report_date = task.period.closes_at or task.assigned_at
+        effective_due_at = task_due_at(task, now=now)
+        report_date = effective_due_at or task.assigned_at
         if not _within_range(report_date, start_date, end_date):
             continue
         try:
@@ -587,7 +584,7 @@ def _mark_rows(
             entry = None
         entry_status = entry.status if entry else MarkEntry.Status.NOT_STARTED
         deadline = mark_deadline_metadata(
-            task.period.closes_at,
+            effective_due_at,
             is_submitted=entry_status == MarkEntry.Status.SUBMITTED,
             now=now,
         )
@@ -601,6 +598,7 @@ def _mark_rows(
                 "assignee": task.evaluator.full_name,
                 "status": entry_status,
                 "evaluatorRole": task.evaluator_role,
+                "completionWindowStatus": (task_access(task, now=now).get("completionWindow") or {}).get("status"),
                 "reportDate": _iso(report_date),
                 **_semester_row(task.period.academic_semester),
                 **deadline,
@@ -813,9 +811,7 @@ def build_workflow_report(user, query_params=None, now=None):
         _resolve_semester_filter(params)
     )
     programme = None
-    if user.role == User.Role.COORDINATOR:
-        programme = coordinator_programme(user)
-    elif user.role == User.Role.OFFICE_ADMIN:
+    if user.role in {User.Role.COORDINATOR, User.Role.OFFICE_ADMIN}:
         programme = str(params.get("programme") or "").strip() or None
 
     available_programmes = (
@@ -841,7 +837,7 @@ def build_workflow_report(user, query_params=None, now=None):
             }
         )
         if user.role == User.Role.OFFICE_ADMIN
-        else ([programme] if programme else [])
+        else coordinator_programmes(user)
     )
 
     supervisor_rows = _supervisor_rows(
@@ -892,12 +888,16 @@ def build_workflow_report(user, query_params=None, now=None):
         semester_selector,
         selected_semester,
     )
+    from .amendment_tracking import amendment_report_rows
+    amendment_rows = amendment_report_rows(user, programme, start_date, end_date, now,
+                                            semester_selector, selected_semester)
     waiting_days = [
         row["waitingDays"]
-        for row in [*supervisor_rows, *panel_rows]
+        for row in [*supervisor_rows, *panel_rows, *amendment_rows]
         if row["waitingDays"] is not None
     ]
     all_sections = [
+        amendment_rows,
         supervisor_rows,
         panel_rows,
         mark_rows or [],
@@ -935,7 +935,11 @@ def build_workflow_report(user, query_params=None, now=None):
         "generatedAt": now.isoformat(),
         "scope": {
             "role": REPORT_ROLE_NAMES[user.role],
-            "programme": programme,
+            "programme": (
+                coordinator_programme(user)
+                if user.role == User.Role.COORDINATOR else programme
+            ),
+            "programmes": available_programmes,
         },
         "filters": {
             "startDate": start_date.isoformat() if start_date else None,
@@ -977,6 +981,7 @@ def build_workflow_report(user, query_params=None, now=None):
             ),
         },
         "supervisor": _module_summary(supervisor_rows),
+        "researchAmendments": _module_summary(amendment_rows),
         "panel": _module_summary(panel_rows),
         "marks": _marks_summary(mark_rows),
         "timeline": _timeline_summary(timeline_rows),
@@ -1009,13 +1014,24 @@ def build_workflow_report(user, query_params=None, now=None):
     }
 
 
+def _append_literal_row(sheet, values):
+    cells = []
+    for value in values:
+        cell = Cell(sheet, value=value)
+        if isinstance(value, str):
+            # openpyxl infers formulas and error cells from string content.
+            # Report text must remain literal without changing numeric cells.
+            cell.data_type = "s"
+        cells.append(cell)
+    sheet.append(cells)
+
+
 def _append_sheet(workbook, title, headers, rows):
     sheet = workbook.create_sheet(title=title)
-    sheet.append([label for _key, label in headers])
+    _append_literal_row(sheet, [label for _key, label in headers])
     for row in rows:
-        sheet.append([row.get(key) for key, _label in headers])
+        _append_literal_row(sheet, [row.get(key) for key, _label in headers])
     for column_index, (_key, label) in enumerate(headers, start=1):
-        sheet.cell(1, column_index, label)
         sheet.cell(1, column_index).font = Font(bold=True, color="FFFFFF")
         sheet.cell(1, column_index).fill = PatternFill("solid", fgColor="1E3A5F")
         column_widths = [
@@ -1034,12 +1050,18 @@ def _append_sheet(workbook, title, headers, rows):
 
 def build_workflow_report_workbook(report):
     workbook = Workbook()
+    _append_sheet(workbook, 'Research Amendments', [
+        ('recordId', 'Request ID'), ('studentId', 'Student ID'), ('studentName', 'Student Name'),
+        ('kind', 'Type'), ('status', 'Status'), ('sourceProgramme', 'Source Programme'),
+        ('destinationProgramme', 'Destination Programme'), ('waitingOn', 'Responsible Stage'),
+        ('waitingDays', 'Waiting Days'), ('reportDate', 'Requested At'),
+    ], report.get('researchAmendments', {}).get('records', []))
     summary = workbook.active
     summary.title = "Summary"
     summary_rows = [
         ("Generated At", report["generatedAt"]),
         ("Role", report["scope"]["role"]),
-        ("Programme", report["scope"]["programme"] or "All authorised programmes"),
+        ("Programme", report["filters"]["programme"] or ", ".join(report["scope"].get("programmes", [])) or "All authorised programmes"),
         ("Start Date", report["filters"]["startDate"] or "All"),
         ("End Date", report["filters"]["endDate"] or "All"),
         ("Semester", report["filters"]["semester"]),
@@ -1050,7 +1072,7 @@ def build_workflow_report_workbook(report):
             for key, value in report["participantLifecycle"].items()
         )
     for row in summary_rows:
-        summary.append(row)
+        _append_literal_row(summary, row)
     summary["A1"].font = Font(bold=True)
     summary.column_dimensions["A"].width = 28
     summary.column_dimensions["B"].width = 30
@@ -1119,6 +1141,7 @@ def build_workflow_report_workbook(report):
                 ("deadlineState", "Deadline State"),
                 ("dueAt", "Due At"),
                 ("daysUntilDue", "Days Until Due"),
+                ("completionWindowStatus", "Completion Window"),
             ],
             report["marks"]["records"],
         )

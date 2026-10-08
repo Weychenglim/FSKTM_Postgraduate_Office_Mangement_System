@@ -40,6 +40,13 @@ assert.equal(
   'Waiting on Supervisor',
 );
 assert.equal(formatWaitingText(null), 'Not waiting');
+for (const [stage, label] of [
+  ['COORDINATOR', 'Programme Coordinator'],
+  ['SOURCE_COORDINATOR', 'Source Programme Coordinator'],
+  ['DESTINATION_COORDINATOR', 'Destination Programme Coordinator'],
+] as const) {
+  assert.equal(formatWaitingText({ waitingDays: 0, waitingOn: stage }), `Waiting on ${label} today`);
+}
 
 const upcomingDeadline: DeadlineMetadata = {
   dueAt: '2026-07-26T23:59:59Z',

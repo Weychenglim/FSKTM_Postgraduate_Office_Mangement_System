@@ -231,13 +231,19 @@ def _reasoned_transition(request, pk, transition):
     if denied:
         return denied
     semester = get_object_or_404(AcademicSemester, pk=pk)
-    serializer = ReasonSerializer(data=request.data)
+    from .serializers import ClosureTransitionSerializer
+
+    serializer = ClosureTransitionSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    closure_values = {}
+    if transition in (activate_semester, close_semester):
+        closure_values = {"preview_token": serializer.validated_data.get("previewToken"), "acknowledge_unfinished": serializer.validated_data["acknowledgeUnfinished"]}
     try:
         semester = transition(
             semester,
             actor=request.user,
             reason=serializer.validated_data["reason"],
+            **closure_values,
         )
     except SemesterConflict as exc:
         return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
@@ -591,3 +597,24 @@ def semester_capacity_audits_view(request, pk):
         [capacity_audit_payload(audit) for audit in audits],
         pagination,
     )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def semester_closure_preview_view(request, pk):
+    denied = _office_denied(request.user)
+    if denied:
+        return denied
+    from marks.closure_preview import semester_closure_preview
+    semester = get_object_or_404(AcademicSemester, pk=pk)
+    return Response(semester_closure_preview(semester))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def semester_handover_preview_view(request, pk):
+    denied = _office_denied(request.user)
+    if denied:
+        return denied
+    from marks.closure_preview import semester_closure_preview
+    target = get_object_or_404(AcademicSemester, pk=pk)
+    return Response(semester_closure_preview(None, target_semester=target))

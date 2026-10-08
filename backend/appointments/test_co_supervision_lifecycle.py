@@ -251,7 +251,7 @@ class CoSupervisionMigrationPreservationTests(APITransactionTestCase):
             MarkScore,
         ]
         before = [list(model.objects.order_by("pk").values()) for model in models]
-        latest = [("appointments", "0012_co_supervisor_team")]
+        latest = MigrationExecutor(connection).loader.graph.leaf_nodes()
         try:
             MigrationExecutor(connection).migrate(
                 [("appointments", "0011_alter_panelrecommendation_status_and_more")]

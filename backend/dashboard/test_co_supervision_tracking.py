@@ -53,6 +53,49 @@ class CoSupervisionTrackingTests(APITestCase):
             )
         )
 
+    def test_delegated_programme_includes_co_supervision_without_widening_filters(self):
+        self.office.is_staff = True
+        self.office.save(update_fields=["is_staff"])
+        row = self.nomination(status="PENDING_COORDINATOR")
+        self.client.force_authenticate(user=self.office)
+        today = timezone.localdate()
+        grant = self.client.post("/api/accounts/coordinator-delegations/", {
+            "coordinatorId": self.other_coordinator.pk,
+            "programme": self.student.programme,
+            "startsOn": str(today), "endsOn": str(today),
+            "justification": "Temporary coverage",
+        }, format="json")
+        self.assertEqual(grant.status_code, 201, grant.data)
+        actions = build_dashboard_tasks(self.other_coordinator)
+        self.assertTrue(any(
+            item["recordType"] == "CO_SUPERVISOR_NOMINATION"
+            and item["recordId"] == str(row.pk) for item in actions
+        ))
+        report = build_workflow_report(self.other_coordinator, {"semester": "all"})
+        self.assertTrue(any(
+            record["recordType"] == "CO_SUPERVISOR_NOMINATION"
+            and record["recordId"] == str(row.pk)
+            for record in report["supervisor"]["records"]
+        ))
+        programme = self.student.programme
+        self.student.programme = f"  {programme}  "
+        self.student.save(update_fields=["programme"])
+        matching = build_workflow_report(self.other_coordinator, {
+            "semester": "all", "programme": programme.lower(),
+        })
+        self.assertTrue(any(
+            record["recordType"] == "CO_SUPERVISOR_NOMINATION"
+            and record["recordId"] == str(row.pk)
+            for record in matching["supervisor"]["records"]
+        ))
+        narrowed = build_workflow_report(self.other_coordinator, {
+            "semester": "all", "programme": "MASTER OF SOFTWARE ENGINEERING",
+        })
+        self.assertFalse(any(
+            record["recordType"] == "CO_SUPERVISOR_NOMINATION"
+            for record in narrowed["supervisor"]["records"]
+        ))
+
     def test_report_filters_and_export_include_supporting_role_and_lifecycle(self):
         row = self.nomination(status="APPROVED")
         CoSupervisorAppointment.objects.create(

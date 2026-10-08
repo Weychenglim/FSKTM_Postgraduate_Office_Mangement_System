@@ -12,6 +12,7 @@ from accounts.models import Lecturer, Student
 from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
+from .completion_windows import task_access, task_due_at, window_payload, grant_completion_windows, revoke_completion_window
 from .deadlines import mark_deadline_metadata
 from .targeting import programme_options, recipient_preview
 from .models import (
@@ -69,7 +70,7 @@ def task_display_status(task):
     entry = task_entry_or_none(task)
     if entry and entry.status == MarkEntry.Status.SUBMITTED:
         return "SUBMITTED"
-    if task.period.closes_at and task.period.closes_at < timezone.now():
+    if task_due_at(task) and task_due_at(task) < timezone.now():
         return "OVERDUE"
     if entry and entry.status == MarkEntry.Status.DRAFT:
         return "DRAFT"
@@ -79,7 +80,7 @@ def task_display_status(task):
 def mark_record_display_status(task, entry):
     if entry and entry.status == MarkEntry.Status.SUBMITTED:
         return "Submitted"
-    if task.period.closes_at and task.period.closes_at < timezone.now():
+    if task_due_at(task) and task_due_at(task) < timezone.now():
         return "Overdue"
     if entry and entry.status == MarkEntry.Status.DRAFT:
         return "Draft"
@@ -243,6 +244,7 @@ def component_values(data):
 def task_option_payload(task):
     entry = task_entry_or_none(task)
     return {
+        **task_access(task),
         "taskId": task.pk,
         "id": f"EVT-{task.pk:05d}",
         "periodId": task.period_id,
@@ -256,7 +258,7 @@ def task_option_payload(task):
         "semester": task.period.semester,
         "status": task_display_status(task),
         **mark_deadline_metadata(
-            task.period.closes_at,
+            task_due_at(task),
             is_submitted=bool(
                 entry and entry.status == MarkEntry.Status.SUBMITTED
             ),
@@ -492,6 +494,8 @@ def period_transition_response(request, pk, action):
                 period=period,
                 actor=request.user,
                 reason=reason,
+                preview_token=request.data.get("previewToken"),
+                acknowledge_unfinished=request.data.get("acknowledgeUnfinished") is True,
             )
         else:
             period = archive_evaluation_period(
@@ -812,7 +816,7 @@ def mark_records_view(request):
             entry = None
         display_status = mark_record_display_status(task, entry)
         deadline_metadata = mark_deadline_metadata(
-            task.period.closes_at,
+            task_due_at(task),
             is_submitted=bool(
                 entry and entry.status == MarkEntry.Status.SUBMITTED
             ),
@@ -904,7 +908,7 @@ def mark_record_detail_view(request, record_id):
         else {}
     )
     deadline = mark_deadline_metadata(
-        task.period.closes_at,
+        task_due_at(task),
         is_submitted=bool(
             entry and entry.status == MarkEntry.Status.SUBMITTED
         ),
@@ -913,7 +917,8 @@ def mark_record_detail_view(request, record_id):
     return Response(
         {
             "recordId": f"MRK-{task.pk:05d}",
-            "taskId": task.pk,
+            **task_access(task),
+        "taskId": task.pk,
             "student": {
                 "studentId": task.profile.matric_no,
                 "name": task.profile.student_name,
@@ -1202,3 +1207,66 @@ def manual_override_task_view(request, pk):
         .get()
     )
     return Response(EvaluationTaskSerializer(task).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def completion_window_history_view(request, pk):
+    if not office_only(request.user) or not request.user.is_staff:
+        return Response({"error":"Only Office Staff/Admin may view completion history."}, status=403)
+    task = EvaluationTask.objects.filter(pk=pk).first()
+    if task is None:
+        return Response({"error":"Task not found."}, status=404)
+    return Response({"windows":[window_payload(w) for w in task.completion_windows.select_related('granted_by')]})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def completion_window_grant_view(request):
+    from rest_framework import serializers
+    if not office_only(request.user) or not request.user.is_staff:
+        return Response({"error":"Only Office Staff/Admin may grant completion windows."}, status=403)
+    class Input(serializers.Serializer):
+        taskIds = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=False)
+        deadline = serializers.DateTimeField()
+        reason = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    data = Input(data=request.data)
+    data.is_valid(raise_exception=True)
+    try:
+        windows = grant_completion_windows(task_ids=data.validated_data['taskIds'], deadline=data.validated_data['deadline'], reason=data.validated_data['reason'], actor=request.user)
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response({"windows":[window_payload(w) for w in windows]}, status=201)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def completion_window_revoke_view(request, pk):
+    from .models import TaskCompletionWindow
+    if not office_only(request.user) or not request.user.is_staff:
+        return Response({"error":"Only Office Staff/Admin may revoke completion windows."}, status=403)
+    data = ReasonSerializer(data=request.data)
+    data.is_valid(raise_exception=True)
+    try:
+        window = revoke_completion_window(window_id=pk, reason=data.validated_data['reason'], actor=request.user)
+    except TaskCompletionWindow.DoesNotExist:
+        return Response({"error":"Completion window not found."}, status=404)
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response({"window":window_payload(window)})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def period_closure_preview_view(request, pk):
+    from .closure_preview import period_closure_preview
+    if not office_only(request.user) or not request.user.is_staff:
+        return Response({"error":"Only Office Staff/Admin may preview closure."},status=403)
+    period = EvaluationPeriod.objects.filter(pk=pk).first()
+    if period is None:
+        return Response({"error":"Period not found."},status=404)
+    return Response(period_closure_preview(period))

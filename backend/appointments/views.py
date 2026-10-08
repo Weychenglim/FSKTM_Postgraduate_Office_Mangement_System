@@ -1,4 +1,6 @@
+from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -11,7 +13,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from announcements.models import Notification
-from accounts.authorization import coordinator_programme
+from accounts.authorization import (
+    coordinator_programme, coordinator_programmes, coordinator_scope_q,
+    coordinator_manages_programme, programme_coordinators,
+)
 from accounts.eligibility import (
     profile_student_is_workflow_eligible,
     student_is_workflow_eligible,
@@ -28,6 +33,11 @@ from academics.capacity import (
 from academics.services import current_effective_semester
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .role_integrity import (
+    AppointmentRoleConflict,
+    assert_no_primary_role,
+    panel_role_candidate_ids,
+)
 from .models import (
     AppointmentLifecycleEvent,
     AppointmentWorkflowEvent,
@@ -506,14 +516,6 @@ def record_workflow_event(
     )
 
 
-def programme_coordinators(programme):
-    return User.objects.filter(
-        role=User.Role.COORDINATOR,
-        is_active=True,
-        lecturer__coordinator__programme_managed=programme,
-    )
-
-
 def notify_workflow(
     *,
     recipients,
@@ -566,9 +568,8 @@ def can_view_panel_recommendation(user, recommendation):
     )
 
 
-def coordinator_can_access_recommendation(user, recommendation):
-    programme = coordinator_programme(user)
-    return bool(programme) and recommendation.profile.programme == programme
+def coordinator_can_access_recommendation(user, recommendation, *, lock=False):
+    return coordinator_manages_programme(user, recommendation.profile.programme, lock=lock)
 
 
 @api_view(["GET"])
@@ -901,12 +902,9 @@ def coordinator_queue_view(request):
             "Only Programme Coordinators can view coordinator review queues.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     recommendations = PanelRecommendation.objects.filter(
+        coordinator_scope_q(request.user, "profile__programme"),
         status=PanelRecommendation.Status.PENDING_COORDINATOR,
-        profile__programme=programme,
     ).select_related(
         "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
     )
@@ -923,10 +921,12 @@ def coordinator_workspace_view(request):
         )
 
     programme = coordinator_programme(request.user)
-    if not programme:
+    programmes = coordinator_programmes(request.user)
+    if not programmes:
         return Response(
             {
                 "programme": "",
+                "programmes": [],
                 "pendingCount": 0,
                 "queue": [],
                 "records": [],
@@ -935,7 +935,7 @@ def coordinator_workspace_view(request):
         )
 
     recommendations = (
-        PanelRecommendation.objects.filter(profile__programme=programme)
+        PanelRecommendation.objects.filter(coordinator_scope_q(request.user, "profile__programme"))
         .select_related(
             "profile",
             "supervisor",
@@ -952,6 +952,7 @@ def coordinator_workspace_view(request):
     return Response(
         {
             "programme": programme,
+            "programmes": programmes,
             "pendingCount": len(queue),
             "queue": PanelRecommendationSerializer(queue, many=True).data,
             "records": PanelRecommendationSerializer(recommendations, many=True).data,
@@ -990,9 +991,14 @@ def review_history_view(request):
 @permission_classes([IsAuthenticated])
 def cancel_panel_recommendation_view(request, pk):
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         try:
+            student_id = PanelRecommendation.objects.values_list("profile__student_id", flat=True).get(pk=pk)
+            if student_id:
+                Student.objects.select_for_update().get(pk=student_id)
             recommendation = (
-                PanelRecommendation.objects.select_for_update()
+                PanelRecommendation.objects.select_for_update(of=("self",))
                 .select_related("profile", "supervisor", "recommended_member")
                 .get(pk=pk)
             )
@@ -1001,6 +1007,10 @@ def cancel_panel_recommendation_view(request, pk):
                 "Panel recommendation was not found.",
                 status.HTTP_404_NOT_FOUND,
             )
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if request.user.pk != recommendation.supervisor_id:
             return error_response(
                 "Only the submitting supervisor can cancel this recommendation.",
@@ -1072,6 +1082,15 @@ def panel_accept_view(request, pk):
         return participant_ineligible_response()
 
     with transaction.atomic():
+        recommendation = lock_request(recommendation)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if recommendation.status != "SUBMITTED_TO_PANEL":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.PENDING_COORDINATOR
         recommendation.panel_decided_at = timezone.now()
@@ -1125,6 +1144,15 @@ def panel_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        recommendation = lock_request(recommendation)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if recommendation.status != "SUBMITTED_TO_PANEL":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.REJECTED_BY_PANEL
         recommendation.panel_rejection_reason = reason_serializer.validated_data[
@@ -1188,7 +1216,9 @@ def coordinator_approve_view(request, pk):
     if not profile_student_is_workflow_eligible(recommendation.profile):
         return participant_ineligible_response()
 
+    from .capacity_reassessment import lock_policy_semesters, assert_request_capacity, consume
     with transaction.atomic():
+        lock_policy_semesters()
         if recommendation.profile.student_id:
             locked_student = Student.objects.select_for_update().get(
                 pk=recommendation.profile.student_id
@@ -1226,18 +1256,22 @@ def coordinator_approve_view(request, pk):
         Lecturer.objects.select_for_update().get(
             pk=recommendation.recommended_member_id
         )
+        try:
+            assert_no_primary_role(
+                profile=recommendation.profile,
+                candidate_id=recommendation.recommended_member_id,
+            )
+        except AppointmentRoleConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
         if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
             return error_response(
                 "This recommendation is not awaiting Programme Coordinator review.",
                 status.HTTP_409_CONFLICT,
             )
         try:
-            assert_capacity_allows_assignment(
-                user=recommendation.recommended_member,
-                semester=recommendation.academic_semester,
-                role=CapacityRole.PANEL,
-                exclude_panel_recommendation_id=recommendation.pk,
-            )
+            capacity_result = assert_request_capacity(recommendation)
         except CapacityConflict as exc:
             return error_response(str(exc), status.HTTP_409_CONFLICT)
         previous_status = recommendation.status
@@ -1262,6 +1296,7 @@ def coordinator_approve_view(request, pk):
         except AppointmentLifecycleConflict as exc:
             transaction.set_rollback(True)
             return error_response(str(exc), status.HTTP_409_CONFLICT)
+        consume(recommendation, request.user, capacity_result)
         record_workflow_event(
             actor=request.user,
             action="COORDINATOR_APPROVE",
@@ -1317,6 +1352,21 @@ def coordinator_reject_view(request, pk):
     reason_serializer.is_valid(raise_exception=True)
     reason = reason_serializer.validated_data["reason"]
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
+        if recommendation.profile.student_id:
+            Student.objects.select_for_update().get(pk=recommendation.profile.student_id)
+        recommendation = PanelRecommendation.objects.select_for_update(of=("self",)).select_related("profile").get(pk=pk)
+        try:
+            assert_not_archived(recommendation)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if not coordinator_can_access_recommendation(request.user, recommendation, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
+        if recommendation.status != PanelRecommendation.Status.PENDING_COORDINATOR:
+            return error_response("This recommendation is no longer awaiting coordinator review.", status.HTTP_409_CONFLICT)
+        if not profile_student_is_workflow_eligible(recommendation.profile):
+            return participant_ineligible_response()
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.REJECTED_BY_COORDINATOR
         recommendation.coordinator_rejection_reason = str(reason).strip()
@@ -1366,9 +1416,8 @@ def assignments_view(request):
     return Response(PanelAssignmentSerializer(appointments, many=True).data)
 
 
-def supervisor_programme_access(user, application):
-    programme = coordinator_programme(user)
-    return bool(programme) and application.student.programme == programme
+def supervisor_programme_access(user, application, *, lock=False):
+    return coordinator_manages_programme(user, application.student.programme, lock=lock)
 
 
 def get_supervisor_application(pk):
@@ -1547,13 +1596,18 @@ def supervisor_candidates_view(request):
     academic_semester = current_effective_semester()
     if academic_semester is None:
         return Response([])
+    try:
+        student = request.user.student
+    except ObjectDoesNotExist:
+        return error_response("The student profile is not available.")
+    conflicting_ids = panel_role_candidate_ids(student)
     candidates = list(
         User.objects.filter(
             role=User.Role.LECTURER,
             is_active=True,
             lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
             lecturer__supervisor__isnull=False,
-        ).select_related("lecturer", "lecturer__supervisor")
+        ).exclude(pk__in=conflicting_ids).select_related("lecturer", "lecturer__supervisor")
     )
     resolutions = {
         candidate.pk: resolve_lecturer_capacity(
@@ -1676,9 +1730,14 @@ def supervisor_application_detail_view(request, pk):
 @permission_classes([IsAuthenticated])
 def cancel_supervisor_application_view(request, pk):
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
         try:
+            student_id = SupervisorApplication.objects.values_list("student_id", flat=True).get(pk=pk)
+            if student_id:
+                Student.objects.select_for_update().get(pk=student_id)
             application = (
-                SupervisorApplication.objects.select_for_update()
+                SupervisorApplication.objects.select_for_update(of=("self",))
                 .select_related(
                     "student",
                     "student__user",
@@ -1692,6 +1751,10 @@ def cancel_supervisor_application_view(request, pk):
                 "Supervisor application was not found.",
                 status.HTTP_404_NOT_FOUND,
             )
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         if request.user.pk != application.student.user_id:
             return error_response(
                 "Only the student who submitted this request can cancel it.",
@@ -1794,6 +1857,15 @@ def supervisor_accept_view(request, pk):
     if not student_is_workflow_eligible(application.student):
         return participant_ineligible_response()
     with transaction.atomic():
+        application = lock_request(application)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if application.status != "SUBMITTED_TO_SUPERVISOR":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.PENDING_COORDINATOR
         application.supervisor_decided_at = timezone.now()
@@ -1847,6 +1919,15 @@ def supervisor_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        application = lock_request(application)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if application.status != "SUBMITTED_TO_SUPERVISOR":
+            return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
         application.supervisor_rejection_reason = reason_serializer.validated_data[
@@ -1893,11 +1974,8 @@ def supervisor_coordinator_queue_view(request):
             "Only Programme Coordinators can view supervisor approvals.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     applications = SupervisorApplication.objects.filter(
-        student__programme=programme,
+        coordinator_scope_q(request.user, "student__programme"),
         status=SupervisorApplication.Status.PENDING_COORDINATOR,
     ).select_related("student", "student__user", "proposed_supervisor")
     return Response(SupervisorApplicationSerializer(applications, many=True).data)
@@ -1911,12 +1989,9 @@ def supervisor_coordinator_records_view(request):
             "Only Programme Coordinators can view supervisor appointment records.",
             status.HTTP_403_FORBIDDEN,
         )
-    programme = coordinator_programme(request.user)
-    if not programme:
-        return Response([])
     applications = (
         SupervisorApplication.objects.filter(
-            student__programme=programme,
+            coordinator_scope_q(request.user, "student__programme"),
             status=SupervisorApplication.Status.APPROVED,
             appointment__isnull=False,
         )
@@ -2002,6 +2077,20 @@ def supervisor_coordinator_reject_view(request, pk):
     reason_serializer = ReasonSerializer(data=request.data)
     reason_serializer.is_valid(raise_exception=True)
     with transaction.atomic():
+        from .capacity_reassessment import lock_policy_semesters
+        lock_policy_semesters()
+        Student.objects.select_for_update().get(pk=application.student_id)
+        application = SupervisorApplication.objects.select_for_update(of=("self",)).select_related("student__user", "proposed_supervisor").get(pk=pk)
+        try:
+            assert_not_archived(application)
+        except ReassessmentConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
+        if not supervisor_programme_access(request.user, application, lock=True):
+            return error_response("Your authority for this programme is no longer active.", status.HTTP_403_FORBIDDEN)
+        if application.status != SupervisorApplication.Status.PENDING_COORDINATOR:
+            return error_response("This application is no longer awaiting coordinator review.", status.HTTP_409_CONFLICT)
+        if not student_is_workflow_eligible(application.student):
+            return participant_ineligible_response()
         previous_status = application.status
         application.status = SupervisorApplication.Status.REJECTED_BY_COORDINATOR
         application.coordinator_rejection_reason = reason_serializer.validated_data[

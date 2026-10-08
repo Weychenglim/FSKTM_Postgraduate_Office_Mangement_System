@@ -125,7 +125,7 @@ def _close_marks_periods(semester, actor, now):
 
 
 @transaction.atomic
-def activate_semester(semester, *, actor, reason):
+def activate_semester(semester, *, actor, reason, preview_token=None, acknowledge_unfinished=False):
     reason = _require_reason(reason)
     locked_semesters = lock_academic_semesters()
     semester = locked_semesters.get(semester.pk)
@@ -160,6 +160,9 @@ def activate_semester(semester, *, actor, reason):
         ),
         None,
     )
+    from marks.closure_preview import validate_semester_closure
+
+    validate_semester_closure(current, target_semester=semester, preview_token=preview_token, acknowledge_unfinished=acknowledge_unfinished)
     if current:
         before = semester_snapshot(current)
         current.lifecycle_status = AcademicSemester.Lifecycle.CLOSED
@@ -189,11 +192,14 @@ def activate_semester(semester, *, actor, reason):
 
 
 @transaction.atomic
-def close_semester(semester, *, actor, reason):
+def close_semester(semester, *, actor, reason, preview_token=None, acknowledge_unfinished=False):
     reason = _require_reason(reason)
     semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
     if semester.lifecycle_status != AcademicSemester.Lifecycle.ACTIVE:
         raise SemesterConflict("Only an active semester can be closed.")
+    from marks.closure_preview import validate_semester_closure
+
+    validate_semester_closure(semester, preview_token=preview_token, acknowledge_unfinished=acknowledge_unfinished)
     before = semester_snapshot(semester)
     now = timezone.now()
     semester.lifecycle_status = AcademicSemester.Lifecycle.CLOSED
@@ -241,6 +247,9 @@ def archive_semester(semester, *, actor, reason):
         AcademicSemester.Lifecycle.CLOSED,
     }:
         raise SemesterConflict("Only draft or closed semesters can be archived.")
+    from marks.closure_preview import assert_semester_archive_allowed
+
+    assert_semester_archive_allowed(semester)
     before = semester_snapshot(semester)
     semester.lifecycle_status = AcademicSemester.Lifecycle.ARCHIVED
     semester.archived_at = timezone.now()

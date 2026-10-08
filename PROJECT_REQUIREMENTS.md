@@ -1,5 +1,74 @@
 # Project Requirements
 
+## Whole-system manual acceptance coverage (2026-10-06)
+
+- The testing handoff covers every sidebar module plus authentication, settings, academic/configuration lifecycle, reporting, delegation, research amendments, supporting supervision, replacement and late-completion branches.
+- Live persistence, local prototypes and missing backend integrations must be identified explicitly; a prototype interaction must not count as full end-to-end acceptance. Test actor/scope prerequisites and current database state must be recorded without committing credentials.
+
+## Full workflow acceptance corrections (2026-10-06)
+
+- A first Panel nomination must omit an absent replacement reason; genuine replacement nominations still require the validated reason.
+- Coordinator decisions must refresh their pending queue, appointment history and supervisory teams. Semester lifecycle changes must refresh the selected semester's audit history, with failed reads shown as retryable errors.
+- Appointment timestamp dates and semester audit times use Asia/Kuala_Lumpur, consistently with the faculty's existing Malaysia deadlines. Date-only appointment values retain their calendar date.
+- Verify the owned Student request → Supervisor acceptance → Coordinator approval → Panel appointment → both Marks submissions → semester closure workflow with synthetic, isolated data and persisted audit assertions.
+
+## Shared production authentication cache (2026-10-04)
+
+- All API workers must share authentication throttle history through the same PostgreSQL database cache. Production startup rejects process-local or unsupported cache configuration; local single-process development retains its existing default.
+- Cache-table provisioning and cross-worker verification are deployment gates. Shared history does not promise exact limits for simultaneous requests; the existing DRF throttles remain approximate under concurrency.
+
+## Timeline acceptance corrections (2026-10-05)
+
+- Office Timeline Management must show the selected semester consistently in its summary, calendar, entries and audit history. Loading or failed selections must suppress previously loaded records; Retry must recover both initial semester-list failures and selected Timeline failures.
+- Django admin may inspect Timeline headers, inline entries and audit logs. Add, edit, delete and bulk-delete actions must be unavailable there, preserving the validated and audited Office workflow.
+
+## Owned-module integrity corrections (2026-10-03)
+
+- A lecturer cannot hold an active or pending primary Supervisor and Panel role for the same student. Submission and final approval must recheck both directions, including replacements and retained/unlinked matric-number profiles; rejection preserves existing appointments and history.
+- Add Timeline Entry accepts the Office form's selected `semesterId`. The backend resolves the timeline and permits changes only for Draft or Active semesters; status, ordering and timeline identifiers remain system-derived.
+- Django admin provides inspection of governed appointment requests, appointments, document requirements and audit history. Academic/configuration writes use the existing audited workflows. Initial research-profile provisioning and audited Marks corrections remain supported.
+- Marks scores must be nonnegative and within the component maximum. Invalid drafts return validation errors without changing persisted scores, comments or submission state.
+- Lecturer task semesters come from each evaluation period, including historical assignments after profile handover. Semester filter options come from returned assignments rather than fixed academic-year labels.
+
+## Account Settings Persistence (2026-10-01)
+
+- Authenticated users can update their own phone number and nonurgent in-app announcement preference. Email remains Office-managed; self-service Settings cannot change account identity, role, programme or another user's data.
+- Password changes require the current password and the configured Django password validation rules. Successful changes end existing access/refresh sessions and require sign-in again; passwords retain intentional whitespace.
+- Announcement preferences apply to future nonurgent announcement notifications. Urgent announcements, academic workflow notifications, existing notification history and authorized attachment access remain available. Email notifications, scheduled deadline reminders and weekly digests remain unavailable and must not appear to be configurable working services.
+- Settings must load persisted values, expose loading/failure states, prevent duplicate saves, and report success only after the backend accepts a write. A delayed request from an older login must not terminate a newer session.
+
+## Release preparation (2026-09-29)
+
+- Complete regression verification and isolated role-based acceptance before releasing the acting-coordinator, Marks completion-window and research-amendment changes.
+- Verify database backup restoration without changing working academic records. Prepare deployment, private-media backup, rollback and faculty acceptance instructions while hosting remains undecided.
+- Research workflow actions must display readable programme, source and destination coordinator stage labels.
+
+## Audited Research Amendments and Programme Transfers (2026-09-26)
+
+- Students request substantive title/abstract changes through primary-supervisor endorsement and coordinator approval. Office may apply minor corrections with a reason and an explicit declaration that research meaning is unchanged.
+- Office initiates programme transfers through source-coordinator endorsement and destination-coordinator approval. Both explicitly review retention of the current supervisory team and Panel. Transfers atomically update Student and research-profile programmes without changing appointments, workload, existing Marks, drafts or completion windows.
+- One amendment may be pending per student. Transfers require resolved appointment nominations and block new nominations while pending. Proposals are immutable; corrections require cancellation and a new request. Decisions recheck eligibility, current authority, profile revision and the reviewed team.
+- Immutable before/after revisions and decision history preserve original applications. Primary handover cancels pending research requests; graduation/withdrawal cancel pending amendments. Deferred students cannot receive decisions. Unlinked legacy profiles remain outside this workflow.
+- Existing screens and tracking expose scoped amendment history, stages and outcomes without granting supporting supervisors administrative-note access. Academic decisions are never automatically repaired by reconciliation.
+- Supervisor handover preserves recorded research baselines and approved revisions; replacement application wording cannot silently rewrite recorded research history.
+
+## Task-Specific Marks Completion Windows (2026-09-22)
+
+- Office may grant selected existing, active, unsubmitted and eligible evaluation tasks an immediate, reasoned completion deadline, either extending a Published period's effective deadline or allowing recovery after period/semester closure. Supervisor, Panel and existing Backup tasks are supported; windows create no assignments and never reopen submitted Marks.
+- Draft or unopened periods, archived periods/semesters, paused/retired tasks and ineligible participants or required appointments cannot receive effective windows. Expiry and reasoned revocation remove exceptional access while ordinary submission rules remain available where applicable.
+- Windows retain immutable grant, replacement and revocation history, survive semester handover, and never transfer to a replacement evaluator. Task pause or retirement permanently ends their authority. Submission preserves the deadline and window used.
+- Office previews unfinished work before period closure, semester closure or handover and acknowledges it using a current server-issued preview token. Archived records remain locked; active windows on unfinished tasks block archival.
+- Existing screens, Dashboard actions/counts, reports/exports, dossiers and reconciliation share task-level deadline rules without expanding role-based access. Otherwise eligible closed-period work remains available for an Office recovery decision instead of automatic retirement solely due to closure.
+- Existing assigned tasks retain their ordinary open-period submission access; exceptional completion grants additionally require the current eligible appointment. Published periods without a finite deadline do not need an individual extension. Submitted results retain the deadline used even if it was unlimited.
+
+## Temporary Acting-Coordinator Delegation (2026-09-20)
+
+- Office may grant an active existing Coordinator account temporary full coordinator access to an additional recognised programme. Its regular coordinator retains authority. Only one non-revoked acting assignment may overlap a programme's inclusive Malaysia start/end dates, including concurrent requests.
+- Grants require justification and a start date today or later; grant fields are immutable. Corrections require reasoned revocation and a new grant. A coordinator may cover multiple additional programmes, but cannot be delegated their own regular programme.
+- Active grants cover existing pending Supervisor, Panel, and co-supervisor requests and the same programme-scoped lifecycle, Dashboard, dossier, report/export and notification access. Programme records stay in place and historical decision actors remain unchanged. Every request rechecks effective authority; final decisions serialize against revocation.
+- Expiry and revocation remove delegated record access without a background job. Office retains all delegation history; recipients retain their own assignment history. Active and future grants block retirement until revoked, and inactive accounts never retain effective delegated access.
+- Delegations belong to programmes and survive regular-coordinator changes until expiry or revocation. Permanent coordinator replacement, Lecturer-account access, identity linking and new self-approval policies remain deferred.
+
 ## Programme-Scoped Evaluation Periods (2026-09-16)
 
 - Office configures each Marks period for all programmes or selected programmes, and Supervisor, Panel, or both official evaluator roles. Selected scope requires at least one nonblank programme and every period requires at least one official role. One rubric remains attached to each period; co-supervisors never receive official evaluator tasks through their supporting role.
@@ -432,8 +501,8 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Semester activation must fail closed with `409` unless the locked target Draft semester has exactly one complete Published capacity plan. The shared capacity-readiness rules are authoritative, and the gate runs before closing a prior semester, closing Marks periods, or writing semester/Marks audits.
 - Capacity cutover creates a `MIGRATED_BASELINE` Published plan only for the current Active semester and semesters referenced by unresolved Supervisor or Panel workflows when no Published policy already exists. It preserves prior plan versions, workflow identifiers, relationships, and legacy semester labels; eligible active Lecturer role limits are copied independently and inactive accounts or Lecturers are excluded.
 - Guarded fictional demo seeding publishes a complete policy before activating a newly created demo semester. Reruns are idempotent and neither demo seeding nor shared test fixtures may replace or supersede developer-created capacity plans.
-- Supervisor applications and Panel recommendations must enforce the published policy for the workflow's persisted academic semester during both validated submission and the locked database mutation. Direct Lecturer identifiers, replacement requests, and stale candidate screens cannot bypass this guard; capacity conflicts return `409` and create no workflow, document, appointment, profile, or audit side effect.
-- Existing selected Lecturers remain visible on persisted applications and recommendations after capacity or availability changes. Supervisor and selected-Panel review decisions may continue, but final Programme Coordinator approval must recheck the source semester and leave the workflow in `PENDING_COORDINATOR` when activation is blocked.
+- Supervisor applications and Panel recommendations must enforce the published policy for the workflow's persisted academic semester during both validated submission and the locked database mutation, except for an explicit Office carryover reassessment authorization at decision time as defined below. Direct Lecturer identifiers, replacement requests, and stale candidate screens cannot bypass this guard; capacity conflicts return `409` and create no workflow, document, appointment, profile, or audit side effect.
+- Existing selected Lecturers remain visible on persisted applications and recommendations after capacity or availability changes. Supervisor and selected-Panel review decisions may continue, but final Programme Coordinator approval must recheck the source semester (or the explicitly authorized active-semester capacity policy) and leave the workflow in `PENDING_COORDINATOR` when activation is blocked.
 - Supervisor and Panel candidate directories omit `INELIGIBLE` and `TEMPORARILY_UNAVAILABLE` Lecturers. `FULL`, `OVER_CAPACITY`, and `NOT_CONFIGURED` Lecturers remain visible but non-selectable. Candidate and workload rows expose semester, plan/version, state, load, limit, available slots, selectability, and the public availability end date.
 - Panel final approval converts the recommendation's existing reservation into an active appointment. The recommendation being approved is excluded from the activation check so its reserved slot is not counted twice, while every other submitted or pending nomination remains part of global Panel load.
 - Office Workflow Reports and Dashboard actions must expose role-specific capacity-state counts and attention for over-capacity, temporary-unavailability, and active-semester unconfigured policy states. Non-Office reports must not expose the faculty capacity summary or internal availability reasons.
@@ -451,3 +520,18 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - A final Supervisor or Panel approval `409` must leave the persisted pending record visible, display the backend conflict, and reload the relevant approval queue. The client must remove a row only after a successful transition.
 - Supervisor and Panel workload CSV exports must include Semester Code, Plan Version, Capacity State, Active Load, Reserved Load, Available Slots, and Unavailable Until. Utilization is null-safe and clamped to 0-100, and internal availability reasons are excluded.
 - Release verification for this feature must cover all owned backend modules, every frontend TypeScript test, dependency audit, lint, production build and artifact guards, plus live role-scoped checks for Office, Lecturer, Programme Coordinator, and Student access. A browser-only visual pass must be recorded separately when the desktop browser runtime is unavailable rather than inferred from API or source-test results.
+
+## Carryover Capacity Reassessment (2026-09-29)
+
+- Office Staff/Admin may authorize a pending Supervisor application, co-supervisor nomination or Panel recommendation from a Closed semester to be assessed against the effective Active semester's Published capacity policy. The original semester, application documents and approval chain remain unchanged.
+- Authorization requires a reason and preserves immutable grant, replacement, revocation and usage history. It does not approve the request, add capacity or reserve new workload. Final approval still enforces current workload, availability, participant eligibility, replacement rules and role conflicts.
+- Each authorization is tied to one target semester. If it ceases to be the effective Active semester, Office must reassess again. Archived source records cannot use this route. Without an authorization, existing source-semester capacity rules continue.
+- Office may revoke an unused authorization with a reason. Concurrent or stale decisions must fail without partial changes. Final usage records the policy version actually checked, rather than assuming the policy at grant remains current.
+- The existing Supervisor Appointment/team workspace exposes original/current capacity and authorized staff history. Office controls mutations; programme-scoped regular and acting coordinators can read relevant records. Students and unrelated users cannot read internal reassessment history.
+- Reassessment changes no Marks tasks, drafts, submitted results or completion windows. Normal appointment activation continues to use its existing Marks lifecycle behavior.
+
+## Logical Configuration Corrections (2026-09-30)
+
+- Spreadsheet reports must preserve untrusted text as literal XLSX text and neutralize formula-leading CSV strings, including leading whitespace/control prefixes. Real numeric cells remain numeric.
+- Backup reassignment may create a new active task when only retired assignments exist. Retired tasks, drafts and audits remain unchanged. An existing non-retired backup assignment for the same student, evaluator and period returns a conflict without another assignment audit; this includes paused and submitted assignments.
+- Marks period opening/closing configuration and task completion windows use explicit Malaysia time (UTC+08:00) for entry, editing and display regardless of device timezone. Invalid calendar dates must not silently normalize.

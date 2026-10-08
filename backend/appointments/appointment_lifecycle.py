@@ -3,7 +3,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_manages_programme
 
 from .models import (
     AppointmentLifecycleEvent,
@@ -28,13 +28,12 @@ def _appointment_programme(appointment):
     return appointment.profile.programme.strip()
 
 
-def assert_can_manage_appointment(actor, appointment):
+def assert_can_manage_appointment(actor, appointment, *, lock=False):
     if actor.role == User.Role.OFFICE_ADMIN:
         return
     if (
         actor.role == User.Role.COORDINATOR
-        and coordinator_programme(actor).casefold()
-        == _appointment_programme(appointment).casefold()
+        and coordinator_manages_programme(actor, _appointment_programme(appointment), lock=lock)
     ):
         return
     raise AppointmentLifecycleForbidden(
@@ -116,6 +115,13 @@ def _end_locked(appointment, *, actor, outcome, reason, replacement_evaluator=No
     )
     if isinstance(appointment, SupervisorAppointment):
         from .co_supervision import cancel_primary_pending
+        from .research_amendments import cancel_pending_amendments
+
+        cancel_pending_amendments(
+            appointment.student_id, actor,
+            "Automatically cancelled because the primary supervisor appointment ended.",
+            research_only=True,
+        )
 
         cancel_primary_pending(
             appointment,
@@ -162,7 +168,7 @@ def end_appointment(*, model, appointment_id, actor, outcome, reason):
         )
         .get(pk=appointment_id)
     )
-    assert_can_manage_appointment(actor, appointment)
+    assert_can_manage_appointment(actor, appointment, lock=True)
     return _end_locked(
         appointment,
         actor=actor,
@@ -186,6 +192,12 @@ def activate_replacement(
         assert_capacity_allows_assignment,
     )
     from accounts.models import Lecturer
+    from .capacity_reassessment import capacity_semester
+    from .role_integrity import (
+        AppointmentRoleConflict,
+        assert_no_panel_role,
+        assert_no_primary_role,
+    )
 
     if model is SupervisorAppointment:
         capacity_user = replacement_source.proposed_supervisor
@@ -197,13 +209,21 @@ def activate_replacement(
         excluded_recommendation_id = replacement_source.pk
     Lecturer.objects.select_for_update().get(pk=capacity_user.pk)
     try:
+        if model is SupervisorAppointment:
+            assert_no_panel_role(
+                student=replacement_source.student, candidate_id=capacity_user.pk
+            )
+        else:
+            assert_no_primary_role(
+                profile=replacement_source.profile, candidate_id=capacity_user.pk
+            )
         assert_capacity_allows_assignment(
             user=capacity_user,
-            semester=replacement_source.academic_semester,
+            semester=capacity_semester(replacement_source),
             role=capacity_role,
             exclude_panel_recommendation_id=excluded_recommendation_id,
         )
-    except CapacityConflict as exc:
+    except (CapacityConflict, AppointmentRoleConflict) as exc:
         raise AppointmentLifecycleConflict(str(exc)) from exc
 
     target_id = replacement_source.replaces_appointment_id

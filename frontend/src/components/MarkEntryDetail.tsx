@@ -50,7 +50,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const [comments, setComments] = useState(task.comments || '');
   const [showValidation, setShowValidation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const isReadOnly = task.status === 'SUBMITTED';
+  const isReadOnly = task.status === 'SUBMITTED' || task.canEdit !== true;
 
   const errors = components.flatMap((component) => {
     const raw = values[component.id]?.mark;
@@ -88,7 +88,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
   const requestSubmission = () => {
     setShowValidation(true);
-    if (errors.length === 0) setConfirmOpen(true);
+    if (!isReadOnly && task.canSubmit === true && errors.length === 0) setConfirmOpen(true);
   };
 
   return (
@@ -102,7 +102,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         tone="warning"
         onConfirm={() => {
           setConfirmOpen(false);
-          onSubmit(buildTask('SUBMITTED'));
+          if (!isReadOnly && task.canSubmit === true) onSubmit(buildTask('SUBMITTED'));
         }}
         onCancel={() => setConfirmOpen(false)}
       />
@@ -113,12 +113,15 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         backLabel="Back to Marks Entry"
         onBack={onBack}
         actions={(
-          <StatusBadge tone={isReadOnly ? 'success' : 'info'}>
-            {isReadOnly ? 'Submitted' : evaluatorRoleLabel(task)}
+          <StatusBadge tone={task.status === 'SUBMITTED' ? 'success' : isReadOnly ? 'neutral' : 'info'}>
+            {task.status === 'SUBMITTED' ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
           </StatusBadge>
         )}
       />
 
+      {task.periodEffectiveStatus ? <p className="text-sm text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
+      {task.completionWindow ? <p className="text-sm text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}
+      {isReadOnly && task.status !== 'SUBMITTED' ? <p className="text-sm text-slate-600">This task is currently read only.</p> : null}
       {components.length === 0 ? (
         <PortalCard padding="lg" className="rounded-lg">
           <div className="flex items-start gap-3 text-sm text-amber-800">
@@ -246,6 +249,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   fullWidth
                   icon={CheckCircle2}
                   variant="primary"
+                  disabled={task.canSubmit !== true}
                   onClick={requestSubmission}
                 >
                   Submit marks

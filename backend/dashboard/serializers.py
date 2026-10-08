@@ -87,6 +87,7 @@ class TimelineEntryUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serial
 
 
 class TimelineEntryCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    semesterId = serializers.IntegerField(min_value=1, required=False)
     level = serializers.ChoiceField(choices=SemesterTimelineEntry.Level.choices)
     title = serializers.CharField(allow_blank=False, trim_whitespace=True)
     detail = serializers.CharField(allow_blank=False, trim_whitespace=True)

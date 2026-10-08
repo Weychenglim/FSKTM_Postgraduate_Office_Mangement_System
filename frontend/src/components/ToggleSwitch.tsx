@@ -27,6 +27,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={`w-10 h-5.5 shrink-0 rounded-full transition-colors relative duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-navy/20 ${
           checked ? 'bg-brand-navy' : 'bg-slate-200'

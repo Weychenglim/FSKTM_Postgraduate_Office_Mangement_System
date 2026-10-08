@@ -22,6 +22,7 @@ from marks.services import (
 
 from .models import (
     Coordinator,
+    CoordinatorDelegation,
     Lecturer,
     ParticipantLifecycleAudit,
     Student,
@@ -97,6 +98,7 @@ def student_blockers(student):
 
 
 def lecturer_blockers(lecturer):
+    from .delegations import today
     user = lecturer.user
     coordinator = Coordinator.objects.filter(lecturer=lecturer).first()
     tasks = _unfinished_tasks(EvaluationTask.objects.filter(evaluator=user))
@@ -124,6 +126,9 @@ def lecturer_blockers(lecturer):
             status=PanelAppointment.Status.ACTIVE,
         ).count(),
         "unfinishedMarksTasks": tasks.count(),
+        "coordinatorDelegations": CoordinatorDelegation.objects.filter(
+            coordinator=user, revoked_at__isnull=True, ends_on__gte=today()
+        ).count(),
         "managedProgrammes": int(
             bool(coordinator and coordinator.programme_managed.strip())
         ),
@@ -480,6 +485,11 @@ def transition_student(*, matric_no, actor, target_status, reason):
                 tasks=profile.evaluation_tasks.all(), actor=actor, reason=reason
             )
             affected["retiredMarksTasks"] = [task.pk for task in retired]
+    if target in {Student.Status.GRADUATED, Student.Status.WITHDRAWN}:
+        from appointments.research_amendments import cancel_pending_amendments
+        affected["cancelledAmendments"] = cancel_pending_amendments(
+            student.pk, actor, f"Automatically cancelled on student {target.lower()}: {reason}"
+        )
     _set_student_status(student, target=target, actor=actor, reason=reason, affected=affected)
     student.refresh_from_db()
     return student
@@ -544,6 +554,7 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
             "activeSupervisorAppointments",
             "activePanelAppointments",
             "managedProgrammes",
+            "coordinatorDelegations",
         ]
         if any(blockers[key] for key in required_zero):
             raise ParticipantLifecycleConflict(

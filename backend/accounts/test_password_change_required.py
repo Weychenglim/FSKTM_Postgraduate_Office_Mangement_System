@@ -54,6 +54,22 @@ class PasswordChangeRequiredTests(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
             self.assertEqual(response.data["code"], "password_change_required")
 
+    def test_flagged_user_can_still_use_own_settings(self):
+        client = self._bearer(self._login().data["token"])
+
+        self.assertEqual(client.get("/api/auth/settings/").status_code, status.HTTP_200_OK)
+        response = client.patch("/api/auth/settings/", {"phone": "012-0000000"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = client.post(
+            "/api/auth/settings/password/",
+            {"currentPassword": PASSWORD, "newPassword": NEXT},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.must_change_password)
+
     def test_refresh_and_logout_still_work_while_flagged(self):
         self._login()
         refreshed = self.client.post("/api/auth/refresh/", {}, format="json")

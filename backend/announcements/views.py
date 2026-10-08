@@ -123,6 +123,9 @@ def _fan_out(announcement):
     multiplied every recipient's feed without limit.
     """
     event_key = f"ANN-{announcement.pk}"
+    recipients = _recipients_for(announcement.target)
+    if announcement.priority != Announcement.Priority.URGENT:
+        recipients = recipients.filter(announcement_alerts=True)
     notifications = [
         Notification(
             recipient=recipient,
@@ -139,7 +142,7 @@ def _fan_out(announcement):
             module_label="Announcement",
             announcement=announcement,
         )
-        for recipient in _recipients_for(announcement.target)
+        for recipient in recipients
     ]
     Notification.objects.bulk_create(notifications, ignore_conflicts=True)
     return Notification.objects.filter(announcement=announcement).count()

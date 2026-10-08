@@ -24,6 +24,9 @@ class PasswordPolicyJWTAuthentication(JWTAuthentication):
             allowed = {
                 ("GET", reverse("me")),
                 ("POST", reverse("change-password")),
+                ("GET", reverse("settings")),
+                ("PATCH", reverse("settings")),
+                ("POST", reverse("settings-password")),
             }
             if (request.method, request.path) not in allowed:
                 raise PasswordChangeRequired()

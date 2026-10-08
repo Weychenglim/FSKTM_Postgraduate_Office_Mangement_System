@@ -1,6 +1,10 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
@@ -15,6 +19,11 @@ from academics.services import current_effective_semester
 from accounts.models import Lecturer, Student
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .role_integrity import (
+    AppointmentRoleConflict,
+    assert_no_panel_role,
+    assert_no_primary_role,
+)
 from .models import (
     PANEL_WORKLOAD_LIMIT,
     PanelAppointment,
@@ -45,6 +54,19 @@ class NoActiveSupervisorAppointment(APIException):
 class CapacityUnavailable(APIException):
     status_code = 409
     default_code = "lecturer_capacity_unavailable"
+
+
+class ProgrammeTransferPending(APIException):
+    status_code = 409
+    default_code = "programme_transfer_pending"
+
+
+def enforce_no_pending_transfer(student_id):
+    from .research_amendments import assert_no_pending_transfer, AmendmentConflict
+    try:
+        assert_no_pending_transfer(student_id)
+    except AmendmentConflict as exc:
+        raise ProgrammeTransferPending(str(exc)) from exc
 
 
 def enforce_capacity(*, user, semester, role):
@@ -109,7 +131,9 @@ def student_no_for_user(user):
 def format_display_date(value):
     if not value:
         return ""
-    if hasattr(value, "date"):
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = timezone.localtime(value, ZoneInfo("Asia/Kuala_Lumpur"))
         value = value.date()
     return value.strftime("%d %b %Y")
 
@@ -471,6 +495,13 @@ def enforce_no_supporting_role(student_id, candidate_id):
         raise serializers.ValidationError(str(exc)) from exc
 
 
+def enforce_role_separation(check, **kwargs):
+    try:
+        check(**kwargs)
+    except AppointmentRoleConflict as exc:
+        raise serializers.ValidationError(str(exc)) from exc
+
+
 class PanelRecommendationCreateSerializer(serializers.Serializer):
     studentId = serializers.CharField()
     recommendedMemberId = serializers.CharField()
@@ -543,6 +574,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
                 "A supervisor cannot recommend themself as panel member."
             )
 
+        enforce_role_separation(
+            assert_no_primary_role, profile=profile, candidate_id=recommended_member.pk
+        )
+
         if profile.panel_recommendations.filter(
             status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
         ).exists():
@@ -608,6 +643,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         profile = validated_data["profile"]
         if profile.student_id:
             student = Student.objects.select_for_update().get(pk=profile.student_id)
+            enforce_no_pending_transfer(student.pk)
             if student.status != Student.Status.ACTIVE:
                 raise serializers.ValidationError(
                     "This student's lifecycle status does not permit a new panel recommendation."
@@ -637,6 +673,10 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "A selected Lecturer is no longer available for new assignments."
             )
+        enforce_role_separation(
+            assert_no_primary_role, profile=profile,
+            candidate_id=validated_data["recommended_member"].pk,
+        )
         enforce_capacity(
             user=validated_data["recommended_member"],
             semester=validated_data["academic_semester"],
@@ -995,6 +1035,9 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
                 "The selected supervisor is not available for new assignments."
             )
         enforce_no_supporting_role(student.pk, supervisor.pk)
+        enforce_role_separation(
+            assert_no_panel_role, student=student, candidate_id=supervisor.pk
+        )
         active_appointment = SupervisorAppointment.objects.filter(
             student=student,
             status=SupervisorAppointment.Status.ACTIVE,
@@ -1054,9 +1097,14 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         student = Student.objects.select_for_update().get(
             pk=validated_data["student"].pk
         )
+        enforce_no_pending_transfer(student.pk)
         enforce_no_supporting_role(student.pk, validated_data["supervisor"].pk)
         lecturer = Lecturer.objects.select_for_update().get(
             pk=validated_data["supervisor"].pk
+        )
+        enforce_role_separation(
+            assert_no_panel_role, student=student,
+            candidate_id=validated_data["supervisor"].pk,
         )
         if student.status != Student.Status.ACTIVE:
             raise serializers.ValidationError(

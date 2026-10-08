@@ -51,6 +51,7 @@ import {
   rejectSupervisorApplication,
 } from '../services';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
+import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
@@ -727,7 +728,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           proposedTopic: detail.researchTitle,
           researchArea: detail.researchArea,
           abstract: detail.researchAbstract,
-          submittedDate: new Date(detail.submittedAt).toLocaleDateString('en-GB'),
+          submittedDate: formatMalaysiaDate(detail.submittedAt),
         });
         setDetailRejectReason('');
         setIsDrawerOpen(true);
@@ -830,7 +831,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
             subtitleClassName="leading-relaxed max-w-4xl"
             className="select-none"
           />
-          <SupervisoryTeamManagement onChanged={loadData} />
+          <SupervisoryTeamManagement role="Lecturer" onChanged={loadData} />
 
           {loading ? (
             <LoadingState message="Loading supervisor appointments…" />

@@ -6,6 +6,7 @@ type RefreshPayload = {
 export class AuthSession {
   private accessToken: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
+  private sessionVersion = 0;
 
   constructor(
     private readonly fetcher: typeof fetch,
@@ -13,11 +14,17 @@ export class AuthSession {
   ) {}
 
   setAccessToken(token: string): void {
+    this.sessionVersion += 1;
     this.accessToken = token;
   }
 
   clearAccessToken(): void {
+    this.sessionVersion += 1;
     this.accessToken = null;
+  }
+
+  getSessionVersion(): number {
+    return this.sessionVersion;
   }
 
   getAccessToken(): string | null {
@@ -34,27 +41,31 @@ export class AuthSession {
   }
 
   private async performRefresh(): Promise<string | null> {
+    const sessionVersion = this.sessionVersion;
     try {
       const response = await this.fetcher(this.refreshUrl, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
+      if (this.sessionVersion !== sessionVersion) return null;
       if (!response.ok) {
-        this.clearAccessToken();
+        this.accessToken = null;
         return null;
       }
 
       const payload = (await response.json()) as RefreshPayload;
+      if (this.sessionVersion !== sessionVersion) return null;
       if (typeof payload.token !== 'string' || payload.token.length === 0) {
-        this.clearAccessToken();
+        this.accessToken = null;
         return null;
       }
 
-      this.setAccessToken(payload.token);
+      // Refresh rotates a credential within the same login session.
+      this.accessToken = payload.token;
       return payload.token;
     } catch {
-      this.clearAccessToken();
+      if (this.sessionVersion === sessionVersion) this.accessToken = null;
       return null;
     }
   }
@@ -64,13 +75,14 @@ export class AuthSession {
     init?: RequestInit,
     retryOnUnauthorized = true,
   ): Promise<Response> {
+    const sessionVersion = this.sessionVersion;
     const response = await this.fetchWithCurrentToken(input, init);
-    if (response.status !== 401 || !this.accessToken || !retryOnUnauthorized) {
+    if (this.sessionVersion !== sessionVersion || response.status !== 401 || !this.accessToken || !retryOnUnauthorized) {
       return response;
     }
 
     const renewedToken = await this.refreshAccessToken();
-    if (!renewedToken) return response;
+    if (!renewedToken || this.sessionVersion !== sessionVersion) return response;
     return this.fetchWithCurrentToken(input, init);
   }
 

@@ -11,7 +11,12 @@ export interface CsvColumn<T> {
 }
 
 const escapeCsvCell = (value: CsvCell): string => {
-  const text = value === null || value === undefined ? '' : String(value);
+  let text = value === null || value === undefined ? '' : String(value);
+  // Spreadsheet importers can ignore leading whitespace/control characters.
+  // Prefix untrusted strings only, preserving actual numeric cell values.
+  if (typeof value === 'string' && /^[\s\u0000-\u001f\u007f]*[=+@-]/.test(text)) {
+    text = `'${text}`;
+  }
   if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }

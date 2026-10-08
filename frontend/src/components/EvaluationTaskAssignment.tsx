@@ -1,3 +1,4 @@
+import { MarksCompletionWindows } from './MarksCompletionWindows';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -319,6 +320,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         <ErrorState message={error} onRetry={loadWorkspace} />
       ) : (
         <>
+          <MarksCompletionWindows tasks={filteredTasks} onChanged={async () => {
+            const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
+            setTasks(taskRows);
+            setPeriods(periodRows);
+          }} />
           <div id="summary-cards-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCard
               title="Evaluation Period"

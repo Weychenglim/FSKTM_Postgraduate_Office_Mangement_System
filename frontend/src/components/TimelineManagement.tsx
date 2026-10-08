@@ -12,7 +12,7 @@ import {
   Trash2,
   Upload
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   createTimelineEntry,
   deleteTimelineEntry,
@@ -50,11 +50,6 @@ const formatDisplayDate = (value?: string) => {
     month: 'short',
     year: 'numeric',
   });
-};
-
-const formatSessionTitle = (session?: string) => {
-  const match = session?.match(/\d{4}\/\d{4}/);
-  return match ? `Session ${match[0]}` : session || 'No active session';
 };
 
 const actionLabel = (action: TimelineAuditLog['action']) => {
@@ -123,7 +118,10 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   const [auditPage, setAuditPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
+  const selectedSemesterRef = useRef(selectedSemesterId);
+  selectedSemesterRef.current = selectedSemesterId;
+  const loadVersion = useRef(0);
+  const semesterLoadVersion = useRef(0);
   const auditPageSize = 10;
   const paginatedAuditLogs = useMemo(
     () => paginate(auditLogs, auditPage, auditPageSize),
@@ -138,7 +136,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) ?? null;
 
   const loadEntries = useCallback(() => {
-    if (!selectedSemesterId) {
+    const semesterId = selectedSemesterRef.current;
+    const version = ++loadVersion.current;
+    if (!semesterId) {
       setTimeline(null);
       setEntries([]);
       setAuditLogs([]);
@@ -147,25 +147,34 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     }
     setLoading(true);
     setError(null);
+    setTimeline(null);
+    setEntries([]);
+    setAuditLogs([]);
     Promise.all([
-      getActiveTimeline(selectedSemesterId),
-      getTimelineAuditLogs(selectedSemesterId),
+      getActiveTimeline(semesterId),
+      getTimelineAuditLogs(semesterId),
     ])
       .then(([activeTimeline, logs]) => {
+        if (version !== loadVersion.current) return;
         setTimeline(activeTimeline);
         setEntries(activeTimeline.available
           ? activeTimeline.levels.flatMap((group) => group.entries.map(timelineEntryToLegacy))
           : []);
         setAuditLogs(logs);
-        setScheduleRefreshKey((value) => value + 1);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load timeline entries.'))
-      .finally(() => setLoading(false));
-  }, [selectedSemesterId]);
+      .catch((e) => {
+        if (version === loadVersion.current) setError(e instanceof Error ? e.message : 'Failed to load timeline entries.');
+      })
+      .finally(() => { if (version === loadVersion.current) setLoading(false); });
+  }, []);
 
-  useEffect(() => {
+  const loadSemesters = useCallback(() => {
+    const version = ++semesterLoadVersion.current;
+    setLoading(true);
+    setError(null);
     getAcademicSemesters()
       .then((rows) => {
+        if (version !== semesterLoadVersion.current) return;
         const editable = rows.filter((semester) => (
           semester.lifecycleStatus === 'DRAFT' || semester.lifecycleStatus === 'ACTIVE'
         ));
@@ -177,16 +186,29 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               ?? editable[0]?.id
               ?? null
         ));
+        if (editable.length === 0) setLoading(false);
       })
       .catch((loadError) => {
+        if (version !== semesterLoadVersion.current) return;
         setError(loadError instanceof Error ? loadError.message : 'Failed to load academic semesters.');
         setLoading(false);
       });
   }, []);
 
   useEffect(() => {
-    loadEntries();
-  }, [loadEntries]);
+    loadSemesters();
+    return () => { semesterLoadVersion.current += 1; };
+  }, [loadSemesters]);
+
+  useEffect(() => {
+    if (selectedSemesterId !== null) loadEntries();
+    return () => { loadVersion.current += 1; };
+  }, [loadEntries, selectedSemesterId]);
+
+  const handleRetry = () => {
+    if (selectedSemesterRef.current === null) loadSemesters();
+    else loadEntries();
+  };
 
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -236,7 +258,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
-        setEntries(prev => [...prev, normalizedEntry]);
         triggerToast(`Successfully created timeline entry: "${normalizedEntry.event}"`);
         setAddDrawerOpen(false);
         loadEntries();
@@ -250,7 +271,6 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     updateTimelineEntry(updated.id, updated)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
-        setEntries(prev => prev.map(ent => (ent.id === updated.id ? normalizedEntry : ent)));
 
         triggerToast(`Successfully modified entry: "${normalizedEntry.event}"`);
         setEditDrawerOpen(false);
@@ -372,24 +392,24 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       {/* Grid: Four Top Summary Cards matching mock parameters exactly */}
       <div id="timeline-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
-        {/* Card 1: Active Semester */}
+        {/* Card 1: Selected Semester */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
-            ACTIVE SEMESTER
+            SELECTED SEMESTER
           </span>
           <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
-            {timeline?.available ? formatSessionTitle(timeline.session) : 'No active session'}
+            {selectedSemester?.label ?? 'No semester selected'}
           </span>
         </div>
 
         {/* Card 2: Timeline Status with live active indicator */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
-            TIMELINE STATUS
+            SEMESTER STATUS
           </span>
           <div className="flex items-center gap-2 mt-3.5">
-            <StatusBadge tone="success" dot pulse className="text-[11px]">
-              {timeline?.available ? 'Active' : 'Not Uploaded'}
+            <StatusBadge tone={selectedSemester?.effectiveStatus === 'ACTIVE' ? 'success' : 'neutral'} className="text-[11px]">
+              {selectedSemester ? formatSemesterLifecycle(selectedSemester.effectiveStatus) : '-'}
             </StatusBadge>
           </div>
         </div>
@@ -400,7 +420,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
             LAST UPDATED
           </span>
           <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
-            {timeline?.available ? formatDisplayDate(timeline.uploadedAt) : '-'}
+            {!loading && !error && timeline?.available ? formatDisplayDate(timeline.uploadedAt) : '-'}
           </span>
         </div>
 
@@ -410,14 +430,14 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
             TOTAL EVENTS
           </span>
           <span className="text-2xl font-black text-brand-navy block mt-2.5 tracking-tight">
-            {entries.length}
+            {loading || error ? '-' : entries.length}
           </span>
         </div>
 
       </div>
 
       {/* Interactive visual Gantt timeline charts */}
-      <SemesterTimeline refreshKey={scheduleRefreshKey} />
+      <SemesterTimeline timeline={timeline} loading={loading} error={error} onRetry={handleRetry} />
 
       {/* 2. Timeline Entries Table Section */}
       <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
@@ -522,7 +542,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               ) : error ? (
                 <tr>
                   <td colSpan={7} className="p-0">
-                    <ErrorState message={error} onRetry={loadEntries} />
+                    <ErrorState message={error} onRetry={handleRetry} />
                   </td>
                 </tr>
               ) : filteredEntries.length === 0 ? (
@@ -631,6 +651,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                     <LoadingState message="Loading audit log..." />
                   </td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={4} className="p-0">
+                    <ErrorState message={error} onRetry={handleRetry} />
+                  </td>
+                </tr>
               ) : auditLogs.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="py-10 text-center text-slate-400 italic">
@@ -668,7 +694,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
             </tbody>
           </table>
         </div>
-        {!loading && auditLogs.length > 0 && (
+        {!loading && !error && auditLogs.length > 0 && (
           <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
             <span className="text-slate-450 font-medium">
               Showing {auditRange.start} to {auditRange.end} of {auditRange.total} updates

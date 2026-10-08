@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, Send, XCircle } from 'lucide-react';
 import {
   ApiError,
@@ -35,26 +35,34 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   const [toast, setToast] = useState<string | null>(null);
   const [rejectingRecordId, setRejectingRecordId] = useState<number | string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [teamRefreshVersion, setTeamRefreshVersion] = useState(0);
+  const recordsVersion = useRef(0);
 
-  const loadRecords = useCallback(() => {
+  const loadRecords = useCallback(async () => {
+    const version = ++recordsVersion.current;
     setLoading(true);
     setError(null);
-    Promise.all([
-      getCoordinatorSupervisorQueue(),
-      getCoordinatorSupervisorRecords(),
-    ])
-      .then(([queue, history]) => {
+    try {
+      const [queue, history] = await Promise.all([
+        getCoordinatorSupervisorQueue(),
+        getCoordinatorSupervisorRecords(),
+      ]);
+      if (version === recordsVersion.current) {
         setRecords(orderSupervisorQueueOldestFirst(queue));
         setAppointmentRecords(history);
-      })
-      .catch((reason) => setError(
+      }
+    } catch (reason) {
+      if (version === recordsVersion.current) setError(
         reason instanceof Error ? reason.message : 'Failed to load supervisor approvals.',
-      ))
-      .finally(() => setLoading(false));
+      );
+    } finally {
+      if (version === recordsVersion.current) setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadRecords();
+    void loadRecords();
+    return () => { recordsVersion.current += 1; };
   }, [loadRecords]);
 
   const notify = (message: string) => {
@@ -66,6 +74,8 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
     try {
       const approved = await approveSupervisorApplicationByCoordinator(record.id);
       setRecords((current) => current.filter((item) => item.id !== record.id));
+      void loadRecords();
+      setTeamRefreshVersion((current) => current + 1);
       if (String(rejectingRecordId) === String(record.id)) {
         setRejectingRecordId(null);
         setRejectionReason('');
@@ -89,6 +99,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
     try {
       await rejectSupervisorApplicationByCoordinator(record.id, rejectionReason.trim());
       setRecords((current) => current.filter((item) => item.id !== record.id));
+      void loadRecords();
       setRejectingRecordId(null);
       setRejectionReason('');
       notify(`Supervisor appointment returned for ${record.studentName}.`);
@@ -104,7 +115,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
         title="Supervisor Appointment Approvals"
         subtitle="Review supervisor requests accepted by lecturers in your managed programme."
       />
-      <SupervisoryTeamManagement />
+      <SupervisoryTeamManagement role="Programme Coordinator" refreshVersion={teamRefreshVersion} />
 
       {loading ? (
         <LoadingState message="Loading supervisor approvals…" />
@@ -284,6 +295,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                         onSubmit={async (outcome, reason) => {
                           await endSupervisorAppointment(record.appointmentLifecycle!.appointmentId, outcome, reason);
                           await loadRecords();
+                          setTeamRefreshVersion((current) => current + 1);
                           notify(`Supervisor appointment ended for ${record.studentName}.`);
                         }}
                       />

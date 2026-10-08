@@ -37,6 +37,7 @@ If a phase needs a change inside a teammate-owned file, stop and ask before touc
 - Xiang owns: `backend/accounts/` auth, settings and registry code (`views.py`, `serializers.py`, `throttles.py`, `registry_*.py`, `NotificationPreference`), `backend/letters/`, `backend/announcements/`, and the matching frontend screens and services (Registry, Settings, Letters, Announcements, Notifications, login/reset screens).
 - The teammate owns: `backend/appointments/`, `backend/marks/`, `backend/dashboard/`, `backend/academics/`, `backend/accounts/participant_*.py`, `authentication.py`, `session_tokens.py`, `eligibility.py`, `authorization.py`, and their frontend screens and services. Calling their public functions and reading their models is fine; editing their files is not.
 - Shared files (`config/settings.py`, `config/urls.py`, `accounts/models.py`, `App.tsx`, `apiClient.ts`, `permissions.ts`, `routes.ts`): additive changes only, keep their code intact.
+- Settings exception (2026-10-08): the team adopted the teammate's Settings. `settings_view` and `settings_password_view` in `accounts/views.py`, `SettingsView.tsx`, `settingsApi.ts` and `User.announcement_alerts` are theirs, so agree any change with the teammate first.
 
 **Code style.**
 - Match the surrounding code. Do not add explanatory comments beyond the density already in the file.
@@ -64,8 +65,9 @@ From `backend/`:
 ```
 .venv/Scripts/python.exe manage.py check
 .venv/Scripts/python.exe manage.py makemigrations --check --dry-run
-.venv/Scripts/python.exe manage.py test accounts academics appointments dashboard marks letters announcements --parallel 4 --noinput
+.venv/Scripts/python.exe manage.py test accounts academics appointments dashboard marks letters announcements --parallel 2 --noinput
 ```
+Use two workers. Since the 2026-10-08 merge, `--parallel 4` makes the teammate's PostgreSQL concurrency tests lose their connections on this machine.
 From `frontend/`:
 ```
 npm run lint
@@ -354,9 +356,9 @@ The screen also still shows invented content:
 - Clicking a notification opens its related record; this already works in `NotificationsAnnouncements.tsx`.
 - The teammate's appointment workflows already create notifications (`backend/appointments/notifications.py`).
 - Nothing creates deadline or Marks reminders.
-- The Settings preferences (`email_notifications`, `announcement_alerts`, `deadline_reminders`, `weekly_summary`) are saved but never read.
+- Since the 2026-10-08 merge, Settings is the teammate's version (`GET/PATCH /api/auth/settings/`). It stores only `User.announcement_alerts`, which already stops non-urgent announcement notifications. Email, deadline reminders and weekly summary are reported as unavailable `capabilities`. The older `NotificationPreference` table is no longer used by the frontend.
 
-**Start here.** `frontend/src/components/TopHeader.tsx`, `frontend/src/context/NotificationsContext.tsx`, `frontend/src/components/NotificationsAnnouncements.tsx` (record navigation), `backend/accounts/models.py` (`NotificationPreference.for_user`), `backend/announcements/views.py` (`_fan_out`), `backend/dashboard/models.py` (`SemesterTimeline`, `SemesterTimelineEntry.deadline_start/deadline_end/target_roles`, read only), `backend/marks/models.py` (`EvaluationPeriod.closes_at` and evaluation tasks, read only), `backend/README.md`.
+**Start here.** `frontend/src/components/TopHeader.tsx`, `frontend/src/context/NotificationsContext.tsx`, `frontend/src/components/NotificationsAnnouncements.tsx` (record navigation), `backend/accounts/views.py` (`settings_view`, `_settings_payload`; teammate-written, see Ownership), `backend/announcements/views.py` (`_fan_out`), `backend/dashboard/models.py` (`SemesterTimeline`, `SemesterTimelineEntry.deadline_start/deadline_end/target_roles`, read only), `backend/marks/models.py` (`EvaluationPeriod.closes_at` and evaluation tasks, read only), `backend/README.md`.
 
 **Tasks.**
 1. **Bell dropdown.**
@@ -365,6 +367,7 @@ The screen also still shows invented content:
    - Move the navigation logic out of `NotificationsAnnouncements.tsx` into a shared helper so both use it.
    - Show "No new notifications" when the list is empty.
 2. **Email that respects preferences.**
+   - First agree with the teammate where the new preferences are stored. Either add fields next to `User.announcement_alerts`, or reuse or remove `NotificationPreference`. Then expose them through `/api/auth/settings/`, turning each `capabilities` flag on only once it works.
    - Add one helper (in the announcements app) that emails a list of users, but only those whose preferences allow that kind of message. Kinds: announcement (needs `email_notifications` and `announcement_alerts`), deadline (needs `email_notifications` and `deadline_reminders`), summary (needs `weekly_summary`).
    - Use `send_mass_mail` with `fail_silently=True`.
    - Announcement fan-out uses the helper.

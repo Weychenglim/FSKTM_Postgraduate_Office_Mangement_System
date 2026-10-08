@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Q
 from django.utils import timezone
 
-from accounts.authorization import coordinator_programme
+from accounts.authorization import coordinator_scope_q
 from accounts.models import Lecturer, Panel, Supervisor
 from academics.capacity import CapacityRole, CapacityState, resolve_lecturer_capacity
 from academics.services import current_effective_semester
@@ -83,14 +84,9 @@ def _supervisor_actions(user, now):
         status__in=pending_statuses,
     )
     if user.role == User.Role.COORDINATOR:
-        programme = coordinator_programme(user)
-        applications = (
-            applications.filter(
-                student__programme=programme,
-                status=SupervisorApplication.Status.PENDING_COORDINATOR,
-            )
-            if programme
-            else applications.none()
+        applications = applications.filter(
+            coordinator_scope_q(user, "student__programme"),
+            status=SupervisorApplication.Status.PENDING_COORDINATOR,
         )
     elif user.role == User.Role.LECTURER:
         applications = applications.filter(
@@ -145,14 +141,9 @@ def _panel_actions(user, now):
     )
     public = user.role == User.Role.STUDENT
     if user.role == User.Role.COORDINATOR:
-        programme = coordinator_programme(user)
-        recommendations = (
-            recommendations.filter(
-                profile__programme=programme,
-                status=PanelRecommendation.Status.PENDING_COORDINATOR,
-            )
-            if programme
-            else recommendations.none()
+        recommendations = recommendations.filter(
+            coordinator_scope_q(user, "profile__programme"),
+            status=PanelRecommendation.Status.PENDING_COORDINATOR,
         )
     elif user.role == User.Role.LECTURER:
         recommendations = recommendations.filter(
@@ -206,9 +197,12 @@ def _panel_actions(user, now):
 
 
 def _mark_actions(user, now):
+    from marks.completion_windows import task_due_at, task_window_active
+
     semester = current_effective_semester()
-    if semester is None:
-        return []
+    scope = Q(completion_windows__ended_at__isnull=True, completion_windows__deadline__gt=now)
+    if semester:
+        scope |= Q(period__academic_semester=semester)
     tasks = (
         EvaluationTask.objects.filter(
             lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
@@ -216,7 +210,7 @@ def _mark_actions(user, now):
         .exclude(
             mark_entry__status=MarkEntry.Status.SUBMITTED,
         )
-        .filter(period__academic_semester=semester)
+        .filter(scope).distinct()
     )
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
@@ -224,16 +218,19 @@ def _mark_actions(user, now):
         tasks = tasks.none()
 
     tasks = tasks.select_related(
-        "profile",
-        "evaluator",
+        "profile__student__student",
+        "evaluator__lecturer",
         "period",
         "period__academic_semester",
         "mark_entry",
-    )
+    ).prefetch_related("completion_windows__granted_by")
     actions = []
     for task in tasks:
+        window = task_window_active(task, now=now)
+        if (semester is None or task.period.academic_semester_id != semester.pk) and not window:
+            continue
         metadata = mark_deadline_metadata(
-            task.period.closes_at,
+            task_due_at(task, now=now),
             is_submitted=False,
             now=now,
         )
@@ -248,13 +245,13 @@ def _mark_actions(user, now):
                 id=f"marks_{task.pk}",
                 name=f"Marks entry: {task.profile.student_name}",
                 status=status,
-                statusText=_deadline_text(metadata),
+                statusText=("Completion window · " if window else "") + _deadline_text(metadata),
                 target="Marks Entry",
                 targetModule="MARKS",
                 recordType="EVALUATION_TASK",
                 recordId=str(task.pk),
-                semester=task.period.academic_semester.label,
-                semesterCode=task.period.academic_semester.code,
+                semester=task.period.academic_semester.label if task.period.academic_semester_id else "Legacy / Unassigned",
+                semesterCode=task.period.academic_semester.code if task.period.academic_semester_id else None,
                 **metadata,
             )
         )
@@ -399,6 +396,7 @@ def _sort_key(task):
 
 
 def build_dashboard_tasks(user, *, now=None):
+    from .amendment_tracking import amendment_actions
     now = now or timezone.now()
     semester = current_effective_semester()
     active_timeline = (
@@ -410,6 +408,7 @@ def build_dashboard_tasks(user, *, now=None):
         else None
     )
     tasks = [
+        *amendment_actions(user, now),
         *_supervisor_actions(user, now),
         *co_supervisor_actions(user, now),
         *_panel_actions(user, now),

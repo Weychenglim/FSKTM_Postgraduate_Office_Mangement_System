@@ -29,6 +29,7 @@ import { PageHeader, PortalToast, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import { replaceEvaluationTask } from '../utils/marksProductionManagement';
+import { getMarkTaskSemesters, filterMarkTasks } from '../utils/marksSemesterFilters';
 import { EvaluationTask, EvaluationStatus } from '../types';
 import { getEvaluationTasks, saveMarkDraft, submitMarkEntry } from '../services';
 
@@ -156,17 +157,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   };
 
   // Filter computation
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = 
-      task.studentName.toLowerCase().includes(filteredSearch.toLowerCase()) ||
-      task.studentId.toLowerCase().includes(filteredSearch.toLowerCase()) ||
-      task.researchTitle.toLowerCase().includes(filteredSearch.toLowerCase());
-    
-    const matchesSem = filteredSemester === 'All Semesters' ? true : task.semester === filteredSemester;
-    const matchesStatus = filteredStatus === 'All Statuses' ? true : task.status === filteredStatus;
-
-    return matchesSearch && matchesSem && matchesStatus;
-  });
+  const semesterOptions = getMarkTaskSemesters(tasks);
+  const filteredTasks = filterMarkTasks(tasks, filteredSearch, filteredSemester, filteredStatus);
 
   // Calculate dynamic summary stats
   const statAssigned = tasks.length;
@@ -291,8 +283,9 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
                 >
                   <option>All Semesters</option>
-                  <option>Sem 1 2025/2026</option>
-                  <option>Sem 2 2024/2025</option>
+                  {semesterOptions.map(semester => (
+                    <option key={semester} value={semester}>{semester}</option>
+                  ))}
                 </select>
               </div>
 
@@ -412,7 +405,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             </td>
                             {/* Deadline */}
                             <td className={`py-4.5 pr-2 font-extrabold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
-                              <span className="block">{task.deadline}</span>
+                              <span className="block">{task.effectiveDueAt ? new Date(task.effectiveDueAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }) + ' (Malaysia)' : task.deadline}</span>
+                              {task.completionWindow ? <span className="block text-sky-700">Completion window · {task.completionWindow.status}</span> : null}
                               <span className="text-[10px] font-bold block mt-1">
                                 {formatDeadlineText(task)}
                               </span>
@@ -420,6 +414,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             {/* Status */}
                             <td className="py-4.5 pr-2">
                               <StatusChip type={task.status} />
+                              {task.periodEffectiveStatus ? <span className="block text-xs text-slate-500">Period: {task.periodEffectiveStatus}</span> : null}
                             </td>
                             {/* Action Button */}
                             <td className="py-4.5 text-center">
@@ -431,7 +426,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                                 >
                                   View Dossier
                                 </button>
-                                {task.status === 'SUBMITTED' ? (
+                                {task.status === 'SUBMITTED' || task.canEdit !== true ? (
                                   <button
                                     type="button"
                                     onClick={() => handleOpenForm(task)}

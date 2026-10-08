@@ -8,13 +8,29 @@ from .models import (
 )
 
 
-class SemesterTimelineEntryInline(admin.TabularInline):
+class ReadOnlyTimelineMixin:
+    """Timeline writes must use the validated, audited Office workflow."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class SemesterTimelineEntryInline(ReadOnlyTimelineMixin, admin.TabularInline):
     model = SemesterTimelineEntry
     extra = 0
 
 
 @admin.register(SemesterTimeline)
-class SemesterTimelineAdmin(admin.ModelAdmin):
+class SemesterTimelineAdmin(ReadOnlyTimelineMixin, admin.ModelAdmin):
     list_display = ("semester", "session", "is_active", "source_filename", "uploaded_by", "uploaded_at")
     list_filter = ("is_active", "session")
     search_fields = ("semester", "session", "source_filename")
@@ -22,7 +38,7 @@ class SemesterTimelineAdmin(admin.ModelAdmin):
 
 
 @admin.register(TimelineAuditLog)
-class TimelineAuditLogAdmin(admin.ModelAdmin):
+class TimelineAuditLogAdmin(ReadOnlyTimelineMixin, admin.ModelAdmin):
     list_display = ("action", "actor", "timeline", "summary", "created_at")
     list_filter = ("action",)
     search_fields = ("summary", "actor__full_name", "timeline__semester", "timeline__session")

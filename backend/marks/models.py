@@ -314,6 +314,72 @@ class EvaluationTask(models.Model):
         )
 
 
+class CompletionHistoryQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("Completion history is immutable; use audited services.")
+
+    def delete(self):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("Completion history cannot be deleted.")
+
+    def bulk_create(self, objs, batch_size=None, ignore_conflicts=False,
+                    update_conflicts=False, update_fields=None, unique_fields=None):
+        from django.core.exceptions import ValidationError
+        if update_conflicts:
+            raise ValidationError("Completion history cannot be overwritten.")
+        return super().bulk_create(objs, batch_size=batch_size,
+                                  ignore_conflicts=ignore_conflicts)
+
+
+class TaskCompletionWindow(models.Model):
+    """Grant facts are immutable; termination is recorded once with an audit event."""
+    task = models.ForeignKey(EvaluationTask, on_delete=models.PROTECT, related_name="completion_windows")
+    deadline = models.DateTimeField()
+    reason = models.TextField()
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="completion_window_grants")
+    created_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    end_kind = models.CharField(max_length=16, blank=True)
+    ended_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="completion_window_endings")
+    end_reason = models.TextField(blank=True)
+    supersedes = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True)
+    objects = CompletionHistoryQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["task"], condition=Q(ended_at__isnull=True), name="one_current_completion_window")]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Completion window records are immutable; use audited services.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("Completion window records cannot be deleted.")
+
+
+class TaskCompletionWindowAudit(models.Model):
+    objects = CompletionHistoryQuerySet.as_manager()
+    window = models.ForeignKey(TaskCompletionWindow, on_delete=models.PROTECT, related_name="events")
+    action = models.CharField(max_length=16)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    reason = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Completion window events are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("Completion window events are immutable.")
+
+
 class EvaluationTaskOverrideAudit(models.Model):
     task = models.ForeignKey(
         EvaluationTask,
@@ -444,6 +510,9 @@ class MarkEntry(models.Model):
         default=Decimal("0.00"),
     )
     comments = models.TextField(blank=True)
+    submitted_due_recorded = models.BooleanField(default=False)
+    submitted_due_at = models.DateTimeField(null=True, blank=True)
+    submitted_completion_window = models.ForeignKey(TaskCompletionWindow, on_delete=models.PROTECT, null=True, blank=True, related_name="submissions")
     submitted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

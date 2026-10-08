@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { coordinatorProgrammeNames } from '../utils/coordinatorDelegations';
 import {
   Users, 
   Clock, 
@@ -552,6 +553,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [panelReviewQueue, setPanelReviewQueue] = useState<PanelRecommendationDraft[]>([]);
   const [coordinatorReviewQueue, setCoordinatorReviewQueue] = useState<PanelRecommendationDraft[]>([]);
   const [coordinatorWorkspace, setCoordinatorWorkspace] = useState<CoordinatorPanelWorkspace | null>(null);
+  const coordinatorProgrammeLabel = coordinatorProgrammeNames(coordinatorWorkspace).join(', ');
   const [reviewedRequests, setReviewedRequests] = useState<PanelRecommendationDraft[]>([]);
   const [panelRecommendations, setPanelRecommendations] = useState<SubmittedRecommendation[]>([]);
   const [panelCandidates, setPanelCandidates] = useState<PanelCandidate[]>([]);
@@ -915,8 +917,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             title={isCoordinator ? 'Panel Recommendation Coordinator Review' : 'Panel Appointments'}
             subtitle={
               isCoordinator
-                ? coordinatorWorkspace?.programme
-                  ? `Confirm recommendations and monitor panel workflow records for ${coordinatorWorkspace.programme}.`
+                ? coordinatorProgrammeLabel
+                  ? `Confirm recommendations and monitor panel workflow records for ${coordinatorProgrammeLabel}.`
                   : 'No managed programme is assigned to this coordinator account.'
                 : 'Recommend panel members for your supervisees and view students assigned to you as panel member.'
             }
@@ -987,8 +989,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                   Pending Coordinator Reviews
                 </span>
                 <p className="text-xs font-semibold text-slate-500 mt-2">
-                  {coordinatorWorkspace?.programme
-                    ? `Recommendations for ${coordinatorWorkspace.programme} that passed selected panel acceptance.`
+                  {coordinatorProgrammeLabel
+                    ? `Recommendations for ${coordinatorProgrammeLabel} that passed selected panel acceptance.`
                     : 'No programme is assigned. Approval records are protected until an assignment is configured.'}
                 </p>
               </div>
@@ -1314,8 +1316,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           {isCoordinator && (
             <PanelRecommendationRecordsTable
               title="Programme Panel Recommendation Records"
-              subtitle={coordinatorWorkspace?.programme
-                ? `Read-only lifecycle records for ${coordinatorWorkspace.programme}. Approval actions remain in the queue above.`
+              subtitle={coordinatorProgrammeLabel
+                ? `Read-only lifecycle records for ${coordinatorProgrammeLabel}. Approval actions remain in the queue above.`
                 : 'No programme records can be displayed until a managed programme is assigned.'}
               records={coordinatorWorkspace?.records ?? []}
               showSupervisor

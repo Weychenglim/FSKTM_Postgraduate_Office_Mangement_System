@@ -60,6 +60,11 @@ class ReasonSerializer(serializers.Serializer):
     reason = serializers.CharField()
 
 
+class ClosureTransitionSerializer(ReasonSerializer):
+    previewToken = serializers.CharField(required=False, allow_blank=True)
+    acknowledgeUnfinished = serializers.BooleanField(required=False, default=False)
+
+
 class ExtendSerializer(ReasonSerializer):
     endsOn = serializers.DateField()
 

@@ -1,3 +1,5 @@
+import { ClosureReview } from './ClosureReview';
+import type { ClosureApproval } from '../types/marks';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -52,6 +54,7 @@ import {
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { malaysiaDeadline, formatMalaysiaDateTime as displayDateTime } from '../utils/malaysiaDateTime';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -114,19 +117,6 @@ export const MarkEntryRecipientPreview: React.FC<{ preview: EvaluationRecipientP
     </div> : null}
   </section>
 );
-
-const displayDateTime = (value: string | null) => {
-  if (!value) return 'Not configured';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return 'Invalid date';
-  return parsed.toLocaleString('en-MY', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
 
 export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   onBack,
@@ -271,8 +261,8 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
         name: form.name.trim(),
         semesterId: Number(form.semesterId),
         rubricId: Number(form.rubricId),
-        opensAt: form.opensAt ? new Date(form.opensAt).toISOString() : null,
-        closesAt: form.closesAt ? new Date(form.closesAt).toISOString() : null,
+        opensAt: form.opensAt ? malaysiaDeadline(form.opensAt) : null,
+        closesAt: form.closesAt ? malaysiaDeadline(form.closesAt) : null,
         programmeScope: form.programmeScope as 'ALL' | 'SELECTED',
         programmes: form.programmeScope === 'SELECTED' ? form.programmes : [],
         evaluatorRoles: form.evaluatorRoles,
@@ -297,6 +287,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
 
   const runTransition = async (
     action: 'publish' | 'close' | 'archive',
+    approval?: ClosureApproval,
   ) => {
     if (!selected || saving || selecting) return;
     if (action === 'publish' && !canPublish) return;
@@ -307,7 +298,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       const updated = action === 'publish'
         ? await publishEvaluationPeriod(selected.id)
         : action === 'close'
-          ? await closeEvaluationPeriod(selected.id, reason)
+          ? await closeEvaluationPeriod(selected.id, reason, approval)
           : await archiveEvaluationPeriod(selected.id, reason);
       replacePeriod(await getEvaluationPeriod(updated.id));
       setReason('');
@@ -325,6 +316,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       }
     } catch (transitionError) {
       setError(marksMutationErrorMessage(transitionError));
+      if (approval) throw transitionError;
     } finally {
       setSaving(false);
     }
@@ -552,7 +544,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
               </fieldset>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block text-xs font-bold text-slate-700">
-                  Opens at
+                  Opens at (Malaysia, UTC+08:00)
                   <input
                     required
                     type="datetime-local"
@@ -563,7 +555,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   />
                 </label>
                 <label className="block text-xs font-bold text-slate-700">
-                  Closes at
+                  Closes at (Malaysia, UTC+08:00)
                   <input
                     required
                     type="datetime-local"
@@ -618,17 +610,6 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                     Confirm and publish
                   </PortalButton>
                 ) : null}
-                {published ? (
-                  <PortalButton
-                    icon={XCircle}
-                    variant="danger"
-                    isLoading={saving}
-                    disabled={!reason.trim()}
-                    onClick={() => void runTransition('close')}
-                  >
-                    Close period
-                  </PortalButton>
-                ) : null}
                 {closed ? (
                   <PortalButton
                     icon={Archive}
@@ -644,6 +625,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
               </fieldset>
             </form>
 
+            {published && selected ? <ClosureReview key={selected.id} kind="period" id={selected.id} disabled={saving || selecting || !reason.trim() || hasUnsavedChanges} onConfirm={approval => runTransition('close', approval)} /> : null}
             {selected?.auditEvents?.length ? (
               <div className="mt-7 border-t border-slate-100 pt-5">
                 <h3 className="flex items-center gap-2 text-xs font-extrabold uppercase text-slate-600">

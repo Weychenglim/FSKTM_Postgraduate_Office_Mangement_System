@@ -153,6 +153,7 @@ export interface StudentProgressAttentionItem extends StudentProgressTarget {
 }
 
 export interface StudentProgressDossier {
+  researchAmendments?: import('../services/researchAmendmentsApi').ResearchAmendment[];
   supervisoryTeam?: import('./coSupervision').SupervisoryTeam | null;
   generatedAt: string;
   visibility: StudentProgressVisibility;

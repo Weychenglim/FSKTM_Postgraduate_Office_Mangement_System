@@ -37,6 +37,7 @@ payload = {{
     "jwtRefreshSeconds": int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
     "jwtRefreshCookieSecure": settings.JWT_REFRESH_COOKIE_SECURE,
     "staticRoot": str(settings.STATIC_ROOT),
+    "cache": settings.CACHES["default"],
 }}
 print({SETTINGS_MARKER!r} + json.dumps(payload))
 """
@@ -56,6 +57,7 @@ class ProductionSettingsTests(SimpleTestCase):
                 "DJANGO_SECURE_HSTS_PRELOAD": "False",
                 "DJANGO_TRUST_X_FORWARDED_PROTO": "False",
                 "ENABLE_DEMO_ACCOUNTS": "False",
+                "DJANGO_CACHE_BACKEND": "",
             }
         )
         environment.update(overrides)
@@ -196,3 +198,24 @@ class ProductionSettingsTests(SimpleTestCase):
         self.assertIs(payload["sessionCookieSecure"], False)
         self.assertIs(payload["csrfCookieSecure"], False)
         self.assertIs(payload["jwtRefreshCookieSecure"], False)
+        self.assertEqual(payload["cache"]["BACKEND"], "django.core.cache.backends.locmem.LocMemCache")
+
+    def test_production_defaults_to_shared_database_cache(self):
+        completed, payload = self.load_settings()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["cache"]["BACKEND"], "django.core.cache.backends.db.DatabaseCache")
+        self.assertEqual(payload["cache"]["LOCATION"], "fsktm_api_cache")
+
+    def test_production_rejects_process_local_cache(self):
+        self.assert_startup_rejected("DJANGO_CACHE_BACKEND", DJANGO_CACHE_BACKEND="locmem")
+
+    def test_unknown_cache_backend_is_rejected(self):
+        for debug in ("True", "False"):
+            with self.subTest(debug=debug):
+                self.assert_startup_rejected("DJANGO_CACHE_BACKEND", DJANGO_DEBUG=debug,
+                                             DJANGO_CACHE_BACKEND="unsupported")
+
+    def test_development_can_opt_into_shared_database_cache(self):
+        completed, payload = self.load_settings(DJANGO_DEBUG="True", DJANGO_CACHE_BACKEND="database")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(payload["cache"]["BACKEND"], "django.core.cache.backends.db.DatabaseCache")

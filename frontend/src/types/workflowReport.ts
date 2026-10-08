@@ -97,6 +97,7 @@ export interface WorkflowCapacitySummary {
 }
 
 export interface WorkflowReport {
+  researchAmendments?: ReportModuleSummary;
   generatedAt: string;
   scope: {
     role: WorkflowReportRole;

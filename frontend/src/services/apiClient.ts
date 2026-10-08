@@ -95,6 +95,10 @@ export function getAuthToken(): string | null {
   return authSession.getAccessToken();
 }
 
+export function getAuthSessionVersion(): number {
+  return authSession.getSessionVersion();
+}
+
 export function refreshAuthToken(): Promise<string | null> {
   return authSession.refreshAccessToken();
 }
@@ -154,7 +158,7 @@ export async function request<T>(
  * call to fail with an opaque message.
  */
 function handleUnauthorized(): void {
-  clearAuthToken();
+  if (getAuthToken() !== null) clearAuthToken();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
   }

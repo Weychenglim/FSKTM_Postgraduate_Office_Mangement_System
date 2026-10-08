@@ -388,11 +388,70 @@ class WorkflowReportTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["scope"]["programme"], PROGRAMME)
-        self.assertEqual(response.data["filters"]["programme"], PROGRAMME)
-        self.assertEqual(response.data["supervisor"]["total"], 1)
-        self.assertEqual(response.data["panel"]["total"], 1)
+        self.assertEqual(response.data["filters"]["programme"], FOREIGN_PROGRAMME)
+        self.assertEqual(response.data["supervisor"]["total"], 0)
+        self.assertEqual(response.data["panel"]["total"], 0)
         self.assertIsNone(response.data["marks"])
         self.assertIsNone(response.data["timeline"])
+
+    def test_acting_coordinator_scope_reports_export_dossier_and_revocation(self):
+        self.office.is_staff = True
+        self.office.save(update_fields=["is_staff"])
+        self.authenticate(self.office)
+        today = timezone.localdate()
+        grant = self.client.post("/api/accounts/coordinator-delegations/", {
+            "coordinatorId": self.coordinator.pk,
+            "programme": FOREIGN_PROGRAMME,
+            "startsOn": str(today), "endsOn": str(today),
+            "justification": "Cover programme coordinator absence",
+        }, format="json")
+        self.assertEqual(grant.status_code, 201, grant.data)
+        self.approved_supervisor.status = SupervisorApplication.Status.PENDING_COORDINATOR
+        self.approved_supervisor.save(update_fields=["status"])
+        self.foreign_panel_record.status = PanelRecommendation.Status.PENDING_COORDINATOR
+        self.foreign_panel_record.save(update_fields=["status"])
+        self.authenticate(self.coordinator)
+        summary = self.client.get("/api/dashboard/summary/")
+        self.assertEqual(summary.data["pendingSupervisorApprovals"], 1)
+        self.assertEqual(summary.data["pendingPanelApprovals"], 1)
+        tasks = self.client.get("/api/dashboard/tasks/")
+        task_ids = {item["id"] for item in tasks.data["tasks"]}
+        self.assertIn(f"supervisor_{self.approved_supervisor.pk}", task_ids)
+        self.assertIn(f"panel_{self.foreign_panel_record.pk}", task_ids)
+        from dashboard.reconciliation import detect_reconciliation_issues
+        self.assertFalse(any(
+            issue.issue_type == "PROGRAMME_COORDINATOR_UNAVAILABLE"
+            and issue.programme == FOREIGN_PROGRAMME
+            for issue in detect_reconciliation_issues()
+        ))
+        report = self.client.get("/api/dashboard/reports/")
+        self.assertEqual(report.status_code, 200)
+        self.assertEqual(report.data["supervisor"]["total"], 2)
+        self.assertEqual(report.data["panel"]["total"], 2)
+        self.assertEqual(set(report.data["scope"]["programmes"]), {PROGRAMME, FOREIGN_PROGRAMME})
+        self.foreign_student.programme = f"  {FOREIGN_PROGRAMME}  "
+        self.foreign_student.save(update_fields=["programme"])
+        self.foreign_profile.programme = f"  {FOREIGN_PROGRAMME}  "
+        self.foreign_profile.save(update_fields=["programme"])
+        narrowed = self.client.get("/api/dashboard/reports/", {"programme": FOREIGN_PROGRAMME.lower()})
+        self.assertEqual(narrowed.data["supervisor"]["total"], 1)
+        self.assertEqual(narrowed.data["panel"]["total"], 1)
+        dossier_url = f"/api/dashboard/progress/{self.foreign_student.matric_no}/"
+        self.assertEqual(self.client.get(dossier_url).status_code, 200)
+        export = self.client.get("/api/dashboard/reports/export/")
+        workbook = load_workbook(BytesIO(export.content))
+        ids = {str(cell.value) for cell in workbook["Supervisor"]["A"][1:]}
+        self.assertIn(str(self.approved_supervisor.pk), ids)
+        self.authenticate(self.office)
+        revoke = self.client.post(
+            f"/api/accounts/coordinator-delegations/{grant.data['id']}/revoke/",
+            {"reason": "Coordinator returned"}, format="json",
+        )
+        self.assertEqual(revoke.status_code, 200)
+        self.authenticate(self.coordinator)
+        self.assertEqual(self.client.get(dossier_url).status_code, 404)
+        report = self.client.get("/api/dashboard/reports/")
+        self.assertEqual(report.data["supervisor"]["total"], 1)
 
     def test_lecturer_report_contains_only_assigned_work(self):
         self.authenticate(self.panel)
@@ -454,7 +513,7 @@ class WorkflowReportTests(APITestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         workbook = load_workbook(BytesIO(response.content))
-        self.assertEqual(workbook.sheetnames, ["Summary", "Supervisor", "Panel"])
+        self.assertEqual(workbook.sheetnames, ["Summary", "Research Amendments", "Supervisor", "Panel"])
         self.assertEqual(workbook["Supervisor"].freeze_panes, "A2")
         self.assertEqual(workbook["Panel"].freeze_panes, "A2")
         supervisor_ids = {str(cell.value) for cell in workbook["Supervisor"]["A"][1:]}
@@ -473,7 +532,7 @@ class WorkflowReportTests(APITestCase):
         workbook = load_workbook(BytesIO(response.content))
         self.assertEqual(
             workbook.sheetnames,
-            ["Summary", "Supervisor", "Panel", "Marks", "Timeline"],
+            ["Summary", "Research Amendments", "Supervisor", "Panel", "Marks", "Timeline"],
         )
         self.assertEqual(workbook["Supervisor"].max_row, 1)
         self.assertEqual(workbook["Marks"].max_row, 1)

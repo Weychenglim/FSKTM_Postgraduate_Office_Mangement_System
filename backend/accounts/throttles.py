@@ -65,3 +65,13 @@ class AccessLinkRateThrottle(SettingsRateThrottle):
             return None
         matric_no = str(view.kwargs.get("matric_no", "")).lower()
         return self.cache_format % {"scope": self.scope, "ident": matric_no}
+
+
+class SettingsPasswordRateThrottle(SimpleRateThrottle):
+    scope = "auth_settings_password"
+    rate = "5/hour"
+
+    def get_cache_key(self, request, view):
+        if not request.user.is_authenticated:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": request.user.pk}
