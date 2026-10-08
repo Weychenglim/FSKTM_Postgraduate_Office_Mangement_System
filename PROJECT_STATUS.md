@@ -1,9 +1,9 @@
 # Project Status
 
-## PR integration preparation (2026-10-09)
+## Owned-workflow integration completed (2026-10-09)
 
-- User authorized pushing the accumulated changes, creating a PR and merging into `main`. Preparation uses `codex/owned-module-acceptance-2026-10-09` from `9ee3bd4`; fetched remote `main` initially matches that base. Existing application/documentation work is preserved; private environment files, credentials, runtime logs and synthetic databases stay excluded.
-- Fresh verification passes **all 683 backend tests in 604.078 seconds** with two isolated test workers, all **75 frontend test scripts**, TypeScript and production build (6.05 seconds), Django checks, migration-drift, whitespace and documentation source/link checks. Independent integration review found no actionable issues. PR identity and final merge outcome will be recorded after publication.
+- User authorized pushing the accumulated changes, creating a PR and merging into `main`. [PR #13](https://github.com/Weychenglim/FSKTM_Postgraduate_Office_Mangement_System/pull/13) merged the 64-file release on 9 October Malaysia time, with commit `fc8265a3b22e15430be6349955f7a240b72c7bfa`. Its reviewed source commit is `2bc5ba9b3ecb17b1a1354acecc4d4087d2447410`, based on `9ee3bd4`; no upstream conflict required resolution. Local `main` was fast-forwarded to the merge and its backend/frontend tree verified identical to the tested source. Existing work is preserved; private environment files, credentials, runtime logs and synthetic databases remain excluded.
+- Fresh verification passes **all 683 backend tests in 604.078 seconds** with two isolated test workers, all **75 frontend test scripts**, TypeScript and production build (6.05 seconds), Django checks, migration-drift, whitespace and documentation source/link checks. Independent integration review found no actionable issues. GitHub reported the PR mergeable with a clean merge state; there were no reported remote status checks. This release record changes documentation only after the application merge.
 - This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01–T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
 
 ## Consolidated pending work and decisions (2026-10-08)

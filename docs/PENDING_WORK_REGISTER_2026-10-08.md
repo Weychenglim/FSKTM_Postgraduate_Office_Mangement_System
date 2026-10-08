@@ -2,7 +2,7 @@
 
 Updated 8 October 2026, Malaysia. Start here when resuming development. This document consolidates our discussion; creating it does not implement the pending access changes or certify the whole system.
 
-Release update, 9 October: the user authorized pushing the accumulated changes through a PR into `main`. R01 is now in progress on `codex/owned-module-acceptance-2026-10-09`; final verification and PR/merge evidence will be linked from the newest Project Status section. T01–T06 remain pending.
+Release update, 9 October: [PR #13](https://github.com/Weychenglim/FSKTM_Postgraduate_Office_Mangement_System/pull/13) merged the accumulated application/documentation changes into `main` at `fc8265a3b22e15430be6349955f7a240b72c7bfa`. R01 is complete for this release. Fresh verification passes all 683 backend tests, 75 frontend scripts, TypeScript/build and configuration/documentation checks; local `main` application files match the tested source. See the newest [Project Status](../PROJECT_STATUS.md) section for exact evidence. T01–T06 remain pending.
 
 ## Direction to retain
 
@@ -25,7 +25,7 @@ Release update, 9 October: the user authorized pushing the accumulated changes t
 | Technical-only admin login | **Pending implementation.** Ordinary Office admin access has not yet been removed. |
 | Business authority independent of admin flags | **Pending implementation.** Several services still require `is_staff`; clearing that flag now would break legitimate Office actions. |
 | Local services | Latest checked startup: Django 8000, portal 3001, existing `fsktm_pg_office` database, mocks/demo login disabled. Check live health when resuming; this is a snapshot, not a promise services remain running. |
-| Git/release | Current branch is `main`; accumulated application/documentation changes remain uncommitted/unpushed. Restarting a server did not publish those changes. |
+| Git/release | The accumulated release is committed, pushed and merged into `main` through PR #13. Earlier restart snapshots did not publish it; the 9 October release update above supersedes their uncommitted/unpushed state. |
 
 ## Priority 1: separate technical admin access from Office workflow authority
 
@@ -93,7 +93,7 @@ Do not reopen these as unfixed defects without a new reproduction. Each report l
 
 | ID | Work | Status / boundary | Done when |
 | --- | --- | --- | --- |
-| R01 | Review, commit and integrate accumulated changes | In progress, authorized 9 October | Review the full existing diff without dropping earlier work; verify appropriate checks and ignored private files; update final documents; commit/push and integrate through the authorized PR. Record final PR/merge evidence in Project Status. Current restart was not a push. |
+| R01 | Review, commit and integrate accumulated changes | Completed for this release, 9 October | PR #13 is merged, local `main` application files match the tested source, and Project Status records verification/review/merge evidence. Future T/A slices require their own review and integration. |
 | P01 | Actual production-host configuration | Pending deployment verification | Provision/check the shared PostgreSQL authentication cache across workers; verify host/proxy/HTTPS/cookies/CORS, static/media/private documents, SMTP, database migrations, backup/restore and rollback on the intended host. Shared-cache code exists; production provisioning and multi-worker proof remain. |
 | P02 | Final acceptance on deployment-like environment | Pending after remaining development | Repeat critical role workflows and authorization checks on the real configuration; record observed results and remaining limitations. |
 | X01 | Student/staff Registry and routine account management in the portal | Teammate/shared scope; integration missing | The responsible owner implements the missing backend/persisted creation/import/edit/account flow. Until then, technical account provisioning may still need Django admin. This is additional work beyond T01–T06. |
