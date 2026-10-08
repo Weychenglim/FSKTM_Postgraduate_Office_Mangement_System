@@ -14,7 +14,7 @@ from appointments.models import StudentResearchProfile
 
 from .completion_windows import task_access, task_due_at, window_payload, grant_completion_windows, revoke_completion_window
 from .deadlines import mark_deadline_metadata
-from .targeting import programme_options, recipient_preview
+from .targeting import profile_programme, programme_options, recipient_preview
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -29,6 +29,8 @@ from .serializers import (
     EvaluationTaskSerializer,
     MarkDraftSerializer,
     ReasonSerializer,
+    SubmittedMarksCorrectionSerializer,
+    SubmittedMarksReasonSerializer,
     RubricComponentInputSerializer,
     RubricCreateSerializer,
     RubricUpdateSerializer,
@@ -43,9 +45,12 @@ from .services import (
     create_backup_evaluation_task,
     create_rubric,
     create_rubric_component,
+    correct_submitted_marks,
     ensure_active_period_tasks,
     ensure_period_tasks,
     publish_evaluation_period,
+    reopen_submitted_marks,
+    submitted_marks_version,
     update_evaluation_period,
     update_rubric,
     update_rubric_component,
@@ -57,6 +62,10 @@ User = get_user_model()
 
 def office_only(user):
     return user.role == User.Role.OFFICE_ADMIN
+
+
+def may_edit_submitted_marks(user):
+    return office_only(user) and user.is_staff and user.has_perm("marks.change_markentry")
 
 
 def task_entry_or_none(task):
@@ -678,7 +687,7 @@ def assignment_options_view(request):
             {"error": "Only Office Staff/Admin can view assignment options."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    students = StudentResearchProfile.objects.select_related("supervisor").order_by(
+    students = StudentResearchProfile.objects.select_related("supervisor", "student__student").order_by(
         "student_name",
     ).filter(
         Q(student__isnull=True) | Q(student__student__status=Student.Status.ACTIVE)
@@ -702,7 +711,7 @@ def assignment_options_view(request):
                 {
                     "studentId": student.matric_no,
                     "studentName": student.student_name,
-                    "programme": student.programme,
+                    "programme": profile_programme(student),
                     "semester": student.semester,
                     "researchTitle": student.proposed_topic,
                     "supervisorName": student.supervisor.full_name,
@@ -914,9 +923,16 @@ def mark_record_detail_view(request, record_id):
         ),
     )
     lecturer_profile = getattr(task.evaluator, "lecturer", None)
+    authorized = may_edit_submitted_marks(request.user)
+    submitted = bool(entry and entry.status == MarkEntry.Status.SUBMITTED)
     return Response(
         {
             "recordId": f"MRK-{task.pk:05d}",
+            "officeActions": {
+                "canCorrect": authorized and submitted,
+                "canReopen": authorized and submitted and task.period.accepts_submissions,
+                "version": submitted_marks_version(entry) if authorized and submitted else None,
+            },
             **task_access(task),
         "taskId": task.pk,
             "student": {
@@ -1065,6 +1081,43 @@ def mark_record_detail_view(request, record_id):
             ],
         }
     )
+
+
+def mutate_submitted_mark_record(request, record_id, *, reopen):
+    if not may_edit_submitted_marks(request.user):
+        return Response({"error": "Only authorized Office Staff/Admin with Marks change permission may perform this operation."}, status=403)
+    if not record_id.startswith("MRK-") or not record_id[4:].isdigit():
+        return Response({"error": "Mark record was not found."}, status=404)
+    entry = MarkEntry.objects.filter(task_id=int(record_id[4:])).first()
+    if entry is None:
+        return Response({"error": "Submitted mark record was not found."}, status=404)
+    serializer = (SubmittedMarksReasonSerializer if reopen else SubmittedMarksCorrectionSerializer)(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        if reopen:
+            reopen_submitted_marks(entry=entry, actor=request.user, reason=data['reason'], expected_version=data['expectedVersion'])
+        else:
+            correct_submitted_marks(entry=entry, actor=request.user, reason=data['reason'],
+                expected_version=data['expectedVersion'], comments=data.get('comments'),
+                score_values={score['componentId']: score['marksAwarded'] for score in data['scores']})
+    except MarksStateConflict as exc:
+        return state_conflict_response(exc)
+    except DjangoValidationError as exc:
+        return django_validation_response(exc)
+    return Response({"recordId": record_id, "action": "REOPEN" if reopen else "CORRECT"})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def correct_mark_record_view(request, record_id):
+    return mutate_submitted_mark_record(request, record_id, reopen=False)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def reopen_mark_record_view(request, record_id):
+    return mutate_submitted_mark_record(request, record_id, reopen=True)
 
 
 @api_view(["GET"])

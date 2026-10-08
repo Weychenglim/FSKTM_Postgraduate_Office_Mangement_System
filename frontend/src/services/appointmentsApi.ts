@@ -170,7 +170,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     date: r.submittedDate,
     status: r.status === 'APPROVED'
       ? 'Approved'
-      : r.status === 'CANCELLED_BY_SUPERVISOR'
+      : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE'
       ? 'Cancelled'
       : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
       ? 'Rejected'
@@ -184,6 +184,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     rejectionReason: r.rejectionReason,
     submittedAt: r.submittedAt,
     panelDecisionAt: r.panelDecisionAt,
+    selectedPanelDecision: r.selectedPanelDecision,
     coordinatorDecisionAt: r.coordinatorDecisionAt,
     cancelledAt: r.cancelledAt,
     cancellationReason: r.cancellationReason,
@@ -425,7 +426,7 @@ export function toStudentSupervisorApplication(
   const status: StudentSupervisorApplication['status'] =
     record.status === 'APPROVED'
       ? 'APPROVED'
-      : record.status === 'CANCELLED_BY_STUDENT'
+      : record.status === 'CANCELLED_BY_STUDENT' || record.status === 'CANCELLED_BY_OFFICE'
       ? 'CANCELLED'
       : record.status === 'REJECTED_BY_SUPERVISOR' || record.status === 'REJECTED_BY_COORDINATOR'
       ? 'RETURNED'

@@ -17,7 +17,6 @@ from appointments.models import (
     StudentResearchProfile,
 )
 
-from .admin import MarkCorrectionForm
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -415,30 +414,14 @@ class MarkEntryWorkflowTests(APITestCase):
         self.assertEqual(audit.before_values["comments"], "Overall comments")
         self.assertEqual(audit.after_values["comments"], "Corrected comment")
 
-    def test_admin_form_rejects_unaudited_submitted_comment_change(self):
-        self.authenticate(self.lecturer)
-        self.client.put(
-            f"/api/marks/tasks/{self.task.pk}/draft/",
-            self.score_payload(),
-            format="json",
-        )
-        self.client.post(f"/api/marks/tasks/{self.task.pk}/submit/")
-        entry = MarkEntry.objects.get(task=self.task)
-
-        form = MarkCorrectionForm(
-            data={
-                "comments": "Changed without an audit reason",
-                "correction_reason": "",
-                "corrected_scores": "",
-            },
-            instance=entry,
-        )
-
-        self.assertFalse(form.is_valid())
-        self.assertIn(
-            "A correction reason is required for submitted mark changes.",
-            form.non_field_errors(),
-        )
+    def test_submitted_marks_admin_has_no_editable_fields(self):
+        from django.contrib import admin
+        from django.test import RequestFactory
+        request = RequestFactory().get('/admin/marks/markentry/')
+        request.user = self.office_admin
+        model_admin = admin.site._registry[MarkEntry]
+        self.assertFalse(model_admin.has_change_permission(request))
+        self.assertEqual(model_admin.get_form(request).base_fields, {})
 
     def test_office_staff_can_reopen_submitted_marks_with_audit_reason(self):
         self.authenticate(self.lecturer)

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, History, RefreshCw, Search, ShieldAlert, ShieldCheck, UserRoundCheck } from 'lucide-react';
 import type {
   ParticipantLifecycleListResponse,
@@ -49,16 +49,37 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
   const [programme, setProgramme] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [targetStatus, setTargetStatus] = useState<ParticipantLifecycleStatus | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<ParticipantPendingWork | null>(null);
   const [reason, setReason] = useState('');
+  const listRequest = useRef(0);
+  const detailRequest = useRef(0);
+  const mounted = useRef(false);
+  const operationInFlight = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      listRequest.current += 1;
+      detailRequest.current += 1;
+    };
+  }, []);
 
   const load = useCallback(async () => {
+    const request = ++listRequest.current;
+    detailRequest.current += 1;
     setLoading(true);
+    setDetailLoading(false);
     setError(null);
+    setSelected(null);
+    setTargetStatus(null);
+    setPendingCancellation(null);
+    setReason('');
     const params = new URLSearchParams();
     if (typeFilter !== 'ALL') params.set('type', typeFilter);
     if (statusFilter) params.set('status', statusFilter);
@@ -67,44 +88,52 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
     const query = params.size ? `?${params.toString()}` : '';
     try {
       const response = await getParticipants(query);
+      if (!mounted.current || request !== listRequest.current) return false;
       setData(response);
-      setSelected((current) => (
-        current
-          ? (() => {
-            const record = response.records.find((candidate) => (
-              candidate.participantType === current.participantType
-              && candidate.identifier === current.identifier
-            ));
-            return record ? { ...record, audits: current.audits } : null;
-          })()
-          : null
-      ));
+      return true;
     } catch (loadError) {
+      if (!mounted.current || request !== listRequest.current) return false;
+      setData(null);
       setError(participantConflictMessage(loadError));
+      return false;
     } finally {
-      setLoading(false);
+      if (mounted.current && request === listRequest.current) setLoading(false);
     }
   }, [programme, search, statusFilter, typeFilter]);
 
   useEffect(() => {
+    setLoading(true);
+    setSelected(null);
+    detailRequest.current += 1;
     const timer = window.setTimeout(() => void load(), 180);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      listRequest.current += 1;
+      detailRequest.current += 1;
+    };
   }, [load]);
 
   const openParticipant = async (record: ParticipantLifecycleRecord) => {
+    const request = ++detailRequest.current;
     setError(null);
+    setSelected(null);
+    setDetailLoading(true);
+    setTargetStatus(null);
+    setPendingCancellation(null);
+    setReason('');
     try {
-      setSelected(await getParticipant(record.participantType, record.identifier));
-      setTargetStatus(null);
-      setPendingCancellation(null);
-      setReason('');
+      const response = await getParticipant(record.participantType, record.identifier);
+      if (mounted.current && request === detailRequest.current) setSelected(response);
     } catch (loadError) {
-      setError(participantConflictMessage(loadError));
+      if (mounted.current && request === detailRequest.current) setError(participantConflictMessage(loadError));
+    } finally {
+      if (mounted.current && request === detailRequest.current) setDetailLoading(false);
     }
   };
 
   const completeOperation = async () => {
-    if (!selected || !reason.trim() || (!targetStatus && !pendingCancellation)) return;
+    if (operationInFlight.current || loading || detailLoading || !selected || !reason.trim() || (!targetStatus && !pendingCancellation)) return;
+    operationInFlight.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -124,16 +153,17 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
         );
         setToast('Pending workflow cancelled.');
       }
+      if (!mounted.current) return;
       setTargetStatus(null);
       setPendingCancellation(null);
       setReason('');
-      await load();
-      setSelected(await getParticipant(selected.participantType, selected.identifier));
+      if (await load()) await openParticipant(selected);
       window.setTimeout(() => setToast(null), 3200);
     } catch (operationError) {
-      setError(participantConflictMessage(operationError));
+      if (mounted.current) setError(participantConflictMessage(operationError));
     } finally {
-      setSaving(false);
+      operationInFlight.current = false;
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -153,14 +183,14 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
         actions={(
           <>
             {onOpenReconciliation && <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>Reconcile Workflows</PortalButton>}
-            <PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh</PortalButton>
+            <PortalButton icon={RefreshCw} disabled={saving} onClick={() => void load()}>Refresh</PortalButton>
           </>
         )}
       />
 
       <CoordinatorDelegations office />
 
-      {summary && (
+      {summary && !loading && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
           {Object.entries(summary).map(([key, value]) => (
             <div key={key} className="rounded-lg border border-slate-200 bg-white p-4 shadow-3xs">
@@ -173,7 +203,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-3xs">
-          <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-4">
+          <fieldset disabled={saving} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-4">
             <label className="relative md:col-span-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <input className="form-input w-full pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or ID" />
@@ -193,7 +223,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
               <option value="">All programmes</option>
               {data?.availableProgrammes.map((value) => <option key={value}>{value}</option>)}
             </select>
-          </div>
+          </fieldset>
 
           {loading ? <LoadingState message="Loading participant lifecycle records..." /> : error && !data ? (
             <ErrorState message={error} onRetry={() => void load()} />
@@ -212,7 +242,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
                         <td className="data-td">{record.participantType === 'STUDENT' ? 'Student' : 'Lecturer'}</td>
                         <td className="data-td"><StatusBadge tone={statusTone(record.lifecycleStatus)}>{lifecycleLabel(record.lifecycleStatus)}</StatusBadge></td>
                         <td className="data-td">{blockerCount}</td>
-                        <td className="data-td text-right"><PortalButton size="sm" onClick={() => void openParticipant(record)}>Review</PortalButton></td>
+                        <td className="data-td text-right"><PortalButton size="sm" disabled={saving} onClick={() => void openParticipant(record)}>Review</PortalButton></td>
                       </tr>
                     );
                   })}
@@ -223,10 +253,13 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
         </section>
 
         <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-3xs">
-          {!selected ? (
-            <EmptyState title="Select a participant" description="Review blockers, transitions, pending workflows, and immutable audit history." icon={UserRoundCheck} />
+          {detailLoading ? <LoadingState message="Loading participant details..." /> : !selected ? (
+            <>
+              {error && data && <ErrorState message={error} />}
+              <EmptyState title="Select a participant" description="Review blockers, transitions, pending workflows, and immutable audit history." icon={UserRoundCheck} />
+            </>
           ) : (
-            <div className="space-y-6">
+            <fieldset disabled={saving} className="space-y-6 min-w-0">
               <div>
                 <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-black text-brand-navy">{selected.name}</h2><p className="mt-1 text-slate-500">{selected.identifier} · {selected.programme || selected.department}</p></div><StatusBadge tone={statusTone(selected.lifecycleStatus)}>{lifecycleLabel(selected.lifecycleStatus)}</StatusBadge></div>
                 <p className="mt-3 text-[11px] text-slate-500">Account access: <strong>{selected.accountAccess.replace('_', ' ')}</strong></p>
@@ -245,7 +278,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
 
               <div><h3 className="flex items-center gap-2 text-xs font-black text-brand-navy"><History className="h-4 w-4" />Audit history</h3>{selected.audits.length ? <ol className="mt-3 space-y-3">{selected.audits.map((audit) => <li key={audit.id} className="border-l-2 border-slate-200 pl-3"><strong className="text-[10px] text-brand-navy">{lifecycleLabel(audit.previousStatus)} to {lifecycleLabel(audit.newStatus)}</strong><p className="mt-1 text-[10px] text-slate-600">{audit.reason}</p><span className="mt-1 block text-[9px] text-slate-400">{audit.actor} · {formatDateTime(audit.createdAt)}</span></li>)}</ol> : <p className="mt-2 text-[10px] text-slate-500">No lifecycle changes recorded.</p>}</div>
               <div className="flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-emerald-800"><ShieldCheck className="h-4 w-4 shrink-0" /><p className="text-[10px]">Historical appointments, documents, workflow events, and submitted Marks remain preserved.</p></div>
-            </div>
+            </fieldset>
           )}
         </aside>
       </div>

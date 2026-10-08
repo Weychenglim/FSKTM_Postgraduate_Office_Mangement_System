@@ -1,5 +1,6 @@
 import { MarkRecord } from '../types';
-import { filterMarkRecordsByStatusTab, getMarkRecordSummary } from './markRecords';
+import assert from 'node:assert/strict';
+import { filterMarkRecordsByStatusTab, getMarkRecordSummary, getOperationalMarkRecords, getMarkMonitoringSemesterLabel } from './markRecords';
 
 const records: MarkRecord[] = [
   {
@@ -58,6 +59,11 @@ const records: MarkRecord[] = [
 
 const summary = getMarkRecordSummary(records);
 
+assert.equal(getMarkMonitoringSemesterLabel(records), 'Sem 1 2025/2026');
+assert.equal(getMarkMonitoringSemesterLabel([...records, { ...records[0], semester: 'Semester I 2026/2027' }]), 'Multiple semesters (2)');
+assert.equal(getMarkMonitoringSemesterLabel([]), 'No active evaluation tasks');
+assert.equal(getMarkMonitoringSemesterLabel([...records, { ...records[0], semester: 'Historical', taskLifecycleStatus: 'RETIRED' }]), 'Sem 1 2025/2026');
+
 if (summary.total !== 4) throw new Error(`Expected total 4, got ${summary.total}`);
 if (summary.submitted !== 1) throw new Error(`Expected submitted 1, got ${summary.submitted}`);
 if (summary.draft !== 1) throw new Error(`Expected draft 1, got ${summary.draft}`);
@@ -76,3 +82,20 @@ if (allRecords.length !== records.length) {
 }
 
 console.log('markRecords tests passed');
+
+const historical = [
+  { ...records[1], id: 'RETIRED-DRAFT', taskLifecycleStatus: 'RETIRED' as const },
+  { ...records[3], id: 'PAUSED-OVERDUE', taskLifecycleStatus: 'PAUSED' as const },
+];
+assert.deepEqual(getMarkRecordSummary([...records, ...historical]), summary,
+  'Retired drafts and paused overdue tasks must not increase operational totals or completion denominators.');
+assert.equal(filterMarkRecordsByStatusTab([...records,...historical], 'All Records').length, 6,
+  'Authorized history must still retain retired and paused rows.');
+assert.deepEqual(getOperationalMarkRecords([...historical,...records]), records,
+  'Operational previews exclude history rows even when those rows are most recent.');
+assert.deepEqual(getOperationalMarkRecords(historical), []);
+const explicitActive = { ...records[0], taskLifecycleStatus: 'ACTIVE' as const };
+assert.deepEqual(getOperationalMarkRecords([...historical, explicitActive]), [explicitActive],
+  'Explicitly active submitted records remain in operational monitoring.');
+assert.deepEqual(getMarkRecordSummary(historical), { total: 0, submitted: 0, draft: 0, notStarted: 0, overdue: 0, incomplete: 0 });
+console.log('Retired and paused Marks operational exclusion passed');

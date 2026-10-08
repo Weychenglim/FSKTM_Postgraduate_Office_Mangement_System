@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
   APPROVED: 'Confirmed',
   CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
+  CANCELLED_BY_OFFICE: 'Cancelled by Office',
 };
 
 const getInitials = (name: string) =>
@@ -64,19 +65,20 @@ const inferWorkflowStatus = (recommendation: SubmittedRecommendation): PanelReco
   return 'SUBMITTED_TO_PANEL';
 };
 
-const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] => {
+export const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] => {
   const status = inferWorkflowStatus(recommendation);
   const submittedAt = formatDateTime(recommendation.submittedAt) || recommendation.date;
   const panelDecisionAt = formatDateTime(recommendation.panelDecisionAt);
   const coordinatorDecisionAt = formatDateTime(recommendation.coordinatorDecisionAt);
   const panelAccepted =
+    recommendation.selectedPanelDecision === 'ACCEPTED' ||
     status === 'PENDING_COORDINATOR' ||
     status === 'APPROVED' ||
     status === 'REJECTED_BY_COORDINATOR';
   const panelRejected = status === 'REJECTED_BY_PANEL';
   const coordinatorActive = status === 'PENDING_COORDINATOR';
   const coordinatorRejected = status === 'REJECTED_BY_COORDINATOR';
-  const cancelled = status === 'CANCELLED_BY_SUPERVISOR';
+  const cancelled = status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE';
   const cancelledAt = formatDateTime(recommendation.cancelledAt);
 
   return [
@@ -88,21 +90,21 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
     },
     {
       id: 'panel',
-      label: cancelled ? 'Cancelled by Supervisor' : 'Selected Panel Review',
-      detail: cancelled
+      label: cancelled && !panelAccepted ? STATUS_LABELS[status] : 'Selected Panel Review',
+      detail: cancelled && !panelAccepted
         ? cancelledAt || recommendation.cancellationReason || 'Cancelled before the selected panel took action'
         : panelRejected
         ? panelDecisionAt || recommendation.rejectionReason || 'Rejected by selected panel member'
         : panelAccepted
         ? panelDecisionAt || 'Selected panel member accepted'
         : 'Awaiting selected panel member decision',
-      state: cancelled ? 'cancelled' : panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
+      state: panelAccepted ? 'completed' : cancelled ? 'cancelled' : panelRejected ? 'rejected' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
     },
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
       detail: cancelled
-        ? 'Not reached because the recommendation was cancelled'
+        ? panelAccepted ? 'Recommendation cancelled before Programme Coordinator confirmation' : 'Not reached because the recommendation was cancelled'
         : coordinatorRejected
         ? coordinatorDecisionAt || recommendation.rejectionReason || 'Rejected by Programme Coordinator'
         : status === 'APPROVED'
@@ -110,7 +112,9 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
         : coordinatorActive
         ? 'Awaiting Programme Coordinator confirmation'
         : 'Pending selected panel acceptance',
-      state: coordinatorRejected
+      state: cancelled && panelAccepted
+        ? 'cancelled'
+        : coordinatorRejected
         ? 'rejected'
         : status === 'APPROVED'
         ? 'completed'
@@ -123,7 +127,7 @@ const buildTimeline = (recommendation: SubmittedRecommendation): TimelineItem[] 
       label: cancelled ? 'Recommendation Closed' : status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
       detail:
         cancelled
-          ? recommendation.cancellationReason || 'Cancelled by supervisor'
+          ? recommendation.cancellationReason || STATUS_LABELS[status]
           : status === 'APPROVED'
           ? coordinatorDecisionAt || 'Appointment record created'
           : panelRejected || coordinatorRejected

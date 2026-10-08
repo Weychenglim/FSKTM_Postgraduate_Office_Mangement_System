@@ -12,6 +12,8 @@ import { MarkRecord } from '../types';
 import {
   filterMarkRecordsByStatusTab,
   getMarkRecordSummary,
+  getOperationalMarkRecords,
+  getMarkMonitoringSemesterLabel,
   MarkRecordStatusTab,
 } from '../utils/markRecords';
 
@@ -45,12 +47,13 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
     loadRecords();
   }, [loadRecords]);
 
-  const summary = useMemo(() => getMarkRecordSummary(records), [records]);
+  const activeRecords = useMemo(() => getOperationalMarkRecords(records), [records]);
+  const summary = useMemo(() => getMarkRecordSummary(activeRecords), [activeRecords]);
   const selectedRecords = useMemo(
-    () => filterMarkRecordsByStatusTab(records, selectedStatusGroup).slice(0, 4),
-    [records, selectedStatusGroup],
+    () => filterMarkRecordsByStatusTab(activeRecords, selectedStatusGroup).slice(0, 4),
+    [activeRecords, selectedStatusGroup],
   );
-  const activeSemester = records[0]?.semester || 'No active evaluation period';
+  const semesterScope = getMarkMonitoringSemesterLabel(activeRecords);
   const submittedRatio = summary.total > 0 ? Math.round((summary.submitted / summary.total) * 100) : 0;
 
   const cards: Array<{
@@ -72,7 +75,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
             Mark Submission Monitoring
           </h3>
           <p className="text-slate-500 text-xs font-medium mt-1">
-            Live status of mark entry completion for the active evaluation period.
+            Live completion status of active evaluation tasks across evaluation periods.
           </p>
         </div>
         <StatusBadge tone="brand" icon={Activity}>Live Data</StatusBadge>
@@ -87,8 +90,8 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
           <div id="semester-progress-hero" className="p-5 bg-slate-50/80 border border-slate-100 rounded-2xl my-6">
             <div className="flex justify-between items-start mb-3">
               <div className="flex flex-col">
-                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Active Semester</span>
-                <span className="text-sm font-extrabold text-brand-navy mt-0.5">{activeSemester}</span>
+                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Semester scope</span>
+                <span className="text-sm font-extrabold text-brand-navy mt-0.5">{semesterScope}</span>
               </div>
               <div className="flex flex-col text-right">
                 <div className="flex items-baseline justify-end gap-1">
@@ -206,7 +209,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                 Recent Activity
               </span>
               <div className="space-y-4">
-                {records.slice(0, 3).map((record) => (
+                {activeRecords.slice(0, 3).map((record) => (
                   <div key={`activity-${record.id}`} className="flex gap-3.5">
                     <div className="w-7 h-7 bg-blue-50 border border-blue-100/50 rounded-lg flex items-center justify-center shrink-0">
                       {record.status === 'Submitted' ? (

@@ -6,6 +6,7 @@ type SupervisorWorkflowStatus =
   | 'PENDING_COORDINATOR'
   | 'REJECTED_BY_COORDINATOR'
   | 'CANCELLED_BY_STUDENT'
+  | 'CANCELLED_BY_OFFICE'
   | 'APPROVED';
 
 export const canStudentCancelSupervisorApplication = (
