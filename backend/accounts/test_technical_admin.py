@@ -3,8 +3,18 @@
 import os
 from unittest import mock
 
+from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
 
@@ -47,3 +57,82 @@ class TechnicalAdministratorAccountTests(TestCase):
         plain = User.objects.create_user(email="plain@example.test", password=TECH_PASSWORD)
         self.assertEqual(plain.role, User.Role.STUDENT)
         self.assertFalse(plain.is_technical_admin)
+
+
+class TechnicalAccountPortalTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.tech = User.objects.create_superuser(
+            email="tech.portal@example.test", password=TECH_PASSWORD
+        )
+
+    def _login(self, password):
+        return self.client.post(
+            "/api/auth/login/",
+            {"identifier": self.tech.email, "password": password},
+            format="json",
+            REMOTE_ADDR="192.0.2.130",
+        )
+
+    def test_login_is_refused_without_issuing_a_session(self):
+        response = self._login(TECH_PASSWORD)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "technical_account")
+        self.assertNotIn("token", response.data)
+        self.assertNotIn(settings.JWT_REFRESH_COOKIE_NAME, response.cookies)
+
+    def test_a_wrong_password_still_gets_the_generic_reply(self):
+        response = self._login("Not-the-password-1!")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data, {"error": "Invalid credentials."})
+
+    def test_existing_access_tokens_are_refused_by_the_portal_api(self):
+        client = APIClient()
+        client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.tech).access_token}"
+        )
+        for path in (
+            "/api/auth/me/",
+            "/api/notifications/",
+            "/api/registry/students/",
+            "/api/letter-templates/",
+        ):
+            with self.subTest(path=path):
+                response = client.get(path)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(response.data["code"], "technical_account")
+
+    def test_a_refresh_session_is_revoked_instead_of_renewed(self):
+        refresh = RefreshToken.for_user(self.tech)
+        self.client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = str(refresh)
+        response = self.client.post("/api/auth/refresh/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "technical_account")
+        self.assertNotIn("token", response.data)
+        self.assertEqual(response.cookies[settings.JWT_REFRESH_COOKIE_NAME].value, "")
+        self.assertTrue(BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists())
+
+    def test_password_reset_sends_nothing_and_gives_the_usual_reply(self):
+        technical = self.client.post(
+            "/api/auth/password-reset/", {"email": self.tech.email}, format="json"
+        )
+        unknown = self.client.post(
+            "/api/auth/password-reset/", {"email": "nobody@example.test"}, format="json"
+        )
+        self.assertEqual(technical.status_code, status.HTTP_200_OK)
+        self.assertEqual(technical.data, unknown.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_an_outstanding_reset_link_cannot_change_the_password(self):
+        response = self.client.post(
+            "/api/auth/password-reset/confirm/",
+            {
+                "uid": urlsafe_base64_encode(force_bytes(self.tech.pk)),
+                "token": default_token_generator.make_token(self.tech),
+                "new_password": "Another-secure-pass-8830!",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.tech.refresh_from_db()
+        self.assertTrue(self.tech.check_password(TECH_PASSWORD))

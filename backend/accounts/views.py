@@ -27,6 +27,7 @@ from appointments.models import SupervisorAppointment
 
 from .authentication import RefreshCookieAuthentication
 from .models import NotificationPreference
+from .password_policy import TechnicalAccountForbidden
 from .serializers import (
     ChangePasswordSerializer,
     ContactDetailsSerializer,
@@ -94,6 +95,9 @@ def login_view(request):
     if not user.check_password(password) or not user.is_active:
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
+    if user.is_technical_admin:
+        raise TechnicalAccountForbidden()
+
     refresh = RefreshToken.for_user(user)
     response = Response(
         {"token": str(refresh.access_token), "user": user.to_public_dict()}
@@ -106,6 +110,12 @@ def login_view(request):
 @permission_classes([IsAuthenticated])
 def refresh_view(request):
     _require_json_request(request)
+    if request.user.is_technical_admin:
+        request.auth.blacklist()
+        response = Response(
+            TechnicalAccountForbidden.default_detail, status=status.HTTP_403_FORBIDDEN
+        )
+        return delete_refresh_cookie(response)
     serializer = TokenRefreshSerializer(data={"refresh": str(request.auth)})
     serializer.is_valid(raise_exception=True)
     response = Response({"token": serializer.validated_data["access"]})
@@ -328,7 +338,11 @@ def password_reset_view(request):
     serializer.is_valid(raise_exception=True)
     email = serializer.validated_data["email"]
 
-    user = User.objects.filter(email__iexact=email, is_active=True).first()
+    user = (
+        User.objects.filter(email__iexact=email, is_active=True)
+        .exclude(role=User.TECHNICAL_ADMIN)
+        .first()
+    )
     if user is not None:
         send_password_reset_email(user)
 
@@ -359,6 +373,7 @@ def password_reset_confirm_view(request):
     if (
         user is None
         or not user.is_active
+        or user.is_technical_admin
         or not default_token_generator.check_token(user, token)
     ):
         return Response(
