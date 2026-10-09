@@ -8,9 +8,9 @@
 // unreachable *and* mocks are enabled, so the UI still renders offline; writes
 // always go to the backend (they require an authenticated staff user).
 
-import { LetterTemplate } from '../types';
+import { LetterPlaceholder, LetterTemplate } from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
-import { USE_MOCKS, mockResponse, request } from './apiClient';
+import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
 
 /** Payload for creating/updating a template (frontend field names). */
 export interface LetterTemplateInput {
@@ -52,7 +52,8 @@ export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/');
   } catch (err) {
-    if (USE_MOCKS) return mockResponse(MOCK_LETTER_TEMPLATES);
+    // Only a genuine transport failure may fall back; a 401/403 must surface.
+    if (USE_MOCKS && isTransportFailure(err)) return mockResponse(MOCK_LETTER_TEMPLATES);
     throw err;
   }
 }
@@ -62,7 +63,7 @@ export async function getStudentLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/?status=Active');
   } catch (err) {
-    if (USE_MOCKS) {
+    if (USE_MOCKS && isTransportFailure(err)) {
       return mockResponse(MOCK_LETTER_TEMPLATES.filter((t) => t.status === 'Active'));
     }
     throw err;
@@ -90,4 +91,9 @@ export async function updateLetterTemplate(
 
 export async function deleteLetterTemplate(id: string): Promise<void> {
   await request<void>(`/letter-templates/${id}/`, { method: 'DELETE' });
+}
+
+/** The placeholders a template may use, with labels and value sources. */
+export async function getLetterPlaceholders(): Promise<LetterPlaceholder[]> {
+  return request<LetterPlaceholder[]>('/letter-templates/placeholders/');
 }

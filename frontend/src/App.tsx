@@ -23,6 +23,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
+import { ForcedPasswordChange } from './components/ForcedPasswordChange';
 import type { DashboardSummary, DemoUser, EvaluationPeriodOption, NotificationItem, RubricVersion } from './types';
 import { SIDEBAR_ITEMS } from './constants/navigation';
 import {
@@ -52,7 +53,11 @@ import {
   canAccessModule,
 } from './auth/permissions';
 import * as authApi from './services/authApi';
-import { clearAuthToken } from './services/apiClient';
+import {
+  PASSWORD_CHANGE_REQUIRED_EVENT,
+  SESSION_EXPIRED_EVENT,
+  clearAuthToken,
+} from './services/apiClient';
 import { getEvaluationPeriods, getRubricVersions } from './services/marksApi';
 import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
@@ -170,6 +175,28 @@ export default function App() {
     };
   }, []);
 
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+
+  // The API client clears the token and fires this when the backend rejects it
+  // mid-session. Without a listener the user stays in an authenticated shell
+  // while every request fails, until they happen to reload.
+  useEffect(() => {
+    const handleExpiry = () => {
+      setSessionNotice('Your session has expired. Please sign in again.');
+      setCurrentUser(null);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
+  }, []);
+
+  useEffect(() => {
+    const handlePasswordChangeRequired = () =>
+      setCurrentUser((user) => (user ? { ...user, mustChangePassword: true } : user));
+    window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, handlePasswordChangeRequired);
+    return () =>
+      window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, handlePasswordChangeRequired);
+  }, []);
+
   const [marksRecordStatusTab, setMarksRecordStatusTab] = useState<MarkRecordStatusTab>('All Records');
   const [marksDashboardSummary, setMarksDashboardSummary] = useState<DashboardSummary | null>(null);
   const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriodOption[]>([]);
@@ -259,7 +286,7 @@ export default function App() {
     );
 
   useEffect(() => {
-    if (currentUser?.role !== 'Office Staff/Admin') {
+    if (currentUser?.role !== 'Office Staff/Admin' || currentUser.mustChangePassword) {
       setMarksDashboardSummary(null);
       setEvaluationPeriods([]);
       setRubricVersions([]);
@@ -284,7 +311,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.role]);
+  }, [currentUser?.role, currentUser?.mustChangePassword]);
 
   const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records') => {
     setMarksRecordStatusTab(statusTab);
@@ -332,6 +359,7 @@ export default function App() {
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
+    setSessionNotice(null);
     setCurrentUser(user);
     navigate(routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
   };
@@ -343,6 +371,7 @@ export default function App() {
 
   const handleLogout = () => {
     void authApi.logout();
+    setSessionNotice(null);
     setCurrentUser(null);
     navigate(APP_ROUTES.login, { replace: true });
   };
@@ -401,9 +430,26 @@ export default function App() {
               <LoginCard
                 onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
                 onLoginSuccess={handleSuccessfulLogin}
+                notice={sessionNotice}
               />
               {appToastMessage && <p role="status" className="mt-4 text-sm text-slate-700">{appToastMessage}</p>}
             </div>
+          </div>
+        </AuthLayout>
+      </div>
+    );
+  }
+
+  if (currentUser.mustChangePassword) {
+    return (
+      <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
+        <AuthLayout>
+          <div className="w-full flex justify-center items-center">
+            <ForcedPasswordChange
+              userName={currentUser.fullName}
+              onChanged={() => setCurrentUser({ ...currentUser, mustChangePassword: false })}
+              onLogout={handleLogout}
+            />
           </div>
         </AuthLayout>
       </div>
@@ -682,7 +728,10 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
-              <StudentRegistry />
+              <StudentRegistry
+                readOnly={currentUser.role !== 'Office Staff/Admin'}
+                onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
+              />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
               isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />

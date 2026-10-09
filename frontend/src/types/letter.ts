@@ -5,7 +5,15 @@
 
 // Letter generation domain models (UC40–UC42).
 
-export type LetterTemplateStatus = 'Active' | 'Draft';
+export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
+
+/** One placeholder a template may use, from `GET /api/letter-templates/placeholders/`. */
+export interface LetterPlaceholder {
+  tag: string;
+  name: string;
+  label: string;
+  source: string;
+}
 
 /**
  * A single official letter template. Staff author and manage these (name,

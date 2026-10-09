@@ -24,16 +24,19 @@ import { authenticationErrorMessage } from '../utils/authErrorMessage';
 interface LoginCardProps {
   onForgotPasswordClick?: () => void;
   onLoginSuccess?: (user: DemoUser) => void;
+  notice?: string | null;
 }
 
-export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onLoginSuccess }) => {
+export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onLoginSuccess, notice }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ id?: string; pass?: string }>({});
-  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
+    notice ? { type: 'info', message: notice } : null,
+  );
 
   const [activeModal, setActiveModal] = useState<'forgot' | 'helpdesk' | 'manual' | null>(null);
 

@@ -127,6 +127,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                 if student and student.status != Student.Status.ACTIVE
                 else "ACTIVE"
             ),
+            "mustChangePassword": self.must_change_password,
         }
 
 
@@ -382,6 +383,86 @@ class Panel(models.Model):
 
     def __str__(self):
         return f"Panel — {self.lecturer.user.full_name}"
+
+
+class NotificationPreference(models.Model):
+    """Per-user delivery preferences shown in the Settings module.
+
+    Created on demand rather than by signal, so existing accounts keep working
+    without a data migration; :meth:`for_user` returns the stored row or the
+    defaults below.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="notification_preference",
+    )
+    email_notifications = models.BooleanField(default=True)
+    announcement_alerts = models.BooleanField(default=True)
+    deadline_reminders = models.BooleanField(default=True)
+    weekly_summary = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    FIELD_MAP = {
+        "emailNotifications": "email_notifications",
+        "announcementAlerts": "announcement_alerts",
+        "deadlineReminders": "deadline_reminders",
+        "weeklySummary": "weekly_summary",
+    }
+
+    @classmethod
+    def for_user(cls, user):
+        preference, _ = cls.objects.get_or_create(user=user)
+        return preference
+
+    def to_public_dict(self):
+        return {key: getattr(self, field) for key, field in self.FIELD_MAP.items()}
+
+    def __str__(self):
+        return f"Notification preferences — {self.user.email}"
+
+
+class RegistryImportBatch(models.Model):
+    """One committed Student Registry bulk import (UC04)."""
+
+    file_name = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_imports",
+    )
+    uploaded_by_name = models.CharField(max_length=255, blank=True, default="")
+    total_rows = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    invitations_failed = models.PositiveIntegerField(default=0)
+    problems = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def to_public_dict(self):
+        return {
+            "id": self.pk,
+            "fileName": self.file_name,
+            "uploadedBy": self.uploaded_by_name,
+            "totalRows": self.total_rows,
+            "created": self.created_count,
+            "skipped": self.skipped_count,
+            "failed": self.failed_count,
+            "invitationsFailed": self.invitations_failed,
+            "problems": self.problems,
+            "createdAt": self.created_at.isoformat(),
+        }
+
+    def __str__(self):
+        return f"{self.file_name} — {self.created_count} created"
 
 
 class CoordinatorDelegationQuerySet(models.QuerySet):

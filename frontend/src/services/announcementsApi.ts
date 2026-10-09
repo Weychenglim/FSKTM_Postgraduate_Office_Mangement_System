@@ -13,6 +13,7 @@ import { AnnouncementItem } from '../types';
 import { MOCK_ANNOUNCEMENTS } from '../mocks/announcements';
 import {
   USE_MOCKS,
+  isTransportFailure,
   mockResponse,
   request,
   requestMultipart,
@@ -34,7 +35,8 @@ export async function getAnnouncements(): Promise<AnnouncementItem[]> {
   try {
     return await request<AnnouncementItem[]>('/announcements/');
   } catch (err) {
-    if (USE_MOCKS) return mockResponse(MOCK_ANNOUNCEMENTS);
+    // Only a genuine transport failure may fall back; a 401/403 must surface.
+    if (USE_MOCKS && isTransportFailure(err)) return mockResponse(MOCK_ANNOUNCEMENTS);
     throw err;
   }
 }

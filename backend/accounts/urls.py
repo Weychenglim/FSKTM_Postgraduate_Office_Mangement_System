@@ -11,6 +11,12 @@ urlpatterns = [
     path("settings/", views.settings_view, name="settings"),
     path("settings/password/", views.settings_password_view, name="settings-password"),
     path("me/letter-details/", views.my_letter_details_view, name="my-letter-details"),
+    path("me/change-password/", views.change_password_view, name="change-password"),
+    path(
+        "me/notification-preferences/",
+        views.notification_preferences_view,
+        name="notification-preferences",
+    ),
     path("password-reset/", views.password_reset_view, name="password-reset"),
     path(
         "password-reset/confirm/",

@@ -6,6 +6,18 @@
 - Fresh verification passes **all 683 backend tests in 604.078 seconds** with two isolated test workers, all **75 frontend test scripts**, TypeScript and production build (6.05 seconds), Django checks, migration-drift, whitespace and documentation source/link checks. Independent integration review found no actionable issues. GitHub reported the PR mergeable with a clean merge state; there were no reported remote status checks. This release record changes documentation only after the application merge.
 - This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01–T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
 
+## Main Sync: Teammate Settings Adopted (2026-10-08)
+
+- Merged `origin/main` (`9ee3bd4`) into `Xiang`.
+- **Settings.** Both branches had built Settings; the team kept the `main` version. The Settings screen uses `GET/PATCH /api/auth/settings/` and `POST /api/auth/settings/password/` (signs the user out after a change), and announcement alerts are stored on `User.announcement_alerts`.
+- **Still used from `Xiang`.** `POST /api/auth/me/change-password/` for the forced first-login change (`ForcedPasswordChange`), and duplicate-proof announcement delivery (`event_key`), which now also skips recipients with announcement alerts off unless the announcement is Urgent.
+- **No longer used by the frontend.** `PATCH /api/auth/me/` (phone), `/api/auth/me/notification-preferences/`, the `NotificationPreference` table and the matching `authApi` helpers. They are kept for now; remove them or fold them into `/api/auth/settings/` when Phase 8 adds email, deadline and weekly-summary preferences.
+- Migration `accounts.0007` joins `0006_registry_import_batch` and `0006_user_announcement_alerts`.
+- **Integration fixes.**
+  - An account that must change its temporary password can now also use its own Settings (`GET/PATCH /api/auth/settings/` and `POST /api/auth/settings/password/`). Everything else stays blocked until the password is changed.
+  - `apiClient` no longer clears an already-dropped token on a 401. Clearing it bumped the session version, so a password change that finished alongside a revoked request did not send the user back to sign in.
+  - `types/auth.ts` had `phone` declared twice after the auto-merge; one copy was removed.
+- **Verification.** 768 backend tests pass with `--parallel 2`. With `--parallel 4`, the PostgreSQL concurrency tests lost their connections on this machine, matching the teammate's earlier note. Django checks, migration-drift and whitespace checks pass.
 ## Consolidated pending work and decisions (2026-10-08)
 
 - Start with [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md). It preserves the user's technical-only Django admin direction and separates implementation tasks T01–T06, acceptance slices A01–A07, release/deployment work, teammate integration gaps and deferred policy decisions. Creating this document did not implement the access change.
@@ -152,6 +164,123 @@
 - Backup rehearsal restored a custom-format dump to a separate database and matched all **62 public tables** by row count and content fingerprint. Dumps and local acceptance data remain outside Git. No hosting server exists yet; `deploy/RELEASE_RUNBOOK.md` records provisioning decisions, configuration, backups, rollback and acceptance steps. No public deployment is claimed.
 - User authorized committing and pushing the combined acting-coordinator, completion-window, research-amendment and release-preparation changes after verification.
 
+## Letter Templates: Archive and Placeholder Validation (2026-09-27)
+
+- **Archived status.** Letter templates gain an `Archived` status (migration `letters.0002_template_archived_status`). Archived templates keep their wording, never appear to students (hidden from the list, 403 by id), and can be restored to Draft or Active. The editor hides them behind a "Show archived templates" toggle, and the status field offers Archived.
+- **Placeholder registry.** `letters/placeholders.py` lists all 16 supported placeholders with a label and the source of each value. `GET /api/letter-templates/placeholders/` exposes the list to signed-in users, and the editor's insert buttons now come from it, showing the source as a tooltip.
+- **Validation.**
+  - Creating a template, changing its content, or publishing it now rejects unknown tags (for example `{{STUDNET_NAME}}`) and malformed ones (`{{NAME}`, `{NAME}}`, `{{ name }}`). The response is 400 with `unknownPlaceholders` and `malformedPlaceholders`, and the message is shown under the content field.
+  - A legacy template with a bad tag can still be archived, but cannot be published until it is fixed.
+  - All four templates in the development database pass the new check.
+- **Editor.**
+  - The "Preview" buttons used to show a canned "validated successfully" message without checking anything. They are now "Check" actions that run the same rules as the server.
+  - The live preview marks unknown tags in red.
+- **Supervisor in letters.** `/api/auth/me/letter-details/` now fills `supervisorName` from the student's current primary supervisor instead of leaving it blank, so `{{SUPERVISOR_NAME}}` has a real source.
+- **Parity.** A frontend test reads `letters/placeholders.py` and checks that `LETTER_PLACEHOLDERS` (tags and labels) matches it, that `substitutePlaceholders` fills every tag, and that the editor check agrees with the server rules.
+- **Verification.**
+  - **Backend:** **595 tests passed**, including 9 new letter-template tests and a letter-details supervisor test.
+  - **Frontend:** all **55 test scripts** passed.
+  - TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` pass. The migration was applied to the development database after a `pg_dump` backup.
+- **Live smoke check** with temporary office and student accounts, all deleted afterwards:
+  - A typo and a missing brace were each rejected with a clear message.
+  - A valid template was created, archived (hidden from the student), and restored.
+  - The placeholder endpoint listed all 16 tags and refused anonymous access.
+  - Browser visual acceptance remains unverified.
+
+## Registry Supervisor Data and Role-Scoped Read Access (2026-09-27)
+
+- **Supervisor data.**
+  - Registry records now carry `supervisor` and `supervisorStaffNo` from the student's active primary `SupervisorAppointment`. The data is only read from the appointments module, never written.
+  - One prefetch loads it, and a test confirms the list's query count does not grow with the number of students.
+  - `GET /api/registry/students/?supervisor=` matches a supervisor's name or staff number.
+- **Read scope (UC05).**
+  - Office Staff/Admin read every record.
+  - Programme Coordinators read their managed programme, reusing `accounts.authorization.coordinator_programme`.
+  - Coordinators and Lecturers also read the students they currently supervise or co-supervise.
+  - A record outside the caller's scope returns 404, and every write, import, access-link, and import-history endpoint stays Office-only.
+  - The two older tests that expected lecturers to be refused outright now expect a scoped, read-only registry.
+- **Frontend.**
+  - Lecturers now have the Registry module. Coordinators and lecturers see it read-only: no register, import, bulk verify, status change, access link or reinstate actions, and no staff and lecturer tab.
+  - Added a Supervisor column and a supervisor filter (including "No supervisor yet"). Reset clears every filter, and an empty result reads "No matching students found".
+  - The programme, semester, and status filters previously offered values no record could match ("PhD (CS)", "Master (SE)", fixed semester strings, and "Pending"/"Suspended" as academic statuses). They now use the approved programme list, the semesters present in the data, and the four real statuses.
+- **Removed invented content.**
+  - All five summary cards were fabricated (for example `1248 + (students.length - 6)` and a flat `145`). They are now computed from the loaded records: total, active, deferred, graduated or withdrawn, and awaiting activation. "New this intake" was replaced with "awaiting activation" because intake values are free text, with no reliable "latest intake".
+  - The student panel's "verification milestones", including a hardcoded staff name, now show the account's real activation state, sign-in access, and last sign-in.
+- **Verification.**
+  - **Backend:** **585 tests passed**, including 7 new scope tests.
+  - **Frontend:** all **54 test scripts** passed, including new summary-helper tests and a source guard against the fabricated values and unguarded write actions.
+  - TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` pass. No migration was needed.
+- **Live smoke check.** Temporary office, coordinator, lecturer, and student accounts plus a temporary Draft semester and appointment were used, then deleted.
+  - Office saw all three test students with the supervisor details, and the filter matched.
+  - The coordinator saw only the student in their programme, and the lecturer saw only their supervisee; each got 404 for the other student and 403 for writes.
+  - The student got 403.
+  - Browser visual acceptance remains unverified.
+
+## Server-Side Student Import With Real History (2026-09-26)
+
+- **Import endpoint.** `POST /api/registry/students/import/` (Office only) accepts CSV or XLSX up to 2 MB and 1,000 student rows. XLSX is opened read-only after a ZIP signature check.
+  - It validates the header row and every row: required matric number and name, a valid email, an approved programme (any letter case), no duplicate matric number or email within the file, and none already registered. Rows are never auto-corrected.
+  - `dryRun=true` returns per-row statuses without writing anything.
+  - A commit creates each Ready row on its own through the same code path as single registration, skips duplicates, leaves other problem rows out, and sends activation emails.
+- **History.** Each commit is recorded as a `RegistryImportBatch` (migration `accounts.0006_registry_import_batch`) with counts, the uploader's name, and the rows that need attention. `GET /api/registry/imports/?limit=` lists them.
+- **Programme list.** `APPROVED_PROGRAMMES` moved to `accounts/programmes.py`, and a backend test fails if it drifts from `frontend/src/constants/programmes.ts`. A frontend test likewise checks that the template headers match the backend's `IMPORT_HEADERS`.
+- **Registry import screen.**
+  - Accepts XLSX as well as CSV and gets its preview from the server. Edited rows are sent back to the server to be checked again.
+  - Rows are keyed by line, so duplicate IDs in a file no longer collide.
+  - After an import, only the rows that were not created stay on screen for correction.
+  - Recent Imports shows real batches, "View All" loads up to 50, and each batch's problem rows can be downloaded as CSV.
+- **Removed invented content** from the import screen: the pre-filled file name, two fake import-history entries, "security scan" wording, the hardcoded 1,248/86 counts (now real registered and awaiting-activation counts), and column and guideline text that did not match the importer.
+- The browser-side validation in `utils/csvImport.ts` was retired. Its test cases now run as backend tests, and the module keeps only the template and the CSV builder for reviewed rows.
+- **Verification.** **578 backend tests passed** across all seven apps, including 15 new import tests, and all **53 frontend test scripts** passed. TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` also pass. The new migration was applied to the development database after a `pg_dump` backup.
+- **Live smoke check** with SMTP disabled for the server process:
+  - A CSV preview and commit created one row and left out one with a bad programme.
+  - An XLSX preview and commit created one row and skipped a row already registered by the CSV run.
+  - A `.txt` upload was refused, and Recent Imports listed both runs.
+  - The temporary accounts, imported students, and batches were deleted afterwards. Browser visual acceptance remains unverified.
+
+## Sign-In Safety: Session Expiry, Forced Password Change, Access Links (2026-09-26)
+
+- **Session expiry (UC01).** When a signed-in session can no longer be refreshed, the login card now shows "Your session has expired. Please sign in again." A normal sign-out shows no message.
+- **Forced password change (UC02).**
+  - The user payload now includes `mustChangePassword`.
+  - `accounts.password_policy.PasswordPolicyJWTAuthentication`, registered as the DRF default authentication class, answers flagged accounts with 403 and code `password_change_required` everywhere except `GET /api/auth/me/` and `POST /api/auth/me/change-password/`. Refresh and logout keep their own cookie authentication, so they still work.
+  - The frontend holds flagged users on a full-screen change-password step before the app shell, and returns to it if any request reports `password_change_required`. The Settings password form is now a shared `PasswordChangeForm` component.
+  - The Office marks dashboard preload waits until the password has been changed.
+  - The flag is set by an administrator, for example in Django admin. New accounts still use activation links rather than temporary passwords.
+- **Office-sent access links (UC02).**
+  - `POST /api/registry/students/<matric>/send-access-link/` (Office only) resends the activation email to accounts that were never activated and sends a password-reset email otherwise. It refuses suspended accounts with 409 and reports whether the email was sent.
+  - It is throttled per student account (`REGISTRY_ACCESS_LINK_THROTTLE_RATE`, default 3/hour); requests refused for non-office users do not count toward the limit.
+  - The action sits in the Registry student panel rather than in the table row, so the office can see the account's state before sending.
+  - `send_password_reset_email` now reports whether the email was sent; the anonymous reset endpoint still ignores that result.
+- `backend/.env.example` now also documents `AUTH_CHANGE_PASSWORD_THROTTLE_RATE` and `REGISTRY_ACCESS_LINK_THROTTLE_RATE`.
+- **Verification.**
+  - **Backend:** **563 tests passed** across all seven apps on four PostgreSQL workers, including 12 new ones (5 for the forced password change, 7 for access links). With the default authentication class switched back to plain JWT, the enforcement test fails.
+  - **Frontend:** all **52 test scripts** pass, including new render and wiring tests and an API-client test for the `password_change_required` event. TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` also pass.
+- **Live smoke check** against the development database, using temporary accounts that were deleted afterwards and SMTP disabled for the server process:
+  - The flagged login reports the flag, is refused elsewhere with `password_change_required`, changes the password, and then regains access with the flag cleared.
+  - Access links return an activation link for a never-activated account and a reset link for an activated one, and a suspended account gets 409. Both emails were printed to the console, not sent.
+  - Browser visual acceptance remains unverified.
+
+## Registry Status Changes Use the Participant Lifecycle (2026-09-26)
+
+- Fixed an integration bug between Registry Management and the participant lifecycle. The Registry update endpoint assigned `Student.status` directly, so withdrawing or graduating a student from the Registry left active appointments open, did not pause or retire Marks tasks, did not cancel pending work, and wrote no audit record.
+- Any `academicStatus` change on `PATCH /api/registry/students/<matric>/` now goes through `transition_student` with a required `statusReason`. Lifecycle errors map to 400, 403, or 409 (409 includes blockers), and the transition and any other field edits in the same request succeed or fail together. Sending the current status needs no reason. Registration now only creates Active students.
+- The Registry student panel has a "Change Academic Status" control. It offers only the lifecycle's allowed transitions, requires a reason, lists blockers when a transition is refused, and links to Participant Lifecycle to resolve them.
+- Lifecycle transitions require an Office Staff/Admin account that also has Django `is_staff`. Registry editing does not, so an office account without `is_staff` can still correct Registry fields but receives 403 for status changes.
+- Verification: **551 backend tests passed** across all seven apps on four PostgreSQL workers. They include 7 new Registry tests; 6 of them fail on the previous code, including a regression test proving that a Registry withdrawal now ends the active supervisor appointment. All **50 frontend test scripts** (including the new `registryStatus.test.ts`), TypeScript lint, production build, production guards, Django system and migration-drift checks, and `git diff --check` pass.
+- Live smoke check against the development database: a missing reason returns 400, Active-only registration returns 400, reversing a Graduated status returns 409 with other fields unchanged, and a normal edit returns 200; the temporary accounts were deleted afterwards. The successful transition was verified by tests only, because lifecycle audit rows are protected from deletion by design and would have left permanent smoke data. Browser visual acceptance remains unverified.
+
+## Settings, Student Registry, and Security Hardening (2026-09-26)
+
+- Settings now persists through Django: phone number via `PATCH /api/auth/me/`, password change (current-password check, Django validators, its own throttle scope keyed on the account), and per-user notification preferences (`NotificationPreference`, migration `accounts.0004_notificationpreference`). Email, role, and ID fields stay office-controlled.
+- Student Registry is served by `/api/registry/students/` for Office Staff/Admin only. Registration creates the account and profile in one transaction without a password (the student activates through a link). Bulk verify, CSV import, correction, and reinstatement persist through the API; CSV rows are validated against the approved programme list with in-file duplicate detection, and the template is generated from the importer's own header list.
+- Authentication hardening: login hashes even for unknown identifiers, disabled accounts get the same generic 401, password reset rejects inactive accounts and validates against the resolved user, and reset mail failures no longer reveal registered addresses.
+- Announcements and letters authorization: edit/delete restricted to the author (Office Staff/Admin may moderate), drafts visible only to their author including retrieval by id and attachment download, attachments validated for size (`ANNOUNCEMENT_MAX_ATTACHMENT_BYTES`, default 10 MB), extension allowlist, and magic bytes, idempotent delivery, and retraction withdraws delivered notifications. Draft letter templates are hidden from students and lecturers.
+- Frontend services only fall back to mock data on a genuine transport failure; an HTTP error is shown as an error instead of rendering fixtures as real records. Letter generation is blocked when the student's record cannot be loaded.
+- FAQ chatbot: design spec and phased plan recorded under `docs/superpowers/`; `scripts/parse_faq_pdf.py` extracts the office FAQ into `docs/faq/faq-entries.json`, with 48 of 163 rows flagged for manual review before loading. The chatbot itself is not implemented yet.
+- Merged the latest `main` (PR #12) and adopted the refresh-cookie session. The session-expired event now fires when a request that had a session still receives 401 after the automatic refresh. `accounts.0005_merge_20260925_2258` joins the two `0004` migrations. Because `CHECK_REVOKE_TOKEN` invalidates every token on a password change, password change now blacklists outstanding refresh tokens and re-issues tokens for the current session instead of signing the user out on their next request. Existing login tests now post JSON.
+- Applied all migrations to the local development database after taking a backup.
+- Verification: **544 backend tests passed** across all seven apps on four PostgreSQL workers. All **49 frontend test scripts**, TypeScript lint, production build, production demo/CSP/artifact guards, Django system and migration-drift checks, and `git diff --check` pass. A live HTTP smoke test against the migrated development database passed 33/33 checks covering login/refresh/logout, Registry, letters, announcements, notifications, Settings including password change, Academics and Dashboard endpoints, and role restrictions; its temporary accounts were deleted afterwards. Frontend checks ran on Node 22.16.0, below the declared `>=22.22.0` (npm warns but everything passes). Browser visual acceptance remains unverified.
 ## Task-Specific Marks Completion Windows (2026-09-24)
 
 - Implemented reasoned Office batch grants, replacement/renewal, revocation and immutable history for existing eligible unfinished tasks. Closed-period recovery keeps the period and semester closed; archives stay locked. Submission records its effective deadline/window, and lifecycle changes invalidate rather than transfer exceptional access.

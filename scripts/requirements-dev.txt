@@ -1,0 +1,3 @@
+# Tooling for one-off scripts in this folder. Not required to run the
+# application — keep these out of backend/requirements.txt.
+pdfplumber>=0.11,<0.12
