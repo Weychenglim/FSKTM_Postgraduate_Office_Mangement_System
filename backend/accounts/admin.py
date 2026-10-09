@@ -1,5 +1,6 @@
-"""Django admin for the custom user + role profiles — the 'super admin' screen
-office staff use to create and manage accounts.
+"""Django admin for the custom user + role profiles — a technical maintenance
+screen. Office staff manage students in the portal; Technical Administrator
+accounts are maintenance-only and never hold a portal profile.
 
 A User is edited together with its one matching profile (Student / Office staff /
 Lecturer) via inlines. A Lecturer's overlapping specializations (Coordinator /
@@ -100,8 +101,9 @@ class UserAdmin(BaseUserAdmin):
     )
 
     def get_inline_instances(self, request, obj=None):
-        # Profiles can only attach to a saved user, so hide inlines on the add page.
-        if obj is None:
+        # Profiles can only attach to a saved user, so hide inlines on the add
+        # page, and a Technical Administrator never has a portal profile.
+        if obj is None or obj.is_technical_admin:
             return []
         return super().get_inline_instances(request, obj)
 

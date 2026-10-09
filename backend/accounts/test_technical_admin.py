@@ -1,14 +1,18 @@
 """Technical Administrator accounts are maintenance-only and never a portal role."""
 
 import os
+import tempfile
 from unittest import mock
 
 from django.conf import settings
+from django.contrib import admin
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import RequestFactory, TestCase, override_settings
+from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
@@ -20,6 +24,8 @@ from announcements.models import Announcement, Notification
 from announcements.views import _fan_out
 from letters.models import LetterTemplate
 
+from .admin import UserAdmin
+from .forms import UserChangeForm, UserCreationForm
 from .models import Student, User
 
 TECH_PASSWORD = "Technical-pass-5521!"
@@ -245,3 +251,138 @@ class TechnicalAccountAnnouncementTests(TestCase):
                 )
                 self.assertEqual(recipients, readers)
                 self.assertNotIn(tech.pk, recipients)
+
+
+class InspectionOnlyAdminTests(TestCase):
+    def setUp(self):
+        media = tempfile.TemporaryDirectory(prefix="fsktm-test-media-")
+        self.addCleanup(media.cleanup)
+        self.enterContext(override_settings(MEDIA_ROOT=media.name))
+        self.tech = User.objects.create_superuser(email="tech.admin@example.test", password=TECH_PASSWORD)
+        self.client.force_login(self.tech)
+        self.template = LetterTemplate.objects.create(
+            name="Admin Template", content="Dear {{STUDENT_NAME}}"
+        )
+        self.announcement = Announcement.objects.create(
+            title="Admin Notice",
+            content="Body",
+            attachment=SimpleUploadedFile("notice.pdf", b"%PDF-1.4 inspection"),
+        )
+        self.notification = Notification.objects.create(
+            recipient=self.tech, title="Admin Alert", service="Workflow", message="Body"
+        )
+
+    def test_templates_announcements_and_notifications_are_view_only(self):
+        records = (
+            ("letters_lettertemplate", self.template, "name"),
+            ("announcements_announcement", self.announcement, "title"),
+            ("announcements_notification", self.notification, "title"),
+        )
+        for name, record, field in records:
+            with self.subTest(model=name):
+                original = getattr(record, field)
+                change_url = reverse(f"admin:{name}_change", args=[record.pk])
+                self.assertEqual(self.client.get(reverse(f"admin:{name}_changelist")).status_code, 200)
+                self.assertEqual(self.client.get(reverse(f"admin:{name}_add")).status_code, 403)
+                page = self.client.get(change_url)
+                self.assertEqual(page.status_code, 200)
+                self.assertNotContains(page, 'name="_save"')
+                self.assertEqual(self.client.post(change_url, {field: "Edited"}).status_code, 403)
+                self.assertEqual(
+                    self.client.get(reverse(f"admin:{name}_delete", args=[record.pk])).status_code, 403
+                )
+                record.refresh_from_db()
+                self.assertEqual(getattr(record, field), original)
+
+    def test_a_private_attachment_shows_its_name_not_a_media_link(self):
+        page = self.client.get(
+            reverse("admin:announcements_announcement_change", args=[self.announcement.pk])
+        )
+        self.assertContains(page, "notice.pdf")
+        self.assertNotContains(page, "media/announcements")
+
+
+class OneAccountOneRoleAdminTests(TestCase):
+    def _change_form(self, user, **changes):
+        data = {
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "phone": "",
+            "must_change_password": False,
+            "is_active": True,
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "groups": [],
+            "user_permissions": [],
+        }
+        data.update(changes)
+        return UserChangeForm(data=data, instance=user)
+
+    def test_a_portal_account_cannot_be_made_a_superuser(self):
+        office = User.objects.create_user(
+            email="office.form@example.test",
+            password=TECH_PASSWORD,
+            full_name="Office Form",
+            role=User.Role.OFFICE_ADMIN,
+            is_staff=True,
+        )
+        form = self._change_form(office, is_superuser=True)
+        self.assertFalse(form.is_valid())
+        self.assertIn("cannot be superusers", str(form.errors))
+
+    def test_a_technical_account_must_keep_superuser_status(self):
+        tech = User.objects.create_superuser(email="tech.form@example.test", password=TECH_PASSWORD)
+        form = self._change_form(tech, is_superuser=False)
+        self.assertFalse(form.is_valid())
+        self.assertIn("must keep staff and superuser status", str(form.errors))
+        tech.refresh_from_db()
+        self.assertTrue(self._change_form(tech).is_valid())
+
+    def test_a_portal_account_with_a_profile_cannot_become_technical(self):
+        student = User.objects.create_user(
+            email="student.form@example.test",
+            password=TECH_PASSWORD,
+            full_name="Student Form",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=student,
+            matric_no="WGT260090",
+            programme="MASTER OF DATA SCIENCE (COURSEWORK)",
+            status=Student.Status.ACTIVE,
+        )
+        form = self._change_form(
+            student, role=User.TECHNICAL_ADMIN, is_staff=True, is_superuser=True
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("has a portal profile", str(form.errors))
+
+    def test_creating_a_technical_account_sets_its_admin_flags(self):
+        for role, flags in ((User.TECHNICAL_ADMIN, True), (User.Role.LECTURER, False)):
+            with self.subTest(role=role):
+                form = UserCreationForm(
+                    data={
+                        "email": f"created.{flags}@example.test",
+                        "full_name": "Created Account",
+                        "role": role,
+                        "phone": "",
+                        "password1": TECH_PASSWORD,
+                        "password2": TECH_PASSWORD,
+                    }
+                )
+                self.assertTrue(form.is_valid(), form.errors)
+                user = form.save()
+                self.assertEqual(user.is_staff, flags)
+                self.assertEqual(user.is_superuser, flags)
+
+    def test_technical_accounts_get_no_profile_sections(self):
+        tech = User.objects.create_superuser(email="tech.inline@example.test", password=TECH_PASSWORD)
+        student = User.objects.create_user(
+            email="student.inline@example.test", password=TECH_PASSWORD, full_name="Inline"
+        )
+        request = RequestFactory().get("/admin/")
+        request.user = tech
+        user_admin = UserAdmin(User, admin.site)
+        self.assertEqual(user_admin.get_inline_instances(request, tech), [])
+        self.assertTrue(user_admin.get_inline_instances(request, student))

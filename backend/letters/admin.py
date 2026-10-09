@@ -5,6 +5,9 @@ from .models import LetterTemplate
 
 @admin.register(LetterTemplate)
 class LetterTemplateAdmin(admin.ModelAdmin):
+    """Inspection only: templates are edited in the portal, where placeholders
+    are validated and archiving rules apply."""
+
     list_display = ("name", "letter_type", "status", "modified_by", "updated_at")
     list_filter = ("status", "letter_type")
     search_fields = ("name", "description", "content")
@@ -14,3 +17,12 @@ class LetterTemplateAdmin(admin.ModelAdmin):
         ("Body", {"fields": ("content", "reference_prefix")}),
         ("Audit", {"fields": ("modified_by", "created_at", "updated_at")}),
     )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

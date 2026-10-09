@@ -4,6 +4,24 @@ from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
 from .models import User
 
+PORTAL_PROFILES = ("student", "office_staff", "lecturer")
+
+
+def check_one_role(cleaned_data, instance=None):
+    """One account, one role: a Technical Administrator never doubles as a
+    portal account, and a portal account is never a superuser."""
+    if cleaned_data.get("role") == User.TECHNICAL_ADMIN:
+        if instance is not None and any(hasattr(instance, name) for name in PORTAL_PROFILES):
+            raise forms.ValidationError(
+                "This account has a portal profile. Create a separate "
+                "Technical Administrator account instead."
+            )
+    elif cleaned_data.get("is_superuser"):
+        raise forms.ValidationError(
+            "Portal accounts cannot be superusers. Create a separate "
+            "Technical Administrator account instead."
+        )
+
 
 class UserCreationForm(forms.ModelForm):
     """Create a user in the Django admin with a confirmed, hashed password."""
@@ -25,6 +43,9 @@ class UserCreationForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password1"])
+        if user.role == User.TECHNICAL_ADMIN:
+            user.is_staff = True
+            user.is_superuser = True
         if commit:
             user.save()
         return user
@@ -57,3 +78,14 @@ class UserChangeForm(forms.ModelForm):
             "groups",
             "user_permissions",
         )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        check_one_role(cleaned_data, instance=self.instance)
+        if cleaned_data.get("role") == User.TECHNICAL_ADMIN and not (
+            cleaned_data.get("is_staff") and cleaned_data.get("is_superuser")
+        ):
+            raise forms.ValidationError(
+                "Technical Administrator accounts must keep staff and superuser status."
+            )
+        return cleaned_data
