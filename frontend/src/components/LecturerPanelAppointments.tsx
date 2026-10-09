@@ -77,6 +77,7 @@ import {
   PanelRecommendationReviewerRole,
   canReviewPanelRecommendation,
   canCreatePanelRecommendation,
+  mergeSubmittedPanelHistory,
 } from '../utils/panelRecommendationWorkflow';
 import { PanelRecommendationRecordsTable } from './PanelRecommendationRecordsTable';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
@@ -128,11 +129,11 @@ const isPendingPanelRecommendation = (recommendation: PanelRecommendationDraft) 
 const getRecommendationTone = (status: PanelRecommendationDraft['status']) => {
   if (status === 'APPROVED') return 'success' as const;
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') return 'danger' as const;
-  if (status === 'CANCELLED_BY_SUPERVISOR') return 'neutral' as const;
+  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE') return 'neutral' as const;
   return 'info' as const;
 };
 
-type PanelProgressItemStatus = 'completed' | 'active' | 'pending' | 'rejected';
+type PanelProgressItemStatus = 'completed' | 'active' | 'pending' | 'rejected' | 'cancelled';
 
 interface PanelProgressItem {
   id: string;
@@ -141,16 +142,17 @@ interface PanelProgressItem {
   status: PanelProgressItemStatus;
 }
 
-const getPanelRecommendationProgressItems = (
+export const getPanelRecommendationProgressItems = (
   recommendation: PanelRecommendationDraft,
 ): PanelProgressItem[] => {
   const status = recommendation.status;
   const panelAccepted =
+    recommendation.selectedPanelDecision === 'ACCEPTED' ||
     status === 'PENDING_COORDINATOR' ||
     status === 'APPROVED' ||
     status === 'REJECTED_BY_COORDINATOR';
   const panelRejected = status === 'REJECTED_BY_PANEL';
-  const cancelled = status === 'CANCELLED_BY_SUPERVISOR';
+  const cancelled = status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE';
   const coordinatorActive = status === 'PENDING_COORDINATOR';
   const coordinatorCompleted = status === 'APPROVED';
   const coordinatorRejected = status === 'REJECTED_BY_COORDINATOR';
@@ -165,20 +167,20 @@ const getPanelRecommendationProgressItems = (
     {
       id: 'panel',
       label: 'Selected Panel Review',
-      subtext: cancelled
-        ? recommendation.cancellationReason || 'Recommendation cancelled by supervisor'
+      subtext: cancelled && !panelAccepted
+        ? recommendation.cancellationReason || PANEL_RECOMMENDATION_STATUS_LABELS[status]
         : panelRejected
         ? 'Selected panel rejected this recommendation'
         : panelAccepted
         ? 'Selected panel accepted'
         : 'Awaiting selected panel decision',
-      status: cancelled || panelRejected ? 'rejected' : panelAccepted ? 'completed' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
+      status: panelAccepted ? 'completed' : cancelled ? 'cancelled' : panelRejected ? 'rejected' : status === 'SUBMITTED_TO_PANEL' ? 'active' : 'pending',
     },
     {
       id: 'coordinator',
       label: 'Programme Coordinator Confirmation',
       subtext: cancelled
-        ? 'Not reached because the supervisor cancelled the recommendation'
+        ? 'Recommendation cancelled before final approval'
         : coordinatorRejected
         ? 'Programme Coordinator rejected this recommendation'
         : coordinatorCompleted
@@ -186,7 +188,9 @@ const getPanelRecommendationProgressItems = (
         : coordinatorActive
         ? 'Awaiting Programme Coordinator confirmation'
         : 'Pending selected panel acceptance',
-      status: coordinatorRejected
+      status: cancelled && panelAccepted
+        ? 'cancelled'
+        : coordinatorRejected
         ? 'rejected'
         : coordinatorCompleted
         ? 'completed'
@@ -199,13 +203,13 @@ const getPanelRecommendationProgressItems = (
       label: cancelled ? 'Recommendation Cancelled' : status === 'APPROVED' ? 'Panel Appointment Confirmed' : 'Appointed Panel',
       subtext:
         cancelled
-          ? recommendation.cancellationReason || 'Cancelled by supervisor'
+          ? recommendation.cancellationReason || PANEL_RECOMMENDATION_STATUS_LABELS[status]
           : status === 'APPROVED'
           ? 'Recommendation completed'
           : panelRejected || coordinatorRejected
           ? 'Recommendation closed'
           : 'Pending Programme Coordinator confirmation',
-      status: status === 'APPROVED' ? 'completed' : cancelled || panelRejected || coordinatorRejected ? 'rejected' : 'pending',
+      status: status === 'APPROVED' ? 'completed' : cancelled ? 'cancelled' : panelRejected || coordinatorRejected ? 'rejected' : 'pending',
     },
   ];
 };
@@ -221,6 +225,8 @@ const PanelRecommendationProgressTimeline: React.FC<{ items: PanelProgressItem[]
           ? 'bg-brand-navy text-white border-brand-navy ring-4 ring-slate-100'
           : item.status === 'rejected'
           ? 'bg-rose-50 text-rose-600 border-rose-200'
+          : item.status === 'cancelled'
+          ? 'bg-slate-100 text-slate-600 border-slate-300'
           : 'bg-white text-slate-300 border-slate-200';
       const lineClass =
         item.status === 'completed'
@@ -239,6 +245,8 @@ const PanelRecommendationProgressTimeline: React.FC<{ items: PanelProgressItem[]
                 <span className="w-1.5 h-1.5 rounded-full bg-white block animate-pulse" />
               ) : item.status === 'rejected' ? (
                 <X className="w-3.5 h-3.5 text-rose-600 stroke-[3]" />
+              ) : item.status === 'cancelled' ? (
+                <X className="w-3.5 h-3.5 text-slate-600 stroke-[3]" />
               ) : (
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-200 block" />
               )}
@@ -706,7 +714,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         date: r.submittedDate,
         status: (r.status === 'APPROVED'
           ? 'Approved'
-          : r.status === 'CANCELLED_BY_SUPERVISOR'
+          : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE'
           ? 'Cancelled'
           : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
           ? 'Rejected'
@@ -720,6 +728,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         rejectionReason: r.rejectionReason,
         submittedAt: r.submittedAt,
         panelDecisionAt: r.panelDecisionAt,
+        selectedPanelDecision: r.selectedPanelDecision,
         coordinatorDecisionAt: r.coordinatorDecisionAt,
         cancelledAt: r.cancelledAt,
         cancellationReason: r.cancellationReason,
@@ -729,18 +738,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         waitingOn: r.waitingOn,
       }));
 
-    const seen = new Set<string>();
-    return [...customList, ...panelRecommendations].filter((recommendation) => {
-      const key = [
-        recommendation.studentId,
-        recommendation.recommendedPanel,
-        recommendation.date,
-        recommendation.status,
-      ].join('|');
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return mergeSubmittedPanelHistory(customList, panelRecommendations);
   }, [submittedRecs, panelRecommendations]);
 
   const currentRecommendation = useMemo(
@@ -1465,14 +1463,14 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         <div id="reviewed-panel-requests-page" className="space-y-6">
           <PageHeader
             title="Reviewed Requests"
-            subtitle="Recommendations you accepted or rejected as the selected panel lecturer, including their later coordinator outcome."
+            subtitle="Your selected-panel decisions and cancelled requests, including their later coordinator outcome."
             backLabel="Back to Panel Appointments"
             onBack={navigateToList}
             className="select-none"
           />
           <PanelRecommendationRecordsTable
             title="Reviewed Requests"
-            subtitle="Use this page as your read-only history for selected-panel decisions already made."
+            subtitle="Read-only history of selected-panel decisions and requests cancelled before a decision."
             records={reviewedRequests}
             onViewDossier={(recommendation) => onNavigateToDossier?.(recommendation.studentId)}
             onView={(recommendation) => {

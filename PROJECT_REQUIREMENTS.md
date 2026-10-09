@@ -1,5 +1,43 @@
 # Project Requirements
 
+## Participant lifecycle acceptance corrections (2026-10-08)
+
+- The participant lifecycle workspace must hide stale records and mutation controls during refresh or detail loading and after read failure. Only the latest list/detail request may update the displayed participant; an in-flight mutation prevents competing selection, filter and form actions.
+- Office Supervisor and Panel records must label Office-cancelled requests as Cancelled and ended appointments as Ended. Cancellation labels must not attribute an Office action to a Student or Supervisor. Assigned Lecturer review history must retain Office cancellations even when no Lecturer decision preceded them.
+- Progress dossiers render academic lifecycle status and its effective date in Malaysia time. Internal views render the persisted reason, actor and immutable lifecycle history; Student self-view shows only public status and effective date, even if private metadata is mistakenly included in a supplied frontend object.
+
+## Submitted Marks portal actions (2026-10-07)
+
+- Authorized Office Staff/Admin correct submitted component scores and overall comments, or reopen a submission for its assigned Lecturer, from the existing Marks record detail screen. The Office role, staff status and existing `marks.change_markentry` permission are required; other actors and inspection-only Office accounts receive no editing controls.
+- Correction and reopening require a reason and the reviewed record version. Scores must be finite, nonnegative, within the persisted component maximum and limited to two decimal places. Unknown/duplicate components, forged fields, unchanged corrections and stale/replayed requests must leave Marks and audits unchanged.
+- Reopening is a separate operation permitted only while the evaluation period and semester accept ordinary submissions. It preserves component scores/comments, returns the entry to Draft and records its audit. A completion window does not permit reopening submitted Marks after closure. Reasoned correction retains the existing submitted status/date/deadline snapshot and remains available after period closure under the existing policy.
+- Every successful operation uses the existing transactional workflow service and records actor, reason, timestamp and before/after values. The portal refreshes the record and displays those values in correction history; failures must not show success or retain stale editing authority.
+- Django admin exposes Mark Entries and component scores for inspection only, including for superusers. Correction/reopening, ordinary model saves, inline editing and deletion cannot provide a second mutation path.
+
+## Advanced Marks acceptance correction (2026-10-07)
+
+- Marks backup student selection must follow the selected period's programme scope without excluding current-period tasks whose research profiles retain an earlier semester. Assignment options must use authoritative linked Student programme data, including blanks, and fall back to the profile programme only for unlinked legacy profiles. Changing the backup period clears the selected student and original task.
+- Office Marks monitoring must label the semester scope of its operational totals accurately. Totals across multiple semesters must not be described as belonging to the first record's semester or one active period; paused/retired records remain excluded.
+
+## Appointment failure-path acceptance correction (2026-10-07)
+
+- The Office Panel Appointment Management workload snapshot uses the backend capacity state when supplied, including temporary unavailability and ineligibility, rather than inferring availability only from occupied seats. A temporarily unavailable member may show the public end date; internal availability reasons remain confined to the authorized Office capacity workspace.
+
+## Replacement acceptance corrections (2026-10-07)
+
+- Student Dashboard appointment cards use persisted Supervisor applications and the public student Panel view. They retain the active incumbent during replacement review, show the successor after final approval, release the Panel identity only when confirmed, and hide appointment cards during loading or retryable read errors.
+- Distinct Panel recommendation attempts remain visible in history even when the student, candidate, displayed date and status match. Deduplication uses persisted recommendation identity, with record identity as the legacy fallback.
+- Marks submission monitoring excludes paused and retired tasks from completion denominators, follow-up counts, previews and recent activity. Authorized history retains their original draft values and handover audits.
+
+## Owned-workflow Django admin acceptance (2026-10-06)
+
+Direction agreed on 8 October: routine Office users should perform their work in the main portal; Django admin should be restricted to designated technical administrators for occasional maintenance/investigation. Business authorization must be separated from admin-site eligibility across the five owned modules and their dependencies, retaining required role, action permissions, scope, validation and audits. This separation is pending implementation. The technical account rule and retained maintenance edits require the scoped design review recorded as T01–T06 in [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md); a generic portal permission editor and teammate-owned Registry integration are not silently added to this scope.
+
+- Django admin must expose governed semester, capacity, availability, rubric, evaluation-period, evaluation-task and audit records for inspection without add/change/delete or bulk-delete bypasses. Their mutations remain in the existing audited portal workflows.
+- Submitted Mark Entry correction/reopening now uses the authorized Office portal and existing services; Mark Entry admin is inspection-only. Draft editing remains in the assigned Lecturer workflow; entries and correction audits cannot be deleted through admin.
+- Submitted Marks portal corrections reject negative/non-finite/over-maximum scores, unknown components and closed-period reopening with validation responses and no partial changes or new correction audits. Admin mutation attempts are denied. Valid portal correction retains submission locking and recalculates the total; valid reopening requires the period still to accept submissions. An audited correction remains permitted after closure.
+- Acceptance evidence must distinguish automated HTTP checks, browser checks and requirements still awaiting acceptance. Scope remains the five owned modules; production hosting checks, faculty confirmation and coordinator identity policy are separate.
+
 ## Whole-system manual acceptance coverage (2026-10-06)
 
 - The testing handoff covers every sidebar module plus authentication, settings, academic/configuration lifecycle, reporting, delegation, research amendments, supporting supervision, replacement and late-completion branches.
@@ -26,7 +64,7 @@
 
 - A lecturer cannot hold an active or pending primary Supervisor and Panel role for the same student. Submission and final approval must recheck both directions, including replacements and retained/unlinked matric-number profiles; rejection preserves existing appointments and history.
 - Add Timeline Entry accepts the Office form's selected `semesterId`. The backend resolves the timeline and permits changes only for Draft or Active semesters; status, ordering and timeline identifiers remain system-derived.
-- Django admin provides inspection of governed appointment requests, appointments, document requirements and audit history. Academic/configuration writes use the existing audited workflows. Initial research-profile provisioning and audited Marks corrections remain supported.
+- Django admin provides inspection of governed appointment requests, appointments, document requirements and audit history. Academic/configuration writes use the existing audited workflows. Initial research-profile provisioning remains supported; audited Marks correction/reopening uses the Office portal.
 - Marks scores must be nonnegative and within the component maximum. Invalid drafts return validation errors without changing persisted scores, comments or submission state.
 - Lecturer task semesters come from each evaluation period, including historical assignments after profile handover. Semester filter options come from returned assignments rather than fixed academic-year labels.
 
@@ -380,7 +418,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Office Staff/Admin mark records must show unsubmitted tasks as `Overdue` after the evaluation period close date while preserving submitted records as `Submitted`.
 - Marks Entry uses only `Not Started`, `Draft`, and `Submitted`; it has no approval workflow.
 - Lecturer submission immediately locks marks.
-- Authorized Office Staff/Admin users may correct or reopen submitted marks through Django Admin with a mandatory reason and before/after audit values.
+- Authorized Office Staff/Admin users may correct or reopen submitted marks through the existing Office portal with a mandatory reason, reviewed record version and before/after audit values.
 - Mark totals must be recalculated by the backend and component marks must not exceed configured maximums.
 - Dashboard summaries must use live Supervisor, Panel, and Marks data with role and programme scoping.
 
@@ -398,7 +436,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - State conflicts, locked configuration, duplicate submission, and illegal lifecycle transitions return `409`; malformed input and score validation return `400`.
 - Office Staff/Admin Mark Record Detail must load one persisted record by stable record ID and show assignment, student/research summary, deadline, rubric version, component scores, comments, total, lock state, overrides, and read-only correction history.
 - Office Marks administration routes must fail closed in the frontend for Programme Coordinator, Lecturer, and Student users in addition to backend endpoint authorization.
-- Submitted-mark reopening and direct score or comment corrections remain restricted to audited Django Admin actions. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
+- Submitted-mark reopening and direct score or comment corrections use authorized, audited Office portal actions; Django admin is inspection-only. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
 - Marks production screens must not ship mock records, browser-local period/rubric mutations, simulated sync controls, unsupported mark-sheet/PDF downloads, fake supporting documents, or notification dispatch behavior.
 - Marks remains tracking-only with `Not Started`, `Draft`, and `Submitted`; no approval or grade-classification stage is introduced.
 

@@ -13,8 +13,24 @@ from .models import (
 )
 
 
+class ReadOnlyAcademicConfigurationAdmin(admin.ModelAdmin):
+    """Semester and capacity mutations require the audited portal services."""
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(AcademicSemester)
-class AcademicSemesterAdmin(admin.ModelAdmin):
+class AcademicSemesterAdmin(ReadOnlyAcademicConfigurationAdmin):
     list_display = (
         "code",
         "academic_session",
@@ -64,7 +80,7 @@ def _all_model_fields(model):
 
 
 @admin.register(SemesterCapacityPlan)
-class SemesterCapacityPlanAdmin(admin.ModelAdmin):
+class SemesterCapacityPlanAdmin(ReadOnlyAcademicConfigurationAdmin):
     list_display = (
         "academic_semester",
         "version",
@@ -122,7 +138,7 @@ class SemesterCapacityPlanAdmin(admin.ModelAdmin):
 
 
 @admin.register(LecturerCapacityEntry)
-class LecturerCapacityEntryAdmin(admin.ModelAdmin):
+class LecturerCapacityEntryAdmin(ReadOnlyAcademicConfigurationAdmin):
     list_display = (
         "plan",
         "lecturer",
@@ -152,7 +168,7 @@ class LecturerCapacityEntryAdmin(admin.ModelAdmin):
 
 
 @admin.register(LecturerAvailabilityWindow)
-class LecturerAvailabilityWindowAdmin(admin.ModelAdmin):
+class LecturerAvailabilityWindowAdmin(ReadOnlyAcademicConfigurationAdmin):
     list_display = (
         "academic_semester",
         "lecturer",

@@ -583,30 +583,16 @@ class CapacityModelTests(TestCase):
                 "origin",
                 "supersedes",
                 "created_by",
-            }.isdisjoint(draft_readonly)
+            }.issubset(draft_readonly)
         )
 
-    def test_plan_admin_add_creates_a_draft_from_configuration_fields(self):
+    def test_plan_admin_add_is_disabled_in_favour_of_audited_configuration(self):
         request = RequestFactory().post("/admin/academics/semestercapacityplan/add/")
         request.user = self.office
         plan_admin = SemesterCapacityPlanAdmin(SemesterCapacityPlan, AdminSite())
-        form_class = plan_admin.get_form(request)
-        form = form_class(
-            data={
-                "academic_semester": self.semester.pk,
-                "version": 1,
-                "origin": SemesterCapacityPlan.Origin.CREATED,
-                "supersedes": "",
-                "created_by": self.office.pk,
-            }
-        )
-
-        self.assertTrue(form.is_valid(), form.errors)
-        plan = form.save(commit=False)
-        plan_admin.save_model(request, plan, form, change=False)
-
-        plan.refresh_from_db()
-        self.assertEqual(plan.lifecycle_status, SemesterCapacityPlan.Lifecycle.DRAFT)
+        self.assertFalse(plan_admin.has_add_permission(request))
+        self.assertEqual(plan_admin.get_form(request).base_fields, {})
+        self.assertFalse(SemesterCapacityPlan.objects.exists())
 
     def test_plan_admin_rejects_a_stale_draft_edit_after_publication(self):
         plan = self.create_plan()
@@ -649,7 +635,7 @@ class CapacityModelTests(TestCase):
             }.issubset(set(audit_admin.list_select_related or ()))
         )
 
-    def test_admin_add_form_only_accepts_draft_plans(self):
+    def test_capacity_entry_admin_add_is_disabled_for_all_plan_states(self):
         draft = self.create_plan(version=1)
         published = self.create_plan(
             version=2,
@@ -664,24 +650,10 @@ class CapacityModelTests(TestCase):
         entry_admin = LecturerCapacityEntryAdmin(LecturerCapacityEntry, AdminSite())
         form_class = entry_admin.get_form(request)
 
-        self.assertEqual(
-            list(form_class.base_fields["plan"].queryset.values_list("pk", flat=True)),
-            [draft.pk],
-        )
-        form = form_class(
-            data={
-                "plan": published.pk,
-                "lecturer": self.lecturer.pk,
-                "supervisor_limit": 4,
-                "panel_limit": 8,
-                "updated_by": self.office.pk,
-            }
-        )
+        self.assertFalse(entry_admin.has_add_permission(request))
+        self.assertEqual(form_class.base_fields, {})
 
-        self.assertFalse(form.is_valid())
-        self.assertIn("plan", form.errors)
-
-    def test_admin_change_form_blocks_reassignment_to_non_draft_plans(self):
+    def test_capacity_entry_admin_change_is_disabled_even_for_draft_plans(self):
         draft = self.create_plan(version=1)
         published = self.create_plan(
             version=2,
@@ -700,19 +672,10 @@ class CapacityModelTests(TestCase):
         request.user = self.office
         entry_admin = LecturerCapacityEntryAdmin(LecturerCapacityEntry, AdminSite())
         form_class = entry_admin.get_form(request, obj=entry)
-        form = form_class(
-            data={
-                "plan": published.pk,
-                "lecturer": self.lecturer.pk,
-                "supervisor_limit": 4,
-                "panel_limit": 8,
-                "updated_by": self.office.pk,
-            },
-            instance=entry,
-        )
-
-        self.assertFalse(form.is_valid())
-        self.assertIn("plan", form.errors)
+        self.assertFalse(entry_admin.has_change_permission(request, entry))
+        self.assertEqual(form_class.base_fields, {})
+        entry.refresh_from_db()
+        self.assertEqual(entry.plan, draft)
 
     def test_negative_entry_limits_are_rejected(self):
         plan = self.create_plan()

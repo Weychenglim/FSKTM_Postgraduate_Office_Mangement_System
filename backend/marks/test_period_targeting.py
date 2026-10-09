@@ -112,6 +112,21 @@ class PeriodTargetingTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         period.refresh_from_db()
 
+    def test_assignment_options_use_linked_programme_including_blank_and_legacy_fallback(self):
+        linked = self.profile("assignment-linked", "Programme A")
+        linked.programme = "Stale Programme"
+        linked.save(update_fields=["programme"])
+        blank = self.profile("assignment-blank", "")
+        blank.programme = "Stale Programme"
+        blank.save(update_fields=["programme"])
+        legacy = self.profile("assignment-legacy", "Programme B", linked=False)
+        response = self.client.get("/api/marks/assignment-options/")
+        self.assertEqual(response.status_code, 200)
+        programmes = {row["studentId"]: row["programme"] for row in response.data["students"]}
+        self.assertEqual(programmes[linked.matric_no], "Programme A")
+        self.assertEqual(programmes[blank.matric_no], "")
+        self.assertEqual(programmes[legacy.matric_no], "Programme B")
+
     def test_omitted_targeting_preserves_legacy_defaults(self):
         period = self.period()
         self.assertEqual(period.programme_scope, "ALL")

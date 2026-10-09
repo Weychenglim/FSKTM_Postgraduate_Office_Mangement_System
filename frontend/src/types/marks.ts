@@ -152,6 +152,11 @@ export interface EvaluationRecipientPreview {
 
 export interface MarkRecordDetail extends DeadlineMetadata {
   recordId: string;
+  officeActions?: {
+    canCorrect: boolean;
+    canReopen: boolean;
+    version: string | null;
+  };
   taskId: number;
   student: {
     studentId: string;

@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CalendarClock,
-  CheckCircle2,
   ClipboardCheck,
   History,
   Lock,
@@ -23,6 +22,7 @@ import {
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
+import { SubmittedMarksActions, MarkCorrectionHistoryView } from './SubmittedMarksActions';
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
@@ -55,13 +55,19 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   const [record, setRecord] = useState<MarkRecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   const loadRecord = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
+    setRecord(null);
     setError(null);
     try {
-      setRecord(await getMarkRecordById(recordId));
+      const loaded = await getMarkRecordById(recordId);
+      if (generation === loadGeneration.current) setRecord(loaded);
     } catch (loadError) {
+      if (generation !== loadGeneration.current) return;
       setRecord(null);
       setError(
         loadError instanceof Error
@@ -69,12 +75,14 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           : 'Mark record could not be loaded.',
       );
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [recordId]);
 
   useEffect(() => {
+    setNotice(null);
     void loadRecord();
+    return () => {loadGeneration.current += 1;};
   }, [loadRecord]);
 
   if (loading) {
@@ -113,6 +121,11 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           </StatusBadge>
         )}
       />
+
+      {notice ? <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p> : null}
+      <SubmittedMarksActions key={`${record.recordId}:${record.officeActions?.version}`} record={record}
+        onChanged={async message => {setNotice(message); await loadRecord();}}
+        onReload={async () => {setNotice(null); await loadRecord();}}/>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 border-y border-slate-200">
         {[
@@ -273,22 +286,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
               <History className="h-4 w-4 text-slate-500" />
               <h2 className="text-xs font-extrabold uppercase text-slate-600">Correction history</h2>
             </div>
-            {record.correctionHistory.length === 0 ? (
-              <p className="text-xs font-medium text-slate-500">No corrections or reopening events.</p>
-            ) : (
-              <div className="space-y-4">
-                {record.correctionHistory.map((event) => (
-                  <div key={event.id} className="border-l-2 border-blue-200 pl-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="font-extrabold text-slate-700">{event.action}</span>
-                    </div>
-                    <p className="mt-1 font-semibold text-slate-600">{event.reason}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {displayDateTime(event.createdAt)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <MarkCorrectionHistoryView events={record.correctionHistory} components={record.rubric.components}/>
           </PortalCard>
 
           {record.overrideHistory.length > 0 ? (

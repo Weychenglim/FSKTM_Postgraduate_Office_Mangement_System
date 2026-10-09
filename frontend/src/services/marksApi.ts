@@ -26,6 +26,21 @@ export async function getMarkRecordById(id: string): Promise<MarkRecordDetail> {
   return request<MarkRecordDetail>(`/marks/records/${encodeURIComponent(id)}/`);
 }
 
+export type SubmittedMarksCorrection = {
+  expectedVersion: string;
+  reason: string;
+  scores: Array<{ componentId: number; marksAwarded: string }>;
+  comments?: string;
+};
+
+export async function correctSubmittedMarkRecord(id: string, payload: SubmittedMarksCorrection): Promise<void> {
+  await request(`/marks/records/${encodeURIComponent(id)}/correct/`, {method: 'POST', body: JSON.stringify(payload)});
+}
+
+export async function reopenSubmittedMarkRecord(id: string, payload: Pick<SubmittedMarksCorrection, 'expectedVersion' | 'reason'>): Promise<void> {
+  await request(`/marks/records/${encodeURIComponent(id)}/reopen/`, {method: 'POST', body: JSON.stringify(payload)});
+}
+
 export async function getEvaluationPreviewTasks(): Promise<EvaluationPreviewTask[]> {
   return request<EvaluationPreviewTask[]>('/marks/evaluation-tasks/');
 }

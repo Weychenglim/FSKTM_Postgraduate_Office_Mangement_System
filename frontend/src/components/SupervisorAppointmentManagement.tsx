@@ -852,7 +852,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     </tr>
                   ) : paginatedRecords.length > 0 ? (
                     paginatedRecords.map((r) => (
-                      <tr key={r.studentId} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={r.applicationId != null ? `application-${r.applicationId}` : supervisorRecordRouteKey(r)} className="hover:bg-slate-50/50 transition-colors">
                         
                         {/* Student ID */}
                         <td className="data-td font-mono">
@@ -897,8 +897,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                               </span>
                             ) : r.status === 'Cancelled' ? (
                               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">
-                                Cancelled by Student
+                                Cancelled
                               </span>
+                            ) : r.status === 'Ended' ? (
+                              <StatusBadge tone="neutral">Ended</StatusBadge>
                             ) : (
                               <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">
                                 Rejected

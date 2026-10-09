@@ -1,11 +1,12 @@
 import { PanelRecommendationDraft, PanelRecommendationStatus } from '../types';
 
-export type PanelRecommendationRecordGroup = 'All' | 'Pending' | 'Approved' | 'Rejected';
+export type PanelRecommendationRecordGroup = 'All' | 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
 
 export const panelRecommendationStatusGroup = (
   status: PanelRecommendationStatus,
 ): Exclude<PanelRecommendationRecordGroup, 'All'> => {
   if (status === 'APPROVED') return 'Approved';
+  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE') return 'Cancelled';
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') {
     return 'Rejected';
   }

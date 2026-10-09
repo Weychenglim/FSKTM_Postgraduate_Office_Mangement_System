@@ -3,6 +3,7 @@ import type {
   EvaluationTaskComponent,
   EvaluationPeriodEffectiveStatus,
   EvaluationPeriodLifecycle,
+  MarksAssignmentStudentOption,
 } from '../types/marks';
 
 type PeriodTargeting = {
@@ -10,6 +11,16 @@ type PeriodTargeting = {
   programmes?: string[];
   evaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
 };
+
+export function getMarksAssignmentStudents(
+  students: MarksAssignmentStudentOption[],
+  period: PeriodTargeting | undefined,
+): MarksAssignmentStudentOption[] {
+  if (!period) return [];
+  if (period.programmeScope !== 'SELECTED') return students;
+  const programmes = new Set((period.programmes || []).map((programme) => programme.trim().toLocaleLowerCase()));
+  return students.filter((student) => programmes.has(student.programme.trim().toLocaleLowerCase()));
+}
 
 export function validatePeriodTargeting(target: PeriodTargeting): string | null {
   if (!['ALL', 'SELECTED'].includes(target.programmeScope || '')) return 'Choose a programme scope.';

@@ -10,6 +10,8 @@ urlpatterns = [
     path("completion-windows/<int:pk>/revoke/", views.completion_window_revoke_view),
     path("", views.mark_records_view),
     path("records/<str:record_id>/", views.mark_record_detail_view),
+    path("records/<str:record_id>/correct/", views.correct_mark_record_view),
+    path("records/<str:record_id>/reopen/", views.reopen_mark_record_view),
     path("periods/", views.evaluation_periods_view),
     path("programme-options/", views.evaluation_programme_options_view),
     path("periods/<int:pk>/recipient-preview/", views.evaluation_recipient_preview_view),

@@ -3,7 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CapacityState, PanelRecommendationStatus } from '../types';
+import type { CapacityState, PanelRecommendationStatus, SubmittedRecommendation } from '../types';
+
+export const mergeSubmittedPanelHistory = (
+  current: SubmittedRecommendation[],
+  history: SubmittedRecommendation[],
+): SubmittedRecommendation[] => {
+  const seen = new Set<string>();
+  return [...current, ...history].filter(record => {
+    // Separate attempts can have identical people, dates and terminal statuses.
+    const key = record.recommendationId != null ? `recommendation:${record.recommendationId}` : `record:${record.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export type PanelRecommendationAction =
   | 'panelAccept'
@@ -27,6 +41,7 @@ export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatu
   PENDING_COORDINATOR: 'Pending Coordinator',
   REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
   CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
+  CANCELLED_BY_OFFICE: 'Cancelled by Office',
   APPROVED: 'Confirmed',
 };
 
@@ -34,6 +49,7 @@ const REJECTED_STATUSES: PanelRecommendationStatus[] = [
   'REJECTED_BY_PANEL',
   'REJECTED_BY_COORDINATOR',
   'CANCELLED_BY_SUPERVISOR',
+  'CANCELLED_BY_OFFICE',
 ];
 
 export const isRejectedPanelRecommendationStatus = (status: PanelRecommendationStatus): boolean =>

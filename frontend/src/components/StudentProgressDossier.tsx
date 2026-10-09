@@ -32,6 +32,7 @@ import {
   visibleProgressTabs,
 } from '../utils/studentProgress';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { StudentLifecycleSummary } from './StudentLifecycleSummary';
 import {
   PageHeader,
   PortalButton,
@@ -328,6 +329,8 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
           </div>
         </div>
       </PortalCard>
+
+      <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal={internal} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {statusItems.map(({ label, value, icon: Icon }) => (
