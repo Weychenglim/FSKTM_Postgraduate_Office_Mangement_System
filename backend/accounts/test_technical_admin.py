@@ -16,7 +16,10 @@ from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+from announcements.models import Announcement
+from letters.models import LetterTemplate
+
+from .models import Student, User
 
 TECH_PASSWORD = "Technical-pass-5521!"
 
@@ -136,3 +139,74 @@ class TechnicalAccountPortalTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.tech.refresh_from_db()
         self.assertTrue(self.tech.check_password(TECH_PASSWORD))
+
+
+class SuperuserFlagGrantsNoPortalPowerTests(APITestCase):
+    """A business account left with the superuser flag acts only as its role."""
+
+    def setUp(self):
+        cache.clear()
+        self.student_owner = User.objects.create_user(
+            email="registered.student@example.test",
+            password=TECH_PASSWORD,
+            full_name="Registered Student",
+            role=User.Role.STUDENT,
+        )
+        Student.objects.create(
+            user=self.student_owner,
+            matric_no="WGT260001",
+            programme="MASTER OF DATA SCIENCE (COURSEWORK)",
+            status=Student.Status.ACTIVE,
+        )
+
+    def _mixed(self, role, email):
+        user = User.objects.create_user(
+            email=email, password=TECH_PASSWORD, full_name="Mixed Account", role=role
+        )
+        user.is_superuser = True
+        user.save(update_fields=["is_superuser"])
+        self.client.force_authenticate(user)
+        return user
+
+    def test_registry_follows_the_role_not_the_flag(self):
+        self._mixed(User.Role.LECTURER, "mixed.lecturer@example.test")
+        listing = self.client.get("/api/registry/students/")
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual(listing.data, [])
+        self.assertEqual(
+            self.client.get("/api/registry/students/WGT260001/").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        register = self.client.post(
+            "/api/registry/students/",
+            {
+                "id": "WGT260002",
+                "name": "New Student",
+                "email": "new.student@example.test",
+                "programme": "MASTER OF DATA SCIENCE (COURSEWORK)",
+            },
+            format="json",
+        )
+        self.assertEqual(register.status_code, status.HTTP_403_FORBIDDEN)
+        access_link = self.client.post(
+            "/api/registry/students/WGT260001/send-access-link/", {}, format="json"
+        )
+        self.assertEqual(access_link.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Student.objects.filter(matric_no="WGT260002").exists())
+
+    def test_a_student_with_the_flag_cannot_manage_templates_or_announcements(self):
+        self._mixed(User.Role.STUDENT, "mixed.student@example.test")
+        template = self.client.post(
+            "/api/letter-templates/",
+            {"name": "Flag Template", "content": "Dear {{STUDENT_NAME}}"},
+            format="json",
+        )
+        self.assertEqual(template.status_code, status.HTTP_403_FORBIDDEN)
+        announcement = self.client.post(
+            "/api/announcements/",
+            {"title": "Flag Notice", "content": "Should not publish"},
+            format="json",
+        )
+        self.assertEqual(announcement.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Announcement.objects.filter(title="Flag Notice").exists())
+        self.assertFalse(LetterTemplate.objects.filter(name="Flag Template").exists())

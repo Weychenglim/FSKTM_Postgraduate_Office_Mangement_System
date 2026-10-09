@@ -22,9 +22,9 @@ STAFF_ROLES = {"Office Staff/Admin", "Programme Coordinator"}
 
 
 def _is_staff(user):
-    # Keyed on the role, not ``is_staff`` — that flag only grants Django admin
-    # access and should not confer template-management rights on its own.
-    return bool(user.is_superuser or getattr(user, "role", None) in STAFF_ROLES)
+    # Keyed on the role, not ``is_staff`` or superuser status — those flags only
+    # concern Django admin and should not confer template-management rights.
+    return getattr(user, "role", None) in STAFF_ROLES
 
 
 def _require_staff(request):

@@ -47,8 +47,7 @@ AVATAR_PALETTE = [
 
 
 def _require_office_admin(request):
-    user = request.user
-    if user.is_superuser or getattr(user, "role", None) == User.Role.OFFICE_ADMIN:
+    if getattr(request.user, "role", None) == User.Role.OFFICE_ADMIN:
         return
     raise PermissionDenied("Only Office Staff/Admin may manage the student registry.")
 
@@ -76,7 +75,7 @@ def _registry_scope(user):
     managed programme, and Coordinators and Lecturers read the students they
     currently supervise or co-supervise.
     """
-    if user.is_superuser or user.role == User.Role.OFFICE_ADMIN:
+    if user.role == User.Role.OFFICE_ADMIN:
         return Student.objects.all()
     if user.role not in (User.Role.COORDINATOR, User.Role.LECTURER):
         return None

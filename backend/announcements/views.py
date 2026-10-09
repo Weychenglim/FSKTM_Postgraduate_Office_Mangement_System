@@ -51,10 +51,10 @@ AUDIENCE_TO_ROLE = {
 
 
 def _is_sender(user):
-    # Keyed on the role, not on ``is_staff``. The latter only grants Django
-    # admin access, and treating it as a sender let a Student with the flag set
-    # publish announcements and read other audiences' broadcasts.
-    return bool(user.is_superuser or getattr(user, "role", None) in SENDER_ROLES)
+    # Keyed on the role, not on ``is_staff`` or superuser status. Those only
+    # concern Django admin, and treating them as a sender let a Student with the
+    # flag set publish announcements and read other audiences' broadcasts.
+    return getattr(user, "role", None) in SENDER_ROLES
 
 
 def _require_sender(request):
@@ -65,10 +65,7 @@ def _require_sender(request):
 
 def _is_office_admin(user):
     """Office Staff/Admin may moderate anyone's announcement; other senders own only theirs."""
-    return bool(
-        user.is_superuser
-        or getattr(user, "role", None) == User.Role.OFFICE_ADMIN
-    )
+    return getattr(user, "role", None) == User.Role.OFFICE_ADMIN
 
 
 def _require_can_manage(request, announcement):

@@ -53,10 +53,7 @@ class Command(BaseCommand):
     help = "Seed demo announcements and deliver them to the matching recipients."
 
     def handle(self, *args, **options):
-        author = (
-            User.objects.filter(role=User.Role.OFFICE_ADMIN).first()
-            or User.objects.filter(is_superuser=True).first()
-        )
+        author = User.objects.filter(role=User.Role.OFFICE_ADMIN).first()
         author_name = getattr(author, "full_name", "") if author else "Postgraduate Office"
 
         for data in ANNOUNCEMENTS:

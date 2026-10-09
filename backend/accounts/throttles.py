@@ -59,9 +59,8 @@ class AccessLinkRateThrottle(SettingsRateThrottle):
     setting_name = "REGISTRY_ACCESS_LINK_THROTTLE_RATE"
 
     def get_cache_key(self, request, view):
-        user = request.user
         office_role = get_user_model().Role.OFFICE_ADMIN
-        if not (user.is_superuser or getattr(user, "role", None) == office_role):
+        if getattr(request.user, "role", None) != office_role:
             return None
         matric_no = str(view.kwargs.get("matric_no", "")).lower()
         return self.cache_format % {"scope": self.scope, "ident": matric_no}
