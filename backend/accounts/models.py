@@ -27,12 +27,14 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("role", User.Role.OFFICE_ADMIN)
+        extra_fields.setdefault("role", User.TECHNICAL_ADMIN)
         extra_fields.setdefault("full_name", "Administrator")
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
         if extra_fields.get("is_superuser") is not True:
             raise ValueError("Superuser must have is_superuser=True.")
+        if extra_fields.get("role") != User.TECHNICAL_ADMIN:
+            raise ValueError("Superuser must have the Technical Administrator role.")
         return self._create_user(email, password, **extra_fields)
 
 
@@ -46,9 +48,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         LECTURER = "Lecturer", "Lecturer"
         STUDENT = "Student", "Student"
 
+    # Maintenance-only account for the Django admin site. It is kept out of
+    # ``Role`` because it is never a portal role.
+    TECHNICAL_ADMIN = "Technical Administrator"
+
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
-    role = models.CharField(max_length=64, choices=Role.choices, default=Role.STUDENT)
+    role = models.CharField(
+        max_length=64,
+        choices=[*Role.choices, (TECHNICAL_ADMIN, TECHNICAL_ADMIN)],
+        default=Role.STUDENT,
+    )
     phone = models.CharField(max_length=32, blank=True, default="")
     announcement_alerts = models.BooleanField(default=True)
     # Set True when an account is created with a temporary password (FR-04); the
@@ -65,13 +75,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["full_name", "role"]
+    REQUIRED_FIELDS = ["full_name"]
 
     class Meta:
         ordering = ["full_name"]
 
     def __str__(self):
         return f"{self.full_name} <{self.email}> ({self.role})"
+
+    @property
+    def is_technical_admin(self):
+        return self.role == self.TECHNICAL_ADMIN
 
     def _related_or_none(self, attr):
         """Return the linked profile row for ``attr`` (e.g. 'student'), or None
