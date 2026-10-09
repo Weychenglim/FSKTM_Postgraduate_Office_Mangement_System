@@ -45,6 +45,7 @@ If a phase needs a change inside a teammate-owned file, stop and ask before touc
 
 **Backend conventions.**
 - DRF function views with `@api_view` / `@permission_classes`, camelCase JSON keys (see `User.to_public_dict()` and `registry_views.to_record()`), role checks through small helpers like `_require_office_admin`.
+- Portal permissions come from the role only (since 2026-10-09). Never treat `is_superuser` or `is_staff` as Office: superusers are Technical Administrator accounts (`User.TECHNICAL_ADMIN`), which are Django-admin-only and refused by the portal API.
 - Login, refresh and logout reject non-JSON bodies with 415, so tests that call them must use `format="json"`.
 - Sessions: 15-minute access token in memory, 7-day rotating HttpOnly refresh cookie on `/api/auth/`, `CHECK_REVOKE_TOKEN=True` (a password change invalidates every existing token). See `accounts/views.py` and `accounts/session_tokens.py`.
 - New migrations only in Xiang-owned apps. After adding one, `makemigrations --check --dry-run` must report no changes.

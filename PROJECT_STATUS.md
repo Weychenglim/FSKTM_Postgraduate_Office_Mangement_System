@@ -1,5 +1,27 @@
 # Project Status
 
+## Technical Administrator Accounts: Xiang's Side (2026-10-09)
+
+- Agreed with the teammate: one account, one role. Office staff work in the portal; Django admin is for separate Technical Administrator accounts (pending-work register T01–T06).
+- **Account type.** `createsuperuser` now creates a Technical Administrator (`User.TECHNICAL_ADMIN`, migration `accounts.0008`). It is a valid `User.role` value but deliberately not part of `User.Role`, so `User.Role` stays the four portal roles and code or tests that loop over it are unaffected. A superuser cannot be created with a portal role, and `createsuperuser` no longer asks for a role.
+- **Kept out of the portal.**
+  - Login returns 403 `technical_account`. This happens after the password check, so a wrong password still gets the generic 401.
+  - The default authentication class (`PasswordPolicyJWTAuthentication`) refuses their access tokens.
+  - Refresh revokes their session instead of renewing it.
+  - Password reset sends them nothing, and outstanding reset links fail.
+- **Role, not flags.** Registry, Letters, Announcements and the access-link throttle no longer treat superuser status as Office. A portal account that still has the superuser flag acts only as its role. `seed_announcements` no longer falls back to a superuser author.
+- **Announcements.** "All" no longer reaches Technical Administrator accounts.
+- **Django admin.**
+  - Letter templates, announcements and notifications are inspection-only (no add, change or delete). The private announcement attachment shows its file name instead of an unserved media link.
+  - The user forms reject a portal account with superuser status, a Technical Administrator without staff and superuser status, and turning an account that has a portal profile into a Technical Administrator.
+  - Technical Administrator pages show no profile sections.
+- **Not changed (teammate's T02–T05).** Office accounts still need `is_staff` for Marks, participant lifecycle (including Registry status changes), research amendments, capacity reassessment and delegation until those checks move to the Office role. Admin login is not restricted yet, and `seed_users` is unchanged.
+- **Verification.**
+  - 831 backend tests pass with `--parallel 2`, including 20 new ones in `accounts/test_technical_admin.py`.
+  - All 82 frontend scripts, TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `accounts.0008` after backup `db-backups/fsktm_pg_office_before_technical_admin_2026-10-09.dump`.
+  - A live check used a temporary `createsuperuser` account, deleted afterwards. The portal refused it with 403 `technical_account`. Django admin let it in, and the template, announcement and notification add pages returned 403. The demo Office account still opened the Registry, Letters and Announcements.
+
 ## Owned-workflow integration completed (2026-10-09)
 
 - User authorized pushing the accumulated changes, creating a PR and merging into `main`. [PR #13](https://github.com/Weychenglim/FSKTM_Postgraduate_Office_Mangement_System/pull/13) merged the 64-file release on 9 October Malaysia time, with commit `fc8265a3b22e15430be6349955f7a240b72c7bfa`. Its reviewed source commit is `2bc5ba9b3ecb17b1a1354acecc4d4087d2447410`, based on `9ee3bd4`; no upstream conflict required resolution. Local `main` was fast-forwarded to the merge and its backend/frontend tree verified identical to the tested source. Existing work is preserved; private environment files, credentials, runtime logs and synthetic databases remain excluded.

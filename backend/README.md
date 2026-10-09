@@ -36,6 +36,7 @@ python manage.py migrate
 # 4. Seed demo accounts / panel workflow data + create your Django super admin
 python manage.py seed_users
 python manage.py createsuperuser
+#    The superuser is a Technical Administrator: Django admin only, no portal sign-in.
 
 # 5. Run
 python manage.py runserver 8000
@@ -63,6 +64,12 @@ Normal APIs remain bearer-authenticated. Frontend JavaScript keeps the access
 token in memory and cannot read the HttpOnly refresh cookie. Login, refresh, and
 logout use JSON requests; run `python manage.py migrate` after installation so
 SimpleJWT's outstanding-token and blacklist tables are available.
+
+Technical Administrator accounts (created by `createsuperuser`) are for Django
+admin only. Portal login returns 403 with code `technical_account`, existing
+tokens and refresh sessions are refused, and password reset emails are not sent
+to them. Recover their access on the server with
+`python manage.py changepassword <email>`.
 
 ## Panel appointment endpoints (`/api/appointments/panel/`)
 
