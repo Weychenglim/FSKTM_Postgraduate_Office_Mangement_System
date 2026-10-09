@@ -16,7 +16,8 @@ from rest_framework.test import APIClient, APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from announcements.models import Announcement
+from announcements.models import Announcement, Notification
+from announcements.views import _fan_out
 from letters.models import LetterTemplate
 
 from .models import Student, User
@@ -210,3 +211,37 @@ class SuperuserFlagGrantsNoPortalPowerTests(APITestCase):
         self.assertEqual(announcement.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Announcement.objects.filter(title="Flag Notice").exists())
         self.assertFalse(LetterTemplate.objects.filter(name="Flag Template").exists())
+
+
+class TechnicalAccountAnnouncementTests(TestCase):
+    def test_all_and_staff_announcements_skip_technical_accounts(self):
+        tech = User.objects.create_superuser(email="tech.notice@example.test", password=TECH_PASSWORD)
+        office = User.objects.create_user(
+            email="office.notice@example.test",
+            password=TECH_PASSWORD,
+            full_name="Office Reader",
+            role=User.Role.OFFICE_ADMIN,
+        )
+        student = User.objects.create_user(
+            email="student.notice@example.test",
+            password=TECH_PASSWORD,
+            full_name="Student Reader",
+            role=User.Role.STUDENT,
+        )
+        expected = {
+            Announcement.Audience.ALL: {office.pk, student.pk},
+            Announcement.Audience.STAFF: {office.pk},
+        }
+        for target, readers in expected.items():
+            with self.subTest(target=target):
+                announcement = Announcement.objects.create(
+                    title=f"Notice for {target}", content="Body", target=target
+                )
+                _fan_out(announcement)
+                recipients = set(
+                    Notification.objects.filter(announcement=announcement).values_list(
+                        "recipient_id", flat=True
+                    )
+                )
+                self.assertEqual(recipients, readers)
+                self.assertNotIn(tech.pk, recipients)

@@ -97,7 +97,7 @@ def _require_can_read(request, announcement):
 
 def _recipients_for(target):
     """Active users an announcement with this target should reach."""
-    active = User.objects.filter(is_active=True)
+    active = User.objects.filter(is_active=True).exclude(role=User.TECHNICAL_ADMIN)
     if target == Announcement.Audience.ALL:
         return active
     role = AUDIENCE_TO_ROLE.get(target)
