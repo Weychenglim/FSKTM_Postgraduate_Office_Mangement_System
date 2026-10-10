@@ -3,6 +3,14 @@ import type { StudentSupervisorApplication } from '../types';
 
 export type SupervisorWorkspaceSection = 'overview' | 'applications' | 'requests' | 'supervisees' | 'research';
 
+export function supervisorResearchPage(view: 'detail' | 'profile' | 'new') {
+  return {
+    detail: { title: 'Research change request', subtitle: 'Compare changed fields and follow the recorded submissions and decisions for this request.' },
+    profile: { title: 'Research profile', subtitle: 'View the current research record and saved revisions.' },
+    new: { title: 'Request research change', subtitle: 'The primary supervisor endorses research changes before the programme coordinator makes the final decision.' },
+  }[view];
+}
+
 export function supervisorWorkspaceSection(role: 'Student' | 'Lecturer', pathname: string): SupervisorWorkspaceSection {
   if (pathname === APP_ROUTES.supervisorResearchChanges || pathname.startsWith(`${APP_ROUTES.supervisorResearchChanges}/`)) return 'research';
   if (role === 'Student') return pathname === APP_ROUTES.supervisorAppointments ? 'overview' : 'applications';

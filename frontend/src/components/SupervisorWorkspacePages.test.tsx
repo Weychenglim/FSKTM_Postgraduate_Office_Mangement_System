@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
+import { LecturerSupervisorAppointments } from './LecturerSupervisorAppointments';
+import { StudentSupervisorAppointment } from './StudentSupervisorAppointment';
 import * as routes from '../constants/routes';
 import * as workspace from '../utils/supervisorWorkspace';
 import type { StudentSupervisorApplication } from '../types';
@@ -41,3 +43,16 @@ const compact = renderToStaticMarkup(<StudentSupervisorApplications applications
 assert.match(compact, /SV-1|SV-2/);
 assert.doesNotMatch(compact, /SV-3|SV-4|Completed application history|Synthetic topic/);
 console.log('Shared role navigation and compact current-request presentation pass');
+
+const historyPage = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/history']}><LecturerSupervisorAppointments routeView="history" /></MemoryRouter>);
+assert.equal((historyPage.match(/<h1\b/g) ?? []).length, 1, 'Request history has one page heading');
+assert.ok(historyPage.indexOf('Back to Requests') < historyPage.indexOf('<nav'), 'Back precedes workspace navigation');
+assert.doesNotMatch(historyPage.slice(historyPage.indexOf('<nav')), /Back to Supervisor Appointments/);
+for (const role of ['Student', 'Lecturer']) {
+  const page = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes/2']}>{role === 'Student' ? <StudentSupervisorAppointment routeView="research" researchView="detail" /> : <LecturerSupervisorAppointments routeView="research" researchView="detail" />}</MemoryRouter>);
+  assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(page, /<h1[^>]*>Research change request<\/h1>/);
+  assert.ok(page.indexOf('Back to research changes') < page.indexOf('<nav'));
+  assert.doesNotMatch(page.slice(page.indexOf('<nav')), /Back to research changes/);
+}
+console.log('History and both-role research pages have a single heading and Back before navigation');

@@ -33,9 +33,10 @@ import { getSupervisorRequestHistory } from '../services';
 
 interface SupervisorRequestHistoryProps {
   onBack: () => void;
+  hideHeader?: boolean;
 }
 
-export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack }) => {
+export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack, hideHeader = false }) => {
   // Decided supervisor requests are loaded from the persisted appointment API.
   const [allHistoryRecords, setAllHistoryRecords] = useState<SupervisorRequestHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,14 +133,14 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
   return (
     <div id="supervisor-request-history-page" className="space-y-8 animate-fade-in text-left">
       
-      <PageHeader
+      {!hideHeader && <PageHeader
         title="Supervisor Request History"
         subtitle="View supervisor appointment requests you have approved or rejected."
         backLabel="Back to Supervisor Appointments"
         onBack={onBack}
         subtitleClassName="max-w-4xl leading-relaxed"
         className="select-none"
-      />
+      />}
 
       {/* THREE SUMMARY CARDS GRID */}
       <div id="history-summary-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6 select-none font-sans">

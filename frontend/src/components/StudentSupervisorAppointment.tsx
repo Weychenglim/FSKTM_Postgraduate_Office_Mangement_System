@@ -30,7 +30,7 @@ import { ResearchAmendments } from './ResearchAmendments';
 import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
-import { partitionSupervisorApplications } from '../utils/supervisorWorkspace';
+import { partitionSupervisorApplications, supervisorResearchPage } from '../utils/supervisorWorkspace';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -210,8 +210,10 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   }
 
   const pending = partitionSupervisorApplications(applications).pending;
+  const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
   const pageHeader = <>
-    <PageHeader title="Supervisor Appointments" subtitle={routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.'}
+    <PageHeader title={researchPage?.title ?? 'Supervisor Appointments'} subtitle={researchPage?.subtitle ?? (routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.')}
+      backLabel={researchPage ? 'Back to research changes' : undefined} onBack={researchPage ? onNavigateToResearchList : undefined}
       actions={routeView !== 'research' && !approvedApplication && workflowEligible ? <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || pending.length > 0} onClick={() => { setReplacementApplication(null); handleCreateNewApplication(); }}>New application</PortalButton> : undefined} />
     <SupervisorWorkspaceNavigation role="Student" />
   </>;
@@ -253,7 +255,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
         <StudentSupervisorApplications applications={applications} onViewApplication={onNavigateToApplication} />
         <SupervisoryTeamManagement role="Student" view="studentHistory" />
       </>}
-      {routeView === 'research' && <ResearchAmendments role="Student" routeView={researchView} routeRequestId={researchRequestId}
+      {routeView === 'research' && <ResearchAmendments role="Student" hideHeader={!!researchPage} routeView={researchView} routeRequestId={researchRequestId}
         onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile} onNavigateToNew={onNavigateToResearchNew}
         onChanged={() => setResearchRefreshVersion(value => value + 1)} />}
 

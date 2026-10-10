@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
+import { supervisorResearchPage } from '../utils/supervisorWorkspace';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
@@ -691,13 +692,17 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
   };
 
+  const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
+  const backLabel = researchPage ? 'Back to research changes' : routeView === 'history' ? 'Back to Requests' : routeView === 'superviseeDetail' ? 'Back to My supervisees' : undefined;
+  const onPageBack = researchPage ? onNavigateToResearchList : routeView === 'history' ? navigateToList : routeView === 'superviseeDetail' ? onNavigateToSupervisees : undefined;
+
   return (
     <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">
       
       <PortalToast message={toastText} />
-      <PageHeader title={routeView === 'superviseeDetail' ? 'Supervision details' : 'Supervisor Appointments'}
-        subtitle={routeView === 'research' ? 'Review research changes for students you supervise.' : routeView === 'supervisees' ? 'Find a student and open their supervision details.' : routeView === 'superviseeDetail' ? 'Current supervisory team, research profile and recorded appointment history.' : 'Review incoming Supervisor and co-supervisor requests.'}
-        backLabel={routeView === 'superviseeDetail' ? 'Back to My supervisees' : undefined} onBack={routeView === 'superviseeDetail' ? onNavigateToSupervisees : undefined}
+      <PageHeader title={researchPage?.title ?? (routeView === 'history' ? 'Supervisor Request History' : routeView === 'superviseeDetail' ? 'Supervision details' : 'Supervisor Appointments')}
+        subtitle={researchPage?.subtitle ?? (routeView === 'history' ? 'View your previous supervisor requests and recorded outcomes.' : routeView === 'research' ? 'Review research changes for students you supervise.' : routeView === 'supervisees' ? 'Find a student and open their supervision details.' : routeView === 'superviseeDetail' ? 'Current supervisory team, research profile and recorded appointment history.' : 'Review incoming Supervisor and co-supervisor requests.')}
+        backLabel={backLabel} onBack={onPageBack}
         actions={routeView === 'list' || routeView === 'supervisees' ? <PortalButton size="sm" icon={RefreshCw} disabled={loading} onClick={() => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); }}>Refresh appointments</PortalButton> : undefined} />
       <SupervisorWorkspaceNavigation role="Lecturer" />
 
@@ -745,7 +750,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
       )}
 
       {routeView === 'supervisees' && <SupervisoryTeamManagement key="roster" role="Lecturer" view="roster" showResearchChanges={false} refreshVersion={teamRefresh} onNavigateToStudent={onNavigateToSupervisee} />}
-      {routeView === 'research' && <ResearchAmendments role="Lecturer" routeView={researchView} routeRequestId={researchRequestId}
+      {routeView === 'research' && <ResearchAmendments role="Lecturer" hideHeader={!!researchPage} routeView={researchView} routeRequestId={researchRequestId}
         onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
         refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />}
       {routeView === 'research' && researchView === 'list' && <LecturerAppointmentGuidance module="supervisor" section="research" />}
@@ -935,7 +940,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          <SupervisorRequestHistory onBack={navigateToList} />
+          <SupervisorRequestHistory onBack={navigateToList} hideHeader />
           <SupervisoryTeamManagement role="Lecturer" view="history" showResearchChanges={false} />
         </motion.div>
       )}

@@ -6,6 +6,7 @@
 - Student and Lecturer pages render only the selected workspace responsibility. Shared research/team components accept optional routed presentation props; existing embedded consumers retain default behavior. No API, schema, dependency or authority change is required.
 - Application lists share pending/completed partitioning and waiting-time formatting. Research request links from reports, notifications and student records use the detail route; Office/Coordinator fall back to their existing embedded workspace. Lecturer research selection persists between list and profile; detail requests ignore that filter and resolve from authorised results.
 - Routed team views preserve current primary/supporting rosters, individual team actions and read-only nomination/appointment history, including accepted nominations awaiting Coordinator approval. Research scope/load guards and Lecturer request-detail version/scope checks prevent obsolete responses opening a prior page's details after navigation.
+- Supervisor containers own nested page headings and parent navigation. A shared research-page descriptor keeps Student/Lecturer titles and supporting copy aligned; optional hideHeader props suppress embedded history/research headers while preserving standalone and Office/Coordinator defaults.
 
 ## Shared reporting controls and Lecturer action summaries (2026-10-10)
 

@@ -1,5 +1,11 @@
 # Project Status
 
+## Supervisor nested page header correction (2026-10-11)
+
+- Fixed the screenshot's double history heading and Back action below the module navigation. Lecturer Request History now has one page heading and Back to Requests above it. Student/Lecturer research detail, profile and form pages use the same hierarchy; standalone component headers and other staff defaults remain available.
+- Added actual container-rendering assertions to the existing workspace regression; the history assertion reproduced two h1 headings before the correction. Final verification passes all 82 frontend test files, TypeScript, production build and both production security/artifact guards.
+- Live desktop checks verify the Lecturer history header, Back navigation and research detail, plus Student research detail and Back navigation. History has no document-level overflow at the 1280 px viewport. Saved supervisor-history-header-fixed.png. Only navigation/authentication changed; no workflow mutation was submitted. No backend or permission changes were made; new mobile acceptance is not claimed.
+
 ## Supervisor workspace page separation (2026-10-10)
 
 - Completed the approved page split: Student My supervisors / Applications / Research changes; Lecturer Requests / My supervisees / Research changes. Compact lists open individual application, supervision and research details. Current profile/revisions and the permitted research form have dedicated views; useful guidance stays visible in the relevant section. Staff record buttons now read View student record; Student evaluations remain absent.

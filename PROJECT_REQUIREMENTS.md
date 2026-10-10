@@ -6,6 +6,7 @@
 - Lecturer navigation separates Requests, My supervisees and Research changes. Individual supervision details retain team actions/history; request queues retain primary/supporting reviews and reviewed history.
 - Research lists open individual request comparisons/audit details. Current profile and change form have dedicated views. Preserve permissions, cancellation/review/replacement actions and existing Office/Coordinator behavior.
 - Staff dossier links read View student record; Student My Academic Record remains a read-only consolidated record with no evaluations. Page-level navigation supports direct links, refresh and browser Back.
+- Nested workspace pages have one page heading and one parent Back action above the module navigation. History and research detail/profile/form views must not repeat full page headers beneath that navigation.
 
 ## Recognisable report filters and useful Lecturer reporting (2026-10-10)
 
