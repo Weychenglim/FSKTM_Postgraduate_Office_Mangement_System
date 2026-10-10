@@ -404,7 +404,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                                 variant="ghost"
                                 onClick={() => onNavigateToRoute(routeForStudentProgress(item.studentId ?? undefined))}
                               >
-                                View Dossier
+                                View student record
                               </PortalButton>
                             )}
                             <PortalButton

@@ -19,7 +19,7 @@ import {
   getMySupervisorApplications,
   toStudentSupervisorApplication,
 } from '../services';
-import { PageHeader, PortalButton, PortalConfirmModal, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal } from './PortalPrimitives';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
@@ -28,15 +28,24 @@ import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { ResearchAmendments } from './ResearchAmendments';
 import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
+import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
+import { StudentSupervisorApplications } from './StudentSupervisorApplications';
+import { partitionSupervisorApplications } from '../utils/supervisorWorkspace';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
   initialApplicationId?: string;
-  routeView?: 'overview' | 'newApplication';
+  routeView?: 'overview' | 'applications' | 'research' | 'newApplication';
   onNavigateToList?: () => void;
   onNavigateToNewApplication?: () => void;
   onNavigateToApplication?: (applicationId: string) => void;
   lifecycleStatus?: string | null;
+  researchView?: 'list' | 'detail' | 'profile' | 'new';
+  researchRequestId?: string;
+  onNavigateToResearchRequest?: (id: string) => void;
+  onNavigateToResearchList?: () => void;
+  onNavigateToResearchProfile?: () => void;
+  onNavigateToResearchNew?: () => void;
 }
 
 type SupervisorApplicationDetail = StudentSupervisorApplication & {
@@ -63,6 +72,8 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   onNavigateToNewApplication,
   onNavigateToApplication,
   lifecycleStatus,
+  researchView = 'list', researchRequestId,
+  onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile, onNavigateToResearchNew,
 }) => {
   const workflowEligible = !lifecycleStatus || lifecycleStatus === 'ACTIVE';
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
@@ -104,7 +115,8 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
   useEffect(() => {
-    if (!initialApplicationId || applications.length === 0) return;
+    if (!initialApplicationId) { setActiveDetailAp(null); return; }
+    if (applications.length === 0) return;
     const app = applications.find(
       (item) => String(item.applicationId) === String(initialApplicationId),
     );
@@ -197,12 +209,14 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
     );
   }
 
-  const pageHeader = <PageHeader
-    title="Supervisor Appointment"
-    subtitle="See your supervisors, research change requests and previous applications."
-  />;
+  const pending = partitionSupervisorApplications(applications).pending;
+  const pageHeader = <>
+    <PageHeader title="Supervisor Appointments" subtitle={routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.'}
+      actions={routeView !== 'research' && !approvedApplication && workflowEligible ? <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || pending.length > 0} onClick={() => { setReplacementApplication(null); handleCreateNewApplication(); }}>New application</PortalButton> : undefined} />
+    <SupervisorWorkspaceNavigation role="Student" />
+  </>;
 
-  if (loadingApplications || applicationsError) {
+  if (routeView !== 'research' && (loadingApplications || applicationsError)) {
     return <div id="student-supervisor-app-workspace" className="space-y-6 text-left font-sans pb-12">
       {pageHeader}
       {loadingApplications ? <LoadingState message="Loading supervisor appointments..." /> : <ErrorState message={applicationsError!} onRetry={loadApplications} />}
@@ -226,63 +240,22 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
       
       {pageHeader}
-      <SupervisoryTeamManagement role="Student" onRefresh={loadApplications} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
-        <PortalButton size="sm" variant="primary" icon={Eye} onClick={() => onNavigateToApplication?.(String(approvedApplication.id))}>View appointment</PortalButton>
-        <PortalButton size="sm" icon={Users} disabled={!workflowEligible} onClick={() => { setReplacementApplication(approvedApplication); onNavigateToNewApplication?.(); }}>Change Supervisor</PortalButton>
-      </> : undefined} />
-      <ResearchAmendments role="Student" onChanged={() => setResearchRefreshVersion(value => value + 1)} />
-
-      {/* ========================================================================= */}
-      {/* PREVIOUS SUPERVISOR APPLICATIONS                    */}
-      {/* ========================================================================= */}
-      <section aria-label="Previous applications" className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs">
-        
-        {/* Application history header */}
-        <div className="bg-slate-50/50 border-b border-slate-100 px-6 py-4.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="space-y-0.5 text-left select-none">
-            <h2 className="section-label">
-              Previous applications
-            </h2>
-            <p className="card-caption">
-              Your submitted supervisor requests and their outcomes.
-            </p>
-          </div>
-
-          {!approvedApplication && workflowEligible && (
-            <PortalButton
-              type="button"
-              onClick={() => {
-                setReplacementApplication(null);
-                handleCreateNewApplication();
-              }}
-              variant="primary"
-              size="md"
-              icon={Plus}
-            >
-              New Application
-            </PortalButton>
-          )}
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {applications.map(app => <article key={app.id} className="flex flex-col items-start justify-between gap-3 px-6 py-4 sm:flex-row">
-            <div className="min-w-0 w-full space-y-1 sm:w-auto sm:flex-1">
-              <h3 className="card-value font-mono">{app.id}</h3>
-              <p className="card-value break-words">{app.title}</p>
-              <p className="card-description">{app.supervisor} · Submitted {app.date}</p>
-              {formatSupervisorWaiting(app) !== '-' ? <p className="card-description">{formatSupervisorWaiting(app)}</p> : null}
-              {app.unavailableUntil ? <p className="card-description text-amber-700">Unavailable for new appointments until {app.unavailableUntil}</p> : null}
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-3">
-              <StatusBadge tone={getStatusBadgeTone(app.status)} dot pulse={app.status === 'PENDING REVIEW'}>{app.status}</StatusBadge>
-              <PortalButton size="sm" icon={Eye} onClick={() => { if (app.applicationId !== undefined) onNavigateToApplication?.(String(app.applicationId)); }} title={`View application ${app.id}`}>View application</PortalButton>
-            </div>
-          </article>)}
-          {!applications.length ? <p className="card-description p-6">You have not submitted a supervisor application yet.</p> : null}
-        </div>
-      </section>
-
-      <SupervisorAppointmentGuidance hasSupervisor={!!approvedApplication} onShowFAQChatbot={onShowFAQChatbot} />
+      {routeView === 'overview' && <>
+        <SupervisoryTeamManagement role="Student" view="studentOverview" onRefresh={loadApplications} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
+          <PortalButton size="sm" variant="primary" icon={Eye} onClick={() => onNavigateToApplication?.(String(approvedApplication.id))}>View appointment</PortalButton>
+          <PortalButton size="sm" icon={Users} disabled={!workflowEligible} onClick={() => { setReplacementApplication(approvedApplication); onNavigateToNewApplication?.(); }}>Change Supervisor</PortalButton>
+        </> : undefined} />
+        {pending.length > 0 && <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication} />}
+        <SupervisorAppointmentGuidance hasSupervisor={!!approvedApplication} onShowFAQChatbot={onShowFAQChatbot} />
+      </>}
+      {routeView === 'applications' && <>
+        {initialApplicationId && !applications.some(app => String(app.applicationId) === initialApplicationId) ? <EmptyState title="Application not found" description="This application does not exist or is outside your access." /> : null}
+        <StudentSupervisorApplications applications={applications} onViewApplication={onNavigateToApplication} />
+        <SupervisoryTeamManagement role="Student" view="studentHistory" />
+      </>}
+      {routeView === 'research' && <ResearchAmendments role="Student" routeView={researchView} routeRequestId={researchRequestId}
+        onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile} onNavigateToNew={onNavigateToResearchNew}
+        onChanged={() => setResearchRefreshVersion(value => value + 1)} />}
 
       {/* ========================================================================= */}
       {/* APPROVAL WORKFLOW DRAWER (RIGHT-SIDE SLIDING PANEL OVERLAY)              */}

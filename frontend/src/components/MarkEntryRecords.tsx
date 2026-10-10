@@ -528,7 +528,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                           onClick={() => onNavigateToDossier?.(rec.studentId)}
                           className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                         >
-                          View Dossier
+                          View student record
                         </button>
                         <button
                           onClick={() => onViewRecordDetail(rec.id)}

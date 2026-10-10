@@ -1,5 +1,12 @@
 # Architecture and Coding Design
 
+## Routed Supervisor workspace composition (2026-10-10)
+
+- Extend existing Supervisor routes with applications, supervisees list and research list/detail/profile/new views. Shared module navigation reflects the route, while existing authorised service handlers remain the mutation boundary. Office/Coordinator routes retain their current composition.
+- Student and Lecturer pages render only the selected workspace responsibility. Shared research/team components accept optional routed presentation props; existing embedded consumers retain default behavior. No API, schema, dependency or authority change is required.
+- Application lists share pending/completed partitioning and waiting-time formatting. Research request links from reports, notifications and student records use the detail route; Office/Coordinator fall back to their existing embedded workspace. Lecturer research selection persists between list and profile; detail requests ignore that filter and resolve from authorised results.
+- Routed team views preserve current primary/supporting rosters, individual team actions and read-only nomination/appointment history, including accepted nominations awaiting Coordinator approval. Research scope/load guards and Lecturer request-detail version/scope checks prevent obsolete responses opening a prior page's details after navigation.
+
 ## Shared reporting controls and Lecturer action summaries (2026-10-10)
 
 - The shared total KPI varies its label by role: Lecturer sees Records involving you; other staff retain Records in scope. Lecturer breakdown supporting text explains the existing scope and counting semantics. This is presentation-only; no permission, query or export changes.

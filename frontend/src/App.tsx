@@ -44,6 +44,7 @@ import {
   routeForSupervisorRequirements,
   routeForSupervisorSupervisee,
   routeForSupervisorWorkload,
+  routeForSupervisorResearchRequest,
   routeForSidebarItem,
   sidebarItemForPath,
 } from './constants/routes';
@@ -187,6 +188,12 @@ export default function App() {
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
   const isSupervisorRequirementsRoute = pathname === APP_ROUTES.supervisorAppointmentRequirements;
+  const isSupervisorApplicationsRoute = pathname === APP_ROUTES.supervisorAppointmentApplications;
+  const isSupervisorSuperviseesRoute = pathname === APP_ROUTES.supervisorAppointmentSupervisees;
+  const supervisorResearchMatch = matchPath(`${APP_ROUTES.supervisorResearchChanges}/:requestId`, pathname);
+  const isSupervisorResearchRoute = pathname === APP_ROUTES.supervisorResearchChanges || Boolean(supervisorResearchMatch);
+  const supervisorResearchView = pathname === APP_ROUTES.supervisorResearchNew ? 'new' : pathname === APP_ROUTES.supervisorResearchProfile ? 'profile' : supervisorResearchMatch ? 'detail' : 'list';
+  const supervisorResearchRequestId = supervisorResearchView === 'detail' ? supervisorResearchMatch?.params.requestId : undefined;
   const supervisorSuperviseeMatch = matchPath(`${APP_ROUTES.supervisorAppointmentSupervisees}/:studentId`, pathname);
   const supervisorSuperviseeStudentId = supervisorSuperviseeMatch?.params.studentId;
   const isSupervisorFixedRoute = (
@@ -194,6 +201,9 @@ export default function App() {
     || isSupervisorNewRoute
     || isSupervisorHistoryRoute
     || isSupervisorRequirementsRoute
+    || isSupervisorApplicationsRoute
+    || isSupervisorSuperviseesRoute
+    || isSupervisorResearchRoute
     || Boolean(supervisorSuperviseeStudentId)
   );
   const supervisorApplicationMatch = isSupervisorFixedRoute
@@ -236,14 +246,14 @@ export default function App() {
     ? currentUser?.studentId
     : dashboardProgressMatch?.params.studentId;
   const isStudentUnsupportedSupervisorRoute =
-    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || isSupervisorRequirementsRoute || Boolean(supervisorSuperviseeStudentId));
+    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || isSupervisorRequirementsRoute || isSupervisorSuperviseesRoute || Boolean(supervisorSuperviseeStudentId));
   const isLecturerUnsupportedSupervisorRoute =
-    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute || isSupervisorRequirementsRoute);
+    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute || isSupervisorRequirementsRoute || isSupervisorApplicationsRoute || pathname === APP_ROUTES.supervisorResearchNew);
   const isCoordinatorUnsupportedSupervisorRoute =
     isCoordinatorWorkspace && isSupervisorFixedRoute;
   const isOfficeUnsupportedSupervisorRoute =
     currentUser?.role === 'Office Staff/Admin'
-    && (isSupervisorNewRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
+    && (isSupervisorNewRoute || isSupervisorHistoryRoute || isSupervisorApplicationsRoute || isSupervisorSuperviseesRoute || isSupervisorResearchRoute || Boolean(supervisorSuperviseeStudentId));
   const isUnauthorizedSupervisorRequirementsRoute = Boolean(
     isSupervisorRequirementsRoute
     && currentUser
@@ -631,10 +641,16 @@ export default function App() {
                   lifecycleStatus={currentUser.participantLifecycleStatus}
                   onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
                   initialApplicationId={supervisorApplicationId}
-                  routeView={isSupervisorNewRoute ? 'newApplication' : 'overview'}
-                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  routeView={isSupervisorNewRoute ? 'newApplication' : isSupervisorResearchRoute ? 'research' : isSupervisorApplicationsRoute || supervisorApplicationId ? 'applications' : 'overview'}
+                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointmentApplications)}
                   onNavigateToNewApplication={() => navigate(routeForSupervisorNewApplication())}
                   onNavigateToApplication={(applicationId) => navigate(routeForSupervisorApplication(applicationId))}
+                  researchView={supervisorResearchView}
+                  researchRequestId={supervisorResearchRequestId}
+                  onNavigateToResearchList={() => navigate(APP_ROUTES.supervisorResearchChanges)}
+                  onNavigateToResearchProfile={() => navigate(APP_ROUTES.supervisorResearchProfile)}
+                  onNavigateToResearchNew={() => navigate(APP_ROUTES.supervisorResearchNew)}
+                  onNavigateToResearchRequest={(id) => navigate(routeForSupervisorResearchRequest(id))}
                 />
               ) : isCoordinatorUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
@@ -651,6 +667,10 @@ export default function App() {
                   routeView={
                     isSupervisorHistoryRoute
                       ? 'history'
+                      : isSupervisorResearchRoute
+                      ? 'research'
+                      : isSupervisorSuperviseesRoute
+                      ? 'supervisees'
                       : supervisorSuperviseeStudentId
                       ? 'superviseeDetail'
                       : 'list'
@@ -659,6 +679,12 @@ export default function App() {
                   onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
                   onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
                   onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
+                  onNavigateToSupervisees={() => navigate(APP_ROUTES.supervisorAppointmentSupervisees)}
+                  researchView={supervisorResearchView}
+                  researchRequestId={supervisorResearchRequestId}
+                  onNavigateToResearchList={() => navigate(APP_ROUTES.supervisorResearchChanges)}
+                  onNavigateToResearchProfile={() => navigate(APP_ROUTES.supervisorResearchProfile)}
+                  onNavigateToResearchRequest={(id) => navigate(routeForSupervisorResearchRequest(id))}
                   onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
                   onNavigateToPanelRecommendation={(studentId) => navigate(routeForPanelRecommendationStart(studentId))}
                 />

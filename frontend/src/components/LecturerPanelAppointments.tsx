@@ -1029,7 +1029,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                                 onClick={() => onNavigateToDossier?.(recommendation.studentId)}
                                 className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                               >
-                                View Dossier
+                                View student record
                               </button>
                               <button
                                 type="button"
@@ -1162,7 +1162,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                               onClick={() => onNavigateToDossier?.(asg.studentId)}
                               className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                             >
-                              View Dossier
+                              View student record
                             </button>
                             <button
                               onClick={() => onNavigateToAssignment?.(asg.studentId)}

@@ -748,7 +748,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                               onClick={() => onNavigateToDossier?.(rec.id)}
                               className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                             >
-                              View Dossier
+                              View student record
                             </button>
                             <button
                               onClick={() => handleViewDetail(rec)}

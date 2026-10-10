@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Users,
   RefreshCw,
@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
+import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -384,7 +385,7 @@ interface RequestCardProps {
 export const RequestCard: React.FC<RequestCardProps> = ({ request, onOpen, onViewDossier }) => (
   <div id={`request-card-${request.studentId}`}>
     <AppointmentMemberCard label="Applicant" name={request.studentName} status={request.status} tone="warning" actions={<>
-      <PortalButton size="sm" onClick={onViewDossier}>View Dossier</PortalButton>
+      <PortalButton size="sm" onClick={onViewDossier}>View student record</PortalButton>
       <PortalButton size="sm" variant="primary" onClick={onOpen}>Open Request</PortalButton>
     </>}>
       <dl className="grid gap-3 sm:grid-cols-2">
@@ -470,13 +471,13 @@ export const DataTable: React.FC<DataTableProps> = ({
                           onClick={() => onViewDossier(row.studentId)}
                           className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                         >
-                          View Dossier
+                          View student record
                         </button>
                         <button
                           onClick={() => onOpenRow(row)}
                         className="px-3.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
                         >
-                          Open
+                          View supervision
                         </button>
                       </div>
                     </td>
@@ -496,13 +497,19 @@ export const DataTable: React.FC<DataTableProps> = ({
 interface LecturerSupervisorAppointmentsProps {
   onBack?: () => void;
   initialApplicationId?: string;
-  routeView?: 'list' | 'history' | 'superviseeDetail';
+  routeView?: 'list' | 'supervisees' | 'research' | 'history' | 'superviseeDetail';
   routeSuperviseeStudentId?: string;
   onNavigateToList?: () => void;
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
   onNavigateToPanelRecommendation?: (studentId: string) => void;
+  onNavigateToSupervisees?: () => void;
+  researchView?: 'list' | 'detail' | 'profile' | 'new';
+  researchRequestId?: string;
+  onNavigateToResearchRequest?: (id: string) => void;
+  onNavigateToResearchList?: () => void;
+  onNavigateToResearchProfile?: () => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
@@ -515,6 +522,9 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   onNavigateToSupervisee,
   onNavigateToDossier,
   onNavigateToPanelRecommendation,
+  onNavigateToSupervisees,
+  researchView = 'list', researchRequestId,
+  onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
   const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
   const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
@@ -558,14 +568,28 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [detailRejectReason, setDetailRejectReason] = useState('');
+  const requestLoadVersion = useRef(0);
+  const requestScope = `${routeView}:${initialApplicationId ?? ''}:${routeSuperviseeStudentId ?? ''}:${researchView}:${researchRequestId ?? ''}`;
+  const requestScopeRef = useRef(requestScope);
+  requestScopeRef.current = requestScope;
 
   useEffect(() => {
-    if (!initialApplicationId) return;
+    requestLoadVersion.current += 1;
+    setIsDrawerOpen(false);
+    setSelectedRequest(null);
+    setDetailRejectReason('');
+    return () => { requestLoadVersion.current += 1; };
+  }, [requestScope]);
+
+  useEffect(() => {
+    if (!initialApplicationId) { setIsDrawerOpen(false); setSelectedRequest(null); return; }
+    let current = true;
     const request = requestsList.find(
       (item) => String(item.applicationId) === String(initialApplicationId),
     );
     getSupervisorApplication(initialApplicationId)
       .then((detail) => {
+        if (!current) return;
         setSelectedRequest({
           ...request,
           ...detail,
@@ -578,12 +602,14 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
         setIsDrawerOpen(true);
       })
       .catch(() => {
+        if (!current) return;
         if (!request) return;
         setSelectedRequest(request);
         setDetailRejectReason('');
         setIsDrawerOpen(true);
       });
-  }, [initialApplicationId, requestsList]);
+    return () => { current = false; };
+  }, [initialApplicationId, requestsList, requestScope]);
 
   const [toastText, setToastText] = useState<string | null>(null);
 
@@ -593,6 +619,9 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   };
 
   const handleOpenRequest = async (req: any) => {
+    const version = ++requestLoadVersion.current;
+    const scope = requestScopeRef.current;
+    const isCurrent = () => version === requestLoadVersion.current && scope === requestScopeRef.current;
     setDetailRejectReason('');
     if (req.applicationId === undefined) {
       setSelectedRequest(req);
@@ -601,9 +630,11 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     }
     try {
       const detail = await getSupervisorApplication(req.applicationId);
+      if (!isCurrent()) return;
       setSelectedRequest({ ...req, ...detail });
       setIsDrawerOpen(true);
     } catch (reason) {
+      if (!isCurrent()) return;
       showToast(reason instanceof Error ? reason.message : 'Failed to load request history.');
     }
   };
@@ -664,18 +695,16 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
     <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">
       
       <PortalToast message={toastText} />
+      <PageHeader title={routeView === 'superviseeDetail' ? 'Supervision details' : 'Supervisor Appointments'}
+        subtitle={routeView === 'research' ? 'Review research changes for students you supervise.' : routeView === 'supervisees' ? 'Find a student and open their supervision details.' : routeView === 'superviseeDetail' ? 'Current supervisory team, research profile and recorded appointment history.' : 'Review incoming Supervisor and co-supervisor requests.'}
+        backLabel={routeView === 'superviseeDetail' ? 'Back to My supervisees' : undefined} onBack={routeView === 'superviseeDetail' ? onNavigateToSupervisees : undefined}
+        actions={routeView === 'list' || routeView === 'supervisees' ? <PortalButton size="sm" icon={RefreshCw} disabled={loading} onClick={() => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); }}>Refresh appointments</PortalButton> : undefined} />
+      <SupervisorWorkspaceNavigation role="Lecturer" />
 
       {/* RENDER ACTIVE SCREEN BASED ON DETAILED ROUTE STATE */}
       {routeView === 'list' && (
         <div id="overview-listing-screen" className="space-y-6">
           
-          <PageHeader
-            title="Supervisor Appointments"
-            subtitle="Manage your active supervisees and review incoming supervisor appointment requests."
-            subtitleClassName="leading-relaxed max-w-4xl"
-            actions={<PortalButton size="sm" icon={RefreshCw} disabled={loading} onClick={() => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); }}>Refresh appointments</PortalButton>}
-          />
-
           {loading ? (
             <LoadingState message="Loading supervisor appointments…" />
           ) : error ? (
@@ -707,21 +736,19 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
             {requestsList.length ? <div className="grid gap-3 lg:grid-cols-2">{requestsList.map(req => <RequestCard key={req.applicationId ?? req.studentId} request={req} onOpen={() => handleOpenRequest(req)} onViewDossier={() => onNavigateToDossier?.(req.studentId)} />)}</div> : <EmptyStateCard />}
           </AppointmentSection>
 
-          {/* ACTIVE SUPERVISEES DETAILS LIST TABLE */}
-          <DataTable
-            data={supervisees}
-            onOpenRow={handleOpenSupervisee}
-            onViewDossier={(studentId) => onNavigateToDossier?.(studentId)}
-          />
-
           </>
           )}
-          <ResearchAmendments role="Lecturer" refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />
-          <SupervisoryTeamManagement role="Lecturer" showResearchChanges={false} refreshVersion={teamRefresh} onChanged={() => { void loadData(); setResearchRefresh(value => value + 1); }} />
-          <LecturerAppointmentGuidance module="supervisor" />
+          <SupervisoryTeamManagement key="requests" role="Lecturer" view="requests" showResearchChanges={false} refreshVersion={teamRefresh} onChanged={() => { void loadData(); setResearchRefresh(value => value + 1); }} />
+          <LecturerAppointmentGuidance module="supervisor" section="requests" />
 
         </div>
       )}
+
+      {routeView === 'supervisees' && <SupervisoryTeamManagement key="roster" role="Lecturer" view="roster" showResearchChanges={false} refreshVersion={teamRefresh} onNavigateToStudent={onNavigateToSupervisee} />}
+      {routeView === 'research' && <ResearchAmendments role="Lecturer" routeView={researchView} routeRequestId={researchRequestId}
+        onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
+        refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />}
+      {routeView === 'research' && researchView === 'list' && <LecturerAppointmentGuidance module="supervisor" section="research" />}
 
       {/* DETAIL SCREEN 1: PENDING SUPERVISOR REQUEST DETAIL */}
       {detailView === 'requestDetail' && selectedRequest && (
@@ -889,21 +916,17 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           className="space-y-6 text-left"
         >
           <ActiveSuperviseeDetail 
-            onBack={navigateToList}
+            onBack={onNavigateToSupervisees ?? navigateToList}
+            hideHeader
+            onViewStudentRecord={() => onNavigateToDossier?.(selectedSupervisee.studentId)}
             onRecommendPanel={onNavigateToPanelRecommendation}
             supervisee={selectedSupervisee}
           />
         </motion.div>
       )}
 
-      {routeView === 'superviseeDetail' && !loading && !error && !selectedSupervisee && (
-        <EmptyState
-          title="Active supervisee not found"
-          description="The requested supervisee record does not exist or is no longer available."
-          actionLabel="Back to Supervisor Appointments"
-          onAction={navigateToList}
-        />
-      )}
+      {routeView === 'superviseeDetail' && <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} showResearchChanges={false}
+        onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />}
 
       {/* DETAIL SCREEN 3: SUPERVISOR REQUEST HISTORY */}
       {routeView === 'history' && (
@@ -913,13 +936,14 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
           className="space-y-6"
         >
           <SupervisorRequestHistory onBack={navigateToList} />
+          <SupervisoryTeamManagement role="Lecturer" view="history" showResearchChanges={false} />
         </motion.div>
       )}
 
       {/* RIGHT DRAWER: Supervisor Request Review Drawer */}
       <RightDrawer
         isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
+        onClose={() => { requestLoadVersion.current += 1; setIsDrawerOpen(false); }}
         request={selectedRequest}
         onApprove={handleApproveRequest}
         onReject={handleRejectRequest}

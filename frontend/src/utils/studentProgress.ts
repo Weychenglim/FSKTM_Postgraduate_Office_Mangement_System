@@ -9,6 +9,7 @@ import {
   APP_ROUTES,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
+  routeForSupervisorResearchRequest,
 } from '../constants/routes';
 
 export const formatProgressStatus = (
@@ -51,6 +52,7 @@ export const resolveStudentProgressRecordRoute = (
     return routeForPanelRecommendation(target.recordId);
   }
   if (target.targetModule === 'SUPERVISOR_APPOINTMENTS') {
+    if (target.recordType === 'RESEARCH_AMENDMENT' && target.recordId) return routeForSupervisorResearchRequest(target.recordId);
     return APP_ROUTES.supervisorAppointments;
   }
   if (target.targetModule === 'PANEL_APPOINTMENTS') {

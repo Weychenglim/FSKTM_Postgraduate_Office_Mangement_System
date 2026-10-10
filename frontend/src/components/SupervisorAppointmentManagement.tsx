@@ -242,7 +242,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           actions={(
             <>
               <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
-                View Dossier
+                View student record
               </PortalButton>
               {r.appointmentLifecycle?.status === 'ACTIVE' && (
                 <AppointmentEndControl
@@ -925,7 +925,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                               onClick={() => onNavigateToDossier?.(r.studentId)}
                               className="px-3 py-1.5 border border-slate-200 bg-white text-blue-700 font-extrabold text-[10px] uppercase rounded-lg"
                             >
-                              View Dossier
+                              View student record
                             </button>
                             <button
                               onClick={() => {

@@ -424,7 +424,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                                   onClick={() => onNavigateToDossier?.(task.studentId)}
                                   className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                                 >
-                                  View Dossier
+                                  View student record
                                 </button>
                                 {task.status === 'SUBMITTED' || task.canEdit !== true ? (
                                   <button

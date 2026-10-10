@@ -6,6 +6,7 @@ import {
   routeForWorkflowReconciliation,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
+  routeForSupervisorResearchRequest,
 } from '../constants/routes';
 
 export const buildWorkflowReportQuery = (filters: WorkflowReportFilters): string => {
@@ -73,7 +74,10 @@ export const resolveWorkflowReportRecordRoute = (
   if (item.recordType === 'SUPERVISOR_APPLICATION') {
     return routeForSupervisorApplication(item.recordId);
   }
-  if (item.recordType === 'CO_SUPERVISOR_NOMINATION' || item.recordType === 'CO_SUPERVISOR_APPOINTMENT' || item.recordType === 'RESEARCH_AMENDMENT') {
+  if (item.recordType === 'RESEARCH_AMENDMENT') {
+    return routeForSupervisorResearchRequest(item.recordId);
+  }
+  if (item.recordType === 'CO_SUPERVISOR_NOMINATION' || item.recordType === 'CO_SUPERVISOR_APPOINTMENT') {
     return APP_ROUTES.supervisorAppointments;
   }
   if (item.recordType === 'PANEL_RECOMMENDATION') {

@@ -1,5 +1,12 @@
 # Project Requirements
 
+## Separate Supervisor workspace pages (2026-10-10)
+
+- Student Supervisor navigation separates My supervisors, Applications and Research changes; pending applications are separate from completed history. The overview retains current members, a compact pending-request status and useful visible guidance.
+- Lecturer navigation separates Requests, My supervisees and Research changes. Individual supervision details retain team actions/history; request queues retain primary/supporting reviews and reviewed history.
+- Research lists open individual request comparisons/audit details. Current profile and change form have dedicated views. Preserve permissions, cancellation/review/replacement actions and existing Office/Coordinator behavior.
+- Staff dossier links read View student record; Student My Academic Record remains a read-only consolidated record with no evaluations. Page-level navigation supports direct links, refresh and browser Back.
+
 ## Recognisable report filters and useful Lecturer reporting (2026-10-10)
 
 - Lecturer breakdowns label the total as Records involving you and explain its authorised record types, shared Lecturer milestones and record-versus-student counting. Office/Coordinator wording and backend scope remain unchanged.

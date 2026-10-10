@@ -25,7 +25,10 @@ assert.doesNotMatch(
 );
 
 const studentSupervisor = readComponent('StudentSupervisorAppointment.tsx');
-assert.match(studentSupervisor, /formatSupervisorWaiting\(app\)/);
+assert.match(studentSupervisor, /StudentSupervisorApplications/);
+const studentApplications = readComponent('StudentSupervisorApplications.tsx');
+assert.match(studentApplications, /formatSupervisorWaiting\(app\)/);
+assert.doesNotMatch(studentApplications, /7-10 working days/);
 assert.doesNotMatch(studentSupervisor, /7-10 working days/);
 const studentGuidance = readComponent('StudentAppointmentGuidance.tsx');
 assert.doesNotMatch(studentGuidance, /7-10 working days|within 7 days|turnaround/i);

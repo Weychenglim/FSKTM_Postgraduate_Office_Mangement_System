@@ -173,7 +173,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                     variant="ghost"
                     onClick={() => onNavigateToDossier?.(record.studentId)}
                   >
-                    View Dossier
+                    View student record
                   </PortalButton>
                   <PortalButton
                     variant="secondary"
@@ -287,7 +287,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <PortalButton variant="ghost" onClick={() => onNavigateToDossier?.(record.studentId)}>
-                      View Dossier
+                      View student record
                     </PortalButton>
                     {record.appointmentLifecycle?.status === 'ACTIVE' && (
                       <AppointmentEndControl

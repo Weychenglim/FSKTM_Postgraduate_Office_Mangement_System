@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ResearchAmendmentCard, ResearchAmendmentForm, ResearchRevisionCard } from './ResearchAmendments';
+import * as research from './ResearchAmendments';
+const { ResearchAmendmentCard, ResearchAmendmentForm, ResearchRevisionCard } = research;
 const row: any = { id: 1, kind: 'TRANSFER', status: 'PENDING_SOURCE_COORDINATOR', studentName: 'Student One', matricNo: 'M123', sourceProgramme: 'Old programme', destinationProgramme: 'New programme', before: {title:'Old title',abstract:'Old abstract',programme:'Old programme'}, after: {title:'New title',abstract:'New abstract',programme:'New programme'}, reason:'Changed research focus', stageLabel:'Source coordinator review', canDecide:false, canCancel:false, teamSnapshot:[], unfinishedTaskCount:2, events:[] };
 const render = (value: any) => renderToStaticMarkup(<ResearchAmendmentCard row={value} busy={false} onAction={() => {}} />);
 const readonly = render(row);
@@ -27,7 +28,7 @@ const studentTransfer = renderToStaticMarkup(<ResearchAmendmentCard row={{...row
 assert.doesNotMatch(studentTransfer, /unfinished evaluation|>Approve</);
 console.log('Student research requests show changed fields and preserve cancellation without staff controls');
 
-const historyRow = {...studentRow, canCancel:false, events:[{id:3,action:'SUBMITTED',actorName:'Student One',createdAt:studentRow.createdAt,reason:'Submitted explanation'}]};
+const historyRow = {...studentRow, canCancel:false, events:[{id:3,action:'SUBMITTED',actorName:'Student One',actorRole:'Student',previousStatus:'',newStatus:'PENDING_SUPERVISOR',retainTeam:false,createdAt:studentRow.createdAt,reason:'Submitted explanation'}]};
 assert.match(renderToStaticMarkup(<ResearchAmendmentCard row={historyRow} studentView busy={false} onAction={() => {}} />), /Approval history|Submitted explanation|Student One/);
 assert.doesNotMatch(renderToStaticMarkup(<ResearchAmendmentCard row={historyRow} studentView busy={false} onAction={() => {}} />), />Cancel request</);
 const formOptions = { students:[],programmes:[],profile:{studentId:7,revision:1,title:'Current title',abstract:'Current abstract',programme:'Current programme'},canSubmitResearch:true,canCorrect:false,canTransfer:false };
@@ -51,3 +52,45 @@ assert.equal(initialHistory.match(/<article class="([^"]+)"/)?.[1],revisedHistor
 assert.match(renderRevision(initialRevision,false), /Before|Proposed \/ recorded after/);
 assert.match(renderRevision({...initialRevision,after:{...initialRevision.after,abstract:''}}), /Not recorded/);
 console.log('Initial Student profile appears once; later revisions compare changed fields with consistent cards and preserved staff history');
+
+// A routed list must omit the comparison and audit data entirely, including hidden details.
+for (const role of ['Student', 'Lecturer'] as const) {
+  const props = { row: historyRow, busy: false, studentView: role === 'Student', lecturerView: role === 'Lecturer', onAction: () => {} };
+  const list = renderToStaticMarkup(<ResearchAmendmentCard {...props} presentation="list" onViewRequest={() => {}} />);
+  assert.match(list, /View request/);
+  assert.doesNotMatch(list, /Old abstract|New abstract|Changed research focus|Submitted explanation|Approval history|<details|Cancel request|>Approve</);
+  const detail = renderToStaticMarkup(<ResearchAmendmentCard {...props} presentation="detail" />);
+  for (const value of ['Old abstract', 'New abstract', 'Changed research focus', 'Submitted explanation', 'Approval history']) assert.ok(detail.includes(value), `Detail includes ${value}`);
+  assert.doesNotMatch(detail, /<summary[^>]*>View details/);
+}
+console.log('Routed research lists omit comparison and audit content; details render it directly');
+
+assert.ok('ResearchAmendmentRouteContent' in research, 'Routed research content can render loaded requests and profiles');
+const renderRoute = (overrides: Partial<React.ComponentProps<typeof research.ResearchAmendmentRouteContent>> = {}) => renderToStaticMarkup(React.createElement(research.ResearchAmendmentRouteContent, {
+  routeView: 'list', role: 'Student', options: formOptions, rows: [historyRow, { ...historyRow, id: 2, reason: 'Other request reason' }], revisions: [initialRevision], busy: false, onAction: () => {}, onNavigateToRequest: () => {}, onNavigateToProfile: () => {}, onNavigateToNew: () => {}, requestForm: <p>Permitted request form</p>, ...overrides,
+}));
+for (const value of ['Current title', 'View research profile', 'Request research change']) assert.ok(renderRoute().includes(value), `List includes ${value}`);
+assert.doesNotMatch(renderRoute(), /Current abstract|Original abstract|Old abstract|New abstract|Submitted explanation/);
+const requestDetail = renderRoute({ routeView: 'detail', routeRequestId: '1' });
+for (const value of ['Old abstract', 'New abstract', 'Approval history', 'Submitted explanation']) assert.ok(requestDetail.includes(value), `Request detail includes ${value}`);
+assert.doesNotMatch(requestDetail, /Other request reason|Original abstract|Request research change/);
+assert.match(renderRoute({ routeView: 'detail', routeRequestId: '999' }), /Request not found/);
+for (const value of ['Current abstract', 'Original abstract', 'Research profile history']) assert.ok(renderRoute({ routeView: 'profile' }).includes(value), `Profile includes ${value}`);
+assert.doesNotMatch(renderRoute({ routeView: 'profile' }), /Submitted explanation|Other request reason/);
+assert.match(renderRoute({ routeView: 'new' }), /Permitted request form/);
+assert.doesNotMatch(renderRoute({ routeView: 'new', options: { ...formOptions, canSubmitResearch: false } }), /Permitted request form/);
+assert.doesNotMatch(renderRoute({ routeView: 'new', role: 'Lecturer' }), /Permitted request form/);
+assert.match(renderRoute({ routeView: 'profile', role: 'Lecturer', options: { ...formOptions, profile: null, students: [{ id: 7, name: 'Student One', matricNo: 'M123', programme: 'Current programme' }] } }), /Select a student/);
+assert.match(renderRoute({ rows: [] }), /No research change requests/);
+console.log('Routed research views isolate request detail, current profile history and permitted Student form');
+
+for (const [routeView, title] of [['detail', 'Research change request'], ['profile', 'Research profile'], ['new', 'Request research change']] as const) {
+  const shell = renderToStaticMarkup(<research.ResearchAmendments role="Student" routeView={routeView} routeRequestId="1" onNavigateToList={() => {}} />);
+  assert.match(shell, new RegExp(`<h2[^>]*>${title}</h2>`));
+  assert.match(shell, /Back to research changes/);
+}
+const staffShell = renderToStaticMarkup(<research.ResearchAmendments role="Office Staff/Admin" />);
+assert.match(staffShell, /Research amendments and programme transfers/);
+assert.doesNotMatch(staffShell, /Back to research changes/);
+assert.equal(renderToStaticMarkup(<research.ResearchAmendments role="Office Staff/Admin" routeView="detail" routeRequestId="1" />), staffShell);
+console.log('Routed research shells expose route-specific headings and return navigation while staff remains embedded');
