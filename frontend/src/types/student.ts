@@ -37,6 +37,7 @@ export type ImportRowStatus =
   | 'Missing Field'
   | 'Missing Email'
   | 'Bad Programme'
+  | 'Invalid Field'
   | 'Duplicate In File'
   | 'Already Registered';
 

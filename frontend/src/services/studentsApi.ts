@@ -91,15 +91,19 @@ export interface StudentRecordCreate {
   semester?: string;
   intakeDate?: string;
   academicStatus?: StudentRecord['academicStatus'];
+  /** Email the activation link now (the backend's default) or leave it for later. */
+  sendInvite?: boolean;
 }
+
+export type CreatedStudentRecord = StudentRecord & { invitationSent?: boolean };
 
 /**
  * Register a new student. The account is created without a password — the
  * student sets one through the password-reset flow — so no temporary
  * credential ever has to be handed over.
  */
-export async function createStudent(input: StudentRecordCreate): Promise<StudentRecord> {
-  return request<StudentRecord>('/registry/students/', {
+export async function createStudent(input: StudentRecordCreate): Promise<CreatedStudentRecord> {
+  return request<CreatedStudentRecord>('/registry/students/', {
     method: 'POST',
     body: JSON.stringify(input),
   });

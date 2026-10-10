@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
@@ -49,6 +49,7 @@ import {
   StudentAccountStatus,
   StudentRecord,
 } from '../types';
+import type { StudentRecordUpdate } from '../services';
 import {
   ApiError,
   commitStudentImport,
@@ -71,6 +72,8 @@ const NO_SUPERVISOR = '__none__';
 const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
+import { downloadCsv } from '../utils/csvExport';
+import { pageWindow } from '../utils/pageWindow';
 
 const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
   student_id: 'Matric number, unique',
@@ -214,7 +217,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setError(null);
     getStudents()
       .then(setStudents)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load students.'))
+      .catch((e) => {
+        // Drop the previous list so the summary cards and Export never present
+        // stale numbers as current.
+        setStudents([]);
+        setError(e instanceof Error ? e.message : 'Failed to load students.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -239,10 +247,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3; 
-
-  // Multi Selector state
-  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({});
+  const itemsPerPage = 10;
 
   // Single Student Registration Manual fields with updated layout fields from mockup
   const [manualFormData, setManualFormData] = useState({
@@ -252,9 +257,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     phone: '',
     programme: 'Select registered programme',
     intakeBatch: '',
-    semester: 'Semester 1',
-    researchTitle: '',
-    supervisor: '',
+    semester: '',
     sendCredentialsImmediately: true
   });
 
@@ -282,7 +285,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     name: '',
     programme: '',
     email: '',
-    id: ''
+    id: '',
+    phone: ''
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -299,11 +303,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
 
+  const [detailsDraft, setDetailsDraft] = useState({ phone: '', programme: '', intakeDate: '', semester: '' });
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  // Sign-in changes are confirmed first; this holds the pending one.
+  const [accessChange, setAccessChange] = useState<StudentAccountStatus | null>(null);
+
   useEffect(() => {
     setStatusTarget('');
     setStatusReason('');
     setStatusError(null);
     setStatusBlockers([]);
+    setDetailsError(null);
+    setDetailsDraft({
+      phone: viewingStudent?.phone ?? '',
+      programme: viewingStudent?.programme ?? '',
+      intakeDate: viewingStudent?.intakeDate ?? '',
+      semester: viewingStudent?.semester ?? '',
+    });
   }, [viewingStudent?.id]);
 
   const handleStatusChange = async () => {
@@ -337,6 +354,56 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // Only fields that actually changed are sent, so an untouched value (for
+  // example a semester shown from the intake) is never written back.
+  const handleSaveDetails = async () => {
+    if (!viewingStudent) return;
+    const student = viewingStudent;
+    const changes: StudentRecordUpdate = {};
+    if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
+    if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
+    if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
+    if (detailsDraft.semester.trim() !== student.semester) changes.semester = detailsDraft.semester.trim();
+    if (Object.keys(changes).length === 0) {
+      setDetailsError('Nothing has changed yet.');
+      return;
+    }
+    setDetailsSaving(true);
+    setDetailsError(null);
+    try {
+      const updated = await updateStudent(student.id, changes);
+      setViewingStudent(updated);
+      loadStudents();
+      triggerToast(`Saved ${student.name}'s details.`);
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Could not save the details.');
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
+
+  const handleAccessChange = async () => {
+    if (!viewingStudent || !accessChange) return;
+    const student = viewingStudent;
+    const target = accessChange;
+    setSaving(true);
+    try {
+      const updated = await updateStudent(student.id, { accountStatus: target });
+      setViewingStudent(updated);
+      loadStudents();
+      triggerToast(
+        target === 'Suspended'
+          ? `${student.name} can no longer sign in, and their open sessions were ended.`
+          : `${student.name} can sign in again.`,
+      );
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'Could not update this account.');
+    } finally {
+      setSaving(false);
+      setAccessChange(null);
+    }
+  };
+
   const [sendingAccessLink, setSendingAccessLink] = useState(false);
 
   const handleSendAccessLink = async () => {
@@ -358,68 +425,26 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
-  // Checkbox multi utility handlers
-  const handleToggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const isChecked = e.target.checked;
-    const newMapping: Record<string, boolean> = {};
-    if (isChecked) {
-      filteredStudents.forEach(item => {
-        newMapping[item.id] = true;
-      });
-    }
-    setSelectedRowIds(newMapping);
-  };
-
-  const handleToggleRow = (id: string) => {
-    setSelectedRowIds(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  // CSV Exporter Action Handler
+  // Exports exactly what the filters show. Cells go through downloadCsv, which
+  // quotes them and neutralises spreadsheet formulas typed into free-text
+  // fields such as a student's phone number.
   const handleExportCSV = () => {
-    const headers = 'Student ID,Full Name,Programme,Academic Status,Account Status,Semester,Email,Phone,Supervisor\n';
-    const rows = students.map(s => 
-      `"${s.id}","${s.name}","${s.programme}","${s.academicStatus}","${s.accountStatus}","${s.semester}","${s.email}","${s.phone}","${s.supervisor}"`
-    ).join('\n');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `FSKTM_Student_Registry_Export.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-
-    triggerToast('Student registry database successfully exported as CSV!');
-  };
-
-  // Bulk Action: Batch Verify
-  const handleBatchVerify = async () => {
-    const selectedIds = Object.keys(selectedRowIds).filter(key => selectedRowIds[key]);
-    if (selectedIds.length === 0) return;
-
-    setSaving(true);
-    const results = await Promise.allSettled(
-      selectedIds.map(id => updateStudent(id, { accountStatus: 'Verified' })),
-    );
-    setSaving(false);
-
-    const saved = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - saved;
-
-    // Reload rather than patching local state, so the table always shows what
-    // the database actually holds.
-    loadStudents();
-    setSelectedRowIds({});
-
-    if (failed === 0) {
-      triggerToast(`Successfully verified credentials for ${saved} selected student records!`);
-    } else {
-      triggerToast(`Verified ${saved} of ${results.length}. ${failed} could not be saved.`);
-    }
+    downloadCsv('FSKTM_Student_Registry_Export.csv', filteredStudents, [
+      { header: 'Student ID', value: (s) => s.id },
+      { header: 'Full Name', value: (s) => s.name },
+      { header: 'Programme', value: (s) => s.programme },
+      { header: 'Academic Status', value: (s) => s.academicStatus },
+      { header: 'Account Status', value: (s) => s.accountStatus },
+      { header: 'Current Semester', value: (s) => s.semester },
+      { header: 'Intake', value: (s) => s.intakeDate },
+      { header: 'Email', value: (s) => s.email },
+      { header: 'Phone', value: (s) => s.phone },
+      { header: 'Supervisor', value: (s) => s.supervisor },
+      { header: 'Supervisor Staff No', value: (s) => s.supervisorStaffNo },
+      { header: 'Activated', value: (s) => (s.activated === false ? 'No' : 'Yes') },
+      { header: 'Last Sign-in', value: (s) => s.lastLogin ?? '' },
+    ]);
+    triggerToast(`Exported ${filteredStudents.length} student record${filteredStudents.length === 1 ? '' : 's'}.`);
   };
 
   // Single Manual Registration Submit handler with robust validation and normalization
@@ -439,17 +464,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
 
     setSaving(true);
+    let invitationSent: boolean | undefined;
     try {
-      await createStudent({
+      const created = await createStudent({
         id: manualFormData.id,
         name: manualFormData.name,
         email: manualFormData.email,
         programme,
         phone: manualFormData.phone,
-        semester: manualFormData.semester,
+        semester: manualFormData.semester.trim(),
         intakeDate: manualFormData.intakeBatch,
         academicStatus: 'Active',
+        sendInvite: manualFormData.sendCredentialsImmediately,
       });
+      invitationSent = created.invitationSent;
     } catch (err) {
       setSaving(false);
       // Duplicate matric / duplicate email arrive here with the backend's wording.
@@ -460,7 +488,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     loadStudents();
     setCurrentView('list');
-    triggerToast(`Registered new student "${manualFormData.name}" successfully!`);
+    if (!manualFormData.sendCredentialsImmediately) {
+      triggerToast(`Registered "${manualFormData.name}". No activation email was sent; send it from their profile when ready.`);
+    } else if (invitationSent === false) {
+      triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`);
+    } else {
+      triggerToast(`Registered "${manualFormData.name}" and emailed their activation link.`);
+    }
 
     // Reset manualFormData
     setManualFormData({
@@ -470,9 +504,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       phone: '',
       programme: 'Select registered programme',
       intakeBatch: '',
-      semester: 'Semester 1',
-      researchTitle: '',
-      supervisor: '',
+      semester: '',
       sendCredentialsImmediately: true
     });
   };
@@ -564,7 +596,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       name: item.name,
       programme: item.programme,
       email: item.email,
-      id: item.id
+      id: item.id,
+      phone: item.phone
     });
   };
 
@@ -583,6 +616,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             name: editRowFields.name.trim(),
             programme: editRowFields.programme.trim(),
             email: editRowFields.email.trim(),
+            phone: editRowFields.phone.trim(),
           }
     ));
 
@@ -650,19 +684,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   };
 
   const downloadImportProblems = (batch: RegistryImportBatch) => {
-    const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-    const csv = [
-      'line,student_id,result,issue',
-      ...batch.problems.map(p => [p.line, p.id, p.result, p.issue].map(quote).join(',')),
-    ].join('\n');
-    const url = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', reviewedFileName(batch.fileName).replace('-reviewed.csv', '-problems.csv'));
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    downloadCsv(
+      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-problems.csv'),
+      batch.problems,
+      [
+        { header: 'line', value: (p) => p.line },
+        { header: 'student_id', value: (p) => p.id },
+        { header: 'result', value: (p) => p.result },
+        { header: 'issue', value: (p) => p.issue },
+      ],
+    );
   };
 
   // CSV template generator downloder
@@ -699,18 +730,25 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
-  const columnCount = readOnly ? 6 : 7;
+  const columnCount = 6;
 
-  // Paginated students records 
-  const displayedStudents = filteredStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Paginated students records
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
+  const safePage = Math.min(currentPage, totalPages);
+
+  // After a reload or a status change the list can shrink below the page the
+  // office was on; move back to the last real page instead of an empty one.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+  const displayedStudents = filteredStudents.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
 
   // Render variables for Bulk Indicators
   const readyCsvCount = csvPreviewRecords.filter(r => r.status === 'Ready').length;
-  const warningCsvCount = csvPreviewRecords.filter(r => r.status === 'Missing Email').length;
   const duplicateCsvCount = csvPreviewRecords.filter(
     r => r.status === 'Duplicate In File' || r.status === 'Already Registered',
   ).length;
+  const toFixCsvCount = csvPreviewRecords.length - readyCsvCount - duplicateCsvCount;
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
@@ -800,10 +838,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-xs">
             
             {/* Filtering Box Controls */}
-            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 select-none">
-              
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3 select-none">
+
               {/* Real-time Search Box */}
-              <div className="relative flex-1">
+              <div className="relative w-full">
                 <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                   <Search className="w-4 h-4 text-slate-400" />
                 </span>
@@ -823,14 +861,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 
                 {/* Selector: Programme */}
-                <div className="relative">
+                <div className="relative max-w-full">
                   <select
                     value={selectedProgramme}
                     onChange={(e) => {
                       setSelectedProgramme(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
                   >
                     <option value="All">Programme: All</option>
                     {PROGRAMME_OPTIONS.map((programme) => (
@@ -841,14 +879,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </div>
 
                 {/* Selector: Semester */}
-                <div className="relative">
+                <div className="relative max-w-full">
                   <select
                     value={selectedSemester}
                     onChange={(e) => {
                       setSelectedSemester(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
                   >
                     <option value="All">Semester: All</option>
                     {semesterOptions.map((semester) => (
@@ -859,14 +897,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </div>
 
                 {/* Selector: Status */}
-                <div className="relative">
+                <div className="relative max-w-full">
                   <select
                     value={selectedAcademicStatus}
                     onChange={(e) => {
                       setSelectedAcademicStatus(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
                   >
                     <option value="All">Status: All</option>
                     {ACADEMIC_STATUSES.map((academicStatus) => (
@@ -877,14 +915,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </div>
 
                 {/* Selector: Supervisor */}
-                <div className="relative">
+                <div className="relative max-w-full">
                   <select
                     value={selectedSupervisor}
                     onChange={(e) => {
                       setSelectedSupervisor(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
                   >
                     <option value="All">Supervisor: All</option>
                     <option value={NO_SUPERVISOR}>No supervisor yet</option>
@@ -905,7 +943,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     setSelectedAcademicStatus('All');
                     setSelectedSupervisor('All');
                     setCurrentPage(1);
-                    setSelectedRowIds({});
                     triggerToast('All filtering properties reset successfully.');
                   }}
                   className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide rounded-xl hover:bg-slate-50 transition shadow-3xs flex items-center gap-1.5 cursor-pointer"
@@ -916,51 +953,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
             </div>
 
-            {/* Bulk Action verification Bar */}
-            {!readOnly && Object.values(selectedRowIds).some(v => v) && (
-              <div className="bg-indigo-50/70 border-b border-indigo-100 p-3.5 flex items-center justify-between text-left select-none animate-fade-in px-6">
-                <div className="flex items-center gap-2.5 text-slate-900">
-                  <StatusDot tone="info" pulse className="w-2 h-2" />
-                  <span className="font-extrabold text-xs">
-                    {Object.values(selectedRowIds).filter(v => v).length} student records selected
-                  </span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleBatchVerify}
-                    disabled={saving}
-                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Saving…' : 'Bulk Authorize Verify'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRowIds({})}
-                    className="px-3 py-2 hover:bg-slate-200/50 text-slate-600 rounded-xl text-[10px] font-extrabold uppercase tracking-wide cursor-pointer"
-                  >
-                    Discard Choice
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* DATATABLE LIST VIEW */}
             <div className="overflow-x-auto">
               <table className="data-table">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
-                    {!readOnly && (
-                      <th className="data-th w-12 text-center">
-                        <input
-                          type="checkbox"
-                          onChange={handleToggleAll}
-                          checked={filteredStudents.length > 0 && filteredStudents.every(it => selectedRowIds[it.id])}
-                          className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                        />
-                      </th>
-                    )}
                     <th className="data-th">
                       Student Candidate
                     </th>
@@ -1002,24 +999,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </tr>
                   ) : (
                     displayedStudents.map((student) => {
-                      const isChecked = !!selectedRowIds[student.id];
                       return (
-                        <tr
-                          key={student.id}
-                          className={`data-row ${isChecked ? 'bg-brand-navy/[0.01]' : ''}`}
-                        >
-                          {/* Selector column */}
-                          {!readOnly && (
-                            <td className="data-td w-12 text-center">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleRow(student.id)}
-                                className="rounded text-slate-950 focus:ring-slate-955 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                              />
-                            </td>
-                          )}
-
+                        <tr key={student.id} className="data-row">
                           {/* Student identity details */}
                           <td className="data-td">
                             <div className="flex items-center gap-3 text-left">
@@ -1090,9 +1071,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-[#e2e8f0] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
               
               <div className="text-[11px] text-slate-500 font-bold text-left">
-                Showing <strong className="text-slate-800">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
+                Showing <strong className="text-slate-800">{filteredStudents.length === 0 ? 0 : (safePage - 1) * itemsPerPage + 1}</strong> to{' '}
                 <strong className="text-slate-800">
-                  {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
+                  {Math.min(safePage * itemsPerPage, filteredStudents.length)}
                 </strong>{' '}
                 of <strong className="text-slate-800">{filteredStudents.length}</strong> entries{' '}
                 <span className="text-slate-400 font-semibold">
@@ -1100,25 +1081,35 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+
                 {/* Pagination previous trigger */}
                 <button
                   type="button"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  aria-label="Previous page"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage(Math.max(safePage - 1, 1))}
                   className="p-2 border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
                 {/* Number labels mapping */}
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => {
-                  const matchesCurrent = currentPage === pNum;
+                {pageWindow(safePage, totalPages).map((pNum, index) => {
+                  if (pNum === null) {
+                    return (
+                      <span key={`gap-${index}`} className="px-1 text-[11px] font-black text-slate-400" aria-hidden="true">
+                        …
+                      </span>
+                    );
+                  }
+                  const matchesCurrent = safePage === pNum;
                   return (
                     <button
                       key={pNum}
                       type="button"
+                      aria-label={`Page ${pNum}`}
+                      aria-current={matchesCurrent ? 'page' : undefined}
                       onClick={() => setCurrentPage(pNum)}
                       className={`w-8.5 h-8.5 text-[11px] font-black rounded-lg transition flex items-center justify-center cursor-pointer ${
                         matchesCurrent
@@ -1134,8 +1125,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 {/* Pagination next trigger */}
                 <button
                   type="button"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  aria-label="Next page"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage(Math.min(safePage + 1, totalPages))}
                   className="p-2 border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -1344,22 +1336,22 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
 
                       {/* VALIDATION OUTPUT PILLS */}
-                      <div className="flex items-center gap-1.5">
-                        
+                      <div className="flex flex-wrap items-center gap-1.5">
+
                         {/* Ready indicator */}
                         <div className="px-2.5 py-1 bg-emerald-50 text-[#00a15c] border border-[#bef5db] font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none">
                           <CheckCircle className="w-3 h-3" />
                           <span>{readyCsvCount} Ready</span>
                         </div>
 
-                        {/* Warning Indicator */}
+                        {/* Rows that need correcting before they can be imported */}
                         <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
-                          warningCsvCount > 0 
-                            ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' 
+                          toFixCsvCount > 0
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
                             : 'bg-slate-50 text-slate-400 border-slate-150'
                         }`}>
                           <AlertTriangle className="w-3 h-3" />
-                          <span>{warningCsvCount} Warning</span>
+                          <span>{toFixCsvCount} To Fix</span>
                         </div>
 
                         {/* Duplicate indicator */}
@@ -1369,23 +1361,23 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             : 'bg-slate-50 text-slate-400 border-slate-150'
                         }`}>
                           <AlertCircle className="w-3 h-3" />
-                          <span>{duplicateCsvCount} Duplicate</span>
+                          <span>{duplicateCsvCount} Duplicate / Registered</span>
                         </div>
 
                       </div>
-
-                      {/* Parse failures and per-row commit failures */}
-                      {csvFatalError && (
-                        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
-                          <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
-                            Import problems
-                          </p>
-                          <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
-                            {csvFatalError}
-                          </pre>
-                        </div>
-                      )}
                     </div>
+
+                    {/* Parse failures and per-row commit failures */}
+                    {csvFatalError && (
+                      <div role="alert" className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
+                        <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
+                          Import problems
+                        </p>
+                        <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
+                          {csvFatalError}
+                        </pre>
+                      </div>
+                    )}
 
                     {/* PREVIEW DATATABLE MAP */}
                     <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
@@ -1396,6 +1388,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             <th className="data-th">Candidate Name</th>
                             <th className="data-th">Programme Mapped</th>
                             <th className="data-th text-center">Validation Status</th>
+                            <th className="data-th">Issue</th>
                             <th className="data-th text-center">Edit</th>
                           </tr>
                         </thead>
@@ -1431,12 +1424,23 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                     />
                                   </td>
                                   <td className="data-td text-center">
-                                    <input 
-                                      type="text" 
-                                      placeholder="Email field (Empty = Warning)"
+                                    <input
+                                      type="text"
+                                      aria-label="Email"
+                                      placeholder="Email"
                                       value={editRowFields.email}
                                       onChange={(e) => setEditRowFields({ ...editRowFields, email: e.target.value })}
                                       className="w-32 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
+                                    />
+                                  </td>
+                                  <td className="data-td">
+                                    <input
+                                      type="text"
+                                      aria-label="Phone"
+                                      placeholder="Phone (optional)"
+                                      value={editRowFields.phone}
+                                      onChange={(e) => setEditRowFields({ ...editRowFields, phone: e.target.value })}
+                                      className="w-28 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
                                     />
                                   </td>
                                   <td className="data-td text-center">
@@ -1485,14 +1489,15 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                     </span>
                                   )}
                                   {item.status !== 'Ready' && item.status !== 'Missing Email' && (
-                                    <span
-                                      title={item.issue}
-                                      className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none"
-                                    >
+                                    <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
                                       <AlertCircle className="w-3 h-3" />
                                       <span>{item.status}</span>
                                     </span>
                                   )}
+                                </td>
+
+                                <td className="data-td text-[10.5px] font-semibold text-slate-600 max-w-[16rem]">
+                                  {item.status === 'Ready' ? '' : item.issue}
                                 </td>
 
                                 {/* Actions pencil trigger */}
@@ -1708,53 +1713,27 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           <label htmlFor="current-semester" className="text-xs font-extrabold text-slate-705 mb-2">
                             Current Semester
                           </label>
-                          <div className="relative">
-                            <select
-                              id="current-semester"
-                              value={manualFormData.semester}
-                              onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
-                            >
-                              <option value="Semester 1">Semester 1</option>
-                              <option value="Semester 2">Semester 2</option>
-                              <option value="Semester 3">Semester 3</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-405">
-                              <ChevronDown className="w-4 h-4" />
-                            </div>
-                          </div>
+                          <input
+                            id="current-semester"
+                            type="text"
+                            list="registry-semester-options"
+                            placeholder="e.g. Semester I, 2026/2027 Session"
+                            value={manualFormData.semester}
+                            onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                          />
+                          <datalist id="registry-semester-options">
+                            {semesterOptions.map((semester) => (
+                              <option key={semester} value={semester} />
+                            ))}
+                          </datalist>
                         </div>
                       </div>
 
-                      {/* Research Title (Optional) */}
-                      <div className="flex flex-col text-left">
-                        <label htmlFor="research-title" className="text-xs font-extrabold text-slate-750 mb-2">
-                          Research Title (Optional)
-                        </label>
-                        <input
-                          id="research-title"
-                          type="text"
-                          placeholder="Tentative research title..."
-                          value={manualFormData.researchTitle}
-                          onChange={(e) => setManualFormData({ ...manualFormData, researchTitle: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
-                        />
-                      </div>
-
-                      {/* Assigned Supervisor (Optional) */}
-                      <div className="flex flex-col text-left">
-                        <label htmlFor="assigned-supervisor" className="text-xs font-extrabold text-slate-750 mb-2">
-                          Assigned Supervisor (Optional)
-                        </label>
-                        <input
-                          id="assigned-supervisor"
-                          type="text"
-                          placeholder="Search and assign supervisor"
-                          value={manualFormData.supervisor}
-                          onChange={(e) => setManualFormData({ ...manualFormData, supervisor: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
-                        />
-                      </div>
+                      <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
+                        Research title and supervisor are recorded later, through the supervisor
+                        application and appointment workflow.
+                      </p>
                     </div>
 
                     {/* ACCOUNT SETTINGS SECTION */}
@@ -1775,37 +1754,31 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </p>
                       </div>
 
-                      {/* Send credentials toggle switch */}
-                      <div className="border border-slate-200 rounded-2xl p-5 flex items-center justify-between bg-white shadow-3xs">
-                        <div className="text-left space-y-1 pr-4">
-                          <h4 className="text-xs font-extrabold text-slate-900">
-                            Send activation link immediately
-                          </h4>
-                          <p className="text-[11px] text-slate-500 font-medium leading-normal">
-                            Email the student a link to set their password. Leave off to register
-                            the account now and invite them later.
-                          </p>
-                        </div>
-
-                        {/* Slide Switch */}
-                        <button
+                      {/* Send activation link now or later */}
+                      <label
+                        htmlFor="send-credentials-toggle"
+                        className="border border-slate-200 rounded-2xl p-5 flex items-start gap-4 bg-white shadow-3xs cursor-pointer"
+                      >
+                        <input
                           id="send-credentials-toggle"
-                          type="button"
-                          onClick={() => setManualFormData({
+                          type="checkbox"
+                          checked={manualFormData.sendCredentialsImmediately}
+                          onChange={(e) => setManualFormData({
                             ...manualFormData,
-                            sendCredentialsImmediately: !manualFormData.sendCredentialsImmediately
+                            sendCredentialsImmediately: e.target.checked
                           })}
-                          className={`w-11 h-6 shrink-0 rounded-full transition-colors relative duration-200 ease-in-out focus:outline-none ${
-                            manualFormData.sendCredentialsImmediately ? 'bg-blue-600' : 'bg-slate-350'
-                          }`}
-                        >
-                          <span
-                            className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 shadow-sm ${
-                              manualFormData.sendCredentialsImmediately ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                            }`}
-                          />
-                        </button>
-                      </div>
+                          className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
+                        />
+                        <span className="text-left space-y-1">
+                          <span className="block text-xs font-extrabold text-slate-900">
+                            Send activation link immediately
+                          </span>
+                          <span className="block text-[11px] text-slate-500 font-medium leading-normal">
+                            Email the student a link to set their password. Untick to register
+                            the account now and send the link later from their profile.
+                          </span>
+                        </span>
+                      </label>
                     </div>
 
                     {/* BOTTOM ACTIONS BAR */}
@@ -2001,7 +1974,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-y-auto shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               {/* Header block */}
               <div className="bg-[#121c2e] p-6 text-white flex items-center justify-between select-none">
@@ -2021,6 +1994,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 
                 <button
                   type="button"
+                  aria-label="Close student profile"
                   onClick={() => setViewingStudent(null)}
                   className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
                 >
@@ -2064,12 +2038,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   {/* Semester details */}
                   <div>
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
-                      Admission Intake
+                      Current Semester
                     </span>
                     <span className="text-slate-800 font-bold flex items-center gap-1.5 pt-0.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{viewingStudent.semester}</span>
+                      <span>{viewingStudent.semester || '—'}</span>
                     </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                      Intake
+                    </span>
+                    <span className="text-slate-800 font-bold block pt-0.5">{viewingStudent.intakeDate || '—'}</span>
                   </div>
 
                   {/* Academic supervisorassigned */}
@@ -2101,10 +2082,93 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-455 block mb-1">
                       Direct Mobile Contact
                     </span>
-                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone}</span>
+                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone || '—'}</span>
                   </div>
 
                 </div>
+
+                {!readOnly && (
+                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
+                  <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
+                    Edit Details
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-450">
+                      Phone
+                      <input
+                        type="tel"
+                        value={detailsDraft.phone}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, phone: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={32}
+                        placeholder="e.g. 012-3456789"
+                        className="w-full text-xs font-bold normal-case tracking-normal text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-450">
+                      Programme
+                      <select
+                        value={detailsDraft.programme}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, programme: e.target.value })}
+                        disabled={detailsSaving}
+                        className="w-full max-w-full truncate text-xs font-bold normal-case tracking-normal text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
+                      >
+                        {!(PROGRAMME_OPTIONS as readonly string[]).includes(detailsDraft.programme) && (
+                          <option value={detailsDraft.programme}>{detailsDraft.programme || 'Not set'}</option>
+                        )}
+                        {PROGRAMME_OPTIONS.map((programme) => (
+                          <option key={programme} value={programme}>{programme}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-450">
+                      Intake
+                      <input
+                        type="text"
+                        value={detailsDraft.intakeDate}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, intakeDate: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={32}
+                        placeholder="e.g. 2026/2027 Semester I"
+                        className="w-full text-xs font-bold normal-case tracking-normal text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-450">
+                      Current Semester
+                      <input
+                        type="text"
+                        list="registry-semester-options-edit"
+                        value={detailsDraft.semester}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, semester: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={64}
+                        placeholder="e.g. Semester I, 2026/2027 Session"
+                        className="w-full text-xs font-bold normal-case tracking-normal text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
+                      />
+                      <datalist id="registry-semester-options-edit">
+                        {semesterOptions.map((semester) => (
+                          <option key={semester} value={semester} />
+                        ))}
+                      </datalist>
+                    </label>
+                  </div>
+                  {detailsError && (
+                    <p role="alert" className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold">
+                      {detailsError}
+                    </p>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveDetails}
+                      disabled={detailsSaving}
+                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {detailsSaving ? 'Saving…' : 'Save Details'}
+                    </button>
+                  </div>
+                </div>
+                )}
 
                 {!readOnly && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
@@ -2235,31 +2299,25 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </button>
                   )}
 
-                  {/* Reinstate a suspended account */}
+                  {/* Suspend or reinstate sign-in, always confirmed first */}
+                  {!readOnly && viewingStudent.accountStatus === 'Verified' && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setAccessChange('Suspended')}
+                      className="px-4 py-2 bg-white border border-rose-200 text-rose-700 uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-rose-50 transition cursor-pointer disabled:opacity-50"
+                    >
+                      Suspend Sign-in
+                    </button>
+                  )}
                   {!readOnly && viewingStudent.accountStatus === 'Suspended' && (
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={async () => {
-                        const student = viewingStudent;
-                        setSaving(true);
-                        try {
-                          await updateStudent(student.id, { accountStatus: 'Verified' });
-                        } catch (err) {
-                          setSaving(false);
-                          triggerToast(
-                            err instanceof Error ? err.message : 'Could not update this account.',
-                          );
-                          return;
-                        }
-                        setSaving(false);
-                        loadStudents();
-                        setViewingStudent(null);
-                        triggerToast(`Student credentials for ${student.name} verified successfully.`);
-                      }}
+                      onClick={() => setAccessChange('Verified')}
                       className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
                     >
-                      {saving ? 'Saving…' : 'Authorize Verify'}
+                      Reinstate Sign-in
                     </button>
                   )}
 
@@ -2273,6 +2331,21 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                 </div>
               </div>
+
+              <PortalConfirmModal
+                isOpen={accessChange !== null}
+                title={accessChange === 'Suspended' ? 'Suspend sign-in?' : 'Reinstate sign-in?'}
+                message={
+                  accessChange === 'Suspended'
+                    ? `${viewingStudent.name} will be signed out everywhere and cannot sign in until reinstated.`
+                    : `${viewingStudent.name} will be able to sign in again.`
+                }
+                confirmLabel={accessChange === 'Suspended' ? 'Suspend' : 'Reinstate'}
+                tone={accessChange === 'Suspended' ? 'danger' : 'info'}
+                isLoading={saving}
+                onConfirm={handleAccessChange}
+                onCancel={() => setAccessChange(null)}
+              />
 
             </motion.div>
           </div>
