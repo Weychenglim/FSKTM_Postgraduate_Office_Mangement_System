@@ -1,4 +1,6 @@
 """Auth API views: login, logout, me, password-reset (request + confirm)."""
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -8,6 +10,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import status
@@ -26,7 +29,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from appointments.models import SupervisorAppointment
 
 from .authentication import RefreshCookieAuthentication
-from .models import NotificationPreference
 from .password_policy import TechnicalAccountForbidden
 from .serializers import (
     ChangePasswordSerializer,
@@ -34,7 +36,6 @@ from .serializers import (
     AccountSettingsSerializer,
     SettingsPasswordSerializer,
     LoginSerializer,
-    NotificationPreferenceSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
 )
@@ -46,12 +47,14 @@ from .session_tokens import (
 from .throttles import (
     ChangePasswordRateThrottle,
     SettingsPasswordRateThrottle,
+    LoginIdentifierRateThrottle,
     LoginRateThrottle,
     PasswordResetConfirmRateThrottle,
     PasswordResetRateThrottle,
 )
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def _require_json_request(request):
@@ -61,7 +64,7 @@ def _require_json_request(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@throttle_classes([LoginRateThrottle])
+@throttle_classes([LoginRateThrottle, LoginIdentifierRateThrottle])
 def login_view(request):
     """Authenticate by email / student ID / staff ID (case-insensitive)."""
     _require_json_request(request)
@@ -98,6 +101,7 @@ def login_view(request):
     if user.is_technical_admin:
         raise TechnicalAccountForbidden()
 
+    User.objects.filter(pk=user.pk).update(last_portal_login=timezone.now())
     refresh = RefreshToken.for_user(user)
     response = Response(
         {"token": str(refresh.access_token), "user": user.to_public_dict()}
@@ -176,26 +180,6 @@ def change_password_view(request):
         }
     )
     return set_refresh_cookie(response, refresh)
-
-
-@api_view(["GET", "PUT", "PATCH"])
-@permission_classes([IsAuthenticated])
-def notification_preferences_view(request):
-    """Read or update the caller's own notification preferences."""
-    preference = NotificationPreference.for_user(request.user)
-    if request.method == "GET":
-        return Response(preference.to_public_dict())
-
-    serializer = NotificationPreferenceSerializer(data=request.data, partial=True)
-    serializer.is_valid(raise_exception=True)
-    changed = []
-    for key, field in NotificationPreference.FIELD_MAP.items():
-        if key in serializer.validated_data:
-            setattr(preference, field, serializer.validated_data[key])
-            changed.append(field)
-    if changed:
-        preference.save(update_fields=[*changed, "updated_at"])
-    return Response(preference.to_public_dict())
 
 
 def _current_supervisor_name(student):
@@ -315,16 +299,20 @@ def send_password_reset_email(user) -> bool:
         "you can safely ignore this email.\n\n"
         "— FSKTM Postgraduate Office"
     )
-    # fail_silently: an SMTP outage otherwise turned this endpoint into a
-    # registered/unregistered oracle (500 for a real address, 200 for an
-    # unknown one) despite the deliberately generic response body.
-    sent = send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=True,
-    )
+    # Failures are logged, never raised: an SMTP outage otherwise turned this
+    # endpoint into a registered/unregistered oracle (500 for a real address,
+    # 200 for an unknown one) despite the deliberately generic response body.
+    try:
+        sent = send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Password reset email to user %s could not be sent.", user.pk)
+        return False
     return bool(sent)
 
 

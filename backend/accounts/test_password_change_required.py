@@ -49,7 +49,7 @@ class PasswordChangeRequiredTests(APITestCase):
         for response in (
             client.get("/api/notifications/"),
             client.patch("/api/auth/me/", {"phone": "012-0000000"}, format="json"),
-            client.get("/api/auth/me/notification-preferences/"),
+            client.get("/api/letter-templates/"),
         ):
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
             self.assertEqual(response.data["code"], "password_change_required")

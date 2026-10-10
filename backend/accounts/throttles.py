@@ -1,3 +1,5 @@
+import hashlib
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework.throttling import SimpleRateThrottle
@@ -17,6 +19,22 @@ class SettingsRateThrottle(SimpleRateThrottle):
 class LoginRateThrottle(SettingsRateThrottle):
     scope = "auth_login"
     setting_name = "AUTH_LOGIN_THROTTLE_RATE"
+
+
+class LoginIdentifierRateThrottle(SettingsRateThrottle):
+    """Sign-in attempts per identifier, so rotating client addresses cannot buy
+    unlimited guesses at one account."""
+
+    scope = "auth_login_identifier"
+    setting_name = "AUTH_LOGIN_IDENTIFIER_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        data = request.data
+        identifier = data.get("identifier") if hasattr(data, "get") else None
+        if not isinstance(identifier, str) or not identifier.strip():
+            return None
+        ident = hashlib.sha256(identifier.strip().lower().encode()).hexdigest()
+        return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
 class PasswordResetRateThrottle(SettingsRateThrottle):

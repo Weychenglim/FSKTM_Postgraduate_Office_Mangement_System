@@ -4,6 +4,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from .validators import validate_phone
+
 User = get_user_model()
 
 
@@ -66,7 +68,9 @@ class SettingsPasswordSerializer(StrictSettingsSerializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
-    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    new_password = serializers.CharField(
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
+    )
 
     def validate_new_password(self, value):
         try:
@@ -80,7 +84,11 @@ class ContactDetailsSerializer(serializers.Serializer):
     """Self-service contact edits from the Settings module."""
 
     phone = serializers.CharField(
-        max_length=32, allow_blank=True, required=False, trim_whitespace=True
+        max_length=32,
+        allow_blank=True,
+        required=False,
+        trim_whitespace=True,
+        validators=[validate_phone],
     )
 
 
@@ -88,10 +96,10 @@ class ChangePasswordSerializer(serializers.Serializer):
     """Signed-in password change. Requires the current password."""
 
     current_password = serializers.CharField(
-        write_only=True, style={"input_type": "password"}
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
     )
     new_password = serializers.CharField(
-        write_only=True, style={"input_type": "password"}
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
     )
 
     def validate_current_password(self, value):
@@ -113,10 +121,3 @@ class ChangePasswordSerializer(serializers.Serializer):
                 {"new_password": "Choose a password different from your current one."}
             )
         return attrs
-
-
-class NotificationPreferenceSerializer(serializers.Serializer):
-    emailNotifications = serializers.BooleanField(required=False)
-    announcementAlerts = serializers.BooleanField(required=False)
-    deadlineReminders = serializers.BooleanField(required=False)
-    weeklySummary = serializers.BooleanField(required=False)

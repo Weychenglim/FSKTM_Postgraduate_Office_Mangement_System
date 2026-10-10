@@ -1,7 +1,8 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 
@@ -71,6 +72,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text="Designates whether the user can log into the Django admin site.",
     )
     date_joined = models.DateTimeField(default=timezone.now)
+    # Portal (JWT) sign-ins. Kept apart from ``last_login`` because Django's
+    # reset tokens hash ``last_login``; updating it on every sign-in would
+    # silently void reset links issued earlier.
+    last_portal_login = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -79,6 +84,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         ordering = ["full_name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="unique_user_email_ci",
+                violation_error_message="An account with this email already exists.",
+            )
+        ]
 
     def __str__(self):
         return f"{self.full_name} <{self.email}> ({self.role})"
@@ -145,6 +157,18 @@ class User(AbstractBaseUser, PermissionsMixin):
         }
 
 
+def reject_technical_profile(profile):
+    """A Technical Administrator account never holds a portal profile."""
+    try:
+        user = profile.user
+    except ObjectDoesNotExist:
+        return
+    if user is not None and user.role == User.TECHNICAL_ADMIN:
+        raise ValidationError(
+            "A Technical Administrator account cannot have a portal profile."
+        )
+
+
 # ── Top-level subtypes (User → Student / OfficeStaff / Lecturer) ─────────────
 
 
@@ -176,8 +200,21 @@ class Student(models.Model):
     )
     status_reason = models.TextField(blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("matric_no"),
+                name="unique_student_matric_ci",
+                violation_error_message="This matric number is already registered.",
+            )
+        ]
+
     def __str__(self):
         return f"{self.matric_no} — {self.user.full_name}"
+
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
 
 
 class StudentRegistry(models.Model):
@@ -263,6 +300,10 @@ class OfficeStaff(models.Model):
     def __str__(self):
         return f"{self.staff_no} — {self.user.full_name}"
 
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
+
 
 class Lecturer(models.Model):
     """Academic staff profile. A lecturer may additionally act as a Coordinator,
@@ -298,6 +339,10 @@ class Lecturer(models.Model):
 
     def __str__(self):
         return f"{self.staff_no} — {self.user.full_name}"
+
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
 
 
 # ── Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel) ───
@@ -397,45 +442,6 @@ class Panel(models.Model):
 
     def __str__(self):
         return f"Panel — {self.lecturer.user.full_name}"
-
-
-class NotificationPreference(models.Model):
-    """Per-user delivery preferences shown in the Settings module.
-
-    Created on demand rather than by signal, so existing accounts keep working
-    without a data migration; :meth:`for_user` returns the stored row or the
-    defaults below.
-    """
-
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        primary_key=True,
-        related_name="notification_preference",
-    )
-    email_notifications = models.BooleanField(default=True)
-    announcement_alerts = models.BooleanField(default=True)
-    deadline_reminders = models.BooleanField(default=True)
-    weekly_summary = models.BooleanField(default=False)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    FIELD_MAP = {
-        "emailNotifications": "email_notifications",
-        "announcementAlerts": "announcement_alerts",
-        "deadlineReminders": "deadline_reminders",
-        "weeklySummary": "weekly_summary",
-    }
-
-    @classmethod
-    def for_user(cls, user):
-        preference, _ = cls.objects.get_or_create(user=user)
-        return preference
-
-    def to_public_dict(self):
-        return {key: getattr(self, field) for key, field in self.FIELD_MAP.items()}
-
-    def __str__(self):
-        return f"Notification preferences — {self.user.email}"
 
 
 class RegistryImportBatch(models.Model):

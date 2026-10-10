@@ -100,6 +100,13 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        if not request.user.is_superuser:
+            # Only a Technical Administrator may change roles or privileges.
+            fields = (*fields, "role", "is_staff", "is_superuser", "groups", "user_permissions")
+        return fields
+
     def get_inline_instances(self, request, obj=None):
         # Profiles can only attach to a saved user, so hide inlines on the add
         # page, and a Technical Administrator never has a portal profile.
