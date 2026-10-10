@@ -13,8 +13,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Calendar,
-  Info,
-  HelpCircle,
   ExternalLink,
   ChevronDown,
   X
@@ -418,41 +416,6 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
             </div>
           </div>
         </div>
-      </div>
-
-      {/* TWO SYSTEM ASSISTANCE CARDS BELOW TABLE LISTINGS */}
-      <div id="system-rules-helper-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none font-sans">
-        
-        {/* SUPERVISION POLICY COGNITIVE BOX */}
-        <div className="bg-[#f8fafc]/50 border border-slate-150 p-6 rounded-2xl flex gap-4 text-left">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <Info className="w-4.5 h-4.5 text-slate-500" />
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="section-label">
-              Supervision Policy
-            </h4>
-            <p className="card-description">
-              Remember that each lecturer is generally allocated a maximum of 10 active postgraduate students at any given time. Requests are reviewed based on thematic alignment with your research clusters.
-            </p>
-          </div>
-        </div>
-
-        {/* HELP ASSISTANCE COGNITIVE BOX */}
-        <div className="bg-[#f8fafc]/50 border border-slate-150 p-6 rounded-2xl flex gap-4 text-left">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <HelpCircle className="w-4.5 h-4.5 text-slate-500" />
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="section-label">
-              Need Assistance?
-            </h4>
-            <p className="card-description">
-              If you need to change a previous decision or have technical issues viewing student research proposals, please contact the Postgraduate Office at <a href="mailto:support@fsktm.um.edu.my" className="text-[#2563eb] font-bold hover:underline">support@fsktm.um.edu.my</a>.
-            </p>
-          </div>
-        </div>
-
       </div>
 
       {/* INTERACTIVE DETAIL VIEW POPUP MODAL (Satisfies "Lecturer can view request details from the Action column") */}

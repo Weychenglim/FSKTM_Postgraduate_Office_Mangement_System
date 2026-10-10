@@ -1,5 +1,10 @@
 # Project Status
 
+## Request history helper-card removal (2026-10-11)
+
+- Removed the requested Supervision Policy and Need Assistance cards from Supervisor Request History, including the hard-coded capacity claim and assistance address. Request data, filters, pagination, details and supporting history remain intact. Requirements updated; architecture checked with no structural or API change required.
+- TypeScript and the existing workspace rendering regression pass. Live Lecturer history reload confirms both cards are absent and request records remain visible; saved supervisor-history-helpers-removed.png. No workflow data changed.
+
 ## Supervisor nested page header correction (2026-10-11)
 
 - Fixed the screenshot's double history heading and Back action below the module navigation. Lecturer Request History now has one page heading and Back to Requests above it. Student/Lecturer research detail, profile and form pages use the same hierarchy; standalone component headers and other staff defaults remain available.

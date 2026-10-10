@@ -7,6 +7,7 @@
 - Research lists open individual request comparisons/audit details. Current profile and change form have dedicated views. Preserve permissions, cancellation/review/replacement actions and existing Office/Coordinator behavior.
 - Staff dossier links read View student record; Student My Academic Record remains a read-only consolidated record with no evaluations. Page-level navigation supports direct links, refresh and browser Back.
 - Nested workspace pages have one page heading and one parent Back action above the module navigation. History and research detail/profile/form views must not repeat full page headers beneath that navigation.
+- Supervisor Request History omits generic policy and assistance cards; it retains request records, filters, pagination, details and supporting appointment history.
 
 ## Recognisable report filters and useful Lecturer reporting (2026-10-10)
 
