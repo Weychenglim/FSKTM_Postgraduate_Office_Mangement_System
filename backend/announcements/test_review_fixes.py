@@ -185,7 +185,7 @@ class LetterTemplateReviewTests(APITestCase):
 
     def test_single_and_triple_braces_are_malformed(self):
         for content, fragment in (
-            ("Dear {STUDENT_NAME}, welcome", "{STUDENT_NAME},"),
+            ("Dear {STUDENT_NAME}, welcome", "{STUDENT_NAME}"),
             ("Dear {{{STUDENT_NAME}}}", "{{{STUDENT_NAME}}}"),
         ):
             with self.subTest(content=content):
