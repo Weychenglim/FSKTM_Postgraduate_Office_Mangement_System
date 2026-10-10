@@ -1,5 +1,12 @@
 # Architecture and Coding Design
 
+## Supervisor application section navigation and submission serialization (2026-10-10)
+
+- SupervisorAppointmentApplicationPage replaces the hard-coded active first indicator with equally styled anchor navigation. Small candidate/selection-summary components expose aria-pressed, the Selected marker and a clear action; the page owns the single selected ID and toggle behavior. AppointmentGuidance supplies the same visible layout as the overview with application-specific rules.
+- A synchronous ref guards an in-flight submit before React's state update disables the button, and resets on settlement so a rejected request can be retried.
+- SupervisorApplicationCreateSerializer.create rechecks pending applications after acquiring the existing Student row lock within the view transaction. Competing requests that passed initial validation are serialized before document creation, workflow events and notifications; the loser returns the existing DRF validation error (400). Existing partial unique constraints remain the final guard for one pending request and one active primary appointment. Final-approval idempotency is unchanged; there is no new submission idempotency-key contract, migration or dependency.
+- A PostgreSQL APITransactionTestCase synchronizes two requests after initial validation, posts to different eligible Supervisors and checks 201/400 plus exactly one application/document/SUBMIT event/notification and no appointment. Rendering and authenticated browser checks cover section navigation, selection/cancellation and useful shared guidance.
+
 ## Shared toast presentation and lifetime (2026-10-10)
 
 - PortalToast retains its existing message/tone/className interface and the optional onClose callback introduced by the parallel local changes. A keyed inner notification owns dismissal state; clearing or changing the message/tone mounts a fresh notification. It continues to render through a body portal so clipping/transformed ancestors do not capture its viewport placement.

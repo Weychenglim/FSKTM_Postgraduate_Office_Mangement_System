@@ -1,5 +1,12 @@
 # Project Requirements
 
+## Student Supervisor application clarity and concurrent submission (2026-10-10)
+
+- The three application sections are available together. Their numbered navigation links use equal styling and jump to the matching section rather than implying a first-step-only wizard.
+- Supervisor selection exposes an explicit Selected marker, pressed state and selected-person summary. Students can toggle the candidate off or clear selection, including when search hides the selected row. Backend candidate selectability remains authoritative.
+- The new-application form uses the same visible Appointment guidance layout as the appointment overview, with only relevant pending-request and approval/replacement rules. Content may differ before submission; repeated generic help and prerequisites cards are removed.
+- A Student may have only one pending primary Supervisor application and one active primary Supervisor appointment. Same-form repeat submission is blocked while a request is in flight; simultaneous server submissions return one creation and a controlled duplicate rejection. Historical applications and normal replacements remain supported. Submission does not promise replay of the original response through an idempotency key.
+
 ## Shared toast clarity and validation feedback (2026-10-10)
 
 - Shared portal notifications use one clearly identifiable dismiss button. Error status uses an exclamation icon, while success, warning and information retain distinct status icons; status icons must not resemble a second close control.

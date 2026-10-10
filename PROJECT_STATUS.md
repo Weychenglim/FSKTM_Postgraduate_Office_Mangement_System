@@ -1,5 +1,13 @@
 # Project Status
 
+## Student application clarity and duplicate-submit correction (2026-10-10)
+
+- Replaced the misleading active-first indicator with three equal section links. Added an explicit Selected marker, accessible pressed state, selected Supervisor summary, toggle deselection and Clear selection. The footer now uses shared visible Appointment guidance with two necessary application rules.
+- Added a same-form in-flight submit guard and a server pending-request recheck under the existing Student row lock. The PostgreSQL concurrency regression reproduced the prior unhandled duplicate-constraint error before the fix; afterward competing submissions return 201/400 and create exactly one request/document/event/notification, with no active appointment. Database uniqueness and the existing final-approval workflow remain intact.
+- Verification passes 44 backend concurrency/workflow/role-integrity tests, all 79 frontend test files, the tightened rendering assertions, final TypeScript/production build and both production security/artifact guards. Authenticated 1280 px browser checks confirm equal section-link typography, section navigation, click/keyboard toggling, clear selection while filtered out, visible two-card guidance and no horizontal document overflow. No mobile live acceptance is claimed for this change.
+- Restarted the local backend with the new lock recheck; direct and frontend-proxied health checks pass. Saved supervisor-application-selected.png and supervisor-application-selection-guidance.png as previews. Browser checks used only unsaved selection/search input; no application, cancellation or approval was submitted. Backend tests used an isolated disposable database and temporary media, preserving the current Student test request awaiting Coordinator review.
+- Focused read-only code review found no critical or important introduced issues. The same-form in-flight ref guard has source review; concurrency is exercised by the server API test rather than a deferred frontend double-submit/retry test. Changes remain on codex/portal-consistency-and-toast for the user's later merge; no push or merge is performed.
+
 ## Shared toast correction and feature branch (2026-10-10)
 
 - Moved the complete existing local working tree from main to codex/portal-consistency-and-toast and verified the tracked/untracked status was preserved by the branch switch. This includes the prior role typography, Student privacy/record changes, Student/Lecturer appointment layouts and the other tool's application-validation toast integration.
