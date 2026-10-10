@@ -13,12 +13,13 @@ Mounted under ``/api/`` by the project URLconf:
     POST /api/notifications/mark-all-read/    mark every unread one read
 """
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -37,6 +38,9 @@ PRIORITY_TO_NOTIFICATION = {
     Announcement.Priority.INFO: Notification.Priority.MEDIUM,
     Announcement.Priority.GENERAL: Notification.Priority.NORMAL,
 }
+
+# The bell and the notifications page show the newest notifications only.
+NOTIFICATION_FEED_LIMIT = 200
 
 # Announcement audience -> the User.role that should receive it.
 AUDIENCE_TO_ROLE = {
@@ -77,22 +81,44 @@ def _require_can_manage(request, announcement):
         raise PermissionDenied("You can only modify announcements you created.")
 
 
-def _is_visible_to_recipient(announcement):
-    """Only published announcements are ever exposed to a non-sender."""
-    return announcement.status == Announcement.Status.ACTIVE
+def _audiences_for(user):
+    """The audiences a user belongs to: everyone, plus their own role's audience."""
+    role = getattr(user, "role", None)
+    return [Announcement.Audience.ALL] + [
+        audience for audience, audience_role in AUDIENCE_TO_ROLE.items() if audience_role == role
+    ]
+
+
+def _can_read(user, announcement):
+    """Office reads everything and authors read their own; everyone else reads
+    published announcements addressed to them, so a Staff-only or
+    Coordinators-only notice stays with its audience."""
+    if _is_office_admin(user):
+        return True
+    if _is_sender(user) and announcement.created_by_id == user.pk:
+        return True
+    return (
+        announcement.status == Announcement.Status.ACTIVE
+        and announcement.target in _audiences_for(user)
+    )
 
 
 def _require_can_read(request, announcement):
-    """Senders read their own plus anything published; recipients read published only."""
-    if _is_office_admin(request.user):
-        return
-    if _is_sender(request.user) and announcement.created_by_id == request.user.pk:
-        return
-    if not _is_visible_to_recipient(announcement):
-        raise PermissionDenied("You cannot view this announcement.")
-    if _is_sender(request.user) or _user_is_targeted(request.user, announcement):
-        return
-    raise PermissionDenied("You cannot view this announcement.")
+    # 404 rather than 403, so ids of drafts and other audiences' notices stay hidden.
+    if not _can_read(request.user, announcement):
+        raise NotFound("Announcement not found.")
+
+
+def _can_manage(user, announcement):
+    return _is_sender(user) and (
+        _is_office_admin(user) or announcement.created_by_id == user.pk
+    )
+
+
+def _present(announcement, user):
+    payload = announcement.to_public_dict()
+    payload["canManage"] = _can_manage(user, announcement)
+    return payload
 
 
 def _recipients_for(target):
@@ -127,7 +153,7 @@ def _fan_out(announcement):
         Notification(
             recipient=recipient,
             title=announcement.title,
-            service=announcement.created_by_name or "Postgraduate Office",
+            service=(announcement.created_by_name or "Postgraduate Office")[:128],
             summary=announcement.summary,
             message=announcement.content,
             priority=PRIORITY_TO_NOTIFICATION.get(
@@ -153,6 +179,22 @@ def _retract(announcement):
     correctly deny access to it.
     """
     Notification.objects.filter(announcement=announcement).delete()
+
+
+def _sync_delivery(announcement):
+    """Make delivered copies match a published announcement. Returns the total.
+
+    Rows of recipients who are no longer in the audience are removed (a
+    retarget or an Expired round trip must not leave the text with them), the
+    remaining copies get the current wording, and anyone missing is delivered
+    to (an upgrade to Urgent reaches people who turned alerts off). Untouched
+    rows keep their read state.
+    """
+    Notification.objects.filter(announcement=announcement).exclude(
+        recipient__in=_recipients_for(announcement.target)
+    ).delete()
+    _resync_notifications(announcement)
+    return _fan_out(announcement)
 
 
 def _resync_notifications(announcement):
@@ -185,25 +227,20 @@ def _publishable(announcement):
 def announcements_list(request):
     """GET: list announcements. POST: publish or save a draft (senders only)."""
     if request.method == "GET":
-        if _is_sender(request.user):
-            queryset = Announcement.objects.all()
-            if not _is_office_admin(request.user):
-                # Unpublished work belongs to its author; published broadcasts
-                # are visible to every sender.
-                queryset = queryset.filter(
-                    Q(status=Announcement.Status.ACTIVE)
-                    | Q(created_by=request.user)
-                )
-            status_param = request.query_params.get("status")
-            if status_param:
-                queryset = queryset.filter(status__iexact=status_param)
-        else:
-            # Students only ever see live broadcasts addressed to them.
-            queryset = Announcement.objects.filter(
+        queryset = Announcement.objects.all()
+        if not _is_office_admin(request.user):
+            # Published notices addressed to the caller, plus a sender's own work.
+            visible = Q(
                 status=Announcement.Status.ACTIVE,
-                target__in=[Announcement.Audience.ALL, Announcement.Audience.STUDENTS],
+                target__in=_audiences_for(request.user),
             )
-        return Response([a.to_public_dict() for a in queryset])
+            if _is_sender(request.user):
+                visible |= Q(created_by=request.user)
+            queryset = queryset.filter(visible)
+        status_param = request.query_params.get("status")
+        if status_param and _is_sender(request.user):
+            queryset = queryset.filter(status__iexact=status_param)
+        return Response([_present(a, request.user) for a in queryset])
 
     _require_sender(request)
     serializer = AnnouncementSerializer(data=request.data)
@@ -229,10 +266,10 @@ def announcements_list(request):
     )
     if attachment is not None:
         announcement.attachment = attachment
-    announcement.save()
-
-    delivered = _fan_out(announcement) if is_active else 0
-    payload = announcement.to_public_dict()
+    with transaction.atomic():
+        announcement.save()
+        delivered = _fan_out(announcement) if is_active else 0
+    payload = _present(announcement, request.user)
     payload["deliveredTo"] = delivered
     return Response(payload, status=status.HTTP_201_CREATED)
 
@@ -245,21 +282,35 @@ def announcement_detail(request, pk):
 
     if request.method == "GET":
         _require_can_read(request, announcement)
-        return Response(announcement.to_public_dict())
+        return Response(_present(announcement, request.user))
 
+    if not _can_read(request.user, announcement):
+        raise NotFound("Announcement not found.")
     _require_can_manage(request, announcement)
 
     if request.method == "DELETE":
-        announcement.delete()
+        stored_file = announcement.attachment.name if announcement.attachment else ""
+        with transaction.atomic():
+            announcement.delete()
+            _delete_file_after_commit(announcement.attachment, stored_file)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     attachment = request.FILES.get("attachment")
     errors = validate_attachment(attachment)
     if errors:
         return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        remove_attachment = serializers.BooleanField().to_internal_value(
+            request.data.get("removeAttachment", False)
+        )
+    except serializers.ValidationError:
+        return Response(
+            {"removeAttachment": ["Must be true or false."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     was_active = announcement.status == Announcement.Status.ACTIVE
-    previous_target = announcement.target
+    previous_file = announcement.attachment.name if announcement.attachment else ""
     partial = request.method == "PATCH"
     serializer = AnnouncementSerializer(data=request.data, partial=partial)
     serializer.is_valid(raise_exception=True)
@@ -267,32 +318,34 @@ def announcement_detail(request, pk):
         setattr(announcement, field, value)
     if attachment is not None:
         announcement.attachment = attachment
+    elif remove_attachment:
+        announcement.attachment = None
 
     invalid = _publishable(announcement)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
-    announcement.save()
 
-    payload = announcement.to_public_dict()
-    is_active = announcement.status == Announcement.Status.ACTIVE
-    # Only an explicit pull-back to Draft withdraws delivered copies. Expiring
-    # is the natural end of an announcement's life, not a retraction, and
-    # deleting those rows would destroy recipients' feed history and read state.
-    if was_active and announcement.status == Announcement.Status.DRAFT:
-        _retract(announcement)
-    elif is_active and not was_active:
-        payload["deliveredTo"] = _fan_out(announcement)
-    elif is_active and announcement.target != previous_target:
-        # Audience changed while published. Resyncing in place would refresh the
-        # old audience's copies with content they are no longer entitled to and
-        # deliver nothing to the new audience, so rebuild the recipient set.
-        _retract(announcement)
-        payload["deliveredTo"] = _fan_out(announcement)
-    elif is_active:
-        # Same audience, possibly edited text — delivered copies would otherwise
-        # keep showing the superseded wording.
-        _resync_notifications(announcement)
+    with transaction.atomic():
+        announcement.save()
+        if previous_file and previous_file != (announcement.attachment.name if announcement.attachment else ""):
+            _delete_file_after_commit(announcement.attachment, previous_file)
+        payload = _present(announcement, request.user)
+        if announcement.status == Announcement.Status.ACTIVE:
+            payload["deliveredTo"] = _sync_delivery(announcement)
+        elif was_active and announcement.status != Announcement.Status.EXPIRED:
+            # Back to Draft or Scheduled withdraws delivered copies. Expiring is
+            # the natural end of a notice, so recipients keep it in their history.
+            _retract(announcement)
     return Response(payload)
+
+
+def _delete_file_after_commit(field_file, name):
+    """Remove a replaced or deleted attachment from storage once the change is
+    committed, so a rolled-back edit never loses the file it still points at."""
+    if not name:
+        return
+    storage = field_file.storage
+    transaction.on_commit(lambda: storage.delete(name))
 
 
 @api_view(["GET"])
@@ -321,10 +374,12 @@ def announcement_attachment(request, pk):
 @permission_classes([IsAuthenticated])
 def notifications_list(request):
     """The caller's own notification feed (optionally ``?unread=true``)."""
-    queryset = Notification.objects.filter(recipient=request.user)
+    queryset = Notification.objects.filter(recipient=request.user).select_related(
+        "recipient", "announcement"
+    )
     if request.query_params.get("unread", "").lower() in ("1", "true", "yes"):
         queryset = queryset.filter(is_read=False)
-    return Response([n.to_public_dict() for n in queryset])
+    return Response([n.to_public_dict() for n in queryset[:NOTIFICATION_FEED_LIMIT]])
 
 
 @api_view(["POST"])
@@ -332,8 +387,11 @@ def notifications_list(request):
 def notification_mark_read(request, pk):
     """Mark one of the caller's notifications read (or unread via ``isRead``)."""
     notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-    is_read = request.data.get("isRead", True)
-    notification.is_read = bool(is_read)
+    try:
+        is_read = serializers.BooleanField().to_internal_value(request.data.get("isRead", True))
+    except serializers.ValidationError:
+        return Response({"isRead": ["Must be true or false."]}, status=status.HTTP_400_BAD_REQUEST)
+    notification.is_read = is_read
     notification.save(update_fields=["is_read"])
     return Response(notification.to_public_dict())
 

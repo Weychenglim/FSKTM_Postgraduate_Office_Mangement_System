@@ -99,6 +99,7 @@ class Announcement(models.Model):
             "status": self.status,
             "dateCreated": localtime(self.created_at).strftime("%d %b %Y"),
             "createdBy": self.created_by_name or "Postgraduate Office",
+            "createdById": str(self.created_by_id) if self.created_by_id else None,
             "attachmentName": self.attachment_name,
             "attachmentUrl": attachment_url,
         }

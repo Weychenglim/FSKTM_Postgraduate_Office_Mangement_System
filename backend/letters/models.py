@@ -7,6 +7,7 @@ manage these records; students only ever see the ``Active`` ones. ``Archived``
 retires a template without deleting its wording.
 """
 from django.db import models
+from django.utils.timezone import localtime
 
 
 class LetterTemplate(models.Model):
@@ -51,6 +52,6 @@ class LetterTemplate(models.Model):
             "description": self.description,
             "content": self.content,
             "referencePrefix": self.reference_prefix,
-            "lastModified": self.updated_at.strftime("%b %d, %Y"),
+            "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,
         }

@@ -10,7 +10,7 @@ from .models import Announcement
 
 class AnnouncementSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
-    content = serializers.CharField(required=False, allow_blank=True)
+    content = serializers.CharField(required=False, allow_blank=True, max_length=20000)
     target = serializers.ChoiceField(
         choices=[choice.value for choice in Announcement.Audience],
         required=False,

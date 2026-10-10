@@ -3,13 +3,13 @@
 Mounted under ``/api/letter-templates/`` by the project URLconf.
 
 - Any authenticated user can read templates (students fetch ``?status=Active``).
-- Only office staff / coordinators (or Django staff/superusers) can create,
-  update, or delete them.
+- Only office staff / coordinators can create, update, or delete them.
+- Students get 404 for a template that is not Active, so draft ids stay hidden.
 """
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -120,7 +120,7 @@ def templates_detail(request, pk):
 
     if request.method == "GET":
         if not _is_staff(request.user) and template.status != LetterTemplate.Status.ACTIVE:
-            raise PermissionDenied("You cannot view this letter template.")
+            raise NotFound("Letter template not found.")
         return Response(template.to_public_dict())
 
     _require_staff(request)

@@ -27,7 +27,10 @@ PLACEHOLDERS = {
 
 TOKEN_RE = re.compile(r"\{\{([^{}]*)\}\}")
 NAME_RE = re.compile(r"[A-Z_]+")
-STRAY_BRACES_RE = re.compile(r"\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}")
+TRIPLE_RE = re.compile(r"\{\{\{[^{}]*\}\}\}")
+# Any brace left once the well-formed tags are removed, e.g. {STUDENT_NAME} or
+# {{NAME}, would print literally on the letter.
+STRAY_RE = re.compile(r"\S*[{}]\S*")
 
 
 def placeholder_catalogue():
@@ -41,11 +44,13 @@ def placeholder_problems(content):
     """Return ``(unknown, malformed)`` tags found in ``content``, each de-duplicated."""
     content = content or ""
     unknown, malformed = [], []
-    for match in TOKEN_RE.finditer(content):
+    malformed += TRIPLE_RE.findall(content)
+    rest = TRIPLE_RE.sub(" ", content)
+    for match in TOKEN_RE.finditer(rest):
         token, name = match.group(0), match.group(1)
         if not NAME_RE.fullmatch(name):
             malformed.append(token)
         elif name not in PLACEHOLDERS:
             unknown.append(token)
-    malformed += [stray.strip() for stray in STRAY_BRACES_RE.findall(TOKEN_RE.sub("", content))]
+    malformed += STRAY_RE.findall(TOKEN_RE.sub(" ", rest))
     return list(dict.fromkeys(unknown)), list(dict.fromkeys(malformed))

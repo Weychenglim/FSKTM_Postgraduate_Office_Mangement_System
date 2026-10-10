@@ -57,7 +57,7 @@ class Command(BaseCommand):
         author_name = getattr(author, "full_name", "") if author else "Postgraduate Office"
 
         for data in ANNOUNCEMENTS:
-            Announcement.objects.filter(title=data["title"]).delete()
+            Announcement.objects.filter(title=data["title"], created_by=author).delete()
             announcement = Announcement.objects.create(
                 created_by=author,
                 created_by_name=author_name or "Postgraduate Office",

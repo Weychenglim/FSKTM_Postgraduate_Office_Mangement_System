@@ -131,20 +131,20 @@ class AnnouncementSecurityTests(APITestCase):
         draft = self.draft_by(self.lecturer)
         self.client.force_authenticate(self.other_lecturer)
         response = self.client.get(f"/api/announcements/{draft.pk}/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_student_cannot_retrieve_targeted_draft(self):
         """A draft addressed to everyone must stay invisible until published."""
         draft = self.draft_by(self.lecturer)
         self.client.force_authenticate(self.student)
         response = self.client.get(f"/api/announcements/{draft.pk}/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_student_cannot_download_draft_attachment(self):
         draft = self.draft_by(self.lecturer, attachment=pdf_file())
         self.client.force_authenticate(self.student)
         response = self.client.get(f"/api/announcements/{draft.pk}/attachment/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_student_can_download_published_attachment(self):
         announcement = self.published_by(self.lecturer, attachment=pdf_file())
