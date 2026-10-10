@@ -14,18 +14,31 @@ import zipfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db.models.functions import Lower
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
-from .models import Student
+from .models import Lecturer, OfficeStaff, Student
 from .programmes import normalise_programme
+from .validators import matric_problem, phone_problem
 
 IMPORT_HEADERS = ["student_id", "full_name", "programme", "email", "phone"]
 ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 DEFAULT_MAX_IMPORT_BYTES = 2 * 1024 * 1024
 MAX_IMPORT_ROWS = 1000
-EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+# Same limits as single registration, so the preview predicts the commit.
+MAX_MATRIC_LENGTH = 64
+MAX_NAME_LENGTH = 255
+MAX_EMAIL_LENGTH = 254
+MAX_PHONE_LENGTH = 32
+# An XLSX is a ZIP: cap what it may expand to, how wide a row is read, and how
+# many blank rows are walked, so a tiny padded or bomb workbook cannot pin a worker.
+MAX_XLSX_UNCOMPRESSED_BYTES = 30 * 1024 * 1024
+MAX_XLSX_COLUMNS = 50
+MAX_BLANK_RUN = 200
+UTF8_MULTIBYTE = re.compile(rb"[\xc2-\xf4][\x80-\xbf]+")
 
 
 class ImportFileError(ValueError):
@@ -46,36 +59,66 @@ def _text(value):
     return str(value).strip()
 
 
+def _decode_csv(raw):
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        # Excel's "CSV (Comma delimited)" saves Windows-1252, which is fine. A
+        # UTF-8 file with one stray byte is not: decoding all of it as
+        # Windows-1252 would silently turn "José" into "JosÃ©".
+        if UTF8_MULTIBYTE.search(raw):
+            line = raw[: exc.start].count(b"\n") + 1
+            raise ImportFileError(
+                f"Line {line} is not valid UTF-8. Save the file as \"CSV UTF-8\" and try again."
+            ) from exc
+    try:
+        return raw.decode("cp1252")
+    except UnicodeDecodeError as exc:
+        raise ImportFileError("The CSV file could not be read. Save it as UTF-8 and try again.") from exc
+
+
 def _csv_lines(raw):
-    for encoding in ("utf-8-sig", "cp1252"):
-        try:
-            text = raw.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        raise ImportFileError("The CSV file could not be read. Save it as UTF-8 and try again.")
-    reader = csv.reader(io.StringIO(text))
-    for cells in reader:
-        yield reader.line_num, [cell.strip() for cell in cells]
+    reader = csv.reader(io.StringIO(_decode_csv(raw), newline=""))
+    try:
+        for cells in reader:
+            yield reader.line_num, [cell.strip() for cell in cells]
+    except csv.Error as exc:
+        raise ImportFileError(
+            f"Line {reader.line_num + 1} of the CSV could not be read ({exc}). "
+            "Check its quotes and save it as CSV UTF-8."
+        ) from exc
 
 
 def _xlsx_lines(raw):
     if not raw.startswith(b"PK\x03\x04"):
         raise ImportFileError("That file is not a valid XLSX workbook.")
     try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            expanded = sum(entry.file_size for entry in archive.infolist())
+    except (zipfile.BadZipFile, OSError) as exc:
+        raise ImportFileError("That file is not a valid XLSX workbook.") from exc
+    if expanded > MAX_XLSX_UNCOMPRESSED_BYTES:
+        raise ImportFileError("That workbook is too large to import. Save it as CSV and try again.")
+    try:
         workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     except (InvalidFileException, zipfile.BadZipFile, KeyError, OSError) as exc:
         raise ImportFileError("That file is not a valid XLSX workbook.") from exc
     try:
         kept = 0
-        for line, values in enumerate(workbook.active.iter_rows(values_only=True), start=1):
+        blank_run = 0
+        rows = workbook.active.iter_rows(values_only=True, max_col=MAX_XLSX_COLUMNS)
+        for line, values in enumerate(rows, start=1):
             cells = [_text(value) for value in values]
-            yield line, cells
-            if any(cells):
-                kept += 1
-                if kept > MAX_IMPORT_ROWS + 1:
+            if not any(cells):
+                blank_run += 1
+                if blank_run > MAX_BLANK_RUN:
                     return
+                continue
+            blank_run = 0
+            yield line, cells
+            kept += 1
+            if kept > MAX_IMPORT_ROWS + 1:
+                return
     finally:
         workbook.close()
 
@@ -117,6 +160,30 @@ def read_import_file(uploaded_file):
     ]
 
 
+def _field_problem(matric, name, phone):
+    """The first length/format problem in a row's free-text fields, or None."""
+    if len(matric) > MAX_MATRIC_LENGTH:
+        return f"student_id is longer than {MAX_MATRIC_LENGTH} characters"
+    problem = matric_problem(matric)
+    if problem:
+        return problem
+    if len(name) > MAX_NAME_LENGTH:
+        return f"full_name is longer than {MAX_NAME_LENGTH} characters"
+    if len(phone) > MAX_PHONE_LENGTH:
+        return f"phone is longer than {MAX_PHONE_LENGTH} characters"
+    return phone_problem(phone)
+
+
+def _email_problem(email):
+    if len(email) > MAX_EMAIL_LENGTH:
+        return f"email is longer than {MAX_EMAIL_LENGTH} characters"
+    try:
+        validate_email(email)
+    except ValidationError:
+        return f'"{email}" is not a valid email address'
+    return None
+
+
 def validate_import_rows(rows):
     """Check each row against the same rules as single registration."""
     first_id, first_email = {}, {}
@@ -137,6 +204,14 @@ def validate_import_rows(rows):
         .filter(key__in=list(first_email))
         .values_list("key", flat=True)
     )
+    # Sign-in accepts a matric or a staff number, so one value cannot be both.
+    staff_numbers = {
+        number.lower()
+        for model in (OfficeStaff, Lecturer)
+        for number in model.objects.annotate(key=Lower("staff_no"))
+        .filter(key__in=list(first_id))
+        .values_list("staff_no", flat=True)
+    }
 
     checked = []
     for line, cells in rows:
@@ -144,24 +219,32 @@ def validate_import_rows(rows):
         programme = normalise_programme(cells["programme"])
         status, issue = "Ready", ""
 
+        field_problem = _field_problem(matric, name, cells["phone"]) if matric and name else None
+        email_problem = _email_problem(email) if email else None
         if not matric or not name:
             status = "Missing Field"
             issue = "student_id is required" if not matric else "full_name is required"
+        elif field_problem:
+            status = "Invalid Field"
+            issue = field_problem
         elif first_id[matric.lower()] != line:
             status = "Duplicate In File"
             issue = f"same student_id as line {first_id[matric.lower()]}"
         elif not email:
             status = "Missing Email"
             issue = "email is required — the student needs it to activate the account"
-        elif not EMAIL_RE.match(email):
+        elif email_problem:
             status = "Missing Email"
-            issue = f'"{email}" is not a valid email address'
+            issue = email_problem
         elif first_email[email.lower()] != line:
             status = "Duplicate In File"
             issue = f"same email as line {first_email[email.lower()]}"
         elif not programme:
             status = "Bad Programme"
             issue = f'"{cells["programme"]}" is not an approved programme'
+        elif matric.lower() in staff_numbers:
+            status = "Invalid Field"
+            issue = "this student_id is already used as a staff number"
         elif matric.lower() in registered_ids:
             status = "Already Registered"
             issue = "this matric number is already registered"

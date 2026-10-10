@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -239,7 +240,8 @@ class StudentRegistryApiTests(APITestCase):
         self.assertEqual(self.student.status, Student.Status.ACTIVE)
 
     def test_matric_number_is_not_writable(self):
-        """Send a valid field too, so the request definitely performs a write."""
+        """A non-editable field is refused, not silently dropped, and nothing in
+        the request is written."""
         self.client.force_authenticate(self.admin)
         response = self.client.patch(
             f"/api/registry/students/{self.student.matric_no}/",
@@ -249,37 +251,28 @@ class StudentRegistryApiTests(APITestCase):
                 "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(set(response.data), {"id", "matric_no"})
         self.student.refresh_from_db()
         self.assertEqual(self.student.matric_no, "DEMO-WGA210045")
-        self.assertEqual(
-            self.student.programme, "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
-        )
+        self.assertEqual(self.student.programme, "MASTER OF DATA SCIENCE (COURSEWORK)")
 
-    def test_case_variant_matric_numbers_are_refused_not_guessed(self):
-        """Two matrics differing only by case must not silently edit one of them."""
+    def test_case_variant_matric_numbers_cannot_exist(self):
+        """Matrics differing only by case are refused by the database, so the
+        case-insensitive lookup can never edit the wrong student."""
         twin_user = User.objects.create_user(
             email="twin@example.test",
             password="pw-twin-3391",
             full_name="Case Twin",
             role=User.Role.STUDENT,
         )
-        Student.objects.create(
-            user=twin_user,
-            matric_no=self.student.matric_no.lower(),
-            programme="MASTER OF DATA SCIENCE (COURSEWORK)",
-            status=Student.Status.ACTIVE,
-        )
-        self.client.force_authenticate(self.admin)
-        response = self.client.patch(
-            f"/api/registry/students/{self.student.matric_no}/",
-            {"accountStatus": "Suspended"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.student_user.refresh_from_db()
-        twin_user.refresh_from_db()
-        self.assertTrue(self.student_user.is_active)
-        self.assertTrue(twin_user.is_active)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Student.objects.create(
+                user=twin_user,
+                matric_no=self.student.matric_no.lower(),
+                programme="MASTER OF DATA SCIENCE (COURSEWORK)",
+                status=Student.Status.ACTIVE,
+            )
 
     def test_admin_cannot_suspend_their_own_account(self):
         admin_student = Student.objects.create(
