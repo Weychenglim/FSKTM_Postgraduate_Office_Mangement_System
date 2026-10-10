@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BarChart3,
-  CalendarDays,
+  Filter,
   Clock3,
   Download,
   FileSpreadsheet,
@@ -18,11 +17,13 @@ import type {
 import { downloadWorkflowReport, getWorkflowReport } from '../services';
 import {
   formatReportMetric,
+  buildWorkflowReportQuery,
+  getLecturerReportMetrics,
   canOpenReportDossier,
   reportLabel,
   resolveWorkflowReportRecordRoute,
 } from '../utils/workflowReports';
-import { routeForStudentProgress } from '../constants/routes';
+import { APP_ROUTES, routeForStudentProgress } from '../constants/routes';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import {
   PageHeader,
@@ -88,6 +89,32 @@ const WorkflowSection: React.FC<{
     </div>
   </PortalCard>
 );
+
+export function LecturerReportSummary({ report, onNavigateToRoute }: {
+  report: WorkflowReport;
+  onNavigateToRoute: (route: string) => void;
+}) {
+  return (
+    <section aria-label="Your workflow actions" className="grid gap-4 md:grid-cols-3">
+      {getLecturerReportMetrics(report).map(card => (
+        <PortalCard key={card.id} className="space-y-3">
+          <h2 className="card-label">{card.label}</h2>
+          <p className="card-metric">{card.value}</p>
+          <p className="card-description">{card.description}</p>
+          {card.id === 'waiting' ? (
+            <a href="#workflow-attention" className="card-value inline-block rounded text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">
+              View waiting records
+            </a>
+          ) : (
+            <PortalButton size="sm" onClick={() => onNavigateToRoute(APP_ROUTES.marks)}>
+              Open Marks Entry
+            </PortalButton>
+          )}
+        </PortalCard>
+      ))}
+    </section>
+  );
+}
 
 export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   currentUserRole,
@@ -161,106 +188,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
     { label: 'Active milestones', value: formatReportMetric(report.overview.activeTimelineEntries) },
   ] : [], [report]);
 
-  return (
-    <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
-      <PortalToast message={toast} />
-      <PageHeader
-        title="Workflow Analytics"
-        subtitle="Current persisted state across authorised workflow, marks, and timeline records."
-        backLabel="Back to Dashboard"
-        onBack={onBack}
-        actions={(
-          <>
-            {currentUserRole === 'Office Staff/Admin' && onOpenReconciliation && (
-              <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>
-                Reconcile Workflows
-              </PortalButton>
-            )}
-            <PortalButton
-              variant="primary"
-              icon={Download}
-              onClick={exportWorkbook}
-              isLoading={exporting}
-              disabled={!report}
-            >
-              Download XLSX
-            </PortalButton>
-          </>
-        )}
-      />
-
-      <PortalCard padding="md" className="rounded-lg">
-        <div className="flex items-center gap-2 mb-4">
-          <CalendarDays className="w-4 h-4 text-blue-600" />
-          <h2 className="section-label">Report filters</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
-          <label className="form-label space-y-1.5">
-            <span>Start date</span>
-            <input
-              type="date"
-              value={draftFilters.startDate ?? ''}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
-              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            />
-          </label>
-          <label className="form-label space-y-1.5">
-            <span>End date</span>
-            <input
-              type="date"
-              value={draftFilters.endDate ?? ''}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
-              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            />
-          </label>
-          <label className="form-label space-y-1.5">
-            <span>Academic semester</span>
-            <select
-              value={draftFilters.semester ?? 'active'}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
-              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            >
-              <option value="active">Active semester</option>
-              <option value="all">All semesters</option>
-              <option value="unassigned">Legacy / Unassigned</option>
-              {report?.filters.availableSemesters.map((semester) => (
-                <option key={semester.semesterCode} value={semester.semesterCode}>
-                  {semester.semester}
-                </option>
-              ))}
-            </select>
-          </label>
-          {currentUserRole === 'Office Staff/Admin' && (
-            <label className="form-label space-y-1.5">
-              <span>Programme</span>
-              <select
-                value={draftFilters.programme ?? ''}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
-                className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-              >
-                <option value="">All authorised programmes</option>
-                {report?.filters.availableProgrammes.map((programme) => (
-                  <option key={programme} value={programme}>{programme}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="flex gap-2">
-            <PortalButton variant="primary" icon={BarChart3} onClick={applyFilters}>Apply</PortalButton>
-            <PortalButton variant="secondary" icon={RefreshCw} onClick={resetFilters}>Reset</PortalButton>
-          </div>
-        </div>
-        {validationError && (
-          <p role="alert" className="card-value text-rose-600 mt-3">{validationError}</p>
-        )}
-      </PortalCard>
-
-      {loading ? (
-        <LoadingState message="Loading workflow analytics..." />
-      ) : error ? (
-        <ErrorState message={error} onRetry={loadReport} />
-      ) : !report ? null : (
-        <>
+  const statisticCards = (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
             {kpis.map((kpi) => (
               <PortalCard key={kpi.label} padding="sm" className="rounded-lg min-h-[92px]">
@@ -269,6 +197,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               </PortalCard>
             ))}
           </div>
+  );
+  const breakdowns = report ? (<>
 
           {report.overview.totalRecords === 0 ? (
             <EmptyState
@@ -325,7 +255,112 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
             </PortalCard>
           )}
 
-          <PortalCard padding="none" className="rounded-lg overflow-hidden">
+</>) : null;
+
+  return (
+    <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
+      <PortalToast message={toast} />
+      <PageHeader
+        title="Workflow Analytics"
+        subtitle={currentUserRole === 'Lecturer' ? 'Review waiting requests and assigned evaluation work, then explore workflow outcomes.' : 'Current persisted state across authorised workflow, marks, and timeline records.'}
+        backLabel="Back to Dashboard"
+        onBack={onBack}
+        actions={(
+          <>
+            {currentUserRole === 'Office Staff/Admin' && onOpenReconciliation && (
+              <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>
+                Reconcile Workflows
+              </PortalButton>
+            )}
+            <PortalButton
+              variant="primary"
+              icon={Download}
+              onClick={exportWorkbook}
+              isLoading={exporting}
+              disabled={!report || loading || !!error}
+            >
+              Download XLSX
+            </PortalButton>
+          </>
+        )}
+      />
+
+      <PortalCard padding="md" role="region" aria-label="Report filters">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter aria-hidden="true" className="w-4 h-4 text-blue-600" />
+          <h2 className="section-label">Report filters</h2>
+        </div>
+        <form onSubmit={event => { event.preventDefault(); applyFilters(); }} className="filter-toolbar grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+          <label className="form-label space-y-1.5">
+            <span>Start date</span>
+            <input
+              type="date"
+              value={draftFilters.startDate ?? ''}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
+              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+            />
+          </label>
+          <label className="form-label space-y-1.5">
+            <span>End date</span>
+            <input
+              type="date"
+              value={draftFilters.endDate ?? ''}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
+              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+            />
+          </label>
+          <label className="form-label space-y-1.5">
+            <span>Academic semester</span>
+            <select
+              value={draftFilters.semester ?? 'active'}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
+              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+            >
+              <option value="active">Active semester</option>
+              <option value="all">All semesters</option>
+              <option value="unassigned">Legacy / Unassigned</option>
+              {report?.filters.availableSemesters.map((semester) => (
+                <option key={semester.semesterCode} value={semester.semesterCode}>
+                  {semester.semester}
+                </option>
+              ))}
+            </select>
+          </label>
+          {currentUserRole === 'Office Staff/Admin' && (
+            <label className="form-label space-y-1.5">
+              <span>Programme</span>
+              <select
+                value={draftFilters.programme ?? ''}
+                onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
+                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+              >
+                <option value="">All authorised programmes</option>
+                {report?.filters.availableProgrammes.map((programme) => (
+                  <option key={programme} value={programme}>{programme}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <div className="flex gap-2">
+            <PortalButton type="submit" variant="primary" icon={Filter} disabled={loading}>Apply filters</PortalButton>
+            <PortalButton variant="secondary" icon={RefreshCw} disabled={loading} onClick={resetFilters}>Reset filters</PortalButton>
+          </div>
+        </form>
+        <p className="card-description mt-3" aria-live="polite">Showing: {report?.filters.selectedSemester && filters.semester === report.filters.semester ? report.filters.selectedSemester.semester : filters.semester === 'all' ? 'All semesters' : filters.semester === 'unassigned' ? 'Legacy / Unassigned' : filters.semester === 'active' ? 'Active semester' : filters.semester}; {filters.startDate || 'Any start date'} to {filters.endDate || 'any end date'}{filters.programme ? `; ${filters.programme}` : ''}.</p>
+        {buildWorkflowReportQuery(draftFilters) !== buildWorkflowReportQuery(filters) ? <p className="card-description mt-1 text-amber-700">Filter changes have not been applied. Downloads use the applied filters.</p> : null}
+        {validationError && (
+          <p role="alert" className="card-value text-rose-600 mt-3">{validationError}</p>
+        )}
+      </PortalCard>
+
+      {loading ? (
+        <LoadingState message="Loading workflow analytics..." />
+      ) : error ? (
+        <ErrorState message={error} onRetry={loadReport} />
+      ) : !report ? null : (
+        <>
+          {currentUserRole === 'Lecturer' ? <LecturerReportSummary report={report} onNavigateToRoute={onNavigateToRoute} /> : statisticCards}
+          <PortalCard id="workflow-attention" role="region" aria-label="Records requiring attention" padding="none" className="rounded-lg overflow-hidden scroll-mt-24">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
               <Clock3 className="w-4 h-4 text-amber-600" />
               <h3 className="section-label">Records Requiring Attention</h3>
@@ -388,6 +423,11 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               </div>
             )}
           </PortalCard>
+          {currentUserRole === 'Lecturer' ? <details className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
+            <summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">Workflow breakdowns and summary statistics</summary>
+            <p className="card-description">Current outcomes and waiting times for records within the applied filters. Waiting times include other reviewers.</p>
+            {statisticCards}{breakdowns}
+          </details> : breakdowns}
         </>
       )}
     </div>

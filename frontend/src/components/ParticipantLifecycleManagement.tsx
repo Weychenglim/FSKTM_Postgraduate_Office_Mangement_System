@@ -206,20 +206,20 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
           <fieldset disabled={saving} className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-4">
             <label className="form-label relative md:col-span-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <input className="form-input w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or ID" />
+              <input className="form-control form-control-md w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or ID" />
             </label>
-            <select className="form-input font-sans not-italic normal-case tracking-normal text-xs font-bold" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'ALL' | ParticipantType)}>
+            <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'ALL' | ParticipantType)}>
               <option value="ALL">All participants</option>
               <option value="STUDENT">Students</option>
               <option value="LECTURER">Lecturers</option>
             </select>
-            <select className="form-input font-sans not-italic normal-case tracking-normal text-xs font-bold" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All lifecycle states</option>
               {['ACTIVE', 'DEFERRED', 'GRADUATED', 'WITHDRAWN', 'RETIRING', 'RETIRED'].map((status) => (
                 <option key={status} value={status}>{lifecycleLabel(status)}</option>
               ))}
             </select>
-            <select className="form-input font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
+            <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
               <option value="">All programmes</option>
               {data?.availableProgrammes.map((value) => <option key={value}>{value}</option>)}
             </select>
@@ -272,7 +272,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
 
               {selected.pendingWork.length > 0 && <div><h3 className="section-label">Pending work</h3><div className="mt-2 space-y-2">{selected.pendingWork.map((work) => <div key={`${work.recordType}-${work.recordId}`} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 p-3"><div><strong className="card-value block">{work.recordType.replaceAll('_', ' ')}</strong><span className="card-description">#{work.recordId} · {work.status.replaceAll('_', ' ')}</span></div><PortalButton size="sm" variant="danger" onClick={() => { setPendingCancellation(work); setTargetStatus(null); setReason(''); }}>Cancel</PortalButton></div>)}</div></div>}
 
-              {(targetStatus || pendingCancellation) && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><strong className="card-value text-amber-900">{targetStatus ? `Change lifecycle to ${lifecycleLabel(targetStatus)}` : 'Cancel pending workflow'}</strong><p className="card-description mt-1 text-amber-800">This operation is transactional and will be recorded in the immutable audit history.</p></div></div><textarea className="form-input mt-3 min-h-24 w-full font-sans not-italic normal-case tracking-normal text-xs font-bold" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Mandatory reason" /><div className="mt-3 flex justify-end gap-2"><PortalButton size="sm" variant="ghost" onClick={() => { setTargetStatus(null); setPendingCancellation(null); setReason(''); }}>Cancel</PortalButton><PortalButton size="sm" variant={targetStatus === 'WITHDRAWN' || targetStatus === 'RETIRED' || pendingCancellation ? 'dangerSolid' : 'primary'} disabled={!reason.trim()} isLoading={saving} onClick={() => void completeOperation()}>Confirm</PortalButton></div></div>}
+              {(targetStatus || pendingCancellation) && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><strong className="card-value text-amber-900">{targetStatus ? `Change lifecycle to ${lifecycleLabel(targetStatus)}` : 'Cancel pending workflow'}</strong><p className="card-description mt-1 text-amber-800">This operation is transactional and will be recorded in the immutable audit history.</p></div></div><textarea className="form-control form-control-md mt-3 min-h-24 w-full font-sans not-italic normal-case tracking-normal text-xs font-bold" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Mandatory reason" /><div className="mt-3 flex justify-end gap-2"><PortalButton size="sm" variant="ghost" onClick={() => { setTargetStatus(null); setPendingCancellation(null); setReason(''); }}>Cancel</PortalButton><PortalButton size="sm" variant={targetStatus === 'WITHDRAWN' || targetStatus === 'RETIRED' || pendingCancellation ? 'dangerSolid' : 'primary'} disabled={!reason.trim()} isLoading={saving} onClick={() => void completeOperation()}>Confirm</PortalButton></div></div>}
 
               {error && <div role="alert" className="rounded-md border border-rose-200 bg-rose-50 p-3 text-rose-700">{error}</div>}
 

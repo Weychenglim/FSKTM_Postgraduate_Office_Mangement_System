@@ -1,5 +1,14 @@
 # Project Status
 
+## Report filter clarity and Lecturer usefulness (2026-10-10)
+
+- Found the screenshot's borderless controls used the undefined form-input class. The new rendering regression failed on that Lecturer filter before implementation. Migrated all remaining consumers across Reports, Capacity, Participant Lifecycle and Reconciliation to the defined shared controls.
+- Reports now expose an explicit filter form, applied scope/draft-change notice and clearer actions. Lecturer action cards and attention records precede optional statistics/breakdowns, preserving original reporting and export features.
+- Found pending research amendments counted as waiting but omitted from the actionable attention list. A role-scoped API regression reproduced the omission; included existing authorised amendment rows in the shared attention projection used by JSON/XLSX.
+- Verification passes all 80 frontend test files, all 12 backend dashboard reporting tests, final targeted rendering regression, TypeScript, production build and both production security/artifact guards. Focused read-only review found no actionable introduced issues. The backend amendment regression uses an isolated disposable database.
+- Live desktop checks cover Lecturer semester draft notices, Apply/Reset, waiting-table anchor, Marks navigation, preserved breakdown disclosure and viewport bounds; Coordinator/Office retain visible reporting statistics and role-specific filters. Capacity, participant lifecycle and reconciliation controls have shared classes and visible borders in the Office browser view. Native date automation did not commit edits, so no live date-validation or mobile acceptance is claimed; existing date validation/report tests remain passing. This is scoped verification of the changed controls, not an exhaustive visual audit of every portal page.
+- Restarted the local backend; direct and proxied health checks pass. Saved lecturer-workflow-reports-improved.png as the preview. Browser verification changed only authentication and report/view filters; no application, cancellation, approval, capacity policy or participant record was changed. Changes remain on codex/portal-consistency-and-toast for the user's later merge; no push or merge is performed.
+
 ## Cancellation audit response correction (2026-10-10)
 
 - Reproduced the reported cancelled Student request showing Audit History (1): the new cancellation event was persisted, but the API serialized the pre-mutation prefetched history. Extended the existing cancellation regression; it failed with only SUBMIT in the response instead of SUBMIT/STUDENT_CANCEL.

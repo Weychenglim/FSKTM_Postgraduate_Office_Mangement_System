@@ -1,5 +1,12 @@
 # Architecture and Coding Design
 
+## Shared reporting controls and Lecturer action summaries (2026-10-10)
+
+- Reports now consume the existing filter-toolbar and form-control/form-control-md CSS, PortalCard and PortalButton. FilterCard is a rubric-specific legacy widget with hard-coded semester/stage options, so its domain data is not reused as a general reporting filter. The other remaining form-input consumers (capacity, participant lifecycle and reconciliation) migrate to the same defined controls.
+- LecturerReportSummary uses getLecturerReportMetrics with the existing role-scoped report: pendingApprovals remains all waiting workflow stages, incomplete evaluation counts exclude SUBMITTED records, and overdue counts use authoritative overview metadata. Actions anchor to the attention table or navigate through the existing Marks route. Original distributions/statistics remain in the same shared report component, collapsed only for Lecturer users.
+- Draft and applied filters remain separate. Apply submits the labelled toolbar, Reset restores the active semester and export uses applied filters; a draft-change notice prevents ambiguous exports. Existing role/programme/semester authority and reporting-date semantics remain unchanged.
+- The reporting service feeds its already-scoped amendment rows into the existing attention projection. Previously they contributed to pendingApprovals but were absent from the attention table. JSON/XLSX use the same service; this adds no records, schema or authority. The regression verifies an assigned Supervisor sees their pending amendment while an unrelated Student's amendment stays excluded.
+
 ## Audit history cache coherence after mutation (2026-10-10)
 
 - The Student cancellation view prefetches workflow_events before recording STUDENT_CANCEL. Creating the event through AppointmentWorkflowEvent.objects does not invalidate Django's cached reverse relation, so serializing that same instance previously returned pre-cancellation history.

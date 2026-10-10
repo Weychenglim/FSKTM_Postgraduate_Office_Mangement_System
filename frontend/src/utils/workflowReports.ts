@@ -1,4 +1,4 @@
-import type { UserRole, WorkflowReportAttentionItem, WorkflowReportFilters } from '../types';
+import type { UserRole, WorkflowReport, WorkflowReportAttentionItem, WorkflowReportFilters } from '../types';
 import {
   APP_ROUTES,
   routeForDashboardTimeline,
@@ -25,6 +25,32 @@ export const formatReportMetric = (
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
   return `${value}${suffix}`;
 };
+
+export function getLecturerReportMetrics(report: WorkflowReport) {
+  const cards = [{
+    id: 'waiting',
+    label: 'Waiting requests',
+    value: report.overview.pendingApprovals,
+    description: 'Assigned workflows awaiting a decision, including other reviewers.',
+  }];
+  if (report.marks) {
+    cards.push(
+      {
+        id: 'evaluations',
+        label: 'Evaluations to complete',
+        value: report.marks.records.filter(row => row.status !== 'SUBMITTED').length,
+        description: 'Your assigned evaluations that have not been submitted.',
+      },
+      {
+        id: 'overdue',
+        label: 'Overdue evaluations',
+        value: report.overview.overdueMarks,
+        description: 'Assigned evaluations past their recorded deadline.',
+      },
+    );
+  }
+  return cards;
+}
 
 export const canAccessWorkflowReports = (role: UserRole): boolean =>
   role === 'Office Staff/Admin'
