@@ -27,6 +27,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from appointments.models import SupervisorAppointment
+from letters.eligibility import inactive_student_refusal
 
 from .authentication import RefreshCookieAuthentication
 from .password_policy import TechnicalAccountForbidden
@@ -260,6 +261,9 @@ def my_letter_details_view(request):
             {"error": "Only students have letter details."},
             status=status.HTTP_403_FORBIDDEN,
         )
+    refusal = inactive_student_refusal(request.user)
+    if refusal:
+        return Response(refusal, status=status.HTTP_403_FORBIDDEN)
 
     data = {
         "studentName": request.user.full_name,

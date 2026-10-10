@@ -10,7 +10,18 @@
 
 import { LetterPlaceholder, LetterTemplate } from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
-import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
+import { ApiError, USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
+
+/** Code the server sends when a student whose status is not Active asks for letters. */
+export const LETTERS_NEED_ACTIVE_STATUS = 'letters_need_active_status';
+
+/** The server's reason when letters are refused because the student is not Active, else null. */
+export function inactiveStudentReason(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 403) return null;
+  const body = err.body;
+  const code = body && typeof body === 'object' ? (body as { code?: unknown }).code : undefined;
+  return code === LETTERS_NEED_ACTIVE_STATUS ? err.message : null;
+}
 
 /** Payload for creating/updating a template (frontend field names). */
 export interface LetterTemplateInput {

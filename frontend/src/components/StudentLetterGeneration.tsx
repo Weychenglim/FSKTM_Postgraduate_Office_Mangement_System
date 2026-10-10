@@ -15,7 +15,12 @@ import {
 import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
-import { getStudentLetterTemplates, getMyLetterDetails, StudentLetterDetails } from '../services';
+import {
+  getStudentLetterTemplates,
+  getMyLetterDetails,
+  inactiveStudentReason,
+  StudentLetterDetails,
+} from '../services';
 import {
   LETTERHEAD,
   LetterData,
@@ -59,6 +64,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // they were enrolled.
   const [detailsError, setDetailsError] = useState<string | null>(null);
 
+  // Set when the server refuses letters because the student's status is not Active.
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
   const studentName = details?.studentName ?? studentNameProp ?? '';
   const matricNumber = details?.matricNumber ?? studentIdProp ?? '';
   const programName = details?.programName ?? programmeProp ?? '';
@@ -79,7 +87,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
         setTemplates(data);
         setSelectedTemplate((current) => current ?? data[0] ?? null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load letter templates.'))
+      .catch((e) => {
+        const reason = inactiveStudentReason(e);
+        if (reason) setBlockedReason(reason);
+        else setError(e instanceof Error ? e.message : 'Failed to load letter templates.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -100,7 +112,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
         }
       })
       .catch((e) => {
-        if (!cancelled) {
+        if (cancelled) return;
+        const reason = inactiveStudentReason(e);
+        if (reason) {
+          setBlockedReason(reason);
+        } else {
           setDetailsError(
             e instanceof Error
               ? e.message
@@ -174,6 +190,23 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   const handleZoomIn = () => setZoomScale((p) => Math.min(120, p + 10));
   const handleZoomOut = () => setZoomScale((p) => Math.max(80, p - 10));
+
+  if (blockedReason) {
+    return (
+      <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans pb-12">
+        <PageHeader
+          title="Letter Generation"
+          subtitle="Official letters for students whose status is Active."
+          className="border-b border-slate-100 pb-5"
+        />
+        <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
+          <Info className="w-6 h-6 text-amber-500 mx-auto" />
+          <p className="mt-3 text-sm font-black text-slate-800">Letter generation is not available</p>
+          <p className="mt-1.5 text-[12px] font-semibold text-slate-500 leading-relaxed">{blockedReason}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans pb-12">
