@@ -1,5 +1,11 @@
 # Architecture and Coding Design
 
+## Audit history cache coherence after mutation (2026-10-10)
+
+- The Student cancellation view prefetches workflow_events before recording STUDENT_CANCEL. Creating the event through AppointmentWorkflowEvent.objects does not invalidate Django's cached reverse relation, so serializing that same instance previously returned pre-cancellation history.
+- The shared record_workflow_event helper now removes only workflow_events from the owning Supervisor application or Panel recommendation's prefetch cache after a successful insert. The serializer therefore reads current immutable events while unrelated prefetched relations remain intact. No schema, API shape, authority or frontend workaround changes.
+- The cancellation API regression checks the immediate response contains SUBMIT and STUDENT_CANCEL, including the recorded cancellation reason and final status, rather than merely checking that the database event exists.
+
 ## Supervisor application section navigation and submission serialization (2026-10-10)
 
 - SupervisorAppointmentApplicationPage replaces the hard-coded active first indicator with equally styled anchor navigation. Small candidate/selection-summary components expose aria-pressed, the Selected marker and a clear action; the page owns the single selected ID and toggle behavior. AppointmentGuidance supplies the same visible layout as the overview with application-specific rules.

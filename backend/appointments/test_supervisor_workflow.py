@@ -557,12 +557,29 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "I selected the wrong supervisor.",
         )
         self.assertIsNotNone(cancelled.data["cancelledAt"])
+        self.assertEqual(
+            [event["action"] for event in cancelled.data["workflow"]],
+            ["SUBMIT", "STUDENT_CANCEL"],
+        )
+        cancellation_audit = cancelled.data["workflow"][-1]
+        self.assertEqual(cancellation_audit["newStatus"], "CANCELLED_BY_STUDENT")
+        self.assertEqual(cancellation_audit["reason"], "I selected the wrong supervisor.")
         event = AppointmentWorkflowEvent.objects.get(
             supervisor_application_id=application_id,
             action="STUDENT_CANCEL",
         )
         self.assertEqual(event.actor, self.student_user)
         self.assertEqual(event.reason, "I selected the wrong supervisor.")
+        self.assertEqual(cancellation_audit["id"], event.pk)
+        self.assertEqual(cancellation_audit["actorName"], self.student_user.full_name)
+        self.assertEqual(cancellation_audit["actorRole"], User.Role.STUDENT)
+        self.assertEqual(cancellation_audit["previousStatus"], "SUBMITTED_TO_SUPERVISOR")
+        self.assertIsNotNone(cancellation_audit["createdAt"])
+        detail = self.client.get(
+            f"/api/appointments/supervisor/applications/{application_id}/"
+        )
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(cancelled.data["workflow"], detail.data["workflow"])
         self.assertTrue(
             Notification.objects.filter(
                 recipient=self.supervisor_user,

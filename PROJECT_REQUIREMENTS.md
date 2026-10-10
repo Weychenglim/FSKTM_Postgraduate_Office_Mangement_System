@@ -1,5 +1,10 @@
 # Project Requirements
 
+## Immediate cancellation audit visibility (2026-10-10)
+
+- A successful Supervisor cancellation response must include the newly persisted cancellation audit entry with actor, timestamp, reason and status transition. The Student drawer must receive the complete history immediately without requiring a page reload.
+- The shared Supervisor/Panel audit writer must invalidate previously prefetched history on its owning record; persisted events, historical records and role permissions remain unchanged.
+
 ## Student Supervisor application clarity and concurrent submission (2026-10-10)
 
 - The three application sections are available together. Their numbered navigation links use equal styling and jump to the matching section rather than implying a first-step-only wizard.

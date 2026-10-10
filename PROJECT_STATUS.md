@@ -1,5 +1,12 @@
 # Project Status
 
+## Cancellation audit response correction (2026-10-10)
+
+- Reproduced the reported cancelled Student request showing Audit History (1): the new cancellation event was persisted, but the API serialized the pre-mutation prefetched history. Extended the existing cancellation regression; it failed with only SUBMIT in the response instead of SUBMIT/STUDENT_CANCEL.
+- Added targeted workflow-history cache invalidation to the shared Supervisor/Panel audit writer so successful mutation responses include the new event while preserving unrelated prefetched relations and the original returned event. Existing cancelled requests require no data repair; an already-open client can refresh once to discard its old response.
+- Verification passes all 57 backend Supervisor/Panel workflow, role-integrity and document tests, plus a focused rerun of the strengthened immediate-response regression with actor, timestamp, reason, status transition and fresh-detail agreement assertions. Tests use an isolated disposable PostgreSQL database. Focused read-only code review found no introduced issues; whitespace checks pass. No frontend code, dependency or schema changes were needed.
+- Restarted the local backend and verified direct/proxied health checks. Live Student inspection of existing cancelled SV-APP-00007 shows Audit History (2), Submit and Student cancel with the persisted reason and status transition. Saved supervisor-cancellation-audit.png as the preview. No new development cancellation/application/approval was performed, and the pending Coordinator request remains intact. Changes are saved on codex/portal-consistency-and-toast; no push or merge is performed.
+
 ## Student application clarity and duplicate-submit correction (2026-10-10)
 
 - Replaced the misleading active-first indicator with three equal section links. Added an explicit Selected marker, accessible pressed state, selected Supervisor summary, toggle deselection and Clear selection. The footer now uses shared visible Appointment guidance with two necessary application rules.

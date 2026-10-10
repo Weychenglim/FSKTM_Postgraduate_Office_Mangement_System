@@ -507,7 +507,7 @@ def record_workflow_event(
     panel_recommendation=None,
     supervisor_application=None,
 ):
-    return AppointmentWorkflowEvent.objects.create(
+    event = AppointmentWorkflowEvent.objects.create(
         actor=actor,
         actor_role=actor.role,
         action=action,
@@ -517,6 +517,11 @@ def record_workflow_event(
         panel_recommendation=panel_recommendation,
         supervisor_application=supervisor_application,
     )
+    # Mutations must not serialize history prefetched before this event existed.
+    for record in (panel_recommendation, supervisor_application):
+        if record is not None:
+            getattr(record, "_prefetched_objects_cache", {}).pop("workflow_events", None)
+    return event
 
 
 def notify_workflow(
