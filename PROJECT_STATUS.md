@@ -2,6 +2,7 @@
 
 ## Report filter clarity and Lecturer usefulness (2026-10-10)
 
+- Follow-up scope clarification: renamed the Lecturer total to Records involving you and added a description of authorised workflow records, shared milestones, record counts and waiting stages. Office/Coordinator wording and all backend permissions are retained. The existing focused reporting rendering test and TypeScript pass; live Lecturer inspection confirms the new label and scope paragraph. Saved lecturer-report-scope-clarified.png. This follow-up changes presentation only and introduces no new tests or backend changes.
 - Found the screenshot's borderless controls used the undefined form-input class. The new rendering regression failed on that Lecturer filter before implementation. Migrated all remaining consumers across Reports, Capacity, Participant Lifecycle and Reconciliation to the defined shared controls.
 - Reports now expose an explicit filter form, applied scope/draft-change notice and clearer actions. Lecturer action cards and attention records precede optional statistics/breakdowns, preserving original reporting and export features.
 - Found pending research amendments counted as waiting but omitted from the actionable attention list. A role-scoped API regression reproduced the omission; included existing authorised amendment rows in the shared attention projection used by JSON/XLSX.

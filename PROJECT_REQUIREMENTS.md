@@ -2,6 +2,7 @@
 
 ## Recognisable report filters and useful Lecturer reporting (2026-10-10)
 
+- Lecturer breakdowns label the total as Records involving you and explain its authorised record types, shared Lecturer milestones and record-versus-student counting. Office/Coordinator wording and backend scope remain unchanged.
 - Reports use shared visible form controls, a labelled filter toolbar, explicit Apply filters/Reset filters actions, the applied semester/date/programme scope and a notice when draft changes have not been applied. Downloads use applied filters and are unavailable while report results load or fail.
 - Lecturer reports prioritise waiting records and assigned evaluation work with navigation to the existing records/Marks workspace. Waiting counts include other reviewers and must not be labelled as requests requiring the Lecturer's own approval. Preserve the original statistics, lifecycle/waiting distributions and export behind an optional Lecturer breakdown section. Office/Coordinator summary statistics retain their reporting purpose.
 - Capacity, participant-lifecycle and reconciliation controls reuse the same shared form-control styles; remove undefined form-input usage without changing their workflows or permissions.

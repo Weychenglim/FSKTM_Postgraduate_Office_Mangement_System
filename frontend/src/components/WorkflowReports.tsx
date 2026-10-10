@@ -180,13 +180,13 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   };
 
   const kpis = useMemo(() => report ? [
-    { label: 'Records in scope', value: formatReportMetric(report.overview.totalRecords) },
+    { label: currentUserRole === 'Lecturer' ? 'Records involving you' : 'Records in scope', value: formatReportMetric(report.overview.totalRecords) },
     { label: 'Pending approvals', value: formatReportMetric(report.overview.pendingApprovals) },
     { label: 'Average waiting', value: report.overview.averageWaitingDays === null ? '—' : `${report.overview.averageWaitingDays} days` },
     { label: 'Longest waiting', value: report.overview.longestWaitingDays === null ? '—' : `${report.overview.longestWaitingDays} days` },
     { label: 'Marks completion', value: formatReportMetric(report.overview.marksCompletionRate, '%') },
     { label: 'Active milestones', value: formatReportMetric(report.overview.activeTimelineEntries) },
-  ] : [], [report]);
+  ] : [], [report, currentUserRole]);
 
   const statisticCards = (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -425,7 +425,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           </PortalCard>
           {currentUserRole === 'Lecturer' ? <details className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
             <summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">Workflow breakdowns and summary statistics</summary>
-            <p className="card-description">Current outcomes and waiting times for records within the applied filters. Waiting times include other reviewers.</p>
+            <p className="card-description">Within the applied filters, this includes Supervisor requests and co-supervisor nominations involving you, Panel recommendations naming you, research changes for students you currently supervise, your assigned evaluations and shared Lecturer milestones. Counts are records, not students; waiting times include other reviewers.</p>
             {statisticCards}{breakdowns}
           </details> : breakdowns}
         </>
