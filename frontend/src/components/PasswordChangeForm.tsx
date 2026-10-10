@@ -5,7 +5,9 @@
 
 import React, { useState } from 'react';
 import { KeyRound, Save } from 'lucide-react';
+import { fieldErrors } from '../services';
 import * as authApi from '../services/authApi';
+import { authenticationErrorMessage } from '../utils/authErrorMessage';
 import { FormInput } from './FormInput';
 import { PortalButton } from './PortalPrimitives';
 
@@ -13,7 +15,9 @@ interface PasswordChangeFormProps {
   idPrefix: string;
   submitLabel?: string;
   onChanged: () => void;
-  onError?: (message: string) => void;
+  /** Errors that belong to no single field (throttling, network, server). */
+  onError?: (message: string | null) => void;
+  onSavingChange?: (saving: boolean) => void;
 }
 
 export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
@@ -21,6 +25,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
   submitLabel = 'Update Password',
   onChanged,
   onError,
+  onSavingChange,
 }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -35,24 +40,31 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
     if (newPassword.length < 8) errors.next = 'Use at least 8 characters.';
     if (confirmPassword !== newPassword) errors.confirm = 'Passwords do not match.';
     setPwErrors(errors);
+    onError?.(null);
     if (Object.keys(errors).length > 0) return;
 
     setSavingPassword(true);
+    onSavingChange?.(true);
     try {
-      await authApi.changePassword(currentPassword, newPassword);
+      const applied = await authApi.changePassword(currentPassword, newPassword);
+      if (!applied) return;
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       onChanged();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not update password.';
-      // "Your current password is incorrect." belongs under Current Password,
-      // not New Password — anything else is a rule about the new value.
-      const isCurrentPasswordError = /current password/i.test(message);
-      setPwErrors(isCurrentPasswordError ? { current: message } : { next: message });
-      onError?.(message);
+      // Field problems show under their field; anything else is form-wide.
+      const byField = fieldErrors(err);
+      if (byField.current_password || byField.new_password) {
+        setPwErrors({ current: byField.current_password, next: byField.new_password });
+      } else {
+        const message = authenticationErrorMessage(err, 'Could not reach the server. Please try again.');
+        if (onError) onError(message);
+        else setPwErrors({ next: message });
+      }
     } finally {
       setSavingPassword(false);
+      onSavingChange?.(false);
     }
   };
 
@@ -66,6 +78,8 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
         value={currentPassword}
         onChange={(e) => setCurrentPassword(e.target.value)}
         error={pwErrors.current}
+        autoComplete="current-password"
+        aria-invalid={pwErrors.current ? true : undefined}
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
         <FormInput
@@ -76,6 +90,8 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           error={pwErrors.next}
+          autoComplete="new-password"
+          aria-invalid={pwErrors.next ? true : undefined}
         />
         <FormInput
           id={`${idPrefix}-confirm-pw`}
@@ -85,6 +101,8 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={pwErrors.confirm}
+          autoComplete="new-password"
+          aria-invalid={pwErrors.confirm ? true : undefined}
         />
       </div>
       <div className="flex justify-end">

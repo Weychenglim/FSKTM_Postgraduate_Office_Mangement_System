@@ -6,14 +6,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Send,
-  Paperclip,
-  X,
   CheckCircle,
-  FileText,
   Bot,
   Info
 } from 'lucide-react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader } from './PortalPrimitives';
 
 interface ChatMessage {
   id: string;
@@ -21,21 +18,9 @@ interface ChatMessage {
   text: string;
   timestamp: string;
   checklistItems?: string[];
-  attachment?: {
-    name: string;
-    size: string;
-  };
 }
 
 export const StudentFAQChatbot: React.FC = () => {
-  // Toast notifications for user actions
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 'msg-1',
@@ -48,11 +33,11 @@ export const StudentFAQChatbot: React.FC = () => {
   // Input states
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const [workspaceLeft, setWorkspaceLeft] = useState(0);
+  const [footerOffset, setFooterOffset] = useState(0);
   const hasAsked = chatMessages.some((msg) => msg.sender === 'student');
 
   useEffect(() => {
@@ -65,6 +50,24 @@ export const StudentFAQChatbot: React.FC = () => {
     window.addEventListener('resize', update);
     return () => {
       observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  // The composer is pinned to the screen; once the page footer scrolls into
+  // view, lift the composer above it so the footer links stay usable.
+  useEffect(() => {
+    const footer = document.getElementById('portal-footer');
+    if (!footer) return;
+    const update = () => setFooterOffset(Math.max(0, window.innerHeight - footer.getBoundingClientRect().top));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(document.body);
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
   }, []);
@@ -92,7 +95,7 @@ export const StudentFAQChatbot: React.FC = () => {
 
   // Send handler
   const handleSendMessage = (textToSend: string) => {
-    if (!textToSend.trim()) return;
+    if (!textToSend.trim() || isTyping) return;
 
     // 1. Append Student Message
     const studentMsg: ChatMessage = {
@@ -104,7 +107,6 @@ export const StudentFAQChatbot: React.FC = () => {
 
     setChatMessages(prev => [...prev, studentMsg]);
     setInputValue('');
-    setAttachedFile(null); // Clear active attachment
     setIsTyping(true);
 
     // 2. Simulate AI response matching requested style
@@ -112,7 +114,6 @@ export const StudentFAQChatbot: React.FC = () => {
       setIsTyping(false);
       let replyText = "";
       let checklist: string[] | undefined = undefined;
-      let fileAttachment: { name: string; size: string } | undefined = undefined;
 
       const lowerText = textToSend.toLowerCase();
 
@@ -126,17 +127,16 @@ export const StudentFAQChatbot: React.FC = () => {
       } else if (lowerText.includes('profile')) {
         replyText = "To update your graduation stream or cohort registration details, please visit the Settings tab in the Postgraduate portal. Major corrections require Dean confirmation.";
       } else if (lowerText.includes('grant') || lowerText.includes('sponsorship')) {
-        replyText = "Grant submission registers are audited monthly. Here is the latest progress outline:";
+        replyText = "Grant submission registers are audited monthly. Before you apply:";
         checklist = [
           "Check documentation ledger consistency.",
           "Verify similarity checks for proposal abstract below 10%.",
-          "Download the template below as reference:"
+          "Ask the PG Office for the current grant application guide."
         ];
-        fileAttachment = { name: 'Grant Application Master Guide.pdf', size: '945 KB' };
       } else if (lowerText.includes('viva') || lowerText.includes('schedule')) {
         replyText = "VIVA-VOCE presentation slots are populated dynamically post thesis evaluation task completion by assigned panel members. Typically within 4-6 weeks after softcopy files are processed.";
       } else {
-        replyText = "Thank you for the inquiry. Your message has been logged by the FSKTM Academic Intelligent Router. I recommend checking the official administrative handbook, or querying a specific postgraduate appointment schedule.";
+        replyText = "I don't have an answer for that yet. Please check the official postgraduate handbook, or contact the PG Office for help with your question.";
       }
 
       const assistantMsg: ChatMessage = {
@@ -144,35 +144,19 @@ export const StudentFAQChatbot: React.FC = () => {
         sender: 'assistant',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        checklistItems: checklist,
-        attachment: fileAttachment
+        checklistItems: checklist
       };
 
       setChatMessages(prev => [...prev, assistantMsg]);
     }, 1500);
   };
 
-  // File trigger simulation
-  const handleAttachFileSimulation = () => {
-    const mockFiles = ['Draft_Abstract.docx', 'TurnitIn_Similarity_Report.pdf', 'Notice_Intent_Form.pdf'];
-    const chosen = mockFiles[Math.floor(Math.random() * mockFiles.length)];
-    setAttachedFile(chosen);
-    showToast(`Simulation: Bound local file "${chosen}" to active inquiry draft.`);
-  };
-
-  // Download simulation
-  const handleDownloadSimulation = (fileName: string) => {
-    showToast(`Downloading "${fileName}" to your local computer... Finished.`);
-  };
-
   return (
     <div id="student-faq-chatbot-view" className="text-left font-sans animate-fade-in">
 
-      <PortalToast message={toastMessage} />
-
       <PageHeader
         title="FAQ Chatbot"
-        subtitle="Query automated academic advice, download procedural handouts, and check administrative protocols immediately."
+        subtitle="Ask common postgraduate questions and get pointers to the right procedure."
         className="border-b border-slate-100 pb-5"
       />
 
@@ -198,28 +182,6 @@ export const StudentFAQChatbot: React.FC = () => {
                         <span className="text-[13px] text-slate-600 font-medium flex-1">{item}</span>
                       </div>
                     ))}
-                  </div>
-                )}
-
-                {msg.attachment && (
-                  <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 flex items-center justify-between gap-4 shadow-3xs select-none max-w-md">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
-                        <FileText className="w-4.5 h-4.5" />
-                      </div>
-                      <div className="text-left leading-none min-w-0">
-                        <span className="text-xs font-bold text-slate-800 block truncate">{msg.attachment.name}</span>
-                        <span className="text-[9px] font-bold text-slate-400 block mt-1 font-mono">{msg.attachment.size}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadSimulation(msg.attachment!.name)}
-                      className="px-3 py-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-slate-50 transition border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono shrink-0"
-                    >
-                      Download
-                    </button>
                   </div>
                 )}
 
@@ -261,7 +223,7 @@ export const StudentFAQChatbot: React.FC = () => {
       </div>
 
       {/* Composer pinned to the bottom of the screen */}
-      <div className="fixed bottom-0 right-0 z-20 pointer-events-none" style={{ left: workspaceLeft }}>
+      <div className="fixed right-0 z-20 pointer-events-none" style={{ left: workspaceLeft, bottom: footerOffset }}>
         <div className="bg-gradient-to-t from-[#f1f5f9] via-[#f1f5f9] to-transparent pt-10 pb-4 px-4">
           <div className="max-w-3xl mx-auto space-y-2.5 pointer-events-auto">
 
@@ -281,41 +243,18 @@ export const StudentFAQChatbot: React.FC = () => {
               </div>
             )}
 
-            {/* Active upload file thumbnail tag indicator */}
-            {attachedFile && (
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 w-fit max-w-full select-none text-[10px] font-bold text-slate-700">
-                <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                <span className="truncate max-w-[200px]">{attachedFile}</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachedFile(null)}
-                  className="text-slate-400 hover:text-rose-500 p-0.5"
-                  title="Discard attachment"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
             {/* Chat text message input */}
-            <div className="bg-white border border-slate-200 p-2 rounded-3xl shadow-md flex items-end gap-2">
-              <button
-                type="button"
-                onClick={handleAttachFileSimulation}
-                className="p-2.5 text-slate-400 hover:text-brand-navy hover:bg-slate-50 rounded-full transition cursor-pointer shrink-0"
-                title="Attach Document"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-
+            <div className="bg-white border border-slate-200 p-2 pl-4 rounded-3xl shadow-md flex items-end gap-2">
               <textarea
                 ref={inputRef}
                 rows={1}
                 placeholder="Type your academic inquiry here..."
+                aria-label="Your question"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  // Enter while an IME is composing picks a candidate; it must not send.
+                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     handleSendMessage(inputValue);
                   }
@@ -329,6 +268,7 @@ export const StudentFAQChatbot: React.FC = () => {
                 onClick={() => handleSendMessage(inputValue)}
                 className="w-10 h-10 rounded-full bg-brand-navy text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-brand-navy transition-all shadow-3xs"
                 title="Send"
+                aria-label="Send"
               >
                 <Send className="w-3.5 h-3.5 shrink-0 ml-0.5" />
               </button>

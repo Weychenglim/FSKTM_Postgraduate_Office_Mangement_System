@@ -11,9 +11,12 @@
  * HttpOnly refresh cookie. API requests continue using the bearer header.
  */
 
+import { APP_ROUTES } from '../constants/routes';
 import { DemoUser } from '../types';
 import {
   clearAuthToken,
+  delay,
+  getAuthSessionVersion,
   refreshAuthToken,
   request,
   setAuthToken,
@@ -24,7 +27,24 @@ export interface LoginResponse {
   user: DemoUser;
 }
 
+const PUBLIC_PATHS: readonly string[] = [
+  APP_ROUTES.root,
+  APP_ROUTES.login,
+  APP_ROUTES.forgotPassword,
+  APP_ROUTES.resetPassword,
+];
+
+/** A reload on a portal page (not the sign-in pages) means a session was likely open. */
+function onPortalPage(): boolean {
+  return typeof window !== 'undefined' && !PUBLIC_PATHS.includes(window.location.pathname);
+}
+
+// The latest sign-out request. Sign-in waits for it, so a late logout response
+// cannot delete the refresh cookie that the new sign-in has just set.
+let pendingLogout: Promise<void> = Promise.resolve();
+
 export async function login(identifier: string, password: string): Promise<LoginResponse> {
+  await pendingLogout;
   const res = await request<LoginResponse>('/auth/login/', {
     method: 'POST',
     body: JSON.stringify({ identifier, password }),
@@ -33,13 +53,16 @@ export async function login(identifier: string, password: string): Promise<Login
   return res;
 }
 
-export async function logout(): Promise<void> {
-  try {
-    await request('/auth/logout/', { method: 'POST' }, { retryAuth: false });
-  } finally {
-    // Always drop the in-memory access token, even if the network call fails.
-    clearAuthToken();
-  }
+export function logout(): Promise<void> {
+  // Drop the access token before the request (the server identifies the
+  // session by its refresh cookie), so nothing that finishes later can wipe a
+  // newer sign-in.
+  clearAuthToken();
+  pendingLogout = request('/auth/logout/', { method: 'POST' }, { retryAuth: false }).then(
+    () => undefined,
+    () => undefined,
+  );
+  return pendingLogout;
 }
 
 /**
@@ -72,7 +95,14 @@ export async function getCurrentUser(): Promise<DemoUser> {
 }
 
 export async function restoreSession(): Promise<DemoUser | null> {
-  const token = await refreshAuthToken();
+  let token = await refreshAuthToken();
+  // Tabs reloading together share one refresh cookie: the first rotates it and
+  // the others are refused. The winner's response leaves the new cookie in the
+  // browser, so one retry a moment later picks it up.
+  if (!token && onPortalPage()) {
+    await delay(400);
+    token = await refreshAuthToken();
+  }
   if (!token) return null;
 
   try {
@@ -83,26 +113,16 @@ export async function restoreSession(): Promise<DemoUser | null> {
   }
 }
 
-export interface NotificationPreferences {
-  emailNotifications: boolean;
-  announcementAlerts: boolean;
-  deadlineReminders: boolean;
-  weeklySummary: boolean;
-}
-
-/** Update the caller's own contact details. Only the phone number is writable. */
-export async function updateContactDetails(phone: string): Promise<DemoUser> {
-  return request<DemoUser>('/auth/me/', {
-    method: 'PATCH',
-    body: JSON.stringify({ phone }),
-  });
-}
-
-/** Change the signed-in user's password (the backend verifies the current one). */
+/**
+ * Change the signed-in user's password (the backend verifies the current one).
+ * Resolves `false` when the user signed out or another session replaced this
+ * one while the request was in flight; the new token is then discarded.
+ */
 export async function changePassword(
   currentPassword: string,
   newPassword: string,
-): Promise<void> {
+): Promise<boolean> {
+  const sessionVersion = getAuthSessionVersion();
   const res = await request<{ token: string }>('/auth/me/change-password/', {
     method: 'POST',
     body: JSON.stringify({
@@ -110,18 +130,7 @@ export async function changePassword(
       new_password: newPassword,
     }),
   });
+  if (getAuthSessionVersion() !== sessionVersion) return false;
   setAuthToken(res.token);
-}
-
-export async function getNotificationPreferences(): Promise<NotificationPreferences> {
-  return request<NotificationPreferences>('/auth/me/notification-preferences/');
-}
-
-export async function updateNotificationPreferences(
-  changes: Partial<NotificationPreferences>,
-): Promise<NotificationPreferences> {
-  return request<NotificationPreferences>('/auth/me/notification-preferences/', {
-    method: 'PATCH',
-    body: JSON.stringify(changes),
-  });
+  return true;
 }

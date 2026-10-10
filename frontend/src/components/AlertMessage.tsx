@@ -23,6 +23,7 @@ export const AlertMessage: React.FC<AlertMessageProps> = ({
 
   return (
     <motion.div
+      role={isError ? 'alert' : 'status'}
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -50,6 +51,7 @@ export const AlertMessage: React.FC<AlertMessageProps> = ({
         <button
           type="button"
           onClick={onClose}
+          aria-label="Dismiss message"
           className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded-lg"
         >
           <X className="w-4 h-4" />

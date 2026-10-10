@@ -23,8 +23,9 @@ const app = readFileSync(resolve('src/App.tsx'), 'utf8');
 assert.match(app, /if \(currentUser\.mustChangePassword\) \{[\s\S]{0,400}<ForcedPasswordChange/);
 assert.match(
   app,
-  /const handleExpiry = \(\) => \{\s*setSessionNotice\('Your session has expired\. Please sign in again\.'\);/,
+  /const handleExpiry = \(event: Event\) => \{[\s\S]{0,160}setSessionNotice\(reason \|\| 'Your session has expired\. Please sign in again\.'\);/,
 );
+assert.match(app, /onChanged=\{\(\) => setCurrentUser\(\(user\) => \(user \? \{ \.\.\.user, mustChangePassword: false \} : user\)\)\}/);
 assert.match(app, /const handleLogout = \(\) => \{[\s\S]{0,120}setSessionNotice\(null\);/);
 assert.match(app, /notice=\{sessionNotice\}/);
 assert.match(app, /PASSWORD_CHANGE_REQUIRED_EVENT, handlePasswordChangeRequired/);

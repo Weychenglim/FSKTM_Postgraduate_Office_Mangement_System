@@ -287,6 +287,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState('');
+  const [resendStatus, setResendStatus] = useState('');
 
   const handlePostRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,9 +320,10 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
   const handleResend = async () => {
     setIsLoading(true);
     setErrorText('');
+    setResendStatus('');
     try {
       await authApi.requestPasswordReset(email.trim());
-      alert('A new security reset link has been dispatched to your inbox.');
+      setResendStatus('If that address is registered, a new reset link has been sent.');
     } catch (err) {
       setErrorText(authenticationErrorMessage(
         err,
@@ -432,12 +434,13 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
               badgeCircle={true}
             >
               <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
-                Email Sent Successfully
+                Check Your Email
               </h2>
               
               <div className="text-slate-600 text-xs sm:text-[12.5px] leading-relaxed font-semibold mt-4 mb-6 font-sans px-1">
-                A password reset link has been sent to{" "}
-                <strong className="text-slate-900 font-extrabold break-all">{email || "your.email@um.edu.my"}</strong>. 
+                If{" "}
+                <strong className="text-slate-900 font-extrabold break-all">{email || "your.email@um.edu.my"}</strong>{" "}
+                is registered, a password reset link has been sent to it.
                 Please check your inbox and follow the instructions to reset your password.
                 
                 <p className="text-[10px] sm:text-[10.5px] text-slate-450 font-extrabold text-[#748094] mt-2.5">
@@ -464,6 +467,15 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
                   Resend Reset Link
                 </ActionButton>
               </div>
+
+              {(errorText || resendStatus) && (
+                <p
+                  role={errorText ? 'alert' : 'status'}
+                  className={`mt-4 text-xs font-semibold leading-relaxed ${errorText ? 'text-rose-600' : 'text-emerald-700'}`}
+                >
+                  {errorText || resendStatus}
+                </p>
+              )}
 
               {/* Expiry guidance check info box */}
               <InfoMessage 

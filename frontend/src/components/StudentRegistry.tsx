@@ -1216,7 +1216,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       onDragLeave={handleDrag}
                       onDrop={handleDrop}
                       onClick={triggerFileSelect}
-                      className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group ${
+                      role={uploadedFile ? undefined : 'button'}
+                      tabIndex={uploadedFile ? undefined : 0}
+                      aria-label={uploadedFile ? undefined : 'Choose a CSV or Excel file to import'}
+                      onKeyDown={(e) => {
+                        if (!uploadedFile && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          triggerFileSelect();
+                        }
+                      }}
+                      className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
                         dragActive 
                           ? 'border-indigo-500 bg-indigo-50/30' 
                           : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'

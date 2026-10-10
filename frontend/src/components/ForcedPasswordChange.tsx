@@ -20,6 +20,7 @@ export const ForcedPasswordChange: React.FC<ForcedPasswordChangeProps> = ({
   onLogout,
 }) => {
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   return (
     <div id="forced-password-change" className="w-full max-w-[490px] bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] border border-slate-100 p-8 md:p-10 flex flex-col">
@@ -44,12 +45,15 @@ export const ForcedPasswordChange: React.FC<ForcedPasswordChangeProps> = ({
         submitLabel="Set New Password"
         onChanged={onChanged}
         onError={setError}
+        onSavingChange={setSaving}
       />
 
+      {/* Signing out mid-save would let the save's response sign the user back in. */}
       <button
         type="button"
         onClick={onLogout}
-        className="mt-4 self-center text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+        disabled={saving}
+        className="mt-4 self-center text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Sign out instead
       </button>

@@ -122,22 +122,32 @@ export function refreshAuthToken(): Promise<string | null> {
 
 /**
  * Pull a human-readable message out of an error response body. Handles our
- * Django/DRF shapes: `{ error }`, `{ detail }`, and field errors like
- * `{ new_password: ["too short", ...] }`.
+ * Django/DRF shapes: `{ error }`, `{ detail }`, field errors like
+ * `{ new_password: ["too short", ...] }`, and nested ones like
+ * `{ preferences: { announcementAlerts: ["..."] } }`.
  */
 function messageFromErrorBody(body: unknown): string | null {
+  if (typeof body === 'string') return body.trim() || null;
+  if (Array.isArray(body)) {
+    for (const item of body) {
+      const message = messageFromErrorBody(item);
+      if (message) return message;
+    }
+    return null;
+  }
   if (!body || typeof body !== 'object') return null;
   const record = body as Record<string, unknown>;
   if (typeof record.error === 'string') return record.error;
   if (typeof record.detail === 'string') return record.detail;
-  for (const value of Object.values(record)) {
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
-      return value[0];
-    }
-    if (typeof value === 'string') return value;
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'code') continue;
+    const message = messageFromErrorBody(value);
+    if (message) return message;
   }
   return null;
 }
+
+const UNAVAILABLE_STATUSES = new Set([502, 503, 504]);
 
 export async function request<T>(
   path: string,
@@ -185,25 +195,44 @@ async function sessionFetch(
   retryAuth = true,
 ): Promise<Response> {
   const hadSession = authSession.getAccessToken() !== null;
+  const sessionVersion = authSession.getSessionVersion();
   const res = await authSession.fetch(`${API_BASE_URL}${path}`, init, retryAuth);
-  if (res.status === 401 && hadSession) handleUnauthorized();
+  // A 401 for a session that was signed out or replaced while the request was
+  // in flight says nothing about the current one.
+  if (res.status === 401 && hadSession && authSession.getSessionVersion() === sessionVersion) {
+    handleUnauthorized();
+  }
   return res;
 }
 
 /** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
 async function raiseForStatus(res: Response): Promise<never> {
   let message = `Request failed: ${res.status} ${res.statusText}`;
+  const text = await res.text().catch(() => '');
   let body: unknown;
   try {
-    body = await res.json();
-    const code = body && typeof body === 'object' ? (body as { code?: unknown }).code : undefined;
-    if (res.status === 403 && code === 'password_change_required' && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT));
-    }
-    const extracted = messageFromErrorBody(body);
-    if (extracted) message = extracted;
+    body = JSON.parse(text);
   } catch {
-    /* error body was not JSON — keep the status-based message */
+    // Not JSON: a proxy or server error page. An empty 500 is what the dev
+    // proxy sends when Django is down; 502–504 come from a gateway.
+    if (res.status >= 500) {
+      message = UNAVAILABLE_STATUSES.has(res.status) || !text.trim()
+        ? 'The server is unavailable. Please try again shortly.'
+        : 'The server ran into a problem. Please try again shortly.';
+    }
+    throw new ApiError(message, res.status);
+  }
+  const code = body && typeof body === 'object' ? (body as { code?: unknown }).code : undefined;
+  const extracted = messageFromErrorBody(body);
+  if (extracted) message = extracted;
+  if (res.status === 403 && typeof window !== 'undefined') {
+    if (code === 'password_change_required') {
+      window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT));
+    } else if (code === 'technical_account' && getAuthToken() !== null) {
+      // The account became a technical (admin-site only) account mid-session.
+      clearAuthToken();
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
+    }
   }
   throw new ApiError(message, res.status, body);
 }
@@ -228,7 +257,11 @@ export async function requestMultipart<T>(
   });
   if (!res.ok) return raiseForStatus(res);
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError('The server returned an unreadable response.', res.status);
+  }
 }
 
 /** Fetch a binary file (with auth) as a Blob — used for attachment downloads. */

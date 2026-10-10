@@ -179,10 +179,12 @@ export default function App() {
 
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
-  // while every request fails, until they happen to reload.
+  // while every request fails, until they happen to reload. The event can carry
+  // the server's reason (e.g. the account became a technical account).
   useEffect(() => {
-    const handleExpiry = () => {
-      setSessionNotice('Your session has expired. Please sign in again.');
+    const handleExpiry = (event: Event) => {
+      const reason = (event as CustomEvent<{ message?: string } | null>).detail?.message;
+      setSessionNotice(reason || 'Your session has expired. Please sign in again.');
       setCurrentUser(null);
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
@@ -447,7 +449,7 @@ export default function App() {
           <div className="w-full flex justify-center items-center">
             <ForcedPasswordChange
               userName={currentUser.fullName}
-              onChanged={() => setCurrentUser({ ...currentUser, mustChangePassword: false })}
+              onChanged={() => setCurrentUser((user) => (user ? { ...user, mustChangePassword: false } : user))}
               onLogout={handleLogout}
             />
           </div>

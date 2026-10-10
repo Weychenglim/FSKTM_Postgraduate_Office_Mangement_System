@@ -20,6 +20,7 @@ import { DEMO_LOGIN_CONFIG, type DemoRoleKey } from '../config/demoLogin';
 import type { DemoUser } from '../types';
 import { authApi, ApiError } from '../services';
 import { authenticationErrorMessage } from '../utils/authErrorMessage';
+import { LETTERHEAD } from '../utils/letterDocument';
 
 interface LoginCardProps {
   onForgotPasswordClick?: () => void;
@@ -30,7 +31,6 @@ interface LoginCardProps {
 export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onLoginSuccess, notice }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ id?: string; pass?: string }>({});
@@ -71,7 +71,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
           type: 'error',
           message: authenticationErrorMessage(
             err,
-            'Cannot reach the server. Is the API running?',
+            'Cannot reach the server. Please check your connection and try again.',
           ),
         });
       }
@@ -155,22 +155,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               required
             />
 
-            <div id="additional-controls" className="flex items-center gap-3 mb-6">
-              <label className="flex items-center gap-2.5 cursor-pointer group py-1">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-[#0c1424] focus:ring-[#0c1424] bg-slate-50 checked:bg-[#0c1424] checked:border-transparent transition"
-                />
-                <span className="text-xs text-slate-600 font-semibold group-hover:text-slate-900 select-none transition-colors">
-                  Remember me on this device
-                </span>
-              </label>
-            </div>
-
-            <ActionButton id="login-action-btn" type="submit" isLoading={isLoading}>
+            <ActionButton id="login-action-btn" type="submit" isLoading={isLoading} className="mt-1">
               Sign In
             </ActionButton>
           </form>
@@ -253,18 +238,13 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-4">
                     <Calendar className="w-6 h-6 text-indigo-500" />
                   </div>
-                  <h4 className="font-extrabold text-[#0c1424] text-lg">Student Manual Archive</h4>
+                  <h4 className="font-extrabold text-[#0c1424] text-lg">Student Manual</h4>
                   <p className="text-xs text-slate-500 mt-2 leading-relaxed font-normal">
-                    Download the latest guidebooks detailing postgraduate procedures, thesis defence requirements, online registration steps, and grading scales for coursework modules.
+                    The postgraduate manual covers procedures, thesis defence requirements, registration steps and grading. It is not published in the portal yet; ask the PG Office for the current copy.
                   </p>
-                  <div className="mt-4 flex gap-2 w-full">
-                    <a
-                      href="#download-manual"
-                      onClick={(e) => { e.preventDefault(); window.alert('Student Manual (PDF) download initiated in backend.'); }}
-                      className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold text-center block"
-                    >
-                      Download (PDF)
-                    </a>
+                  <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-left w-full text-[11px]">
+                    <span className="text-slate-400 font-medium block">PG Office:</span>
+                    <span className="text-slate-800 font-bold block">{LETTERHEAD.addressLines[2]}</span>
                   </div>
                 </div>
               )}
