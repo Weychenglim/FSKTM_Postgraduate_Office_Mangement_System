@@ -11,7 +11,6 @@ import {
   ZoomOut,
   Info,
   FileCheck,
-  ShieldCheck,
 } from 'lucide-react';
 import { PageHeader, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
@@ -343,11 +342,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       </div>
                       <div className="flex bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 items-center gap-2 select-none shrink-0">
                         <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-indigo-600">
-                          <ShieldCheck className="w-3 h-3 stroke-[3]" />
+                          <Info className="w-3 h-3 stroke-[3]" />
                         </div>
                         <div className="text-left leading-none">
-                          <span className="text-[7.5px] uppercase font-black text-slate-400 block tracking-wider">E-Signature</span>
-                          <span className="text-[8px] font-black text-indigo-600 block mt-0.5 tracking-wide">Encrypted Verified</span>
+                          <span className="text-[7.5px] uppercase font-black text-slate-400 block tracking-wider">Computer-generated</span>
+                          <span className="text-[8px] font-black text-indigo-600 block mt-0.5 tracking-wide">Verify with the PG Office</span>
                         </div>
                       </div>
                     </div>

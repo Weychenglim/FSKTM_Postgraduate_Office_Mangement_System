@@ -37,6 +37,8 @@ assert.deepEqual(findPlaceholderProblems('Hi {{STUDENT_NAME}'), { unknown: [], m
 assert.deepEqual(findPlaceholderProblems('Hi {STUDENT_NAME}}'), { unknown: [], malformed: ['STUDENT_NAME}}'] });
 assert.deepEqual(findPlaceholderProblems('Hi {{ student }}'), { unknown: [], malformed: ['{{ student }}'] });
 assert.deepEqual(findPlaceholderProblems('plain {text} ok'), { unknown: [], malformed: [] });
+assert.deepEqual(findPlaceholderProblems('Dear {STUDENT_NAME}, welcome'), { unknown: [], malformed: ['{STUDENT_NAME}'] });
+assert.deepEqual(findPlaceholderProblems('Dear {{{STUDENT_NAME}}}'), { unknown: [], malformed: ['{{{STUDENT_NAME}}}'] });
 
 // ── the editor runs a real check instead of a canned success message ─────────
 const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');

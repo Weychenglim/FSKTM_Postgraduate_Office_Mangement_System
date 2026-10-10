@@ -28,6 +28,8 @@ export interface AnnouncementInput {
   priority: AnnouncementItem['priority'];
   status: AnnouncementItem['status'];
   attachment?: File | null;
+  /** Drop the current attachment (ignored when a replacement is uploaded). */
+  removeAttachment?: boolean;
 }
 
 /** Senders get every broadcast; students get only the live feed addressed to them. */
@@ -68,6 +70,7 @@ export async function updateAnnouncement(
   form.append('priority', input.priority);
   form.append('status', input.status);
   if (input.attachment) form.append('attachment', input.attachment);
+  else if (input.removeAttachment) form.append('removeAttachment', 'true');
   return requestMultipart<AnnouncementItem>(`/announcements/${id}/`, form, {
     method: 'PATCH',
   });

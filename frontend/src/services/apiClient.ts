@@ -36,11 +36,26 @@ const MOCK_LATENCY_MS = parseNumberEnv(import.meta.env?.VITE_MOCK_LATENCY_MS, 50
 
 export class ApiError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  body?: unknown;
+  constructor(message: string, status?: number, body?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.body = body;
   }
+}
+
+/** The first message for each field of a 400 response, e.g. `{ name: 'Required.' }`. */
+export function fieldErrors(err: unknown): Record<string, string> {
+  if (!(err instanceof ApiError) || err.status !== 400) return {};
+  const body = err.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
+  const errors: Record<string, string> = {};
+  for (const [field, value] of Object.entries(body as Record<string, unknown>)) {
+    if (typeof value === 'string') errors[field] = value;
+    else if (Array.isArray(value) && typeof value[0] === 'string') errors[field] = value[0];
+  }
+  return errors;
 }
 
 export const delay = (ms: number): Promise<void> =>
@@ -178,9 +193,11 @@ async function sessionFetch(
 /** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
 async function raiseForStatus(res: Response): Promise<never> {
   let message = `Request failed: ${res.status} ${res.statusText}`;
+  let body: unknown;
   try {
-    const body = await res.json();
-    if (res.status === 403 && body?.code === 'password_change_required' && typeof window !== 'undefined') {
+    body = await res.json();
+    const code = body && typeof body === 'object' ? (body as { code?: unknown }).code : undefined;
+    if (res.status === 403 && code === 'password_change_required' && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT));
     }
     const extracted = messageFromErrorBody(body);
@@ -188,7 +205,7 @@ async function raiseForStatus(res: Response): Promise<never> {
   } catch {
     /* error body was not JSON — keep the status-based message */
   }
-  throw new ApiError(message, res.status);
+  throw new ApiError(message, res.status, body);
 }
 
 /**

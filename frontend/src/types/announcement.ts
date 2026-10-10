@@ -24,4 +24,7 @@ export interface AnnouncementItem {
   attachmentUrl?: string | null;
   /** Number of recipients reached, set on the create response when published. */
   deliveredTo?: number;
+  /** Author's user id, and whether the caller may edit, publish or remove it. */
+  createdById?: string | null;
+  canManage?: boolean;
 }

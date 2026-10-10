@@ -40,6 +40,8 @@ interface NotificationsContextValue {
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
+const NOTIFICATION_REFRESH_MS = 60_000;
+
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -61,6 +63,22 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Keep the bell current without a page reload: re-read the feed quietly
+  // (no spinner, no error banner) every minute while the tab is visible and
+  // whenever the window regains focus.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      getNotifications().then(setItems).catch(() => undefined);
+    };
+    const timer = window.setInterval(refresh, NOTIFICATION_REFRESH_MS);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
 
   const markRead = useCallback(async (id: string, isRead = true) => {
     let previousUnread: boolean | undefined;

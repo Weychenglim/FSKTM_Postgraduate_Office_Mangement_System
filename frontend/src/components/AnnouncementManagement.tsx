@@ -25,7 +25,7 @@ import {
   FileText,
   Pencil
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementItem } from '../types';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services';
@@ -65,7 +65,12 @@ export const AnnouncementManagement: React.FC = () => {
     setError(null);
     getAnnouncements()
       .then(setHistoryItems)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load announcements.'))
+      .catch((e) => {
+        // A stale list would keep offering Publish/Delete on items that may
+        // already have changed, so clear it and show the error instead.
+        setHistoryItems([]);
+        setError(e instanceof Error ? e.message : 'Failed to load announcements.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -81,9 +86,14 @@ export const AnnouncementManagement: React.FC = () => {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  // When set, the form edits an existing draft (PATCH) instead of creating one.
+  // When set, the form edits an existing announcement (PATCH) instead of creating one.
   const [editingId, setEditingId] = useState<string | null>(null);
+  // A published announcement stays published when saved; a draft stays a draft.
+  const [editingStatus, setEditingStatus] = useState<'Active' | 'Draft'>('Draft');
   const [existingAttachmentName, setExistingAttachmentName] = useState<string | null>(null);
+  const [removeExistingAttachment, setRemoveExistingAttachment] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<AnnouncementItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // --- 4. Search and Table Pagination States ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,9 +123,14 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   const handleRemoveAttachment = () => {
-    setAttachedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    showToast('Attachment removed.');
+    if (attachedFile) {
+      setAttachedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      showToast('Attachment removed.');
+      return;
+    }
+    setRemoveExistingAttachment(true);
+    showToast('The current attachment will be removed when you save.');
   };
 
   // Shared submit: creates a new announcement, or updates the draft being edited.
@@ -130,13 +145,21 @@ export const AnnouncementManagement: React.FC = () => {
         priority: priorityLevel,
         status,
         attachment: attachedFile,
+        removeAttachment: removeExistingAttachment,
       };
+      const wasPublished = editingId !== null && editingStatus === 'Active';
       const saved = editingId
         ? await updateAnnouncement(editingId, payload)
         : await createAnnouncement(payload);
+      const reach = saved.deliveredTo ?? 0;
       if (status === 'Active') {
-        const reach = saved.deliveredTo ?? 0;
-        showToast(`Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`);
+        showToast(
+          wasPublished
+            ? `Changes saved. ${reach} recipient${reach === 1 ? '' : 's'} see the updated announcement.`
+            : `Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
+        );
+      } else if (wasPublished) {
+        showToast('Moved back to drafts. Recipients no longer see it.');
       } else {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
       }
@@ -149,18 +172,22 @@ export const AnnouncementManagement: React.FC = () => {
     }
   };
 
-  // Load a draft back into the form for editing.
+  // Load a draft, or a published announcement, back into the form for editing.
   const handleEditDraft = (draft: AnnouncementItem) => {
+    const published = draft.status === 'Active';
+    setView('create');
     setEditingId(draft.id);
+    setEditingStatus(published ? 'Active' : 'Draft');
     setHeadline(draft.title);
     setContentBody(draft.content ?? draft.summary ?? '');
     setTargetAudience(audienceFromTarget(draft.target));
     setPriorityLevel(draft.priority);
     setExistingAttachmentName(draft.attachmentName ?? null);
+    setRemoveExistingAttachment(false);
     setAttachedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast(`Editing draft: "${draft.title}"`);
+    showToast(published ? `Editing published announcement: "${draft.title}"` : `Editing draft: "${draft.title}"`);
   };
 
   // Publish a draft straight from the list (no need to open it first).
@@ -219,17 +246,46 @@ export const AnnouncementManagement: React.FC = () => {
     setContentBody('');
     setAttachedFile(null);
     setEditingId(null);
+    setEditingStatus('Draft');
     setExistingAttachmentName(null);
+    setRemoveExistingAttachment(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDeleteHistoryItem = async (id: string, title: string) => {
+  // Deleting is permanent and also removes every recipient's copy, so it is
+  // always confirmed first.
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { id, title } = pendingDelete;
+    setDeleting(true);
     try {
       await deleteAnnouncement(id);
       setHistoryItems(prev => prev.filter(item => item.id !== id));
-      showToast(`Removed broadcast record: "${title}"`);
+      if (editingId === id) resetForm();
+      showToast(`Removed announcement: "${title}"`);
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to remove announcement.'}`);
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  };
+
+  // Pull a published announcement back to drafts; recipients' copies are withdrawn.
+  const handleWithdraw = async (item: AnnouncementItem) => {
+    try {
+      await updateAnnouncement(item.id, {
+        title: item.title,
+        content: item.content ?? item.summary ?? '',
+        target: item.target,
+        priority: item.priority,
+        status: 'Draft',
+        attachment: null,
+      });
+      showToast(`"${item.title}" moved back to drafts. Recipients no longer see it.`);
+      loadAnnouncements();
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to withdraw announcement.'}`);
     }
   };
 
@@ -248,14 +304,18 @@ export const AnnouncementManagement: React.FC = () => {
     );
   });
 
-  // Calculate dynamic stats matching screenshot visual indicators
+  // Counts shown on the history cards, all taken from the loaded records.
   const activeCount = publishedItems.filter(item => item.status === 'Active').length;
-  const urgentCount = publishedItems.filter(item => item.priority === 'Urgent').length;
-  const scheduledCount = publishedItems.filter(item => item.status === 'Scheduled').length;
+  const urgentCount = publishedItems.filter(
+    item => item.status === 'Active' && item.priority === 'Urgent',
+  ).length;
+  const draftCount = drafts.length;
+  const pad = (count: number) => (count < 10 ? `0${count}` : `${count}`);
 
-  // Pagination bounds
+  // Pagination bounds (a shrinking search result never leaves an empty page)
   const totalPages = Math.ceil(filteredAnnouncements.length / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * itemsPerPage;
   const displayedAnnouncements = filteredAnnouncements.slice(startIndex, startIndex + itemsPerPage);
 
   return (
@@ -268,8 +328,18 @@ export const AnnouncementManagement: React.FC = () => {
       <div className="space-y-6">
 
         <PageHeader
-          title={editingId ? 'Edit Draft Announcement' : 'Draft New Announcement'}
-          subtitle={editingId ? 'Update the draft below, then save it or publish it.' : 'Craft your message for the FSKTM community.'}
+          title={
+            editingId
+              ? editingStatus === 'Active' ? 'Edit Published Announcement' : 'Edit Draft Announcement'
+              : 'Draft New Announcement'
+          }
+          subtitle={
+            editingId
+              ? editingStatus === 'Active'
+                ? 'Changes reach recipients as soon as you save.'
+                : 'Update the draft below, then save it or publish it.'
+              : 'Craft your message for the FSKTM community.'
+          }
           actions={(
             <div className="flex items-center gap-2 shrink-0">
               {editingId && (
@@ -296,15 +366,20 @@ export const AnnouncementManagement: React.FC = () => {
           )}
         />
 
-        {/* Draft form */}
-        <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
+        {/* Draft form. Enter must not trigger a native submit, which reloaded
+            the page and lost the draft; the buttons below do the saving. */}
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs"
+        >
 
             {/* Field A: Headline */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label htmlFor="announcement-headline" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Headline
               </label>
-              <input 
+              <input
+                id="announcement-headline" 
                 type="text"
                 placeholder="Enter a descriptive title..."
                 value={headline}
@@ -390,7 +465,7 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Field D: Content Body Textarea with dynamic attach button */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <label htmlFor="announcement-content" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   Content Body
                 </label>
                 <button
@@ -412,6 +487,7 @@ export const AnnouncementManagement: React.FC = () => {
 
               <div className="relative">
                 <textarea
+                  id="announcement-content"
                   rows={6}
                   placeholder="Write your announcement content here..."
                   value={contentBody}
@@ -423,20 +499,25 @@ export const AnnouncementManagement: React.FC = () => {
                   <div className="absolute bottom-3 left-3 right-3 bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between text-[10px] shadow-2xs">
                     <div className="flex items-center gap-2">
                       <FileText className="w-3.5 h-3.5 text-blue-500" />
-                      <span className="font-bold text-slate-700 truncate max-w-[200px]">
+                      <span className={`font-bold truncate max-w-[200px] ${removeExistingAttachment && !attachedFile ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                         {attachedFile ? attachedFile.name : existingAttachmentName}
                       </span>
                       {!attachedFile && existingAttachmentName && (
-                        <span className="text-slate-400 font-semibold italic">(current — upload to replace)</span>
+                        <span className="text-slate-400 font-semibold italic">
+                          {removeExistingAttachment ? '(will be removed when saved)' : '(current — upload to replace)'}
+                        </span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveAttachment}
-                      className={`text-slate-400 hover:text-red-500 p-0.5 rounded transition ${attachedFile ? '' : 'hidden'}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!(removeExistingAttachment && !attachedFile) && (
+                      <button
+                        type="button"
+                        aria-label="Remove attachment"
+                        onClick={handleRemoveAttachment}
+                        className="text-slate-400 hover:text-red-500 p-0.5 rounded transition"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -454,7 +535,11 @@ export const AnnouncementManagement: React.FC = () => {
                 disabled={submitting}
                 className="md:w-auto"
               >
-                {submitting ? 'Publishing…' : editingId ? 'Publish Draft' : 'Publish Now'}
+                {submitting
+                  ? 'Saving…'
+                  : editingId
+                    ? editingStatus === 'Active' ? 'Save & Keep Published' : 'Publish Draft'
+                    : 'Publish Now'}
               </PortalButton>
 
               <PortalButton
@@ -466,11 +551,14 @@ export const AnnouncementManagement: React.FC = () => {
                 disabled={submitting}
                 className="md:w-auto"
               >
-                {editingId ? 'Update Draft' : 'Save Draft'}
+                {editingId ? (editingStatus === 'Active' ? 'Move to Drafts' : 'Update Draft') : 'Save Draft'}
               </PortalButton>
             </div>
 
         </form>
+
+        {loading && <LoadingState message="Loading your announcements…" />}
+        {!loading && error && <ErrorState message={error} onRetry={loadAnnouncements} />}
 
         {/* ==================== SAVED DRAFTS (below the form, not in history) ==================== */}
         {drafts.length > 0 && (
@@ -515,6 +603,7 @@ export const AnnouncementManagement: React.FC = () => {
                     <p className="text-[11px] text-slate-500 font-semibold leading-relaxed line-clamp-2">
                       {draft.summary || 'No content yet.'}
                     </p>
+                    <p className="text-[10px] text-slate-400 font-bold">By {draft.createdBy || 'Postgraduate Office'}</p>
                     {draft.attachmentName && (
                       <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-bold">
                         <Paperclip className="w-3 h-3" />
@@ -523,6 +612,7 @@ export const AnnouncementManagement: React.FC = () => {
                     )}
                   </div>
 
+                  {draft.canManage !== false && (
                   <div className="flex items-center gap-2 shrink-0">
                     <PortalButton
                       type="button"
@@ -547,12 +637,13 @@ export const AnnouncementManagement: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       icon={Trash2}
-                      onClick={() => handleDeleteHistoryItem(draft.id, draft.title)}
+                      onClick={() => setPendingDelete(draft)}
                       className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                     >
                       Delete
                     </PortalButton>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -592,7 +683,7 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="bg-white border-l-4 border-l-[#0c1424] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
               <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Active Now</p>
               <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
-                {activeCount < 10 ? `0${activeCount}` : activeCount}
+                {pad(activeCount)}
               </h3>
             </div>
 
@@ -600,23 +691,23 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="bg-white border-l-4 border-l-red-500 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
               <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Urgent Alerts</p>
               <h3 className="text-xl md:text-2xl font-black text-rose-600 mt-1">
-                {urgentCount < 10 ? `0${urgentCount}` : urgentCount}
+                {pad(urgentCount)}
               </h3>
             </div>
 
-            {/* Card 3: Avg. Reach */}
+            {/* Card 3: Drafts */}
             <div className="bg-white border-l-4 border-l-[#3b82f6] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Avg. Reach</p>
+              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Drafts</p>
               <h3 className="text-xl md:text-2xl font-black text-blue-700 mt-1">
-                88%
+                {pad(draftCount)}
               </h3>
             </div>
 
-            {/* Card 4: Scheduled */}
+            {/* Card 4: Everything published so far, including expired */}
             <div className="bg-white border-l-4 border-l-slate-400 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Scheduled (Drafts)</p>
+              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Published (All)</p>
               <h3 className="text-xl md:text-2xl font-black text-slate-650 mt-1">
-                {scheduledCount < 10 ? `0${scheduledCount}` : scheduledCount}
+                {pad(publishedItems.length)}
               </h3>
             </div>
 
@@ -681,19 +772,51 @@ export const AnnouncementManagement: React.FC = () => {
                             {item.summary}
                           </p>
 
-                          <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
-                            <span>Broadcasted {item.dateCreated}</span>
-                            <span>•</span>
-                            <PortalButton
-                              type="button"
-                              onClick={() => handleDeleteHistoryItem(item.id, item.title)}
-                              variant="ghost"
-                              size="sm"
-                              icon={Trash2}
-                              className="px-1 py-0 h-auto text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                            >
-                              Remove
-                            </PortalButton>
+                          <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
+                            <span>Broadcasted {item.dateCreated} by {item.createdBy || 'Postgraduate Office'}</span>
+                            {item.status !== 'Active' && (
+                              <StatusBadge tone="neutral" className="rounded-md px-1.5 py-0.5 text-[8px]">
+                                {item.status}
+                              </StatusBadge>
+                            )}
+                            {item.canManage !== false && (
+                              <>
+                                <span>•</span>
+                                {item.status === 'Active' && (
+                                  <>
+                                    <PortalButton
+                                      type="button"
+                                      onClick={() => handleEditDraft(item)}
+                                      variant="ghost"
+                                      size="sm"
+                                      icon={Pencil}
+                                      className="px-1 py-0 h-auto"
+                                    >
+                                      Edit
+                                    </PortalButton>
+                                    <PortalButton
+                                      type="button"
+                                      onClick={() => handleWithdraw(item)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="px-1 py-0 h-auto"
+                                    >
+                                      Move to Drafts
+                                    </PortalButton>
+                                  </>
+                                )}
+                                <PortalButton
+                                  type="button"
+                                  onClick={() => setPendingDelete(item)}
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Trash2}
+                                  className="px-1 py-0 h-auto text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                >
+                                  Remove
+                                </PortalButton>
+                              </>
+                            )}
                           </div>
                         </td>
 
@@ -721,8 +844,8 @@ export const AnnouncementManagement: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <PortalButton
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(Math.max(safePage - 1, 1))}
+                    disabled={safePage === 1}
                     variant="secondary"
                     size="icon"
                     icon={ChevronLeft}
@@ -732,7 +855,7 @@ export const AnnouncementManagement: React.FC = () => {
 
                   {Array.from({ length: totalPages }).map((_, i) => {
                     const pageNum = i + 1;
-                    const isCurrent = currentPage === pageNum;
+                    const isCurrent = safePage === pageNum;
                     return (
                       <PortalButton
                         key={pageNum}
@@ -749,8 +872,8 @@ export const AnnouncementManagement: React.FC = () => {
 
                   <PortalButton
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(Math.min(safePage + 1, totalPages))}
+                    disabled={safePage === totalPages}
                     variant="secondary"
                     size="icon"
                     icon={ChevronRight}
@@ -766,6 +889,23 @@ export const AnnouncementManagement: React.FC = () => {
         </div>
 
       )}
+
+      <PortalConfirmModal
+        isOpen={pendingDelete !== null}
+        title="Remove this announcement?"
+        message={
+          pendingDelete
+            ? `"${pendingDelete.title}" will be deleted permanently${
+                pendingDelete.status === 'Active' ? ' and removed from every recipient\'s notifications' : ''
+              }.`
+            : ''
+        }
+        confirmLabel="Remove"
+        tone="danger"
+        isLoading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
 
     </div>
   );

@@ -72,21 +72,28 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
 
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
+const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
 const STRAY_BRACES_RE = /\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}/g;
+// A tag typed with single braces, e.g. {STUDENT_NAME}, would print literally.
+// Ordinary braces in prose ("{text}") are left alone.
+const SINGLE_TAG_RE = /(?<!\{)\{[A-Z_]+\}(?!\})/g;
 
 /**
  * The same check the server runs before saving (`letters/placeholders.py`):
- * tags that are not supported, and `{{`/`}}` pairs that are not a well-formed
- * `{{NAME}}` tag.
+ * tags that are not supported, tags in triple or single braces, and
+ * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag.
  */
 export function findPlaceholderProblems(content: string): { unknown: string[]; malformed: string[] } {
   const unknown: string[] = [];
-  const malformed: string[] = [];
-  for (const [token, name] of content.matchAll(TOKEN_RE)) {
+  const malformed: string[] = [...(content.match(TRIPLE_RE) ?? [])];
+  const rest = content.replace(TRIPLE_RE, ' ');
+  for (const [token, name] of rest.matchAll(TOKEN_RE)) {
     if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
     else if (!KNOWN_TAGS.has(token)) unknown.push(token);
   }
-  for (const stray of content.replace(TOKEN_RE, '').match(STRAY_BRACES_RE) ?? []) {
+  const leftover = rest.replace(TOKEN_RE, ' ');
+  malformed.push(...(leftover.match(SINGLE_TAG_RE) ?? []));
+  for (const stray of leftover.replace(SINGLE_TAG_RE, ' ').match(STRAY_BRACES_RE) ?? []) {
     malformed.push(stray.trim());
   }
   return { unknown: [...new Set(unknown)], malformed: [...new Set(malformed)] };
@@ -377,7 +384,7 @@ export function buildLetterHtml(data: LetterData): string {
         <div class="name">${esc(LETTERHEAD.signatoryName)}</div>
         <div class="office">${esc(LETTERHEAD.signatoryOffice)}</div>
       </div>
-      <div class="stamp">E-Signature<br>Encrypted &amp; Verified</div>
+      <div class="stamp">Computer-generated<br>Verify with the PG Office</div>
     </div>
   </div>
 
