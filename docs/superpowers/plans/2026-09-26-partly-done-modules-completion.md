@@ -34,7 +34,7 @@ If a phase needs a change inside a teammate-owned file, stop and ask before touc
 **Repository.** The git repo is `FSKTM_Postgraduate_Office_Mangement_System/` inside the `Final Year Project` folder. The parent folder is not the repo (the home directory also has a stray empty repo, so always run git inside the project folder). Work on branch `Xiang`.
 
 **Ownership.**
-- Xiang owns: `backend/accounts/` auth, settings and registry code (`views.py`, `serializers.py`, `throttles.py`, `registry_*.py`, `NotificationPreference`), `backend/letters/`, `backend/announcements/`, and the matching frontend screens and services (Registry, Settings, Letters, Announcements, Notifications, login/reset screens).
+- Xiang owns: `backend/accounts/` auth, settings and registry code (`views.py`, `serializers.py`, `throttles.py`, `registry_*.py`), `backend/letters/`, `backend/announcements/`, and the matching frontend screens and services (Registry, Settings, Letters, Announcements, Notifications, login/reset screens).
 - The teammate owns: `backend/appointments/`, `backend/marks/`, `backend/dashboard/`, `backend/academics/`, `backend/accounts/participant_*.py`, `authentication.py`, `session_tokens.py`, `eligibility.py`, `authorization.py`, and their frontend screens and services. Calling their public functions and reading their models is fine; editing their files is not.
 - Shared files (`config/settings.py`, `config/urls.py`, `accounts/models.py`, `App.tsx`, `apiClient.ts`, `permissions.ts`, `routes.ts`): additive changes only, keep their code intact.
 - Settings exception (2026-10-08): the team adopted the teammate's Settings. `settings_view` and `settings_password_view` in `accounts/views.py`, `SettingsView.tsx`, `settingsApi.ts` and `User.announcement_alerts` are theirs, so agree any change with the teammate first.
@@ -357,7 +357,8 @@ The screen also still shows invented content:
 - Clicking a notification opens its related record; this already works in `NotificationsAnnouncements.tsx`.
 - The teammate's appointment workflows already create notifications (`backend/appointments/notifications.py`).
 - Nothing creates deadline or Marks reminders.
-- Since the 2026-10-08 merge, Settings is the teammate's version (`GET/PATCH /api/auth/settings/`). It stores only `User.announcement_alerts`, which already stops non-urgent announcement notifications. Email, deadline reminders and weekly summary are reported as unavailable `capabilities`. The older `NotificationPreference` table is no longer used by the frontend.
+- Since the 2026-10-08 merge, Settings is the teammate's version (`GET/PATCH /api/auth/settings/`). It stores only `User.announcement_alerts`, which already stops non-urgent announcement notifications. Email, deadline reminders and weekly summary are reported as unavailable `capabilities`.
+- The older `NotificationPreference` table, its `/api/auth/me/notification-preferences/` endpoint and the matching `authApi` helpers were removed on 2026-10-10 (migration `accounts.0009`).
 
 **Start here.** `frontend/src/components/TopHeader.tsx`, `frontend/src/context/NotificationsContext.tsx`, `frontend/src/components/NotificationsAnnouncements.tsx` (record navigation), `backend/accounts/views.py` (`settings_view`, `_settings_payload`; teammate-written, see Ownership), `backend/announcements/views.py` (`_fan_out`), `backend/dashboard/models.py` (`SemesterTimeline`, `SemesterTimelineEntry.deadline_start/deadline_end/target_roles`, read only), `backend/marks/models.py` (`EvaluationPeriod.closes_at` and evaluation tasks, read only), `backend/README.md`.
 
@@ -368,7 +369,7 @@ The screen also still shows invented content:
    - Move the navigation logic out of `NotificationsAnnouncements.tsx` into a shared helper so both use it.
    - Show "No new notifications" when the list is empty.
 2. **Email that respects preferences.**
-   - First agree with the teammate where the new preferences are stored. Either add fields next to `User.announcement_alerts`, or reuse or remove `NotificationPreference`. Then expose them through `/api/auth/settings/`, turning each `capabilities` flag on only once it works.
+   - First agree with the teammate where the new preferences are stored. The old `NotificationPreference` table is gone, so the default is new fields next to `User.announcement_alerts`. Then expose them through `/api/auth/settings/`, turning each `capabilities` flag on only once it works.
    - Add one helper (in the announcements app) that emails a list of users, but only those whose preferences allow that kind of message. Kinds: announcement (needs `email_notifications` and `announcement_alerts`), deadline (needs `email_notifications` and `deadline_reminders`), summary (needs `weekly_summary`).
    - Use `send_mass_mail` with `fail_silently=True`.
    - Announcement fan-out uses the helper.

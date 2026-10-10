@@ -1,5 +1,65 @@
 # Project Status
 
+## Review Fixes: Xiang's Side (2026-10-10)
+
+- A four-part review (backend code, frontend code, live API, browser UI) of `643512a` found bugs and gaps in Xiang's modules. They were fixed in seven commits, `2888fc9`..`0bff836`.
+- **Accounts and sign-in.**
+  - Case-insensitive unique emails and matric numbers.
+  - A per-identifier login throttle.
+  - `last_portal_login` is now recorded separately from `last_login`, so signing in no longer voids a reset link.
+  - Passwords are kept exactly as typed.
+  - Reset-email failures are logged instead of returning a 500.
+  - The legacy `NotificationPreference` table, its endpoint and the `authApi` helpers were removed (migration `accounts.0009`).
+  - Admin user forms validate passwords and lock role and permission fields for non-superusers.
+  - New check `accounts.W001` flags superusers that still hold a portal role.
+- **Registry.**
+  - Coordinator scope.
+  - Matric, staff-number, email and phone validation.
+  - Unknown PATCH fields are rejected.
+  - Invites are sent only when asked.
+  - A programme change is blocked (409) once a research profile exists.
+  - Suspending sign-in revokes refresh sessions.
+  - Safer CSV/XLSX import: encoding, malformed files, size cap, "Invalid Field" rows, and the batch is recorded before emails.
+  - Screen: filtered CSV export, paging, edit details, confirmed Suspend/Reinstate Sign-in, issues shown in the import preview, and a keyboard-usable drop zone.
+- **Announcements and notifications.**
+  - Reading follows the audience.
+  - Delivery is re-synced on every edit (retarget, status, Urgent).
+  - Attachment files are deleted when replaced, removed or deleted.
+  - The feed is capped at 200 items in one query.
+  - Screens: delete confirmation, edit and withdraw a published item, remove an attachment, honest counts, an accessible dialog, and the bell refreshes every minute and on focus.
+- **Letters.**
+  - Students get 404 for non-Active templates.
+  - Single and triple braces are flagged the same way on the server and in the editor.
+  - Editor: confirm before delete, warn on unsaved changes, keep typing made during a save, field-level errors, and new reference-prefix and description inputs.
+  - The preview now matches the printout.
+  - The stamp now reads "Computer-generated / Verify with the PG Office".
+- **Sign-in and session (frontend).**
+  - Logout no longer races a quick re-login.
+  - A superseded 401 no longer ends the new session.
+  - Signing out during the forced password change can't leave the user signed in.
+  - A mid-session `technical_account` 403 signs the user out with the reason.
+  - On portal pages, the startup refresh retries once so two tabs reloading together both stay signed in.
+  - Nested DRF errors and 5xx are shown as readable messages.
+  - Login: no unused "Remember me", no fake manual download, mobile layout, favicon.
+  - Forgot password uses neutral copy and shows the resend result inline.
+  - FAQ chatbot: no double send, no fake attach/download/"logged" claims, and the composer no longer covers the footer.
+- **Not changed (teammate-owned, reported).**
+  - `ToggleSwitch` knob position.
+  - 500s for accounts without a profile in `appointments/views.py`.
+  - Coordinator Marks Entry 403.
+  - Workflow Reports duplicate key.
+  - App-shell dead links.
+  - Settings errors shown only as toasts, and phone format.
+  - `authSession` treats a network blip during refresh as session expiry.
+  - `PortalToast` live region.
+  - Admin login throttling (T04) and the `FRONTEND_URL` production guard.
+- **Verification.**
+  - 873 backend tests pass with `--parallel 2`.
+  - All 84 frontend scripts pass, including the new `sessionRaces.test.ts`.
+  - TypeScript lint, the production build and both production guards pass.
+  - The dev database was migrated to `accounts.0009` after backup `db-backups/fsktm_pg_office_before_review_fixes_2026-10-10.dump`.
+  - Repeat live API and browser runs were started but stopped early on a usage limit, before any checks ran. They are not a verification result. Their temporary accounts and servers were removed.
+
 ## Technical Administrator Accounts: Xiang's Side (2026-10-09)
 
 - Agreed with the teammate: one account, one role. Office staff work in the portal; Django admin is for separate Technical Administrator accounts (pending-work register T01–T06).
