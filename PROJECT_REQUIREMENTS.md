@@ -1,5 +1,66 @@
 # Project Requirements
 
+## Shared toast clarity and validation feedback (2026-10-10)
+
+- Shared portal notifications use one clearly identifiable dismiss button. Error status uses an exclamation icon, while success, warning and information retain distinct status icons; status icons must not resemble a second close control.
+- Notifications use solid white surfaces, restrained borders/shadows, shared supporting-text typography, keyboard-visible dismissal focus and viewport-constrained wrapping. Errors announce as alerts; other notifications announce as status updates.
+- Student Supervisor application validation remains in the shared toast. Dismissed or expired errors can appear again on a later attempt, and replacing a notification restarts its dismissal timer without an earlier timer hiding the newer message. Preserve existing validation, document limits and submission authority.
+
+## Lecturer supervisory team card contents (2026-10-10)
+
+- Expanded Lecturer teams use the same primary/supporting supervisor presentation as Student cards. The default view contains current supervisors, relevant management actions and current research title; programme, enrolment status, area and abstract belong to the expandable research profile.
+- Supporting appointment histories remain accessible with capability-gated actions. Appointment activity opens directly as dated rows with status badges, without nested history/timeline disclosures. Application rows represent latest recorded statuses; supporting rows represent audit events.
+- Office-managed semester dates are separated from appointment activity and identified as a shared semester schedule. Completed/active/upcoming schedule statuses must not imply measured individual research progress. Preserve existing records, staff access and Student evaluation restrictions.
+
+## Lecturer appointment consistency and sequence (2026-10-10)
+
+- Extend Student section, summary, member-card typography, spacing and visible useful guidance to Lecturer Supervisor and Panel pages. Keep Lecturer review authority, multi-student selection and all recorded histories; Student evaluation restrictions remain intact.
+- Supervisor list order: workload summary, pending requests, active supervisees, research change requests, supervisory teams and guidance. Panel list order: workload/review summary, selected Panel review queue, nominations for supervisees, Panel assignments and guidance. Remove repeated selection cards and filler placeholders; searches filter the actual rosters.
+- Lecturer research requests show changed fields and full reasons/approval history on demand, with eligible decisions retained. Initial profiles display recorded fields once; later revisions compare changed fields. Current active-supervisee research information follows the linked current profile, while historical requests retain submitted values.
+- Guidance stays visible and explains only consequential module rules: supervision handover/research endorsement and Panel eligibility/replacement. Existing candidate eligibility, workload checks, replacement reasons, primary/supporting permissions and Coordinator final approval remain authoritative.
+
+## Student research profile history presentation (2026-10-10)
+
+- Student initial research history displays the original programme, title and abstract once, without empty previous-value comparison boxes. Later revisions compare only changed fields. Initial and revision cards share header typography, spacing and field styling; stored attribution, dates and reasons remain visible. Staff comparisons and workflow permissions remain unchanged.
+
+## Student appointment consistency and useful guidance (2026-10-10)
+
+- Student Supervisor and Panel pages share section/card spacing, member-name typography, status badges, refresh controls, page-header treatment and a visible-by-default Appointment guidance section.
+- Guidance contains only actionable, module-specific information: configured Supervisor document labels and upload limits, incumbent/replacement rules when a supervisor is assigned, and the appropriate next step or replacement route for each public Panel readiness state. Remove generic process/turnaround, repeated confirmation and large help cards; retain the FAQ action without its own filler card.
+- Panel member identity, contact details, department and appointment date remain hidden until both public status and readiness state indicate confirmation. Supervisor/research/history features and staff workflows are preserved. This change is scoped to the two Student pages; it does not invent Student Panel histories or expose evaluation data.
+
+## Student Supervisor page structure (2026-10-10)
+
+- The Student Supervisor page presents My supervisors, Research change requests and Previous applications. Students automatically view their own scoped record; pending requests must never expose a Student selector.
+- Research requests initially show the changed field type, recorded stage and submission date. View details reveals only changed fields, the full reason and recorded approval events; eligible cancellation and research submission remain available. Research profile and supporting appointment histories remain accessible on demand.
+- Academic semester milestones stay on the Dashboard and My Academic Record. Current research information comes from the research profile, while previous applications keep their historical submitted titles. Student views exclude staff approval controls and transfer evaluation-task notes; existing staff workflows are preserved.
+
+## All-role typography coverage (2026-10-10)
+
+- Typography consistency applies to every Student, Lecturer, Programme Coordinator and Office Staff/Admin module, including populated tables, nested cards, form labels/values, drawers, expanded histories, error/loading states and shared authentication/shell components.
+- Table cells use the existing 12 px/600 role or 12 px/700 emphasized role; local conflicting sizes/weights must not override these roles. Equivalent summary counts use 24 px/800. Ordinary card and control text must not inherit unintended mono, italic, uppercase or tracking styles.
+- Verification must distinguish source review from rendered populated, empty and error-state checks. Preserve deliberate document, identifier, badge, action and rich-text formatting roles.
+
+## Student evaluation visibility boundary (2026-10-09)
+
+- Students view evaluations and results through the university's central system, outside this portal. Student-facing screens and API responses must not expose evaluation tasks, periods, deadlines, submission status, completion rates, scores or comments.
+- The Student academic record contains Supervision, Panel and Milestones only. Its dossier must exclude MARKS from visible sections, return null Marks data/status and omit Marks attention items. Office Staff/Admin and assigned Lecturer Marks access remains subject to existing authorization; Programme Coordinators retain their current restricted dossier sections.
+- This user-confirmed scope supersedes the older student Marks/evaluation wording in Functional Requirements FR-14/FR-30 and Use Cases UC06/UC14. The reference PDFs remain unchanged pending revision from editable academic sources. Do not add a central-system link or integration without its authoritative URL/interface.
+
+## Portal typography consistency (2026-10-09)
+
+- Populated records, comparison fields, collapsible summaries, expanded histories and decision forms must follow the same typography roles as empty/summary views. Verification must inspect inherited parent styles and nested labels, not only explicit paragraph classes.
+- Equivalent card/section headings and supporting paragraphs across student and staff modules must use the shared typography roles. Compact section headings use 14 px/800; larger section headings retain 18 px/800; card labels use 12 px/600, values 12 px/700 and supporting text 12 px/500. Summary metrics retain a distinct 24 px/800 role and compact secondary captions use 10 px/500.
+- Ordinary explanatory text must not switch to monospace or inconsistent 10–11.5 px bold treatments. Identifiers, tabular metadata, badges, navigation, form controls and official document previews retain their appropriate distinct treatments.
+- The Inter font request must include all requested UI weights, including 900 for existing black-weight emphasis. Typography corrections must preserve all workflow data, controls, authorization, validation and document output.
+
+## Student academic record clarity (2026-10-09)
+
+- Student Dashboard remains the starting point for current appointment summaries, upcoming deadlines and required actions. Its record link is labelled "View My Academic Record".
+- Student self-view at `/dashboard/progress` is labelled "My Academic Record" and opens on the first authorised history section, without duplicating the Dashboard's overview, attention count or summary cards. Supervision, Panel and Milestones retain the existing authorised history and status data; staff dossiers retain their operational Overview and authorised Marks sections.
+- Student enrolment metadata is labelled "Enrolment Status" and appears compactly in the identity card. "Status changed on" appears only when a persisted change date exists, in Malaysia time. Private actor, reason and audit metadata remain limited to internal dossiers.
+- Student cards and record metadata use the existing Inter family with shared heading, label, value and supporting-text styles. UI wording changes do not introduce course registration, credit tracking or general coursework results.
+
 ## Participant lifecycle acceptance corrections (2026-10-08)
 
 - The participant lifecycle workspace must hide stale records and mutation controls during refresh or detail loading and after read failure. Only the latest list/detail request may update the displayed participant; an in-flight mutation prevents competing selection, filter and form actions.
@@ -319,12 +380,12 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - The system must provide a read-only progress dossier that aggregates persisted Supervisor, Panel, Marks, active Student-targeted Timeline, and workflow-audit data without creating dossier records or changing workflow state.
 - Office Staff/Admin may view every student and all dossier sections. Programme Coordinators may view managed-programme students with Supervisor, Panel, and Timeline sections only. Lecturers may view only connected students, and each Supervisor, Panel, or Marks section must contain only records assigned to that lecturer.
 - Students may open only their own dossier. Unauthorized and nonexistent matric numbers must return the same `404` response so the endpoint does not disclose whether another student exists.
-- Student dossier payloads must omit internal Panel stages, recommendation identifiers, pending selected-panel identity, evaluator identity, marks, comments, and staff audit actors. Pending Panel work is represented only as `FACULTY_PROCESSING`.
+- Student dossier payloads must exclude the entire Marks/evaluation section, including task periods, deadlines, status and completion metadata, as well as internal Panel stages, recommendation identifiers, pending selected-panel identity and staff audit actors. Pending Panel work is represented only as `FACULTY_PROCESSING`.
 - Dossiers must show current records before newest-first lifecycle history, reuse existing waiting/deadline derivations, and return null waiting metadata for terminal workflows.
 - Dossier attention must order overdue authorized Marks tasks first, active workflow waits by longest age second, and active/upcoming Student Timeline milestones third.
 - Dossier navigation metadata must use existing module, record type, and record identifier fields. Approval, rejection, cancellation, submission, printing, and export remain in their owning modules.
 - Staff dossier routes use `/dashboard/progress/:studentId`; the Student self-view uses `/dashboard/progress`. The workspace remains outside the sidebar and is opened from existing workflow tables, report attention rows, and the Student Dashboard.
-- Students without a research profile must still receive available Supervisor and Timeline information with empty Panel and Marks sections.
+- Students without a research profile must still receive available Supervisor and Timeline information with an empty Panel section and no Marks section.
 - Lecturer screens must reuse the current portal shell, sidebar, top header, typography scale, card surfaces, and shared Tailwind theme tokens so the experience remains visually consistent with the office-staff modules.
 - Authenticated module pages must use the global portal footer only, avoiding duplicate page-level institutional footers inside individual modules.
 - Administrative pages should avoid decorative blur-orb backgrounds and use restrained card surfaces suitable for repeated office workflows.

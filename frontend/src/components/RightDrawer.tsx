@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -60,7 +60,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
           >
             {/* Drawer Header */}
             <div id="drawer-header" className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-extrabold text-brand-navy text-[15px] tracking-tight font-sans">
+              <h3 className="section-label font-sans">
                 {title}
               </h3>
               <PortalButton

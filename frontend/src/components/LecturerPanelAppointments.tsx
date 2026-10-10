@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -35,11 +35,14 @@ import {
   Info,
   Calendar,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
+import { AppointmentSection, AppointmentSummaryCard, AppointmentMemberCard } from './AppointmentPrimitives';
+import { LecturerAppointmentGuidance } from './LecturerAppointmentGuidance';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
 import { PanelAssignmentDetail } from './PanelAssignmentDetail';
@@ -100,6 +103,17 @@ interface RecommendationStudent {
   proposedTopic: string;
   area: string;
   abstract: string;
+}
+
+export function LecturerPanelSuperviseeCard({ student, status, tone, canRecommend, replacement, onRecommend }: {
+  student: RecommendationStudent; status: string; tone: React.ComponentProps<typeof StatusBadge>['tone']; canRecommend: boolean; replacement: boolean; onRecommend: () => void;
+}) {
+  return <AppointmentMemberCard label="Supervisee" name={student.studentName} status={status} tone={tone}
+    actions={<PortalButton size="sm" variant="primary" disabled={!canRecommend} onClick={onRecommend}>{canRecommend ? replacement ? 'Replace Panel Member' : 'Recommend Panel Member' : 'Recommendation Already Active'}</PortalButton>}>
+    <p className="card-description">{student.studentId}</p>
+    <dl className="grid gap-3 sm:grid-cols-2"><div><dt className="card-label">Programme</dt><dd className="card-description">{student.programme}</dd></div><div><dt className="card-label">Semester</dt><dd className="card-description">{student.intake}</dd></div></dl>
+    <div className="rounded-lg bg-slate-50 p-3"><p className="card-label">Current research title</p><p className="card-value mt-1 break-words">{student.proposedTopic}</p></div>
+  </AppointmentMemberCard>;
 }
 
 const toRecommendationStudent = (student: PanelRecommendationSupervisee): RecommendationStudent => ({
@@ -255,11 +269,11 @@ const PanelRecommendationProgressTimeline: React.FC<{ items: PanelProgressItem[]
           </div>
 
           <div className="pt-0.5 space-y-0.5 select-none">
-            <h5 className={`text-xs font-extrabold ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
+            <h5 className={`section-label ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
               {item.label}
             </h5>
             {item.subtext && (
-              <p className={`text-[10px] font-bold ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
+              <p className={`card-caption ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
                 {item.subtext}
               </p>
             )}
@@ -333,10 +347,10 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
         >
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none shrink-0">
             <div>
-              <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
+              <h3 className="section-label">
                 {reviewerLabel}
               </h3>
-              <p className="text-[11px] text-slate-400 font-bold mt-1">
+              <p className="card-description mt-1">
                 Panel recommendation confirmation route
               </p>
             </div>
@@ -360,29 +374,29 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                   .toUpperCase()}
               </div>
               <div className="text-left">
-                <h4 className="text-sm font-black text-brand-navy leading-snug">
+                <h4 className="section-label leading-snug">
                   {recommendation.studentName}
                 </h4>
-                <p className="text-[12px] text-slate-500 font-extrabold mt-0.5 leading-none">
+                <p className="card-description mt-0.5">
                   {recommendation.programme}
                 </p>
-                <p className="text-[11px] text-slate-400 font-bold mt-1 leading-none">
+                <p className="card-description mt-1">
                   Submitted: {recommendation.submittedDate}
                 </p>
               </div>
             </div>
 
             <div className="space-y-2 text-left">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+              <span className="card-label text-slate-400 block leading-none">
                 Recommended Panel Member
               </span>
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                <p className="text-xs font-black text-brand-navy">{recommendation.recommendedMember}</p>
+                <p className="card-value text-brand-navy">{recommendation.recommendedMember}</p>
                 <p className="text-[10px] font-mono text-slate-400 font-bold mt-1">
                   {recommendation.recommendedMemberId}
                 </p>
                 {recommendation.unavailableUntil && (
-                  <p className="mt-2 text-[10px] font-bold text-amber-700">
+                  <p className="card-description mt-2 text-amber-700">
                     Unavailable for new appointments until {recommendation.unavailableUntil}. This persisted review remains in the queue.
                   </p>
                 )}
@@ -390,33 +404,33 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
             </div>
 
             <div className="space-y-2 text-left">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+              <span className="card-label text-slate-400 block leading-none">
                 Research Topic
               </span>
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl card-description text-slate-600">
                 {recommendation.proposedTopic}
               </div>
             </div>
 
             <div className="space-y-2 text-left">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+              <span className="card-label text-slate-400 block leading-none">
                 Justification
               </span>
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl card-description text-slate-600">
                 {recommendation.justification || 'No justification notes were saved.'}
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 border-y border-slate-100 py-5">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <span className="card-label text-slate-400">
                   Current Status
                 </span>
                 <StatusBadge tone={getRecommendationTone(recommendation.status)} dot>
                   {PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]}
                 </StatusBadge>
               </div>
-              <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+              <p className="card-description">
                 {readOnly
                   ? 'This is a read-only workflow record. Completed decisions remain available for audit and tracking.'
                   : reviewerRole === 'SUPERVISOR'
@@ -428,7 +442,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
             </div>
 
             <div className="space-y-3 text-left">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+              <span className="card-label text-slate-400 block leading-none">
                 Request Progress
               </span>
               <PanelRecommendationProgressTimeline
@@ -455,7 +469,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
               )}
 
             {recommendation.participantEligible === false && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+              <p className="card-description rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
                 This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; the recommendation is retained as read-only until eligible.
               </p>
             )}
@@ -497,7 +511,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                       if (rejectionError) setRejectionError(null);
                     }}
                   />
-                  <p className={`text-[10px] font-semibold leading-relaxed ${rejectionError ? 'text-rose-600' : 'text-slate-400'}`}>
+                  <p className={`card-description ${rejectionError ? 'text-rose-600' : 'text-slate-400'}`}>
                     {rejectionError || 'A reason is required before rejecting this panel recommendation.'}
                   </p>
                 </div>
@@ -568,6 +582,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [ownPanelCapacity, setOwnPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
   const [selectedSuperviseeId, setSelectedSuperviseeId] = useState<string | null>(null);
+  const [assignmentSearch, setAssignmentSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -813,6 +828,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
+  const visibleAssignments = assignments.filter(assignment => [assignment.studentId, assignment.studentName, assignment.researchTitle, assignment.supervisor].join(' ').toLowerCase().includes(assignmentSearch.trim().toLowerCase()));
   const activeAssignmentsCount = ownPanelCapacity?.workloadCount ?? assignments.length;
   const workloadLimit = ownPanelCapacity?.workloadLimit ?? 0;
   const activeReviewQueue = useMemo(
@@ -903,13 +919,13 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   };
 
   return (
-    <div id="lecturer-panel-module-container" className="space-y-8 animate-fade-in text-left">
+    <div id="lecturer-panel-module-container" className="space-y-6 text-left pb-12">
       
       <PortalToast message={toastText} />
 
       {/* RENDER LAYOUT 1: MAIN LISTING PORTAL VIEW */}
       {routeView === 'list' && (
-        <div id="main-panel-listing-view" className="space-y-8">
+        <div id="main-panel-listing-view" className="space-y-6">
           
           <PageHeader
             title={isCoordinator ? 'Panel Recommendation Coordinator Review' : 'Panel Appointments'}
@@ -922,352 +938,79 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             }
             subtitleClassName="leading-relaxed max-w-4xl"
             className="select-none"
+            actions={<PortalButton size="sm" icon={RefreshCw} disabled={loading} onClick={loadData}>Refresh appointments</PortalButton>}
           />
 
-          {/* TWO DYNAMIC WORKLOAD CARDS */}
+          {loading ? <LoadingState message="Loading panel appointments…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
           {!isCoordinator ? (
-          <div id="panel-metrics-summary-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
-            
-            {/* CARD 1: PANEL WORKLOAD */}
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-auto relative overflow-hidden group hover:border-[#cbd5e1] transition-all duration-300">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                    Panel Workload
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 block pt-0.5 uppercase tracking-wider">
-                    Persisted assignments and reservations
-                  </span>
-                </div>
-                <StatusBadge tone={ownPanelCapacity?.selectable ? 'success' : 'warning'} dot pulse className="px-3 py-1 text-[9px]">
-                  {ownPanelCapacity?.capacityState ? capacityStateLabel(ownPanelCapacity.capacityState) : 'Not configured'}
-                </StatusBadge>
-              </div>
-
-              <div className="mt-5">
-                <div className="text-3xl font-black text-brand-navy tracking-tight">
-                  {activeAssignmentsCount} <span className="text-slate-300 font-medium">/ {workloadLimit} Total Load</span>
-                </div>
-                <ProgressBar value={activeAssignmentsCount} max={workloadLimit} tone="info" trackClassName="h-2.5 mt-4 bg-slate-100 border border-slate-200/40" />
-                <p className="mt-2 text-[10px] font-bold text-slate-500">
-                  {ownPanelCapacity?.semesterCode ?? 'No active semester'} · {ownPanelCapacity?.capacityPlanVersion ? `Plan v${ownPanelCapacity.capacityPlanVersion}` : 'Plan not configured'}
-                  {ownPanelCapacity?.unavailableUntil ? ` · Unavailable until ${ownPanelCapacity.unavailableUntil}` : ''}
-                </p>
-              </div>
+            <div id="panel-metrics-summary-grid" className="grid gap-5 md:grid-cols-2">
+              <AppointmentSummaryCard title="Panel Workload" value={activeAssignmentsCount}
+                progress={{ current: activeAssignmentsCount, max: workloadLimit }}
+                badge={ownPanelCapacity?.capacityState ? capacityStateLabel(ownPanelCapacity.capacityState) : 'Not configured'}
+                tone={ownPanelCapacity?.selectable ? 'success' : 'warning'}
+                description={`${ownPanelCapacity?.semesterCode ?? 'No active semester'} · ${ownPanelCapacity?.capacityPlanVersion ? `Plan v${ownPanelCapacity.capacityPlanVersion}` : 'Plan not configured'}${ownPanelCapacity?.unavailableUntil ? ` · Unavailable until ${ownPanelCapacity.unavailableUntil}` : ''} · Includes assignments and reservations.`} />
+              <AppointmentSummaryCard title="Pending Panel Reviews" value={activeReviewQueue.length}
+                badge={activeReviewQueue.length ? 'Review needed' : 'Up to date'} tone={activeReviewQueue.length ? 'warning' : 'success'}
+                description={`${activeRecommendationsCount} nominations you submitted are awaiting a decision.`} />
             </div>
-
-            {/* CARD 2: PENDING RECOMMENDATIONS */}
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-auto relative overflow-hidden group hover:border-[#cbd5e1] transition-all duration-300">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                    Pending Recommendations
-                  </span>
-                </div>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-200 bg-blue-50 text-blue-600">
-                  {activeRecommendationsCount} ACTIVE
-                </span>
-              </div>
-
-              <div className="mt-4 flex gap-3.5 items-center">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100/50 flex items-center justify-center shrink-0">
-                  <Info className="w-5 h-5 text-blue-600" />
-                </div>
-                <p className="text-[11.5px] text-slate-500 font-semibold leading-normal text-left max-w-sm">
-                  Submitted panel recommendations wait for selected panel acceptance before programme coordinator review.
-                </p>
-              </div>
-            </div>
-
-          </div>
-          ) : (
-            <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-              <div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-                  Pending Coordinator Reviews
-                </span>
-                <p className="text-xs font-semibold text-slate-500 mt-2">
-                  {coordinatorProgrammeLabel
-                    ? `Recommendations for ${coordinatorProgrammeLabel} that passed selected panel acceptance.`
-                    : 'No programme is assigned. Approval records are protected until an assignment is configured.'}
-                </p>
-              </div>
-              <span className="text-3xl font-black text-brand-navy tracking-tight">
-                {coordinatorWorkspace?.pendingCount ?? 0}
-              </span>
-            </div>
-          )}
-
-          {/* DYNAMIC LISTING CONTAINER SECTION: PANEL RECOMMENDATIONS */}
-          {!isCoordinator && (
-          <div id="panel-supervisors-recommendations-layout" className="space-y-4">
-            <div className="flex justify-between items-center select-none font-sans">
-              <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider block text-left">
-                Panel Recommendations for My Supervisees
-              </h3>
-
-              <button
-                onClick={onNavigateToSubmitted}
-                className="inline-flex items-center gap-2 text-xs font-black text-brand-navy hover:text-slate-800 tracking-wide uppercase px-4 py-2 bg-white border border-slate-200 hover:border-slate-350 shadow-3xs rounded-xl transition-all cursor-pointer"
-              >
-                <span>View Submitted Recommendations</span>
-              </button>
-            </div>
-
-            {eligibleSupervisees.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                      Select Supervisee
-                    </span>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                      Choose which supervised student to submit or review a panel recommendation for.
-                    </p>
-                  </div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
-                    {eligibleSupervisees.length} Students
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {eligibleSupervisees.map((student) => {
-                    const isSelected = recommendationStudent?.studentId === student.studentId;
-                    const recommendation = submittedRecs.find((item) => item.studentId === student.studentId);
-                    const statusText = recommendation
-                      ? PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]
-                      : student.panelAppointmentId
-                      ? 'Panel Active'
-                      : student.canRecommend
-                      ? 'Recommendation Needed'
-                      : 'Recommendation Active';
-
-                    return (
-                      <button
-                        key={student.studentId}
-                        type="button"
-                        onClick={() => setSelectedSuperviseeId(student.studentId)}
-                        className={`text-left rounded-xl border px-4 py-3 transition-all ${
-                          isSelected
-                            ? 'border-brand-navy bg-slate-50 shadow-xs'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-brand-navy leading-snug truncate">
-                              {student.studentName}
-                            </p>
-                            <p className="text-[10px] font-mono font-bold text-slate-400 mt-1">
-                              {student.studentId}
-                            </p>
-                          </div>
-                          <StatusBadge
-                            tone={recommendation ? getRecommendationTone(recommendation.status) : student.canRecommend ? 'warning' : 'info'}
-                            dot
-                            className="text-[8px] px-2 py-0.5 shrink-0"
-                          >
-                            {statusText}
-                          </StatusBadge>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-2 line-clamp-2">
-                          {student.proposedTopic}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Sub-Layout Cards Box row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-              {!recommendationStudent ? (
-                <div className="lg:col-span-2 bg-white border border-[#e2e8f0]/40 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center select-none space-y-3 min-h-[220px]">
-                  <div className="w-12 h-12 rounded-full border border-slate-150 flex items-center justify-center bg-slate-50 text-slate-400">
-                    <Check className="w-5 h-5 text-slate-400 stroke-[2.2]" />
-                  </div>
-                  <p className="text-slate-400 font-bold text-xs max-w-sm">
-                    No supervisees need panel recommendations from this account right now.
-                  </p>
-                </div>
-              ) : (
-              <>
-              {/* Left Recommendation Required Student info */}
-              <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-all relative">
-                
-                {/* Header status bar */}
-                <div>
-                  <div className="flex justify-between items-start">
-                    <div className="flex gap-4 items-center">
-                      <div className="w-12 h-12 bg-indigo-50 text-brand-navy font-black text-xs rounded-full flex items-center justify-center border border-indigo-100">
-                        {recommendationStudent.initials}
-                      </div>
-                      <div className="text-left">
-                        <h4 className="text-sm font-black text-brand-navy leading-snug">
-                          {recommendationStudent.studentName}
-                        </h4>
-                        <span className="font-mono text-[10px] text-slate-410 text-slate-400 font-extrabold block">
-                          {recommendationStudent.studentId}
-                        </span>
-                      </div>
-                    </div>
-
-                    <StatusBadge
-                      tone={currentRecommendation ? getRecommendationTone(currentRecommendation.status) : 'warning'}
-                      dot
-                      className="text-[9px] px-3 py-1"
-                    >
-                      {currentRecommendation
-                        ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status]
-                        : 'Recommendation Needed'}
-                    </StatusBadge>
-                  </div>
-
-                  {/* Program Intake Info Grid */}
-                  <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-100 text-xs">
-                    <div>
-                      <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">
-                        PROGRAMME
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-700 block mt-1">
-                        {recommendationStudent.programme}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">
-                        INTAKE
-                      </span>
-                      <span className="text-xs font-extrabold text-slate-700 block mt-1">
-                        {recommendationStudent.intake}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Research Title Abstract line */}
-                  <div className="mt-5 space-y-1 bg-slate-50/70 border border-slate-100 rounded-xl p-3.5 text-left">
-                    <span className="text-[9px] font-black text-slate-450 uppercase tracking-wider text-slate-400 block leading-none select-none">
-                      PROPOSED RESEARCH TOPIC
-                    </span>
-                    <p className="text-xs font-extrabold text-brand-navy leading-relaxed italic mt-1.5 font-sans">
-                      "{recommendationStudent.proposedTopic}"
-                    </p>
-                  </div>
-                </div>
-
-                {/* Confirm recommend member action button */}
-                <button
-                  onClick={() => {
-                    if (!canRecommendForStudent) {
-                      triggerToast(`This student already has a ${currentRecommendation ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status] : 'current'} recommendation.`);
-                      return;
-                    }
-                    setIsRecommendDrawerOpen(true);
-                  }}
-                  disabled={!canRecommendForStudent}
-                  className="w-full mt-6 py-3.5 bg-brand-navy text-white hover:bg-slate-800 disabled:bg-slate-400 disabled:cursor-not-allowed rounded-xl text-xs font-black tracking-widest uppercase transition-all shadow-sm select-none cursor-pointer text-center"
-                >
-                      {canRecommendForStudent
-                        ? replacementAssignment
-                          ? 'Replace Panel Member'
-                          : 'Recommend Panel Member'
-                        : 'Recommendation Already Active'}
-                </button>
-              </div>
-
-              {/* Right Empty placeholder card matches mock design */}
-              <div className="bg-white border border-[#e2e8f0]/40 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center select-none space-y-3 min-h-[310px]">
-                <div className="w-12 h-12 rounded-full border border-slate-150 flex items-center justify-center bg-slate-50 text-slate-400">
-                  <Check className="w-5 h-5 text-slate-400 stroke-[2.2]" />
-                </div>
-              <p className="text-slate-400 font-bold text-xs max-w-xs">
-                  Select another supervisee above to review or submit their panel recommendation.
-                </p>
-              </div>
-              </>
-              )}
-
-            </div>
-          </div>
-          )}
+          ) : <AppointmentSummaryCard title="Pending Coordinator Reviews" value={coordinatorWorkspace?.pendingCount ?? 0}
+            description={coordinatorProgrammeLabel ? `Recommendations for ${coordinatorProgrammeLabel} that passed selected panel acceptance.` : 'No programme is assigned. Approval records are protected until an assignment is configured.'} />}
 
           {/* ROLE REVIEW QUEUE */}
-          <div id="panel-role-review-queue" className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
-                  {isCoordinator ? 'Programme Coordinator Review Queue' : 'Selected Panel Review Queue'}
-                </h3>
-                <p className="text-[11px] font-semibold text-slate-400 mt-1 leading-none select-none">
-                  {isCoordinator
-                    ? 'Final decisions are available only after selected panel acceptance.'
-                    : 'Panel nominations assigned to you for acceptance or rejection.'}
-                </p>
-              </div>
-
-              {!isCoordinator && (
-                <button
-                  type="button"
-                  onClick={onNavigateToReviewed}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-brand-navy shadow-3xs transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <span>Reviewed Requests</span>
-                </button>
-              )}
-            </div>
-
+          <AppointmentSection id="panel-role-review-queue" title={isCoordinator ? 'Programme Coordinator Review Queue' : 'Selected Panel Review Queue'}
+            description={isCoordinator ? 'Final decisions are available only after selected panel acceptance.' : 'Panel nominations assigned to you for acceptance or rejection.'}
+            actions={!isCoordinator ? <PortalButton size="sm" onClick={onNavigateToReviewed}>Reviewed Requests</PortalButton> : undefined}>
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs">
               <div className="overflow-x-auto">
                 <table className="data-table min-w-[860px] text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
-                      <th className="py-4 px-6">Student</th>
-                      <th className="py-4 px-6">Selected Panel</th>
-                      <th className="py-4 px-6">Status</th>
-                      <th className="py-4 px-6">Waiting</th>
-                      <th className="py-4 px-6 text-center">Action</th>
+                      <th className="data-th py-4 px-6">Student</th>
+                      <th className="data-th py-4 px-6">Selected Panel</th>
+                      <th className="data-th py-4 px-6">Status</th>
+                      <th className="data-th py-4 px-6">Waiting</th>
+                      <th className="data-th py-4 px-6 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-brand-navy">
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="p-0">
+                        <td colSpan={5} className="card-description p-0">
                           <LoadingState message="Loading review queue…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={5} className="p-0">
+                        <td colSpan={5} className="card-description p-0">
                           <ErrorState message={error} onRetry={loadData} />
                         </td>
                       </tr>
                     ) : activeReviewQueue.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-10 text-center text-slate-400 font-bold uppercase tracking-widest">
+                        <td colSpan={5} className="card-description py-10 text-center text-slate-400">
                           No panel recommendations require your decision right now.
                         </td>
                       </tr>
                     ) : (
                       activeReviewQueue.map((recommendation) => (
                         <tr key={`review-${recommendation.id ?? recommendation.studentId}`} className="hover:bg-slate-50/40 transition-colors">
-                          <td className="py-5 px-6">
-                            <span className="font-extrabold text-brand-navy block">
+                          <td className="data-td py-5 px-6">
+                            <span className="card-value text-brand-navy block">
                               {recommendation.studentName}
                             </span>
                             <span className="text-[10px] font-mono text-slate-400 font-bold block mt-0.5">
                               {recommendation.studentId}
                             </span>
                           </td>
-                          <td className="py-5 px-6">
-                            <span className="font-extrabold text-slate-700 block">
+                          <td className="data-td py-5 px-6">
+                            <span className="card-value text-slate-700 block">
                               {recommendation.recommendedMember}
                             </span>
                             <span className="text-[10px] font-mono text-slate-400 font-bold block mt-0.5">
                               {recommendation.recommendedMemberId}
                             </span>
                           </td>
-                          <td className="py-5 px-6">
+                          <td className="data-td py-5 px-6">
                             <StatusBadge
                               tone={getRecommendationTone(recommendation.status)}
                               dot
@@ -1276,10 +1019,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                               {PANEL_RECOMMENDATION_STATUS_LABELS[recommendation.status]}
                             </StatusBadge>
                           </td>
-                          <td className="py-5 px-6 text-[11px] font-bold text-slate-500">
+                          <td className="data-td-strong py-5 px-6 text-slate-500">
                             {formatWaitingText(recommendation)}
                           </td>
-                          <td className="py-5 px-6 text-center">
+                          <td className="data-td py-5 px-6 text-center">
                             <div className="flex flex-col items-center gap-1.5">
                               <button
                                 type="button"
@@ -1309,7 +1052,25 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
                 </table>
               </div>
             </div>
-          </div>
+          </AppointmentSection>
+
+          {!isCoordinator && (
+            <AppointmentSection id="panel-supervisors-recommendations-layout" title="Panel Recommendations for My Supervisees"
+              description="Choose a supervisee to nominate a Panel member or request a replacement."
+              actions={<PortalButton size="sm" onClick={onNavigateToSubmitted}>View Submitted Recommendations</PortalButton>}>
+              {eligibleSupervisees.length > 0 ? <>
+                <label className="form-label block">Select Supervisee
+                  <select className="form-control form-control-sm mt-1" value={selectedSuperviseeId ?? ''} onChange={event => setSelectedSuperviseeId(event.target.value)}>
+                    {eligibleSupervisees.map(student => <option key={student.studentId} value={student.studentId}>{student.studentName} · {student.studentId}</option>)}
+                  </select>
+                </label>
+                {recommendationStudent && <LecturerPanelSuperviseeCard student={recommendationStudent}
+                  status={currentRecommendation ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status] : selectedSupervisee?.panelAppointmentId ? 'Panel Active' : 'Recommendation Needed'}
+                  tone={currentRecommendation ? getRecommendationTone(currentRecommendation.status) : selectedSupervisee?.panelAppointmentId ? 'success' : 'warning'}
+                  canRecommend={canRecommendForStudent} replacement={Boolean(replacementAssignment)} onRecommend={() => setIsRecommendDrawerOpen(true)} />}
+              </> : <EmptyState title="No supervisees available for Panel nomination" description="Students with active primary supervision will appear here." />}
+            </AppointmentSection>
+          )}
 
           {isCoordinator && (
             <PanelRecommendationRecordsTable
@@ -1330,95 +1091,71 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
           {/* MY PANEL ASSIGNMENTS DATA SECTION */}
           {!isCoordinator && (
-          <div id="panel-assignments-roster" className="space-y-4">
-            
-            {/* Header info */}
-            <div>
-              <div className="flex justify-between items-center">
-                <div className="text-left">
-                  <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
-                    My Panel Assignments
-                  </h3>
-                  <p className="text-[11px] font-semibold text-slate-450 text-slate-400 mt-1 leading-none select-none">
-                    Students where you have been assigned as the panel member.
-                  </p>
-                </div>
-
-                <button 
-                  onClick={() => triggerToast('Assignments lookup filters applied.')}
-                  className="w-10 h-10 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer shadow-3xs"
-                  title="Filter Assignments"
-                >
-                  <Filter className="w-4 h-4 text-slate-500" />
-                </button>
-              </div>
-            </div>
-
+          <AppointmentSection id="panel-assignments-roster" title="My Panel Assignments" description="Students where you have been assigned as the Panel member.">
+            {assignments.length > 1 && <label className="form-label block">Find a Panel assignment<input type="search" className="form-control form-control-sm mt-1" placeholder="Name, student ID, research title or supervisor" value={assignmentSearch} onChange={event => setAssignmentSearch(event.target.value)} /></label>}
             {/* Table data shell */}
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl overflow-hidden shadow-3xs text-left font-sans">
               <div className="overflow-x-auto">
                   <table className="data-table min-w-[850px] text-xs">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
-                      <th className="py-4 px-6">STUDENT ID</th>
-                      <th className="py-4 px-6">STUDENT NAME</th>
-                      <th className="py-4 px-6">RESEARCH TITLE</th>
-                      <th className="py-4 px-6">SUPERVISOR</th>
-                      <th className="py-4 px-6">APPT. DATE</th>
-                      <th className="py-4 px-6">STATUS</th>
-                      <th className="py-4 px-6 text-center">ACTION</th>
+                      <th className="data-th py-4 px-6">STUDENT ID</th>
+                      <th className="data-th py-4 px-6">STUDENT NAME</th>
+                      <th className="data-th py-4 px-6">RESEARCH TITLE</th>
+                      <th className="data-th py-4 px-6">SUPERVISOR</th>
+                      <th className="data-th py-4 px-6">APPT. DATE</th>
+                      <th className="data-th py-4 px-6">STATUS</th>
+                      <th className="data-th py-4 px-6 text-center">ACTION</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-brand-navy">
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="p-0">
+                        <td colSpan={7} className="card-description p-0">
                           <LoadingState message="Loading panel assignments…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={7} className="p-0">
+                        <td colSpan={7} className="card-description p-0">
                           <ErrorState message={error} onRetry={loadData} />
                         </td>
                       </tr>
-                    ) : assignments.length === 0 ? (
+                    ) : visibleAssignments.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                          No panel assignments yet.
+                        <td colSpan={7} className="card-description py-12 text-center text-slate-400">
+                          {assignmentSearch.trim() ? 'No matching Panel assignments.' : 'No panel assignments yet.'}
                         </td>
                       </tr>
                     ) : (
-                      assignments.map((asg) => (
+                      visibleAssignments.map((asg) => (
                       <tr key={asg.studentId} className="hover:bg-slate-50/40 transition-colors">
                         <td className="py-5 px-6 font-mono font-black text-slate-550 select-all shrink-0">
                           {asg.studentId}
                         </td>
-                        <td className="py-5 px-6">
+                        <td className="data-td py-5 px-6">
                           <div className="flex items-center gap-3 select-all">
                             <div className="w-7 h-7 bg-slate-100 text-slate-700 font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-3xs">
                               {asg.initials}
                             </div>
-                            <span className="font-extrabold text-brand-navy block">
+                            <span className="card-value text-brand-navy block">
                               {asg.studentName}
                             </span>
                           </div>
                         </td>
-                        <td className="py-5 px-6 font-semibold text-slate-500 max-w-[260px] truncate select-all" title={asg.researchTitle}>
+                        <td className="data-td py-5 px-6 text-slate-500 max-w-[260px] truncate select-all" title={asg.researchTitle}>
                           {asg.researchTitle}
                         </td>
-                        <td className="py-5 px-6 font-black text-slate-700">
+                        <td className="data-td-strong py-5 px-6 text-slate-700">
                           {asg.supervisor}
                         </td>
-                        <td className="py-5 px-6 font-extrabold text-slate-400">
+                        <td className="data-td-strong py-5 px-6 text-slate-400">
                           {asg.appointmentDate}
                         </td>
-                        <td className="py-5 px-6">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
-                            {asg.status}
-                          </span>
+                        <td className="data-td py-5 px-6">
+                          <StatusBadge tone={asg.status === 'ACTIVE' ? 'success' : asg.status === 'COMPLETED' ? 'neutral' : 'warning'}>{asg.status}</StatusBadge>
                         </td>
-                        <td className="py-5 px-6 text-center">
+                        <td className="data-td py-5 px-6 text-center">
                           <div className="flex flex-col items-center gap-1.5">
                             <button
                               type="button"
@@ -1443,9 +1180,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               </div>
             </div>
 
-          </div>
+          </AppointmentSection>
           )}
-
+          </>}
+          {!isCoordinator && <LecturerAppointmentGuidance module="panel" />}
         </div>
       )}
 

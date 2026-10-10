@@ -119,12 +119,12 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         )}
       />
 
-      {task.periodEffectiveStatus ? <p className="text-sm text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
-      {task.completionWindow ? <p className="text-sm text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}
-      {isReadOnly && task.status !== 'SUBMITTED' ? <p className="text-sm text-slate-600">This task is currently read only.</p> : null}
+      {task.periodEffectiveStatus ? <p className="card-description text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
+      {task.completionWindow ? <p className="card-description text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}
+      {isReadOnly && task.status !== 'SUBMITTED' ? <p className="card-description text-slate-600">This task is currently read only.</p> : null}
       {components.length === 0 ? (
         <PortalCard padding="lg" className="rounded-lg">
-          <div className="flex items-start gap-3 text-sm text-amber-800">
+          <div className="card-description flex items-start gap-3 text-amber-800">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <p>No rubric components are available for this task. Contact the postgraduate office.</p>
           </div>
@@ -133,8 +133,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
           <PortalCard padding="none" className="overflow-hidden rounded-lg">
             <div className="border-b border-slate-100 bg-slate-50 px-6 py-5">
-              <h2 className="text-base font-extrabold text-brand-navy">{task.studentName}</h2>
-              <p className="mt-1 text-xs font-semibold text-slate-500">
+              <h2 className="section-label">{task.studentName}</h2>
+              <p className="card-description mt-1">
                 {task.studentId} · {task.researchTitle}
               </p>
             </div>
@@ -151,8 +151,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                         {index + 1}
                       </span>
                       <div>
-                        <h3 className="text-xs font-extrabold text-brand-navy">{component.name}</h3>
-                        <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                        <h3 className="section-label">{component.name}</h3>
+                        <p className="card-description mt-1">
                           {component.description || 'Configured evaluation component'}
                         </p>
                       </div>
@@ -172,7 +172,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                     />
                   </div>
                   <label className="space-y-2">
-                    <span className="text-[9px] font-black uppercase text-slate-400">
+                    <span className="form-label">
                       Marks / {component.maxMarks}
                     </span>
                     <input
@@ -189,7 +189,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                           mark: event.target.value,
                         },
                       }))}
-                      className="form-control text-right font-black text-brand-navy"
+                      className="form-control text-right text-brand-navy"
                     />
                   </label>
                 </div>
@@ -197,7 +197,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
             </div>
 
             <div className="border-t border-slate-100 p-6">
-              <label className="text-[9px] font-black uppercase text-slate-400">
+              <label className="form-label">
                 Overall comments
               </label>
               <textarea
@@ -211,12 +211,12 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
           <aside className="space-y-5 xl:sticky xl:top-6">
             <PortalCard padding="lg" className="rounded-lg bg-brand-navy text-white">
-              <p className="text-[9px] font-black uppercase text-indigo-300">Calculated total</p>
+              <p className="card-label text-indigo-300">Calculated total</p>
               <p className="mt-2 text-4xl font-black">
                 {total.toFixed(2)}
                 <span className="text-sm text-slate-400"> / {maximum.toFixed(2)}</span>
               </p>
-              <p className="mt-4 text-xs font-semibold text-slate-300">
+              <p className="card-description mt-4 text-slate-300">
                 The backend recalculates the authoritative total when this draft is saved.
               </p>
             </PortalCard>
@@ -226,8 +226,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                 <div className="flex items-start gap-2 text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
                   <div>
-                    <p className="text-xs font-extrabold">Complete the required marks</p>
-                    <ul className="mt-2 space-y-1 text-[11px] font-semibold">
+                    <p className="card-value text-amber-800">Complete the required marks</p>
+                    <ul className="card-description mt-2 space-y-1 text-amber-800">
                       {errors.map((error) => <li key={error}>{error}</li>)}
                     </ul>
                   </div>

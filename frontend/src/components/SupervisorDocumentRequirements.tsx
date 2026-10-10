@@ -148,8 +148,8 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
           <div key={label} className="flex items-center gap-3 bg-white px-5 py-4">
             <Icon className="h-4 w-4 text-slate-500" />
             <div>
-              <p className="text-xl font-black text-brand-navy">{value}</p>
-              <p className="text-[10px] font-black uppercase text-slate-400">{label}</p>
+              <p className="card-metric text-brand-navy">{value}</p>
+              <p className="card-caption uppercase text-slate-400">{label}</p>
             </div>
           </div>
         ))}
@@ -158,8 +158,8 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
-            <h2 className="text-xs font-black uppercase text-brand-navy">Submission checklist</h2>
-            <p className="mt-1 text-[10px] font-semibold text-slate-400">A maximum of five items may be active.</p>
+            <h2 className="section-label">Submission checklist</h2>
+            <p className="card-description mt-1">A maximum of five items may be active.</p>
           </div>
           <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
             {(['Active', 'Inactive', 'All'] as Filter[]).map((item) => (
@@ -195,9 +195,9 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
                   <tr key={item.id}>
                     <td className="data-td font-mono">{item.displayOrder}</td>
                     <td className="data-td">
-                      <p className="font-extrabold text-slate-800">{item.label}</p>
-                      <p className="mt-1 max-w-md text-[10px] font-semibold text-slate-400">{item.description || 'No additional guidance.'}</p>
-                      <p className="mt-1 font-mono text-[9px] text-slate-300">{item.code}</p>
+                      <p className="card-value text-slate-800">{item.label}</p>
+                      <p className="card-description mt-1 max-w-md">{item.description || 'No additional guidance.'}</p>
+                      <p className="card-caption mt-1 font-mono text-slate-300">{item.code}</p>
                     </td>
                     <td className="data-td"><StatusBadge tone={item.isRequired ? 'warning' : 'neutral'}>{item.isRequired ? 'Required' : 'Optional'}</StatusBadge></td>
                     <td className="data-td"><StatusBadge tone={item.isActive ? 'success' : 'neutral'}>{item.isActive ? 'Active' : 'Inactive'}</StatusBadge></td>
@@ -218,19 +218,19 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
           <ClipboardList className="h-4 w-4 text-slate-500" />
-          <h2 className="text-xs font-black uppercase text-brand-navy">Configuration audit</h2>
+          <h2 className="section-label">Configuration audit</h2>
         </div>
         {audits.length === 0 ? (
-          <p className="px-5 py-6 text-xs font-semibold text-slate-400">No configuration changes recorded.</p>
+          <p className="card-description px-5 py-6">No configuration changes recorded.</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {audits.slice(0, 12).map((audit) => (
               <div key={audit.id} className="grid gap-1 px-5 py-4 sm:grid-cols-[1fr_auto]">
                 <div>
-                  <p className="text-xs font-extrabold text-slate-800">{audit.requirementLabel} · {audit.action === 'CREATE' ? 'Created' : 'Updated'}</p>
-                  <p className="mt-1 text-[10px] font-semibold text-slate-500">{audit.reason || 'Initial configuration.'}</p>
+                  <p className="card-value text-slate-800">{audit.requirementLabel} · {audit.action === 'CREATE' ? 'Created' : 'Updated'}</p>
+                  <p className="card-description mt-1">{audit.reason || 'Initial configuration.'}</p>
                 </div>
-                <p className="text-[10px] font-semibold text-slate-400 sm:text-right">{audit.actorName}<br />{new Date(audit.createdAt).toLocaleString('en-GB')}</p>
+                <p className="card-description sm:text-right">{audit.actorName}<br />{new Date(audit.createdAt).toLocaleString('en-GB')}</p>
               </div>
             ))}
           </div>
@@ -242,7 +242,7 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
           <button type="button" className="absolute inset-0 cursor-default" onClick={() => setDrawerOpen(false)} aria-label="Close requirement editor" />
           <form onSubmit={save} className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-              <div><p className="text-sm font-black text-brand-navy">{editing ? 'Edit requirement' : 'Add requirement'}</p><p className="mt-1 text-[10px] font-semibold text-slate-400">Future supervisor applications only</p></div>
+              <div><p className="section-label text-brand-navy">{editing ? 'Edit requirement' : 'Add requirement'}</p><p className="card-description mt-1">Future supervisor applications only</p></div>
               <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-md p-2 text-slate-400 hover:bg-slate-100" title="Close"><X className="h-4 w-4" /></button>
             </div>
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
@@ -252,7 +252,7 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
               <label className="flex items-center justify-between border-b border-slate-100 py-3 text-xs font-bold text-slate-700"><span>Required for submission</span><input type="checkbox" checked={form.isRequired} onChange={(event) => setForm({ ...form, isRequired: event.target.checked })} /></label>
               <label className="flex items-center justify-between border-b border-slate-100 py-3 text-xs font-bold text-slate-700"><span>Active</span><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /></label>
               {editing && <label className="block"><span className="form-label">Reason for change</span><textarea className="form-control mt-1.5 min-h-24" value={reason} onChange={(event) => setReason(event.target.value)} required /></label>}
-              {saveError && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{saveError}</p>}
+              {saveError && <p className="card-description rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}</p>}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
               <PortalButton type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>Cancel</PortalButton>

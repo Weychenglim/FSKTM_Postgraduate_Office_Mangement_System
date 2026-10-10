@@ -36,7 +36,7 @@ assert.match(routes, /dashboardProgress:\s*'\/dashboard\/progress'/);
 assert.match(routes, /routeForStudentProgress/);
 assert.match(app, /StudentProgressDossier/);
 assert.match(app, /dashboardProgressMatch/);
-assert.match(studentDashboard, /View My Progress/);
+assert.match(studentDashboard, /View My Academic Record/);
 assert.match(reports, /View Dossier/);
 assert.match(supervisor, /View Dossier/);
 assert.match(panel, /View Dossier/);

@@ -30,10 +30,10 @@ const DetailField: React.FC<{
   value: React.ReactNode;
 }> = ({ label, value }) => (
   <div>
-    <dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+    <dt className="card-label uppercase tracking-wider text-slate-400">
       {label}
     </dt>
-    <dd className="mt-1 text-xs font-bold leading-relaxed text-slate-700">
+    <dd className="card-value mt-1 leading-relaxed text-slate-700">
       {value || 'Not recorded'}
     </dd>
   </div>
@@ -74,7 +74,7 @@ export const ActiveSuperviseeDetail: React.FC<
             {initialsFor(supervisee.studentName)}
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-black text-brand-navy">
+            <h2 className="section-label">
               {supervisee.studentName}
             </h2>
             <p className="mt-1 font-mono text-[10px] font-bold text-slate-400">
@@ -110,7 +110,7 @@ export const ActiveSuperviseeDetail: React.FC<
       <div className="border border-slate-200 bg-white p-6 lg:col-span-7">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <BookOpen className="h-4 w-4 text-brand-navy" />
-          <h2 className="text-xs font-black uppercase tracking-wider text-brand-navy">
+          <h2 className="section-label">
             Research Information
           </h2>
         </div>
@@ -134,7 +134,7 @@ export const ActiveSuperviseeDetail: React.FC<
     <section className="border border-slate-200 bg-white p-6">
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
         <Calendar className="h-4 w-4 text-brand-navy" />
-        <h2 className="text-xs font-black uppercase tracking-wider text-brand-navy">
+        <h2 className="section-label">
           Appointment
         </h2>
       </div>
@@ -153,7 +153,7 @@ export const ActiveSuperviseeDetail: React.FC<
 
     <div className="flex gap-3 border border-blue-100 bg-blue-50 p-5">
       <Info className="h-5 w-5 shrink-0 text-blue-700" />
-      <p className="text-xs font-semibold leading-relaxed text-slate-600">
+      <p className="card-description">
         This read-only page shows persisted appointment data. Panel, marks,
         timeline, and workflow history remain available through the student
         progress dossier and their owning modules.

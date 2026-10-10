@@ -58,8 +58,8 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
   return (
     <section className="space-y-4">
       <div>
-        <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">{title}</h3>
-        <p className="text-[11px] font-semibold text-slate-400 mt-1">{subtitle}</p>
+        <h3 className="section-label">{title}</h3>
+        <p className="card-description mt-1">{subtitle}</p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden">
@@ -116,11 +116,11 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
               ) : pageRecords.map((record) => (
                 <tr key={String(record.id ?? `${record.studentId}-${record.updatedAt}`)} className="data-row">
                   <td className="data-td">
-                    <span className="font-extrabold text-brand-navy block">{record.studentName}</span>
+                    <span className="font-bold text-brand-navy block">{record.studentName}</span>
                     <span className="text-[10px] font-mono font-bold text-slate-400">{record.studentId}</span>
                   </td>
                   {showSupervisor && (
-                    <td className="data-td font-bold text-slate-600">{record.supervisorName || 'Not available'}</td>
+                    <td className="data-td-strong text-slate-600">{record.supervisorName || 'Not available'}</td>
                   )}
                   <td className="data-td">
                     <span className="font-bold text-slate-700 block">{record.recommendedMember}</span>
@@ -140,7 +140,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
                       {PANEL_RECOMMENDATION_STATUS_LABELS[record.status]}
                     </StatusBadge>
                   </td>
-                  <td className="data-td font-bold text-slate-500">
+                  <td className="data-td-strong text-slate-500">
                     {record.updatedAt
                       ? new Date(record.updatedAt).toLocaleDateString('en-GB', {
                           day: '2-digit',

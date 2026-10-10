@@ -122,7 +122,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         )}
       />
 
-      {notice ? <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p> : null}
+      {notice ? <p role="status" className="card-description rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p> : null}
       <SubmittedMarksActions key={`${record.recordId}:${record.officeActions?.version}`} record={record}
         onChanged={async message => {setNotice(message); await loadRecord();}}
         onReload={async () => {setNotice(null); await loadRecord();}}/>
@@ -135,8 +135,8 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           ['Evaluator role', record.evaluator.roleLabel],
         ].map(([label, value]) => (
           <div key={label} className="min-w-0 border-b border-r border-slate-200 p-4 last:border-r-0 lg:border-b-0">
-            <span className="block text-[10px] font-extrabold uppercase text-slate-400">{label}</span>
-            <span className="mt-1 block truncate text-sm font-extrabold text-brand-navy" title={value}>{value}</span>
+            <span className="card-label block">{label}</span>
+            <span className="card-value mt-1 block truncate" title={value}>{value}</span>
           </div>
         ))}
       </div>
@@ -146,7 +146,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
               <UserRound className="h-4 w-4 text-slate-500" />
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">
+              <h2 className="section-label">
                 Student and assignment
               </h2>
             </div>
@@ -179,21 +179,21 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           {record.assignment.lifecycleStatus === 'RETIRED' ? (
             <PortalCard padding="lg" className="rounded-lg border-slate-300 bg-slate-50">
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Retired evaluation task</h2>
-              <p className="mt-2 text-xs font-semibold text-slate-600">
+              <h2 className="section-label">Retired evaluation task</h2>
+              <p className="card-description mt-2">
                 {record.assignment.retirementReason || 'The evaluator appointment ended.'}
               </p>
-              <p className="mt-2 text-[10px] text-slate-400">
+              <p className="card-description mt-2">
                 {record.assignment.retiredBy || 'System'} · {displayDateTime(record.assignment.retiredAt)}
               </p>
             </PortalCard>
           ) : record.assignment.lifecycleStatus === 'PAUSED' ? (
             <PortalCard padding="lg" className="rounded-lg border-amber-200 bg-amber-50">
-              <h2 className="text-xs font-extrabold uppercase text-amber-800">Paused evaluation task</h2>
-              <p className="mt-2 text-xs font-semibold text-amber-800">
+              <h2 className="section-label text-amber-800">Paused evaluation task</h2>
+              <p className="card-description mt-2 text-amber-800">
                 {record.assignment.pauseReason || 'The Student is temporarily ineligible for evaluation activity.'}
               </p>
-              <p className="mt-2 text-[10px] text-amber-700">
+              <p className="card-description mt-2 text-amber-700">
                 {record.assignment.pausedBy || 'System'} · {displayDateTime(record.assignment.pausedAt)}
               </p>
             </PortalCard>
@@ -203,7 +203,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="h-4 w-4 text-slate-500" />
-                <h2 className="text-xs font-extrabold uppercase text-slate-600">
+                <h2 className="section-label">
                   Rubric breakdown
                 </h2>
               </div>
@@ -225,21 +225,21 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                   {record.rubric.components.map((component) => (
                     <tr key={component.id}>
                       <td className="data-td">
-                        <span className="block font-extrabold text-slate-800">{component.name}</span>
-                        {component.description ? <span className="mt-1 block text-[10px] text-slate-500">{component.description}</span> : null}
+                        <span className="card-value block">{component.name}</span>
+                        {component.description ? <span className="card-description mt-1 block">{component.description}</span> : null}
                       </td>
-                      <td className="data-td text-center font-bold">{component.maxMarks}</td>
-                      <td className="data-td text-center font-extrabold text-brand-navy">{component.marksAwarded ?? '—'}</td>
+                      <td className="data-td-strong text-center">{component.maxMarks}</td>
+                      <td className="data-td-strong text-center text-brand-navy">{component.marksAwarded ?? '—'}</td>
                       <td className="data-td">{component.feedback || 'No component feedback'}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-slate-200 bg-slate-50">
-                    <td className="px-4 py-3 text-xs font-extrabold text-slate-700">Calculated total</td>
-                    <td className="px-4 py-3 text-center text-xs font-bold text-slate-600">{record.rubric.targetMark}</td>
-                    <td className="px-4 py-3 text-center text-sm font-black text-brand-navy">{totalMark}</td>
-                    <td />
+                    <td className="px-4 py-3 text-slate-700 text-xs font-bold">Calculated total</td>
+                    <td className="px-4 py-3 text-center text-slate-600 text-xs font-bold">{record.rubric.targetMark}</td>
+                    <td className="px-4 py-3 text-center text-brand-navy text-xs font-bold">{totalMark}</td>
+                    <td className="text-xs font-semibold" />
                   </tr>
                 </tfoot>
               </table>
@@ -247,8 +247,8 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           </PortalCard>
 
           <PortalCard padding="lg" className="rounded-lg">
-            <h2 className="text-xs font-extrabold uppercase text-slate-600">Overall comments</h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            <h2 className="section-label">Overall comments</h2>
+            <p className="card-description mt-3 whitespace-pre-wrap">
               {record.entry.comments || 'No overall comments were entered.'}
             </p>
           </PortalCard>
@@ -258,7 +258,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-slate-500" />
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Period status</h2>
+              <h2 className="section-label">Period status</h2>
             </div>
             <dl className="space-y-4 text-xs">
               <div>
@@ -284,20 +284,20 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
           <PortalCard padding="lg" className="rounded-lg">
             <div className="mb-5 flex items-center gap-2">
               <History className="h-4 w-4 text-slate-500" />
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Correction history</h2>
+              <h2 className="section-label">Correction history</h2>
             </div>
             <MarkCorrectionHistoryView events={record.correctionHistory} components={record.rubric.components}/>
           </PortalCard>
 
           {record.overrideHistory.length > 0 ? (
             <PortalCard padding="lg" className="rounded-lg">
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Evaluator overrides</h2>
+              <h2 className="section-label">Evaluator overrides</h2>
               <div className="mt-4 space-y-4">
                 {record.overrideHistory.map((event) => (
                   <div key={event.id} className="text-xs">
-                    <p className="font-bold text-slate-700">{event.newEvaluator}</p>
-                    <p className="mt-1 text-slate-600">{event.reason}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">{displayDateTime(event.createdAt)}</p>
+                    <p className="card-value">{event.newEvaluator}</p>
+                    <p className="card-description mt-1">{event.reason}</p>
+                    <p className="card-description mt-1">{displayDateTime(event.createdAt)}</p>
                   </div>
                 ))}
               </div>
@@ -306,12 +306,12 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
 
           {record.handoverHistory.length > 0 ? (
             <PortalCard padding="lg" className="rounded-lg">
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Appointment handover audit</h2>
+              <h2 className="section-label">Appointment handover audit</h2>
               <div className="mt-4 space-y-4">
                 {record.handoverHistory.map((event) => (
                   <div key={event.id} className="text-xs border-l-2 border-slate-200 pl-3">
-                    <p className="font-bold text-slate-700">{event.reason}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {displayDateTime(event.createdAt)}</p>
+                    <p className="card-value">{event.reason}</p>
+                    <p className="card-description mt-1">{event.actorName} · {displayDateTime(event.createdAt)}</p>
                     {Object.keys(event.draftSnapshot).length > 0 && (
                       <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[10px] text-slate-600 whitespace-pre-wrap">
                         {JSON.stringify(event.draftSnapshot, null, 2)}

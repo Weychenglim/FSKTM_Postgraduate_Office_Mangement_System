@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,7 +45,7 @@ export const ValidationRulesCard: React.FC<ValidationRulesCardProps> = ({
             d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m11.25-3l3 3m0 0l-3 3m3-3H12"
           />
         </svg>
-        <span className="font-extrabold text-[15px] text-brand-navy tracking-tight">
+        <span className="section-label">
           Validation Rules
         </span>
       </div>
@@ -54,7 +54,7 @@ export const ValidationRulesCard: React.FC<ValidationRulesCardProps> = ({
         {rules.map((rule) => (
           <li key={rule.id} className="flex gap-3 items-start">
             <CheckCircle2 className="w-4.5 h-4.5 text-blue-600 shrink-0 mt-0.5" />
-            <span className="text-[11.5px] leading-relaxed text-slate-700 font-medium">
+            <span className="card-description">
               {rule.text}
             </span>
           </li>

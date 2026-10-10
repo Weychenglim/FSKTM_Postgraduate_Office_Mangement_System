@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -197,7 +197,7 @@ export const StudentFAQChatbot: React.FC = () => {
                 <div className="space-y-1.5 flex-1 min-w-0">
                   
                   {/* Speech bubble */}
-                  <div className={`p-4 rounded-2xl text-xs font-semibold leading-relaxed ${
+                  <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed ${
                     isAssis 
                       ? 'bg-[#f8fafc] text-slate-800 rounded-tl-none border border-slate-100 shadow-3xs' 
                       : 'bg-brand-navy text-white rounded-tr-none'
@@ -231,7 +231,7 @@ export const StudentFAQChatbot: React.FC = () => {
                           </div>
                           <div className="text-left leading-none min-w-0">
                             <span className="text-xs font-bold text-slate-800 block truncate">{msg.attachment.name}</span>
-                            <span className="text-[9px] font-bold text-slate-400 block mt-1 font-mono">{msg.attachment.size}</span>
+                            <span className="card-caption text-slate-400 block mt-1 font-mono">{msg.attachment.size}</span>
                           </div>
                         </div>
 
@@ -248,7 +248,7 @@ export const StudentFAQChatbot: React.FC = () => {
                   </div>
 
                   {/* Metadata line beneath speech bubble */}
-                  <div className={`text-[9px] font-bold text-slate-400 select-none px-1 block uppercase tracking-wide`}>
+                  <div className={`card-caption text-slate-400 select-none px-1 block uppercase tracking-wide`}>
                     {isAssis ? `AI ASSISTANT • ${msg.timestamp}` : `YOU • ${msg.timestamp}`}
                   </div>
                 </div>
@@ -330,7 +330,7 @@ export const StudentFAQChatbot: React.FC = () => {
                   handleSendMessage(inputValue);
                 }
               }}
-              className="flex-1 bg-transparent border-none text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none py-2"
+              className="flex-1 bg-transparent border-none text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none py-2"
             />
 
             <div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ export const StudentFAQChatbot: React.FC = () => {
           </div>
 
           {/* Dynamic AI disclaimer helper note */}
-          <div className="flex items-start gap-1.5 text-slate-400 text-[10px] leading-normal select-none">
+          <div className="card-caption flex items-start gap-1.5 text-slate-400 leading-normal select-none">
             <Info className="w-3.5 h-3.5 text-slate-350 mt-0.5 shrink-0" />
             <p>
               FSKTM Academic Assistant may produce inaccurate information about specific faculty policies. Always verify with official documentation.

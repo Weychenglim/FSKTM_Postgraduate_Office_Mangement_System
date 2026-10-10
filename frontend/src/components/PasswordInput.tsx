@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,7 +33,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         <label 
           id={`label-${id}`} 
           htmlFor={id} 
-          className="text-[11px] font-extrabold text-slate-700 tracking-wider uppercase"
+          className="form-label"
         >
           {label}
         </label>
@@ -41,7 +41,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
           <button
             type="button"
             onClick={onForgotPasswordClick}
-            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+            className="back-link transition-colors"
           >
             Forgot Password?
           </button>
@@ -54,7 +54,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         <input
           id={id}
           type={showPassword ? 'text' : 'password'}
-          className={`w-full bg-[#f8fafc] text-slate-900 placeholder-slate-400 text-sm rounded-xl border ${
+          className={`form-control form-control-md ${
             error 
               ? 'border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500' 
               : 'border-slate-200 focus:border-[#091124] focus:ring-1 focus:ring-[#091124]'
@@ -71,7 +71,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         </button>
       </div>
       {error && (
-        <span id={`err-msg-${id}`} className="text-xs text-red-500 mt-1.5 font-medium flex items-center gap-1">
+        <span id={`err-msg-${id}`} className="card-description text-red-500 mt-1.5 flex items-center gap-1">
           {error}
         </span>
       )}

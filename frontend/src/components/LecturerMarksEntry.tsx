@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -83,10 +83,10 @@ export const CustomSummaryCard: React.FC<CustomSummaryCardProps> = ({
         </div>
         
         <div className="space-y-1">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider font-sans block">
+          <span className="card-label text-slate-400 font-sans block">
             {title}
           </span>
-          <span className="text-xs text-slate-500 font-medium leading-normal block">
+          <span className="card-description text-slate-500 leading-normal block">
             {subtext}
           </span>
         </div>
@@ -256,7 +256,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             {/* Filters panel section layout matches exactly */}
             <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs text-left grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
               <div className="col-span-1 md:col-span-5 space-y-1.5">
-                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                <label className="form-label">
                   Search Students
                 </label>
                 <div className="relative">
@@ -268,19 +268,19 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search by student name, ID, or research title"
-                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9.5 pr-4 py-2.5 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition"
+                    className="w-full bg-slate-50 border border-slate-200/80 rounded-xl pl-9.5 pr-4 py-2.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 transition"
                   />
                 </div>
               </div>
 
               <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                <label className="form-label">
                   Semester
                 </label>
                 <select
                   value={selectedSemester}
                   onChange={(e) => setSelectedSemester(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
+                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
                 >
                   <option>All Semesters</option>
                   {semesterOptions.map(semester => (
@@ -290,13 +290,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               </div>
 
               <div className="col-span-1 md:col-span-3 space-y-1.5">
-                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                <label className="form-label">
                   Status
                 </label>
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-400 transition"
+                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-slate-400 transition"
                 >
                   <option>All Statuses</option>
                   <option>NOT STARTED</option>
@@ -320,10 +320,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             <div id="mark-entry-tasks-list-block" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs text-left space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div className="space-y-0.5">
-                  <h3 className="text-base font-black text-brand-navy">
+                  <h3 className="section-label">
                     My Mark Entry Tasks
                   </h3>
-                  <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+                  <p className="card-description">
                     Open an assigned evaluation task to enter rubric marks and submit your evaluation.
                   </p>
                 </div>
@@ -343,27 +343,27 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               <div className="overflow-x-auto">
                     <table className="data-table min-w-[900px] text-xs">
                   <thead>
-                    <tr className="border-b border-slate-150 border-slate-100 font-bold text-slate-400 text-[10px] uppercase tracking-wider select-none">
-                      <th className="py-2.5 pb-4">Student ID</th>
-                      <th className="py-2.5 pb-4">Student Name</th>
-                      <th className="py-2.5 pb-4">Research Title</th>
-                      <th className="py-2.5 pb-4">Role</th>
-                      <th className="py-2.5 pb-4">Semester</th>
-                      <th className="py-2.5 pb-4">Deadline</th>
-                      <th className="py-2.5 pb-4">Status</th>
-                      <th className="py-2.5 pb-4 text-center">Action</th>
+                    <tr className="border-b border-slate-150 border-slate-100 font-extrabold text-slate-400 text-[10px] uppercase tracking-wider select-none">
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student ID</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Student Name</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Research Title</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Role</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Semester</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Deadline</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4">Status</th>
+                      <th className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider py-2.5 pb-4 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/60 font-sans text-brand-navy/90">
                     {loading ? (
                       <tr>
-                        <td colSpan={8} className="p-0">
+                        <td colSpan={8} className="card-description p-0">
                           <LoadingState message="Loading evaluation tasks…" />
                         </td>
                       </tr>
                     ) : error ? (
                       <tr>
-                        <td colSpan={8} className="p-0">
+                        <td colSpan={8} className="card-description p-0">
                           <ErrorState message={error} onRetry={loadTasks} />
                         </td>
                       </tr>
@@ -378,46 +378,46 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                               {task.studentId}
                             </td>
                             {/* Name */}
-                            <td className="py-4.5 pr-4">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-[30px] h-[30px] rounded-lg bg-indigo-50 border border-blue-100/50 text-blue-650 text-blue-600 font-black text-[10px] flex items-center justify-center shrink-0">
                                   {task.initials}
                                 </div>
-                                <span className="font-extrabold text-slate-900 leading-snug">
+                                <span className="card-value text-slate-900 leading-snug">
                                   {task.studentName}
                                 </span>
                               </div>
                             </td>
                             {/* Research Title */}
-                            <td className="py-4.5 pr-4 max-w-[280px]">
-                              <p className="font-semibold text-slate-650 text-slate-500 leading-relaxed line-clamp-2">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4 max-w-[280px]">
+                              <p className="card-description text-slate-650 text-slate-500 leading-relaxed line-clamp-2">
                                 {task.researchTitle}
                               </p>
                             </td>
-                            <td className="py-4.5 pr-4">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-4">
                               <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
                                 {evaluatorRoleLabel(task)}
                               </span>
                             </td>
                             {/* Semester */}
-                            <td className="py-4.5 pr-2 font-semibold text-slate-605 text-slate-500">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-2 text-slate-605 text-slate-500">
                               {task.semester}
                             </td>
                             {/* Deadline */}
-                            <td className={`py-4.5 pr-2 font-extrabold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
+                            <td className={`text-xs py-4.5 pr-2 font-bold ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
                               <span className="block">{task.effectiveDueAt ? new Date(task.effectiveDueAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }) + ' (Malaysia)' : task.deadline}</span>
-                              {task.completionWindow ? <span className="block text-sky-700">Completion window · {task.completionWindow.status}</span> : null}
-                              <span className="text-[10px] font-bold block mt-1">
+                              {task.completionWindow ? <span className="card-description block text-sky-700">Completion window · {task.completionWindow.status}</span> : null}
+                              <span className={`card-caption block mt-1 ${isOverdue ? 'text-rose-500' : 'text-slate-500'}`}>
                                 {formatDeadlineText(task)}
                               </span>
                             </td>
                             {/* Status */}
-                            <td className="py-4.5 pr-2">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 pr-2">
                               <StatusChip type={task.status} />
-                              {task.periodEffectiveStatus ? <span className="block text-xs text-slate-500">Period: {task.periodEffectiveStatus}</span> : null}
+                              {task.periodEffectiveStatus ? <span className="card-description block">Period: {task.periodEffectiveStatus}</span> : null}
                             </td>
                             {/* Action Button */}
-                            <td className="py-4.5 text-center">
+                            <td className="text-xs font-semibold text-slate-500 py-4.5 text-center">
                               <div className="flex flex-col items-center gap-1.5">
                                 <button
                                   type="button"
@@ -450,8 +450,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                       })
                     ) : (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center">
-                          <div className="text-slate-400 font-bold text-xs">
+                        <td colSpan={8} className="card-description py-12 text-center">
+                          <div className="card-description text-slate-400">
                             No matching valuation tasks found. Adjust search terms.
                           </div>
                         </td>
@@ -462,7 +462,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               </div>
 
               {/* Pagination Component */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50 select-none text-xs text-slate-400 font-bold">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-50 select-none card-description text-slate-400">
                 <span>
                   Showing 1 to {filteredTasks.length} of {filteredTasks.length} tasks
                 </span>
@@ -496,10 +496,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                   <Info className="w-4.5 h-4.5 text-blue-600 stroke-[2.3]" />
                 </div>
                 <div className="space-y-1 pt-0.5">
-                  <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider flex items-center gap-1.5">
+                  <h4 className="section-label flex items-center gap-1.5">
                     Important Notice
                   </h4>
-                  <p className="text-slate-500 text-xs font-semibold leading-relaxed">
+                  <p className="card-description">
                     Please ensure all marks follow the configured rubric. Submission locks the record immediately; contact Office Staff if a correction requires reopening.
                   </p>
                 </div>

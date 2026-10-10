@@ -67,7 +67,7 @@ const EmptyRecordState: React.FC<{ title: string }> = ({ title }) => (
     <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center shadow-3xs">
       <AlertCircle className="w-5 h-5 stroke-[1.8]" />
     </div>
-    <span className="font-extrabold text-brand-navy text-xs block">{title}</span>
+    <span className="card-value text-brand-navy block">{title}</span>
   </div>
 );
 
@@ -191,7 +191,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                 {initialsFor(record?.studentName)}
               </div>
               <div className="text-left space-y-1 overflow-hidden">
-                <h3 className="font-extrabold text-brand-navy text-base truncate leading-tight">
+                <h3 className="section-label truncate leading-tight">
                   {displayValue(record?.studentName)}
                 </h3>
                 <StatusBadge tone={statusTone(record?.status)} dot className="px-2 py-0.5 text-[9px]">
@@ -202,47 +202,47 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
             <div className="w-full space-y-4 border-t border-slate-100 pt-5 text-left text-xs">
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Student ID</span>
-                <span className="font-extrabold text-brand-navy font-mono">{displayValue(record?.id)}</span>
+                <span className="card-label text-slate-400 uppercase tracking-widest block mb-0.5">Student ID</span>
+                <span className="card-value text-brand-navy font-mono">{displayValue(record?.id)}</span>
               </div>
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Programme</span>
-                <span className="font-bold text-slate-700">{displayValue(record?.programme)}</span>
+                <span className="card-label text-slate-400 uppercase tracking-widest block mb-0.5">Programme</span>
+                <span className="card-value text-slate-700">{displayValue(record?.programme)}</span>
               </div>
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-0.5">Semester</span>
-                <span className="font-semibold text-slate-600">{displayValue(record?.semester)}</span>
+                <span className="card-label text-slate-400 uppercase tracking-widest block mb-0.5">Semester</span>
+                <span className="card-value text-slate-600">{displayValue(record?.semester)}</span>
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs text-left space-y-4.5">
-            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+            <h4 className="section-label flex items-center gap-2 border-b border-slate-100 pb-3">
               <Users className="w-4 h-4 text-blue-500" />
               Appointment Info
             </h4>
             <div className="space-y-3.5 text-xs">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-450 font-medium">Supervisor</span>
-                <span className="font-extrabold text-slate-850 text-right">{displayValue(record?.supervisor)}</span>
+                <span className="card-label text-slate-450">Supervisor</span>
+                <span className="card-value text-slate-850 text-right">{displayValue(record?.supervisor)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-450 font-medium">Panel Member</span>
-                <span className="font-extrabold text-slate-850 text-right">{displayValue(record?.panelMember)}</span>
+                <span className="card-label text-slate-450">Panel Member</span>
+                <span className="card-value text-slate-850 text-right">{displayValue(record?.panelMember)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-450 font-medium">Appointment Date</span>
-                <span className="font-bold text-slate-700 text-right">{displayValue(record?.appointmentDate || record?.updatedDate)}</span>
+                <span className="card-label text-slate-450">Appointment Date</span>
+                <span className="card-value text-slate-700 text-right">{displayValue(record?.appointmentDate || record?.updatedDate)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-450 font-medium">Last Updated</span>
-                <span className="font-bold text-slate-700 text-right">{displayValue(record?.updatedDate)}</span>
+                <span className="card-label text-slate-450">Last Updated</span>
+                <span className="card-value text-slate-700 text-right">{displayValue(record?.updatedDate)}</span>
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-3xs text-left flex flex-col space-y-4.5">
-            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+            <h4 className="section-label flex items-center gap-2 border-b border-slate-100 pb-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               Evaluation Summary
             </h4>
@@ -250,7 +250,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
               title="No evaluation records available"
             />
             <div className="border-t border-slate-100 pt-3.5 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Status:</span>
+              <span className="card-label text-slate-400 uppercase tracking-wider">Status:</span>
               <span className="px-2 py-0.5 bg-slate-100 text-slate-600 font-black uppercase text-[9px] rounded-md border border-slate-200">
                 No records
               </span>
@@ -260,22 +260,22 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
         <div className="lg:col-span-8 space-y-6 md:space-y-8">
           <div className="bg-white rounded-2xl border border-slate-200/90 p-6 md:p-8 space-y-5 text-left">
-            <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 pb-1">
+            <h4 className="section-label flex items-center gap-2 pb-1">
               <GraduationCap className="w-4.5 h-4.5 text-blue-500" />
               Research Information
             </h4>
             <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4.5 md:p-5.5 space-y-1.5 shadow-2xs">
-              <span className="text-indigo-650 font-bold block text-sm leading-relaxed tracking-tight">
+              <span className="card-value text-indigo-650 block leading-relaxed tracking-tight">
                 {displayValue(record?.researchTitle)}
               </span>
-              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
-                <span className="font-extrabold text-slate-600 uppercase tracking-widest text-[9px]">Area:</span>
+              <div className="card-description text-slate-500 flex items-center gap-1.5">
+                <span className="card-label text-slate-600 uppercase tracking-widest">Area:</span>
                 <span>{displayValue(record?.researchArea)}</span>
               </div>
             </div>
             <div className="space-y-2 pt-1 text-xs">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Abstract</span>
-              <p className="text-slate-650 font-medium leading-relaxed">
+              <span className="card-label text-slate-400 uppercase tracking-widest block">Abstract</span>
+              <p className="card-description text-slate-650 leading-relaxed">
                 {displayValue(record?.abstract)}
               </p>
             </div>
@@ -283,7 +283,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
             <div className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left">
-              <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+              <h4 className="section-label flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Clock className="w-4 h-4 text-slate-400" />
                 Complete Workflow Status
               </h4>
@@ -292,7 +292,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
             <div className="bg-white rounded-2xl border border-slate-200/90 p-6 space-y-4.5 text-left flex flex-col justify-between">
               <div>
-                <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                <h4 className="section-label flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Users className="w-4 h-4 text-blue-500" />
                   Related Panel Status
                 </h4>
@@ -303,29 +303,29 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                         {initialsFor(record?.panelMember)}
                       </div>
                       <div>
-                        <span className="font-extrabold text-brand-navy block text-[11.5px] leading-tight">
+                        <span className="card-value text-brand-navy block leading-tight">
                           {record?.panelMember}
                         </span>
-                        <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wide">
+                        <span className="card-label text-slate-400 block uppercase tracking-wide">
                           {displayValue(record?.panelMemberDepartment)}
                         </span>
                       </div>
                     </div>
                     <div className="border-t border-slate-200/70 pt-3 grid grid-cols-1 gap-2.5">
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-slate-450 font-medium">Staff ID</span>
-                        <span className="font-bold text-brand-navy">{displayValue(record?.panelMemberId)}</span>
+                        <span className="card-label text-slate-450">Staff ID</span>
+                        <span className="card-value">{displayValue(record?.panelMemberId)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-slate-450 font-medium">Email</span>
-                        <span className="font-bold text-brand-navy text-right break-all">{displayValue(record?.panelMemberEmail)}</span>
+                        <span className="card-label text-slate-450">Email</span>
+                        <span className="card-value text-right break-all">{displayValue(record?.panelMemberEmail)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-slate-450 font-medium">Assigned Date</span>
-                        <span className="font-bold text-brand-navy">{displayValue(record?.appointmentDate)}</span>
+                        <span className="card-label text-slate-450">Assigned Date</span>
+                        <span className="card-value">{displayValue(record?.appointmentDate)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-slate-450 font-medium">Status</span>
+                        <span className="card-label text-slate-450">Status</span>
                         <StatusBadge tone={statusTone(record?.status)} dot className="text-[9px] px-2 py-0.5">
                           {record?.status}
                         </StatusBadge>
@@ -333,20 +333,20 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                     </div>
                     {record?.status === 'Rejected' && record.rejectionReason && (
                       <div className="border-t border-rose-100 pt-3">
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-rose-500 block mb-1">
+                        <span className="card-label uppercase tracking-wider text-rose-500 block mb-1">
                           {record.rejectionStage || 'Workflow'} rejection reason
                         </span>
-                        <p className="text-[11px] font-semibold leading-relaxed text-rose-700">
+                        <p className="card-description leading-relaxed text-rose-700">
                           {record.rejectionReason}
                         </p>
                       </div>
                     )}
                     {record?.status === 'Cancelled' && record.cancellationReason && (
                       <div className="border-t border-slate-200 pt-3">
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">
+                        <span className="card-label uppercase tracking-wider text-slate-500 block mb-1">
                           Cancellation reason
                         </span>
-                        <p className="text-[11px] font-semibold leading-relaxed text-slate-700">
+                        <p className="card-description leading-relaxed text-slate-700">
                           {record.cancellationReason}
                         </p>
                       </div>
@@ -363,7 +363,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
 
           <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-3xs text-left">
             <div className="px-6 py-4.5 border-b border-light-slate flex items-center justify-between">
-              <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider flex items-center gap-2">
+              <h4 className="section-label flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" />
                 Related Files
               </h4>
@@ -380,11 +380,11 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
       <WorkflowAuditLog events={record?.workflow} />
       {record?.appointmentLifecycle?.status !== 'ACTIVE' && record?.appointmentLifecycle && (
         <div className="rounded-lg border border-slate-200 bg-white p-5">
-          <h3 className="text-xs font-black uppercase text-brand-navy">Appointment closure</h3>
+          <h3 className="section-label">Appointment closure</h3>
           <p className="mt-2 text-xs font-bold text-slate-700">
             {record.appointmentLifecycle.endOutcome || 'Ended'}
           </p>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="card-description mt-1">
             {record.appointmentLifecycle.endReason || 'No legacy closure reason recorded.'}
           </p>
         </div>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -42,7 +42,7 @@ export const AlertMessage: React.FC<AlertMessageProps> = ({
         )}
       </div>
       <div className="flex-1 text-left">
-        <p className="text-xs font-semibold leading-relaxed">
+        <p className="card-description text-inherit">
           {message}
         </p>
       </div>

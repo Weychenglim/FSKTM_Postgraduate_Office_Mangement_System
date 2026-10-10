@@ -3,6 +3,7 @@ import type {
   StudentProgressSection,
   StudentProgressTab,
   StudentProgressTarget,
+  StudentProgressVisibility,
 } from '../types';
 import {
   APP_ROUTES,
@@ -22,7 +23,10 @@ export const formatProgressStatus = (
 
 export const visibleProgressTabs = (
   sections: StudentProgressDossier['visibleSections'],
-): StudentProgressTab[] => ['OVERVIEW', ...sections];
+  visibility: StudentProgressVisibility = 'INTERNAL',
+): StudentProgressTab[] => visibility === 'INTERNAL'
+  ? ['OVERVIEW', ...sections]
+  : sections.filter((section) => section !== 'MARKS');
 
 export const hasProgressSection = (
   sections: StudentProgressSection[],

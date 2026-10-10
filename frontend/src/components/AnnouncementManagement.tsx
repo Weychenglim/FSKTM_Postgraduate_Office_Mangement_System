@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -301,7 +301,7 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Field A: Headline */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label">
                 Headline
               </label>
               <input 
@@ -315,7 +315,7 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Field B: Target Audience Chips Row */}
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label">
                 Target Audience
               </label>
               <SegmentedControl
@@ -324,7 +324,7 @@ export const AnnouncementManagement: React.FC = () => {
                 onChange={handleAudienceClick}
                 className="inline-flex flex-wrap"
               />
-              <p className="text-[10px] text-slate-400 font-semibold">
+              <p className="card-description">
                 {targetAudience === 'All'
                   ? 'Reaches everyone (students, lecturers, staff, coordinators).'
                   : `Reaches ${targetAudience} only.`}
@@ -333,7 +333,7 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Field C: Priority Selector boxes */}
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label">
                 Priority Level
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -390,7 +390,7 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Field D: Content Body Textarea with dynamic attach button */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <label className="form-label">
                   Content Body
                 </label>
                 <button
@@ -477,8 +477,8 @@ export const AnnouncementManagement: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-2xs">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Saved Drafts</h3>
-                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                <h3 className="section-label">Saved Drafts</h3>
+                <p className="card-description mt-0.5">
                   Unpublished announcements. Edit to keep working, or publish to broadcast.
                 </p>
               </div>
@@ -497,7 +497,7 @@ export const AnnouncementManagement: React.FC = () => {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-extrabold text-slate-800 text-[12px] leading-snug">
+                      <span className="card-value">
                         {draft.title || 'Untitled draft'}
                       </span>
                       <StatusBadge tone={getStatusBadgeTone(draft.priority)} className="rounded-md px-1.5 py-0.5 text-[8px]">
@@ -512,11 +512,11 @@ export const AnnouncementManagement: React.FC = () => {
                         </StatusBadge>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 font-semibold leading-relaxed line-clamp-2">
+                    <p className="card-description line-clamp-2">
                       {draft.summary || 'No content yet.'}
                     </p>
                     {draft.attachmentName && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-bold">
+                      <span className="card-value inline-flex items-center gap-1">
                         <Paperclip className="w-3 h-3" />
                         {draft.attachmentName}
                       </span>
@@ -590,32 +590,32 @@ export const AnnouncementManagement: React.FC = () => {
             
             {/* Card 1: Active Now */}
             <div className="bg-white border-l-4 border-l-[#0c1424] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Active Now</p>
-              <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
+              <p className="card-label">Active Now</p>
+              <h3 className="card-metric text-slate-900 mt-1">
                 {activeCount < 10 ? `0${activeCount}` : activeCount}
               </h3>
             </div>
 
             {/* Card 2: Urgent Alerts */}
             <div className="bg-white border-l-4 border-l-red-500 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Urgent Alerts</p>
-              <h3 className="text-xl md:text-2xl font-black text-rose-600 mt-1">
+              <p className="card-label">Urgent Alerts</p>
+              <h3 className="card-metric text-rose-600 mt-1">
                 {urgentCount < 10 ? `0${urgentCount}` : urgentCount}
               </h3>
             </div>
 
             {/* Card 3: Avg. Reach */}
             <div className="bg-white border-l-4 border-l-[#3b82f6] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Avg. Reach</p>
-              <h3 className="text-xl md:text-2xl font-black text-blue-700 mt-1">
+              <p className="card-label">Avg. Reach</p>
+              <h3 className="card-metric text-blue-700 mt-1">
                 88%
               </h3>
             </div>
 
             {/* Card 4: Scheduled */}
             <div className="bg-white border-l-4 border-l-slate-400 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Scheduled (Drafts)</p>
-              <h3 className="text-xl md:text-2xl font-black text-slate-650 mt-1">
+              <p className="card-label">Scheduled (Drafts)</p>
+              <h3 className="card-metric text-slate-650 mt-1">
                 {scheduledCount < 10 ? `0${scheduledCount}` : scheduledCount}
               </h3>
             </div>
@@ -636,19 +636,19 @@ export const AnnouncementManagement: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr>
-                      <td colSpan={2} className="p-0">
+                      <td colSpan={2} className="p-0 text-xs font-semibold">
                         <LoadingState message="Loading announcements…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={2} className="p-0">
+                      <td colSpan={2} className="p-0 text-xs font-semibold">
                         <ErrorState message={error} onRetry={loadAnnouncements} />
                       </td>
                     </tr>
                   ) : displayedAnnouncements.length === 0 ? (
                     <tr>
-                      <td colSpan={2} className="px-5 py-12 text-center text-slate-400 font-medium">
+                      <td colSpan={2} className="px-5 py-12 text-center text-slate-400 text-xs font-semibold">
                         No stored broadcasts found matching &quot;{searchQuery}&quot;.
                       </td>
                     </tr>
@@ -664,7 +664,7 @@ export const AnnouncementManagement: React.FC = () => {
                                 Draft
                               </StatusBadge>
                             )}
-                            <span className="font-extrabold text-slate-800 text-[12px] leading-snug tracking-tight">
+                            <span className="card-value">
                               {item.title}
                             </span>
                             
@@ -677,13 +677,13 @@ export const AnnouncementManagement: React.FC = () => {
                             </StatusBadge>
                           </div>
                           
-                          <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+                          <p className="card-description">
                             {item.summary}
                           </p>
 
                           <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
-                            <span>Broadcasted {item.dateCreated}</span>
-                            <span>•</span>
+                            <span className="card-description">Broadcasted {item.dateCreated}</span>
+                            <span className="card-description">•</span>
                             <PortalButton
                               type="button"
                               onClick={() => handleDeleteHistoryItem(item.id, item.title)}
@@ -714,7 +714,7 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Interactive custom pagination layout block */}
             {totalPages > 1 && (
               <div className="bg-[#f8fafc]/50 border-t border-slate-150 px-5 py-4 flex items-center justify-between select-none">
-                <span className="text-[10px] font-bold text-slate-400">
+                <span className="card-value">
                   Showing {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredAnnouncements.length)} of {filteredAnnouncements.length} records
                 </span>
 

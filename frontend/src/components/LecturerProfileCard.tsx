@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -52,7 +52,7 @@ export const LecturerProfileCard: React.FC<LecturerProfileCardProps> = ({
       <div className="flex-1 space-y-3">
         {/* Top line with Name and Badge */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-transparent pb-1">
-          <h4 className="text-[14px] font-bold text-brand-navy leading-tight">
+          <h4 className="section-label leading-tight">
             {lecturerName}
           </h4>
           <StatusBadge
@@ -66,14 +66,14 @@ export const LecturerProfileCard: React.FC<LecturerProfileCardProps> = ({
 
         {/* Detailed Info Grid */}
         <div className="grid grid-cols-[60px_1fr] gap-x-3 gap-y-1 text-xs">
-          <span className="font-bold text-slate-500">ID</span>
-          <span className="text-[#334155] font-semibold">{lecturerId}</span>
+          <span className="card-label">ID</span>
+          <span className="card-value text-[#334155]">{lecturerId}</span>
 
-          <span className="font-bold text-slate-500">Dept.</span>
-          <span className="text-[#334155] font-semibold">{department}</span>
+          <span className="card-label">Dept.</span>
+          <span className="card-value text-[#334155]">{department}</span>
 
-          <span className="font-bold text-slate-500">Email</span>
-          <span className="text-[#334155] font-semibold select-all break-all">{email}</span>
+          <span className="card-label">Email</span>
+          <span className="card-value text-[#334155] select-all break-all">{email}</span>
         </div>
       </div>
     </div>

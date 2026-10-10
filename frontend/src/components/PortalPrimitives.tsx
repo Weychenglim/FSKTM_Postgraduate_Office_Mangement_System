@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft, Info, Loader2, LucideIcon, X } from 'lucide-react';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -419,10 +419,10 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
             <p className={joinClasses('text-[10px] font-black uppercase tracking-[0.2em]', toneConfig.eyebrow)}>
               Confirmation Required
             </p>
-            <h2 id="portal-confirm-title" className="mt-1 text-lg font-black leading-tight text-brand-navy">
+            <h2 id="portal-confirm-title" className="section-heading mt-1 leading-tight">
               {title}
             </h2>
-            <div className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">
+            <div className="card-description mt-3 text-slate-600">
               {message}
             </div>
           </div>
@@ -457,33 +457,88 @@ interface PortalToastProps {
   message: string | null;
   tone?: ToastTone;
   className?: string;
+  onClose?: () => void;
 }
 
-export const PortalToast: React.FC<PortalToastProps> = ({ message, tone = 'info', className = '' }) => {
-  if (!message) return null;
+const PortalToastNotification: React.FC<PortalToastProps & { message: string }> = ({ message, tone = 'info', className = '', onClose }) => {
+  const [dismissed, setDismissed] = useState(false);
 
-  const toneClass: Record<ToastTone, { wrapper: string; icon: LucideIcon }> = {
-    info: { wrapper: 'bg-brand-navy text-white border-white/10', icon: CheckCircle2 },
-    success: { wrapper: 'bg-emerald-700 text-white border-emerald-500/30', icon: CheckCircle2 },
-    warning: { wrapper: 'bg-amber-700 text-white border-amber-500/30', icon: CheckCircle2 },
-    danger: { wrapper: 'bg-rose-700 text-white border-rose-500/30', icon: XCircle }
+  if (dismissed) return null;
+
+  const toneConfig: Record<ToastTone, {
+    border: string;
+    iconBg: string;
+    iconColor: string;
+    icon: LucideIcon;
+  }> = {
+    info: {
+      border: 'border-slate-200',
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      icon: Info,
+    },
+    success: {
+      border: 'border-emerald-200',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      icon: CheckCircle2,
+    },
+    warning: {
+      border: 'border-amber-200',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      icon: AlertTriangle,
+    },
+    danger: {
+      border: 'border-rose-200',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+      icon: AlertCircle,
+    }
   };
 
-  const Icon = toneClass[tone].icon;
+  const currentTone = toneConfig[tone] ?? toneConfig.info;
+  const Icon = currentTone.icon;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    onClose?.();
+  };
 
   // Rendered through a portal into <body> so it is always anchored to the
   // viewport (never trapped by a transformed/clipping ancestor) and is placed
   // top-right below the sticky header while staying above every app layer.
   const node = (
-    <div className={joinClasses(
-      'fixed top-20 right-6 z-[9999] px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 max-w-sm font-sans animate-fade-in',
-      toneClass[tone].wrapper,
-      className
-    )}>
-      <Icon className="w-4 h-4 shrink-0" />
-      <span className="text-[11px] font-bold tracking-wide leading-snug">{message}</span>
+    <div
+      role={tone === 'danger' ? 'alert' : 'status'}
+      aria-atomic="true"
+      className={joinClasses(
+        'fixed top-20 right-4 z-[9999] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.10)] flex items-start gap-3 font-sans',
+        currentTone.border,
+        className
+      )}
+    >
+      <div aria-hidden="true" className={joinClasses('h-8 w-8 rounded-lg flex items-center justify-center shrink-0', currentTone.iconBg, currentTone.iconColor)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1 py-1.5 text-left">
+        <p className="card-description text-slate-800 [overflow-wrap:anywhere]">{message}</p>
+      </div>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        aria-label="Dismiss notification"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 cursor-pointer"
+      >
+        <X className="w-4 h-4" />
+      </button>
     </div>
   );
 
   return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
+
+// A new message or a cleared notification starts a fresh dismissal lifecycle.
+export const PortalToast: React.FC<PortalToastProps> = (props) => props.message ? (
+  <PortalToastNotification key={`${props.tone ?? 'info'}:${props.message}`} {...props} message={props.message} />
+) : null;

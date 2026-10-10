@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -257,14 +257,14 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
           
           <form onSubmit={handleConfirmUpload} className="bg-white border border-slate-200/80 rounded-2xl shadow-xs p-6 md:p-8 space-y-6 text-left">
             <div>
-              <h2 className="text-sm font-black text-slate-800 tracking-tight pb-4 border-b border-slate-100">
+              <h2 className="section-label pb-4 border-b border-slate-100">
                 Document Details
               </h2>
             </div>
 
             {/* SECTION 1: FILE INFORMATION FIELDS */}
             <div className="space-y-4">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+              <span className="card-label block">
                 File Information
               </span>
 
@@ -273,7 +273,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 
                 {/* Student ID */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+                  <label className="form-label">
                     Student ID
                   </label>
                   <input
@@ -281,20 +281,20 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                     placeholder="Leave blank if not linked to a specific student"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-700 px-3.5 py-2.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all"
+                    className="w-full bg-white border border-slate-205 text-slate-700 px-3.5 py-2.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all font-sans not-italic normal-case tracking-normal text-xs font-bold"
                   />
                 </div>
 
                 {/* Category drop selection */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+                  <label className="form-label">
                     Category
                   </label>
                   <div className="relative">
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as any)}
-                      className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer"
+                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     >
                       <option value="Administrative">Academic Submission</option>
                       <option value="Coursework">Coursework</option>
@@ -303,21 +303,21 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                       <option value="Evaluation">Evaluation</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="text-[10px] font-bold">▼</span>
+                      <span className="card-value">▼</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Module selection Dropdown */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+                  <label className="form-label">
                     Module
                   </label>
                   <div className="relative">
                     <select
                       value={selectedModule}
                       onChange={(e) => setSelectedModule(e.target.value)}
-                      className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer"
+                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     >
                       <option value="Select Module...">Select Module...</option>
                       <option value="WIE2003 Research Methodology">WIE2003 Research Methodology</option>
@@ -326,21 +326,21 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                       <option value="WIE7002 Postgraduate Dissertation">WIE7002 Postgraduate Dissertation</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="text-[10px] font-bold">▼</span>
+                      <span className="card-value">▼</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Semester selection */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+                  <label className="form-label">
                     Semester
                   </label>
                   <div className="relative">
                     <select
                       value={semester}
                       onChange={(e) => setSemester(e.target.value)}
-                      className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer"
+                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
                     >
                       <option value="Semester 1 2024/2025">Semester 1 2024/2025</option>
                       <option value="Semester 2 2024/2025">Semester 2 2024/2025</option>
@@ -348,7 +348,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                       <option value="Semester 2 2023/24">Semester 2 2023/24</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="text-[10px] font-bold">▼</span>
+                      <span className="card-value">▼</span>
                     </div>
                   </div>
                 </div>
@@ -359,12 +359,12 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
             {/* SECTION 2: TAG INDIVIDUAL PILLS */}
             <div className="space-y-1.5 text-left">
               <div className="flex items-baseline justify-between">
-                <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+                <label className="form-label">
                   Tags
                 </label>
-                <span className="text-[9px] text-slate-400 font-medium">Press enter to register tag</span>
+                <span className="card-description">Press enter to register tag</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-semibold leading-relaxed mb-3">
+              <p className="card-description mb-3">
                 Press enter to add new tags. Used for rapid searching.
               </p>
 
@@ -386,14 +386,14 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagInputKeyDown}
-                  className="flex-1 bg-transparent border-none text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none px-1 py-1"
+                  className="flex-1 bg-transparent border-none text-slate-700 placeholder:text-slate-400 outline-none px-1 py-1 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                 />
               </div>
             </div>
 
             {/* SECTION 3: ADDITIONAL DISSERTATION NOTES */}
             <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-black tracking-wider uppercase text-slate-500">
+              <label className="form-label">
                 Additional Notes
               </label>
               <textarea
@@ -401,13 +401,13 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 placeholder="Enter any context, remarks, or specific instructions related to this document..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-white border border-slate-205 text-xs font-semibold text-slate-700 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all resize-none"
+                className="w-full bg-white border border-slate-205 text-slate-700 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all resize-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
               />
             </div>
 
             {/* SECTION 4: ACCESS CONTROL GRID SWITCH TABLE */}
             <div className="space-y-3.5 text-left pt-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+              <span className="card-label block">
                 Access Control
               </span>
               
@@ -544,17 +544,17 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               </div>
 
               <div className="space-y-1 select-none">
-                <p className="font-extrabold text-slate-800 text-sm">
+                <p className="card-value">
                   Drop your file here
                 </p>
-                <p className="text-[11px] text-blue-600 font-black hover:underline cursor-pointer">
+                <p className="card-value text-blue-600 hover:underline cursor-pointer">
                   Or click to browse
                 </p>
               </div>
 
               <div className="text-[10px] text-slate-400 font-semibold space-y-1">
-                <p>Supported formats: PDF, DOCX, XLSX, PNG, JPG</p>
-                <p>Max size: 25MB</p>
+                <p className="card-description">Supported formats: PDF, DOCX, XLSX, PNG, JPG</p>
+                <p className="card-description">Max size: 25MB</p>
               </div>
             </div>
 
@@ -570,10 +570,10 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   <div className="flex items-center gap-3 flex-1 min-w-0 mr-3">
                     {getFileIcon(uploadedFile.fileType)}
                     <div className="flex-1 min-w-0 space-y-1 text-left">
-                      <p className="font-extrabold text-slate-850 text-[11px] truncate" title={uploadedFile.name}>
+                      <p className="card-value truncate" title={uploadedFile.name}>
                         {uploadedFile.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-bold">
+                      <p className="card-description">
                         {uploadedFile.size} • {uploadedFile.progress}%
                       </p>
                       {/* Interactive percentage progress bar indicator lines */}
@@ -598,42 +598,42 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
 
           {/* 2. UPLOAD GUIDELINES SPEC RULES CARD LIST (matching screenshot bullet check indicators) */}
           <div className="bg-white border border-slate-200/95 rounded-2xl shadow-2xs p-5 space-y-4">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block text-left">
+            <span className="card-label block text-left">
               Upload Guidelines
             </span>
 
             <div className="space-y-3">
               <div className="flex items-start gap-2.5 text-left text-slate-650">
                 <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed text-[11px]">
+                <span className="card-description">
                   Link documents to a Student ID for automatic filing into their registry profile.
                 </span>
               </div>
 
               <div className="flex items-start gap-2.5 text-left text-slate-650">
                 <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed text-[11px]">
+                <span className="card-description">
                   Use descriptive tags to ensure the document appears in advanced repository searches.
                 </span>
               </div>
 
               <div className="flex items-start gap-2.5 text-left text-slate-650">
                 <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed text-[11px]">
+                <span className="card-description">
                   Maximum file size is strictly 25MB per upload.
                 </span>
               </div>
 
               <div className="flex items-start gap-2.5 text-left text-slate-650">
                 <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed text-[11px]">
+                <span className="card-description">
                   By default, files are not archived. Toggle &apos;Archive&apos; in access control for legacy docs.
                 </span>
               </div>
 
               <div className="flex items-start gap-2.5 text-left text-slate-650">
                 <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed text-[11px]">
+                <span className="card-description">
                   All uploads are recorded in the institutional audit log with your user stamp.
                 </span>
               </div>
@@ -643,7 +643,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
           {/* 3. RECENT UPLOADS CARD WITH ACTION VALUE */}
           <div className="bg-white border border-slate-200/95 rounded-2xl shadow-2xs p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+              <span className="card-label block">
                 Recent Uploads
               </span>
               <PortalButton
@@ -667,12 +667,12 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   <div className="flex items-center gap-3">
                     {getFileIcon(doc.type)}
                     <div className="text-left space-y-0.5">
-                      <p className="font-extrabold text-slate-800 text-[11px] truncate max-w-[170px]" title={doc.name}>
+                      <p className="card-value truncate max-w-[170px]" title={doc.name}>
                         {doc.name}
                       </p>
                       <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1.5">
-                        <span>{doc.timeAgo}</span>
-                        <span>•</span>
+                        <span className="card-description">{doc.timeAgo}</span>
+                        <span className="card-description">•</span>
                         <StatusBadge tone="brand" className="px-1.5 py-0.5 text-[8px] scale-95 origin-left">
                           {doc.tag}
                         </StatusBadge>

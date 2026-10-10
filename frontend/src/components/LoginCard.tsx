@@ -110,10 +110,10 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         </div>
 
         <div className="w-full flex flex-col">
-          <h2 id="sign-in-header" className="text-[28px] font-extrabold text-[#0c1424] tracking-tight font-sans">
+          <h2 id="sign-in-header" className="page-title font-sans">
             Sign In
           </h2>
-          <p id="sign-in-subtext" className="text-slate-500 text-sm mt-1 mb-6 font-medium">
+          <p id="sign-in-subtext" className="page-subtitle mt-1 mb-6">
             Authenticate to access your workspace.
           </p>
 
@@ -181,7 +181,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             </span>
           </div>
 
-          <p id="helpdesk-block" className="text-xs text-slate-500 leading-normal font-medium px-2">
+          <p id="helpdesk-block" className="card-description px-2">
             For technical assistance, please contact the{' '}
             <button
               type="button"
@@ -215,15 +215,15 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center mb-4">
                     <AlertCircle className="w-6 h-6 text-orange-500" />
                   </div>
-                  <h4 className="font-extrabold text-[#0c1424] text-lg">Password Recovery</h4>
-                  <p className="text-xs text-slate-500 mt-2 leading-relaxed font-normal">
+                  <h4 className="section-heading">Password Recovery</h4>
+                  <p className="card-description mt-2">
                     To maintain FSKTM administration guidelines, please contact the postgraduate office desk with your registered Staff ID / Student Matric card to request password resets.
                   </p>
-                  <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-left w-full text-[11px]">
-                    <span className="text-slate-400 font-medium block">Office Email:</span>
-                    <span className="text-slate-800 font-bold block mb-1.5">postgrad.fsktm@edu.my</span>
-                    <span className="text-slate-400 font-medium block">Support Line:</span>
-                    <span className="text-slate-800 font-bold block">+603-7967 6316</span>
+                  <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-left w-full card-description">
+                    <span className="card-label text-slate-400 block">Office Email:</span>
+                    <span className="card-value text-slate-800 block mb-1.5">postgrad.fsktm@edu.my</span>
+                    <span className="card-label text-slate-400 block">Support Line:</span>
+                    <span className="card-value text-slate-800 block">+603-7967 6316</span>
                   </div>
                 </div>
               )}
@@ -233,14 +233,14 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-[#e0f2fe] flex items-center justify-center mb-4">
                     <Server className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h4 className="font-extrabold text-[#0c1424] text-lg">IT Helpdesk Contact</h4>
-                  <p className="text-xs text-slate-500 mt-2 leading-relaxed font-normal">
+                  <h4 className="section-heading">IT Helpdesk Contact</h4>
+                  <p className="card-description mt-2">
                     The FSKTM Tech Support is cataloged to assist with student and staff account provisioning, single sign-on issues, and database interruptions.
                   </p>
                   <div className="mt-5 text-left w-full space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-[11px]">
-                    <div className="flex justify-between"><span className="text-slate-500">Operation:</span><span className="font-semibold">Mon – Fri (8AM – 5PM)</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Service Counter:</span><span className="font-semibold">Block A, Level 2 Lab Office</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">IP Ext:</span><span className="font-mono text-blue-600 font-semibold">ext-4902</span></div>
+                    <div className="flex justify-between"><span className="card-label">Operation:</span><span className="card-value">Mon – Fri (8AM – 5PM)</span></div>
+                    <div className="flex justify-between"><span className="card-label">Service Counter:</span><span className="card-value">Block A, Level 2 Lab Office</span></div>
+                    <div className="flex justify-between"><span className="card-label">IP Ext:</span><span className="card-value font-mono text-blue-600">ext-4902</span></div>
                   </div>
                 </div>
               )}
@@ -250,8 +250,8 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-4">
                     <Calendar className="w-6 h-6 text-indigo-500" />
                   </div>
-                  <h4 className="font-extrabold text-[#0c1424] text-lg">Student Manual Archive</h4>
-                  <p className="text-xs text-slate-500 mt-2 leading-relaxed font-normal">
+                  <h4 className="section-heading">Student Manual Archive</h4>
+                  <p className="card-description mt-2">
                     Download the latest guidebooks detailing postgraduate procedures, thesis defence requirements, online registration steps, and grading scales for coursework modules.
                   </p>
                   <div className="mt-4 flex gap-2 w-full">
@@ -290,7 +290,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         <span className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-2.5">
           🔑 Portal Testing Console (Interactive prefiller)
         </span>
-        <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+        <p className="card-description text-slate-400 mb-3">
           Select a role to instantly populate the correct institutional credentials:
         </p>
         <div className="grid grid-cols-2 gap-2">

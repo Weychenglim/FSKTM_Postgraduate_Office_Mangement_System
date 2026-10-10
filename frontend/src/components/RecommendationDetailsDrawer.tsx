@@ -256,10 +256,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
           >
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center select-none bg-slate-50/50">
               <div>
-                <h2 className="text-base font-black text-brand-navy tracking-tight">
+                <h2 className="section-label">
                   Recommendation Details
                 </h2>
-                <p className="text-[11px] text-slate-400 font-bold mt-1">
+                <p className="card-description mt-1">
                   Confirmation route and submitted panel recommendation record
                 </p>
               </div>
@@ -279,10 +279,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                   {getInitials(recommendation.studentName)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[17px] font-black text-brand-navy leading-tight">
+                  <h3 className="section-heading text-brand-navy leading-tight">
                     {recommendation.studentName}
                   </h3>
-                  <div className="text-slate-500 font-bold text-[10.5px] mt-1 space-y-0.5">
+                  <div className="card-description text-slate-500 mt-1 space-y-0.5">
                     <p className="font-mono text-brand-navy/85">ID: {recommendation.studentId}</p>
                     <p className="text-slate-400">
                       {recommendation.programme || 'Programme not recorded'} - {recommendation.semester}
@@ -293,21 +293,21 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Research Information
                   </span>
                 </div>
                 <div className="bg-[#f8fafc]/50 border border-slate-200/80 rounded-2xl p-5 space-y-4">
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Proposed Research Title
                     </span>
-                    <h4 className="text-[13px] font-extrabold text-brand-navy leading-relaxed italic pr-2">
+                    <h4 className="section-label leading-relaxed italic pr-2">
                       "{recommendation.researchTitle}"
                     </h4>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Research Area
                     </span>
                     <span className="inline-block text-xs font-black text-slate-800 bg-slate-100 border border-slate-200/50 px-2.5 py-1 rounded-lg">
@@ -315,10 +315,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     </span>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Abstract Snippet
                     </span>
-                    <p className="font-medium leading-relaxed text-[11px] text-justify text-slate-600">
+                    <p className="card-description text-justify">
                       {abstractText}
                     </p>
                   </div>
@@ -327,7 +327,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Recommended Panel Member
                   </span>
                 </div>
@@ -337,23 +337,23 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                       {getInitials(recommendation.recommendedPanel)}
                     </div>
                     <div className="min-w-0 flex-1 text-left">
-                      <h4 className="text-sm font-extrabold text-brand-navy leading-tight">
+                      <h4 className="section-label leading-tight">
                         {recommendation.recommendedPanel}
                       </h4>
                       <div className="grid grid-cols-2 gap-4 mt-3.5 pt-3.5 border-t border-slate-200/55">
                         <div className="space-y-0.5">
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                          <span className="card-label text-slate-400 block uppercase tracking-wider">
                             Staff ID
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-700 block">
+                          <span className="card-value text-slate-700 block">
                             {recommendation.recommendedPanelId || 'Not recorded'}
                           </span>
                         </div>
                         <div className="space-y-0.5">
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                          <span className="card-label text-slate-400 block uppercase tracking-wider">
                             Current Stage
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-700 block">
+                          <span className="card-value text-slate-700 block">
                             {STATUS_LABELS[workflowStatus]}
                           </span>
                         </div>
@@ -366,21 +366,21 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                 <div className="space-y-3.5">
                   <div className="border-b border-slate-100 pb-1.5 select-none">
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                    <span className="section-label text-blue-600 uppercase tracking-widest block">
                       Submission Info
                     </span>
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         ID
                       </span>
-                      <span className="text-xs font-mono font-black text-brand-navy block mt-0.5 select-all">
+                      <span className="card-value font-mono text-brand-navy block mt-0.5 select-all">
                         {recommendation.id}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         Submitted On
                       </span>
                       <span className="text-xs font-bold text-slate-700 block mt-0.5">
@@ -388,7 +388,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         Current Status
                       </span>
                       <span className={`inline-flex mt-1.5 px-2.5 py-1 border rounded text-[9px] font-black uppercase tracking-wider select-none ${getStatusBadgeClass(recommendation.status)}`}>
@@ -397,20 +397,20 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     </div>
                     {recommendation.rejectionReason && (
                       <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="card-label text-slate-400 block uppercase tracking-wider">
                           Rejection Reason
                         </span>
-                        <p className="text-[11px] font-semibold text-rose-600 leading-relaxed mt-1">
+                        <p className="card-description text-rose-600 leading-relaxed mt-1">
                           {recommendation.rejectionReason}
                         </p>
                       </div>
                     )}
                     {recommendation.cancellationReason && (
                       <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="card-label text-slate-400 block uppercase tracking-wider">
                           Cancellation Reason
                         </span>
-                        <p className="text-[11px] font-semibold text-slate-600 leading-relaxed mt-1">
+                        <p className="card-description mt-1">
                           {recommendation.cancellationReason}
                         </p>
                       </div>
@@ -420,7 +420,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
                 <div className="space-y-3.5">
                   <div className="border-b border-slate-100 pb-1.5 select-none">
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                    <span className="section-label text-blue-600 uppercase tracking-widest block">
                       Progress Timeline
                     </span>
                   </div>
@@ -443,10 +443,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                             {!isLast && <div className={`w-[2px] h-10 -mb-4 mt-1 grow ${lineClass}`} />}
                           </div>
                           <div className="pt-0.5 space-y-0.5 select-none">
-                            <h5 className={`text-[11px] font-extrabold ${item.state === 'pending' ? 'text-slate-400' : 'text-brand-navy'}`}>
+                            <h5 className={`card-value ${item.state === 'pending' ? 'text-slate-400' : 'text-brand-navy'}`}>
                               {item.label}
                             </h5>
-                            <p className={`text-[9.5px] font-bold ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : item.state === 'cancelled' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            <p className={`card-caption ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : item.state === 'cancelled' ? 'text-slate-600' : 'text-slate-400'}`}>
                               {item.detail}
                             </p>
                           </div>
@@ -459,12 +459,12 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3 pb-2">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Supervisor Justification
                   </span>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative">
-                  <p className="text-slate-600 font-semibold leading-relaxed text-justify text-[11px] italic">
+                  <p className="card-description text-justify italic">
                     "{lecturerNotes}"
                   </p>
                 </div>
@@ -475,10 +475,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
               {canCancel && (
                 <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
                   <div>
-                    <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-900">
+                    <h4 className="section-label uppercase tracking-wider text-amber-900">
                       Cancel Recommendation
                     </h4>
-                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-amber-800">
+                    <p className="card-description mt-1 leading-relaxed text-amber-800">
                       Cancellation is immediate and is only available before the selected panel member takes action.
                     </p>
                   </div>
@@ -490,10 +490,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     }}
                     rows={3}
                     placeholder="State why this recommendation is being cancelled..."
-                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-amber-400"
+                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-none transition focus:border-amber-400"
                   />
                   {cancellationError && (
-                    <p className="text-[10px] font-bold text-rose-600">{cancellationError}</p>
+                    <p className="card-description text-rose-600">{cancellationError}</p>
                   )}
                   <button
                     type="button"

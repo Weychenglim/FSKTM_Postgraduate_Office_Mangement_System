@@ -78,7 +78,7 @@ export const AppointmentEndControl: React.FC<AppointmentEndControlProps> = ({
         onCancel={() => setConfirming(false)}
       />
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-black text-rose-800">End {label}</p>
+        <p className="card-value text-rose-800">End {label}</p>
         <button type="button" aria-label="Close end appointment control" onClick={close}>
           <X className="w-4 h-4 text-rose-600" />
         </button>
@@ -97,9 +97,9 @@ export const AppointmentEndControl: React.FC<AppointmentEndControlProps> = ({
         onChange={(event) => setReason(event.target.value)}
         rows={3}
         placeholder="Record the faculty decision and context"
-        className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+        className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
       />
-      {error && <p className="text-[11px] font-bold text-rose-700">{error}</p>}
+      {error && <p className="card-description text-rose-700">{error}</p>}
       <PortalButton variant="dangerSolid" size="sm" onClick={requestConfirmation}>
         Review Closure
       </PortalButton>

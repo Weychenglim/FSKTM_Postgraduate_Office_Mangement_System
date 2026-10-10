@@ -124,8 +124,8 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
       ) : records.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
           <CheckCircle2 className="w-9 h-9 text-emerald-500 mx-auto mb-3" />
-          <h2 className="font-black text-brand-navy">No pending supervisor approvals</h2>
-          <p className="text-xs font-semibold text-slate-400 mt-2">
+          <h2 className="section-label">No pending supervisor approvals</h2>
+          <p className="card-description mt-2">
             Accepted lecturer requests will appear here for final confirmation.
           </p>
         </div>
@@ -146,25 +146,25 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-sm font-black text-brand-navy">{record.studentName}</h2>
+                    <h2 className="section-label">{record.studentName}</h2>
                     <StatusBadge tone="warning">Pending Coordinator</StatusBadge>
                   </div>
-                  <p className="text-xs font-semibold text-slate-500">
+                  <p className="card-description">
                     {record.studentId} · {record.programme}
                   </p>
-                  <p className="text-xs font-bold text-slate-700">{record.researchTitle}</p>
-                  <p className="text-[11px] font-semibold text-slate-500">
-                    Research area: <strong>{record.researchArea || 'Not recorded'}</strong>
+                  <p className="card-value text-slate-700">{record.researchTitle}</p>
+                  <p className="card-description">
+                    Research area: <strong className="card-value">{record.researchArea || 'Not recorded'}</strong>
                   </p>
-                  <p className="text-[11px] text-slate-500">
-                    Proposed supervisor: <strong>{record.proposedSupervisor}</strong>
+                  <p className="card-description">
+                    Proposed supervisor: <strong className="card-value">{record.proposedSupervisor}</strong>
                   </p>
                   {record.unavailableUntil && (
-                    <p className="text-[11px] font-bold text-amber-700">
+                    <p className="card-description text-amber-700">
                       Unavailable for new appointments until {record.unavailableUntil}. This pending approval remains recorded.
                     </p>
                   )}
-                  <p className="text-[11px] font-bold text-amber-700">
+                  <p className="card-description text-amber-700">
                     {formatSupervisorWaiting(record)}
                   </p>
                 </div>
@@ -197,7 +197,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                 </div>
               </div>
               {record.participantEligible === false && (
-                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+                <p className="card-description mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
                   This Student is {record.participantLifecycleStatus?.toLowerCase()}; the approval remains visible but is non-actionable until eligible.
                 </p>
               )}
@@ -205,7 +205,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                 <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/70 p-4">
                   <label
                     htmlFor={`coordinator-supervisor-rejection-${record.id}`}
-                    className="text-[10px] font-black uppercase tracking-wider text-rose-700"
+                    className="form-label text-rose-700"
                   >
                     Rejection reason
                   </label>
@@ -214,7 +214,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                     value={rejectionReason}
                     onChange={(event) => setRejectionReason(event.target.value)}
                     rows={3}
-                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
                     placeholder="Explain why this supervisor appointment is being returned."
                   />
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
@@ -258,13 +258,13 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
       {!loading && !error && (
         <section className="space-y-4">
           <div>
-            <h2 className="text-sm font-black text-brand-navy uppercase tracking-wider">Programme Appointment Records</h2>
-            <p className="text-[11px] font-semibold text-slate-400 mt-1">
+            <h2 className="section-label">Programme Appointment Records</h2>
+            <p className="card-description mt-1">
               Active and ended Supervisor appointments in your managed programme.
             </p>
           </div>
           {appointmentRecords.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 text-xs font-semibold text-slate-400">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 card-description text-slate-400">
               No approved Supervisor appointments are recorded for this programme.
             </div>
           ) : (
@@ -273,16 +273,16 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
                 <div key={`appointment-${record.id}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs font-black text-brand-navy">{record.studentName}</p>
+                      <p className="card-value text-brand-navy">{record.studentName}</p>
                       <StatusBadge tone={record.appointmentLifecycle?.status === 'ACTIVE' ? 'success' : 'neutral'}>
                         {record.appointmentLifecycle?.status === 'ACTIVE' ? 'Active' : record.appointmentLifecycle?.endOutcome || 'Ended'}
                       </StatusBadge>
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                    <p className="card-description mt-1">
                       {record.studentId} · {record.proposedSupervisor}
                     </p>
                     {record.appointmentLifecycle?.endReason && (
-                      <p className="text-[11px] text-slate-500 mt-2">{record.appointmentLifecycle.endReason}</p>
+                      <p className="card-description mt-2">{record.appointmentLifecycle.endReason}</p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -192,10 +192,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
         
         {/* Total Records */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+          <span className="card-label text-slate-400 block">
             Total Records
           </span>
-          <span className="text-brand-navy font-black text-3xl font-sans tracking-tight block">
+          <span className="card-metric text-brand-navy block">
             {totalRecordCount}
           </span>
           {/* Bottom solid indicator bar */}
@@ -204,10 +204,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
         {/* Submitted */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+          <span className="card-label text-slate-400 block">
             Submitted
           </span>
-          <span className="text-emerald-500 font-black text-3xl font-sans tracking-tight block">
+          <span className="card-metric text-emerald-500 block">
             {submittedCount}
           </span>
           {/* Bottom solid green line */}
@@ -216,10 +216,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
         {/* Draft Saved */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+          <span className="card-label text-slate-400 block">
             Draft Saved
           </span>
-          <span className="text-blue-500 font-black text-3xl font-sans tracking-tight block">
+          <span className="card-metric text-blue-500 block">
             {draftSavedCount}
           </span>
           {/* Bottom solid cyan line */}
@@ -228,10 +228,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
         {/* Not Started */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+          <span className="card-label text-slate-400 block">
             Not Started
           </span>
-          <span className="text-slate-500 font-black text-3xl font-sans tracking-tight block">
+          <span className="card-metric text-slate-500 block">
             {notStartedCount}
           </span>
           {/* Bottom solid gray line */}
@@ -240,10 +240,10 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
         {/* Overdue */}
         <div className="bg-white rounded-2xl border border-slate-205 pt-5 pb-6 px-6 relative shadow-xs overflow-hidden flex flex-col justify-between h-[120px]">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+          <span className="card-label text-slate-400 block">
             Overdue
           </span>
-          <span className="text-rose-600 font-black text-3xl font-sans tracking-tight block">
+          <span className="card-metric text-rose-600 block">
             {overdueCount}
           </span>
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-rose-500" />
@@ -428,13 +428,13 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     </td>
 
                     {/* Student details with initial circle badge */}
-                    <td className="py-4 px-5">
+                    <td className="data-td py-4 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100/70 border border-blue-200/50 flex items-center justify-center text-blue-700 text-[10px] font-extrabold shrink-0">
                           {rec.studentInitials}
                         </div>
                         <div className="flex flex-col text-left">
-                          <span className="text-xs font-extrabold text-blue-900 leading-tight">
+                          <span className="card-value text-blue-900 leading-tight">
                             {rec.studentName}
                           </span>
                           <span className="text-[10px] text-slate-400 font-mono mt-0.5 leading-none">
@@ -460,31 +460,31 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     </td>
 
                     <td className={`data-td ${rec.deadlineState === 'OVERDUE' ? 'text-rose-600' : ''}`}>
-                      <span className="font-bold block">{formatDeadlineText(rec)}</span>
+                      <span className="card-value text-inherit block">{formatDeadlineText(rec)}</span>
                       {rec.dueAt && (
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                        <span className="card-caption text-slate-400 block mt-0.5">
                           {new Date(rec.dueAt).toLocaleDateString()}
                         </span>
                       )}
                     </td>
 
                     {/* Total Mark weighting */}
-                    <td className="py-4 px-5 text-center font-sans">
+                    <td className="data-td py-4 px-5 text-center font-sans">
                       {rec.totalMark === 'Draft' ? (
-                        <span className="text-xs font-extrabold text-slate-500 italic block">
+                        <span className="card-value text-slate-500 italic block">
                           Draft
                         </span>
                       ) : rec.totalMark !== null ? (
-                        <span className="text-xs font-black text-brand-navy">
+                        <span className="card-value text-brand-navy">
                           {rec.totalMark}
                         </span>
                       ) : (
-                        <span className="text-slate-300 text-xs block font-bold">-</span>
+                        <span className="card-value text-slate-300 block">-</span>
                       )}
                     </td>
 
                     {/* Styled Status badge */}
-                    <td className="py-4 px-5 text-center">
+                    <td className="data-td py-4 px-5 text-center">
                       {rec.taskLifecycleStatus === 'RETIRED' ? (
                         <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
                           Retired
@@ -522,7 +522,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     </td>
 
                     {/* Row inspection trigger button */}
-                    <td className="py-4 px-5 text-right">
+                    <td className="data-td py-4 px-5 text-right">
                       <div className="flex flex-col items-end gap-1.5">
                         <button
                           onClick={() => onNavigateToDossier?.(rec.studentId)}
@@ -543,7 +543,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-xs font-bold text-slate-400 font-sans">
+                  <td colSpan={10} className="card-description py-10 text-center text-slate-400 font-sans">
                     No matching postgrad evaluation registry records found.
                   </td>
                 </tr>
@@ -554,7 +554,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
         {/* Pagination bar block row */}
         <div id="records-pagination-footer" className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
-          <span className="text-xs text-slate-500 font-medium font-sans text-left">
+          <span className="card-description text-slate-500 font-sans text-left">
             Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} filtered records ({totalRecordCount} total).
           </span>
 

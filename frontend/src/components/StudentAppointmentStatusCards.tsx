@@ -31,8 +31,8 @@ const StatusCard: React.FC<StatusCardProps> = ({
   >
     <div className="flex items-start justify-between gap-4">
       <div>
-        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">{title}</span>
-        <span className="text-2xl font-black text-brand-navy tracking-tight block mt-3">{value}</span>
+        <span className="card-label block">{title}</span>
+        <span className="card-metric block mt-3">{value}</span>
       </div>
       <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-150 flex items-center justify-center text-slate-500 shrink-0">
         <Icon className="w-4.5 h-4.5" />
@@ -40,7 +40,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
     </div>
     <div className="space-y-3 pt-4">
       <StatusBadge tone={badgeTone} className="text-[9px]">{badge}</StatusBadge>
-      <p className="text-[10.5px] text-slate-400 font-bold leading-relaxed">{subtext}</p>
+      <p className="card-description">{subtext}</p>
       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600 group-hover:text-blue-800">
         {actionLabel}<ChevronRight className="w-3.5 h-3.5" />
       </span>

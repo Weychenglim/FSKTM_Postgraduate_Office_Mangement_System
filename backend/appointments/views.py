@@ -2135,6 +2135,21 @@ def supervisor_coordinator_reject_view(request, pk):
     return Response(SupervisorApplicationSerializer(application).data)
 
 
+def _active_supervisee_research(appointment):
+    profile = getattr(appointment.student.user, "research_profile", None)
+    if profile is not None and profile.supervisor_id == appointment.supervisor_id:
+        return {
+            "researchTitle": profile.proposed_topic,
+            "researchArea": profile.research_area,
+            "researchAbstract": profile.abstract,
+        }
+    return {
+        "researchTitle": appointment.application.research_title,
+        "researchArea": appointment.application.research_area,
+        "researchAbstract": appointment.application.research_abstract,
+    }
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def active_supervisees_view(request):
@@ -2149,6 +2164,7 @@ def active_supervisees_view(request):
     ).select_related(
         "student",
         "student__user",
+        "student__user__research_profile",
         "application",
         "supervisor",
     )
@@ -2161,9 +2177,7 @@ def active_supervisees_view(request):
                 "programme": appointment.student.programme,
                 **workflow_semester_payload(appointment.application),
                 "email": appointment.student.user.email,
-                "researchTitle": appointment.application.research_title,
-                "researchArea": appointment.application.research_area,
-                "researchAbstract": (appointment.application.research_abstract),
+                **_active_supervisee_research(appointment),
                 "supervisorName": appointment.supervisor.full_name,
                 "appointmentDate": format_display_date(appointment.appointment_date),
                 "status": "Active",

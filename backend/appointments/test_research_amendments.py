@@ -41,12 +41,30 @@ class ResearchAmendmentTests(APITestCase):
         self.assertEqual(self.profile.proposed_topic, 'Revised research')
         self.assertEqual(self.profile.revision, 1)
         self.assertEqual(self.application.research_title, 'Lifecycle-safe postgraduate workflows')
+        self.client.force_authenticate(user=self.supervisor)
+        active = self.client.get('/api/appointments/supervisor/supervisees/')
+        self.assertEqual(active.status_code, 200)
+        self.assertEqual(active.data[0]['researchTitle'], 'Revised research')
+        self.assertEqual(active.data[0]['researchAbstract'], self.profile.abstract)
+        self.assertEqual(active.data[0]['researchArea'], self.profile.research_area)
+
         from .models import ResearchAmendment, ResearchProfileRevision
         row = ResearchAmendment.objects.get(pk=pk)
         row.reason = 'rewritten'
         with self.assertRaises(ValidationError):
             row.save()
         self.assertEqual(ResearchProfileRevision.objects.filter(profile=self.profile).count(), 2)
+
+    def test_active_supervisee_without_linked_profile_uses_original_application(self):
+        from .models import StudentResearchProfile
+        StudentResearchProfile.objects.filter(pk=self.profile.pk).update(student=None)
+        self.client.force_authenticate(user=self.supervisor)
+        response = self.client.get('/api/appointments/supervisor/supervisees/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]['researchTitle'], self.application.research_title)
+        self.assertEqual(response.data[0]['researchAbstract'], self.application.research_abstract)
+        self.client.force_authenticate(user=self.new_supervisor)
+        self.assertEqual(self.client.get('/api/appointments/supervisor/supervisees/').data, [])
 
     def test_correction_is_audited_and_conflicts_with_pending(self):
         self.assertEqual(self.post(self.office, 'corrections/', studentId=self.student.pk, title='Typo corrected', reason='Typo', meaningUnchanged=True, expectedRevision=0).status_code, 200)

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -278,7 +278,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   {r.studentName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-brand-navy">{r.studentName}</h3>
+                  <h3 className="section-label">{r.studentName}</h3>
                   <div className="mt-1.5 flex items-center">
                     <StatusBadge tone="success" dot pulse className="text-[9px]">
                       {r.status === 'No Supervisor' ? 'APPROVED' : r.status.toUpperCase()}
@@ -289,7 +289,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="border-t border-slate-100 pt-5 space-y-4 font-sans">
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Student ID
                   </span>
                   <span className="font-mono text-xs font-black text-slate-800 block mt-1 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
@@ -298,28 +298,28 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Programme
                   </span>
-                  <span className="text-xs font-bold text-slate-800 block mt-1">
+                  <span className="card-value block mt-1">
                     {r.programme}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Semester
                   </span>
-                  <span className="text-xs font-bold text-brand-navy block mt-1">
+                  <span className="card-value block mt-1">
                     {r.semester || 'Legacy / Unassigned'}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Email
                   </span>
-                  <span className="text-xs font-semibold text-brand-navy hover:text-blue-600 block mt-1 break-all select-all">
+                  <span className="card-description hover:text-blue-600 block mt-1 break-all select-all">
                     {r.email || 'Not recorded'}
                   </span>
                 </div>
@@ -330,43 +330,43 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                 <User className="w-4 h-4 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Appointment Info
                 </span>
               </div>
 
               <div className="space-y-3 font-sans text-xs">
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Appointment ID</span>
+                  <span className="card-label">Appointment ID</span>
                   <span className="font-mono font-black text-brand-navy">
                     {r.appointmentId || 'Not assigned'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Supervisor</span>
-                  <span className="font-black text-brand-navy">
+                  <span className="card-label">Supervisor</span>
+                  <span className="card-value">
                     {r.supervisor}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Workload</span>
-                  <span className="font-black text-brand-navy">
+                  <span className="card-label">Workload</span>
+                  <span className="card-value">
                     {r.workloadLimit || 'Not available'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Approved Date</span>
-                  <span className="font-bold text-brand-navy">
+                  <span className="card-label">Approved Date</span>
+                  <span className="card-value">
                     {r.approvedDate || '-'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Released Date</span>
-                  <span className="font-bold text-brand-navy">
+                  <span className="card-label">Released Date</span>
+                  <span className="card-value">
                     {r.releasedDate || '-'}
                   </span>
                 </div>
@@ -377,7 +377,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <BookOpen className="w-4 h-4 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Evaluation Summary
                 </span>
               </div>
@@ -386,14 +386,14 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center border border-slate-100">
                   <AlertCircle className="w-5 h-5 text-slate-500 opacity-40 animate-pulse" />
                 </div>
-                <h4 className="font-extrabold text-slate-800 text-xs text-center">No evaluation records available</h4>
-                <p className="text-[10px] text-slate-400 font-bold max-w-[210px] leading-relaxed text-center">
+                <h4 className="section-label text-center">No evaluation records available</h4>
+                <p className="card-description max-w-[210px] text-center">
                   Student has not yet reached the evaluation stage of the appointment process.
                 </p>
               </div>
 
               <div className="border-t border-slate-100 pt-4 mt-2 flex justify-between items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider font-sans">Status:</span>
+                <span className="card-label font-sans">Status:</span>
                 <span className="px-2.5 py-1 bg-slate-150 border border-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-wider rounded-lg">
                   NOT STARTED
                 </span>
@@ -409,25 +409,25 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-1">
                 <BookOpen className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Research Information
                 </span>
               </div>
 
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-5 space-y-2">
-                <h4 className="text-sm font-extrabold text-brand-navy leading-snug">
+                <h4 className="section-label leading-snug">
                   {r.researchTopic || 'No research title recorded'}
                 </h4>
-                <span className="text-[10.5px] font-black text-slate-500 block tracking-wide">
+                <span className="card-value block">
                   Area: {r.researchArea || 'Not recorded'}
                 </span>
               </div>
 
               <div className="space-y-2 font-sans">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                <span className="card-label block">
                   ABSTRACT
                 </span>
-                <p className="text-slate-600 text-xs font-semibold leading-relaxed">
+                <p className="card-description">
                   {r.abstract || 'No research abstract recorded.'}
                 </p>
               </div>
@@ -437,7 +437,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <FileText className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Status History
                 </span>
               </div>
@@ -447,22 +447,22 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   {[...r.workflow].reverse().map((event) => (
                     <div key={event.id} className="relative">
                       <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                      <h4 className="font-extrabold text-brand-navy text-xs">
+                      <h4 className="section-label">
                         {event.action.replaceAll('_', ' ')}
                       </h4>
-                      <p className="text-[10px] font-bold text-slate-400 mt-1">
+                      <p className="card-description mt-1">
                         {new Date(event.createdAt).toLocaleString('en-GB')}
                         {' · '}
                         {event.actorName}
                       </p>
                       {event.reason && (
-                        <p className="text-[10px] font-semibold text-rose-600 mt-1">{event.reason}</p>
+                        <p className="card-description text-rose-600 mt-1">{event.reason}</p>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-slate-400">No workflow history recorded.</p>
+                <p className="card-description">No workflow history recorded.</p>
               )}
             </div>
 
@@ -470,30 +470,30 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                   <Calendar className="w-4.5 h-4.5 text-brand-navy" />
-                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                  <span className="card-label">
                     Appointment Lifecycle
                   </span>
                 </div>
                 {r.appointmentLifecycle.endReason && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[10px] font-black uppercase text-slate-500">
+                    <p className="card-label">
                       {r.appointmentLifecycle.endOutcome || 'Ended'}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-700">{r.appointmentLifecycle.endReason}</p>
+                    <p className="card-description mt-1">{r.appointmentLifecycle.endReason}</p>
                   </div>
                 )}
                 {r.appointmentLifecycle.lifecycle?.length ? (
                   <div className="space-y-4 border-l-2 border-slate-150 pl-4">
                     {[...r.appointmentLifecycle.lifecycle].reverse().map((event) => (
                       <div key={event.id}>
-                        <p className="text-xs font-extrabold text-brand-navy">{event.action.replaceAll('_', ' ')}</p>
-                        <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
-                        {event.reason && <p className="mt-1 text-[10px] font-semibold text-slate-600">{event.reason}</p>}
+                        <p className="card-value">{event.action.replaceAll('_', ' ')}</p>
+                        <p className="card-description mt-1">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
+                        {event.reason && <p className="card-description mt-1">{event.reason}</p>}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs font-semibold text-slate-400">No lifecycle events were recorded for this legacy appointment.</p>
+                  <p className="card-description">No lifecycle events were recorded for this legacy appointment.</p>
                 )}
               </div>
             )}
@@ -502,7 +502,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <Users className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Related Panel Status
                 </span>
               </div>
@@ -513,17 +513,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : '--'}
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Not assigned'}</h5>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Internal Panel Member</p>
+                    <h5 className="section-label">{r.panelMemberName || 'Not assigned'}</h5>
+                    <p className="card-description mt-0.5">Internal Panel Member</p>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Assigned</span>
-                  <span className="text-xs font-black text-brand-navy block mt-1">{r.panelAssignedDate || '-'}</span>
+                  <span className="card-label block">Assigned</span>
+                  <span className="card-value block mt-1">{r.panelAssignedDate || '-'}</span>
                 </div>
               </div>
 
-              <p className="text-[10px] font-semibold text-slate-400">
+              <p className="card-description">
                 Open Panel Appointments for persisted panel workflow details.
               </p>
             </div>
@@ -535,8 +535,8 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-left shadow-3xs">
           <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <span className="block text-xs font-extrabold uppercase tracking-wider text-brand-navy">Submitted documents</span>
-              <span className="mt-1 block text-[10px] font-bold text-slate-400">Private files attached to this supervisor application.</span>
+              <span className="card-label block">Submitted documents</span>
+              <span className="card-value mt-1 block">Private files attached to this supervisor application.</span>
             </div>
             <StatusBadge tone="neutral">{r.documents?.length || 0} recorded</StatusBadge>
           </div>
@@ -547,10 +547,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs mt-6">
           <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
+            <span className="card-label block">
               Confidential Administrative View
             </span>
-            <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500">
+            <p className="card-description text-slate-650">
               This page provides a read-only administrative view of the supervisor appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
             </p>
           </div>
@@ -583,13 +583,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         {/* Students Without Supervisor */}
         <div className="bg-white border-l-4 border-l-rose-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+            <span className="card-label block">
               Students Without Supervisor
             </span>
-            <span className="text-3xl font-black text-brand-navy block pt-1">
+            <span className="card-metric text-brand-navy block pt-1">
               {recordSummary.withoutSupervisor}
             </span>
-            <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
+            <span className="card-description text-rose-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="danger" pulse />
               No approved supervisor record.
             </span>
@@ -602,13 +602,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         {/* Pending Records */}
         <div className="bg-white border-l-4 border-l-blue-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+            <span className="card-label block">
               Pending Records
             </span>
-            <span className="text-3xl font-black text-brand-navy block pt-1">
+            <span className="card-metric text-brand-navy block pt-1">
               {recordSummary.pending}
             </span>
-            <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
+            <span className="card-description text-blue-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="info" />
               Supervisor records still in workflow.
             </span>
@@ -621,13 +621,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         {/* Approved Supervisors */}
         <div className="bg-white border-l-4 border-l-emerald-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+            <span className="card-label block">
               Approved Supervisors
             </span>
-            <span className="text-3xl font-black text-slate-850 block pt-1">
+            <span className="card-metric text-slate-850 block pt-1">
               {recordSummary.approved}
             </span>
-            <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
+            <span className="card-description text-emerald-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="success" />
               Active approved appointments.
             </span>
@@ -640,13 +640,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         {/* Workload Alerts */}
         <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+            <span className="card-label block">
               Workload Alerts
             </span>
-            <span className="text-3xl font-black text-amber-500 block pt-1">
+            <span className="card-metric text-amber-500 block pt-1">
               {recordSummary.workloadAlerts}
             </span>
-            <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
+            <span className="card-description text-amber-600 block pt-1.5 flex items-center gap-1">
               <StatusDot tone="warning" pulse />
               Lecturers near supervision limit.
             </span>
@@ -667,7 +667,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           {/* Search and Filters Block */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs space-y-5 text-xs text-left">
             <div className="border-b border-slate-100 pb-3">
-              <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px]">
+              <span className="card-label">
                 Search & Filter Supervisor Records
               </span>
             </div>
@@ -676,7 +676,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               
               {/* Row 1: Search Box */}
               <div>
-                <label htmlFor="search-input" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="search-input" className="form-label block mb-1.5">
                   Search Records
                 </label>
                 <div className="relative">
@@ -696,7 +696,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
                 <div>
-                  <label htmlFor="prog-select" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="prog-select" className="form-label block mb-1.5">
                     Programme
                   </label>
                   <div className="relative">
@@ -717,7 +717,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </div>
 
                 <div>
-                  <label htmlFor="sem-select" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="sem-select" className="form-label block mb-1.5">
                     Semester
                   </label>
                   <div className="relative">
@@ -788,16 +788,16 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
             <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
+                <span className="card-label block">
                   Supervisor Appointment Records
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 block mt-1">
+                <span className="card-value block mt-1">
                   View and monitor supervisor appointment records across students and lecturers.
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <label className="form-label flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4" />
                   <span>Sort</span>
                   <select
@@ -840,13 +840,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-0">
+                      <td colSpan={8} className="p-0 text-xs font-semibold">
                         <LoadingState message="Loading supervisor appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={8} className="p-0">
+                      <td colSpan={8} className="p-0 text-xs font-semibold">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -909,7 +909,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                           </div>
                         </td>
 
-                        <td className="data-td font-semibold text-slate-500">
+                        <td className="data-td text-slate-500">
                           {formatSupervisorWaiting(r)}
                         </td>
 
@@ -943,7 +943,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 text-xs font-semibold">
                         No supervisor records found matching the applied criteria.
                       </td>
                     </tr>
@@ -954,7 +954,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
             {/* Pagination block */}
             <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex items-center justify-between font-sans text-xs select-none">
-              <span className="text-slate-450 font-semibold">
+              <span className="card-description">
                 Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} records
               </span>
 
@@ -1005,7 +1005,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center gap-2">
               <AlertTriangle className="w-4.5 h-4.5 text-rose-500 shrink-0" />
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
+              <span className="card-label">
                 Records Needing Attention
               </span>
             </div>
@@ -1014,10 +1014,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
+                  <h4 className="section-label">
                     Students without approved supervisor
                   </h4>
-                  <span className="text-[10px] font-bold text-rose-600">
+                  <span className="card-value text-rose-600">
                     {recordSummary.withoutSupervisor} records outstanding
                   </span>
                 </div>
@@ -1035,12 +1035,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
+                  <h4 className="section-label">
                     Supervisor records awaiting workflow action
                   </h4>
                   <div className="text-[10px] font-bold text-amber-600 space-y-0.5">
-                    <span className="block">{recordSummary.pending} records in queue</span>
-                    <span className="block">Longest waiting: {longestWaitingText}</span>
+                    <span className="card-description block text-amber-600">{recordSummary.pending} records in queue</span>
+                    <span className="card-description block text-amber-600">Longest waiting: {longestWaitingText}</span>
                   </div>
                 </div>
                 <button
@@ -1057,10 +1057,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                 <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
+                  <h4 className="section-label">
                     Lecturers near workload limit
                   </h4>
-                  <span className="text-[10px] font-bold text-amber-600">
+                  <span className="card-value text-amber-600">
                     {recordSummary.workloadAlerts} workload alert records
                   </span>
                 </div>
@@ -1082,14 +1082,14 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           {/* Supervisor Workload Snapshot */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
             <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center justify-between">
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider block">
+              <span className="card-label block">
                 Supervisor Workload Snapshot
               </span>
               <StatusDot tone="success" className="w-2 h-2" />
             </div>
 
             <div className="p-5 space-y-4 font-sans text-xs">
-              <p className="font-semibold leading-relaxed text-slate-500">
+              <p className="card-description">
                 Open workload monitoring for current appointment counts, pending reservations, and configured limits.
               </p>
 
@@ -1111,11 +1111,11 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left space-y-3 shadow-3xs">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
+              <span className="card-label">
                 Quick Tip
               </span>
             </div>
-            <p className="text-slate-650 text-xs font-semibold leading-relaxed">
+            <p className="card-description">
               Submission document requirements are centrally configured and snapshot when each application is created.
             </p>
             <button

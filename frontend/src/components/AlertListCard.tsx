@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,7 +34,7 @@ export const AlertListCard: React.FC<AlertListCardProps> = ({
 
   return (
     <div id="attention-needed-card" className="bg-white rounded-lg border border-slate-200/80 p-6 text-left shadow-3xs">
-      <h3 className="text-lg font-extrabold text-brand-navy tracking-tight mb-6">
+      <h3 className="section-heading mb-6">
         Records Needing Attention
       </h3>
 
@@ -68,7 +68,7 @@ export const AlertListCard: React.FC<AlertListCardProps> = ({
               </div>
 
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-800">
+                <span className="card-value text-slate-800">
                   {item.title}
                 </span>
                 <span className={`mt-1 text-[10px] font-extrabold uppercase ${

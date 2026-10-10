@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,7 +29,7 @@ export const FormCard: React.FC<FormCardProps> = ({
         <div id={`${id}-header`} className="flex items-center gap-3 border-b border-slate-100 pb-5 mb-6">
           {icon && <div className="text-blue-600 shrink-0">{icon}</div>}
           {title && (
-            <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
+            <h3 className="section-heading">
               {title}
             </h3>
           )}

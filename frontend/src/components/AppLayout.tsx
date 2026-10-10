@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -141,30 +141,30 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2.5 mb-4 text-brand-navy">
                     <Users className="w-6 h-6 text-indigo-500" />
-                    <h3 className="text-xl font-extrabold tracking-tight">FSKTM Office Contacts</h3>
+                    <h3 className="section-heading">FSKTM Office Contacts</h3>
                   </div>
-                  <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  <p className="card-description mb-6">
                     Direct access portals for FSKTM administrative divisions, postgraduate supervision boards, development partners, and technical service counters.
                   </p>
 
                   <div className="space-y-3 mb-6 bg-[#f8fafc] p-4.5 border border-slate-150 rounded-xl text-xs text-slate-700">
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Academic Secretariat Desk</span>
-                      <span className="text-slate-900 font-bold">Block A Level 2, Desk Ext 4902</span>
+                      <span className="card-label text-slate-400">Academic Secretariat Desk</span>
+                      <span className="card-value text-slate-900">Block A Level 2, Desk Ext 4902</span>
                     </div>
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Postgraduate Office Email</span>
-                      <span className="text-blue-600 font-bold hover:underline">postgrad.fsktm@edu.my</span>
+                      <span className="card-label text-slate-400">Postgraduate Office Email</span>
+                      <span className="card-value text-blue-600 hover:underline">postgrad.fsktm@edu.my</span>
                     </div>
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Database Center System Ops</span>
-                      <span className="text-slate-900 font-bold">{userName}</span>
+                      <span className="card-label text-slate-400">Database Center System Ops</span>
+                      <span className="card-value text-slate-900">{userName}</span>
                     </div>
 
                     <div className="flex justify-between py-1.5">
-                      <span className="text-slate-400 font-semibold">Host Counter Ingress</span>
+                      <span className="card-label text-slate-400">Host Counter Ingress</span>
                       <span className="font-mono text-[10px] text-zinc-500 font-bold">PROD-INGRESS-3000</span>
                     </div>
                   </div>

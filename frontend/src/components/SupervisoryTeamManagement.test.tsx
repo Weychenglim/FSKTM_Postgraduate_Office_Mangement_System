@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CoSupervisorNominationCard, CoSupervisorAppointmentCard, SupervisoryTeamTimeline } from './SupervisoryTeamManagement';
+import { CoSupervisorNominationCard, CoSupervisorAppointmentCard, SupervisoryTeamTimeline, StudentSupervisorsOverview, LecturerSupervisoryTeamCard } from './SupervisoryTeamManagement';
 import type { CoSupervisorNomination, CoSupervisorAppointment } from '../types/coSupervision';
 
 const nomination: CoSupervisorNomination = {
@@ -39,3 +39,48 @@ assert.match(confirmed, /Confirmed/);
 assert.match(confirmed, /2026/);
 assert.equal(renderToStaticMarkup(<SupervisoryTeamTimeline entries={[]} />), '');
 console.log('Student-safe supervisory timeline rendering passed');
+
+const workspace: import('../types/coSupervision').SupervisoryWorkspace = {
+  teams: [{ studentId:7, studentName:'Research Student', matricNo:'PG007', programme:'Current programme', studentStatus:'Active', primarySupervisor:{id:9,name:'Dr Primary'}, primaryAppointmentId:4,
+    research:{title:'Current approved title',area:'Research area',abstract:'Full current abstract'}, appointments:[appointment], nominations:[nomination], canNominate:true,
+    timeline:[{id:1,title:'Semester milestone',status:'COMPLETED'}] }], appointments:[{...appointment,canEnd:true}], nominations:[nomination],
+};
+const studentTeam = renderToStaticMarkup(<StudentSupervisorsOverview workspace={workspace} actions={<button>View appointment</button>} />);
+assert.match(studentTeam, /Dr Primary|Current approved title|No supporting supervisors assigned/);
+assert.match(studentTeam, /<details><summary[^>]*>Research profile<\/summary>/);
+assert.match(studentTeam, /Full current abstract|Supporting appointment history|Research changed|Complementary research expertise/);
+assert.doesNotMatch(studentTeam, /Timeline and progress|Semester milestone|>Approve<|>End appointment<|>Replace</);
+assert.match(studentTeam, />View appointment</);
+assert.match(renderToStaticMarkup(<StudentSupervisorsOverview workspace={{teams:[],appointments:[],nominations:[]}} />), /Supervisor not appointed/);
+const activeSupporting = renderToStaticMarkup(<StudentSupervisorsOverview workspace={{...workspace, teams:[{...workspace.teams[0], appointments:[{...appointment,status:'ACTIVE'}]}]}} />);
+assert.match(activeSupporting, /Dr Supporting|Active since/);
+assert.doesNotMatch(activeSupporting, /No supporting supervisors assigned/);
+console.log('Student overview retains own team and histories without staff controls or duplicate milestones');
+
+const mixedActivity = [
+  {id:'primary-workflow-1',title:'Primary supervisor application',date:'2026-10-09',status:'APPROVED'},
+  {id:'panel-workflow-2',title:'Panel recommendation',date:'2026-10-09',status:'REJECTED_BY_PANEL'},
+  {id:'co-appointment-1-event-7',title:'Co-supervisor: Approved',date:'2026-10-09',status:'ACTIVE'},
+  {id:'timeline-5',title:'Shared semester milestone',date:'2026-11-01',status:'upcoming'},
+];
+const appointmentActivity = renderToStaticMarkup(React.createElement(SupervisoryTeamTimeline,{entries:mixedActivity,kind:'appointments'} as any));
+assert.doesNotMatch(appointmentActivity, /Shared semester milestone|Timeline and progress|<details/);
+for (const text of ['Primary supervisor application','Panel recommendation','Co-supervisor: Approved']) assert.ok(appointmentActivity.includes(text));
+const semesterDates = renderToStaticMarkup(React.createElement(SupervisoryTeamTimeline,{entries:mixedActivity,kind:'semester'} as any));
+assert.match(semesterDates,/Shared semester milestone/);
+assert.doesNotMatch(semesterDates,/Primary supervisor application|Panel recommendation|Co-supervisor: Approved|Timeline and progress|<details/);
+console.log('Lecturer appointment activity is separated from shared semester dates without nested disclosures');
+
+const lecturerTeam = {...workspace.teams[0],timeline:mixedActivity};
+const renderLecturerTeam = (team: typeof lecturerTeam) => renderToStaticMarkup(<LecturerSupervisoryTeamCard team={team} busy={false} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}} />);
+const lecturerTeamHtml = renderLecturerTeam(lecturerTeam);
+for (const text of ['Primary supervisor','Dr Primary','Supporting supervisors (0/2)','No supporting supervisors assigned.','Nominate co-supervisor','Current approved title','Research profile','Current programme','Full current abstract','Appointment activity (3)','Semester dates (1)','Supporting appointment history (2)','Complementary research expertise','Research changed','Office-managed dates','do not measure this student']) assert.ok(lecturerTeamHtml.includes(text), `Missing Lecturer team item: ${text}`);
+assert.doesNotMatch(lecturerTeamHtml,/Timeline and progress|>Appointment history</);
+assert.doesNotMatch(renderLecturerTeam({...lecturerTeam,canNominate:false,nominations:[],appointments:[]}),/>Nominate co-supervisor<|>Replace<|>End appointment</);
+const activeLecturerTeam = renderLecturerTeam({...lecturerTeam,appointments:[{...appointment,status:'ACTIVE',canEnd:true}]});
+assert.match(activeLecturerTeam,/Dr Supporting|>Replace<|>End appointment</);
+assert.doesNotMatch(activeLecturerTeam,/No supporting supervisors assigned/);
+const replacementPending = renderLecturerTeam({...lecturerTeam,appointments:[{...appointment,status:'ACTIVE',canEnd:true}],nominations:[{...nomination,replacesAppointmentId:appointment.id}]});
+assert.doesNotMatch(replacementPending,/>Replace</);
+assert.equal((activeLecturerTeam.match(/Research Student/g) ?? []).length,2,'Student identity appears in team heading and recorded nomination only');
+console.log('Lecturer team cards retain current supervision, profile, histories and capability-gated actions');

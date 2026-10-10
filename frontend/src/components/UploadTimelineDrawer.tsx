@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -293,7 +293,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <UploadCloud className="w-5 h-5 text-slate-800" />
-                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
+                <h3 className="section-label">
                   Upload Timeline
                 </h3>
               </div>
@@ -320,24 +320,24 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                 className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4.5 space-y-3.5"
               >
                 <div>
-                  <span className="form-label block">Target semester</span>
-                  <p className="mt-1 text-sm font-black text-brand-navy">{semesterLabel}</p>
+                  <span className="card-description form-label block">Target semester</span>
+                  <p className="card-value mt-1">{semesterLabel}</p>
                 </div>
 
                 <div className="grid grid-cols-12 gap-1 items-baseline pt-3 border-t border-slate-100">
-                  <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
+                  <div className="card-label col-span-5">
                     Upload type
                   </div>
-                  <div className="col-span-7 text-brand-navy font-black text-right text-xs">
+                  <div className="card-value col-span-7 text-right">
                     Semester Timeline
                   </div>
                 </div>
 
                 <div className="grid grid-cols-12 gap-1 items-baseline pt-1.5 border-t border-slate-100">
-                  <div className="col-span-5 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
+                  <div className="card-label col-span-5">
                     Accepted format
                   </div>
-                  <div className="col-span-7 text-[#2563eb] font-black text-right text-xs">
+                  <div className="card-value col-span-7 text-[#2563eb] text-right">
                     Excel (.xlsx)
                   </div>
                 </div>
@@ -350,7 +350,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
               >
                 <Info className="w-4.5 h-4.5 text-sky-600 shrink-0 mt-0.5" />
                 <div className="space-y-2 text-[11px] leading-relaxed">
-                  <p className="font-semibold text-sky-950">
+                  <p className="card-description text-sky-950">
                     Use the official Excel template to avoid validation errors and ensure data integrity.
                   </p>
                   <PortalButton
@@ -400,19 +400,19 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
 
                 {uploadedFile ? (
                   <div className="space-y-1">
-                    <span className="text-xs font-black text-brand-navy block max-w-xs truncate px-4">
+                    <span className="card-value block max-w-xs truncate px-4">
                       {uploadedFile.name}
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-bold">
+                    <span className="card-value block">
                       {(uploadedFile.size / 1024).toFixed(1)} KB • Completed
                     </span>
                   </div>
                 ) : (
                   <div className="space-y-1 select-none">
-                    <span className="text-xs font-black text-brand-navy block">
+                    <span className="card-value block">
                       Drag and drop timeline file here
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-medium">
+                    <span className="card-description block">
                       Excel .xlsx format only (Max 10MB)
                     </span>
                   </div>
@@ -446,7 +446,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
 
               {/* Validation Checklist Panel Module */}
               <div id="drawer-validation-checklist-panel" className="space-y-3 pt-5">
-                <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest block">
+                <span className="card-label block">
                   VALIDATION CHECKLIST
                 </span>
 
@@ -505,12 +505,12 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                       exit={{ opacity: 0 }}
                       className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-4.5 space-y-2.5 text-emerald-900"
                     >
-                      <h4 className="font-extrabold text-brand-navy text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="section-label flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>Ready for import commit</span>
                       </h4>
-                      <p className="font-semibold text-[11px] text-emerald-850 leading-relaxed">
-                        Backend validation passed and <strong>{importedCount ?? 0} timeline entries</strong> were committed to the active semester timeline.
+                      <p className="card-description text-emerald-850">
+                        Backend validation passed and <strong className="card-value text-emerald-850">{importedCount ?? 0} timeline entries</strong> were committed to the active semester timeline.
                       </p>
                     </motion.div>
                   ) : isValidating ? (
@@ -520,7 +520,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                       className="bg-slate-50 border border-slate-205 rounded-2xl p-5 text-center flex flex-col items-center justify-center space-y-2.5 py-7 select-none"
                     >
                       <RefreshCw className="w-5 h-5 text-indigo-500 animate-spin" />
-                      <span className="font-bold text-slate-500 text-[10.5px]">
+                      <span className="card-value">
                         Analyzing timeline dates schema records...
                       </span>
                     </motion.div>
@@ -529,7 +529,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
                       initial={{ opacity: 1 }}
                       className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4.5 text-center py-6 select-none border-dashed"
                     >
-                      <span className="font-semibold text-slate-400 text-[11px] tracking-wide block">
+                      <span className="card-description block">
                         Import summary will appear after validation.
                       </span>
                     </motion.div>

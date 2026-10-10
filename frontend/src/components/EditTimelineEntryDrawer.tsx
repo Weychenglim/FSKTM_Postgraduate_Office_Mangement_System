@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -153,7 +153,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
             >
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
+                <h3 className="section-label">
                   Edit Timeline Entry
                 </h3>
               </div>
@@ -179,11 +179,11 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
               >
                 {/* Context Indicator Alert banner */}
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                  <span className="card-label block">
                     Target Context Info
                   </span>
-                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    You are updating a milestone in <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
+                  <p className="card-description">
+                    You are updating a milestone in <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
                   </p>
                 </div>
 

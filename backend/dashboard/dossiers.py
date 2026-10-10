@@ -107,7 +107,6 @@ def _resolve_access(user, student, profile):
         return "PUBLIC", {
             SECTION_SUPERVISOR,
             SECTION_PANEL,
-            SECTION_MARKS,
             SECTION_TIMELINE,
         }
     raise Http404

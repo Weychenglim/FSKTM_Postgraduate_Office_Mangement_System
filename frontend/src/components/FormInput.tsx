@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,7 +39,7 @@ export const FormInput: React.FC<FormInputProps> = ({
         />
       </div>
       {error && (
-        <span id={`err-msg-${id}`} className="text-xs text-red-500 mt-1.5 font-medium flex items-center gap-1">
+        <span id={`err-msg-${id}`} className="card-description text-red-500 mt-1.5 flex items-center gap-1">
           {error}
         </span>
       )}

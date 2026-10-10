@@ -25,8 +25,10 @@ assert.doesNotMatch(
 );
 
 const studentSupervisor = readComponent('StudentSupervisorAppointment.tsx');
-assert.match(studentSupervisor, /No formal turnaround target is currently configured/);
+assert.match(studentSupervisor, /formatSupervisorWaiting\(app\)/);
 assert.doesNotMatch(studentSupervisor, /7-10 working days/);
+const studentGuidance = readComponent('StudentAppointmentGuidance.tsx');
+assert.doesNotMatch(studentGuidance, /7-10 working days|within 7 days|turnaround/i);
 
 const marksMonitoring = readComponent('MarkEntryRecords.tsx');
 assert.match(marksMonitoring, /formatDeadlineText\(rec\)/);

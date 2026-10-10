@@ -45,17 +45,17 @@ const Distribution: React.FC<{
   total: number;
 }> = ({ title, values, total }) => (
   <div className="space-y-3">
-    <h4 className="text-[10px] font-black uppercase text-slate-500">{title}</h4>
+    <h4 className="section-label">{title}</h4>
     {Object.keys(values).length === 0 ? (
-      <p className="text-xs font-semibold text-slate-400">No records in this range.</p>
+      <p className="card-description">No records in this range.</p>
     ) : (
       Object.entries(values).map(([label, count]) => {
         const width = total > 0 ? Math.min(100, Math.max(0, (count / total) * 100)) : 0;
         return (
           <div key={label} className="space-y-1.5">
             <div className="flex items-center justify-between gap-3 text-[11px]">
-              <span className="font-bold text-slate-600">{reportLabel(label)}</span>
-              <span className="font-black text-brand-navy">{count}</span>
+              <span className="card-value">{reportLabel(label)}</span>
+              <span className="card-value">{count}</span>
             </div>
             <div className="h-2 rounded bg-slate-100 overflow-hidden">
               <div className="h-full bg-blue-600 rounded" style={{ width: `${width}%` }} />
@@ -74,8 +74,8 @@ const WorkflowSection: React.FC<{
   <PortalCard padding="md" className="rounded-lg">
     <div className="flex items-center justify-between gap-4 mb-5">
       <div>
-        <h3 className="text-sm font-black text-brand-navy">{title}</h3>
-        <p className="text-[10.5px] font-semibold text-slate-400 mt-1">
+        <h3 className="section-label">{title}</h3>
+        <p className="card-description mt-1">
           Current persisted lifecycle records
         </p>
       </div>
@@ -192,33 +192,33 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
       <PortalCard padding="md" className="rounded-lg">
         <div className="flex items-center gap-2 mb-4">
           <CalendarDays className="w-4 h-4 text-blue-600" />
-          <h2 className="text-xs font-black text-brand-navy">Report filters</h2>
+          <h2 className="section-label">Report filters</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
-          <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
+          <label className="form-label space-y-1.5">
             <span>Start date</span>
             <input
               type="date"
               value={draftFilters.startDate ?? ''}
               onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
-              className="form-input w-full"
+              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
           </label>
-          <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
+          <label className="form-label space-y-1.5">
             <span>End date</span>
             <input
               type="date"
               value={draftFilters.endDate ?? ''}
               onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
-              className="form-input w-full"
+              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
           </label>
-          <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
+          <label className="form-label space-y-1.5">
             <span>Academic semester</span>
             <select
               value={draftFilters.semester ?? 'active'}
               onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
-              className="form-input w-full"
+              className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
             >
               <option value="active">Active semester</option>
               <option value="all">All semesters</option>
@@ -231,12 +231,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
             </select>
           </label>
           {currentUserRole === 'Office Staff/Admin' && (
-            <label className="space-y-1.5 text-[10px] font-black uppercase text-slate-500">
+            <label className="form-label space-y-1.5">
               <span>Programme</span>
               <select
                 value={draftFilters.programme ?? ''}
                 onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
-                className="form-input w-full"
+                className="form-input w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
               >
                 <option value="">All authorised programmes</option>
                 {report?.filters.availableProgrammes.map((programme) => (
@@ -251,7 +251,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           </div>
         </div>
         {validationError && (
-          <p role="alert" className="text-[11px] font-bold text-rose-600 mt-3">{validationError}</p>
+          <p role="alert" className="card-value text-rose-600 mt-3">{validationError}</p>
         )}
       </PortalCard>
 
@@ -264,8 +264,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
             {kpis.map((kpi) => (
               <PortalCard key={kpi.label} padding="sm" className="rounded-lg min-h-[92px]">
-                <p className="text-[9px] font-black uppercase text-slate-400">{kpi.label}</p>
-                <p className="text-xl font-black text-brand-navy mt-3">{kpi.value}</p>
+                <p className="card-label">{kpi.label}</p>
+                <p className="card-metric mt-3">{kpi.value}</p>
               </PortalCard>
             ))}
           </div>
@@ -285,7 +285,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               {report.marks && (
                 <PortalCard padding="md" className="rounded-lg">
                   <div className="flex items-center justify-between gap-4 mb-5">
-                    <h3 className="text-sm font-black text-brand-navy">Marks Tracking</h3>
+                    <h3 className="section-label">Marks Tracking</h3>
                     <StatusBadge tone={report.overview.overdueMarks > 0 ? 'warning' : 'success'}>
                       {report.overview.overdueMarks} overdue
                     </StatusBadge>
@@ -300,7 +300,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
               {report.timeline && (
                 <PortalCard padding="md" className="rounded-lg">
-                  <h3 className="text-sm font-black text-brand-navy mb-5">Timeline Milestones</h3>
+                  <h3 className="section-label mb-5">Timeline Milestones</h3>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <Distribution title="Current status" values={report.timeline.statusCounts} total={report.timeline.total} />
                     <Distribution title="Research project" values={report.timeline.levelCounts} total={report.timeline.total} />
@@ -313,12 +313,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
           {report.participantLifecycle && (
             <PortalCard padding="md" className="rounded-lg">
-              <h3 className="mb-5 text-sm font-black text-brand-navy">Participant Lifecycle</h3>
+              <h3 className="section-label mb-5">Participant Lifecycle</h3>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
                 {Object.entries(report.participantLifecycle).map(([label, value]) => (
                   <div key={label} className="rounded-md bg-slate-50 p-3">
-                    <span className="block text-[9px] font-black uppercase text-slate-500">{reportLabel(label)}</span>
-                    <strong className="mt-1 block text-lg text-brand-navy">{value}</strong>
+                    <span className="card-label block">{reportLabel(label)}</span>
+                    <strong className="card-value mt-1 block">{value}</strong>
                   </div>
                 ))}
               </div>
@@ -328,7 +328,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           <PortalCard padding="none" className="rounded-lg overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
               <Clock3 className="w-4 h-4 text-amber-600" />
-              <h3 className="text-sm font-black text-brand-navy">Records Requiring Attention</h3>
+              <h3 className="section-label">Records Requiring Attention</h3>
             </div>
             {report.attention.length === 0 ? (
               <EmptyState

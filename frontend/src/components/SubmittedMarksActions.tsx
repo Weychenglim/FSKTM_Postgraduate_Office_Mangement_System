@@ -70,26 +70,26 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   };
 
   return <PortalCard padding="lg" className="rounded-lg">
-    <h2 className="font-bold text-brand-navy">Office Marks actions</h2>
-    <p className="mt-2 text-sm text-slate-600">Changes require a reason and retain the original values in correction history.</p>
-    {error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}
+    <h2 className="section-label">Office Marks actions</h2>
+    <p className="card-description mt-2 text-slate-600">Changes require a reason and retain the original values in correction history.</p>
+    {error ? <p role="alert" className="card-description mt-3 text-red-700">{error}</p> : null}
     {blocked ? <PortalButton className="mt-3" onClick={() => void onReload()}>Reload latest record</PortalButton> : <>
       {!mode ? <div className="mt-4 flex flex-wrap gap-2">
         {actions.canCorrect ? <PortalButton onClick={() => choose('correct')}>Correct submitted marks</PortalButton> : null}
         {actions.canReopen ? <PortalButton onClick={() => choose('reopen')}>Reopen for Lecturer</PortalButton> : null}
       </div> : <div className="mt-4 space-y-4">
-        <h3 className="font-semibold">{mode === 'correct' ? 'Correct submitted marks' : 'Reopen for Lecturer'}</h3>
+        <h3 className="section-label">{mode === 'correct' ? 'Correct submitted marks' : 'Reopen for Lecturer'}</h3>
         {mode === 'correct' ? <>
-          <div className="grid gap-3 sm:grid-cols-2">{components.map(component => <label key={component.id} className="text-sm font-semibold">
+          <div className="grid gap-3 sm:grid-cols-2">{components.map(component => <label key={component.id} className="form-label">
             {component.name} (maximum {component.maxMarks})
             <input type="number" min="0" max={component.maxMarks} step="0.01" disabled={busy}
               className="form-control mt-1" value={values[component.id] || ''}
               onChange={event => setValues(current => ({...current, [component.id]: event.target.value}))}/>
           </label>)}</div>
-          <label className="block text-sm font-semibold">Corrected overall comments<textarea className="form-control mt-1" disabled={busy} value={comments} onChange={event => setComments(event.target.value)}/></label>
-          <p className="text-sm">Total: {record.entry.totalMark} → {Number.isFinite(correctedTotal) ? correctedTotal.toFixed(2) : '—'}</p>
-        </> : <p className="text-sm text-slate-600">Scores and comments are preserved. The entry returns to Draft so its assigned Lecturer can review and resubmit while the period remains open.</p>}
-        <label className="block text-sm font-semibold">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-1" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
+          <label className="form-label block">Corrected overall comments<textarea className="form-control mt-1" disabled={busy} value={comments} onChange={event => setComments(event.target.value)}/></label>
+          <p className="card-description">Total: {record.entry.totalMark} → {Number.isFinite(correctedTotal) ? correctedTotal.toFixed(2) : '—'}</p>
+        </> : <p className="card-description text-slate-600">Scores and comments are preserved. The entry returns to Draft so its assigned Lecturer can review and resubmit while the period remains open.</p>}
+        <label className="form-label block">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-1" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
         <div className="flex flex-wrap gap-2">
           <PortalButton variant="primary" disabled={busy || !reason.trim()} onClick={review}>{mode === 'correct' ? 'Review correction' : 'Review reopening'}</PortalButton>
           <PortalButton disabled={busy} onClick={() => {setMode(null); setError('');}}>Cancel</PortalButton>
@@ -98,9 +98,9 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
     </>}
     <PortalConfirmModal isOpen={confirmOpen} isLoading={busy}
       title={mode === 'correct' ? 'Save this correction?' : 'Reopen this submission?'}
-      message={<div className="space-y-2"><p>{mode === 'correct'
+      message={<div className="card-description space-y-2"><p>{mode === 'correct'
         ? `Total ${record.entry.totalMark} → ${correctedTotal.toFixed(2)}. The submission remains locked; the changes are audited.`
-        : 'The submission returns to Draft with its scores and comments preserved.'}</p><p className="whitespace-pre-wrap">Reason: {reason}</p></div>}
+        : 'The submission returns to Draft with its scores and comments preserved.'}</p><p className="card-description whitespace-pre-wrap">Reason: {reason}</p></div>}
       confirmLabel={mode === 'correct' ? 'Save correction' : 'Reopen marks'} cancelLabel="Review again" tone="warning"
       onConfirm={() => void submit()} onCancel={() => {if (!submitting.current) setConfirmOpen(false);}}/>
   </PortalCard>;
@@ -109,7 +109,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
 export function MarkCorrectionHistoryView({events, components}: {
   events: MarkRecordDetail['correctionHistory']; components: MarkRecordDetail['rubric']['components'];
 }) {
-  if (!events.length) return <p className="text-xs font-medium text-slate-500">No corrections or reopening events.</p>;
+  if (!events.length) return <p className="card-description">No corrections or reopening events.</p>;
   return <div className="space-y-4">{events.map(event => {
     const scoreValues = (values: Record<string, unknown>) => values.scores && typeof values.scores === 'object' ? values.scores as Record<string, unknown> : {};
     const beforeScores = scoreValues(event.beforeValues); const afterScores = scoreValues(event.afterValues);
@@ -121,12 +121,12 @@ export function MarkCorrectionHistoryView({events, components}: {
       ['Overall comments', event.beforeValues.comments, event.afterValues.comments],
     ];
     return <article key={event.id} className="border-l-2 border-blue-200 pl-3 text-xs">
-      <p className="font-extrabold text-slate-700">{event.action === 'CORRECT' ? 'Correction' : 'Reopened for Lecturer'}</p>
-      <p className="mt-1 font-semibold text-slate-600">{event.reason}</p>
-      <p className="mt-1 text-slate-500">{event.actorName} · {formatMalaysiaDateTime(event.createdAt)}</p>
-      <details className="mt-2"><summary className="cursor-pointer font-semibold">View before and after</summary>
-        <div className="mt-2 overflow-x-auto"><table className="w-full text-left"><thead><tr><th className="p-2">Field</th><th className="p-2">Before</th><th className="p-2">After</th></tr></thead>
-          <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100"><th className="p-2">{label}</th><td className="p-2 whitespace-pre-wrap">{before == null ? '—' : String(before)}</td><td className="p-2 whitespace-pre-wrap">{after == null ? '—' : String(after)}</td></tr>)}</tbody>
+      <p className="card-value text-slate-700">{event.action === 'CORRECT' ? 'Correction' : 'Reopened for Lecturer'}</p>
+      <p className="card-description mt-1 text-slate-600">{event.reason}</p>
+      <p className="card-description mt-1 text-slate-500">{event.actorName} · {formatMalaysiaDateTime(event.createdAt)}</p>
+      <details className="mt-2"><summary className="card-value cursor-pointer">View before and after</summary>
+        <div className="mt-2 overflow-x-auto"><table className="data-table"><thead><tr><th className="data-th p-2">Field</th><th className="data-th p-2">Before</th><th className="data-th p-2">After</th></tr></thead>
+          <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100"><th className="data-td-strong p-2">{label}</th><td className="data-td p-2 whitespace-pre-wrap">{before == null ? '—' : String(before)}</td><td className="data-td p-2 whitespace-pre-wrap">{after == null ? '—' : String(after)}</td></tr>)}</tbody>
         </table></div>
       </details>
     </article>;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -125,7 +125,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Plus className="w-5 h-5 text-indigo-500 stroke-[2.5]" />
-                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
+                <h3 className="section-label">
                   Add Timeline Entry
                 </h3>
               </div>
@@ -151,11 +151,11 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               >
                 {/* Context Indicator Alert banner */}
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                  <span className="card-label block">
                     Postgraduate Milestone Info
                   </span>
-                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    Create a new milestone for <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
+                  <p className="card-description">
+                    Create a new milestone for <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
                   </p>
                 </div>
 
