@@ -1,5 +1,7 @@
 # Partly-Done Modules Completion Plan
 
+**Status: complete (2026-10-11).** All nine phases are done; see the Phase Status table and the dated sections in `PROJECT_STATUS.md`. The not-started use cases are listed under "After This Plan".
+
 Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02, UC04, UC05, UC06, UC21, UC23, UC30, UC33), plus one integration bug found after merging `main`. Use cases that are not started at all (UC03, UC22, UC24-UC27, UC28-UC29) are out of scope and get their own plan afterwards.
 
 ## Phase Status
@@ -14,7 +16,7 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 | 6 | Saved letter requests: reference numbers, history, Word export, notification (UC23) | L | Done | `170aed3` |
 | 7 | Announcement scheduling, expiry, and registry targeting (UC30) | M | Done | `ee4371d` |
 | 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Done | `4403c8c` |
-| 9 | Student "My Records" page and documentation wrap-up (UC06) | M | Not started | |
+| 9 | Student "My Records" page and documentation wrap-up (UC06) | M | Done | `39535ce` |
 
 Phases are ordered by dependency. Phase 6 needs Phase 5; Phase 9 needs Phase 6. Everything else can move if priorities change, but do one phase per session.
 

@@ -1,5 +1,32 @@
 # Project Status
 
+## Student My Records and Partly-Done Plan Completion (2026-10-11)
+
+- Phase 9 of the partly-done plan (UC06), commit `39535ce`. **This completes the plan: phases 1 to 9 are done.**
+- **My Records** (`/my-records`, students only; other roles are sent to the dashboard). Students open it from the profile menu, where the item now reads "My Records".
+  - The profile is read-only, with "Change in Settings" for the phone number (D3).
+  - Summary cards count Supervisor & Panel and Marks records (from the teammate's progress dossier, reused read-only), Letters (Phase 6) and Announcements (the student's notification feed). Files reads "Available when File Management is released".
+  - Each category has a table with a "No records found" state. The Letters tab reuses My Letters, including reprint and Word download.
+- **No sidebar entry.** One would mean editing the teammate's `navigation.ts` and `Sidebar.tsx`, and the "ALL modules" rule in `permissions.ts` that would also show it to office staff and coordinators. Add it later if the teammate agrees.
+- **No backend changes** in this phase.
+- **Phase 8 fix** (`a21198c`): at phone widths (360 and 390 px) the bell dropdown ran off the left edge of the screen. On small screens it now spans the width under the header; from tablet width up it stays anchored to the bell. Checked at 360, 390, 768 and 1440 px.
+- **Teammate-written docs that are now out of date.** These were not edited; Xiang to pass them on.
+  - `PROJECT_STATUS.md`, "Known Issues and Notes": the deferred announcement risks (cross-sender modification, draft and attachment visibility, attachment validation) were fixed in `f5777d2` on 2026-08-20. Only the author or Office can edit or delete, drafts and their attachments follow publish status, and attachments are checked for size, extension and magic bytes.
+  - `ARCHITECTURE_AND_CODING_DESIGN.md`, the line saying announcement ownership, draft visibility and attachment authorization are deferred: fixed by the same commit.
+  - `ARCHITECTURE_AND_CODING_DESIGN.md`, the Settings endpoint description: since Phase 8 the PATCH also accepts `emailNotifications`, `deadlineReminders` and `weeklySummary`, and the three capabilities are true.
+- **Design differences from the use-case document** (for the FYP report; kept on purpose, see the plan):
+  - **D1** New accounts get an activation link instead of an emailed temporary password (UC02, UC03, UC04). A password-change requirement set by an administrator is still enforced.
+  - **D2** Login gives the same 401 for a disabled account as for a wrong password, and password reset answers the same way for unregistered emails, so neither reveals which accounts exist (UC01, UC02).
+  - **D3** Students can change their phone number but not their email, because email is the login identifier (UC06).
+  - **D4** Every student status change needs a reason, because the participant lifecycle service requires one (UC05 calls it optional).
+  - **D5** Saved letters keep a filled copy and a reference number issued by the server. The PDF comes from the browser's print dialog using that copy; the Word file is built on the server (UC23).
+  - **D6** There is no background worker. Scheduled work (announcement release, deadline reminders, weekly summary) runs as idempotent management commands scheduled with Windows Task Scheduler or cron, and announcement release also happens on read (UC30, UC33).
+- **Still not started** (the next plan): UC03 Manage User Account (staff and lecturer accounts; the Staff & Lecturers tab is still mock), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24-UC27 File Management, and UC28-UC29 FAQ chatbot.
+- **Verification.**
+  - All 921 backend tests pass with `--parallel 2`. Django checks and the migration-drift check are clean.
+  - All 90 frontend scripts pass, including the new `myRecords.test.ts`. TypeScript lint, the production build and both production guards pass.
+  - 13/13 browser checks passed with temporary `smoke.rec.*` accounts, removed afterwards. They covered the profile menu link, profile fields, counts, the empty state, the letters and announcements tabs, the Settings link, and redirecting office staff.
+
 ## Notifications: Bell Dropdown, Email Preferences, Reminders, Weekly Summary (2026-10-11)
 
 - Phase 8 of the partly-done plan (UC33), commit `4403c8c`.
