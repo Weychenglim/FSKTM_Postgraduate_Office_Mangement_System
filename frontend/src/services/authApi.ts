@@ -4,7 +4,7 @@
  */
 
 /**
- * Authentication API. Talks to the real Django backend (`/api/auth/*`) — auth
+ * Authentication API. Talks to the real Django backend (`/api/auth/*`); auth
  * is always live, regardless of the `USE_MOCKS` flag used by the data services.
  *
  * On login, the access JWT is held in memory while the browser manages the

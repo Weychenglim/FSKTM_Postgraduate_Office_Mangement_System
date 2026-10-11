@@ -22,7 +22,7 @@ export const formatReportMetric = (
   value: number | null | undefined,
   suffix = '',
 ): string => {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  if (value === null || value === undefined || !Number.isFinite(value)) return '-';
   return `${value}${suffix}`;
 };
 

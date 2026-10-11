@@ -4,7 +4,7 @@
  */
 
 /**
- * Letter document generation (UC40–UC42).
+ * Letter document generation (UC40-UC42).
  *
  * Builds a self-contained, A4-styled HTML document for an official letter and
  * opens it in a new window to print or save as PDF. The output is intentionally
@@ -15,7 +15,7 @@
  * The on-screen preview in `StudentLetterGeneration` mirrors this layout so the
  * student sees the same thing they print. When the real template wording arrives
  * from the supervisor, update the template fields in `src/mocks/letters.ts`
- * (and the shared letterhead constants below) — the print output follows.
+ * (and the shared letterhead constants below); the print output follows.
  */
 
 /** Static faculty letterhead details, shared by the preview and the printout. */
@@ -108,7 +108,7 @@ export function findPlaceholderProblems(content: string): { unknown: string[]; m
 const FILL_IN_BLANK = '____________';
 
 /** The values substituted into a template's placeholders for one student. The
- *  registry-backed fields are optional — a blank fill-in line is used when absent. */
+ *  registry-backed fields are optional; a blank fill-in line is used when absent. */
 export interface PlaceholderValues {
   studentName: string;
   matricNumber: string;
@@ -163,7 +163,7 @@ export function substitutePlaceholders(content: string, values: PlaceholderValue
 /**
  * Apply the inline text markup to one line: `**bold**`, `__underline__`,
  * `*italic*`. The text is HTML-escaped first, then only our own safe tags are
- * added — so it's safe to inject with `dangerouslySetInnerHTML` / into the print
+ * added, so it's safe to inject with `dangerouslySetInnerHTML` / into the print
  * window. When `highlightPlaceholders` is on (the staff editor preview), any
  * leftover `{{TAG}}` is wrapped in a highlight chip.
  */
@@ -339,7 +339,7 @@ export function buildLetterHtml(data: LetterData): string {
     .signature {
       display: flex; justify-content: space-between; align-items: flex-end;
       border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 56px;
-      /* Keep the whole signature block together — never split it across pages. */
+      /* Keep the whole signature block together; never split it across pages. */
       break-inside: avoid; page-break-inside: avoid;
     }
     .signature .line { width: 150px; border-bottom: 1px solid #94a3b8; height: 22px; margin-bottom: 6px; }

@@ -89,7 +89,7 @@ Use **DEMO-STUDENT-001**, **DEMO-LECT-001**, and the coordinator with acting AI 
 
 - [ ] Office → Marks Entry → Rubric Components: create `E2E-20261006-Rubric`, target 100, with **Problem Definition 40** and **Methodology 60**. Check readiness, invalid/negative maxima and missing components. Publication requires a ready rubric.
 - [ ] Configure an evaluation period in **Semester I 2026/2027**, scoped to **AI**, including **Supervisor and Panel**. Open before the current Malaysia time and close in the future, within permitted semester dates.
-- [ ] Review the recipient preview before publishing. After steps 3–4, the three AI Students should each have both official appointments: **six official tasks**. If counts differ, inspect missing appointments/scope first; do not assume every period has only the two tasks for Student 001.
+- [ ] Review the recipient preview before publishing. After steps 3-4, the three AI Students should each have both official appointments: **six official tasks**. If counts differ, inspect missing appointments/scope first; do not assume every period has only the two tasks for Student 001.
 - [ ] Publish. Draft fields become immutable; configuration audits show actors/actions. Generate again and confirm no duplicate tasks. A later eligible appointment must receive only the missing relevant task.
 - [ ] Lecturer filters show actual period semesters, including current periods attached to older research-profile semester labels. No hardcoded semester choice or Student intake semester should override the period.
 - [ ] Check programme/role targeting with a separate Draft/Published test period as needed. Co-supervisors must not receive official Marks tasks simply because they support the team.
@@ -123,7 +123,7 @@ Use **DEMO-STUDENT-001**, **DEMO-LECT-001**, and the coordinator with acting AI 
 
 ## 9. Advanced lifecycle branches before final closure
 
-Some positive paths require additional real test actors/profiles. The existing Registry screen cannot provision them in Django. Mark an unprovisioned case **BLOCKED—fixture prerequisite**, not passed. Extra actors must be provisioned separately with legitimate roles, programme scope and published capacity; do not repurpose the Panel into the Student's primary to bypass overlap rules.
+Some positive paths require additional real test actors/profiles. The existing Registry screen cannot provision them in Django. Mark an unprovisioned case **BLOCKED: fixture prerequisite**, not passed. Extra actors must be provisioned separately with legitimate roles, programme scope and published capacity; do not repurpose the Panel into the Student's primary to bypass overlap rules.
 
 | Scenario | Actors/setup and expected result |
 | --- | --- |
@@ -137,7 +137,7 @@ Some positive paths require additional real test actors/profiles. The existing R
 | Delegation revoke/expiry | After completing AI decisions, Office revokes the test acting grant with a reason. Coordinator loses AI queues/dossiers/exports/action access, retains regular scope and its own delegation history; prior audit actors stay unchanged. |
 | Graduation/withdrawal/retirement | Perform on a spare Student/extra Lecturer only after its work is checked. Preview blockers, reasoned pending cancellation and immutable participant history; ineligible participants stop receiving new work. Never retire the sole Office/Coordinator mid-run. |
 
-## 10. Semester closure, carryover and archival—last
+## 10. Semester closure, carryover and archival (last)
 
 - [ ] Create the next Draft semester and its capacity plan/timeline through Office UI if testing handover. Review destination readiness and effective dates; do not activate an arbitrary overlapping semester just to force a transition.
 - [ ] For carryover testing, deliberately leave a separate test request/task pending before closing the source semester. Check original ownership/history, unfinished-work preview, explicit acknowledgement and destination handover behavior. Closed-semester pending appointments requiring capacity reassessment must receive a reasoned Office reassessment against the effective Active plan before final approval; there must be no capacity bypass.

@@ -271,7 +271,7 @@ def my_letter_details_view(request):
         "programName": student.programme,
         "currentStatus": student.status,
         "supervisorName": _current_supervisor_name(student),
-        # Registry-backed fields — blank until a registry row exists.
+        # Registry-backed fields, blank until a registry row exists.
         "passportNumber": "",
         "country": "",
         "programmeMode": "",
@@ -285,7 +285,7 @@ def my_letter_details_view(request):
     try:
         data.update(student.registry.to_letter_dict())
     except ObjectDoesNotExist:
-        pass  # no registry details captured yet — keep the blanks above
+        pass  # no registry details captured yet, so keep the blanks above
     return Response(data)
 
 
@@ -301,7 +301,7 @@ def send_password_reset_email(user) -> bool:
         f"{reset_link}\n\n"
         "This link will expire in 30 minutes. If you did not request a reset, "
         "you can safely ignore this email.\n\n"
-        "— FSKTM Postgraduate Office"
+        "Regards,\nFSKTM Postgraduate Office"
     )
     # Failures are logged, never raised: an SMTP outage otherwise turned this
     # endpoint into a registered/unregistered oracle (500 for a real address,

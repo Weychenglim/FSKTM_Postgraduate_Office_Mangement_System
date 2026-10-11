@@ -226,7 +226,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                     The FSKTM Tech Support is cataloged to assist with student and staff account provisioning, single sign-on issues, and database interruptions.
                   </p>
                   <div className="mt-5 text-left w-full space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-[11px]">
-                    <div className="flex justify-between"><span className="text-slate-500">Operation:</span><span className="font-semibold">Mon – Fri (8AM – 5PM)</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Operation:</span><span className="font-semibold">Mon to Fri (8AM to 5PM)</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Service Counter:</span><span className="font-semibold">Block A, Level 2 Lab Office</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">IP Ext:</span><span className="font-mono text-blue-600 font-semibold">ext-4902</span></div>
                   </div>

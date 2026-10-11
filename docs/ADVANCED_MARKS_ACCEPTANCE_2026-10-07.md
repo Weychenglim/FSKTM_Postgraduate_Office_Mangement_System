@@ -1,4 +1,4 @@
-# Advanced Marks acceptance — 7 October 2026
+# Advanced Marks acceptance: 7 October 2026
 
 This slice verifies programme/role targeting and backup assignment, Lecturer historical-semester filters, and task completion-window grant/renewal/revocation/expiry within the five owned modules. The maintained root requirements/design/status remain the source of truth. This is scoped acceptance, not whole-system or production acceptance.
 
@@ -54,7 +54,7 @@ From `backend`:
 
 All **126 Marks backend tests pass in 152.338 seconds**. This includes targeting, completion windows, closure, atomicity and admin boundaries; it is not a fresh all-backend test claim. All **70 frontend test scripts**, TypeScript and the production build (4.05 seconds) pass in the final run. Django checks, migration-drift and whitespace checks pass. Scoped independent review found no critical or important issues. Documentation verification passes for 398 unique source clauses and exact wording/line mappings.
 
-Ignored reproducibility material includes `.env.marks-acceptance-{fixture,context,server,probes}.py`, `.env.marks-final-assertions.py`, backend final logs/results and frontend final logs. The secret runtime manifest is never committed. Screenshots 01–13 are retained under `frontend/acceptance-evidence/advanced-marks-2026-10-07/`: invalid targeting, AI/DS previews, original/fixed backup dropdown, created exception, historical filter, superseded/revoked history, active Panel recovery, completed/revoked closed recovery, read-only revoked/expired drafts and corrected Office monitoring.
+Ignored reproducibility material includes `.env.marks-acceptance-{fixture,context,server,probes}.py`, `.env.marks-final-assertions.py`, backend final logs/results and frontend final logs. The secret runtime manifest is never committed. Screenshots 01-13 are retained under `frontend/acceptance-evidence/advanced-marks-2026-10-07/`: invalid targeting, AI/DS previews, original/fixed backup dropdown, created exception, historical filter, superseded/revoked history, active Panel recovery, completed/revoked closed recovery, read-only revoked/expired drafts and corrected Office monitoring.
 
 ## Remaining acceptance
 

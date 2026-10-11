@@ -155,8 +155,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   const kpis = useMemo(() => report ? [
     { label: 'Records in scope', value: formatReportMetric(report.overview.totalRecords) },
     { label: 'Pending approvals', value: formatReportMetric(report.overview.pendingApprovals) },
-    { label: 'Average waiting', value: report.overview.averageWaitingDays === null ? '—' : `${report.overview.averageWaitingDays} days` },
-    { label: 'Longest waiting', value: report.overview.longestWaitingDays === null ? '—' : `${report.overview.longestWaitingDays} days` },
+    { label: 'Average waiting', value: report.overview.averageWaitingDays === null ? '-' : `${report.overview.averageWaitingDays} days` },
+    { label: 'Longest waiting', value: report.overview.longestWaitingDays === null ? '-' : `${report.overview.longestWaitingDays} days` },
     { label: 'Marks completion', value: formatReportMetric(report.overview.marksCompletionRate, '%') },
     { label: 'Active milestones', value: formatReportMetric(report.overview.activeTimelineEntries) },
   ] : [], [report]);

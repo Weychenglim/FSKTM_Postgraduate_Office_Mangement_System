@@ -75,7 +75,7 @@ class AnnouncementSecurityTests(APITestCase):
             **kwargs,
         )
 
-    # ── Cross-sender modification ────────────────────────────────────────────
+    # Cross-sender modification
 
     def test_sender_cannot_edit_another_senders_announcement(self):
         announcement = self.published_by(self.lecturer)
@@ -112,7 +112,7 @@ class AnnouncementSecurityTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    # ── Draft visibility ─────────────────────────────────────────────────────
+    # Draft visibility
 
     def test_sender_does_not_see_another_senders_draft_in_list(self):
         self.draft_by(self.lecturer, title="Secret draft")
@@ -152,7 +152,7 @@ class AnnouncementSecurityTests(APITestCase):
         response = self.client.get(f"/api/announcements/{announcement.pk}/attachment/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    # ── Attachment validation ────────────────────────────────────────────────
+    # Attachment validation
 
     def post_attachment(self, upload):
         return self.client.post(
@@ -223,7 +223,7 @@ class AnnouncementSecurityTests(APITestCase):
         announcement.refresh_from_db()
         self.assertFalse(announcement.attachment)
 
-    # ── Recipient-side isolation ─────────────────────────────────────────────
+    # Recipient-side isolation
 
     def test_student_cannot_publish(self):
         self.client.force_authenticate(self.student)
@@ -236,7 +236,7 @@ class AnnouncementSecurityTests(APITestCase):
         response = self.client.get("/api/announcements/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    # ── Fan-out integrity ────────────────────────────────────────────────────
+    # Fan-out integrity
 
     def test_republishing_does_not_duplicate_notifications(self):
         """Toggling Draft/Active must not deliver the same announcement twice."""
@@ -377,7 +377,7 @@ class AnnouncementSecurityTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    # ── Notification endpoint isolation ──────────────────────────────────────
+    # Notification endpoint isolation
 
     def publish_via_api(self, author, title="Broadcast"):
         """Publish through the API so the notification fan-out actually runs."""

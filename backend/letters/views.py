@@ -24,7 +24,7 @@ STAFF_ROLES = {"Office Staff/Admin", "Programme Coordinator"}
 
 
 def _is_staff(user):
-    # Keyed on the role, not ``is_staff`` or superuser status — those flags only
+    # Keyed on the role, not ``is_staff`` or superuser status. Those flags only
     # concern Django admin and should not confer template-management rights.
     return getattr(user, "role", None) in STAFF_ROLES
 

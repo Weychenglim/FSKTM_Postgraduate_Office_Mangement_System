@@ -63,7 +63,7 @@ class RegistryImportTests(APITestCase):
     def _statuses(self, response):
         return [row["status"] for row in response.data["rows"]]
 
-    # ── Preview (dry run) ─────────────────────────────────────────────────────
+    # Preview (dry run)
 
     def test_preview_checks_every_row_and_writes_nothing(self):
         response = self._post(
@@ -131,7 +131,7 @@ class RegistryImportTests(APITestCase):
         self.assertEqual(self._statuses(response), ["Ready", "Bad Programme"])
         self.assertEqual(response.data["rows"][0]["phone"], "012-3456789")
 
-    # ── File-level refusals ───────────────────────────────────────────────────
+    # File-level refusals
 
     def test_unsupported_extension_is_refused(self):
         response = self._post(SimpleUploadedFile("intake.txt", b"student_id\nWGA1"))
@@ -167,7 +167,7 @@ class RegistryImportTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("more than 3", response.data["error"])
 
-    # ── Commit ────────────────────────────────────────────────────────────────
+    # Commit
 
     def test_xlsx_import_creates_accounts_and_records_the_batch(self):
         response = self._post(
@@ -226,7 +226,7 @@ class RegistryImportTests(APITestCase):
         self.assertEqual((batch["created"], batch["invitationsFailed"]), (1, 1))
         self.assertEqual(batch["problems"][0]["issue"], "activation email could not be sent")
 
-    # ── History and access ────────────────────────────────────────────────────
+    # History and access
 
     def test_recent_imports_are_newest_first_and_limited(self):
         for index in range(3):

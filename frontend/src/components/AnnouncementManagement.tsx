@@ -23,7 +23,8 @@ import {
   Send,
   Eye,
   FileText,
-  Pencil
+  Pencil,
+  Minus
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { StatCard } from './StatCard';
@@ -454,7 +455,7 @@ export const AnnouncementManagement: React.FC = () => {
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="font-extrabold text-slate-400 tracking-wide text-center leading-none">—</span>
+                  <Minus className={`w-4 h-4 ${priorityLevel === 'General' ? 'text-slate-700' : 'text-slate-400'}`} />
                   <span className={`text-[9px] uppercase font-black tracking-widest ${priorityLevel === 'General' ? 'text-slate-800' : 'text-slate-500'}`}>
                     General
                   </span>
@@ -504,7 +505,7 @@ export const AnnouncementManagement: React.FC = () => {
                       </span>
                       {!attachedFile && existingAttachmentName && (
                         <span className="text-slate-400 font-semibold italic">
-                          {removeExistingAttachment ? '(will be removed when saved)' : '(current — upload to replace)'}
+                          {removeExistingAttachment ? '(will be removed when saved)' : '(current; upload a file to replace it)'}
                         </span>
                       )}
                     </div>

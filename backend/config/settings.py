@@ -20,7 +20,7 @@ from .production_security import (
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load backend/.env (no-op if the file is absent — sensible defaults below).
+# Load backend/.env (no-op if the file is absent; sensible defaults below).
 load_dotenv(BASE_DIR / ".env")
 
 
@@ -40,7 +40,7 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
-# ── Core ─────────────────────────────────────────────────────────────────────
+# Core
 DEBUG = env_bool("DJANGO_DEBUG", True)
 configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
 SECRET_KEY = configured_secret_key or (DEVELOPMENT_SECRET_KEY if DEBUG else "")
@@ -93,7 +93,7 @@ DEMO_LECTURER_PASSWORD = os.getenv("DEMO_LECTURER_PASSWORD", "")
 DEMO_STUDENT_PASSWORD = os.getenv("DEMO_STUDENT_PASSWORD", "")
 DEMO_LEGACY_EMAIL_MAP = os.getenv("DEMO_LEGACY_EMAIL_MAP", "")
 
-# Where the React app is served — used to build password-reset links.
+# Where the React app is served. Used to build password-reset links.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 AUTH_USER_MODEL = "accounts.User"
@@ -149,7 +149,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# ── Database (PostgreSQL — reuses the same fsktm_pg_office DB / PG* vars) ─────
+# Database (PostgreSQL, reusing the same fsktm_pg_office DB / PG* vars)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -177,7 +177,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ── Media (announcement attachments and other uploaded files) ────────────────
+# Media (announcement attachments and other uploaded files)
 # Files are served only through permission-checked API endpoints (e.g.
 # /api/announcements/<id>/attachment/), so MEDIA_URL is not exposed publicly.
 MEDIA_URL = "media/"
@@ -230,7 +230,7 @@ REGISTRY_ACCESS_LINK_THROTTLE_RATE = os.getenv(
     "REGISTRY_ACCESS_LINK_THROTTLE_RATE", "3/hour"
 )
 
-# ── Django REST Framework + SimpleJWT ────────────────────────────────────────
+# Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "accounts.password_policy.PasswordPolicyJWTAuthentication",
@@ -259,7 +259,7 @@ JWT_REFRESH_COOKIE_PATH = "/api/auth/"
 JWT_REFRESH_COOKIE_SECURE = not DEBUG
 CORS_ALLOW_CREDENTIALS = True
 
-# ── Email (real SMTP when creds are set, console backend otherwise) ──────────
+# Email (real SMTP when creds are set, console backend otherwise)
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 
@@ -269,7 +269,7 @@ if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
     EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
     EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 else:
-    # No credentials yet — print the email (and reset link) to the runserver console.
+    # No credentials yet: print the email (and reset link) to the runserver console.
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 DEFAULT_FROM_EMAIL = os.getenv(

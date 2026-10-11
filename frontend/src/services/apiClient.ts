@@ -70,7 +70,7 @@ export const PASSWORD_CHANGE_REQUIRED_EVENT = 'fsktm:password-change-required';
 /**
  * Whether a failed request may fall back to mock data.
  *
- * Only genuine transport failures qualify — the server being unreachable. A
+ * Only genuine transport failures qualify: the server being unreachable. A
  * response that carried an HTTP status (401, 403, 404, 500…) is a real answer
  * and must surface as an error: silently swapping in fixtures would render
  * invented records as though they were live data.
@@ -96,7 +96,7 @@ export async function mockResponse<T>(
     : (JSON.parse(JSON.stringify(data)) as T);
 }
 
-// ─── Token management ────────────────────────────────────────────────────────
+// Token management
 
 export function setAuthToken(token: string): void {
   authSession.setAccessToken(token);
@@ -118,7 +118,7 @@ export function refreshAuthToken(): Promise<string | null> {
   return authSession.refreshAccessToken();
 }
 
-// ─── HTTP helper ─────────────────────────────────────────────────────────────
+// HTTP helper
 
 /**
  * Pull a human-readable message out of an error response body. Handles our
@@ -171,7 +171,7 @@ export async function request<T>(
     return (await res.json()) as T;
   } catch {
     // A 200 carrying HTML (proxy or SSO interstitial) is a server problem, not
-    // a transport failure — surface it as an ApiError so callers cannot mistake
+    // a transport failure. Surface it as an ApiError so callers cannot mistake
     // it for "offline" and quietly substitute mock data.
     throw new ApiError('The server returned an unreadable response.', res.status);
   }
@@ -214,7 +214,7 @@ async function raiseForStatus(res: Response): Promise<never> {
     body = JSON.parse(text);
   } catch {
     // Not JSON: a proxy or server error page. An empty 500 is what the dev
-    // proxy sends when Django is down; 502–504 come from a gateway.
+    // proxy sends when Django is down; 502-504 come from a gateway.
     if (res.status >= 500) {
       message = UNAVAILABLE_STATUSES.has(res.status) || !text.trim()
         ? 'The server is unavailable. Please try again shortly.'
@@ -264,7 +264,7 @@ export async function requestMultipart<T>(
   }
 }
 
-/** Fetch a binary file (with auth) as a Blob — used for attachment downloads. */
+/** Fetch a binary file (with auth) as a Blob, used for attachment downloads. */
 export async function requestBlob(path: string, init?: RequestInit): Promise<Blob> {
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),

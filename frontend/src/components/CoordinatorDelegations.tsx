@@ -9,7 +9,7 @@ import { ErrorState, LoadingState } from './StateViews';
 export function CoordinatorDelegationCard({ grant, office, onRevoke }: { grant: CoordinatorDelegation; office: boolean; onRevoke: (grant: CoordinatorDelegation) => void }) {
   return <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold text-brand-navy">{grant.programme} · {grant.coordinator.name}</h4><StatusBadge tone={grant.status === 'ACTIVE' ? 'success' : grant.status === 'REVOKED' ? 'danger' : 'neutral'}>{grant.status}</StatusBadge></div>
-    <p>{grant.startsOn} – {grant.endsOn} (inclusive, Malaysia time)</p>
+    <p>{grant.startsOn} to {grant.endsOn} (inclusive, Malaysia time)</p>
     <p className="whitespace-pre-wrap">{grant.justification}</p>
     <p className="text-slate-500">Granted by {grant.grantedBy.name} · {new Date(grant.createdAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}</p>
     {grant.revokedAt && <p className="text-rose-700 whitespace-pre-wrap">Revoked by {grant.revokedBy?.name ?? 'Office'} · {new Date(grant.revokedAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}: {grant.revocationReason}</p>}

@@ -82,7 +82,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const markRead = useCallback(async (id: string, isRead = true) => {
     let previousUnread: boolean | undefined;
-    // Optimistic update — flip the row immediately so the bell reacts at once.
+    // Optimistic update: flip the row immediately so the bell reacts at once.
     setItems((prev) =>
       prev.map((it) => {
         if (it.id === id) {

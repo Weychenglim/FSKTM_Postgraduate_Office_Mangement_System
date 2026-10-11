@@ -31,7 +31,7 @@ class SettingsModuleTests(APITestCase):
             role=User.Role.STUDENT,
         )
 
-    # ── Contact details ──────────────────────────────────────────────────────
+    # Contact details
 
     def test_patch_me_updates_own_phone(self):
         self.client.force_authenticate(self.user)
@@ -55,7 +55,7 @@ class SettingsModuleTests(APITestCase):
         response = self.client.patch("/api/auth/me/", {"phone": "012"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    # ── Password change ──────────────────────────────────────────────────────
+    # Password change
 
     def test_change_password_succeeds_with_correct_current(self):
         self.client.force_authenticate(self.user)

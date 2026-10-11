@@ -159,7 +159,7 @@ export const StudentFAQChatbot: React.FC = () => {
         subtitle="Ask common postgraduate questions and get pointers to the right procedure."
       />
 
-      {/* Conversation — flows with the page, like a chat assistant */}
+      {/* Conversation: flows with the page, like a chat assistant */}
       <div className="max-w-3xl mx-auto space-y-8">
         {chatMessages.map((msg) => (
           msg.sender === 'assistant' ? (

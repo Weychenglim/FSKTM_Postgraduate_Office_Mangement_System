@@ -1,4 +1,4 @@
-"""Django admin for the custom user + role profiles — a technical maintenance
+"""Django admin for the custom user + role profiles: a technical maintenance
 screen. Office staff manage students in the portal; Technical Administrator
 accounts are maintenance-only and never hold a portal profile.
 
@@ -24,7 +24,7 @@ from .models import (
 )
 
 
-# ── Profile inlines shown on the User page ───────────────────────────────────
+# Profile inlines shown on the User page
 
 
 class StudentInline(admin.StackedInline):
@@ -115,7 +115,7 @@ class UserAdmin(BaseUserAdmin):
         return super().get_inline_instances(request, obj)
 
 
-# ── Lecturer specialization inlines (managed on the Lecturer page) ───────────
+# Lecturer specialization inlines (managed on the Lecturer page)
 
 
 class CoordinatorInline(admin.StackedInline):

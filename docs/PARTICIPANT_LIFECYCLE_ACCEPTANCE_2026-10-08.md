@@ -1,4 +1,4 @@
-# Participant lifecycle acceptance — 8 October 2026
+# Participant lifecycle acceptance: 8 October 2026
 
 This slice covers lifecycle dependencies of the five owned modules. It adds no sixth sidebar module and changes no faculty or coordinator identity policy. Normal development records, passwords and authority were preserved. All transition examples below use synthetic data in `fsktm_lifecycle_20261008_df169d`, separate from the normal database and earlier acceptance databases. Loopback 8014/3014 served Django and Vite with mocks/demo login disabled and a separate signing key. Fixture setup is a prerequisite, not browser workflow evidence.
 

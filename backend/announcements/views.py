@@ -51,7 +51,7 @@ AUDIENCE_TO_ROLE = {
 }
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _is_sender(user):
@@ -219,7 +219,7 @@ def _publishable(announcement):
     return None
 
 
-# ── Announcements ────────────────────────────────────────────────────────────
+# Announcements
 
 
 @api_view(["GET", "POST"])
@@ -367,7 +367,7 @@ def announcement_attachment(request, pk):
     )
 
 
-# ── Notifications ────────────────────────────────────────────────────────────
+# Notifications
 
 
 @api_view(["GET"])

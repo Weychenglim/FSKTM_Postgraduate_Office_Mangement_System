@@ -232,7 +232,7 @@ def validate_import_rows(rows):
             issue = f"same student_id as line {first_id[matric.lower()]}"
         elif not email:
             status = "Missing Email"
-            issue = "email is required — the student needs it to activate the account"
+            issue = "email is required; the student needs it to activate the account"
         elif email_problem:
             status = "Missing Email"
             issue = email_problem

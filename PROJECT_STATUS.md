@@ -62,7 +62,7 @@
 
 ## Technical Administrator Accounts: Xiang's Side (2026-10-09)
 
-- Agreed with the teammate: one account, one role. Office staff work in the portal; Django admin is for separate Technical Administrator accounts (pending-work register T01–T06).
+- Agreed with the teammate: one account, one role. Office staff work in the portal; Django admin is for separate Technical Administrator accounts (pending-work register T01-T06).
 - **Account type.** `createsuperuser` now creates a Technical Administrator (`User.TECHNICAL_ADMIN`, migration `accounts.0008`). It is a valid `User.role` value but deliberately not part of `User.Role`, so `User.Role` stays the four portal roles and code or tests that loop over it are unaffected. A superuser cannot be created with a portal role, and `createsuperuser` no longer asks for a role.
 - **Kept out of the portal.**
   - Login returns 403 `technical_account`. This happens after the password check, so a wrong password still gets the generic 401.
@@ -75,7 +75,7 @@
   - Letter templates, announcements and notifications are inspection-only (no add, change or delete). The private announcement attachment shows its file name instead of an unserved media link.
   - The user forms reject a portal account with superuser status, a Technical Administrator without staff and superuser status, and turning an account that has a portal profile into a Technical Administrator.
   - Technical Administrator pages show no profile sections.
-- **Not changed (teammate's T02–T05).** Office accounts still need `is_staff` for Marks, participant lifecycle (including Registry status changes), research amendments, capacity reassessment and delegation until those checks move to the Office role. Admin login is not restricted yet, and `seed_users` is unchanged.
+- **Not changed (teammate's T02-T05).** Office accounts still need `is_staff` for Marks, participant lifecycle (including Registry status changes), research amendments, capacity reassessment and delegation until those checks move to the Office role. Admin login is not restricted yet, and `seed_users` is unchanged.
 - **Verification.**
   - 831 backend tests pass with `--parallel 2`, including 20 new ones in `accounts/test_technical_admin.py`.
   - All 82 frontend scripts, TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
@@ -86,7 +86,7 @@
 
 - User authorized pushing the accumulated changes, creating a PR and merging into `main`. [PR #13](https://github.com/Weychenglim/FSKTM_Postgraduate_Office_Mangement_System/pull/13) merged the 64-file release on 9 October Malaysia time, with commit `fc8265a3b22e15430be6349955f7a240b72c7bfa`. Its reviewed source commit is `2bc5ba9b3ecb17b1a1354acecc4d4087d2447410`, based on `9ee3bd4`; no upstream conflict required resolution. Local `main` was fast-forwarded to the merge and its backend/frontend tree verified identical to the tested source. Existing work is preserved; private environment files, credentials, runtime logs and synthetic databases remain excluded.
 - Fresh verification passes **all 683 backend tests in 604.078 seconds** with two isolated test workers, all **75 frontend test scripts**, TypeScript and production build (6.05 seconds), Django checks, migration-drift, whitespace and documentation source/link checks. Independent integration review found no actionable issues. GitHub reported the PR mergeable with a clean merge state; there were no reported remote status checks. This release record changes documentation only after the application merge.
-- This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01–T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
+- This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01-T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
 
 ## Main Sync: Teammate Settings Adopted (2026-10-08)
 
@@ -102,9 +102,9 @@
 - **Verification.** 768 backend tests pass with `--parallel 2`. With `--parallel 4`, the PostgreSQL concurrency tests lost their connections on this machine, matching the teammate's earlier note. Django checks, migration-drift and whitespace checks pass.
 ## Consolidated pending work and decisions (2026-10-08)
 
-- Start with [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md). It preserves the user's technical-only Django admin direction and separates implementation tasks T01–T06, acceptance slices A01–A07, release/deployment work, teammate integration gaps and deferred policy decisions. Creating this document did not implement the access change.
+- Start with [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md). It preserves the user's technical-only Django admin direction and separates implementation tasks T01-T06, acceptance slices A01-A07, release/deployment work, teammate integration gaps and deferred policy decisions. Creating this document did not implement the access change.
 - Latest source inspection confirms `is_staff` dependencies beyond Marks: participant lifecycle, research amendments/transfers, capacity reassessment and acting Coordinator delegation. Ordinary core Timeline/academic configuration and many workflow views already use role/scope checks. Permission separation must cover the shared dependencies; do not simply clear Office staff flags or expand their admin permissions.
-- The next proposed implementation slice is T01–T06, before resuming supporting-supervision acceptance. Existing completed reports remain valid within their stated scope; the checklist still contains 406 source bullet clauses, 48 Passed and 358 Awaiting acceptance. Routine Registry/account management remains a separate incomplete integration, so technical account provisioning may still be needed until its owner completes it.
+- The next proposed implementation slice is T01-T06, before resuming supporting-supervision acceptance. Existing completed reports remain valid within their stated scope; the checklist still contains 406 source bullet clauses, 48 Passed and 358 Awaiting acceptance. Routine Registry/account management remains a separate incomplete integration, so technical account provisioning may still be needed until its owner completes it.
 
 ## Fresh local servers and tester guide (2026-10-08)
 
@@ -120,7 +120,7 @@
 - The checklist now contains **406 clauses: 48 Passed, 358 Awaiting acceptance**. Selected Panel history includes Office cancellations before a decision, with a Cancelled filter; timelines preserve prior Panel acceptance when cancellation occurs during Coordinator confirmation. Student Supervisor history also treats Office cancellation as terminal.
 - [Acceptance report](docs/PARTICIPANT_LIFECYCLE_ACCEPTANCE_2026-10-08.md) and E9 checklist keep unexercised supporting-appointment, coordinator responsibility/delegation, audit-outage/concurrent-transition and original-appointment-ended combinations awaiting acceptance. Next development slice is supporting supervision membership/replacement, then amendments/transfers, delegation/carryover and remaining Dashboard/Timeline/report/export/reconciliation branches. Production-host checks and deferred faculty/coordinator identity decisions remain separate. Changes remain uncommitted/unpushed.
 
-## Submitted Marks portal migration completed (2026-10-07–08)
+## Submitted Marks portal migration completed (2026-10-07 to 2026-10-08)
 
 - Authorized Office Staff/Admin can correct submitted scores/comments or reopen for the assigned Lecturer through Marks Entry → View Mark Records → record detail. Existing staff/model-change permissions, required reasons, score bounds, submission locking, transactional audits and open-period reopening rules are preserved. Reviewed-state versions reject stale edits; history displays named before/after values. Mark Entry Django admin is inspection-only, including for superusers.
 - Browser acceptance on 7 October uses a fresh synthetic database: missing reason/negative/no-op/cancel handling; 80→85 correction; newer 86 correction with stale second-tab rejection/reload; reasoned Draft reopening; assigned Lecturer revision/resubmission at 88; closed-period correction 80→82; inspection-only Office and admin views. Independent assertions confirm exactly four audits, expected actors/reasons/scores/comments, preserved closed submission date and new resubmission deadline snapshot, and unchanged unrelated Draft 46. See [portal Marks acceptance](docs/MARKS_PORTAL_ACTIONS_ACCEPTANCE_2026-10-07.md).
@@ -152,7 +152,7 @@
 - All **77 affected Appointments backend tests** pass in **163.028 seconds**. All **68 frontend test scripts**, TypeScript and the production build pass after the fixes; Django checks, migration-drift and whitespace checks pass. Independent read-only review found no critical or important issues. Details are in `docs/APPOINTMENT_REPLACEMENT_ACCEPTANCE_2026-10-07.md`; this is not a fresh full-backend-suite or whole-system acceptance claim.
 - The five-module checklist now includes **395 individual in-scope clauses** and records this completed slice separately from still-unverified compound requirements. Next browser work covers rejection, private-file and capacity/availability failures, followed by advanced Marks and lifecycle branches. Faculty rules/coordinator identity remain deferred; production deployment checks remain separate. Changes remain uncommitted/unpushed. Normal loopback services on 8000/3001 remain available; isolated 8011/3011 services are stopped after verification and their synthetic database/evidence are retained.
 
-## Django admin acceptance and five-module checklist (2026-10-06–07)
+## Django admin acceptance and five-module checklist (2026-10-06 to 2026-10-07)
 
 - Real admin HTTP probes reproduced invalid Marks correction/closed-reopening server errors, unaudited evaluator and period-semester reassignment, draft comment edits, and deletable Marks audits. Further probes reproduced shared semester closure and capacity/availability writes outside the portal audit services.
 - Corrected these admin boundaries while preserving the authorized, reasoned Marks correction/reopening services. Negative and non-finite correction input now rejects with form validation; governed configuration, assignments, drafts and immutable audits are inspection-only. Existing research-profile provisioning and account administration were not changed.

@@ -169,7 +169,7 @@ def reject_technical_profile(profile):
         )
 
 
-# ── Top-level subtypes (User → Student / OfficeStaff / Lecturer) ─────────────
+# Top-level subtypes (User → Student / OfficeStaff / Lecturer)
 
 
 class Student(models.Model):
@@ -210,7 +210,7 @@ class Student(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.matric_no} — {self.user.full_name}"
+        return f"{self.matric_no} ({self.user.full_name})"
 
     def clean(self):
         super().clean()
@@ -218,7 +218,7 @@ class Student(models.Model):
 
 
 class StudentRegistry(models.Model):
-    """Extended registry details for a Student — the data an official letter
+    """Extended registry details for a Student: the data an official letter
     (e.g. the visa / confirmation-of-study letter) needs that the base Student
     profile does not hold (passport, nationality, programme mode, semesters…).
 
@@ -240,7 +240,7 @@ class StudentRegistry(models.Model):
     student = models.OneToOneField(
         Student, on_delete=models.CASCADE, primary_key=True, related_name="registry"
     )
-    # Identity — a local student has an IC; an international student a passport.
+    # Identity: a local student has an IC; an international student a passport.
     ic_number = models.CharField(max_length=32, blank=True, default="")
     passport_number = models.CharField(max_length=32, blank=True, default="")
     nationality = models.CharField(max_length=64, blank=True, default="")  # {{COUNTRY}}
@@ -264,7 +264,7 @@ class StudentRegistry(models.Model):
         verbose_name_plural = "Student registry details"
 
     def __str__(self):
-        return f"Registry — {self.student.matric_no}"
+        return f"Registry: {self.student.matric_no}"
 
     def to_letter_dict(self):
         """The letter-placeholder values for this student (camelCase to match the
@@ -298,7 +298,7 @@ class OfficeStaff(models.Model):
         verbose_name_plural = "Office staff"
 
     def __str__(self):
-        return f"{self.staff_no} — {self.user.full_name}"
+        return f"{self.staff_no} ({self.user.full_name})"
 
     def clean(self):
         super().clean()
@@ -338,14 +338,14 @@ class Lecturer(models.Model):
     lifecycle_reason = models.TextField(blank=True)
 
     def __str__(self):
-        return f"{self.staff_no} — {self.user.full_name}"
+        return f"{self.staff_no} ({self.user.full_name})"
 
     def clean(self):
         super().clean()
         reject_technical_profile(self)
 
 
-# ── Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel) ───
+# Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel)
 
 
 class ParticipantLifecycleAudit(models.Model):
@@ -412,7 +412,7 @@ class Coordinator(models.Model):
     appointed_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"Coordinator — {self.lecturer.user.full_name}"
+        return f"Coordinator: {self.lecturer.user.full_name}"
 
 
 class Supervisor(models.Model):
@@ -425,7 +425,7 @@ class Supervisor(models.Model):
     max_supervisees = models.PositiveIntegerField(default=5)
 
     def __str__(self):
-        return f"Supervisor — {self.lecturer.user.full_name}"
+        return f"Supervisor: {self.lecturer.user.full_name}"
 
 
 class Panel(models.Model):
@@ -441,7 +441,7 @@ class Panel(models.Model):
         verbose_name = "Panel member"
 
     def __str__(self):
-        return f"Panel — {self.lecturer.user.full_name}"
+        return f"Panel: {self.lecturer.user.full_name}"
 
 
 class RegistryImportBatch(models.Model):
@@ -482,7 +482,7 @@ class RegistryImportBatch(models.Model):
         }
 
     def __str__(self):
-        return f"{self.file_name} — {self.created_count} created"
+        return f"{self.file_name} ({self.created_count} created)"
 
 
 class CoordinatorDelegationQuerySet(models.QuerySet):

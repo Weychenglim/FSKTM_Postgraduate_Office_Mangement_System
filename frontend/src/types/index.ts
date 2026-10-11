@@ -4,7 +4,7 @@
  */
 
 // Barrel for all shared domain models. Import from '../types' (or './types'
-// at the src root) — e.g. `import { StudentRecord, DemoUser } from '../types'`.
+// at the src root), e.g. `import { StudentRecord, DemoUser } from '../types'`.
 // This replaces the former single src/types.ts file; existing imports keep
 // working because they resolve to this index.
 

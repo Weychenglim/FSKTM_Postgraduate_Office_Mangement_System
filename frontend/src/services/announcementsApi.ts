@@ -7,7 +7,7 @@
 // backend (`/api/announcements/`). Reads fall back to mock data when the
 // backend is unreachable *and* mocks are enabled, so the UI still renders
 // offline; writes always go to the backend (they require an authenticated
-// sender — office staff, coordinator, or lecturer).
+// sender: office staff, coordinator, or lecturer).
 
 import { AnnouncementItem } from '../types';
 import { MOCK_ANNOUNCEMENTS } from '../mocks/announcements';

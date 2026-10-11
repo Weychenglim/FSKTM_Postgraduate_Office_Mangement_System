@@ -164,7 +164,7 @@ export default function App() {
         if (!cancelled && user) setCurrentUser(user);
       })
       .catch(() => {
-        // Token is missing/expired/invalid — drop it and show login.
+        // Token is missing/expired/invalid: drop it and show login.
         clearAuthToken();
       })
       .finally(() => {

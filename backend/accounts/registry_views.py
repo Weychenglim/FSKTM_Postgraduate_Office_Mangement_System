@@ -149,7 +149,7 @@ def to_record(student) -> dict:
         "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
         # Lets the office spot accounts that were registered but never
-        # activated — e.g. because the invitation bounced.
+        # activated, e.g. because the invitation bounced.
         "activated": user.has_usable_password(),
         "lastLogin": (user.last_portal_login or user.last_login).isoformat()
         if (user.last_portal_login or user.last_login)
@@ -284,7 +284,7 @@ def send_activation_email(user, connection=None) -> bool:
     """Email the new student a link to choose their first password.
 
     Uses the same signed token as password reset, so no credential is ever
-    generated or transmitted. Returns whether the send succeeded — the office
+    generated or transmitted. Returns whether the send succeeded; the office
     needs to know when an address bounced.
     """
     uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -300,7 +300,7 @@ def send_activation_email(user, connection=None) -> bool:
                 f"{link}\n\n"
                 "The link expires in 30 minutes. If it expires, use "
                 "\"Forgot password\" on the sign-in page to request a new one.\n\n"
-                "— FSKTM Postgraduate Office"
+                "Regards,\nFSKTM Postgraduate Office"
             ),
             settings.DEFAULT_FROM_EMAIL,
             [user.email],
@@ -500,7 +500,7 @@ def student_import_view(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def import_batches_view(request):
-    """Most recent bulk imports, newest first (``?limit=``, 1–50, default 5)."""
+    """Most recent bulk imports, newest first (``?limit=``, 1-50, default 5)."""
     _require_office_admin(request)
     try:
         limit = int(request.query_params.get("limit", 5))

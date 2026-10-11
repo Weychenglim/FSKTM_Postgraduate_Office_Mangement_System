@@ -4,7 +4,7 @@
  */
 
 // Demo data for letter templates (UC40). Used only as an offline fallback when
-// the backend is unreachable — the real source is the Django `letters` API.
+// the backend is unreachable; the real source is the Django `letters` API.
 // The body content uses the same {{PLACEHOLDER}} tags the frontend substitutes.
 
 import { LetterTemplate } from '../types';

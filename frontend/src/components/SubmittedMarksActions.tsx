@@ -87,7 +87,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
               onChange={event => setValues(current => ({...current, [component.id]: event.target.value}))}/>
           </label>)}</div>
           <label className="block text-sm font-semibold">Corrected overall comments<textarea className="form-control mt-1" disabled={busy} value={comments} onChange={event => setComments(event.target.value)}/></label>
-          <p className="text-sm">Total: {record.entry.totalMark} → {Number.isFinite(correctedTotal) ? correctedTotal.toFixed(2) : '—'}</p>
+          <p className="text-sm">Total: {record.entry.totalMark} → {Number.isFinite(correctedTotal) ? correctedTotal.toFixed(2) : '-'}</p>
         </> : <p className="text-sm text-slate-600">Scores and comments are preserved. The entry returns to Draft so its assigned Lecturer can review and resubmit while the period remains open.</p>}
         <label className="block text-sm font-semibold">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-1" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
         <div className="flex flex-wrap gap-2">
@@ -126,7 +126,7 @@ export function MarkCorrectionHistoryView({events, components}: {
       <p className="mt-1 text-slate-500">{event.actorName} · {formatMalaysiaDateTime(event.createdAt)}</p>
       <details className="mt-2"><summary className="cursor-pointer font-semibold">View before and after</summary>
         <div className="mt-2 overflow-x-auto"><table className="w-full text-left"><thead><tr><th className="p-2">Field</th><th className="p-2">Before</th><th className="p-2">After</th></tr></thead>
-          <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100"><th className="p-2">{label}</th><td className="p-2 whitespace-pre-wrap">{before == null ? '—' : String(before)}</td><td className="p-2 whitespace-pre-wrap">{after == null ? '—' : String(after)}</td></tr>)}</tbody>
+          <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100"><th className="p-2">{label}</th><td className="p-2 whitespace-pre-wrap">{before == null ? '-' : String(before)}</td><td className="p-2 whitespace-pre-wrap">{after == null ? '-' : String(after)}</td></tr>)}</tbody>
         </table></div>
       </details>
     </article>;

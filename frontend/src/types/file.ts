@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// File Management domain models (UC34–UC39).
+// File Management domain models (UC34-UC39).
 
 export type FileCategory = 'Coursework' | 'Research' | 'Administrative' | 'Evaluation';
 export type FileStatus = 'Active' | 'Archived';

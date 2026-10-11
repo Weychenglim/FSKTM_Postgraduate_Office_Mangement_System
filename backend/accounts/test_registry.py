@@ -50,7 +50,7 @@ class StudentRegistryApiTests(APITestCase):
             intake_semester="Semester 1, 2025/2026",
         )
 
-    # ── Role gating ──────────────────────────────────────────────────────────
+    # Role gating
 
     def test_anonymous_is_denied(self):
         response = self.client.get("/api/registry/students/")
@@ -77,7 +77,7 @@ class StudentRegistryApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    # ── Read shape ───────────────────────────────────────────────────────────
+    # Read shape
 
     def test_admin_lists_records_in_frontend_shape(self):
         self.client.force_authenticate(self.admin)
@@ -111,7 +111,7 @@ class StudentRegistryApiTests(APITestCase):
         response = self.client.get(f"/api/registry/students/{self.student.matric_no}/")
         self.assertEqual(response.data["supervisor"], "")
 
-    # ── Updates ──────────────────────────────────────────────────────────────
+    # Updates
 
     def test_admin_updates_programme_and_status(self):
         self.client.force_authenticate(self.admin)
@@ -313,7 +313,7 @@ class StudentRegistryApiTests(APITestCase):
         root.refresh_from_db()
         self.assertTrue(root.is_active)
 
-    # ── Registration ─────────────────────────────────────────────────────────
+    # Registration
 
     NEW_STUDENT = {
         "id": "DEMO-WGA260001",

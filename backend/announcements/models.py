@@ -169,7 +169,7 @@ class Notification(models.Model):
             "service": self.service,
             "description": self.summary or " ".join(self.message.split())[:90],
             "detailedMessage": self.message,
-            "timeAgo": localtime(self.created_at).strftime("%d %b %Y — %I:%M %p"),
+            "timeAgo": localtime(self.created_at).strftime("%d %b %Y, %I:%M %p"),
             "priority": self.priority,
             "isUnread": not self.is_read,
             "isAnnouncement": self.is_announcement,

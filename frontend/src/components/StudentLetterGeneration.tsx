@@ -144,7 +144,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     supervisorName,
     referenceNumber,
     date: letterDate,
-    // Registry-backed fields — fill from the student's record when available.
+    // Registry-backed fields: fill from the student's record when available.
     passportNumber: details?.passportNumber,
     country: details?.country,
     programmeMode: details?.programmeMode,
@@ -183,7 +183,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     const opened = openLetterDocument(buildLetterData());
     triggerToast(
       opened
-        ? `Opening "${selectedTemplate.name}" — choose "Save as PDF" or a printer in the print dialog.`
+        ? `Opening "${selectedTemplate.name}". Choose "Save as PDF" or a printer in the print dialog.`
         : 'Please allow pop-ups for this site to generate the letter.',
     );
   };
@@ -276,7 +276,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
               <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                 <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <p className="text-[10px] font-semibold text-slate-500 leading-normal">
-                  Selecting a template updates the preview live. Your details are filled in automatically from your student record — fields left blank are completed by the postgraduate office.
+                  Selecting a template updates the preview live. Your details are filled in automatically from your student record. Fields left blank are completed by the postgraduate office.
                 </p>
               </div>
             </div>

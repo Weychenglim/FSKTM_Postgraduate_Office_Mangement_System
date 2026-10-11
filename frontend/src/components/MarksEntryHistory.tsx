@@ -114,7 +114,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
                     </td>
                     <td className="data-td">{task.semester}</td>
                     <td className="data-td">{task.evaluatorRoleLabel || task.evaluatorRole || 'Evaluator'}</td>
-                    <td className="data-td font-extrabold">{task.totalMark ?? '—'}</td>
+                    <td className="data-td font-extrabold">{task.totalMark ?? '-'}</td>
                     <td className="data-td">
                       <StatusBadge tone="success">{task.submittedDate || 'Submitted'}</StatusBadge>
                     </td>

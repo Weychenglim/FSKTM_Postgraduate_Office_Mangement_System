@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// File Management API (UC34–UC39). Returns mock data for now.
+// File Management API (UC34-UC39). Returns mock data for now.
 
 import { FileItem, SubmissionRecord } from '../types';
 import { MOCK_FILES } from '../mocks/files';

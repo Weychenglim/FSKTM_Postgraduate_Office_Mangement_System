@@ -1,4 +1,4 @@
-# Local browser acceptance — 2026-10-04 to 2026-10-05
+# Local browser acceptance: 2026-10-04 to 2026-10-05
 
 The original five owned-module fixes are pushed to `main` as `30c63ba`.
 This acceptance run covers those fixes, the shared authentication-cache follow-up

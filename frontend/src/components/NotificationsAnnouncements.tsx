@@ -397,7 +397,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
                 {/* Right stamp column */}
                 <div className="flex items-center gap-4 text-right text-[10px] font-bold text-slate-400 shrink-0 select-none">
-                  <span className="hidden sm:inline-block truncate max-w-[120px]">{it.timeAgo.split(' — ')[0]}</span>
+                  <span className="hidden sm:inline-block truncate max-w-[120px]">{it.timeAgo.split(', ')[0]}</span>
                   <button
                     type="button"
                     onClick={(e) => handleToggleReadState(it.id, e)}
@@ -505,7 +505,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   </div>
                 </div>
 
-                {/* Document Attachments Panel — only when the announcement carries a file */}
+                {/* Document Attachments Panel: only when the announcement carries a file */}
                 {selectedNotification.attachmentName && (
                   <div className="space-y-2.5">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">

@@ -4,7 +4,7 @@
  */
 
 /**
- * Settings module — account profile, contact details, password, and
+ * Settings module: account profile, contact details, password, and
  * notification preferences. Role-aware (labels adapt for Student vs staff).
  *
  * Authenticated settings are loaded and saved through the account API.
@@ -45,7 +45,7 @@ type Toast = { message: string; tone: 'success' | 'danger' | 'info' } | null;
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogout, onUserUpdated, onPasswordChanged }) => {
   const isStudent = currentUser.role === 'Student';
-  const idValue = currentUser.studentId || currentUser.staffId || '—';
+  const idValue = currentUser.studentId || currentUser.staffId || '-';
   const idLabel = isStudent ? 'Matric No' : 'Staff No';
   const deptLabel = isStudent ? 'Programme' : 'Department';
 
@@ -57,7 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
       .map((p) => p[0]?.toUpperCase())
       .join('') || 'FS';
 
-  // ── Toast (auto-dismiss) ───────────────────────────────────────────────────
+  // Toast (auto-dismiss)
   const [toast, setToast] = useState<Toast>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(toastTimer.current), []);
@@ -67,7 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     if (tone !== 'danger') toastTimer.current = setTimeout(() => setToast(null), 5000);
   };
 
-  // ── Contact details ────────────────────────────────────────────────────────
+  // Contact details
   const [phone, setPhone] = useState(currentUser.phone || '');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -111,7 +111,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     });
   };
 
-  // ── Password ───────────────────────────────────────────────────────────────
+  // Password
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -135,7 +135,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     });
   };
 
-  // ── Notification preferences ───────────────────────────────────────────────
+  // Notification preferences
   const [prefs, setPrefs] = useState({
     announcementAlerts: true,
   });
@@ -179,7 +179,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
             <SummaryRow
               icon={isStudent ? User : Building2}
               label={deptLabel}
-              value={currentUser.department || '—'}
+              value={currentUser.department || '-'}
             />
           </div>
         </PortalCard>
@@ -304,7 +304,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
   );
 };
 
-// ── Small local helpers ───────────────────────────────────────────────────────
+// Small local helpers
 
 const SummaryRow: React.FC<{ icon: React.ElementType; label: string; value: string }> = ({
   icon: Icon,

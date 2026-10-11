@@ -193,7 +193,7 @@ Frontend paths in this section are relative to `frontend/`.
 
 ## Backend Data Model
 
-- `accounts.User` is the login superclass (email, role discriminator, phone, flags). Role-specific data lives in one-to-one subtype "profile" tables that share the user's primary key: `Student`, `OfficeStaff`, and `Lecturer`. `Coordinator`, `Supervisor`, and `Panel` are one-to-one specializations of `Lecturer` (overlapping — a lecturer may hold several).
+- `accounts.User` is the login superclass (email, role discriminator, phone, flags). Role-specific data lives in one-to-one subtype "profile" tables that share the user's primary key: `Student`, `OfficeStaff`, and `Lecturer`. `Coordinator`, `Supervisor`, and `Panel` are one-to-one specializations of `Lecturer` (overlapping: a lecturer may hold several).
 - `accounts.management.commands.seed_users` is a guarded development fixture command. It checks `DEBUG`, `ENABLE_DEMO_ACCOUNTS`, and four environment-supplied role passwords before any mutation, validates optional JSON legacy-email mappings, migrates mapped users in place, and reuses profile-number conflicts so protected timeline, audit, and appointment references retain their primary keys.
 - Demo environment flow is deliberately split: ignored `backend/.env` supplies seed passwords, ignored `frontend/.env.development.local` supplies development prefills, and tracked `.env.example` files keep the feature disabled with blank placeholders. The production canary-build test scans emitted HTML and JavaScript for passwords and console markers.
 - `User.to_public_dict()` reassembles the flat shape the frontend `DemoUser` expects from these profile tables, so the auth API contract is unchanged.
@@ -463,13 +463,13 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Student and Lecturer candidate controls consume `selectable` rather than recalculating eligibility in React. `panelRecommendationWorkflow` retains legacy count fallback for backward compatibility but gives persisted capacity state/selectability precedence and formats only the public `unavailableUntil` date. Final-approval `409` handlers preserve local queue rows and refresh them from Django.
 - Lecturer Dashboard and appointment workspaces consume both own-workload endpoints. Office workload monitors use the same metadata for state chips, detail context, bounded utilization, and CSV columns; Supervisor reserved load is zero under the current policy, while Panel active and reserved columns map to confirmed appointments and pending nominations.
 - The approved detailed design is recorded in `docs/superpowers/specs/2026-08-19-lecturer-capacity-availability-design.md`. Tasks 1-10 cover the complete backend policy boundary, enforcement, reporting/reconciliation, Office workspace, and role-scoped presentation. Final integration verification uses the full owned-module backend suite, every frontend test and production guard, and a live four-role HTTP matrix; browser-only visual interaction remains a distinct smoke surface and is never inferred from transport-level success.
-## Dependency Security Maintenance — September 2026
+## Dependency Security Maintenance: September 2026
 
 - Backend requirements now exclude the audited vulnerable Django, REST framework, and sqlparse releases while retaining Django 5.2 LTS and bounding DRF to 3.17. The explicit sqlparse floor constrains Django's transitive dependency on fresh installations. Pip is environment tooling, so its upgrade is documented in setup commands rather than added as an application dependency.
 - The frontend lockfile updates Browserslist, baseline-browser-mapping, and their browser-data dependencies within the existing dependency graph. No application APIs, database schema, or direct frontend dependency ranges change.
 - Upgrade references: [Django 5.2.17](https://docs.djangoproject.com/en/5.2/releases/5.2.17/) and [DRF 3.17.2](https://www.django-rest-framework.org/community/release-notes/#3172). Verification consists of installed-environment and npm audits, dependency consistency, existing backend/frontend regressions, Django checks, and the production build/guards.
 
-## Co-Supervisor Implementation — September 2026
+## Co-Supervisor Implementation: September 2026
 
 The approved extension introduces dedicated supporting nomination and appointment records in Appointments, preserving the primary SupervisorAppointment and StudentResearchProfile supervisor relationship. Co-supervision uses the shared semester capacity resolver, programme-scoped approval, transactional student/lecturer locks, and immutable audits. Supporting appointments never generate Marks tasks. Dedicated restricted team API responses separate supporting read access from application documents, evaluation drafts, scores, and internal dossiers. Existing Supervisor screens host team management; Dashboard tracking, reports, lifecycle and reconciliation consume supporting records.
 

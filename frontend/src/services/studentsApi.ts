@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Student Registry API (UC05–UC09). Backed by the Django `registry` endpoints
+// Student Registry API (UC05-UC09). Backed by the Django `registry` endpoints
 // under /api/registry/. Reads fall back to mock data when the backend is
 // unreachable *and* mocks are enabled, so the screen still renders offline;
 // writes always go to the backend (they require an Office Staff/Admin session).
@@ -50,7 +50,7 @@ export async function getStudents(search?: string): Promise<StudentRecord[]> {
   try {
     return await request<StudentRecord[]>(`/registry/students/${query}`);
   } catch (err) {
-    // Never mask a 401/403/404 with fixtures — that would present invented
+    // Never mask a 401/403/404 with fixtures; that would present invented
     // student records as though the office had really entered them.
     if (USE_MOCKS && isTransportFailure(err)) return mockResponse(MOCK_STUDENTS);
     throw err;
@@ -98,8 +98,8 @@ export interface StudentRecordCreate {
 export type CreatedStudentRecord = StudentRecord & { invitationSent?: boolean };
 
 /**
- * Register a new student. The account is created without a password — the
- * student sets one through the password-reset flow — so no temporary
+ * Register a new student. The account is created without a password (the
+ * student sets one through the password-reset flow), so no temporary
  * credential ever has to be handed over.
  */
 export async function createStudent(input: StudentRecordCreate): Promise<CreatedStudentRecord> {

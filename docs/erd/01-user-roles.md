@@ -1,15 +1,15 @@
-# ERD 01 — User & Role Hierarchy
+# ERD 01: User & Role Hierarchy
 
 Generalization/specialization (EER) model for every account that can log in.
 
 ```
 USER  (superclass)
-├── STUDENT
-├── OFFICE STAFF
-└── LECTURER
-    ├── COORDINATOR   (overlapping)
-    ├── SUPERVISOR    (overlapping)
-    └── PANEL         (overlapping)
+|-- STUDENT
+|-- OFFICE STAFF
+`-- LECTURER
+    |-- COORDINATOR   (overlapping)
+    |-- SUPERVISOR    (overlapping)
+    `-- PANEL         (overlapping)
 ```
 
 ## Diagram
@@ -76,7 +76,7 @@ erDiagram
   parent (`STUDENT.user_id -> USER.user_id`, `COORDINATOR.lecturer_id -> LECTURER.user_id`).
 - **USER -> {Student, Office Staff, Lecturer}:** disjoint + total (every account is
   exactly one type).
-- **LECTURER -> {Coordinator, Supervisor, Panel}:** overlapping + partial — a lecturer
+- **LECTURER -> {Coordinator, Supervisor, Panel}:** overlapping + partial: a lecturer
   may hold several of these roles at once or none (supports FR-06, multiple roles).
 - **Supervisor / Panel are profile/eligibility tables only.** The actual
   lecturer-to-student links (and per-semester workload counts for FR-23 / FR-29) live in

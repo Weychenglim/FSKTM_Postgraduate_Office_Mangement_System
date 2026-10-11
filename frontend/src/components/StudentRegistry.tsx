@@ -190,7 +190,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
   onOpenParticipantLifecycle,
 }) => {
-  // Master Student Registry State — loaded from studentsApi (mock-backed today).
+  // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -255,7 +255,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [showRequiredColumns, setShowRequiredColumns] = useState(false);
 
   // Dynamic CSV preview records
-  // Populated only by the server's check of an uploaded file — never pre-seeded,
+  // Populated only by the server's check of an uploaded file, never pre-seeded,
   // so nothing can be committed that did not come from the office's own file.
   const [csvPreviewRecords, setCsvPreviewRecords] = useState<ImportPreviewRow[]>([]);
   const [csvFatalError, setCsvFatalError] = useState<string | null>(null);
@@ -563,7 +563,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       setSourceFile(file);
       setRowsEdited(false);
       const ready = rows.filter(r => r.status === 'Ready').length;
-      triggerToast(`Checked ${rows.length} rows — ${ready} ready, ${rows.length - ready} need attention.`);
+      triggerToast(`Checked ${rows.length} rows: ${ready} ready, ${rows.length - ready} need attention.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'That file could not be read.';
       clearImport();
@@ -638,7 +638,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       loadRecentImports(showAllImports ? 50 : 5);
 
       const emailNote = batch.invitationsFailed > 0
-        ? ` ${batch.invitationsFailed} activation email(s) could not be sent — use Send Activation Link on those students.`
+        ? ` ${batch.invitationsFailed} activation email(s) could not be sent. Use Send Activation Link on those students.`
         : '';
       const leftOver = rows.filter(r => r.result !== 'created');
       if (leftOver.length === 0) {
@@ -658,7 +658,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           ...leftOver.map(r => `line ${r.line} (${r.id || 'no id'}): ${r.issue}`),
         ].join('\n'),
       );
-      triggerToast(`Created ${batch.created}. ${leftOver.length} row(s) were not imported — see the list below.`);
+      triggerToast(`Created ${batch.created}. ${leftOver.length} row(s) were not imported. See the list below.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The import could not be completed.';
       setCsvFatalError(message);
@@ -1931,7 +1931,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </span>
                     <span className="text-slate-800 font-bold flex items-center gap-1.5 pt-0.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{viewingStudent.semester || '—'}</span>
+                      <span>{viewingStudent.semester || '-'}</span>
                     </span>
                   </div>
 
@@ -1939,7 +1939,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
                       Intake
                     </span>
-                    <span className="text-slate-800 font-bold block pt-0.5">{viewingStudent.intakeDate || '—'}</span>
+                    <span className="text-slate-800 font-bold block pt-0.5">{viewingStudent.intakeDate || '-'}</span>
                   </div>
 
                   {/* Academic supervisorassigned */}
@@ -1971,7 +1971,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-455 block mb-1">
                       Direct Mobile Contact
                     </span>
-                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone || '—'}</span>
+                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone || '-'}</span>
                   </div>
 
                 </div>
@@ -2138,7 +2138,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
                       <span className="text-slate-700 font-bold">
                         {viewingStudent.activated === false
-                          ? 'Not activated — the student has not set a password yet'
+                          ? 'Not activated: the student has not set a password yet'
                           : 'Activated'}
                       </span>
                     </div>
@@ -2150,7 +2150,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         {viewingStudent.accountStatus === 'Verified' ? '✓' : '!'}
                       </div>
                       <span className="text-slate-700 font-bold">
-                        {viewingStudent.accountStatus === 'Verified' ? 'Sign-in allowed' : 'Suspended — sign-in blocked'}
+                        {viewingStudent.accountStatus === 'Verified' ? 'Sign-in allowed' : 'Suspended: sign-in blocked'}
                       </span>
                     </div>
 

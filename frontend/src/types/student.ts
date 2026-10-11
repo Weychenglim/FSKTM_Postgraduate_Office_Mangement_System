@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Student Registry domain models (UC05–UC09).
+// Student Registry domain models (UC05-UC09).
 
 // Mirrors accounts.Student.Status in the Django backend. Keep the two in step:
 // the API rejects anything outside this set, and the values reach the UI

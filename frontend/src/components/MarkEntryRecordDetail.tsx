@@ -106,7 +106,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   }
 
   const statusLabel = entryStatusLabel(record.entry.status);
-  const totalMark = record.entry.totalMark || '—';
+  const totalMark = record.entry.totalMark || '-';
 
   return (
     <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
@@ -229,7 +229,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                         {component.description ? <span className="mt-1 block text-[10px] text-slate-500">{component.description}</span> : null}
                       </td>
                       <td className="data-td text-center font-bold">{component.maxMarks}</td>
-                      <td className="data-td text-center font-extrabold text-brand-navy">{component.marksAwarded ?? '—'}</td>
+                      <td className="data-td text-center font-extrabold text-brand-navy">{component.marksAwarded ?? '-'}</td>
                       <td className="data-td">{component.feedback || 'No component feedback'}</td>
                     </tr>
                   ))}

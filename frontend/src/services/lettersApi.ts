@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Letter template API (UC40–UC42). Talks to the real Django `letters` backend
+// Letter template API (UC40-UC42). Talks to the real Django `letters` backend
 // (`/api/letter-templates/`). Reads fall back to mock data when the backend is
 // unreachable *and* mocks are enabled, so the UI still renders offline; writes
 // always go to the backend (they require an authenticated staff user).
@@ -52,13 +52,13 @@ export interface StudentLetterDetails {
   expectedCompletion: string;
 }
 
-/** Fetch the logged-in student's letter details (live; requires auth — like
+/** Fetch the logged-in student's letter details (live; requires auth, like
  *  `/auth/me/`). Used by the student Letter Generation screen. */
 export async function getMyLetterDetails(): Promise<StudentLetterDetails> {
   return request<StudentLetterDetails>('/auth/me/letter-details/');
 }
 
-/** All templates — used by the office-staff template manager. */
+/** All templates, used by the office-staff template manager. */
 export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/');
@@ -69,7 +69,7 @@ export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   }
 }
 
-/** Only `Active` templates — what students may generate letters from. */
+/** Only `Active` templates: what students may generate letters from. */
 export async function getStudentLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/?status=Active');

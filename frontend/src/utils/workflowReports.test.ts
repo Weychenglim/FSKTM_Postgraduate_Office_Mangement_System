@@ -25,7 +25,7 @@ assert.equal(
 );
 assert.equal(buildWorkflowReportQuery({ startDate: '', endDate: '', programme: '' }), '');
 
-assert.equal(formatReportMetric(null), '—');
+assert.equal(formatReportMetric(null), '-');
 assert.equal(formatReportMetric(0), '0');
 assert.equal(formatReportMetric(62.5, '%'), '62.5%');
 

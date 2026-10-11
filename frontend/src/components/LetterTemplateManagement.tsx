@@ -151,7 +151,7 @@ export const LetterTemplateManagement: React.FC = () => {
       editorStatus !== selectedTemplate.status);
 
   // After an inserted tag changes the content, refocus the textarea and move the
-  // caret to just after the tag (no-op for normal typing — ref stays null then).
+  // caret to just after the tag (no-op for normal typing; the ref stays null then).
   useEffect(() => {
     if (pendingCursorRef.current === null) return;
     const cursor = pendingCursorRef.current;
@@ -173,7 +173,7 @@ export const LetterTemplateManagement: React.FC = () => {
     source: p.source,
   }));
 
-  // Quick Insertion Helper — insert the tag at the caret (or over the current
+  // Quick Insertion Helper: insert the tag at the caret (or over the current
   // selection), not at the end. Falls back to appending if the textarea ref is
   // somehow unavailable.
   const handleInsertTag = (tag: string) => {
@@ -194,7 +194,7 @@ export const LetterTemplateManagement: React.FC = () => {
     triggerToast(`Inserted placeholder tag: ${tag}`);
   };
 
-  // Actions — persisted through the letters API.
+  // Actions, persisted through the letters API.
   const handleSaveTemplate = async () => {
     if (!selectedTemplate || saving) return;
     if (!editorName.trim()) {
@@ -752,7 +752,7 @@ export const LetterTemplateManagement: React.FC = () => {
                   {/* A4 Paper mockup layout */}
                   <div className="bg-white border border-slate-250/60 rounded p-6 shadow-sm relative min-h-[380px] text-left text-[11px] text-slate-700 leading-relaxed font-sans max-w-2xl mx-auto">
                   
-                    {/* Faculty official letterhead — the fixed institutional header,
+                    {/* Faculty official letterhead: the fixed institutional header,
                         shared with the student preview and the printed letter. */}
                     <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3 select-none">

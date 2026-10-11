@@ -665,7 +665,7 @@ export const StaffLecturersRegistry: React.FC<{
                   {/* Lecturer role card */}
                   <RoleAssignmentCard
                     title="Lecturer"
-                    description="Base role — can view assigned students, receive official appointment letters, and access the academic calendar."
+                    description="Base role. Can view assigned students, receive official appointment letters, and access the academic calendar."
                     icon={GraduationCap}
                     isChecked={true}
                     isLocked={true}

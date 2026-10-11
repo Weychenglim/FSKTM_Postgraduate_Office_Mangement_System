@@ -1,6 +1,6 @@
 # Partly-Done Modules Completion Plan
 
-Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02, UC04, UC05, UC06, UC21, UC23, UC30, UC33), plus one integration bug found after merging `main`. Use cases that are not started at all (UC03, UC22, UC24–UC27, UC28–UC29) are out of scope and get their own plan afterwards.
+Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02, UC04, UC05, UC06, UC21, UC23, UC30, UC33), plus one integration bug found after merging `main`. Use cases that are not started at all (UC03, UC22, UC24-UC27, UC28-UC29) are out of scope and get their own plan afterwards.
 
 ## Phase Status
 
@@ -99,7 +99,7 @@ These keep the current behaviour and differ from the use-case document wording. 
 
 ---
 
-## Phase 1 — Registry Status Changes Go Through Participant Lifecycle
+## Phase 1: Registry Status Changes Go Through Participant Lifecycle
 
 **Why.** `PATCH /api/registry/students/<matric>/` sets `student.status` directly when `academicStatus` is sent. The teammate's `transition_student()` in `backend/accounts/participant_lifecycle.py` is the real status transition: it enforces allowed transitions, requires a reason, pauses or retires Marks tasks, ends appointments, cancels pending workflow items, and writes an audit record. Withdrawing a student from the Registry today skips all of that and leaves active appointments and Marks tasks behind.
 
@@ -121,7 +121,7 @@ These keep the current behaviour and differ from the use-case document wording. 
 
 ---
 
-## Phase 2 — Sign-In Safety (UC01, UC02)
+## Phase 2: Sign-In Safety (UC01, UC02)
 
 **Current state.** Session expiry sends the user back to the login screen with no message. `User.must_change_password` exists but nothing checks it. Office staff cannot send a student a new access link.
 
@@ -152,7 +152,7 @@ Frontend script test:
 
 ---
 
-## Phase 3 — Student Import: Server-Side CSV + XLSX With Real History (UC04)
+## Phase 3: Student Import: Server-Side CSV + XLSX With Real History (UC04)
 
 **Current state.** The browser parses CSV only (`frontend/src/utils/csvImport.ts`) and posts one row at a time. XLSX is not accepted. The "Recent Imports" panel in `StudentRegistry.tsx` is hardcoded ("View All" only shows a toast), and the upload box starts pre-filled with a fake file `student_registry_intake_sem1_2025.csv`. The approved programme list lives in `frontend/src/constants/programmes.ts` and is copied by hand as `APPROVED_PROGRAMMES` in `backend/accounts/registry_views.py`, with nothing checking that the two match.
 
@@ -191,7 +191,7 @@ Frontend script test:
 
 ---
 
-## Phase 4 — Registry Search and Role-Scoped Read Access (UC05)
+## Phase 4: Registry Search and Role-Scoped Read Access (UC05)
 
 **Current state.** The frontend filters by programme, semester and academic status (`selectedProgramme`, `selectedSemester`, `selectedAcademicStatus` in `StudentRegistry.tsx`). The API filters only by `search` and `status`. There is no supervisor filter or supervisor column. The API is office-only, but `frontend/src/auth/permissions.ts` gives Programme Coordinators every module, so a coordinator who opens Registry gets an error.
 
@@ -230,7 +230,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 5 — Letter Templates: Archive and Placeholder Validation (UC21)
+## Phase 5: Letter Templates: Archive and Placeholder Validation (UC21)
 
 **Current state.**
 - Templates have `Active` and `Draft` statuses only, and there is no archive.
@@ -264,7 +264,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 6 — Saved Letter Requests (UC23)
+## Phase 6: Saved Letter Requests (UC23)
 
 **Depends on Phase 5.**
 
@@ -313,7 +313,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 7 — Announcement Scheduling, Expiry, and Registry Targeting (UC30)
+## Phase 7: Announcement Scheduling, Expiry, and Registry Targeting (UC30)
 
 **Current state.**
 - `Announcement.Status` has `Scheduled` and `Expired`, but the model has no start or expiry date, so nothing ever publishes or expires. They are only labels.
@@ -350,7 +350,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 8 — Notifications: Bell Dropdown, Preferences, Reminders, Weekly Summary (UC33)
+## Phase 8: Notifications: Bell Dropdown, Preferences, Reminders, Weekly Summary (UC33)
 
 **Current state.**
 - The bell shows an unread badge and opens the full Notifications page instead of a dropdown.
@@ -393,7 +393,7 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 
 ---
 
-## Phase 9 — Student "My Records" Page and Documentation Wrap-Up (UC06)
+## Phase 9: Student "My Records" Page and Documentation Wrap-Up (UC06)
 
 **Depends on Phase 6** for letters.
 
@@ -416,7 +416,7 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 2. **Documentation.**
    - Add a dated `PROJECT_STATUS.md` section for this plan's completion.
    - In our own section, note that the announcement risks still listed under the teammate's "Known Issues" (and in `ARCHITECTURE_AND_CODING_DESIGN.md`) were fixed in `f5777d2`. Do not edit the teammate's lines; tell the user so they can ask the teammate.
-   - Add a short "Design differences from the use-case document" list (D1–D6) to `PROJECT_STATUS.md` for the FYP report.
+   - Add a short "Design differences from the use-case document" list (D1-D6) to `PROJECT_STATUS.md` for the FYP report.
    - Mark this plan complete.
 
 **Tests.** Frontend script tests cover the category summary counts and the empty state. No backend changes are expected. If one turns out to be needed, it goes in Xiang's apps with tests.
@@ -427,4 +427,4 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 
 ## After This Plan
 
-Not-started use cases, for the next plan: UC03 Manage User Account (including staff and lecturer accounts, replacing the mock `StaffLecturersRegistry` tab), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24–UC27 File Management (official record-linked documents only, per the panel feedback), UC28–UC29 FAQ chatbot (after the 48 flagged rows in `docs/faq/faq-entries.json` are reviewed).
+Not-started use cases, for the next plan: UC03 Manage User Account (including staff and lecturer accounts, replacing the mock `StaffLecturersRegistry` tab), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24-UC27 File Management (official record-linked documents only, per the panel feedback), UC28-UC29 FAQ chatbot (after the 48 flagged rows in `docs/faq/faq-entries.json` are reviewed).
