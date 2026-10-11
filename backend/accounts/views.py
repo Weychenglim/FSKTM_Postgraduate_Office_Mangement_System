@@ -182,14 +182,22 @@ def change_password_view(request):
     return set_refresh_cookie(response, refresh)
 
 
+PREFERENCE_FIELDS = {
+    "announcementAlerts": "announcement_alerts",
+    "emailNotifications": "email_notifications",
+    "deadlineReminders": "deadline_reminders",
+    "weeklySummary": "weekly_summary",
+}
+
+
 def _settings_payload(user):
     return {
         "user": user.to_public_dict(),
-        "preferences": {"announcementAlerts": user.announcement_alerts},
+        "preferences": {key: getattr(user, field) for key, field in PREFERENCE_FIELDS.items()},
         "capabilities": {
-            "emailNotifications": False,
-            "deadlineReminders": False,
-            "weeklySummary": False,
+            "emailNotifications": True,
+            "deadlineReminders": True,
+            "weeklySummary": True,
         },
     }
 
@@ -206,9 +214,9 @@ def settings_view(request):
         if "phone" in serializer.validated_data:
             user.phone = serializer.validated_data["phone"]
             fields.append("phone")
-        if "preferences" in serializer.validated_data:
-            user.announcement_alerts = serializer.validated_data["preferences"]["announcementAlerts"]
-            fields.append("announcement_alerts")
+        for key, value in serializer.validated_data.get("preferences", {}).items():
+            setattr(user, PREFERENCE_FIELDS[key], value)
+            fields.append(PREFERENCE_FIELDS[key])
         if fields:
             user.save(update_fields=fields)
     return Response(_settings_payload(user))

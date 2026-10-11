@@ -1,7 +1,12 @@
 import type { DemoUser } from '../types';
 import { clearAuthToken, getAuthSessionVersion, request } from './apiClient';
 
-export interface NotificationPreferences { announcementAlerts: boolean }
+export interface NotificationPreferences {
+  announcementAlerts: boolean;
+  emailNotifications: boolean;
+  deadlineReminders: boolean;
+  weeklySummary: boolean;
+}
 export interface AccountSettings {
   user: DemoUser;
   preferences: NotificationPreferences;
@@ -12,7 +17,7 @@ export const getSettings = () => request<AccountSettings>('/auth/settings/');
 export const saveContact = (phone: string) => request<AccountSettings>('/auth/settings/', {
   method: 'PATCH', body: JSON.stringify({ phone }),
 });
-export const savePreferences = (preferences: NotificationPreferences) => request<AccountSettings>('/auth/settings/', {
+export const savePreferences = (preferences: Partial<NotificationPreferences>) => request<AccountSettings>('/auth/settings/', {
   method: 'PATCH', body: JSON.stringify({ preferences }),
 });
 export async function changePassword(currentPassword: string, newPassword: string): Promise<boolean> {

@@ -210,5 +210,13 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
     return APP_ROUTES.lettersMine;
   }
 
+  if (target.targetModule === 'DASHBOARD') {
+    return APP_ROUTES.dashboard;
+  }
+
+  if (target.targetModule === 'MARKS') {
+    return APP_ROUTES.marks;
+  }
+
   return APP_ROUTES.notifications;
 };

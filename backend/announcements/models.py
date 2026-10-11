@@ -117,6 +117,28 @@ class Announcement(models.Model):
         }
 
 
+class WeeklySummaryLog(models.Model):
+    """One weekly summary email per person per week, so a rerun sends nothing new."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="weekly_summaries",
+    )
+    week_start = models.DateField(help_text="The Monday of the week it covers.")
+    notification_count = models.PositiveIntegerField(default=0)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-week_start"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "week_start"], name="one_weekly_summary_per_user_week")
+        ]
+
+    def __str__(self):
+        return f"Summary for {self.user_id} (week of {self.week_start})"
+
+
 class Notification(models.Model):
     """A per-recipient in-app notification (the bell feed, UC49)."""
 

@@ -84,6 +84,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
       if (cancelled) return;
       setPhone(data.user.phone || '');
       setPrefs(data.preferences);
+      setCapabilities(data.capabilities);
       updateUser.current(data.user);
     }).catch((error: unknown) => {
       if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Unable to load settings.');
@@ -136,11 +137,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
   };
 
   // Notification preferences
-  const [prefs, setPrefs] = useState({
+  const [prefs, setPrefs] = useState<settingsApi.NotificationPreferences>({
     announcementAlerts: true,
+    emailNotifications: false,
+    deadlineReminders: true,
+    weeklySummary: false,
   });
   const setPref = (key: keyof typeof prefs) => (value: boolean) =>
     setPrefs((p) => ({ ...p, [key]: value }));
+  const [capabilities, setCapabilities] = useState<settingsApi.AccountSettings['capabilities']>({
+    emailNotifications: false,
+    deadlineReminders: false,
+    weeklySummary: false,
+  });
+  const unavailable = [
+    !capabilities.emailNotifications && 'Email notifications',
+    !capabilities.deadlineReminders && 'scheduled deadline reminders',
+    !capabilities.weeklySummary && 'weekly summaries',
+  ].filter(Boolean);
 
   return (
     <div id="settings-workspace" className="space-y-6 md:space-y-8 animate-fade-in">
@@ -278,7 +292,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 id="pref-ann"
               />
               <p className="py-3 text-xs text-slate-500">Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</p>
-              <p className="py-3 text-xs text-slate-500">Email notifications, scheduled deadline reminders and weekly summaries: Not available.</p>
+              {capabilities.emailNotifications && (
+                <PrefRow
+                  title="Email alerts"
+                  description="Also email me the announcements and deadline reminders I receive."
+                  checked={prefs.emailNotifications}
+                  onChange={setPref('emailNotifications')}
+                  id="pref-email"
+                />
+              )}
+              {capabilities.deadlineReminders && (
+                <PrefRow
+                  title="Deadline reminders"
+                  description="Remind me a few days before timeline deadlines and Marks closing dates."
+                  checked={prefs.deadlineReminders}
+                  onChange={setPref('deadlineReminders')}
+                  id="pref-deadlines"
+                />
+              )}
+              {capabilities.weeklySummary && (
+                <PrefRow
+                  title="Weekly summary"
+                  description="Email me a weekly list of the notifications I have not read."
+                  checked={prefs.weeklySummary}
+                  onChange={setPref('weeklySummary')}
+                  id="pref-summary"
+                />
+              )}
+              {unavailable.length > 0 && (
+                <p className="py-3 text-xs text-slate-500">{unavailable.join(', ')}: Not available.</p>
+              )}
             </div>
             <div className="flex justify-end mt-5">
               <PortalButton

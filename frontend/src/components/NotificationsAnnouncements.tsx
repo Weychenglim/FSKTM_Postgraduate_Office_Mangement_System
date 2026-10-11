@@ -32,8 +32,10 @@ const FEED_TABS: readonly FeedTab[] = ['announcements', 'notifications'];
 import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
 import { downloadAnnouncementAttachment } from '../services';
+import { useLocation } from 'react-router';
 import { useNotifications } from '../context/NotificationsContext';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
+import { notificationRecordRoute, type OpenNotificationState } from '../utils/notificationLinks';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -282,17 +284,25 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
       // loaded feed can hold an id that now 404s. Opening it must still work.
       await markRead(notification.id, true).catch(() => undefined);
     }
-    if (
-      !notification.isAnnouncement
-      && notification.targetModule
-      && notification.recordId
-      && onOpenWorkflowRecord
-    ) {
+    if (notificationRecordRoute(notification) && onOpenWorkflowRecord) {
       onOpenWorkflowRecord(notification);
       return;
     }
     setSelectedNotification(notification);
   };
+
+  // The bell dropdown sends announcements here to be read in the detail view.
+  const location = useLocation();
+  const requestedId = (location.state as OpenNotificationState | null)?.openNotificationId;
+  const openedRequest = useRef<string | null>(null);
+  useEffect(() => {
+    if (!requestedId || openedRequest.current === requestedId) return;
+    const requested = items.find((item) => item.id === requestedId);
+    if (!requested) return;
+    openedRequest.current = requestedId;
+    setActiveTab(requested.isAnnouncement ? 'announcements' : 'notifications');
+    setSelectedNotification(requested);
+  }, [requestedId, items]);
 
   return (
     <div id="notifications-announcements-root" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">

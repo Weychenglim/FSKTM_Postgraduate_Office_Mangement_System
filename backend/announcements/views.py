@@ -33,6 +33,7 @@ from rest_framework.response import Response
 from accounts.models import Student
 from accounts.programmes import APPROVED_PROGRAMMES
 
+from .emails import ANNOUNCEMENT, SIGN_OFF, email_users, portal_link
 from .models import Announcement, Notification
 from .serializers import AnnouncementSerializer
 from .upload_security import validate_attachment
@@ -196,6 +197,14 @@ def _fan_out(announcement):
     recipients = _recipients_for(announcement)
     if announcement.priority != Announcement.Priority.URGENT:
         recipients = recipients.filter(announcement_alerts=True)
+    delivered = set(
+        Notification.objects.filter(announcement=announcement).values_list("recipient_id", flat=True)
+    )
+    recipients = [recipient for recipient in recipients if recipient.pk not in delivered]
+    if recipients:
+        # Only people getting it for the first time are emailed, and only once
+        # the delivery is committed.
+        transaction.on_commit(lambda fresh=recipients: _email_announcement(announcement, fresh))
     notifications = [
         Notification(
             recipient=recipient,
@@ -216,6 +225,24 @@ def _fan_out(announcement):
     ]
     Notification.objects.bulk_create(notifications, ignore_conflicts=True)
     return Notification.objects.filter(announcement=announcement).count()
+
+
+def _email_announcement(announcement, users):
+    attachment = (
+        f"It has an attachment, {announcement.attachment_name}, which you can download in the portal.\n\n"
+        if announcement.attachment
+        else ""
+    )
+    urgent = announcement.priority == Announcement.Priority.URGENT
+    email_users(
+        users,
+        ANNOUNCEMENT,
+        f"{'Urgent: ' if urgent else ''}{announcement.title}",
+        f"{announcement.content}\n\n{attachment}"
+        f"Read it in the portal: {portal_link('/notifications')}\n\n"
+        "You get this email because email alerts are on in your Settings.\n\n"
+        f"{SIGN_OFF}",
+    )
 
 
 def _retract(announcement):

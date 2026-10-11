@@ -40,7 +40,15 @@ class StrictBooleanField(serializers.BooleanField):
 
 
 class SettingsPreferencesSerializer(StrictSettingsSerializer):
-    announcementAlerts = StrictBooleanField()
+    announcementAlerts = StrictBooleanField(required=False)
+    emailNotifications = StrictBooleanField(required=False)
+    deadlineReminders = StrictBooleanField(required=False)
+    weeklySummary = StrictBooleanField(required=False)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Send at least one preference.")
+        return attrs
 
 
 class AccountSettingsSerializer(StrictSettingsSerializer):
