@@ -41,6 +41,7 @@ import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
 import { StatCard } from './StatCard';
+import { describeProgramme } from '../utils/programmeLabel';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
@@ -111,20 +112,30 @@ interface ProgrammeChipProps {
   label: string;
 }
 
+// Each programme keeps its own colour wherever it appears.
+const PROGRAMME_TONES: Array<[RegExp, string]> = [
+  [/data science/i, 'bg-amber-50 text-amber-600 border-amber-100'],
+  [/cyber/i, 'bg-emerald-50 text-emerald-600 border-emerald-100'],
+  [/artificial intelligence/i, 'bg-violet-50 text-violet-600 border-violet-100'],
+  [/computer science/i, 'bg-blue-50 text-blue-600 border-blue-100'],
+  [/software/i, 'bg-indigo-50 text-indigo-600 border-indigo-100'],
+  [/information systems?/i, 'bg-purple-50 text-purple-600 border-purple-100'],
+];
+
 export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
-  let displayColor = 'bg-slate-50 text-slate-600 border-slate-200/80';
-  if (label.includes('CS') || label.includes('Science')) {
-    displayColor = 'bg-blue-50/50 text-blue-700 border-blue-150';
-  } else if (label.includes('SE') || label.includes('Software')) {
-    displayColor = 'bg-indigo-50/50 text-indigo-700 border-indigo-150';
-  } else if (label.includes('IS') || label.includes('Systems')) {
-    displayColor = 'bg-purple-50/50 text-purple-700 border-purple-150';
-  }
+  const { field, detail } = describeProgramme(label);
+  const tone = PROGRAMME_TONES.find(([pattern]) => pattern.test(label))?.[1] ?? 'bg-slate-50 text-slate-500 border-slate-200';
 
   return (
-    <span className={`inline-flex items-center px-3 py-1 text-[10.5px] font-black rounded border cursor-default select-none ${displayColor}`}>
-      {label}
-    </span>
+    <div className="flex items-center gap-2.5 text-left select-none" title={label}>
+      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${tone}`}>
+        <GraduationCap className="w-4 h-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[12px] font-extrabold text-brand-navy leading-snug">{field}</p>
+        {detail && <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{detail}</p>}
+      </div>
+    </div>
   );
 };
 
@@ -1300,7 +1311,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           <tr className="data-thead bg-slate-50 select-none">
                             <th className="data-th">Student ID</th>
                             <th className="data-th">Candidate Name</th>
-                            <th className="data-th">Programme Mapped</th>
+                            <th className="data-th">Programme</th>
                             <th className="data-th text-center">Validation Status</th>
                             <th className="data-th">Issue</th>
                             <th className="data-th text-center">Edit</th>
@@ -1899,7 +1910,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   {/* Programe Mapped */}
                   <div>
                     <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-400 block mb-1">
-                      Programme Mapped
+                      Programme
                     </span>
                     <ProgrammeChip label={viewingStudent.programme} />
                   </div>
