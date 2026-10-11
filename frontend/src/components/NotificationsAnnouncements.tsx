@@ -33,6 +33,7 @@ import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
 import { downloadAnnouncementAttachment } from '../services';
 import { useNotifications } from '../context/NotificationsContext';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -438,7 +439,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               role="dialog"
               aria-modal="true"
               aria-labelledby="notification-dialog-title"
-              className="bg-white rounded-2xl max-w-2xl w-full max-h-[calc(100vh-2rem)] overflow-y-auto shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
+              className="bg-white rounded-2xl max-w-2xl w-full max-h-[calc(100vh-2rem)] overflow-hidden shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
             >
               
               <div id="modal-header-panel" className="drawer-header">
@@ -464,7 +465,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               </div>
 
               {/* Modal Body Scroll container */}
-              <div className="p-6 md:p-8 space-y-5">
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-5 mr-1 ${THIN_SCROLLBAR}`}>
                 
                 {/* Priority, Timestamp and Module Badge Row Segment */}
                 <div className="flex flex-wrap items-center gap-3.5 select-none">

@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
@@ -1869,7 +1870,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               initial={{ scale: 0.95, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-y-auto shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               <div className="drawer-header">
                 <div className="flex items-center gap-2.5">
@@ -1890,8 +1891,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 />
               </div>
 
-              {/* Core student details body */}
-              <div className="p-6 md:p-8 space-y-6">
+              {/* Core student details body; only this part scrolls */}
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
                 
                 {/* Header Profile element with initials */}
                 <div className="flex items-center gap-4 py-3 border-b border-slate-100">
@@ -2164,58 +2165,54 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
               </div>
 
-              {/* footer buttons modal */}
-              <div className="bg-slate-50/80 px-6 py-4.5 border-t border-slate-200/60 flex items-center justify-between text-xs select-none">
-                <span className="text-[10px] text-slate-450 font-bold">
-                  Credentials status: <strong className="text-slate-700 font-extrabold uppercase">{viewingStudent.accountStatus}</strong>
-                </span>
-
-                <div className="flex gap-2">
+              {/* footer buttons modal (sign-in state is shown in the Account box above) */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-wrap items-center justify-end gap-2 shrink-0 select-none">
+                <div className="flex flex-wrap justify-end gap-2">
 
                   {!readOnly && viewingStudent.accountStatus === 'Verified' && (
-                    <button
-                      type="button"
+                    <PortalButton
+                      variant="secondary"
+                      size="sm"
+                      icon={Mail}
                       disabled={sendingAccessLink}
                       onClick={handleSendAccessLink}
-                      className="px-4 py-2 bg-white border border-slate-200 text-slate-700 uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
+                      className="whitespace-nowrap"
                     >
                       {sendingAccessLink
                         ? 'Sending…'
                         : viewingStudent.activated === false
                           ? 'Send Activation Link'
                           : 'Send Reset Link'}
-                    </button>
+                    </PortalButton>
                   )}
 
                   {/* Suspend or reinstate sign-in, always confirmed first */}
                   {!readOnly && viewingStudent.accountStatus === 'Verified' && (
-                    <button
-                      type="button"
+                    <PortalButton
+                      variant="danger"
+                      size="sm"
                       disabled={saving}
                       onClick={() => setAccessChange('Suspended')}
-                      className="px-4 py-2 bg-white border border-rose-200 text-rose-700 uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-rose-50 transition cursor-pointer disabled:opacity-50"
+                      className="whitespace-nowrap"
                     >
                       Suspend Sign-in
-                    </button>
+                    </PortalButton>
                   )}
                   {!readOnly && viewingStudent.accountStatus === 'Suspended' && (
-                    <button
-                      type="button"
+                    <PortalButton
+                      variant="primary"
+                      size="sm"
                       disabled={saving}
                       onClick={() => setAccessChange('Verified')}
-                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+                      className="whitespace-nowrap"
                     >
                       Reinstate Sign-in
-                    </button>
+                    </PortalButton>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => setViewingStudent(null)}
-                    className="px-4 py-2 bg-slate-200/60 hover:bg-slate-200 text-slate-650 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
-                  >
-                    Close Profile
-                  </button>
+                  <PortalButton variant="secondary" size="sm" onClick={() => setViewingStudent(null)} className="whitespace-nowrap">
+                    Close
+                  </PortalButton>
 
                 </div>
               </div>

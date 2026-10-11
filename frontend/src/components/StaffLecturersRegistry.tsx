@@ -30,6 +30,7 @@ import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
 import { StatCard } from './StatCard';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffRecord } from '../types';
 import { getStaff } from '../services';
@@ -1278,7 +1279,7 @@ export const StaffLecturersRegistry: React.FC<{
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
+              className="bg-white rounded-2xl max-w-md w-full max-h-[calc(100vh-2rem)] overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
             >
               <div className="drawer-header">
                 <div className="flex items-center gap-2.5">
@@ -1299,8 +1300,8 @@ export const StaffLecturersRegistry: React.FC<{
                 />
               </div>
 
-              {/* Profile Body */}
-              <div className="p-6 md:p-8 space-y-5">
+              {/* Profile Body; only this part scrolls */}
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-5 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
                 
                 {/* Profile Top with Initials */}
                 <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">
@@ -1379,14 +1380,10 @@ export const StaffLecturersRegistry: React.FC<{
               </div>
 
               {/* Close footer */}
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200/60 flex items-center justify-end text-xs select-none">
-                <button
-                  type="button"
-                  onClick={() => setViewingStaff(null)}
-                  className="px-4 py-2 bg-slate-205 hover:bg-slate-300 text-slate-700 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
-                >
-                  Close Profile
-                </button>
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-end shrink-0 select-none">
+                <PortalButton variant="secondary" size="sm" onClick={() => setViewingStaff(null)}>
+                  Close
+                </PortalButton>
               </div>
 
             </motion.div>

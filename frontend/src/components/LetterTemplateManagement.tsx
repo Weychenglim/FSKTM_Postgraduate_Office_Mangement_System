@@ -43,6 +43,7 @@ import {
   updateLetterTemplate,
   deleteLetterTemplate,
 } from '../services';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
@@ -418,7 +419,7 @@ export const LetterTemplateManagement: React.FC = () => {
             )}
 
             {/* Template Card Buttons list */}
-            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+            <div className={`space-y-3 max-h-[580px] overflow-y-auto pr-1 ${THIN_SCROLLBAR}`}>
               {loading ? (
                 <LoadingState message="Loading templates…" />
               ) : error ? (

@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, RemovableTag, StatusBadge } from './PortalPrimitives';
 import { StatCard } from './StatCard';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 // Definitions for tag items
 interface KeywordTag {
@@ -452,7 +453,7 @@ export const AcademicFAQEditor: React.FC = () => {
             </div>
 
             {/* Simulated Chat Feed Area */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50 border-b border-slate-100 relative">
+            <div className={`flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50 border-b border-slate-100 relative ${THIN_SCROLLBAR}`}>
               
               <AnimatePresence>
                 {chatMessages.map((msg) => {
