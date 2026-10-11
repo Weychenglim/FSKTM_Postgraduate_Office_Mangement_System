@@ -145,6 +145,28 @@ record does not have, it returns 400 with `missingFields` and saves nothing.
 The Word copy is built with `python-docx`. Revoked letters keep their number but
 can no longer be downloaded.
 
+## Scheduled commands
+
+There is no background worker. These management commands are safe to run
+repeatedly, so schedule them every few minutes:
+
+| Command | What it does |
+| ------- | ------------ |
+| `release_announcements` | Publishes scheduled announcements that are due and expires finished ones. The announcement and notification list endpoints also do this on every read, so the command only matters when nobody is signed in. |
+
+Windows Task Scheduler (run every 5 minutes):
+
+```powershell
+schtasks /Create /TN "FSKTM release announcements" /SC MINUTE /MO 5 `
+  /TR "\"C:\path\to\backend\.venv\Scripts\python.exe\" \"C:\path\to\backend\manage.py\" release_announcements"
+```
+
+cron:
+
+```
+*/5 * * * * cd /path/to/backend && .venv/bin/python manage.py release_announcements
+```
+
 ## Development demo logins
 
 Demo fixtures use fictional `example.test` emails and `DEMO-*` identifiers.

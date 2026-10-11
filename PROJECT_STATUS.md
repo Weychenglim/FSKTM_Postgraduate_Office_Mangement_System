@@ -1,5 +1,20 @@
 # Project Status
 
+## Announcement Scheduling, Expiry and Registry Targeting (2026-10-11)
+
+- Phase 7 of the partly-done plan (UC30), commit `ee4371d`.
+- **Schedule.** Announcements have optional publish and expiry times (migration `announcements.0004`). Publishing with a future time saves the notice as Scheduled and delivers nothing. An expiry at or before the publish time, or one already past, is refused (UC30 exception 2). "Scheduled" and "Expired" are now real states instead of labels.
+- **Release (D6).** `release_due_announcements()` publishes scheduled notices that are due and expires finished ones. A notice whose whole window passed unreleased expires undelivered. It claims rows with SKIP LOCKED and delivers through the existing `event_key`, so it never delivers twice. It runs at the start of the announcement and notification lists (one cheap query when nothing is due) and as the `release_announcements` command; `backend/README.md` shows how to schedule it.
+- **Expiry keeps history.** Delivered notifications stay, and people who received the notice can still open it and its attachment after it expires. Before this, an expired attachment returned 404 to its own recipients.
+- **Registry targeting.** "All Students" announcements can be narrowed to approved programmes and to intakes recorded in the registry. Only matching students receive them or can read them. Targeting any other audience returns 400, a deliberate simplification of the plan's "audience includes students". New `GET /api/announcements/audience-options/` and `GET /api/announcements/recipient-count/` serve the composer.
+- **Composer.** Publish and expiry fields in Malaysia time (the teammate's `malaysiaDateTime` helpers), programme and intake chips, and a live recipient count. The main button reads Schedule, Reschedule or Save Schedule as the time requires. History shows Scheduled and Expired with their times, the targeting under the audience, and a Scheduled stat card.
+- **Changed tests.** `test_review_fixes.py`: Scheduled now needs a publish time, and the notification feed is one due-check query plus the feed query, still constant in length.
+- **Verification.**
+  - 908 backend tests pass with `--parallel 2`, including 15 new ones in `announcements/test_scheduling.py`.
+  - All 88 frontend scripts pass, including the new `announcementSchedule.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `announcements.0004` after backup `db-backups/fsktm_pg_office_before_announcement_schedule_2026-10-11.dump`.
+  - Live checks ran against `runserver` with temporary `smoke.ann.*` accounts whose intakes no real account has, so nothing reached a real account (checked afterwards: 0 such notifications). 18/18 API checks passed, including a notice released and another expired in real time on the next list call. 13/13 browser checks passed on the composer and history. All temporary data was removed.
+
 ## Saved Letter Requests (2026-10-11)
 
 - Phase 6 of the partly-done plan (UC23), commit `170aed3`.
