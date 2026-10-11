@@ -101,6 +101,7 @@ const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./compone
 const StudentFAQChatbot = lazyNamed('StudentFAQChatbot', () => import('./components/StudentFAQChatbot'));
 const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => import('./components/LetterTemplateManagement'));
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
+const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
@@ -735,7 +736,14 @@ export default function App() {
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              pathname === APP_ROUTES.myRecords && !isStudentWorkspace ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : pathname === APP_ROUTES.myRecords ? (
+                <StudentMyRecords
+                  currentUser={currentUser}
+                  onNavigate={(route, state) => navigate(route, state ? { state } : undefined)}
+                />
+              ) : isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardLecturerCapacityRoute ? (
                 <LecturerCapacityManagement onBack={() => navigate(APP_ROUTES.dashboard)} />

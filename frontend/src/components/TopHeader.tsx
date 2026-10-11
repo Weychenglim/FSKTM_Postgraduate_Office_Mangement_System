@@ -230,11 +230,16 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   </div>
 
                   <button
-                    onClick={() => { setDropdownOpen(false); onHelpdeskTrigger(); }}
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      // Students get their profile and linked records page.
+                      if (userRole === 'Student') navigate(APP_ROUTES.myRecords);
+                      else onHelpdeskTrigger();
+                    }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <User className="w-4 h-4 text-slate-400" />
-                    <span>My Profile details</span>
+                    <span>{userRole === 'Student' ? 'My Records' : 'My Profile details'}</span>
                   </button>
 
                   <button
