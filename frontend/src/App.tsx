@@ -836,9 +836,15 @@ export default function App() {
                   studentName={currentUser.fullName}
                   studentId={currentUser.studentId}
                   programme={currentUser.department}
+                  view={pathname === APP_ROUTES.lettersMine ? 'history' : 'new'}
+                  onViewChange={(view) => navigate(view === 'history' ? APP_ROUTES.lettersMine : APP_ROUTES.letters)}
                 />
               ) : (
-                <LetterTemplateManagement />
+                <LetterTemplateManagement
+                  canViewIssuedLetters={currentUser.role === 'Office Staff/Admin'}
+                  view={pathname === APP_ROUTES.lettersIssued ? 'issued' : 'templates'}
+                  onViewChange={(view) => navigate(view === 'issued' ? APP_ROUTES.lettersIssued : APP_ROUTES.letters)}
+                />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
               <AnnouncementManagement />

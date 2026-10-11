@@ -23,6 +23,8 @@ export const APP_ROUTES = {
   supervisorAppointmentRequirements: '/supervisor-appointments/requirements',
   supervisorAppointmentSupervisees: '/supervisor-appointments/supervisees',
   letters: '/letters',
+  lettersMine: '/letters/my-letters',
+  lettersIssued: '/letters/issued',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -202,6 +204,10 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
 
   if (target.targetModule === 'PANEL_APPOINTMENTS') {
     return APP_ROUTES.panelAppointments;
+  }
+
+  if (target.targetModule === 'LETTERS') {
+    return APP_ROUTES.lettersMine;
   }
 
   return APP_ROUTES.notifications;

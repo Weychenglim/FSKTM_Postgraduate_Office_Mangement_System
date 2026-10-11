@@ -26,8 +26,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
+import { IssuedLettersRegister } from './IssuedLetters';
 import { LetterPlaceholder, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
   LETTER_PLACEHOLDERS,
@@ -65,7 +66,27 @@ const countPlaceholdersUsed = (text: string) => new Set(text.match(/\{\{[A-Z_]+\
 
 // LetterTemplate now lives in src/types.
 
-export const LetterTemplateManagement: React.FC = () => {
+export type OfficeLetterView = 'templates' | 'issued';
+
+const OFFICE_LETTER_VIEWS: readonly OfficeLetterView[] = ['templates', 'issued'];
+
+interface LetterTemplateManagementProps {
+  /** Office staff also get the register of issued letters. */
+  canViewIssuedLetters?: boolean;
+  /** Which tab is open; driven by the route when the app provides it. */
+  view?: OfficeLetterView;
+  onViewChange?: (view: OfficeLetterView) => void;
+}
+
+export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> = ({
+  canViewIssuedLetters = false,
+  view,
+  onViewChange,
+}) => {
+  const [localView, setLocalView] = useState<OfficeLetterView>('templates');
+  const showIssued = canViewIssuedLetters && (view ?? localView) === 'issued';
+  const changeView = (next: OfficeLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+
   // Toast notifications state
   const [toast, setToast] = useState<string | null>(null);
   const triggerToast = (msg: string) => {
@@ -375,11 +396,28 @@ export const LetterTemplateManagement: React.FC = () => {
 
       <PageHeader
         title="Letter Generation"
-        subtitle="Create and manage official letter templates for the postgraduate office."
+        subtitle={
+          showIssued
+            ? 'Every letter issued to students, with its reference number. Reprint, resend the notification or revoke a letter issued in error.'
+            : 'Create and manage official letter templates for the postgraduate office.'
+        }
       />
 
-      {/* Main Grid containing left and right pane cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {canViewIssuedLetters && (
+        <SegmentedControl
+          options={OFFICE_LETTER_VIEWS}
+          value={showIssued ? 'issued' : 'templates'}
+          onChange={changeView}
+          labels={{ templates: 'Templates', issued: 'Issued Letters' }}
+          className="w-fit"
+        />
+      )}
+
+      {showIssued && <IssuedLettersRegister onMessage={triggerToast} />}
+
+      {/* Main Grid containing left and right pane cards. Kept mounted while the
+          register is open so unsaved template edits survive a tab switch. */}
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ${showIssued ? 'hidden' : ''}`}>
         
         {/* LEFT COLUMN: TEMPLATES LIBRARY (lg:col-span-4) */}
         <div id="templates-library-column" className="lg:col-span-4 space-y-4">

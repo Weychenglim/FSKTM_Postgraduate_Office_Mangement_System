@@ -12,38 +12,58 @@ import {
   Info,
   FileCheck,
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { LetterTemplate } from '../types';
+import { StudentLetterHistory } from './IssuedLetters';
+import { GeneratedLetter, LetterTemplate } from '../types';
 import {
+  ApiError,
+  generateLetter,
+  getMyLetters,
   getStudentLetterTemplates,
   getMyLetterDetails,
   inactiveStudentReason,
+  missingFieldsFrom,
   StudentLetterDetails,
 } from '../services';
 import {
   LETTERHEAD,
-  LetterData,
+  PENDING_REFERENCE,
   PlaceholderValues,
   formatLetterDate,
-  generateReferenceNumber,
-  openLetterDocument,
+  letterDataFromIssued,
+  missingPlaceholderLabels,
+  openLetterWindow,
+  printLetterInWindow,
   substitutePlaceholders,
   renderLetterBodyHtml,
 } from '../utils/letterDocument';
+
+export type StudentLetterView = 'new' | 'history';
+
+const LETTER_VIEWS: readonly StudentLetterView[] = ['new', 'history'];
 
 interface StudentLetterGenerationProps {
   /** Logged-in student identity, used to prefill the generated letter. */
   studentName?: string;
   studentId?: string;
   programme?: string;
+  /** Which tab is open; driven by the route when the app provides it. */
+  view?: StudentLetterView;
+  onViewChange?: (view: StudentLetterView) => void;
 }
 
 export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({
   studentName: studentNameProp,
   studentId: studentIdProp,
   programme: programmeProp,
+  view,
+  onViewChange,
 }) => {
+  const [localView, setLocalView] = useState<StudentLetterView>('new');
+  const activeView = view ?? localView;
+  const changeView = (next: StudentLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+
   // Templates loaded from the letters API (Active ones only).
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +86,14 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   // Set when the server refuses letters because the student's status is not Active.
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
+  // Letters already issued to this student ("My Letters").
+  const [letters, setLetters] = useState<GeneratedLetter[]>([]);
+  const [lettersLoading, setLettersLoading] = useState(true);
+  const [lettersError, setLettersError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  // What the server said is missing, for the template it was asked about.
+  const [serverMissing, setServerMissing] = useState<{ templateId: string; labels: string[] } | null>(null);
 
   const studentName = details?.studentName ?? studentNameProp ?? '';
   const matricNumber = details?.matricNumber ?? studentIdProp ?? '';
@@ -99,6 +127,23 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     loadTemplates();
   }, [loadTemplates]);
 
+  const loadLetters = useCallback(() => {
+    setLettersLoading(true);
+    setLettersError(null);
+    getMyLetters()
+      .then(setLetters)
+      .catch((e) => {
+        const reason = inactiveStudentReason(e);
+        if (reason) setBlockedReason(reason);
+        else setLettersError(e instanceof Error ? e.message : 'Failed to load your letters.');
+      })
+      .finally(() => setLettersLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadLetters();
+  }, [loadLetters]);
+
   // Load the logged-in student's letter details (name, matric, programme +
   // registry fields). A failure here is fatal for generation: an official letter
   // must carry the student's real record or none at all.
@@ -129,12 +174,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     };
   }, []);
 
-  // One date for this session; one reference number per selected template.
+  // The preview shows today's date; the server stamps the real date and the
+  // reference number when the letter is issued.
   const letterDate = useMemo(() => formatLetterDate(), []);
-  const referenceNumber = useMemo(
-    () => generateReferenceNumber(selectedTemplate?.referencePrefix),
-    [selectedTemplate?.id, selectedTemplate?.referencePrefix],
-  );
 
   const placeholderValues: PlaceholderValues = {
     studentName,
@@ -142,7 +184,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     programName,
     currentStatus,
     supervisorName,
-    referenceNumber,
+    referenceNumber: PENDING_REFERENCE,
     date: letterDate,
     // Registry-backed fields: fill from the student's record when available.
     passportNumber: details?.passportNumber,
@@ -161,31 +203,58 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     ? substitutePlaceholders(selectedTemplate.content, placeholderValues)
     : '';
 
-  const buildLetterData = (): LetterData => ({
-    templateName: selectedTemplate?.name ?? 'Letter',
-    refNo: referenceNumber,
-    date: letterDate,
-    bodyParagraphs: previewBody,
-    studentName,
-    matricNumber,
-  });
+  // Fields this template needs that the student's record lacks. The server's
+  // answer wins once it has been asked about this template.
+  const missingLabels = !selectedTemplate || !details
+    ? []
+    : serverMissing?.templateId === selectedTemplate.id
+      ? serverMissing.labels
+      : missingPlaceholderLabels(selectedTemplate.content, placeholderValues);
 
-  // Opens the real letter in a print window; the browser print dialog handles
-  // both "Save as PDF" (download) and printing to a physical printer.
-  const handleGeneratePDF = () => {
-    if (!selectedTemplate) return;
+  // The server fills, numbers and saves the letter; the print window then
+  // shows that saved copy. The browser print dialog handles both "Save as PDF"
+  // (download) and printing to a physical printer.
+  const handleGenerate = async () => {
+    if (!selectedTemplate || generating) return;
     if (!canGenerate) {
       triggerToast(
         detailsError ?? 'Your student record is still loading. Please try again.',
       );
       return;
     }
-    const opened = openLetterDocument(buildLetterData());
-    triggerToast(
-      opened
-        ? `Opening "${selectedTemplate.name}". Choose "Save as PDF" or a printer in the print dialog.`
-        : 'Please allow pop-ups for this site to generate the letter.',
-    );
+    if (missingLabels.length > 0) return;
+    // Opened during the click so pop-up blockers allow it; filled once issued.
+    const win = openLetterWindow();
+    if (!win) {
+      triggerToast('Please allow pop-ups for this site to generate the letter.');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const letter = await generateLetter(selectedTemplate.id);
+      printLetterInWindow(win, letterDataFromIssued(letter));
+      setLetters((current) => [letter, ...current.filter((row) => row.id !== letter.id)]);
+      triggerToast(
+        `Letter ${letter.referenceNumber} issued. Choose "Save as PDF" or a printer in the print dialog. A copy is kept in My Letters.`,
+      );
+    } catch (e) {
+      win.close();
+      const missing = missingFieldsFrom(e);
+      const reason = inactiveStudentReason(e);
+      if (missing) {
+        setServerMissing({ templateId: selectedTemplate.id, labels: missing });
+      } else if (reason) {
+        setBlockedReason(reason);
+      } else {
+        if (e instanceof ApiError && e.status === 404) {
+          setSelectedTemplate(null);
+          loadTemplates();
+        }
+        triggerToast(e instanceof Error ? e.message : 'Could not generate the letter. Please try again.');
+      }
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleZoomIn = () => setZoomScale((p) => Math.min(120, p + 10));
@@ -213,10 +282,28 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
       <PageHeader
         title="Letter Generation"
-        subtitle="Select an available letter template, preview the generated letter, and download or print your official PDF document."
+        subtitle="Pick a letter, check the preview, then generate it. Every letter gets an official reference number and is kept in My Letters."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <SegmentedControl
+        options={LETTER_VIEWS}
+        value={activeView}
+        onChange={changeView}
+        labels={{ new: 'New Letter', history: `My Letters (${letters.length})` }}
+        className="w-fit"
+      />
+
+      {activeView === 'history' && (
+        <StudentLetterHistory
+          letters={letters}
+          loading={lettersLoading}
+          error={lettersError}
+          onRetry={loadLetters}
+          onMessage={triggerToast}
+        />
+      )}
+
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-start ${activeView === 'history' ? 'hidden' : ''}`}>
         {/* LEFT: TEMPLATE LIBRARY */}
         <div id="templates-sidebar-panel" className="lg:col-span-4 space-y-4">
           <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
@@ -276,7 +363,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
               <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                 <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <p className="text-[10px] font-semibold text-slate-500 leading-normal">
-                  Selecting a template updates the preview live. Your details are filled in automatically from your student record. Fields left blank are completed by the postgraduate office.
+                  Selecting a template updates the preview live. Your details are filled in automatically from your student record. If a letter needs a detail your record does not have yet, the postgraduate office has to add it first.
                 </p>
               </div>
             </div>
@@ -338,7 +425,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       <div className="flex justify-between items-baseline mb-6 font-semibold text-slate-600 font-mono text-[9.5px]">
                         <div>
                           <span>Our Ref: </span>
-                          <span className="text-slate-800 select-all font-sans font-extrabold">{referenceNumber}</span>
+                          <span className="text-slate-400 italic font-sans font-bold">{PENDING_REFERENCE}</span>
                         </div>
                         <div>
                           <span>Date: </span>
@@ -384,23 +471,32 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
             {/* Action bar */}
             <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-              {/* The button is disabled when the record cannot load, so the
-                  reason has to be stated here rather than on click. */}
-              <p className="text-[11px] font-semibold text-rose-700 text-left md:pr-4">
-                {detailsError
-                  ? `${detailsError} Letter generation is unavailable until your record loads.`
-                  : ''}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+              {/* The button is disabled when the record cannot load or lacks a
+                  field, so the reason has to be stated here rather than on click. */}
+              {detailsError ? (
+                <p className="text-[11px] font-semibold text-rose-700 text-left md:pr-4">
+                  {`${detailsError} Letter generation is unavailable until your record loads.`}
+                </p>
+              ) : missingLabels.length > 0 ? (
+                <p role="alert" className="text-[11px] font-semibold text-amber-700 text-left md:pr-4 leading-relaxed">
+                  {`Your student record is missing: ${missingLabels.join(', ')}. Please contact the postgraduate office to complete it before generating this letter.`}
+                </p>
+              ) : (
+                <p className="text-[11px] font-semibold text-slate-400 text-left md:pr-4">
+                  The reference number is issued when you generate the letter.
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center shrink-0">
                 <PortalButton
                   variant="primary"
                   size="md"
                   icon={FileCheck}
-                  onClick={handleGeneratePDF}
-                  disabled={!selectedTemplate || !canGenerate}
-                  className="w-full sm:w-auto"
+                  onClick={() => void handleGenerate()}
+                  isLoading={generating}
+                  disabled={!selectedTemplate || !canGenerate || missingLabels.length > 0}
+                  className="w-full sm:w-auto whitespace-nowrap"
                 >
-                  Generate PDF
+                  Generate Letter
                 </PortalButton>
               </div>
             </div>

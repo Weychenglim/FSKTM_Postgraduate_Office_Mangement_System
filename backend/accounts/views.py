@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.db import transaction
@@ -26,7 +25,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from appointments.models import SupervisorAppointment
+from letters.details import letter_details
 from letters.eligibility import inactive_student_refusal
 
 from .authentication import RefreshCookieAuthentication
@@ -183,17 +182,6 @@ def change_password_view(request):
     return set_refresh_cookie(response, refresh)
 
 
-def _current_supervisor_name(student):
-    appointment = (
-        SupervisorAppointment.objects.filter(
-            student=student, status=SupervisorAppointment.Status.ACTIVE
-        )
-        .select_related("supervisor")
-        .first()
-    )
-    return appointment.supervisor.full_name if appointment else ""
-
-
 def _settings_payload(user):
     return {
         "user": user.to_public_dict(),
@@ -264,29 +252,7 @@ def my_letter_details_view(request):
     refusal = inactive_student_refusal(request.user)
     if refusal:
         return Response(refusal, status=status.HTTP_403_FORBIDDEN)
-
-    data = {
-        "studentName": request.user.full_name,
-        "matricNumber": student.matric_no,
-        "programName": student.programme,
-        "currentStatus": student.status,
-        "supervisorName": _current_supervisor_name(student),
-        # Registry-backed fields, blank until a registry row exists.
-        "passportNumber": "",
-        "country": "",
-        "programmeMode": "",
-        "fieldOfResearch": "",
-        "modeOfStudy": "",
-        "initialSemester": student.intake_semester,
-        "currentSemester": "",
-        "maxSemester": "",
-        "expectedCompletion": "",
-    }
-    try:
-        data.update(student.registry.to_letter_dict())
-    except ObjectDoesNotExist:
-        pass  # no registry details captured yet, so keep the blanks above
-    return Response(data)
+    return Response(letter_details(student))
 
 
 def send_password_reset_email(user) -> bool:
