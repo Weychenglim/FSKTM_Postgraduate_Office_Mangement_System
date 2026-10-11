@@ -124,7 +124,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-100 rounded-2xl shadow-sm z-50 text-left"
+                  className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 bg-white border border-slate-100 rounded-2xl shadow-sm z-50 text-left"
                 >
                   <div className="flex items-center justify-between gap-3 px-4 pt-3.5 pb-2.5 border-b border-slate-100">
                     <span className="text-xs font-extrabold text-slate-800">Notifications</span>
