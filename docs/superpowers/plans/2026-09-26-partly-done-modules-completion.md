@@ -13,7 +13,7 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 | 5 | Letter templates: archive, placeholder registry and validation (UC21) | M | Done | `16fe84c` |
 | 6 | Saved letter requests: reference numbers, history, Word export, notification (UC23) | L | Done | `170aed3` |
 | 7 | Announcement scheduling, expiry, and registry targeting (UC30) | M | Done | `ee4371d` |
-| 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Not started | |
+| 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Done | `4403c8c` |
 | 9 | Student "My Records" page and documentation wrap-up (UC06) | M | Not started | |
 
 Phases are ordered by dependency. Phase 6 needs Phase 5; Phase 9 needs Phase 6. Everything else can move if priorities change, but do one phase per session.

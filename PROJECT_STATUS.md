@@ -1,5 +1,21 @@
 # Project Status
 
+## Notifications: Bell Dropdown, Email Preferences, Reminders, Weekly Summary (2026-10-11)
+
+- Phase 8 of the partly-done plan (UC33), commit `4403c8c`.
+- **Settings switches (agreed with Xiang before changing the teammate's Settings).** Three switches sit under "Announcement alerts": Email alerts (off by default), Deadline reminders (on) and Weekly summary (off). They are new `User` fields (migration `accounts.0010`). `GET/PATCH /api/auth/settings/` reads and saves them, any subset at a time; an empty or unknown preference is still a 400. The three `capabilities` flags are now true. Nothing else in Settings changed. In the teammate's files, `test_settings.py` now expects the flags to be true, and `settingsApi.savePreferences` accepts a partial set so their existing test still compiles. Wey Cheng should be told.
+- **Email that follows the switches** (`announcements/emails.py`). Announcement copies need Email alerts and Announcement alerts, reminders need Email alerts and Deadline reminders, and the summary needs Weekly summary. Mail goes through `send_mass_mail(fail_silently=True)`. Announcement delivery emails only people getting the notice for the first time, after the delivery commits, so edits and re-syncs never email twice.
+- **Deadline reminders.** `send_deadline_reminders --days N` reminds the target roles of active-timeline entries due within N days (the dashboard's role mapping: STUDENT, LECTURER, OFFICE_STAFF) and evaluators with unsubmitted tasks in published Marks periods closing within N days. It sends one reminder per person per deadline, with a new one only if the deadline moves. People with Deadline reminders off get none. Reminders open the dashboard and Marks Entry.
+- **Weekly summary.** `send_weekly_summary` emails opted-in users their unread notifications from the past seven days and skips anyone with nothing unread. `WeeklySummaryLog` (migration `announcements.0005`) keeps it to one email per person per week; a failed send frees the slot again.
+- **Bell dropdown.** The bell opens the five newest notifications with "Mark all as read", "View all" and a "No new notifications" state. An item is marked read and opens its record. The routing rule now lives in `utils/notificationLinks.ts`, shared with the Notifications page; announcements open in that page's detail view.
+- **Scheduling.** `backend/README.md` lists the three commands with Windows Task Scheduler and cron lines.
+- **Verification.**
+  - 921 backend tests pass with `--parallel 2`, including 10 new ones in `announcements/test_reminders.py` and 3 in `accounts/test_notification_preferences.py`.
+  - All 89 frontend scripts pass, including the new `notificationLinks.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `accounts.0010` and `announcements.0005` after backup `db-backups/fsktm_pg_office_before_notification_preferences_2026-10-11.dump`.
+  - Both commands ran twice against the dev database inside a rolled-back transaction, with mail kept in memory and a temporary timeline, entry and student. The first run sent 7 reminders and 1 summary, the second added nothing, and the database was unchanged afterwards. 18/18 browser checks passed on the dropdown (five newest, record links, announcement detail, mark all read, empty state) and on the new switches (defaults, save, kept after reload), using temporary `smoke.bell.*` accounts that were then removed.
+  - The switches use the teammate's `ToggleSwitch`, whose knob position issue is already reported.
+
 ## Announcement Scheduling, Expiry and Registry Targeting (2026-10-11)
 
 - Phase 7 of the partly-done plan (UC30), commit `ee4371d`.
