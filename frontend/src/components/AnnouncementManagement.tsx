@@ -26,6 +26,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementItem } from '../types';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services';
@@ -310,7 +311,6 @@ export const AnnouncementManagement: React.FC = () => {
     item => item.status === 'Active' && item.priority === 'Urgent',
   ).length;
   const draftCount = drafts.length;
-  const pad = (count: number) => (count < 10 ? `0${count}` : `${count}`);
 
   // Pagination bounds (a shrinking search result never leaves an empty page)
   const totalPages = Math.ceil(filteredAnnouncements.length / itemsPerPage) || 1;
@@ -319,13 +319,13 @@ export const AnnouncementManagement: React.FC = () => {
   const displayedAnnouncements = filteredAnnouncements.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div id="announcement-module" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+    <div id="announcement-module" className="text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
 
       <PortalToast message={toast} />
 
       {view === 'create' ? (
       /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
-      <div className="space-y-6">
+      <div className="space-y-8">
 
         <PageHeader
           title={
@@ -370,12 +370,12 @@ export const AnnouncementManagement: React.FC = () => {
             the page and lost the draft; the buttons below do the saving. */}
         <form
           onSubmit={(e) => e.preventDefault()}
-          className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs"
+          className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-3xs"
         >
 
             {/* Field A: Headline */}
             <div className="space-y-1.5">
-              <label htmlFor="announcement-headline" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label htmlFor="announcement-headline" className="form-label block">
                 Headline
               </label>
               <input
@@ -390,7 +390,7 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Field B: Target Audience Chips Row */}
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Target Audience
               </label>
               <SegmentedControl
@@ -408,7 +408,7 @@ export const AnnouncementManagement: React.FC = () => {
 
             {/* Field C: Priority Selector boxes */}
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Priority Level
               </label>
               <div className="grid grid-cols-3 gap-3">
@@ -465,7 +465,7 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Field D: Content Body Textarea with dynamic attach button */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label htmlFor="announcement-content" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <label htmlFor="announcement-content" className="form-label block">
                   Content Body
                 </label>
                 <button
@@ -524,34 +524,30 @@ export const AnnouncementManagement: React.FC = () => {
             </div>
 
             {/* Action Buttons Row */}
-            <div className="pt-4 flex flex-col md:flex-row gap-4 items-center">
+            <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <PortalButton
+                type="button"
+                onClick={handleSaveDraft}
+                variant="secondary"
+                size="md"
+                disabled={submitting}
+              >
+                {editingId ? (editingStatus === 'Active' ? 'Move to Drafts' : 'Update Draft') : 'Save Draft'}
+              </PortalButton>
+
               <PortalButton
                 type="button"
                 onClick={handlePublishNow}
                 variant="primary"
-                size="lg"
+                size="md"
                 icon={Send}
-                fullWidth
                 disabled={submitting}
-                className="md:w-auto"
               >
                 {submitting
                   ? 'Saving…'
                   : editingId
                     ? editingStatus === 'Active' ? 'Save & Keep Published' : 'Publish Draft'
                     : 'Publish Now'}
-              </PortalButton>
-
-              <PortalButton
-                type="button"
-                onClick={handleSaveDraft}
-                variant="secondary"
-                size="lg"
-                fullWidth
-                disabled={submitting}
-                className="md:w-auto"
-              >
-                {editingId ? (editingStatus === 'Active' ? 'Move to Drafts' : 'Update Draft') : 'Save Draft'}
               </PortalButton>
             </div>
 
@@ -562,10 +558,10 @@ export const AnnouncementManagement: React.FC = () => {
 
         {/* ==================== SAVED DRAFTS (below the form, not in history) ==================== */}
         {drafts.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-2xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-3xs">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Saved Drafts</h3>
+                <h3 className="section-label">Saved Drafts</h3>
                 <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
                   Unpublished announcements. Edit to keep working, or publish to broadcast.
                 </p>
@@ -653,7 +649,7 @@ export const AnnouncementManagement: React.FC = () => {
       </div>
       ) : (
       /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
-      <div id="announcements-history-view" className="space-y-6">
+      <div id="announcements-history-view" className="space-y-8">
 
         <PageHeader
           title="Announcement History"
@@ -676,45 +672,16 @@ export const AnnouncementManagement: React.FC = () => {
           )}
         />
 
-          {/* 4 Summary Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            
-            {/* Card 1: Active Now */}
-            <div className="bg-white border-l-4 border-l-[#0c1424] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Active Now</p>
-              <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
-                {pad(activeCount)}
-              </h3>
-            </div>
-
-            {/* Card 2: Urgent Alerts */}
-            <div className="bg-white border-l-4 border-l-red-500 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Urgent Alerts</p>
-              <h3 className="text-xl md:text-2xl font-black text-rose-600 mt-1">
-                {pad(urgentCount)}
-              </h3>
-            </div>
-
-            {/* Card 3: Drafts */}
-            <div className="bg-white border-l-4 border-l-[#3b82f6] border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Drafts</p>
-              <h3 className="text-xl md:text-2xl font-black text-blue-700 mt-1">
-                {pad(draftCount)}
-              </h3>
-            </div>
-
-            {/* Card 4: Everything published so far, including expired */}
-            <div className="bg-white border-l-4 border-l-slate-400 border border-slate-150 p-4 rounded-xl text-left shadow-3xs">
-              <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Published (All)</p>
-              <h3 className="text-xl md:text-2xl font-black text-slate-650 mt-1">
-                {pad(publishedItems.length)}
-              </h3>
-            </div>
-
+            <StatCard label="Active Now" value={activeCount} caption="Live for recipients" icon={Megaphone} tone="green" />
+            <StatCard label="Urgent Alerts" value={urgentCount} caption="Active and urgent" icon={AlertTriangle} tone="rose" />
+            <StatCard label="Drafts" value={draftCount} caption="Not published yet" icon={Pencil} tone="blue" />
+            {/* Everything published so far, including expired */}
+            <StatCard label="Published (All)" value={publishedItems.length} caption="Including expired" icon={Send} tone="slate" />
           </div>
 
           {/* Announcement history Table frame card structure */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
             
             <div className="overflow-x-auto">
               <table className="data-table text-xs">

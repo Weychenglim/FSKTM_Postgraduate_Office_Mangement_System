@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, RemovableTag, StatusBadge } from './PortalPrimitives';
+import { StatCard } from './StatCard';
 
 // Definitions for tag items
 interface KeywordTag {
@@ -225,17 +226,16 @@ export const AcademicFAQEditor: React.FC = () => {
   };
 
   return (
-    <div id="faq-editor-dashboard" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+    <div id="faq-editor-dashboard" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
       
       <PortalToast message={toast} />
 
       <PageHeader
         title="Academic FAQ Editor"
-        subtitle="Knowledge Management"
-        className="mb-8"
+        subtitle="Write and maintain the answers the FAQ chatbot gives."
         actions={(
           <>
-            <PortalButton type="button" onClick={handleDiscardChanges} variant="ghost" size="md">
+            <PortalButton type="button" onClick={handleDiscardChanges} variant="secondary" size="md">
               Discard Changes
             </PortalButton>
             <PortalButton type="button" onClick={handleDeployToLive} variant="primary" size="md" icon={RefreshCw}>
@@ -246,15 +246,15 @@ export const AcademicFAQEditor: React.FC = () => {
       />
 
       {/* Two Column Layout Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* LEFT COLUMN: INTENT EDITOR FORM (lg:col-span-7) */}
         <div id="faq-editor-form-col" className="lg:col-span-7 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-6 text-left shadow-2xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 text-left shadow-3xs">
             
             {/* Field 1: Intent Category Dropdown */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Intent Category
               </label>
               <div className="relative">
@@ -278,7 +278,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 2: Question Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Question
               </label>
               <input
@@ -292,7 +292,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 3: Keywords / Alternative Phrasings Tags */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Keywords / Alternative Phrasings
               </label>
               
@@ -337,7 +337,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 4: Rich Text Answer Content wrapper */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label block">
                 Answer
               </label>
 
@@ -410,11 +410,11 @@ export const AcademicFAQEditor: React.FC = () => {
             </div>
 
             {/* Bottom Actions of Form Card: Clear & Save to Knowledge Base */}
-            <div className="border-t border-slate-100 pt-5 flex items-center justify-between">
+            <div className="border-t border-slate-100 pt-6 flex items-center justify-end gap-3">
               <PortalButton
                 type="button"
                 onClick={handleClearForm}
-                variant="ghost"
+                variant="secondary"
                 size="md"
               >
                 Clear Form
@@ -436,20 +436,18 @@ export const AcademicFAQEditor: React.FC = () => {
 
         {/* RIGHT COLUMN: REAL-TIME PREVIEW PANEL (lg:col-span-5) */}
         <div id="faq-preview-col" className="lg:col-span-5 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs flex flex-col h-[550px]">
-            
-            {/* Header with LIVE SIMULATOR indicator in header card */}
-            <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
-              <div className="flex items-center gap-2">
-                <MessageSquareCode className="w-4.5 h-4.5 text-indigo-300" />
-                <span className="text-[11px] font-black tracking-wide uppercase">
-                  Real-Time Preview
-                </span>
+          <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs flex flex-col h-[550px]">
+
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 select-none">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                  <MessageSquareCode className="w-5 h-5 text-brand-navy" />
+                </div>
+                <h2 className="section-label">Real-Time Preview</h2>
               </div>
 
-              {/* LIVE SIMULATOR green badge */}
               <StatusBadge tone="success" dot pulse className="text-[9px]">
-                LIVE SIMULATOR
+                Live Simulator
               </StatusBadge>
             </div>
 
@@ -538,48 +536,9 @@ export const AcademicFAQEditor: React.FC = () => {
       </div>
 
       {/* BOTTOM METRICS STATS BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left mb-6">
-        
-        {/* Metric 1: Total FAQ entries */}
-        <div className="bg-white border border-slate-200/80 p-5 rounded-2xl flex items-center justify-between shadow-3xs">
-          <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-405 tracking-wider">
-              Total FAQ Entries
-            </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
-                1,248
-              </span>
-              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full select-none">
-                +12%
-              </span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500 border border-slate-150">
-            <Database className="w-4.5 h-4.5" />
-          </div>
-        </div>
-
-        {/* Metric 2: Avg Response Confidence */}
-        <div className="bg-white border border-slate-200/80 p-5 rounded-2xl flex items-center justify-between shadow-3xs">
-          <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-405 tracking-wider">
-              Avg Response Confidence
-            </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
-                94.2%
-              </span>
-              <span className="text-[10px] font-black text-emerald-605 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full select-none">
-                Stable
-              </span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500 border border-slate-150">
-            <Sparkles className="w-4.5 h-4.5 text-indigo-500 animate-pulse" />
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StatCard label="Total FAQ Entries" value="1,248" caption="+12%" icon={Database} tone="slate" />
+        <StatCard label="Avg Response Confidence" value="94.2%" caption="Stable" icon={Sparkles} tone="purple" />
       </div>
 
     </div>

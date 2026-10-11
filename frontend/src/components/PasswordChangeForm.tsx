@@ -4,11 +4,11 @@
  */
 
 import React, { useState } from 'react';
-import { KeyRound, Save } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { fieldErrors } from '../services';
 import * as authApi from '../services/authApi';
 import { authenticationErrorMessage } from '../utils/authErrorMessage';
-import { FormInput } from './FormInput';
+import { PasswordInput } from './PasswordInput';
 import { PortalButton } from './PortalPrimitives';
 
 interface PasswordChangeFormProps {
@@ -69,47 +69,46 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSavePassword} className="mt-5">
-      <FormInput
+    <form onSubmit={handleSavePassword} className="w-full text-left">
+      <PasswordInput
         id={`${idPrefix}-current-pw`}
         label="Current Password"
-        type="password"
-        icon={KeyRound}
         value={currentPassword}
         onChange={(e) => setCurrentPassword(e.target.value)}
         error={pwErrors.current}
         autoComplete="current-password"
         aria-invalid={pwErrors.current ? true : undefined}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
-        <FormInput
-          id={`${idPrefix}-new-pw`}
-          label="New Password"
-          type="password"
-          icon={KeyRound}
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          error={pwErrors.next}
-          autoComplete="new-password"
-          aria-invalid={pwErrors.next ? true : undefined}
-        />
-        <FormInput
-          id={`${idPrefix}-confirm-pw`}
-          label="Confirm New Password"
-          type="password"
-          icon={KeyRound}
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          error={pwErrors.confirm}
-          autoComplete="new-password"
-          aria-invalid={pwErrors.confirm ? true : undefined}
-        />
-      </div>
-      <div className="flex justify-end">
-        <PortalButton type="submit" variant="primary" size="md" icon={Save} disabled={savingPassword}>
-          {savingPassword ? 'Saving…' : submitLabel}
-        </PortalButton>
-      </div>
+      <PasswordInput
+        id={`${idPrefix}-new-pw`}
+        label="New Password"
+        value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)}
+        error={pwErrors.next}
+        autoComplete="new-password"
+        aria-invalid={pwErrors.next ? true : undefined}
+      />
+      <PasswordInput
+        id={`${idPrefix}-confirm-pw`}
+        label="Confirm New Password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+        error={pwErrors.confirm}
+        autoComplete="new-password"
+        aria-invalid={pwErrors.confirm ? true : undefined}
+      />
+      <PortalButton
+        type="submit"
+        variant="primary"
+        size="lg"
+        fullWidth
+        icon={ArrowRight}
+        iconPosition="right"
+        isLoading={savingPassword}
+        className="mt-1"
+      >
+        {submitLabel}
+      </PortalButton>
     </form>
   );
 };

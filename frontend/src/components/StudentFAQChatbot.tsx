@@ -152,16 +152,15 @@ export const StudentFAQChatbot: React.FC = () => {
   };
 
   return (
-    <div id="student-faq-chatbot-view" className="text-left font-sans animate-fade-in">
+    <div id="student-faq-chatbot-view" className="space-y-8 text-left font-sans text-xs animate-fade-in">
 
       <PageHeader
         title="FAQ Chatbot"
         subtitle="Ask common postgraduate questions and get pointers to the right procedure."
-        className="border-b border-slate-100 pb-5"
       />
 
       {/* Conversation — flows with the page, like a chat assistant */}
-      <div className="max-w-3xl mx-auto pt-8 space-y-8">
+      <div className="max-w-3xl mx-auto space-y-8">
         {chatMessages.map((msg) => (
           msg.sender === 'assistant' ? (
             <div key={msg.id} className="flex gap-3 items-start">

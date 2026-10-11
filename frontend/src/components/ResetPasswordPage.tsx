@@ -4,18 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Lock, Check, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, Lock } from 'lucide-react';
 import { authApi } from '../services';
 import { authenticationErrorMessage } from '../utils/authErrorMessage';
-import {
-  AuthLayout,
-  AuthCard,
-  BackLink,
-  FormInput,
-  ActionButton,
-  InfoMessage,
-  FooterText,
-} from './ForgotPasswordFlow';
+import { AuthCard, AuthScreen, BackLink, InfoMessage } from './ForgotPasswordFlow';
+import { PasswordInput } from './PasswordInput';
+import { PortalButton } from './PortalPrimitives';
 
 interface ResetPasswordPageProps {
   /** From the email link: `?uid=...&token=...`. */
@@ -67,67 +61,76 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
   };
 
   return (
-    <AuthLayout>
-      <BackLink onClick={onBackToLogin} className="mb-2 pl-1 text-[#2563eb] self-start" />
+    <AuthScreen>
+      <BackLink onClick={onBackToLogin} />
 
-      {!isDone ? (
-        <AuthCard id="reset-password-card" badgeIcon={Lock}>
-          <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
-            Set a New Password
-          </h2>
-          <p className="text-[11.5px] sm:text-[12px] text-slate-500 font-bold mt-1.5 mb-8 leading-relaxed font-sans px-2">
-            Choose a strong new password for your FSKTM Postgraduate Office account.
-          </p>
+      <div className="mt-10">
+        {!isDone ? (
+          <AuthCard
+            id="reset-password-card"
+            badgeIcon={Lock}
+            title="Set a New Password"
+            subtitle="Choose a strong new password for your FSKTM Postgraduate Office account."
+          >
+            <form onSubmit={handleSubmit} className="w-full text-left">
+              <PasswordInput
+                id="new-password"
+                label="New Password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={errorText || undefined}
+                autoComplete="new-password"
+                required
+              />
+              <PasswordInput
+                id="confirm-password"
+                label="Confirm New Password"
+                placeholder="••••••••"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
 
-          <form onSubmit={handleSubmit} className="w-full text-left">
-            <FormInput
-              id="new-password"
-              label="New Password"
-              type="password"
-              icon={Lock}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={errorText || undefined}
-              autoComplete="new-password"
-              required
-            />
-            <FormInput
-              id="confirm-password"
-              label="Confirm New Password"
-              type="password"
-              icon={ShieldCheck}
-              placeholder="••••••••"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
+              <PortalButton
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                isLoading={isLoading}
+                icon={ArrowRight}
+                iconPosition="right"
+                className="mt-1"
+              >
+                Reset Password
+              </PortalButton>
+            </form>
 
-            <ActionButton type="submit" isLoading={isLoading} className="mt-2">
-              Reset Password
-            </ActionButton>
-          </form>
-
-          <InfoMessage message="For your security this reset link can be used once and expires 30 minutes after it was sent." />
-          <FooterText />
-        </AuthCard>
-      ) : (
-        <AuthCard id="reset-success-card" badgeIcon={Check} badgeCircle>
-          <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
-            Password Updated
-          </h2>
-          <div className="text-slate-600 text-xs sm:text-[12.5px] leading-relaxed font-semibold mt-4 mb-6 font-sans px-1">
-            Your password has been reset successfully. You can now sign in with your new password.
-          </div>
-
-          <ActionButton type="button" onClick={onBackToLogin}>
-            Back to Sign In
-          </ActionButton>
-
-          <FooterText />
-        </AuthCard>
-      )}
-    </AuthLayout>
+            <InfoMessage message="For your security this reset link can be used once and expires 30 minutes after it was sent." />
+          </AuthCard>
+        ) : (
+          <AuthCard
+            id="reset-success-card"
+            badgeIcon={Check}
+            badgeCircle
+            title="Password Updated"
+            subtitle="Your password has been reset successfully. You can now sign in with your new password."
+          >
+            <PortalButton
+              type="button"
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon={ArrowRight}
+              iconPosition="right"
+              onClick={onBackToLogin}
+            >
+              Back to Sign In
+            </PortalButton>
+          </AuthCard>
+        )}
+      </div>
+    </AuthScreen>
   );
 };

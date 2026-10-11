@@ -368,14 +368,13 @@ export const LetterTemplateManagement: React.FC = () => {
   const referencePreview = `${(editorPrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
 
   return (
-    <div id="letter-template-management" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+    <div id="letter-template-management" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
 
       <PortalToast message={toast} />
 
       <PageHeader
         title="Letter Generation"
         subtitle="Create and manage official letter templates for the postgraduate office."
-        className="mb-6"
       />
 
       {/* Main Grid containing left and right pane cards */}
@@ -383,15 +382,13 @@ export const LetterTemplateManagement: React.FC = () => {
         
         {/* LEFT COLUMN: TEMPLATES LIBRARY (lg:col-span-4) */}
         <div id="templates-library-column" className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-2xs">
-            
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 text-left shadow-3xs">
+
             {/* Library Panel Header */}
             <div className="flex items-center justify-between">
-              <h2 className="section-label uppercase tracking-wider">
-                Templates Library
-              </h2>
-              <span className="text-[10px] font-black text-slate-400">
-                {templates.length} Forms
+              <h2 className="section-label">Templates Library</h2>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {templates.length} template{templates.length === 1 ? '' : 's'}
               </span>
             </div>
 
@@ -414,7 +411,7 @@ export const LetterTemplateManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowArchived(!showArchived)}
-                className="text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
               >
                 {showArchived ? 'Hide archived templates' : `Show archived templates (${archivedCount})`}
               </button>
@@ -503,7 +500,7 @@ export const LetterTemplateManagement: React.FC = () => {
         <div id="template-editor-column" className="lg:col-span-8 space-y-4">
           {!selectedTemplate ? (
             !loading && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-2xs">
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center shadow-3xs">
                 <FileText className="w-6 h-6 text-slate-300 mx-auto" />
                 <p className="mt-3 text-sm font-black text-slate-700">No template selected</p>
                 <p className="mt-1 text-[11px] font-semibold text-slate-400">
@@ -512,48 +509,29 @@ export const LetterTemplateManagement: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs text-left">
-            
-              {/* Theme Editor header bar containing main buttons */}
-              <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-indigo-300" />
-                  <span className="text-[11px] font-black uppercase tracking-wider">
-                    Template Editor
-                  </span>
-                </div>
-
-                {/* Top editor quick saves */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCheckPlaceholders}
-                    className="px-3.5 py-1.5 bg-[#1e293b] hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer"
-                  >
-                    Check Tags
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveTemplate}
-                    disabled={saving}
-                    className="px-4 py-1.5 bg-white text-brand-navy hover:bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <Check className="w-3 h-3 stroke-[3]" />
-                    <span>{saving ? 'Saving…' : 'Save Template'}</span>
-                  </button>
-                </div>
-              </div>
+            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs text-left">
 
               {/* Core editor forms wrapper container */}
               <div className="p-6 md:p-8 space-y-6">
+
+                <div className="flex items-center gap-3 select-none">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-brand-navy" />
+                  </div>
+                  <div>
+                    <h2 className="section-label">Template Editor</h2>
+                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                      Edit the wording, placeholders and status of the selected template.
+                    </p>
+                  </div>
+                </div>
               
                 {/* Row 1: Template Name & Letter Type drop downs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 
                   {/* Template Name input */}
                   <div className="space-y-1.5">
-                    <label htmlFor="letter-template-name" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label htmlFor="letter-template-name" className="form-label block">
                       Template Name
                     </label>
                     <input
@@ -567,7 +545,7 @@ export const LetterTemplateManagement: React.FC = () => {
                       }}
                       aria-invalid={problems.name ? true : undefined}
                       aria-describedby={problems.name ? 'letter-template-name-error' : undefined}
-                      className="form-control form-control-sm"
+                      className="form-control form-control-md"
                       placeholder="Enter descriptive template title..."
                     />
                     {problems.name && (
@@ -579,7 +557,7 @@ export const LetterTemplateManagement: React.FC = () => {
 
                   {/* Letter Type custom selection dropdown */}
                   <div className="space-y-1.5">
-                    <label htmlFor="letter-template-type" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label htmlFor="letter-template-type" className="form-label block">
                       Letter Type
                     </label>
                     <div className="relative">
@@ -587,7 +565,7 @@ export const LetterTemplateManagement: React.FC = () => {
                         id="letter-template-type"
                         value={editorType}
                         onChange={(e) => setEditorType(e.target.value)}
-                        className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
+                        className="form-control form-control-md appearance-none pr-9 cursor-pointer"
                       >
                         {typeOptions.map((type) => (
                           <option key={type} value={type}>{type}</option>
@@ -604,7 +582,7 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* Row 1b: what students see in the template list, and the reference number prefix */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
-                    <label htmlFor="letter-template-description" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label htmlFor="letter-template-description" className="form-label block">
                       Short Description
                     </label>
                     <input
@@ -618,7 +596,7 @@ export const LetterTemplateManagement: React.FC = () => {
                       }}
                       aria-invalid={problems.description ? true : undefined}
                       aria-describedby={problems.description ? 'letter-template-description-error' : undefined}
-                      className="form-control form-control-sm"
+                      className="form-control form-control-md"
                       placeholder="What this letter is for..."
                     />
                     {problems.description && (
@@ -627,7 +605,7 @@ export const LetterTemplateManagement: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="letter-template-prefix" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label htmlFor="letter-template-prefix" className="form-label block">
                       Reference Prefix
                     </label>
                     <input
@@ -641,7 +619,7 @@ export const LetterTemplateManagement: React.FC = () => {
                       }}
                       aria-invalid={problems.referencePrefix ? true : undefined}
                       aria-describedby={problems.referencePrefix ? 'letter-template-prefix-error' : 'letter-template-prefix-hint'}
-                      className="form-control form-control-sm font-mono"
+                      className="form-control form-control-md"
                       placeholder={DEFAULT_REFERENCE_PREFIX}
                     />
                     {problems.referencePrefix ? (
@@ -657,7 +635,7 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* Row 2: Placeholder Tag insertions block */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between select-none">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <label className="form-label block">
                       Placeholder Tags
                     </label>
                     <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wide">
@@ -844,14 +822,14 @@ export const LetterTemplateManagement: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                   {/* Mini card: Placeholders used count */}
-                  <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left select-none">
+                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left select-none">
                     <div>
-                      <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
                         Placeholders Used
                       </span>
-                      <h4 className="text-lg font-black text-slate-900 mt-1">
-                        {String(countPlaceholdersUsed(editorContent)).padStart(2, '0')}
-                      </h4>
+                      <p className="text-xl font-extrabold text-brand-navy mt-1 leading-none">
+                        {countPlaceholdersUsed(editorContent)}
+                      </p>
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
                       <Sparkles className="w-4 h-4 animate-spin-slow" />
@@ -859,9 +837,9 @@ export const LetterTemplateManagement: React.FC = () => {
                   </div>
 
                   {/* Mini card: Template status control */}
-                  <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left">
+                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left">
                     <div>
-                      <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
                         Template Status
                       </span>
                     
@@ -890,44 +868,22 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* Action buttons row block */}
                 <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
 
-                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
-                    <button
-                      type="button"
-                      onClick={handleDiscardChanges}
-                      disabled={!isDirty || saving}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <PortalButton variant="secondary" size="md" onClick={handleDiscardChanges} disabled={!isDirty || saving}>
                       Discard Changes
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDelete(true)}
-                      disabled={saving}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
+                    </PortalButton>
+                    <PortalButton variant="danger" size="md" icon={Trash2} onClick={() => setConfirmingDelete(true)} disabled={saving}>
+                      Delete
+                    </PortalButton>
                   </div>
 
-                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
-                    <button
-                      type="button"
-                      onClick={handleCheckPlaceholders}
-                      className="w-full md:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
-                    >
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <PortalButton variant="secondary" size="md" onClick={handleCheckPlaceholders}>
                       Check Placeholders
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveTemplate}
-                      disabled={saving}
-                      className="w-full md:w-auto px-6 py-2.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <span>{saving ? 'Saving…' : 'Save Template'}</span>
-                    </button>
+                    </PortalButton>
+                    <PortalButton variant="primary" size="md" icon={Check} onClick={handleSaveTemplate} disabled={saving}>
+                      {saving ? 'Saving…' : 'Save Template'}
+                    </PortalButton>
                   </div>
 
                 </div>

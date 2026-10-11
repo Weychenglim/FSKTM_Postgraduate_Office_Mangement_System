@@ -12,7 +12,7 @@ import {
   Info,
   FileCheck,
 } from 'lucide-react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterTemplate } from '../types';
 import {
@@ -193,11 +193,10 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   if (blockedReason) {
     return (
-      <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans pb-12">
+      <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
         <PageHeader
           title="Letter Generation"
           subtitle="Official letters for students whose status is Active."
-          className="border-b border-slate-100 pb-5"
         />
         <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
           <Info className="w-6 h-6 text-amber-500 mx-auto" />
@@ -209,26 +208,23 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   }
 
   return (
-    <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans pb-12">
+    <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
       <PortalToast message={toastMessage} />
 
       <PageHeader
         title="Letter Generation"
         subtitle="Select an available letter template, preview the generated letter, and download or print your official PDF document."
-        className="border-b border-slate-100 pb-5"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT: TEMPLATE LIBRARY */}
         <div id="templates-sidebar-panel" className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 select-none">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Letter Templates
-                </span>
-                <span className="bg-slate-100 text-slate-600 font-bold text-[9px] px-2 py-0.5 rounded-full font-mono">
-                  {String(templates.length).padStart(2, '0')} Forms
+              <div className="flex items-center justify-between select-none">
+                <h2 className="section-label">Letter Templates</h2>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {templates.length} template{templates.length === 1 ? '' : 's'}
                 </span>
               </div>
 
@@ -257,12 +253,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       >
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2">
-                            <FileText className={`w-4 h-4 ${isSelected ? 'text-brand-navy stroke-[2.3]' : 'text-slate-400'}`} />
+                            <FileText className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand-navy stroke-[2.3]' : 'text-slate-400'}`} />
                             <span className={`text-xs font-black leading-tight ${isSelected ? 'text-brand-navy' : 'text-slate-800'}`}>
                               {tpl.name}
                             </span>
                           </div>
-                          <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                          <span className="px-2 py-0.5 rounded-md text-[8px] font-extrabold uppercase tracking-wider shrink-0 bg-slate-100 text-slate-600 border border-slate-200">
                             {tpl.type}
                           </span>
                         </div>
@@ -289,18 +285,16 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
         {/* RIGHT: PREVIEW PANE */}
         <div id="preview-panel" className="lg:col-span-8 space-y-4">
-          <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-6 shadow-3xs text-left flex flex-col justify-between">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left flex flex-col justify-between">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4 select-none">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-brand-navy uppercase tracking-wider">Preview Pane</span>
-              </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+              <h2 className="section-label">Letter Preview</h2>
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-lg p-1">
                   <button type="button" onClick={handleZoomOut} className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded transition cursor-pointer" title="Zoom Out">
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[10px] font-black font-mono px-2 text-slate-600 shrink-0 min-w-[36px] text-center">{zoomScale}%</span>
+                  <span className="text-[10px] font-extrabold px-2 text-slate-600 shrink-0 min-w-[36px] text-center">{zoomScale}%</span>
                   <button type="button" onClick={handleZoomIn} className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded transition cursor-pointer" title="Zoom In">
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
@@ -398,15 +392,16 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                   : ''}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
-                <button
-                  type="button"
+                <PortalButton
+                  variant="primary"
+                  size="md"
+                  icon={FileCheck}
                   onClick={handleGeneratePDF}
                   disabled={!selectedTemplate || !canGenerate}
-                  className="w-full sm:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-850 text-white font-black text-[10px] tracking-widest uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto"
                 >
-                  <FileCheck className="w-3.5 h-3.5 stroke-[2.3]" />
-                  <span>Generate PDF</span>
-                </button>
+                  Generate PDF
+                </PortalButton>
               </div>
             </div>
           </div>
