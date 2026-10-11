@@ -1,5 +1,26 @@
 # Project Status
 
+## Saved Letter Requests (2026-10-11)
+
+- Phase 6 of the partly-done plan (UC23), commit `170aed3`.
+- **Issued letters are records now.**
+  - Generating a letter fills an Active template on the server from the same details as the preview (`letters/details.py`). It saves the filled wording and the details used (`GeneratedLetter`, migration `letters.0003`) and notifies the student once.
+  - The server issues the reference number as `<prefix>/<year>/<NNNN>`, counted per prefix and year under a row lock (`LetterReferenceCounter`). A refused letter never uses a number. The browser's random `generateReferenceNumber()` is gone.
+  - If the template needs a detail the student's record lacks, generation returns 400 `missingFields` and saves nothing. The screen names the missing fields first and disables the button.
+- **Endpoints** under `/api/letters/requests/`: generate, list (students see their own; the office sees the register with search, date and status filters), detail, Word download (`python-docx`, added to `requirements.txt`), resend notification and revoke. Resend and revoke are office-only.
+- **Beyond the plan.**
+  - The office can revoke a letter issued in error, with a reason. The student keeps it in My Letters, marked revoked with the reason, and can no longer print or download it. The plan listed a Revoked status but no way to set it.
+  - Reprints and Word downloads follow the Active-only rule from 2026-10-10, so a student who is no longer Active gets the same 403 as for generation. Office staff keep full access.
+- **Screens.**
+  - Student Letter Generation has New Letter and My Letters tabs (`/letters/my-letters`). Generate saves the letter, then prints the saved copy with its real reference. My Letters reprints and downloads the Word copy.
+  - Office Letter Generation has Templates and Issued Letters tabs (`/letters/issued`), with search by student, matric or reference, date and status filters, reprint, Word, resend and revoke. Coordinators keep the Templates view only.
+  - A "letter ready" notification opens My Letters.
+- **Verification.**
+  - 893 backend tests pass with `--parallel 2`, including 14 new ones in `letters/test_letter_requests.py` and 2 concurrency tests in `letters/test_letter_reference_concurrency.py`.
+  - All 87 frontend scripts pass, including the new `issuedLetters.test.ts`, which also checks that the Word letterhead matches the printed one. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `letters.0003` after backup `db-backups/fsktm_pg_office_before_generated_letters_2026-10-11.dump`.
+  - Live checks ran against `runserver` with temporary `smoke.ltr.*` accounts and a temporary template with its own prefix, all removed afterwards. 15/15 API checks and 17/17 browser checks passed, covering generation, My Letters, the Word download, the notification link, missing fields, the office register, resend and revoke. A sample Word file opened cleanly in Microsoft Word.
+
 ## Review Fixes: Xiang's Side (2026-10-10)
 
 - A four-part review (backend code, frontend code, live API, browser UI) of `643512a` found bugs and gaps in Xiang's modules. They were fixed in seven commits, `2888fc9`..`0bff836`.

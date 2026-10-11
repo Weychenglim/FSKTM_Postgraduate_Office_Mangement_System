@@ -127,6 +127,24 @@ Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.
 
+## Issued letter endpoints (`/api/letters/`)
+
+| Method | Path | Actor |
+| ------ | ---- | ----- |
+| POST | `requests/` (`{templateId}`) | Active student |
+| GET | `requests/` | Student (own letters) or Office Staff/Admin (`search`, `from`, `to`, `status`) |
+| GET | `requests/<id>/` | The letter's student or Office Staff/Admin |
+| GET | `requests/<id>/docx/` | The letter's student or Office Staff/Admin |
+| POST | `requests/<id>/resend-notification/` | Office Staff/Admin |
+| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin |
+
+Generating a letter fills an Active template from the student's record, issues
+the next reference number for its prefix and year (`UMF/PG/2026/0001`), saves
+the filled wording and notifies the student. If the template needs a detail the
+record does not have, it returns 400 with `missingFields` and saves nothing.
+The Word copy is built with `python-docx`. Revoked letters keep their number but
+can no longer be downloaded.
+
 ## Development demo logins
 
 Demo fixtures use fictional `example.test` emails and `DEMO-*` identifiers.
