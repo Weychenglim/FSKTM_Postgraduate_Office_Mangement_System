@@ -52,6 +52,14 @@ class Announcement(models.Model):
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE
     )
+    # Empty publish_at means "publish when saved"; a future one keeps the notice
+    # Scheduled until release_due_announcements() delivers it. After expires_at
+    # it becomes Expired, and recipients keep their copies.
+    publish_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    # Registry targeting for student announcements; an empty list means all.
+    target_programmes = models.JSONField(default=list, blank=True)
+    target_intakes = models.JSONField(default=list, blank=True)
     # Optional file recipients can download (PDF, DOCX, etc.).
     attachment = models.FileField(
         upload_to="announcements/%Y/%m/", blank=True, null=True
@@ -102,6 +110,10 @@ class Announcement(models.Model):
             "createdById": str(self.created_by_id) if self.created_by_id else None,
             "attachmentName": self.attachment_name,
             "attachmentUrl": attachment_url,
+            "publishAt": localtime(self.publish_at).isoformat() if self.publish_at else None,
+            "expiresAt": localtime(self.expires_at).isoformat() if self.expires_at else None,
+            "targetProgrammes": self.target_programmes,
+            "targetIntakes": self.target_intakes,
         }
 
 

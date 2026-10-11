@@ -100,9 +100,10 @@ class DeliverySyncTests(AnnouncementReviewBase):
 
     def test_scheduled_withdraws_delivery_but_expired_keeps_history(self):
         notice = self.publish(self.office, target="All Students")
-        self.patch(self.office, notice, {"status": "Scheduled"})
+        tomorrow = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).isoformat()
+        self.patch(self.office, notice, {"status": "Scheduled", "publishAt": tomorrow})
         self.assertEqual(self.recipients(notice), set())
-        self.patch(self.office, notice, {"status": "Active"})
+        self.patch(self.office, notice, {"status": "Active", "publishAt": None})
         self.assertIn(self.student.pk, self.recipients(notice))
         self.patch(self.office, notice, {"status": "Expired"})
         self.assertIn(self.student.pk, self.recipients(notice))
@@ -171,7 +172,8 @@ class NotificationFeedTests(AnnouncementReviewBase):
             while Notification.objects.filter(recipient=self.student).count() < total:
                 self.publish(self.office, target="All Students", title=f"Notice {total}")
             self.client.force_authenticate(self.student)
-            with self.assertNumQueries(1):
+            # One check for scheduled announcements that are due, then the feed.
+            with self.assertNumQueries(2):
                 response = self.client.get("/api/notifications/")
             self.assertEqual(len(response.data), total)
 

@@ -24,13 +24,25 @@ import {
   Eye,
   FileText,
   Pencil,
-  Minus
+  Minus,
+  CalendarClock
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
-import { AnnouncementItem } from '../types';
-import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services';
+import { AnnouncementAudienceOptions, AnnouncementItem } from '../types';
+import {
+  fieldErrors,
+  getAnnouncements,
+  getAnnouncementAudienceOptions,
+  getAnnouncementRecipientCount,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+} from '../services';
+import { formatScheduleMoment, isScheduledFor, scheduleProblem, scheduleTime } from '../utils/announcementSchedule';
+import { toMalaysiaDateTimeLocalValue } from '../utils/malaysiaDateTime';
+import { describeProgramme } from '../utils/programmeLabel';
 
 // AnnouncementItem now lives in src/types.
 
@@ -45,6 +57,61 @@ const audienceFromTarget = (target: string): AudienceOption =>
   target === 'All Students'
     ? 'Students'
     : (['All', 'Lecturers', 'Staff', 'Coordinators'].includes(target) ? (target as AudienceOption) : 'All');
+
+const toggled = (list: string[], value: string) =>
+  list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+
+// Multi-select chips for programme and intake targeting; none selected means all.
+const ChipToggleGroup: React.FC<{
+  label: string;
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  emptyText: string;
+  labelFor?: (value: string) => string;
+}> = ({ label, options, selected, onToggle, emptyText, labelFor = (value) => value }) => (
+  <div className="space-y-1.5">
+    <span className="form-label block">{label}</span>
+    {options.length === 0 ? (
+      <p className="text-[10px] text-slate-400 font-semibold">{emptyText}</p>
+    ) : (
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const on = selected.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onToggle(option)}
+              title={option}
+              className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition cursor-pointer ${
+                on ? 'bg-brand-navy text-white border-brand-navy' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {labelFor(option)}
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
+const programmeName = (programme: string) => describeProgramme(programme).field;
+
+// Who a targeted student announcement is narrowed to, e.g. "Data Science, Semester 1 2025/2026".
+const targetingSummary = (item: AnnouncementItem) =>
+  [...(item.targetProgrammes ?? []).map(programmeName), ...(item.targetIntakes ?? [])].join(', ');
+
+// "Broadcasted ..." line under each history row, following its schedule.
+const scheduleLine = (item: AnnouncementItem) => {
+  const by = item.createdBy || 'Postgraduate Office';
+  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt)} by ${by}`;
+  const base = `Broadcasted ${item.dateCreated} by ${by}`;
+  if (!item.expiresAt) return base;
+  return `${base}, ${item.status === 'Expired' ? 'expired' : 'expires'} ${formatScheduleMoment(item.expiresAt)}`;
+};
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -91,7 +158,16 @@ export const AnnouncementManagement: React.FC = () => {
   // When set, the form edits an existing announcement (PATCH) instead of creating one.
   const [editingId, setEditingId] = useState<string | null>(null);
   // A published announcement stays published when saved; a draft stays a draft.
-  const [editingStatus, setEditingStatus] = useState<'Active' | 'Draft'>('Draft');
+  const [editingStatus, setEditingStatus] = useState<AnnouncementItem['status']>('Draft');
+  // Schedule (datetime-local, Malaysia time; empty = publish when saved / never
+  // expire) and registry targeting for student announcements.
+  const [publishAtInput, setPublishAtInput] = useState('');
+  const [expiresAtInput, setExpiresAtInput] = useState('');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [targetProgrammes, setTargetProgrammes] = useState<string[]>([]);
+  const [targetIntakes, setTargetIntakes] = useState<string[]>([]);
+  const [audienceOptions, setAudienceOptions] = useState<AnnouncementAudienceOptions | null>(null);
+  const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [existingAttachmentName, setExistingAttachmentName] = useState<string | null>(null);
   const [removeExistingAttachment, setRemoveExistingAttachment] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<AnnouncementItem | null>(null);
@@ -102,9 +178,37 @@ export const AnnouncementManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
 
+  useEffect(() => {
+    getAnnouncementAudienceOptions().then(setAudienceOptions).catch(() => setAudienceOptions(null));
+  }, []);
+
+  // Live "who will get this" preview, refreshed as the audience changes.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      getAnnouncementRecipientCount({
+        target: targetForAudience(targetAudience),
+        priority: priorityLevel,
+        targetProgrammes,
+        targetIntakes,
+      })
+        .then((count) => { if (!cancelled) setRecipientCount(count); })
+        .catch(() => { if (!cancelled) setRecipientCount(null); });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [targetAudience, priorityLevel, targetProgrammes, targetIntakes]);
+
   // --- 5. Handlers ---
   const handleAudienceClick = (audience: AudienceOption) => {
     setTargetAudience(audience);
+    if (audience !== 'Students') {
+      // Programme and intake targeting only applies to student announcements.
+      setTargetProgrammes([]);
+      setTargetIntakes([]);
+    }
   };
 
   const handlePriorityClick = (priority: 'Urgent' | 'Info' | 'General') => {
@@ -138,8 +242,25 @@ export const AnnouncementManagement: React.FC = () => {
   // Shared submit: creates a new announcement, or updates the draft being edited.
   // Publishing (status Active) makes the backend fan it out to the target audience.
   const submitAnnouncement = async (status: 'Active' | 'Draft') => {
+    let publishAt: string | null;
+    let expiresAt: string | null;
+    try {
+      publishAt = scheduleTime(publishAtInput);
+      expiresAt = scheduleTime(expiresAtInput);
+    } catch (err) {
+      setScheduleError(err instanceof Error ? err.message : 'Enter a valid Malaysia date and time.');
+      return;
+    }
+    const problem = status === 'Active' ? scheduleProblem(publishAtInput, expiresAtInput) : null;
+    if (problem) {
+      setScheduleError(problem);
+      showToast(`Error: ${problem}`);
+      return;
+    }
+    setScheduleError(null);
     setSubmitting(true);
     try {
+      const forStudents = targetAudience === 'Students';
       const payload = {
         title: headline.trim(),
         content: contentBody,
@@ -148,13 +269,24 @@ export const AnnouncementManagement: React.FC = () => {
         status,
         attachment: attachedFile,
         removeAttachment: removeExistingAttachment,
+        publishAt,
+        expiresAt,
+        targetProgrammes: forStudents ? targetProgrammes : [],
+        targetIntakes: forStudents ? targetIntakes : [],
       };
       const wasPublished = editingId !== null && editingStatus === 'Active';
       const saved = editingId
         ? await updateAnnouncement(editingId, payload)
         : await createAnnouncement(payload);
       const reach = saved.deliveredTo ?? 0;
-      if (status === 'Active') {
+      if (saved.status === 'Scheduled') {
+        const when = formatScheduleMoment(saved.publishAt);
+        showToast(
+          wasPublished
+            ? `Rescheduled for ${when}. Recipients no longer see it until then.`
+            : `Scheduled for ${when}. It will be delivered then.`,
+        );
+      } else if (status === 'Active') {
         showToast(
           wasPublished
             ? `Changes saved. ${reach} recipient${reach === 1 ? '' : 's'} see the updated announcement.`
@@ -168,6 +300,8 @@ export const AnnouncementManagement: React.FC = () => {
       resetForm();
       loadAnnouncements();
     } catch (err) {
+      const fields = fieldErrors(err);
+      setScheduleError(fields.publishAt ?? fields.expiresAt ?? null);
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
     } finally {
       setSubmitting(false);
@@ -176,20 +310,30 @@ export const AnnouncementManagement: React.FC = () => {
 
   // Load a draft, or a published announcement, back into the form for editing.
   const handleEditDraft = (draft: AnnouncementItem) => {
-    const published = draft.status === 'Active';
     setView('create');
     setEditingId(draft.id);
-    setEditingStatus(published ? 'Active' : 'Draft');
+    setEditingStatus(draft.status);
     setHeadline(draft.title);
     setContentBody(draft.content ?? draft.summary ?? '');
     setTargetAudience(audienceFromTarget(draft.target));
     setPriorityLevel(draft.priority);
+    setPublishAtInput(toMalaysiaDateTimeLocalValue(draft.publishAt));
+    setExpiresAtInput(toMalaysiaDateTimeLocalValue(draft.expiresAt));
+    setTargetProgrammes(draft.targetProgrammes ?? []);
+    setTargetIntakes(draft.targetIntakes ?? []);
+    setScheduleError(null);
     setExistingAttachmentName(draft.attachmentName ?? null);
     setRemoveExistingAttachment(false);
     setAttachedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast(published ? `Editing published announcement: "${draft.title}"` : `Editing draft: "${draft.title}"`);
+    showToast(
+      draft.status === 'Active'
+        ? `Editing published announcement: "${draft.title}"`
+        : draft.status === 'Scheduled'
+          ? `Editing scheduled announcement: "${draft.title}"`
+          : `Editing draft: "${draft.title}"`,
+    );
   };
 
   // Publish a draft straight from the list (no need to open it first).
@@ -204,7 +348,11 @@ export const AnnouncementManagement: React.FC = () => {
         attachment: null,
       });
       const reach = saved.deliveredTo ?? 0;
-      showToast(`Draft published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`);
+      showToast(
+        saved.status === 'Scheduled'
+          ? `Draft scheduled for ${formatScheduleMoment(saved.publishAt)}. It will be delivered then.`
+          : `Draft published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
+      );
       if (editingId === draft.id) resetForm();
       loadAnnouncements();
     } catch (err) {
@@ -249,6 +397,11 @@ export const AnnouncementManagement: React.FC = () => {
     setAttachedFile(null);
     setEditingId(null);
     setEditingStatus('Draft');
+    setPublishAtInput('');
+    setExpiresAtInput('');
+    setScheduleError(null);
+    setTargetProgrammes([]);
+    setTargetIntakes([]);
     setExistingAttachmentName(null);
     setRemoveExistingAttachment(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -284,12 +437,26 @@ export const AnnouncementManagement: React.FC = () => {
         status: 'Draft',
         attachment: null,
       });
-      showToast(`"${item.title}" moved back to drafts. Recipients no longer see it.`);
+      showToast(
+        item.status === 'Scheduled'
+          ? `"${item.title}" moved back to drafts. It will not be published.`
+          : `"${item.title}" moved back to drafts. Recipients no longer see it.`,
+      );
       loadAnnouncements();
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to withdraw announcement.'}`);
     }
   };
+
+  // The main button follows the publish time: a future time schedules instead.
+  const willSchedule = isScheduledFor(publishAtInput);
+  const publishLabel = !editingId
+    ? (willSchedule ? 'Schedule' : 'Publish Now')
+    : editingStatus === 'Active'
+      ? (willSchedule ? 'Reschedule' : 'Save & Keep Published')
+      : editingStatus === 'Scheduled'
+        ? (willSchedule ? 'Save Schedule' : 'Publish Now')
+        : (willSchedule ? 'Schedule Draft' : 'Publish Draft');
 
   // --- 6. Split drafts (their own section) from published records (history) ---
   const drafts = historyItems.filter(item => item.status === 'Draft');
@@ -311,6 +478,8 @@ export const AnnouncementManagement: React.FC = () => {
   const urgentCount = publishedItems.filter(
     item => item.status === 'Active' && item.priority === 'Urgent',
   ).length;
+  const scheduledCount = publishedItems.filter(item => item.status === 'Scheduled').length;
+  const publishedCount = publishedItems.filter(item => item.status === 'Active' || item.status === 'Expired').length;
   const draftCount = drafts.length;
 
   // Pagination bounds (a shrinking search result never leaves an empty page)
@@ -331,14 +500,18 @@ export const AnnouncementManagement: React.FC = () => {
         <PageHeader
           title={
             editingId
-              ? editingStatus === 'Active' ? 'Edit Published Announcement' : 'Edit Draft Announcement'
+              ? editingStatus === 'Active'
+                ? 'Edit Published Announcement'
+                : editingStatus === 'Scheduled' ? 'Edit Scheduled Announcement' : 'Edit Draft Announcement'
               : 'Draft New Announcement'
           }
           subtitle={
             editingId
               ? editingStatus === 'Active'
                 ? 'Changes reach recipients as soon as you save.'
-                : 'Update the draft below, then save it or publish it.'
+                : editingStatus === 'Scheduled'
+                  ? 'It publishes at the time below. Clear the time to publish it now.'
+                  : 'Update the draft below, then save it or publish it.'
               : 'Craft your message for the FSKTM community.'
           }
           actions={(
@@ -406,6 +579,30 @@ export const AnnouncementManagement: React.FC = () => {
                   : `Reaches ${targetAudience} only.`}
               </p>
             </div>
+
+            {/* Field B2: Registry targeting, for student announcements only */}
+            {targetAudience === 'Students' && (
+              <div className="space-y-3 bg-slate-50/70 border border-slate-100 rounded-xl p-4">
+                <ChipToggleGroup
+                  label="Programmes"
+                  options={audienceOptions?.programmes ?? []}
+                  selected={targetProgrammes}
+                  onToggle={(value) => setTargetProgrammes((current) => toggled(current, value))}
+                  emptyText="Programme list unavailable."
+                  labelFor={programmeName}
+                />
+                <ChipToggleGroup
+                  label="Intakes"
+                  options={audienceOptions?.intakes ?? []}
+                  selected={targetIntakes}
+                  onToggle={(value) => setTargetIntakes((current) => toggled(current, value))}
+                  emptyText="No intakes are recorded in the registry yet."
+                />
+                <p className="text-[10px] text-slate-400 font-semibold">
+                  Leave a group unselected to include every student in it.
+                </p>
+              </div>
+            )}
 
             {/* Field C: Priority Selector boxes */}
             <div className="space-y-2">
@@ -524,32 +721,73 @@ export const AnnouncementManagement: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Buttons Row */}
-            <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-              <PortalButton
-                type="button"
-                onClick={handleSaveDraft}
-                variant="secondary"
-                size="md"
-                disabled={submitting}
-              >
-                {editingId ? (editingStatus === 'Active' ? 'Move to Drafts' : 'Update Draft') : 'Save Draft'}
-              </PortalButton>
+            {/* Field E: Schedule (Malaysia time) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="announcement-publish-at" className="form-label block">
+                  Publish At (optional)
+                </label>
+                <input
+                  id="announcement-publish-at"
+                  type="datetime-local"
+                  value={publishAtInput}
+                  onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
+                  className="form-control form-control-md"
+                />
+                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="announcement-expires-at" className="form-label block">
+                  Expires At (optional)
+                </label>
+                <input
+                  id="announcement-expires-at"
+                  type="datetime-local"
+                  value={expiresAtInput}
+                  onChange={(e) => { setExpiresAtInput(e.target.value); setScheduleError(null); }}
+                  className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
+                />
+                <p className="text-[10px] text-slate-400 font-semibold">
+                  After this it leaves the active list. People who received it keep it.
+                </p>
+              </div>
+              {scheduleError && (
+                <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
+              )}
+            </div>
 
-              <PortalButton
-                type="button"
-                onClick={handlePublishNow}
-                variant="primary"
-                size="md"
-                icon={Send}
-                disabled={submitting}
-              >
-                {submitting
-                  ? 'Saving…'
-                  : editingId
-                    ? editingStatus === 'Active' ? 'Save & Keep Published' : 'Publish Draft'
-                    : 'Publish Now'}
-              </PortalButton>
+            {/* Action Buttons Row */}
+            <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <p className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                {recipientCount === null
+                  ? 'Recipient count unavailable.'
+                  : `${willSchedule ? 'Would reach' : 'Reaches'} ${recipientCount} ${recipientCount === 1 ? 'person' : 'people'} right now${
+                      priorityLevel === 'Urgent' ? '.' : ', skipping anyone who turned alerts off.'
+                    }`}
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                <PortalButton
+                  type="button"
+                  onClick={handleSaveDraft}
+                  variant="secondary"
+                  size="md"
+                  disabled={submitting}
+                >
+                  {editingId ? (editingStatus === 'Draft' ? 'Update Draft' : 'Move to Drafts') : 'Save Draft'}
+                </PortalButton>
+
+                <PortalButton
+                  type="button"
+                  onClick={handlePublishNow}
+                  variant="primary"
+                  size="md"
+                  icon={willSchedule ? CalendarClock : Send}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Saving…' : publishLabel}
+                </PortalButton>
+              </div>
             </div>
 
         </form>
@@ -674,11 +912,11 @@ export const AnnouncementManagement: React.FC = () => {
         />
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Active Now" value={activeCount} caption="Live for recipients" icon={Megaphone} tone="green" />
-            <StatCard label="Urgent Alerts" value={urgentCount} caption="Active and urgent" icon={AlertTriangle} tone="rose" />
+            <StatCard label="Active Now" value={activeCount} caption={`Live for recipients, ${urgentCount} urgent`} icon={Megaphone} tone="green" />
+            <StatCard label="Scheduled" value={scheduledCount} caption="Waiting for their publish time" icon={CalendarClock} tone="purple" />
             <StatCard label="Drafts" value={draftCount} caption="Not published yet" icon={Pencil} tone="blue" />
             {/* Everything published so far, including expired */}
-            <StatCard label="Published (All)" value={publishedItems.length} caption="Including expired" icon={Send} tone="slate" />
+            <StatCard label="Published (All)" value={publishedCount} caption="Including expired" icon={Send} tone="slate" />
           </div>
 
           {/* Announcement history Table frame card structure */}
@@ -741,16 +979,16 @@ export const AnnouncementManagement: React.FC = () => {
                           </p>
 
                           <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
-                            <span>Broadcasted {item.dateCreated} by {item.createdBy || 'Postgraduate Office'}</span>
+                            <span>{scheduleLine(item)}</span>
                             {item.status !== 'Active' && (
-                              <StatusBadge tone="neutral" className="rounded-md px-1.5 py-0.5 text-[8px]">
+                              <StatusBadge tone={item.status === 'Scheduled' ? 'info' : 'neutral'} className="rounded-md px-1.5 py-0.5 text-[8px]">
                                 {item.status}
                               </StatusBadge>
                             )}
                             {item.canManage !== false && (
                               <>
                                 <span>•</span>
-                                {item.status === 'Active' && (
+                                {(item.status === 'Active' || item.status === 'Scheduled') && (
                                   <>
                                     <PortalButton
                                       type="button"
@@ -793,6 +1031,11 @@ export const AnnouncementManagement: React.FC = () => {
                           <StatusBadge tone="neutral" className="rounded-lg px-2.5 py-1 text-[9px]">
                             {item.target}
                           </StatusBadge>
+                          {targetingSummary(item) && (
+                            <p className="mt-1.5 text-[10px] text-slate-400 font-semibold leading-snug max-w-[200px] ml-auto">
+                              {targetingSummary(item)}
+                            </p>
+                          )}
                         </td>
 
                       </tr>

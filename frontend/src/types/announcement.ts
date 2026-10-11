@@ -27,4 +27,16 @@ export interface AnnouncementItem {
   /** Author's user id, and whether the caller may edit, publish or remove it. */
   createdById?: string | null;
   canManage?: boolean;
+  /** When it publishes (null: when saved) and expires (null: never), with offsets. */
+  publishAt?: string | null;
+  expiresAt?: string | null;
+  /** Registry targeting for student announcements; empty means every student. */
+  targetProgrammes?: string[];
+  targetIntakes?: string[];
+}
+
+/** What a student announcement can be narrowed to. */
+export interface AnnouncementAudienceOptions {
+  programmes: string[];
+  intakes: string[];
 }

@@ -7,21 +7,31 @@ Mounted under ``/api/`` by the project URLconf:
     GET  /api/announcements/<id>/             retrieve one
     PATCH/DELETE /api/announcements/<id>/      edit / remove (senders only)
     GET  /api/announcements/<id>/attachment/  download the file (recipients + senders)
+    GET  /api/announcements/audience-options/ programmes and intakes to target (senders)
+    GET  /api/announcements/recipient-count/  how many people a draft would reach (senders)
 
     GET  /api/notifications/                  the caller's own in-app feed
     POST /api/notifications/<id>/read/        mark one read/unread
     POST /api/notifications/mark-all-read/    mark every unread one read
+
+There is no background worker: scheduled announcements are released and
+finished ones expired at the start of the two list endpoints, and by the
+``release_announcements`` command run from Task Scheduler or cron.
 """
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from accounts.models import Student
+from accounts.programmes import APPROVED_PROGRAMMES
 
 from .models import Announcement, Notification
 from .serializers import AnnouncementSerializer
@@ -89,17 +99,54 @@ def _audiences_for(user):
     ]
 
 
+def _own_student(user):
+    if getattr(user, "role", None) != User.Role.STUDENT:
+        return None
+    return user._related_or_none("student")
+
+
+def _matches_targeting(user, announcement):
+    """True unless the notice is narrowed to programmes or intakes this user is not in."""
+    if not announcement.target_programmes and not announcement.target_intakes:
+        return True
+    student = _own_student(user)
+    if student is None:
+        return False
+    return (
+        not announcement.target_programmes or student.programme in announcement.target_programmes
+    ) and (
+        not announcement.target_intakes or student.intake_semester in announcement.target_intakes
+    )
+
+
+def _targeting_q(user):
+    """The queryset form of ``_matches_targeting``."""
+    student = _own_student(user)
+    if student is None:
+        return Q(target_programmes=[], target_intakes=[])
+    return (
+        Q(target_programmes=[]) | Q(target_programmes__contains=[student.programme])
+    ) & (Q(target_intakes=[]) | Q(target_intakes__contains=[student.intake_semester]))
+
+
 def _can_read(user, announcement):
     """Office reads everything and authors read their own; everyone else reads
     published announcements addressed to them, so a Staff-only or
-    Coordinators-only notice stays with its audience."""
+    Coordinators-only notice stays with its audience. People it was delivered
+    to can still open it, and its attachment, after it expires."""
     if _is_office_admin(user):
         return True
     if _is_sender(user) and announcement.created_by_id == user.pk:
         return True
-    return (
+    if (
         announcement.status == Announcement.Status.ACTIVE
         and announcement.target in _audiences_for(user)
+        and _matches_targeting(user, announcement)
+    ):
+        return True
+    return (
+        announcement.status == Announcement.Status.EXPIRED
+        and Notification.objects.filter(recipient=user, announcement=announcement).exists()
     )
 
 
@@ -121,20 +168,20 @@ def _present(announcement, user):
     return payload
 
 
-def _recipients_for(target):
-    """Active users an announcement with this target should reach."""
+def _recipients_for(announcement):
+    """Active users this announcement should reach: its audience, narrowed to
+    the targeted programmes and intakes when it has any."""
     active = User.objects.filter(is_active=True).exclude(role=User.TECHNICAL_ADMIN)
-    if target == Announcement.Audience.ALL:
-        return active
-    role = AUDIENCE_TO_ROLE.get(target)
-    return active.filter(role=role) if role else User.objects.none()
-
-
-def _user_is_targeted(user, announcement):
-    """True if this user is in the announcement's audience (used for downloads)."""
     if announcement.target == Announcement.Audience.ALL:
-        return True
-    return getattr(user, "role", None) == AUDIENCE_TO_ROLE.get(announcement.target)
+        recipients = active
+    else:
+        role = AUDIENCE_TO_ROLE.get(announcement.target)
+        recipients = active.filter(role=role) if role else User.objects.none()
+    if announcement.target_programmes:
+        recipients = recipients.filter(student__programme__in=announcement.target_programmes)
+    if announcement.target_intakes:
+        recipients = recipients.filter(student__intake_semester__in=announcement.target_intakes)
+    return recipients
 
 
 def _fan_out(announcement):
@@ -146,7 +193,7 @@ def _fan_out(announcement):
     multiplied every recipient's feed without limit.
     """
     event_key = f"ANN-{announcement.pk}"
-    recipients = _recipients_for(announcement.target)
+    recipients = _recipients_for(announcement)
     if announcement.priority != Announcement.Priority.URGENT:
         recipients = recipients.filter(announcement_alerts=True)
     notifications = [
@@ -191,7 +238,7 @@ def _sync_delivery(announcement):
     rows keep their read state.
     """
     Notification.objects.filter(announcement=announcement).exclude(
-        recipient__in=_recipients_for(announcement.target)
+        recipient__in=_recipients_for(announcement)
     ).delete()
     _resync_notifications(announcement)
     return _fan_out(announcement)
@@ -209,14 +256,79 @@ def _resync_notifications(announcement):
     )
 
 
+LIVE_STATUSES = (Announcement.Status.ACTIVE, Announcement.Status.SCHEDULED)
+
+
 def _publishable(announcement):
     """Error dict when an announcement may not go live, otherwise None."""
     if (
-        announcement.status == Announcement.Status.ACTIVE
+        announcement.status in LIVE_STATUSES
         and not (announcement.content or "").strip()
     ):
         return {"content": "Announcement content is required to publish."}
     return None
+
+
+def _targeting_errors(announcement):
+    if (announcement.target_programmes or announcement.target_intakes) and (
+        announcement.target != Announcement.Audience.STUDENTS
+    ):
+        return {"target": "Programme and intake targeting is only for announcements to All Students."}
+    return None
+
+
+def _prepare(announcement, now):
+    """Check the schedule and targeting, then settle a publish request as Active
+    or Scheduled by its publish time. Returns an error dict, or None to save."""
+    errors = _targeting_errors(announcement) or {}
+    publish_at, expires_at = announcement.publish_at, announcement.expires_at
+    if publish_at and expires_at and publish_at >= expires_at:
+        errors["expiresAt"] = "The expiry time must be after the publish time."
+    if announcement.status in LIVE_STATUSES:
+        if announcement.status == Announcement.Status.SCHEDULED and not publish_at:
+            errors["publishAt"] = "Choose when to publish this announcement."
+        elif expires_at and expires_at <= now and "expiresAt" not in errors:
+            errors["expiresAt"] = "The expiry time has already passed."
+    if errors:
+        return errors
+    if announcement.status in LIVE_STATUSES:
+        announcement.status = (
+            Announcement.Status.SCHEDULED
+            if publish_at and publish_at > now
+            else Announcement.Status.ACTIVE
+        )
+    return _publishable(announcement)
+
+
+def release_due_announcements(now=None):
+    """Publish scheduled announcements that are due, and expire finished ones.
+
+    Safe to run often and from several requests at once: due rows are claimed
+    with SKIP LOCKED, and delivery is idempotent through ``event_key``. A notice
+    whose whole window passed before it was released expires undelivered.
+    Expiry keeps delivered notifications. Returns ``(released, expired)``.
+    """
+    now = now or timezone.now()
+    pending = Announcement.objects.filter(
+        Q(status=Announcement.Status.SCHEDULED, publish_at__lte=now)
+        | Q(status__in=LIVE_STATUSES, expires_at__lte=now)
+    )
+    if not pending.exists():
+        return 0, 0
+    with transaction.atomic():
+        due = list(
+            Announcement.objects.select_for_update(skip_locked=True)
+            .filter(status=Announcement.Status.SCHEDULED, publish_at__lte=now)
+            .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        )
+        for announcement in due:
+            announcement.status = Announcement.Status.ACTIVE
+            announcement.save(update_fields=["status", "updated_at"])
+            _fan_out(announcement)
+        expired = Announcement.objects.filter(
+            status__in=LIVE_STATUSES, expires_at__lte=now
+        ).update(status=Announcement.Status.EXPIRED, updated_at=now)
+    return len(due), expired
 
 
 # Announcements
@@ -227,13 +339,14 @@ def _publishable(announcement):
 def announcements_list(request):
     """GET: list announcements. POST: publish or save a draft (senders only)."""
     if request.method == "GET":
+        release_due_announcements()
         queryset = Announcement.objects.all()
         if not _is_office_admin(request.user):
             # Published notices addressed to the caller, plus a sender's own work.
             visible = Q(
                 status=Announcement.Status.ACTIVE,
                 target__in=_audiences_for(request.user),
-            )
+            ) & _targeting_q(request.user)
             if _is_sender(request.user):
                 visible |= Q(created_by=request.user)
             queryset = queryset.filter(visible)
@@ -245,30 +358,27 @@ def announcements_list(request):
     _require_sender(request)
     serializer = AnnouncementSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    fields = serializer.to_model_kwargs()
-
-    is_active = fields.get("status", Announcement.Status.ACTIVE) == Announcement.Status.ACTIVE
-    if is_active and not fields.get("content", "").strip():
-        return Response(
-            {"content": "Announcement content is required to publish."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    announcement = Announcement(
+        created_by=request.user,
+        created_by_name=getattr(request.user, "full_name", "") or request.user.email,
+        **serializer.to_model_kwargs(),
+    )
+    invalid = _prepare(announcement, timezone.now())
+    if invalid:
+        return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 
     attachment = request.FILES.get("attachment")
     errors = validate_attachment(attachment)
     if errors:
         return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
 
-    announcement = Announcement(
-        created_by=request.user,
-        created_by_name=getattr(request.user, "full_name", "") or request.user.email,
-        **fields,
-    )
     if attachment is not None:
         announcement.attachment = attachment
     with transaction.atomic():
         announcement.save()
-        delivered = _fan_out(announcement) if is_active else 0
+        delivered = (
+            _fan_out(announcement) if announcement.status == Announcement.Status.ACTIVE else 0
+        )
     payload = _present(announcement, request.user)
     payload["deliveredTo"] = delivered
     return Response(payload, status=status.HTTP_201_CREATED)
@@ -321,7 +431,7 @@ def announcement_detail(request, pk):
     elif remove_attachment:
         announcement.attachment = None
 
-    invalid = _publishable(announcement)
+    invalid = _prepare(announcement, timezone.now())
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 
@@ -337,6 +447,51 @@ def announcement_detail(request, pk):
             # the natural end of a notice, so recipients keep it in their history.
             _retract(announcement)
     return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def audience_options(request):
+    """The programmes and intakes a student announcement can be narrowed to."""
+    _require_sender(request)
+    intakes = (
+        Student.objects.filter(user__is_active=True)
+        .exclude(intake_semester="")
+        .values_list("intake_semester", flat=True)
+        .distinct()
+        .order_by("intake_semester")
+    )
+    return Response({"programmes": APPROVED_PROGRAMMES, "intakes": list(intakes)})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def recipient_count(request):
+    """How many people an announcement with these settings would reach now.
+
+    Query: ``target``, ``priority``, and repeated ``programmes`` / ``intakes``.
+    Like delivery, a non-Urgent notice skips people who turned alerts off.
+    """
+    _require_sender(request)
+    params = request.query_params
+    serializer = AnnouncementSerializer(
+        data={
+            "target": params.get("target") or Announcement.Audience.ALL,
+            "priority": params.get("priority") or Announcement.Priority.INFO,
+            "targetProgrammes": params.getlist("programmes"),
+            "targetIntakes": params.getlist("intakes"),
+        },
+        partial=True,
+    )
+    serializer.is_valid(raise_exception=True)
+    draft = Announcement(**serializer.to_model_kwargs())
+    invalid = _targeting_errors(draft)
+    if invalid:
+        return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
+    recipients = _recipients_for(draft)
+    if draft.priority != Announcement.Priority.URGENT:
+        recipients = recipients.filter(announcement_alerts=True)
+    return Response({"recipients": recipients.count()})
 
 
 def _delete_file_after_commit(field_file, name):
@@ -374,6 +529,7 @@ def announcement_attachment(request, pk):
 @permission_classes([IsAuthenticated])
 def notifications_list(request):
     """The caller's own notification feed (optionally ``?unread=true``)."""
+    release_due_announcements()
     queryset = Notification.objects.filter(recipient=request.user).select_related(
         "recipient", "announcement"
     )
