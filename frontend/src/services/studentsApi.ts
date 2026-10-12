@@ -10,6 +10,8 @@
 
 import {
   ImportCommitResponse,
+  ImportInspectResponse,
+  ImportOptions,
   ImportPreviewResponse,
   RegistryImportBatch,
   StudentRecord,
@@ -122,26 +124,47 @@ export async function sendAccessLink(id: string): Promise<AccessLinkResult> {
   );
 }
 
-const importForm = (file: File, dryRun: boolean): FormData => {
+const importForm = (file: File, dryRun: boolean, options?: ImportOptions): FormData => {
   const form = new FormData();
   form.append('file', file);
   if (dryRun) form.append('dryRun', 'true');
+  if (options) form.append('options', JSON.stringify(options));
   return form;
 };
 
+/**
+ * Describe a file's layout: its sheets, the row with the column names, each
+ * column with sample values, and the suggested matches to confirm.
+ */
+export async function inspectStudentImport(
+  file: File,
+  options?: ImportOptions,
+): Promise<ImportInspectResponse> {
+  return requestMultipart<ImportInspectResponse>(
+    '/registry/students/import/inspect/',
+    importForm(file, false, options),
+  );
+}
+
 /** Check every row of a CSV or XLSX file without creating anything. */
-export async function previewStudentImport(file: File): Promise<ImportPreviewResponse> {
+export async function previewStudentImport(
+  file: File,
+  options?: ImportOptions,
+): Promise<ImportPreviewResponse> {
   return requestMultipart<ImportPreviewResponse>(
     '/registry/students/import/',
-    importForm(file, true),
+    importForm(file, true, options),
   );
 }
 
 /** Create the ready rows, skip duplicates, and record the batch. */
-export async function commitStudentImport(file: File): Promise<ImportCommitResponse> {
+export async function commitStudentImport(
+  file: File,
+  options?: ImportOptions,
+): Promise<ImportCommitResponse> {
   return requestMultipart<ImportCommitResponse>(
     '/registry/students/import/',
-    importForm(file, false),
+    importForm(file, false, options),
   );
 }
 

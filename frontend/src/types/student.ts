@@ -106,6 +106,55 @@ export interface ImportPreviewResponse {
   rows: ImportPreviewRow[];
 }
 
+/** The import fields a file's columns can be matched to (accounts/registry_columns.py). */
+export type ImportFieldKey =
+  | 'student_id'
+  | 'full_name'
+  | 'programme'
+  | 'email'
+  | 'phone'
+  | 'intake'
+  | 'current_semester';
+
+export interface ImportField {
+  key: ImportFieldKey;
+  label: string;
+  required: boolean;
+}
+
+export interface ImportColumn {
+  index: number;
+  letter: string;
+  header: string;
+  samples: string[];
+  suggestedField: ImportFieldKey | null;
+}
+
+/** Which column (by index) holds each field; null when it is not in the file. */
+export type ImportMapping = Record<ImportFieldKey, number | null>;
+
+/** A file's layout, from the inspect step, for the office to confirm. */
+export interface ImportInspectResponse {
+  fileName: string;
+  sheets: string[];
+  sheet: string | null;
+  headerRow: number;
+  headerRowOptions: { row: number; preview: string }[];
+  columns: ImportColumn[];
+  fields: ImportField[];
+  mapping: ImportMapping;
+  ignoredColumns: string[];
+  rowCount: number;
+  layoutRecognised: boolean;
+}
+
+/** Sent with inspect, preview and import; leaving a key out lets the server decide. */
+export interface ImportOptions {
+  sheet?: string | null;
+  headerRow?: number | null;
+  mapping?: ImportMapping | null;
+}
+
 export interface ImportCommitResponse {
   batch: RegistryImportBatch;
   rows: ImportPreviewRow[];

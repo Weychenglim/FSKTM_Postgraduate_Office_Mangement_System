@@ -2,14 +2,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import type { ImportPreviewRow, RegistryImportBatch } from '../types';
+import type { ImportColumn, ImportField, ImportMapping, ImportPreviewRow, RegistryImportBatch } from '../types';
 import {
   BATCH_PROBLEM_COLUMNS,
   IMPORT_REPORT_COLUMNS,
   batchSummary,
+  columnLabel,
   differenceWarning,
   filterImportRows,
   importOutcome,
+  mappingProblems,
+  unusedColumns,
   registryMatchText,
   repeatedText,
   rowExplanation,
@@ -132,8 +135,53 @@ assert.equal(
 );
 assert.equal(buildCsv([{ line: 3, id: 'X', result: 'skipped', issue: 'y' }], BATCH_PROBLEM_COLUMNS).split('\r\n')[1], '3,X,,skipped,y,');
 
+// matching the file's own columns
+const fields: ImportField[] = [
+  { key: 'student_id', label: 'Student ID', required: true },
+  { key: 'full_name', label: 'Full name', required: true },
+  { key: 'programme', label: 'Programme', required: true },
+  { key: 'email', label: 'Email', required: true },
+  { key: 'phone', label: 'Phone', required: false },
+  { key: 'intake', label: 'Intake', required: false },
+  { key: 'current_semester', label: 'Current semester', required: false },
+];
+const mapping: ImportMapping = {
+  student_id: 1,
+  full_name: 2,
+  programme: 4,
+  email: 5,
+  phone: null,
+  intake: null,
+  current_semester: null,
+};
+assert.deepEqual(mappingProblems(mapping, fields), []);
+assert.deepEqual(mappingProblems({ ...mapping, email: null, programme: null }, fields), [
+  'Choose a column for: Programme, Email.',
+]);
+assert.deepEqual(mappingProblems({ ...mapping, phone: 2 }, fields), [
+  'One column is chosen for both Full name and Phone.',
+]);
+const columns: ImportColumn[] = [
+  { index: 0, letter: 'A', header: 'Bil', samples: ['1', '2'], suggestedField: null },
+  { index: 1, letter: 'B', header: 'No. Matrik', samples: ['WQD1'], suggestedField: 'student_id' },
+  { index: 2, letter: 'C', header: 'Nama', samples: ['Siti'], suggestedField: 'full_name' },
+  { index: 3, letter: 'D', header: '', samples: ['990101-14-5678'], suggestedField: null },
+  { index: 4, letter: 'E', header: 'Program', samples: [], suggestedField: 'programme' },
+  { index: 5, letter: 'F', header: 'E-mel', samples: ['a@b.test'], suggestedField: 'email' },
+  { index: 6, letter: 'G', header: '', samples: [], suggestedField: null },
+];
+assert.deepEqual(unusedColumns(columns, mapping), ['Bil', 'Column D']);
+assert.equal(columnLabel(columns[3]), 'Column D');
+assert.equal(columnLabel(columns[1]), 'No. Matrik');
+
 // the screen uses all of this
 const registry = readFileSync(resolve('src/components/StudentRegistry.tsx'), 'utf8');
+assert.match(registry, /inspectStudentImport\(file\)/, 'a new file is described before its rows are checked');
+assert.match(registry, /if \(layout\.layoutRecognised\)/, 'our own template skips the Match step');
+assert.match(registry, /<RegistryImportMatch\b/, 'other layouts stop at Match columns');
+assert.match(registry, /previewStudentImport\(reviewed, reviewedOptions\(\)\)/, 'edited rows are sent back in our own layout');
+assert.match(registry, /commitStudentImport\(file, editedSet \? reviewedOptions\(\) : importOptions\(\)\)/);
+assert.match(registry, /Change column matches/);
 assert.match(registry, /<RegistryImportResult\b/, 'the import result must be shown, not only a toast');
 assert.match(registry, /setImportFilter\('skipped'\)/, 'the skip notice must open the skipped rows');
 assert.match(registry, /bulk: 'Bulk Import \(Excel or CSV\)'/);

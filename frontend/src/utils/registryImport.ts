@@ -7,11 +7,50 @@
 import type { CsvColumn } from './csvExport';
 import { describeProgramme } from './programmeLabel';
 import type {
+  ImportColumn,
   ImportDifference,
+  ImportField,
+  ImportMapping,
   ImportPreviewRow,
   RegistryImportBatch,
   RegistryImportProblem,
 } from '../types';
+
+// ---------------- Matching the file's columns ----------------
+
+/** "Nama Pelajar", or "Column C" for a column without a name. */
+export const columnLabel = (column: Pick<ImportColumn, 'header' | 'letter'>): string =>
+  column.header || `Column ${column.letter}`;
+
+/**
+ * What stops the office continuing from the Match step: a required field
+ * without a column, or one column chosen for two fields. The server checks
+ * the same rules again.
+ */
+export const mappingProblems = (mapping: Partial<ImportMapping>, fields: ImportField[]): string[] => {
+  const problems: string[] = [];
+  const used = new Map<number, string>();
+  for (const field of fields) {
+    const index = mapping[field.key];
+    if (index === null || index === undefined) continue;
+    const other = used.get(index);
+    if (other) problems.push(`One column is chosen for both ${other} and ${field.label}.`);
+    else used.set(index, field.label);
+  }
+  const missing = fields
+    .filter((field) => field.required && (mapping[field.key] === null || mapping[field.key] === undefined))
+    .map((field) => field.label);
+  if (missing.length) problems.push(`Choose a column for: ${missing.join(', ')}.`);
+  return problems;
+};
+
+/** Columns with a name or data that no field uses: ignored, and never saved. */
+export const unusedColumns = (columns: ImportColumn[], mapping: Partial<ImportMapping>): string[] => {
+  const used = new Set(Object.values(mapping).filter((index): index is number => typeof index === 'number'));
+  return columns
+    .filter((column) => !used.has(column.index) && (column.header || column.samples.length > 0))
+    .map(columnLabel);
+};
 
 export type ImportRowGroup = 'ready' | 'skipped' | 'fix';
 export type ImportRowFilter = 'all' | ImportRowGroup;

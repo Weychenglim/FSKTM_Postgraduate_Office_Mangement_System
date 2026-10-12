@@ -1,0 +1,221 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { AlertTriangle, ArrowRight, Check, Columns3, Info } from 'lucide-react';
+import { PortalButton } from './PortalPrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { columnLabel, mappingProblems, unusedColumns } from '../utils/registryImport';
+import type { ImportFieldKey, ImportInspectResponse, ImportMapping } from '../types';
+
+export const IMPORT_STEPS = ['Upload', 'Match columns', 'Check rows', 'Import'] as const;
+
+/** Where the office is in the import: Upload, Match columns, Check rows, Import. */
+export const ImportSteps: React.FC<{ current: number }> = ({ current }) => (
+  <ol aria-label="Import steps" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 select-none">
+    {IMPORT_STEPS.map((step, index) => {
+      const done = index < current;
+      const active = index === current;
+      return (
+        <li
+          key={step}
+          aria-current={active ? 'step' : undefined}
+          className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide ${
+            active ? 'text-brand-navy' : done ? 'text-emerald-600' : 'text-slate-400'
+          }`}
+        >
+          <span
+            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+              active ? 'bg-brand-navy text-white' : done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
+            }`}
+          >
+            {done ? <Check className="w-3 h-3" /> : index + 1}
+          </span>
+          {step}
+        </li>
+      );
+    })}
+  </ol>
+);
+
+const NOT_IN_FILE = '';
+
+interface RegistryImportMatchProps {
+  layout: ImportInspectResponse;
+  mapping: ImportMapping;
+  error?: string | null;
+  busy: boolean;
+  onMappingChange: (mapping: ImportMapping) => void;
+  onSheetChange: (sheet: string) => void;
+  onHeaderRowChange: (row: number) => void;
+  onContinue: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * The office confirms which column of its own file holds each detail. The
+ * system's suggestions come from the column names; nothing is guessed from the
+ * data, and columns left unmatched are ignored and never saved.
+ */
+export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
+  layout,
+  mapping,
+  error,
+  busy,
+  onMappingChange,
+  onSheetChange,
+  onHeaderRowChange,
+  onContinue,
+  onCancel,
+}) => {
+  const problems = mappingProblems(mapping, layout.fields);
+  const unused = unusedColumns(layout.columns, mapping);
+  const columnOptions: SelectMenuOption[] = [
+    { value: NOT_IN_FILE, label: 'Not in this file' },
+    ...layout.columns.map((column) => ({
+      value: String(column.index),
+      label: columnLabel(column),
+      description: column.samples[0] ? `Column ${column.letter} · e.g. ${column.samples[0]}` : `Column ${column.letter} · empty`,
+    })),
+  ];
+  const setField = (key: ImportFieldKey, value: string) =>
+    onMappingChange({ ...mapping, [key]: value === NOT_IN_FILE ? null : Number(value) });
+
+  return (
+    <section
+      id="registry-import-match"
+      aria-labelledby="registry-import-match-title"
+      className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs space-y-5 text-left"
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+            <Columns3 className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 id="registry-import-match-title" className="section-label">Match Columns</h3>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              Check which column of your file holds each detail. Nothing is created until you check the rows and import.
+            </p>
+          </div>
+        </div>
+        <ImportSteps current={1} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-150 bg-slate-50/60 px-4 py-3">
+          <p className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">File</p>
+          <p className="text-xs font-extrabold text-slate-800 break-all mt-0.5">{layout.fileName}</p>
+          <p className="text-[11px] font-semibold text-slate-500">
+            {layout.rowCount} student row{layout.rowCount === 1 ? '' : 's'}
+          </p>
+        </div>
+        {layout.sheets.length > 1 && (
+          <div>
+            <p className="form-label">Sheet</p>
+            <SelectMenu
+              size="sm"
+              aria-label="Sheet with the student list"
+              value={layout.sheet ?? ''}
+              options={layout.sheets.map((sheet) => ({ value: sheet, label: sheet }))}
+              onChange={onSheetChange}
+              disabled={busy}
+            />
+          </div>
+        )}
+        <div>
+          <p className="form-label">Column names are on</p>
+          <SelectMenu
+            size="sm"
+            aria-label="Row with the column names"
+            value={String(layout.headerRow)}
+            options={layout.headerRowOptions.map((option) => ({
+              value: String(option.row),
+              label: `Row ${option.row}`,
+              description: option.preview,
+            }))}
+            onChange={(row) => onHeaderRowChange(Number(row))}
+            disabled={busy}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-150 divide-y divide-slate-100">
+        {layout.fields.map((field) => {
+          const index = mapping[field.key];
+          const column = index === null ? undefined : layout.columns.find((candidate) => candidate.index === index);
+          return (
+            <div
+              key={field.key}
+              className="grid grid-cols-1 gap-2 px-4 py-3 md:grid-cols-[11rem_minmax(0,17rem)_minmax(0,1fr)] md:items-center md:gap-4"
+            >
+              <p className="text-xs font-extrabold text-slate-800">
+                {field.label}
+                <span
+                  className={`ml-2 text-[9.5px] font-black uppercase tracking-wide ${
+                    field.required ? 'text-rose-600' : 'text-slate-400'
+                  }`}
+                >
+                  {field.required ? 'Required' : 'Optional'}
+                </span>
+              </p>
+              <SelectMenu
+                size="sm"
+                aria-label={`Column for ${field.label}`}
+                value={index === null ? NOT_IN_FILE : String(index)}
+                options={columnOptions}
+                onChange={(value) => setField(field.key, value)}
+                disabled={busy}
+              />
+              <p className="text-[11px] font-semibold text-slate-500 truncate" title={column?.samples.join(', ')}>
+                {column
+                  ? column.samples.length
+                    ? column.samples.join(' · ')
+                    : 'This column is empty.'
+                  : field.required
+                    ? 'Choose the column that holds this.'
+                    : 'Left blank for every student.'}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {unused.length > 0 && (
+        <p className="flex items-start gap-2 text-[11px] font-semibold text-slate-500">
+          <Info className="w-4 h-4 shrink-0 text-slate-400" />
+          <span>Not used, and not saved: {unused.join(', ')}.</span>
+        </p>
+      )}
+
+      {(problems.length > 0 || error) && (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+          {[...problems, ...(error ? [error] : [])].map((problem) => (
+            <p key={problem} className="flex items-start gap-2 text-[11px] font-bold text-amber-800">
+              <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+              <span>{problem}</span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <PortalButton variant="secondary" size="md" onClick={onCancel} disabled={busy}>
+          Upload a Different File
+        </PortalButton>
+        <PortalButton
+          variant="primary"
+          size="md"
+          icon={ArrowRight}
+          iconPosition="right"
+          onClick={onContinue}
+          disabled={busy || problems.length > 0}
+        >
+          {busy ? 'Checking rows…' : 'Check Rows'}
+        </PortalButton>
+      </div>
+    </section>
+  );
+};

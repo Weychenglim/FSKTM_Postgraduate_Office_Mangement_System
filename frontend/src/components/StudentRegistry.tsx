@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
+import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
@@ -49,6 +50,9 @@ import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
   ImportCommitResponse,
+  ImportInspectResponse,
+  ImportMapping,
+  ImportOptions,
   ImportPreviewRow,
   RegistryImportBatch,
   StudentAcademicStatus,
@@ -63,6 +67,7 @@ import {
   getParticipant,
   getRecentImports,
   getStudents,
+  inspectStudentImport,
   previewStudentImport,
   sendAccessLink,
   updateStudent,
@@ -305,6 +310,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [importFilter, setImportFilter] = useState<ImportRowFilter>('all');
   // What the last import did, kept on screen so skipped students are seen.
   const [importResult, setImportResult] = useState<ImportCommitResponse | null>(null);
+  // Upload, then (unless the file is our own template) Match columns, then Check rows.
+  const [importStep, setImportStep] = useState<'upload' | 'match' | 'check'>('upload');
+  const [importLayout, setImportLayout] = useState<ImportInspectResponse | null>(null);
+  const [importMapping, setImportMapping] = useState<ImportMapping | null>(null);
+  const [importSheet, setImportSheet] = useState<string | null>(null);
+  const [importHeaderRow, setImportHeaderRow] = useState<number | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -595,31 +607,102 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setCsvFatalError(null);
     setEditingCsvLine(null);
     setImportFilter('all');
+    setImportStep('upload');
+    setImportLayout(null);
+    setImportMapping(null);
+    setImportSheet(null);
+    setImportHeaderRow(null);
+    setMatchError(null);
   };
 
-  // The server checks the file (CSV or XLSX) and returns each row's status;
-  // nothing is created until the reviewer commits.
+  // The confirmed reading of the uploaded file: which sheet, which row has the
+  // column names, and which column holds each detail.
+  const importOptions = (): ImportOptions => ({
+    sheet: importSheet,
+    headerRow: importHeaderRow,
+    mapping: importMapping,
+  });
+
+  // Edited rows are sent back in our own layout, so the server finds the
+  // columns by name.
+  const reviewedOptions = (): ImportOptions => ({});
+
+  const applyLayout = (layout: ImportInspectResponse) => {
+    setImportLayout(layout);
+    setImportMapping(layout.mapping);
+    setImportSheet(layout.sheet);
+    setImportHeaderRow(layout.headerRow);
+  };
+
+  // The server checks every row with the confirmed columns; nothing is
+  // created until the reviewer commits.
+  const checkImportRows = async (file: File, options: ImportOptions) => {
+    const { rows } = await previewStudentImport(file, options);
+    setCsvPreviewRecords(rows);
+    setImportFilter('all');
+    setImportStep('check');
+    const checked = summariseImportRows(rows);
+    triggerToast(
+      `Checked ${checked.total} rows: ${checked.ready} ready, ${checked.skipped} will be skipped, ${checked.fix} need fixing.`,
+    );
+  };
+
+  // A new file is described first (sheets, column names, suggested matches).
+  // Our own template goes straight to checking rows; any other layout stops at
+  // Match columns so the office confirms which column is which.
   const previewImportFile = async (file: File) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
     setImportResult(null);
+    setMatchError(null);
     try {
-      const { rows } = await previewStudentImport(file);
-      setCsvPreviewRecords(rows);
+      const layout = await inspectStudentImport(file);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
       setRowsEdited(false);
-      setImportFilter('all');
-      const checked = summariseImportRows(rows);
-      triggerToast(
-        `Checked ${checked.total} rows: ${checked.ready} ready, ${checked.skipped} will be skipped, ${checked.fix} need fixing.`,
-      );
+      setCsvPreviewRecords([]);
+      applyLayout(layout);
+      if (layout.layoutRecognised) {
+        await checkImportRows(file, { sheet: layout.sheet, headerRow: layout.headerRow, mapping: layout.mapping });
+      } else {
+        setImportStep('match');
+        triggerToast(`Found ${layout.rowCount} student rows. Check which column holds each detail.`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'That file could not be read.';
       clearImport();
       setCsvFatalError(message);
       triggerToast(message);
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
+  // Choosing another sheet or column-name row describes the file again, with
+  // fresh suggestions for that layout.
+  const reinspectImport = async (options: ImportOptions) => {
+    if (!sourceFile) return;
+    setIsProcessingCsv(true);
+    setMatchError(null);
+    try {
+      applyLayout(await inspectStudentImport(sourceFile, options));
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : 'That part of the file could not be read.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
+  const continueFromMatch = async () => {
+    if (!sourceFile) return;
+    setIsProcessingCsv(true);
+    setMatchError(null);
+    try {
+      await checkImportRows(sourceFile, importOptions());
+      setRowsEdited(false);
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : 'The rows could not be checked.');
     } finally {
       setIsProcessingCsv(false);
     }
@@ -661,7 +744,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setIsProcessingCsv(true);
     try {
       const reviewed = new File([rowsToCsv(edited)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
-      const { rows } = await previewStudentImport(reviewed);
+      const { rows } = await previewStudentImport(reviewed, reviewedOptions());
       setCsvPreviewRecords(rows);
       setRowsEdited(true);
       setEditingCsvLine(null);
@@ -677,14 +760,15 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // left out. The server records the run for Recent Imports.
   const handleCommitVerifiedCsv = async () => {
     if (csvPreviewRecords.length === 0) return;
-    const file = rowsEdited || !sourceFile
+    const editedSet = rowsEdited || !sourceFile;
+    const file = editedSet
       ? new File([rowsToCsv(csvPreviewRecords)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' })
       : sourceFile;
 
     setSaving(true);
     setCsvFatalError(null);
     try {
-      const result = await commitStudentImport(file);
+      const result = await commitStudentImport(file, editedSet ? reviewedOptions() : importOptions());
       const { batch, rows } = result;
       loadStudents();
       loadRecentImports(showAllImports ? 50 : 5);
@@ -1650,6 +1734,23 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             {/* The preview gets the full width: it is where the office works. */}
             {registerActiveTab === 'bulk' && (
               <div className="lg:col-span-5">
+                {importStep === 'match' && importLayout && importMapping ? (
+                  <RegistryImportMatch
+                    layout={importLayout}
+                    mapping={importMapping}
+                    error={matchError}
+                    busy={isProcessingCsv}
+                    onMappingChange={setImportMapping}
+                    onSheetChange={(sheet) => void reinspectImport({ sheet })}
+                    onHeaderRowChange={(row) => void reinspectImport({ sheet: importSheet, headerRow: row })}
+                    onContinue={() => void continueFromMatch()}
+                    onCancel={() => {
+                      clearImport();
+                      triggerToast('Current file cleared.');
+                    }}
+                  />
+                ) : (
+                  <>
                     {/* IMPORT PREVIEW & VALIDATION SYSTEM LIST CONTAINER */}
                     <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
 
@@ -1660,6 +1761,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
                             Check each row before the accounts are created.
                           </p>
+                          {uploadedFile && (
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                              <ImportSteps current={importStep === 'check' ? 2 : 0} />
+                              {importStep === 'check' && importLayout && !rowsEdited && (
+                                <button
+                                  type="button"
+                                  onClick={() => setImportStep('match')}
+                                  className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer"
+                                >
+                                  Change column matches
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* VALIDATION OUTPUT PILLS */}
@@ -1741,6 +1856,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-xs">
+                            {csvPreviewRecords.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-slate-400 font-extrabold">
+                                  {isProcessingCsv ? 'Checking the file…' : 'Upload a file to see its rows here.'}
+                                </td>
+                              </tr>
+                            )}
                             {csvPreviewRecords.length > 0 && visibleImportRows.length === 0 && (
                               <tr>
                                 <td colSpan={5} className="py-8 text-center text-slate-400 font-extrabold">
@@ -1953,6 +2075,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
 
                     </div>
+                  </>
+                )}
               </div>
             )}
 
