@@ -1,5 +1,9 @@
 # Architecture and Coding Design
 
+## Main integration conflict resolution (2026-10-12)
+
+Resolved concurrent edits in StudentFAQChatbot, StudentRegistry and LetterTemplateManagement by preserving main functionality and branch navigation/typography conventions. Registry retains dynamic column spans, real import history/counts, activation wording and read-only registration guards; supervisor filtering uses useListState with existing filters. Template validation callbacks, accessibility invalid state and expanded status type retain shared editor typography.
+
 ## Student supporting appointment projection (2026-10-12)
 
 co_supervision workspace and team serializers return empty Student nominations and redact supporting appointment staff reasons, nomination IDs and lifecycle audit. Direct nomination serialization denies Student access. Dashboard scoped_nominations returns none for Students. Staff nomination notifications retain existing recipients except Student; approval publishes an appointment-result notification and lifecycle endings use a factual Student message. Notification feeds and direct-read queries exclude legacy Student nomination notices; appointment notification serialization sanitises legacy reasons. Student My supervisors renders factual former appointments without the staff appointment-card projection; Applications no longer mounts supporting history. No schema or dependency changes.

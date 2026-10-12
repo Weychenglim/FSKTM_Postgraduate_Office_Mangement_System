@@ -6,3 +6,8 @@ export const PROGRAMME_OPTIONS = [
 
 export type ProgrammeOption = typeof PROGRAMME_OPTIONS[number];
 
+
+export function normaliseProgramme(value: string): ProgrammeOption | null {
+  const cleaned = value.trim().toUpperCase();
+  return PROGRAMME_OPTIONS.find((p) => p.toUpperCase() === cleaned) ?? null;
+}

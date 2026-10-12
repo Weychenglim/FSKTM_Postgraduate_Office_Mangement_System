@@ -3,7 +3,8 @@
 A single template is authored by the office staff (status, name, body content
 with ``{{PLACEHOLDER}}`` tags) and consumed by students, who generate an
 official letter by substituting their own details into the placeholders. Staff
-manage these records; students only ever see the ``Active`` ones.
+manage these records; students only ever see the ``Active`` ones. ``Archived``
+retires a template without deleting its wording.
 """
 from django.db import models
 
@@ -14,6 +15,7 @@ class LetterTemplate(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "Active", "Active"
         DRAFT = "Draft", "Draft"
+        ARCHIVED = "Archived", "Archived"
 
     name = models.CharField(max_length=255)
     # Frontend calls this "type"; kept distinct from the Python builtin here.
@@ -23,9 +25,8 @@ class LetterTemplate(models.Model):
     content = models.TextField(
         blank=True,
         default="",
-        help_text="Letter body. Use placeholders such as {{STUDENT_NAME}}, "
-        "{{STUDENT_ID}}, {{PROGRAMME_NAME}}, {{CURRENT_STATUS}}, "
-        "{{SUPERVISOR_NAME}}, {{REFERENCE_NUMBER}}, {{CURRENT_DATE}}.",
+        help_text="Letter body with {{PLACEHOLDER}} tags; the allowed tags are "
+        "listed in letters/placeholders.py.",
     )
     # Prefix used to build the student's reference number, e.g. "UMF/PG".
     reference_prefix = models.CharField(max_length=64, blank=True, default="UMF/PG")

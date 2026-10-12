@@ -19,4 +19,5 @@ export interface DemoUser {
   staffId?: string;
   participantLifecycleStatus?: string | null;
   accountAccess?: 'ACTIVE' | 'READ_ONLY' | 'DISABLED';
+  mustChangePassword?: boolean;
 }

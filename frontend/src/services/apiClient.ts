@@ -46,6 +46,24 @@ export class ApiError extends Error {
 export const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Fired when the backend rejects our token, so the app can return to login. */
+export const SESSION_EXPIRED_EVENT = 'fsktm:session-expired';
+
+/** Fired when the backend holds the account until its password is changed. */
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'fsktm:password-change-required';
+
+/**
+ * Whether a failed request may fall back to mock data.
+ *
+ * Only genuine transport failures qualify — the server being unreachable. A
+ * response that carried an HTTP status (401, 403, 404, 500…) is a real answer
+ * and must surface as an error: silently swapping in fixtures would render
+ * invented records as though they were live data.
+ */
+export function isTransportFailure(err: unknown): boolean {
+  return !(err instanceof ApiError) || err.status === undefined;
+}
+
 /**
  * Wrap mock data so callers get the same async shape (and a deep copy, so they
  * can't accidentally mutate the shared mock arrays) they will get from HTTP.
@@ -116,31 +134,56 @@ export async function request<T>(
     ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  const res = await authSession.fetch(
-    `${API_BASE_URL}${path}`,
+  const res = await sessionFetch(
+    path,
     { ...init, headers },
     options?.retryAuth ?? true,
   );
-  if (!res.ok) {
-    let message = `Request failed: ${res.status} ${res.statusText}`;
-    try {
-      const extracted = messageFromErrorBody(await res.json());
-      if (extracted) message = extracted;
-    } catch {
-      /* error body was not JSON — keep the status-based message */
-    }
-    throw new ApiError(message, res.status);
-  }
+  if (!res.ok) return raiseForStatus(res);
   // 204 No Content (or empty body) → nothing to parse.
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    // A 200 carrying HTML (proxy or SSO interstitial) is a server problem, not
+    // a transport failure — surface it as an ApiError so callers cannot mistake
+    // it for "offline" and quietly substitute mock data.
+    throw new ApiError('The server returned an unreadable response.', res.status);
+  }
+}
+
+/**
+ * An expired or invalid token means the stored session is worthless. Drop it and
+ * let the app root send the user back to login, rather than leaving every later
+ * call to fail with an opaque message.
+ */
+function handleUnauthorized(): void {
+  if (getAuthToken() !== null) clearAuthToken();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  }
+}
+
+async function sessionFetch(
+  path: string,
+  init: RequestInit,
+  retryAuth = true,
+): Promise<Response> {
+  const hadSession = authSession.getAccessToken() !== null;
+  const res = await authSession.fetch(`${API_BASE_URL}${path}`, init, retryAuth);
+  if (res.status === 401 && hadSession) handleUnauthorized();
+  return res;
 }
 
 /** Build and throw an ApiError from a non-OK response (shared by the helpers below). */
 async function raiseForStatus(res: Response): Promise<never> {
   let message = `Request failed: ${res.status} ${res.statusText}`;
   try {
-    const extracted = messageFromErrorBody(await res.json());
+    const body = await res.json();
+    if (res.status === 403 && body?.code === 'password_change_required' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT));
+    }
+    const extracted = messageFromErrorBody(body);
     if (extracted) message = extracted;
   } catch {
     /* error body was not JSON — keep the status-based message */
@@ -160,7 +203,7 @@ export async function requestMultipart<T>(
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  const res = await authSession.fetch(`${API_BASE_URL}${path}`, {
+  const res = await sessionFetch(path, {
     method: 'POST',
     ...init,
     body: formData,
@@ -176,7 +219,7 @@ export async function requestBlob(path: string, init?: RequestInit): Promise<Blo
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  const res = await authSession.fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  const res = await sessionFetch(path, { ...init, headers });
   if (!res.ok) return raiseForStatus(res);
   return res.blob();
 }

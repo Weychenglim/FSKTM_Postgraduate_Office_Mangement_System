@@ -1,5 +1,9 @@
 # Project Requirements
 
+## Main integration preservation (2026-10-12)
+
+When integrating main, retain the FAQ chat-assistant layout, registry import/activation and read-only role controls, and letter-template validation/archive behavior alongside portal typography, RecordPage draft guards and preserved list filters.
+
 ## Student supporting appointment visibility (2026-10-12)
 
 Students see confirmed current and former supporting appointments under My supervisors, with supervisor identity and appointment/end dates. They do not see supporting nominations, candidate justifications, staff decision reasons, workflow history or pending nomination dashboard tasks. Applications History contains only Student-submitted applications. In-app notifications alert Students when supporting appointments are confirmed or end and link to My supervisors; nomination activity remains within authorised staff workflow. Existing legacy nomination notices are excluded from Student feeds and direct read responses; legacy appointment notice bodies are sanitised.

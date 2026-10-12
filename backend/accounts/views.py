@@ -1,8 +1,10 @@
 """Auth API views: login, logout, me, password-reset (request + confirm)."""
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
@@ -21,11 +23,17 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from appointments.models import SupervisorAppointment
+
 from .authentication import RefreshCookieAuthentication
+from .models import NotificationPreference
 from .serializers import (
+    ChangePasswordSerializer,
+    ContactDetailsSerializer,
     AccountSettingsSerializer,
     SettingsPasswordSerializer,
     LoginSerializer,
+    NotificationPreferenceSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
 )
@@ -35,6 +43,7 @@ from .session_tokens import (
     set_refresh_cookie,
 )
 from .throttles import (
+    ChangePasswordRateThrottle,
     SettingsPasswordRateThrottle,
     LoginRateThrottle,
     PasswordResetConfirmRateThrottle,
@@ -72,10 +81,18 @@ def login_view(request):
         .distinct()
         .first()
     )
-    if user is None or not user.check_password(password):
+    # Hash even when no account matched, so response time does not reveal
+    # whether an identifier exists. Skipping this made unknown identifiers
+    # roughly 100x faster to reject than known ones.
+    if user is None:
+        User().set_password(password)
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
-    if not user.is_active:
-        return Response({"error": "This account is disabled."}, status=status.HTTP_403_FORBIDDEN)
+
+    # A disabled account returns the same generic 401 whether or not the
+    # password was right; a distinct 403 confirmed valid credentials and
+    # revealed which accounts the office had suspended.
+    if not user.check_password(password) or not user.is_active:
+        return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
     refresh = RefreshToken.for_user(user)
     response = Response(
@@ -106,11 +123,80 @@ def logout_view(request):
     return delete_refresh_cookie(response)
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me_view(request):
-    """Return the authenticated user (for session restore on the frontend)."""
+    """Return the authenticated user, or update their own contact details.
+
+    Only the phone number is writable. Email is the login identifier and role /
+    department / ID fields are office-controlled, so those stay read-only here
+    and are managed through Registry Management or the Django admin.
+    """
+    if request.method == "GET":
+        return Response(request.user.to_public_dict())
+
+    serializer = ContactDetailsSerializer(data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    if "phone" in serializer.validated_data:
+        request.user.phone = serializer.validated_data["phone"]
+        request.user.save(update_fields=["phone"])
     return Response(request.user.to_public_dict())
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ChangePasswordRateThrottle])
+def change_password_view(request):
+    """Change the caller's own password after verifying the current one."""
+    serializer = ChangePasswordSerializer(
+        data=request.data, context={"user": request.user}
+    )
+    serializer.is_valid(raise_exception=True)
+
+    request.user.set_password(serializer.validated_data["new_password"])
+    request.user.must_change_password = False
+    request.user.save(update_fields=["password", "must_change_password"])
+    blacklist_user_refresh_tokens(request.user)
+
+    refresh = RefreshToken.for_user(request.user)
+    response = Response(
+        {
+            "message": "Your password has been updated.",
+            "token": str(refresh.access_token),
+        }
+    )
+    return set_refresh_cookie(response, refresh)
+
+
+@api_view(["GET", "PUT", "PATCH"])
+@permission_classes([IsAuthenticated])
+def notification_preferences_view(request):
+    """Read or update the caller's own notification preferences."""
+    preference = NotificationPreference.for_user(request.user)
+    if request.method == "GET":
+        return Response(preference.to_public_dict())
+
+    serializer = NotificationPreferenceSerializer(data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    changed = []
+    for key, field in NotificationPreference.FIELD_MAP.items():
+        if key in serializer.validated_data:
+            setattr(preference, field, serializer.validated_data[key])
+            changed.append(field)
+    if changed:
+        preference.save(update_fields=[*changed, "updated_at"])
+    return Response(preference.to_public_dict())
+
+
+def _current_supervisor_name(student):
+    appointment = (
+        SupervisorAppointment.objects.filter(
+            student=student, status=SupervisorAppointment.Status.ACTIVE
+        )
+        .select_related("supervisor")
+        .first()
+    )
+    return appointment.supervisor.full_name if appointment else ""
 
 
 def _settings_payload(user):
@@ -186,7 +272,7 @@ def my_letter_details_view(request):
         "matricNumber": student.matric_no,
         "programName": student.programme,
         "currentStatus": student.status,
-        "supervisorName": "",  # no system data source for the supervisor yet
+        "supervisorName": _current_supervisor_name(student),
         # Registry-backed fields — blank until a registry row exists.
         "passportNumber": "",
         "country": "",
@@ -205,7 +291,7 @@ def my_letter_details_view(request):
     return Response(data)
 
 
-def _send_password_reset_email(user):
+def send_password_reset_email(user) -> bool:
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     reset_link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
@@ -219,7 +305,17 @@ def _send_password_reset_email(user):
         "you can safely ignore this email.\n\n"
         "— FSKTM Postgraduate Office"
     )
-    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+    # fail_silently: an SMTP outage otherwise turned this endpoint into a
+    # registered/unregistered oracle (500 for a real address, 200 for an
+    # unknown one) despite the deliberately generic response body.
+    sent = send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=True,
+    )
+    return bool(sent)
 
 
 @api_view(["POST"])
@@ -234,7 +330,7 @@ def password_reset_view(request):
 
     user = User.objects.filter(email__iexact=email, is_active=True).first()
     if user is not None:
-        _send_password_reset_email(user)
+        send_password_reset_email(user)
 
     return Response(
         {"message": "If that email is registered, a password reset link has been sent."}
@@ -258,13 +354,30 @@ def password_reset_confirm_view(request):
     except (TypeError, ValueError, OverflowError, User.DoesNotExist):
         user = None
 
-    if user is None or not default_token_generator.check_token(user, token):
+    # ``is_active`` is not covered by the token hash, so a suspended account
+    # could still complete an outstanding reset link and choose its password.
+    if (
+        user is None
+        or not user.is_active
+        or not default_token_generator.check_token(user, token)
+    ):
         return Response(
             {"error": "This reset link is invalid or has expired."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Validated here rather than in the serializer so the resolved user is
+    # available; without it UserAttributeSimilarityValidator never runs and a
+    # user could reset their password to their own email address.
+    try:
+        validate_password(new_password, user=user)
+    except DjangoValidationError as exc:
+        return Response(
+            {"new_password": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST
+        )
+
     user.set_password(new_password)
-    user.save(update_fields=["password"])
+    user.must_change_password = False
+    user.save(update_fields=["password", "must_change_password"])
     blacklist_user_refresh_tokens(user)
     return Response({"message": "Your password has been reset. You can now sign in."})

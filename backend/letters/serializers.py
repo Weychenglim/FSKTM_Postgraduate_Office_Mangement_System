@@ -12,10 +12,7 @@ from .models import LetterTemplate
 class LetterTemplateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     type = serializers.CharField(max_length=128, required=False, allow_blank=True)
-    status = serializers.ChoiceField(
-        choices=[LetterTemplate.Status.ACTIVE, LetterTemplate.Status.DRAFT],
-        required=False,
-    )
+    status = serializers.ChoiceField(choices=LetterTemplate.Status.choices, required=False)
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
     content = serializers.CharField(required=False, allow_blank=True)
     referencePrefix = serializers.CharField(max_length=64, required=False, allow_blank=True)

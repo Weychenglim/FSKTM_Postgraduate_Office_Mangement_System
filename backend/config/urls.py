@@ -12,6 +12,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health, name="health"),
     path("api/auth/", include("accounts.urls")),
+    path("api/registry/", include("accounts.registry_urls")),
     path("api/accounts/coordinator-delegations/", include("accounts.delegation_urls")),
     path("api/accounts/participants/", include("accounts.participant_urls")),
     path("api/academics/", include("academics.urls")),

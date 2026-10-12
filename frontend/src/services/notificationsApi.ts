@@ -9,14 +9,14 @@
 
 import { NotificationItem } from '../types';
 import { MOCK_NOTIFICATIONS } from '../mocks/notifications';
-import { USE_MOCKS, mockResponse, request } from './apiClient';
+import { USE_MOCKS, isTransportFailure, mockResponse, request } from './apiClient';
 
 /** The signed-in user's own notification feed. */
 export async function getNotifications(): Promise<NotificationItem[]> {
   try {
     return await request<NotificationItem[]>('/notifications/');
   } catch (err) {
-    if (USE_MOCKS) return mockResponse(MOCK_NOTIFICATIONS);
+    if (USE_MOCKS && isTransportFailure(err)) return mockResponse(MOCK_NOTIFICATIONS);
     throw err;
   }
 }
