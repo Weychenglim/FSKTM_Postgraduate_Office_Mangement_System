@@ -1,5 +1,18 @@
 # Project Status
 
+## Registry Import: Excel Template, And The Plan Complete (2026-10-12)
+
+- Phase 9 of the registry import plan (commit `42b6a76`). All nine phases are now built.
+- **Excel template.** `GET /api/registry/students/import/template/` (Office only) gives an `.xlsx`:
+  - a Students sheet with the import columns and a frozen header row;
+  - Student ID and Phone formatted as text, so Excel keeps leading zeros;
+  - Programme as a dropdown of the approved programmes, from a hidden Programmes sheet;
+  - a "How to fill in" sheet with one column per row, so it is never read as the student list.
+- "Download Excel Template" is the main button and "CSV Template" the second. The import guidelines now say the office can upload its own spreadsheet as it is or paste rows.
+- **Design decision D8** (for the report): bulk import accepts the office's own spreadsheet, and the template is optional. UC04's precondition about the required template format no longer applies.
+- **Still open:** P1 (a sample of the real Maya extract) and P2 (Student ID or matric number). Phase 7 was built on the P2 assumption.
+- **Verification.** Backend: 1023 tests pass, 4 of them new in `test_registry_template.py`; no migration. Frontend: all 94 scripts, lint, the build and both production guards pass. The live browser run passed 5/5: download through the button, fill in, upload, and import. All test data was removed.
+
 ## Registry Import: Paste Rows From A Spreadsheet (2026-10-12)
 
 - Phase 8 of the registry import plan (commit `c49e6aa`).

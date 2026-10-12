@@ -1,6 +1,6 @@
 # Registry Import From The Office's Own Spreadsheets (UC04)
 
-**Status: in progress.** Xiang asked for the plan first, then said on 2026-10-12 to build it now and amend it when the office answers P1 and P2. Until then the phases use the assumptions noted under "Waiting For The Office".
+**Status: all nine phases built (2026-10-12).** Phase 7 rests on the P2 assumption, and P1 may add the office's exact column names; amend both when the office answers. Xiang asked for the plan first, then said on 2026-10-12 to build it now and amend it when the office answers P1 and P2. Until then the phases use the assumptions noted under "Waiting For The Office".
 
 Scope: make bulk student import accept the spreadsheet the office already extracts from Maya, so staff never retype students into our template. This covers UC04 (FR-09, FR-10). It also closes the gap where imported students arrive without an intake or semester.
 
@@ -39,7 +39,7 @@ It adds:
 | 6 | Remember column matches for the same file layout | S | Done | `c6483bc` |
 | 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Done, on the P2 assumption | `9c7f1cb` |
 | 8 | Paste rows copied from Excel | M | Done | `c49e6aa` |
-| 9 | Excel template with a programme dropdown, and wrap-up | M | Not started | |
+| 9 | Excel template with a programme dropdown, and wrap-up | M | Done | `42b6a76` |
 
 Phase dependencies:
 - Phase 1 works with today's importer and goes first.
@@ -163,6 +163,7 @@ This plan adds:
 - **I5** Already-registered rows are matched by Student ID or email, ignoring letter case (today's rule). They are listed with the registry record they match and flagged when the name or email differs.
 - **I6** Programme aliases and column profiles are shared by the whole office, not kept per person.
 - **I7** Filled emails are marked in the preview, the import result, the report and the batch record.
+- **D8** (for the report) Bulk import accepts the office's own spreadsheet as it is, or pasted rows; the Excel or CSV template is optional. UC04's precondition, "file is prepared in the required template format", no longer applies.
 - **I8** A batch remembers which students it created. "Send activation emails" later reaches only those who are still active and have not set a password.
 
 ## API Summary (after Phase 9)
@@ -555,6 +556,8 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - A filled-in template imports correctly.
 
 **Done when** a downloaded template, filled in Excel and uploaded, imports correctly, and the docs are updated.
+
+**As built (`42b6a76`).** The help sheet names one column per row, so it is never picked as the student list, even when the file is saved with that sheet open. Out-of-date docs: only historical records still describe the old template-only import (the 2026-09-26 plan and older `PROJECT_STATUS.md` entries); they are left as written. No teammate-written doc needs a change.
 
 ---
 
