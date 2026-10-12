@@ -134,7 +134,7 @@ audit record.
 | POST | `requests/` (`{templateId}`) | Active student |
 | GET | `requests/` | Student (own letters) or Office Staff/Admin (`search`, `from`, `to`, `status`) |
 | GET | `requests/<id>/` | The letter's student or Office Staff/Admin |
-| GET | `requests/<id>/docx/` | The letter's student or Office Staff/Admin |
+| GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin |
 | POST | `requests/<id>/resend-notification/` | Office Staff/Admin |
 | POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin |
 
@@ -142,8 +142,10 @@ Generating a letter fills an Active template from the student's record, issues
 the next reference number for its prefix and year (`UMF/PG/2026/0001`), saves
 the filled wording and notifies the student. If the template needs a detail the
 record does not have, it returns 400 with `missingFields` and saves nothing.
-The Word copy is built with `python-docx`. Revoked letters keep their number but
-can no longer be downloaded.
+The download is a PDF built with `reportlab`, locked against editing (printing
+and copying text stay allowed), so a letter cannot simply be changed; its
+reference number lets anyone verify it with the office. Revoked letters keep
+their number but can no longer be downloaded.
 
 ## Scheduled commands
 

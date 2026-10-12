@@ -1,12 +1,13 @@
 """Saved letter requests: reference numbers, the register, Word export and notifications (UC23)."""
 
 import io
-import zipfile
 from datetime import date
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from pypdf import PdfReader
+from pypdf.constants import UserAccessPermissions
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -19,7 +20,6 @@ from .models import GeneratedLetter, LetterReferenceCounter, LetterTemplate
 User = get_user_model()
 PASSWORD = "Letters-pass-7702!"
 REQUESTS = "/api/letters/requests/"
-DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def make_student(matric_no, *, student_status=Student.Status.ACTIVE, registry=True):
@@ -176,7 +176,7 @@ class LetterRequestTests(APITestCase):
         self.assertEqual([row["id"] for row in listed], [own_id])
         self.assertNotIn("content", listed[0])
         self.assertEqual(self.client.get(f"{REQUESTS}{own_id}/").status_code, status.HTTP_200_OK)
-        for path in (f"{REQUESTS}{other_id}/", f"{REQUESTS}{other_id}/docx/"):
+        for path in (f"{REQUESTS}{other_id}/", f"{REQUESTS}{other_id}/pdf/"):
             self.assertEqual(self.client.get(path).status_code, status.HTTP_404_NOT_FOUND, path)
 
     def test_office_sees_the_whole_register_with_filters(self):
@@ -204,22 +204,27 @@ class LetterRequestTests(APITestCase):
                     self.client.get(f"{REQUESTS}{first['id']}/").status_code, status.HTTP_404_NOT_FOUND
                 )
 
-    def test_word_download_is_a_valid_docx_with_the_reference(self):
+    def test_pdf_download_is_locked_and_carries_the_reference(self):
         student = make_student("LTR070")
         letter = self.generate(student).data
 
         for user in (student, self.office):
             with self.subTest(user=user.email):
                 self.client.force_authenticate(user)
-                response = self.client.get(f"{REQUESTS}{letter['id']}/docx/")
+                response = self.client.get(f"{REQUESTS}{letter['id']}/pdf/")
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
-                self.assertEqual(response["Content-Type"], DOCX_TYPE)
-                self.assertIn('filename="UM_Confirmation_of_Study_LTR070.docx"', response["Content-Disposition"])
-                with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-                    xml = archive.read("word/document.xml").decode("utf-8")
-                self.assertIn(letter["referenceNumber"], xml)
-                self.assertIn("Student LTR070", xml)
-                self.assertNotIn("**", xml)
+                self.assertEqual(response["Content-Type"], "application/pdf")
+                self.assertIn('filename="UM_Confirmation_of_Study_LTR070.pdf"', response["Content-Disposition"])
+                reader = PdfReader(io.BytesIO(response.content))
+                self.assertTrue(reader.is_encrypted)
+                reader.decrypt("")
+                text = "".join(page.extract_text() for page in reader.pages)
+                self.assertIn(letter["referenceNumber"], text)
+                self.assertIn("Student LTR070", text)
+                self.assertNotIn("**", text)
+                permissions = reader.user_access_permissions
+                self.assertFalse(permissions & UserAccessPermissions.MODIFY, "it cannot be edited")
+                self.assertTrue(permissions & UserAccessPermissions.PRINT, "it can be printed")
 
     def test_generating_creates_one_ready_notification(self):
         student = make_student("LTR080")
@@ -273,7 +278,7 @@ class LetterRequestTests(APITestCase):
         self.assertEqual(detail["status"], "Revoked")
         self.assertEqual(detail["revokeReason"], "Issued with the wrong programme.")
         self.assertNotIn("content", detail)
-        self.assertEqual(self.client.get(f"{REQUESTS}{letter_id}/docx/").status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.client.get(f"{REQUESTS}{letter_id}/pdf/").status_code, status.HTTP_409_CONFLICT)
         revoked = Notification.objects.get(recipient=student, event_key=f"letters:letter-revoked:{letter_id}")
         self.assertIn("wrong programme", revoked.message)
 
@@ -284,12 +289,12 @@ class LetterRequestTests(APITestCase):
         student.refresh_from_db()
 
         self.client.force_authenticate(student)
-        for path in (REQUESTS, f"{REQUESTS}{letter_id}/", f"{REQUESTS}{letter_id}/docx/"):
+        for path in (REQUESTS, f"{REQUESTS}{letter_id}/", f"{REQUESTS}{letter_id}/pdf/"):
             response = self.client.get(path)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, path)
             self.assertEqual(response.data["code"], "letters_need_active_status")
         self.client.force_authenticate(self.office)
-        self.assertEqual(self.client.get(f"{REQUESTS}{letter_id}/docx/").status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(f"{REQUESTS}{letter_id}/pdf/").status_code, status.HTTP_200_OK)
 
     def test_the_register_keeps_letters_when_an_account_is_removed(self):
         student = make_student("LTR110")

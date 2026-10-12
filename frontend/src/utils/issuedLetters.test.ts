@@ -143,11 +143,11 @@ for (const path of [APP_ROUTES.lettersMine, APP_ROUTES.lettersIssued]) {
   assert.equal(sidebarItemForPath(path), SIDEBAR_ITEMS.LETTER_GENERATION, path);
 }
 
-// the Word copy carries the same letterhead as the printed letter
-const docxSource = readFileSync(resolve('../backend/letters/docx_export.py'), 'utf8');
+// the PDF copy carries the same letterhead as the printed letter
+const pdfSource = readFileSync(resolve('../backend/letters/pdf_export.py'), 'utf8');
 const pythonStrings = (name: string) => {
-  const match = docxSource.match(new RegExp(`^${name} = (\\([\\s\\S]*?^\\)|"[^"\\n]*")`, 'm'));
-  assert.ok(match, `could not read ${name} from letters/docx_export.py`);
+  const match = pdfSource.match(new RegExp(`^${name} = (\\([\\s\\S]*?^\\)|"[^"\\n]*")`, 'm'));
+  assert.ok(match, `could not read ${name} from letters/pdf_export.py`);
   return [...match[1].matchAll(/"([^"\n]*)"/g)].map(([, text]) => text);
 };
 assert.equal(pythonStrings('FACULTY').join(''), LETTERHEAD.faculty);

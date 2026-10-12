@@ -26,13 +26,13 @@ from accounts.models import User
 from announcements.models import Notification
 
 from .details import letter_details
-from .docx_export import build_letter_docx
 from .eligibility import inactive_student_refusal
 from .models import GeneratedLetter, LetterTemplate
+from .pdf_export import build_letter_pdf
 from .placeholders import fill_placeholders, missing_labels, placeholder_problems
 from .references import next_reference_number
 
-DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PDF_TYPE = "application/pdf"
 LETTERS_MODULE = "LETTERS"
 LETTER_RECORD = "GENERATED_LETTER"
 
@@ -233,13 +233,13 @@ def letter_detail(request, pk):
 def _file_name(letter):
     slug = re.sub(r"[^a-z0-9]+", "_", letter.template_name, flags=re.IGNORECASE).strip("_")
     matric = re.sub(r"[^a-z0-9]+", "", (letter.student_data or {}).get("matricNumber", ""), flags=re.IGNORECASE)
-    return f"UM_{slug or 'Letter'}{f'_{matric}' if matric else ''}.docx"
+    return f"UM_{slug or 'Letter'}{f'_{matric}' if matric else ''}.pdf"
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def letter_docx(request, pk):
-    """The letter as a Word file, for its student or office staff."""
+def letter_pdf(request, pk):
+    """The letter as a PDF locked against editing, for its student or office staff."""
     refused = _inactive_refusal(request)
     if refused:
         return refused
@@ -249,7 +249,7 @@ def letter_docx(request, pk):
             {"detail": "This letter was revoked and can no longer be downloaded."},
             status=status.HTTP_409_CONFLICT,
         )
-    response = HttpResponse(build_letter_docx(letter), content_type=DOCX_TYPE)
+    response = HttpResponse(build_letter_pdf(letter), content_type=PDF_TYPE)
     response["Content-Disposition"] = f'attachment; filename="{_file_name(letter)}"'
     return response
 

@@ -13,7 +13,7 @@ import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitive
 import { LoadingState, ErrorState } from './StateViews';
 import { GeneratedLetter, GeneratedLetterStatus } from '../types';
 import {
-  downloadLetterWord,
+  downloadLetterPdf,
   fieldErrors,
   getIssuedLetter,
   getIssuedLetters,
@@ -22,11 +22,11 @@ import {
 } from '../services';
 import { letterDataFromIssued, openLetterWindow, printLetterInWindow } from '../utils/letterDocument';
 
-type OutputAction = 'print' | 'word';
+type OutputAction = 'print' | 'pdf';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
-/** Print and Word download for saved letters, with a per-row busy flag. */
+/** Print and PDF download for saved letters, with a per-row busy flag. */
 function useLetterOutput(onMessage: (message: string) => void) {
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -49,19 +49,19 @@ function useLetterOutput(onMessage: (message: string) => void) {
     }
   };
 
-  const downloadWord = async (letter: GeneratedLetter) => {
-    setBusy(`${letter.id}:word`);
+  const downloadPdf = async (letter: GeneratedLetter) => {
+    setBusy(`${letter.id}:pdf`);
     try {
-      await downloadLetterWord(letter);
+      await downloadLetterPdf(letter);
     } catch (err) {
-      onMessage(errorText(err, 'Could not download the Word file.'));
+      onMessage(errorText(err, 'Could not download the PDF.'));
     } finally {
       setBusy(null);
     }
   };
 
   const isBusy = (letter: GeneratedLetter, action: OutputAction) => busy === `${letter.id}:${action}`;
-  return { printLetter, downloadWord, isBusy };
+  return { printLetter, downloadPdf, isBusy };
 }
 
 const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({ status }) => (
@@ -93,7 +93,7 @@ interface StudentLetterHistoryProps {
   onMessage: (message: string) => void;
 }
 
-/** The signed-in student's own letters, with reprint and Word download. */
+/** The signed-in student's own letters, with reprint and PDF download. */
 export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
   letters,
   loading,
@@ -101,7 +101,7 @@ export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
   onRetry,
   onMessage,
 }) => {
-  const { printLetter, downloadWord, isBusy } = useLetterOutput(onMessage);
+  const { printLetter, downloadPdf, isBusy } = useLetterOutput(onMessage);
 
   return (
     <div id="student-letter-history" className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
@@ -150,8 +150,8 @@ export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
                         <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
                           Print
                         </PortalButton>
-                        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'word')} onClick={() => void downloadWord(letter)}>
-                          Word
+                        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
+                          PDF
                         </PortalButton>
                       </div>
                     )}
@@ -185,7 +185,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [revokeSaving, setRevokeSaving] = useState(false);
   const latestLoad = useRef(0);
-  const { printLetter, downloadWord, isBusy } = useLetterOutput(onMessage);
+  const { printLetter, downloadPdf, isBusy } = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
     const loadId = ++latestLoad.current;
@@ -348,8 +348,8 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                           <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
                             Print
                           </PortalButton>
-                          <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'word')} onClick={() => void downloadWord(letter)}>
-                            Word
+                          <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
+                            PDF
                           </PortalButton>
                           <PortalButton variant="soft" size="sm" icon={Send} isLoading={resending === letter.id} onClick={() => void handleResend(letter)}>
                             Resend

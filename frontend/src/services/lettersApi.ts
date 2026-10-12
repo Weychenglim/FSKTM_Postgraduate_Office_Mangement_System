@@ -149,13 +149,13 @@ export async function getIssuedLetter(id: string): Promise<GeneratedLetter> {
   return request<GeneratedLetter>(`/letters/requests/${id}/`);
 }
 
-/** Download the Word copy of an issued letter. */
-export async function downloadLetterWord(letter: GeneratedLetter): Promise<void> {
-  const blob = await requestBlob(`/letters/requests/${letter.id}/docx/`);
+/** Download the PDF of an issued letter, locked against editing. */
+export async function downloadLetterPdf(letter: GeneratedLetter): Promise<void> {
+  const blob = await requestBlob(`/letters/requests/${letter.id}/pdf/`);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${letterFileName(letterDataFromIssued(letter))}.docx`;
+  link.download = `${letterFileName(letterDataFromIssued(letter))}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

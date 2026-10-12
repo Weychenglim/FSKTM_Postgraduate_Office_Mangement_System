@@ -6,7 +6,7 @@ from . import request_views as views
 urlpatterns = [
     path("requests/", views.letter_requests, name="letter-requests"),
     path("requests/<int:pk>/", views.letter_detail, name="letter-request-detail"),
-    path("requests/<int:pk>/docx/", views.letter_docx, name="letter-request-docx"),
+    path("requests/<int:pk>/pdf/", views.letter_pdf, name="letter-request-pdf"),
     path(
         "requests/<int:pk>/resend-notification/",
         views.resend_notification,
