@@ -38,7 +38,7 @@ It adds:
 | 5 | Programme names: map each unrecognised value once, or skip those rows | M | Done | `ed8d0c5` |
 | 6 | Remember column matches for the same file layout | S | Done | `c6483bc` |
 | 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Done, on the P2 assumption | `9c7f1cb` |
-| 8 | Paste rows copied from Excel | M | Not started | |
+| 8 | Paste rows copied from Excel | M | Done | `c49e6aa` |
 | 9 | Excel template with a programme dropdown, and wrap-up | M | Not started | |
 
 Phase dependencies:
@@ -517,6 +517,12 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - The helper turns clipboard text into a file.
 
 **Done when** rows pasted from a spreadsheet, with and without column names, preview and import in the browser.
+
+**As built (`c49e6aa`).**
+- **Labels.** Columns without names keep the existing letter labels (Column A, B) rather than numbers, to match the rest of the Match step.
+- **"No column names" works for files too.** It is a choice on the Match step's "Column names are on" menu, for any file.
+- **Value matching.** A field gets a column only when four in five of its first 50 values fit and exactly one column does. Running numbers and MyKad numbers are never taken for Student IDs.
+- **Known names skip the Match step.** A paste whose column names are all known goes straight to checking rows, like a file.
 
 ## Phase 9: Excel Template, And Wrap-Up
 

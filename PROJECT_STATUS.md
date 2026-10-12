@@ -1,5 +1,20 @@
 # Project Status
 
+## Registry Import: Paste Rows From A Spreadsheet (2026-10-12)
+
+- Phase 8 of the registry import plan (commit `c49e6aa`).
+- **Paste rows.** The upload card has a "Paste rows" switch. Cells copied from Excel or Google Sheets are sent as `pasted-rows.csv` and go through the same steps as a file. Blank lines are dropped, and the 1,000-row limit is checked before sending.
+- **Column names or not.**
+  - "The first row is column names" is on by default.
+  - Without names, every row is a student. The columns are matched from their values: emails, approved programme names, phone numbers, Student IDs and names.
+  - A field gets a column only when exactly one column fits. Running numbers and MyKad numbers are never taken for Student IDs.
+  - The Match step's "Column names are on" menu has a "No column names" choice for any file (`options.hasHeader`).
+- **Verification.**
+  - Backend: 1019 tests pass, 6 of them new in `test_registry_paste.py`. No migration.
+  - Frontend: all 94 scripts pass, with paste helper tests and source checks. Lint, the build and both production guards pass.
+  - The live browser run passed 10/11. The one miss was a timing race in the script: it read the page while the Match step still showed the same name as a sample. The rows themselves imported, as the next step and the cleanup count showed.
+  - The run covered a paste with known column names going straight to checking rows, and a paste without names matched from its values, then imported. The paste box fits at 390 px. All test data was removed.
+
 ## Registry Import: Missing Emails Filled From The Student ID (2026-10-12)
 
 - Phase 7 of the registry import plan (commit `9c7f1cb`). It was built on the plan's P2 assumption: the registry keeps the lifelong Student ID. Recheck it when the office answers P2.
