@@ -1,5 +1,34 @@
 # Project Status
 
+## Registry Import: Settings For Every Row, And Activation Emails Later (2026-10-12)
+
+- Phase 4 of the registry import plan (commit `b4f518d`).
+- **For Every Row.** The Match step has a card for a programme (approved list), an intake and a current semester (suggesting the semesters already in the registry).
+  - Each one fills blank cells, or a column the file does not have. A value in the file is never overwritten.
+  - A programme set for every row stands in for a missing programme column.
+  - A matched column with a setting says what fills its blank cells ("Blank cells: 2026/2027 Semester I"). A missing programme column points to the card.
+- **Activation emails now or later.** "Send now / Send later" sits beside "Create N Ready Accounts" on the Check rows step, because our own template skips the Match step.
+  - "Send later" creates the accounts and emails no one. The result panel says the emails are on hold, with "Send Activation Emails Now". Recent Imports shows "Emails on hold" with "Send now".
+  - Both ask first: "Send activation emails to N students?"
+  - The import report marks held rows "Created, activation email on hold", then "Created" or "Created, activation email not sent" once sent.
+- **New endpoint.** `POST /api/registry/imports/<id>/send-invitations/` (Office only).
+  - It emails only students from that import who are active and have not set a password, over one mail connection.
+  - It returns the counts and each student's outcome with their file line.
+  - A failed email is recorded on the import, as when an import sends straight away, and Recent Imports counts it ("1 email not sent").
+  - A second send within two minutes is refused. It is throttled per import with `REGISTRY_BATCH_INVITE_THROTTLE_RATE` (default 3/hour, in `.env.example`).
+- **Migration `accounts.0011_registry_import_invitations`.** `RegistryImportBatch` gains `created_students` (Student ID and file line), `invitations_held`, `invitations_sent_at` and `settings_used`. It was applied to the dev database after a backup: `db-backups/fsktm_pg_office_before_registry_import_invitations_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 978 tests pass, 11 of them new in `test_registry_batch_settings.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass. `registryImport.test.ts` gained the held-email helpers and source checks. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and a Malay-headed CSV without a programme column. It covered:
+    - the programme set for every row, and an intake that filled only the blank cell (checked in the database);
+    - "Send later" sending no email (checked in the backend log), with the held report and the Recent Imports mark;
+    - "Send now" after confirming, emailing exactly the two imported students and clearing both marks;
+    - sending from Recent Imports, where Cancel sends nothing.
+
+    The first run passed 24/25. The failing check read an upper-case label before Recent Imports had reloaded; the corrected re-check passed 8/8.
+  - The Match step and the import actions fit at 768 and 390 px without sideways scrolling. All test data was removed.
+
 ## Registry Import: Match Columns Step (2026-10-12)
 
 - Phase 3 of the registry import plan (commit `95c222d`).

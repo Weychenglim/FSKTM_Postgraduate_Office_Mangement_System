@@ -34,7 +34,7 @@ It adds:
 | 1 | Already-registered students listed clearly in the preview, the import result and Recent Imports | M | Done | `b9dbe75` |
 | 2 | Backend: read any layout (sheets, header row, delimiter, English and Malay column names), inspect endpoint, column mapping, intake and semester | L | Done | `f465cfb` |
 | 3 | Frontend: Match Columns step | L | Done | `95c222d` |
-| 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Not started | |
+| 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Done | `b4f518d` |
 | 5 | Programme names: map each unrecognised value once, or skip those rows | M | Not started | |
 | 6 | Remember column matches for the same file layout | S | Not started | |
 | 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Blocked on P2 | |
@@ -361,7 +361,7 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
    - With a default programme, the programme column may be left unmatched.
 2. **`options.sendInvites`** (default true). When it is false, the import sends no email and the batch is marked as holding its invitations.
 3. **Migration** in `accounts`. `RegistryImportBatch` gains:
-   - `created_ids`: a JSON list of Student IDs, kept for every import;
+   - `created_students`: a JSON list of `{id, line}` for every student the import created, kept for every import, so a send later can name the file line of an email that failed;
    - `invitations_held` (bool);
    - `invitations_sent_at` (datetime, null);
    - `settings_used`: JSON holding the defaults and `sendInvites`; later phases add their options.
@@ -369,24 +369,26 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
    `to_public_dict` returns all of them.
 4. **`POST /api/registry/imports/<id>/send-invitations/`** (Office only).
    - Emails the batch's students who are still active and have not set a password, using one mail connection.
-   - Returns `{sent, failed, alreadyActivated, notFound}`.
+   - Returns `{sent, failed, alreadyActivated, suspended, notFound, students, batch}`. `students` gives each student's outcome with their file line, so the import report can show every held row.
+   - An email that could not be sent is recorded on the batch ("activation email could not be sent"), as when an import sends straight away.
    - Stores `invitations_sent_at` and clears `invitations_held`.
-   - Safe to repeat: students who have activated are never emailed again.
+   - Safe to repeat: students who have activated are never emailed again, and a second send within two minutes is refused (409), so a double click or two staff cannot email everyone twice.
    - Throttled per batch with `REGISTRY_BATCH_INVITE_THROTTLE_RATE` (default 3/hour), documented in `.env.example`.
 5. **Frontend.**
    - A "For every row" card on the Match step:
      - Programme, as a `SelectMenu` of the approved programmes or "From the file";
      - Intake;
-     - Current semester, suggesting the semesters already in the registry;
-     - "Activation emails: Send now / Send later".
-   - The result panel and Recent Imports show "Activation emails held", with "Send now" behind a confirmation ("Send activation emails to 38 students?").
+     - Current semester, suggesting the semesters already in the registry.
+   - "Activation emails: Send now / Send later" sits beside "Create N Ready Accounts" on the Check rows step, not on the Match step, because a file in our own template skips the Match step.
+   - The result panel and Recent Imports show the emails on hold, with "Send now" behind a confirmation ("Send activation emails to 38 students?").
 
 **Tests.**
 - Defaults fill blanks and unmatched columns only.
 - A default programme outside the approved list is refused.
 - `sendInvites: false` sends no email and holds the batch.
-- Send-invitations reaches only the active, not-yet-activated students from that batch. Running it twice in a row sends nothing new. It is Office-only and throttled.
-- The batch keeps its created IDs.
+- Send-invitations reaches only the active, not-yet-activated students from that batch. A second send straight away is refused. It is Office-only and throttled.
+- A failed send is recorded on the batch, and a later successful send clears it.
+- The batch keeps its created students with their lines.
 
 **Done when** a live smoke import with "Send later" sends no email (checked in the log), and "Send now" then emails exactly the imported students.
 
