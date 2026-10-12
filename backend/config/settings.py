@@ -233,6 +233,10 @@ AUTH_CHANGE_PASSWORD_THROTTLE_RATE = os.getenv(
 REGISTRY_ACCESS_LINK_THROTTLE_RATE = os.getenv(
     "REGISTRY_ACCESS_LINK_THROTTLE_RATE", "3/hour"
 )
+# Activation emails sent later for a whole import, counted per import.
+REGISTRY_BATCH_INVITE_THROTTLE_RATE = os.getenv(
+    "REGISTRY_BATCH_INVITE_THROTTLE_RATE", "3/hour"
+)
 
 # Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {

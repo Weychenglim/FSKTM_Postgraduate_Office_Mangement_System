@@ -61,6 +61,8 @@ MAX_BLANK_RUN = 200
 HEADER_SCAN_ROWS = 15
 CSV_DELIMITERS = (",", ";", "\t")
 SAMPLE_COUNT = 3
+# Settings the office can give for every row: option name -> field it fills.
+DEFAULT_FIELDS = {"programme": "programme", "intake": "intake", "semester": "current_semester"}
 UTF8_MULTIBYTE = re.compile(rb"[\xc2-\xf4][\x80-\xbf]+")
 
 
@@ -290,7 +292,19 @@ def check_mapping(mapping, width, required):
 
 
 def required_fields(options):
-    return [key for key, _, required in FIELDS if required]
+    """Fields that need a column. A programme set for every row needs none."""
+    defaults = (options or {}).get("defaults") or {}
+    covered = {"programme"} if defaults.get("programme") else set()
+    return [key for key, _, required in FIELDS if required and key not in covered]
+
+
+def _apply_defaults(cells, defaults):
+    """Fill blank cells (or a column the file does not have) from the settings
+    for every row. A value in the file is never overwritten."""
+    for option, field in DEFAULT_FIELDS.items():
+        if defaults.get(option) and not cells[field]:
+            cells[field] = defaults[option]
+    return cells
 
 
 def read_import_file(uploaded_file, options=None):
@@ -319,13 +333,17 @@ def read_import_file(uploaded_file, options=None):
         mapping = options.get("mapping") or suggest_mapping(header)
         check_mapping(mapping, _width(header, lines[header_index + 1:]), required_fields(options))
 
+    defaults = (options or {}).get("defaults") or {}
     return [
         (
             line,
-            {
-                field: cells[mapping[field]] if mapping.get(field) is not None and mapping[field] < len(cells) else ""
-                for field in IMPORT_HEADERS
-            },
+            _apply_defaults(
+                {
+                    field: cells[mapping[field]] if mapping.get(field) is not None and mapping[field] < len(cells) else ""
+                    for field in IMPORT_HEADERS
+                },
+                defaults,
+            ),
         )
         for line, cells in _student_rows(lines, header_index)
     ]
@@ -419,13 +437,42 @@ def parse_import_options(raw):
             for value in mapping.values()
         ):
             errors["mapping"] = ["Each match must be a column number."]
+    defaults = _parse_defaults(data.get("defaults"), errors)
+    send_invites = data.get("sendInvites", True)
+    if not isinstance(send_invites, bool):
+        errors["sendInvites"] = ["Choose whether to send the activation emails now."]
     if errors:
         raise ImportOptionsError(errors)
     return {
         "sheet": sheet,
         "headerRow": header_row,
         "mapping": {key: mapping.get(key) for key in FIELD_KEYS} if mapping is not None else None,
+        "defaults": defaults,
+        "sendInvites": send_invites,
     }
+
+
+def _parse_defaults(raw, errors):
+    """Settings for every row: an approved programme, an intake and a current
+    semester, each optional and checked like single registration."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or any(key not in DEFAULT_FIELDS for key in raw):
+        errors["defaults"] = ["The settings for every row could not be read."]
+        return {}
+    values = {key: str(raw.get(key) or "").strip() for key in DEFAULT_FIELDS}
+    problems = []
+    programme = normalise_programme(values["programme"]) if values["programme"] else ""
+    if values["programme"] and not programme:
+        problems.append(f'"{values["programme"]}" is not an approved programme.')
+    if len(values["intake"]) > MAX_INTAKE_LENGTH:
+        problems.append(f"Intake is longer than {MAX_INTAKE_LENGTH} characters.")
+    if len(values["semester"]) > MAX_SEMESTER_LENGTH:
+        problems.append(f"Current semester is longer than {MAX_SEMESTER_LENGTH} characters.")
+    if problems:
+        errors["defaults"] = problems
+    values["programme"] = programme
+    return {key: value for key, value in values.items() if value}
 
 
 def _field_problem(matric, name, phone, intake="", semester=""):

@@ -467,6 +467,14 @@ class RegistryImportBatch(models.Model):
     failed_count = models.PositiveIntegerField(default=0)
     invitations_failed = models.PositiveIntegerField(default=0)
     problems = models.JSONField(default=list, blank=True)
+    # Each student this import created, as {"id": Student ID, "line": file
+    # line}, so activation emails held back at import time go to exactly
+    # these students later and a failed send can point at its line.
+    created_students = models.JSONField(default=list, blank=True)
+    invitations_held = models.BooleanField(default=False)
+    invitations_sent_at = models.DateTimeField(null=True, blank=True)
+    # The settings for every row and the email choice used for this import.
+    settings_used = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -498,6 +506,9 @@ class RegistryImportBatch(models.Model):
             "alreadyRegistered": statuses.count("Already Registered"),
             "duplicateInFile": statuses.count("Duplicate In File"),
             "invitationsFailed": self.invitations_failed,
+            "invitationsHeld": self.invitations_held,
+            "invitationsSentAt": self.invitations_sent_at.isoformat() if self.invitations_sent_at else None,
+            "settingsUsed": self.settings_used,
             "problems": self.problems,
             "createdAt": self.created_at.isoformat(),
         }

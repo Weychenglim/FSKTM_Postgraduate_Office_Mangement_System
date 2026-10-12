@@ -7,6 +7,7 @@
 import type { CsvColumn } from './csvExport';
 import { describeProgramme } from './programmeLabel';
 import type {
+  BatchInvitationResult,
   ImportColumn,
   ImportDifference,
   ImportField,
@@ -27,7 +28,12 @@ export const columnLabel = (column: Pick<ImportColumn, 'header' | 'letter'>): st
  * without a column, or one column chosen for two fields. The server checks
  * the same rules again.
  */
-export const mappingProblems = (mapping: Partial<ImportMapping>, fields: ImportField[]): string[] => {
+export const mappingProblems = (
+  mapping: Partial<ImportMapping>,
+  fields: ImportField[],
+  /** Required fields a setting for every row already fills, such as Programme. */
+  covered: string[] = [],
+): string[] => {
   const problems: string[] = [];
   const used = new Map<number, string>();
   for (const field of fields) {
@@ -38,7 +44,8 @@ export const mappingProblems = (mapping: Partial<ImportMapping>, fields: ImportF
     else used.set(index, field.label);
   }
   const missing = fields
-    .filter((field) => field.required && (mapping[field.key] === null || mapping[field.key] === undefined))
+    .filter((field) => field.required && !covered.includes(field.key))
+    .filter((field) => mapping[field.key] === null || mapping[field.key] === undefined)
     .map((field) => field.label);
   if (missing.length) problems.push(`Choose a column for: ${missing.join(', ')}.`);
   return problems;
@@ -145,11 +152,33 @@ export const rowExplanation = (row: ImportPreviewRow): string => {
 
 export const importOutcome = (row: ImportPreviewRow): string => {
   if (row.result === 'created') {
+    if (row.invitationHeld) return 'Created, activation email on hold';
     return row.invitationSent === false ? 'Created, activation email not sent' : 'Created';
   }
   if (row.status === 'Already Registered') return 'Skipped: already registered';
   if (row.status === 'Duplicate In File') return 'Skipped: repeated in this file';
   return 'Not imported';
+};
+
+/**
+ * The import report once held activation emails go out: each held row shows
+ * whether its email was sent. Students who activated or were suspended in the
+ * meantime were not emailed, so they read simply as created.
+ */
+export const rowsAfterHeldSend = (
+  rows: ImportPreviewRow[],
+  students: BatchInvitationResult['students'],
+): ImportPreviewRow[] => {
+  const outcomes = new Map(students.map((student) => [student.line, student.outcome]));
+  return rows.map((row) => {
+    if (!row.invitationHeld) return row;
+    const outcome = outcomes.get(row.line);
+    return {
+      ...row,
+      invitationHeld: false,
+      invitationSent: outcome === 'sent' || outcome === 'failed' ? outcome === 'sent' : undefined,
+    };
+  });
 };
 
 /** Columns of the report the office downloads after an import: every row and what happened to it. */
@@ -176,7 +205,7 @@ export const BATCH_PROBLEM_COLUMNS: CsvColumn<RegistryImportProblem>[] = [
   { header: 'In the registry as', value: (problem) => problem.existingName ?? '' },
 ];
 
-/** "3 created · 4 already registered · 1 not imported" for a past batch. */
+/** "3 created · 4 already registered · 1 not imported · 2 emails not sent" for a past batch. */
 export const batchSummary = (batch: RegistryImportBatch): string => {
   const parts = [`${batch.created} created`];
   const repeated = batch.duplicateInFile ?? 0;
@@ -184,5 +213,6 @@ export const batchSummary = (batch: RegistryImportBatch): string => {
   if (registered) parts.push(`${registered} already registered`);
   if (repeated) parts.push(`${repeated} repeated`);
   if (batch.failed) parts.push(`${batch.failed} not imported`);
+  if (batch.invitationsFailed) parts.push(`${plural(batch.invitationsFailed, 'email')} not sent`);
   return parts.join(' · ');
 };

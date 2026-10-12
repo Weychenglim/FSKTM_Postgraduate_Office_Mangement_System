@@ -9,6 +9,7 @@
 // writes always go to the backend (they require an Office Staff/Admin session).
 
 import {
+  BatchInvitationResult,
   ImportCommitResponse,
   ImportInspectResponse,
   ImportOptions,
@@ -166,6 +167,11 @@ export async function commitStudentImport(
     '/registry/students/import/',
     importForm(file, false, options),
   );
+}
+
+/** Email the activation links an import held back (only students still waiting). */
+export async function sendBatchInvitations(batchId: number): Promise<BatchInvitationResult> {
+  return request<BatchInvitationResult>(`/registry/imports/${batchId}/send-invitations/`, { method: 'POST' });
 }
 
 export async function getRecentImports(limit = 5): Promise<RegistryImportBatch[]> {

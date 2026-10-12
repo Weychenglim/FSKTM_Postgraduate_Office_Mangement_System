@@ -67,6 +67,8 @@ export interface ImportPreviewRow {
   issue: string;
   result?: 'created' | 'skipped' | 'failed';
   invitationSent?: boolean;
+  /** Created with its activation email held back, to send later. */
+  invitationHeld?: boolean;
   existing?: ImportExistingRecord;
   matchedBy?: 'studentId' | 'email';
   differences?: ImportDifference[];
@@ -97,8 +99,25 @@ export interface RegistryImportBatch {
   alreadyRegistered?: number;
   duplicateInFile?: number;
   invitationsFailed: number;
+  invitationsHeld?: boolean;
+  invitationsSentAt?: string | null;
+  settingsUsed?: { defaults?: ImportDefaults; sendInvites?: boolean };
   problems: RegistryImportProblem[];
   createdAt: string;
+}
+
+export type BatchInvitationOutcome = 'sent' | 'failed' | 'alreadyActivated' | 'suspended';
+
+/** What sending a held import's activation emails did. */
+export interface BatchInvitationResult {
+  sent: number;
+  failed: number;
+  alreadyActivated: number;
+  suspended: number;
+  notFound: number;
+  /** Each student of the import, by the line of the file they came from. */
+  students: { id: string; line: number; outcome: BatchInvitationOutcome }[];
+  batch: RegistryImportBatch;
 }
 
 export interface ImportPreviewResponse {
@@ -148,11 +167,21 @@ export interface ImportInspectResponse {
   layoutRecognised: boolean;
 }
 
+/** Values for every row; they fill blank cells and never overwrite the file. */
+export interface ImportDefaults {
+  programme?: string;
+  intake?: string;
+  semester?: string;
+}
+
 /** Sent with inspect, preview and import; leaving a key out lets the server decide. */
 export interface ImportOptions {
   sheet?: string | null;
   headerRow?: number | null;
   mapping?: ImportMapping | null;
+  defaults?: ImportDefaults;
+  /** False holds the activation emails, to send later from Recent Imports. */
+  sendInvites?: boolean;
 }
 
 export interface ImportCommitResponse {

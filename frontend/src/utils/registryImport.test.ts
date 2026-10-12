@@ -16,6 +16,7 @@ import {
   registryMatchText,
   repeatedText,
   rowExplanation,
+  rowsAfterHeldSend,
   skipNotice,
   summariseImportRows,
 } from './registryImport';
@@ -103,6 +104,10 @@ assert.equal(importOutcome({ ...row({}), result: 'created', invitationSent: fals
 assert.equal(importOutcome({ ...registered, result: 'skipped' }), 'Skipped: already registered');
 assert.equal(importOutcome({ ...repeated, result: 'skipped' }), 'Skipped: repeated in this file');
 assert.equal(importOutcome({ ...badProgramme, result: 'failed' }), 'Not imported');
+assert.equal(
+  importOutcome({ ...row({}), result: 'created', invitationSent: false, invitationHeld: true }),
+  'Created, activation email on hold',
+);
 const report = buildCsv([{ ...registered, result: 'skipped' as const }], IMPORT_REPORT_COLUMNS).split('\r\n');
 assert.equal(report[0], 'Line,Student ID,Full name,Email,Programme,Outcome,Details');
 assert.ok(report[1].includes('Skipped: already registered'));
@@ -130,10 +135,42 @@ assert.equal(
   '3 created · 2 already registered',
 );
 assert.equal(
+  batchSummary({ ...batch, invitationsFailed: 2 }),
+  '3 created · 4 already registered · 1 repeated · 1 not imported · 2 emails not sent',
+);
+assert.equal(batchSummary({ ...batch, alreadyRegistered: 0, duplicateInFile: 0, failed: 0, invitationsFailed: 1 }), '3 created · 1 email not sent');
+assert.equal(
   buildCsv(batch.problems, BATCH_PROBLEM_COLUMNS).split('\r\n')[0],
   'Line,Student ID,Full name,Result,Reason,In the registry as',
 );
 assert.equal(buildCsv([{ line: 3, id: 'X', result: 'skipped', issue: 'y' }], BATCH_PROBLEM_COLUMNS).split('\r\n')[1], '3,X,,skipped,y,');
+
+// activation emails held at import time and sent later
+const held = (line: number): ImportPreviewRow => ({
+  ...row({ line }),
+  result: 'created',
+  invitationSent: false,
+  invitationHeld: true,
+});
+const skippedRow: ImportPreviewRow = { ...registered, result: 'skipped' };
+const afterSend = rowsAfterHeldSend(
+  [held(2), held(3), held(4), held(5), skippedRow],
+  [
+    { id: 'WGA260002', line: 2, outcome: 'sent' },
+    { id: 'WGA260003', line: 3, outcome: 'failed' },
+    { id: 'WGA260004', line: 4, outcome: 'alreadyActivated' },
+    { id: 'WGA260005', line: 5, outcome: 'suspended' },
+  ],
+);
+assert.deepEqual(afterSend.map(importOutcome), [
+  'Created',
+  'Created, activation email not sent',
+  'Created',
+  'Created',
+  'Skipped: already registered',
+]);
+assert.ok(afterSend.every((r) => !r.invitationHeld));
+assert.equal(afterSend[4], skippedRow, 'rows that were not held are left as they are');
 
 // matching the file's own columns
 const fields: ImportField[] = [
@@ -157,6 +194,10 @@ const mapping: ImportMapping = {
 assert.deepEqual(mappingProblems(mapping, fields), []);
 assert.deepEqual(mappingProblems({ ...mapping, email: null, programme: null }, fields), [
   'Choose a column for: Programme, Email.',
+]);
+assert.deepEqual(mappingProblems({ ...mapping, programme: null }, fields, ['programme']), []);
+assert.deepEqual(mappingProblems({ ...mapping, programme: null, email: null }, fields, ['programme']), [
+  'Choose a column for: Email.',
 ]);
 assert.deepEqual(mappingProblems({ ...mapping, phone: 2 }, fields), [
   'One column is chosen for both Full name and Phone.',
@@ -185,6 +226,10 @@ assert.match(registry, /Change column matches/);
 assert.match(registry, /<RegistryImportResult\b/, 'the import result must be shown, not only a toast');
 assert.match(registry, /setImportFilter\('skipped'\)/, 'the skip notice must open the skipped rows');
 assert.match(registry, /bulk: 'Bulk Import \(Excel or CSV\)'/);
+assert.match(registry, /sendInvites: sendInvitesNow/, 'the office chooses to send activation emails now or later');
+assert.match(registry, /sendBatchInvitations\(heldBatchToSend\.id\)/, 'held emails are sent from the screen');
+assert.match(registry, /rowsAfterHeldSend\(current\.rows, result\.students\)/, 'the report shows each held email');
+assert.match(registry, /\{batch\.invitationsHeld && \(/, 'Recent Imports marks an import whose emails are on hold');
 assert.doesNotMatch(registry, /Bulk Import via CSV/);
 
 console.log('Registry import listing tests passed.');

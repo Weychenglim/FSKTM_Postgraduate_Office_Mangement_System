@@ -111,6 +111,20 @@ class AccessLinkRateThrottle(SettingsRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": matric_no}
 
 
+class BatchInvitationRateThrottle(SettingsRateThrottle):
+    """Activation emails for a whole import, counted per import. Only office
+    requests count, as for single access links."""
+
+    scope = "registry_batch_invitations"
+    setting_name = "REGISTRY_BATCH_INVITE_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        office_role = get_user_model().Role.OFFICE_ADMIN
+        if getattr(request.user, "role", None) != office_role:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": view.kwargs.get("batch_id")}
+
+
 class SettingsPasswordRateThrottle(SimpleRateThrottle):
     scope = "auth_settings_password"
     rate = "5/hour"

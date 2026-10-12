@@ -50,6 +50,7 @@ import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
   ImportCommitResponse,
+  ImportDefaults,
   ImportInspectResponse,
   ImportMapping,
   ImportOptions,
@@ -70,6 +71,7 @@ import {
   inspectStudentImport,
   previewStudentImport,
   sendAccessLink,
+  sendBatchInvitations,
   updateStudent,
 } from '../services';
 import {
@@ -94,6 +96,7 @@ import {
   differenceWarning,
   filterImportRows,
   rowExplanation,
+  rowsAfterHeldSend,
   skipNotice,
   summariseImportRows,
 } from '../utils/registryImport';
@@ -317,6 +320,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [importSheet, setImportSheet] = useState<string | null>(null);
   const [importHeaderRow, setImportHeaderRow] = useState<number | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
+  // Programme, intake and semester for every row, and whether activation
+  // emails go out now or are held to send later.
+  const [importDefaults, setImportDefaults] = useState<ImportDefaults>({});
+  const [sendInvitesNow, setSendInvitesNow] = useState(true);
+  const [heldBatchToSend, setHeldBatchToSend] = useState<RegistryImportBatch | null>(null);
+  const [sendingHeld, setSendingHeld] = useState(false);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -613,6 +622,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setImportSheet(null);
     setImportHeaderRow(null);
     setMatchError(null);
+    setImportDefaults({});
+    setSendInvitesNow(true);
   };
 
   // The confirmed reading of the uploaded file: which sheet, which row has the
@@ -621,11 +632,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     sheet: importSheet,
     headerRow: importHeaderRow,
     mapping: importMapping,
+    defaults: importDefaults,
+    sendInvites: sendInvitesNow,
   });
 
   // Edited rows are sent back in our own layout, so the server finds the
   // columns by name.
-  const reviewedOptions = (): ImportOptions => ({});
+  const reviewedOptions = (): ImportOptions => ({ defaults: importDefaults, sendInvites: sendInvitesNow });
 
   const applyLayout = (layout: ImportInspectResponse) => {
     setImportLayout(layout);
@@ -795,6 +808,35 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // Activation emails an import held back go only to students from that
+  // import who are still active and have not set a password.
+  const handleSendHeld = async () => {
+    if (!heldBatchToSend) return;
+    setSendingHeld(true);
+    try {
+      const result = await sendBatchInvitations(heldBatchToSend.id);
+      const notes = [
+        result.failed ? `${result.failed} could not be sent.` : '',
+        result.alreadyActivated ? `${result.alreadyActivated} had already set a password.` : '',
+        result.suspended ? `${result.suspended} have sign-in suspended.` : '',
+      ].filter(Boolean);
+      triggerToast(
+        [`Sent ${result.sent} activation email${result.sent === 1 ? '' : 's'}.`, ...notes].join(' '),
+      );
+      setImportResult((current) =>
+        current && current.batch.id === result.batch.id
+          ? { batch: result.batch, rows: rowsAfterHeldSend(current.rows, result.students) }
+          : current,
+      );
+      loadRecentImports(showAllImports ? 50 : 5);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The activation emails could not be sent.');
+    } finally {
+      setSendingHeld(false);
+      setHeldBatchToSend(null);
+    }
+  };
+
   const downloadImportProblems = (batch: RegistryImportBatch) => {
     downloadCsv(
       reviewedFileName(batch.fileName).replace('-reviewed.csv', '-skipped-and-not-imported.csv'),
@@ -864,11 +906,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const readyCsvCount = importSummary.ready;
   const visibleImportRows = filterImportRows(csvPreviewRecords, importFilter);
   const skipText = skipNotice(importSummary);
+  const heldCount = heldBatchToSend?.created ?? 0;
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
       <PortalToast message={toastMessage} />
+
+      <PortalConfirmModal
+        isOpen={heldBatchToSend !== null}
+        title={`Send activation emails to ${heldCount} student${heldCount === 1 ? '' : 's'}?`}
+        message={`Only students from ${heldBatchToSend?.fileName ?? 'this import'} who have not set a password yet are emailed.`}
+        confirmLabel="Send Emails"
+        tone="info"
+        icon={Mail}
+        isLoading={sendingHeld}
+        onConfirm={() => void handleSendHeld()}
+        onCancel={() => setHeldBatchToSend(null)}
+      />
 
       {registryModuleTab === 'students' ? (
         <>
@@ -1239,6 +1294,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       result={importResult}
                       onDownloadReport={downloadImportReport}
                       onClose={() => setImportResult(null)}
+                      onSendHeld={() => setHeldBatchToSend(importResult.batch)}
+                      sendingHeld={sendingHeld}
                     />
                   )}
 
@@ -1709,6 +1766,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           {batch.uploadedBy && (
                             <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
                           )}
+                          {batch.invitationsHeld && (
+                            <span className="mt-1 inline-flex items-center gap-1.5">
+                              <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                Emails on hold
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setHeldBatchToSend(batch)}
+                                className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
+                              >
+                                Send now
+                              </button>
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -1741,6 +1812,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     error={matchError}
                     busy={isProcessingCsv}
                     onMappingChange={setImportMapping}
+                    defaults={importDefaults}
+                    semesterSuggestions={semesterOptions}
+                    onDefaultsChange={setImportDefaults}
                     onSheetChange={(sheet) => void reinspectImport({ sheet })}
                     onHeaderRowChange={(row) => void reinspectImport({ sheet: importSheet, headerRow: row })}
                     onContinue={() => void continueFromMatch()}
@@ -2024,14 +2098,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
 
                       {/* BOTTON FORM ACTION CONTROLS */}
-                      <div className="flex items-center justify-between mt-6 select-none">
+                      <div className="flex flex-col-reverse gap-4 mt-6 select-none md:flex-row md:items-center md:justify-between">
 
-                        <PortalButton variant="secondary" size="md" onClick={() => setCurrentView('list')}>
+                        <PortalButton variant="secondary" size="md" onClick={() => setCurrentView('list')} className="self-start md:self-auto">
                           Cancel
                         </PortalButton>
 
                         {/* Primary actions on right */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center justify-end gap-3">
 
                           {/* Rows with problems are corrected individually via the
                               Edit action on each row. Auto-filling an email or a
@@ -2059,6 +2133,21 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                               )}
                             </div>
                           )}
+
+                          <div role="group" aria-labelledby="registry-import-email-choice" className="flex flex-col items-end gap-1">
+                            <span id="registry-import-email-choice" className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
+                              Activation emails
+                            </span>
+                            <SegmentedControl<'now' | 'later'>
+                              options={['now', 'later'] as const}
+                              value={sendInvitesNow ? 'now' : 'later'}
+                              onChange={(choice) => setSendInvitesNow(choice === 'now')}
+                              labels={{ now: 'Send now', later: 'Send later' }}
+                            />
+                            {!sendInvitesNow && (
+                              <span className="text-[10px] font-semibold text-slate-500">Send them from Recent Imports when ready.</span>
+                            )}
+                          </div>
 
                           <PortalButton
                             variant="primary"

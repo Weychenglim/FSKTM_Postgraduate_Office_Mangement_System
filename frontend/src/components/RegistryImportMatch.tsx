@@ -4,11 +4,13 @@
  */
 
 import React from 'react';
-import { AlertTriangle, ArrowRight, Check, Columns3, Info } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, Columns3, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { PROGRAMME_OPTIONS } from '../constants/programmes';
+import { describeProgramme } from '../utils/programmeLabel';
 import { columnLabel, mappingProblems, unusedColumns } from '../utils/registryImport';
-import type { ImportFieldKey, ImportInspectResponse, ImportMapping } from '../types';
+import type { ImportDefaults, ImportFieldKey, ImportInspectResponse, ImportMapping } from '../types';
 
 export const IMPORT_STEPS = ['Upload', 'Match columns', 'Check rows', 'Import'] as const;
 
@@ -41,13 +43,25 @@ export const ImportSteps: React.FC<{ current: number }> = ({ current }) => (
 );
 
 const NOT_IN_FILE = '';
+const FROM_FILE = '';
+
+// Settings for every row fill these fields when a cell is blank.
+const DEFAULTED_FIELD: Partial<Record<ImportFieldKey, keyof ImportDefaults>> = {
+  programme: 'programme',
+  intake: 'intake',
+  current_semester: 'semester',
+};
 
 interface RegistryImportMatchProps {
   layout: ImportInspectResponse;
   mapping: ImportMapping;
+  defaults: ImportDefaults;
+  /** Semesters already in the registry, offered while typing. */
+  semesterSuggestions: string[];
   error?: string | null;
   busy: boolean;
   onMappingChange: (mapping: ImportMapping) => void;
+  onDefaultsChange: (defaults: ImportDefaults) => void;
   onSheetChange: (sheet: string) => void;
   onHeaderRowChange: (row: number) => void;
   onContinue: () => void;
@@ -62,15 +76,18 @@ interface RegistryImportMatchProps {
 export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   layout,
   mapping,
+  defaults,
+  semesterSuggestions,
   error,
   busy,
   onMappingChange,
+  onDefaultsChange,
   onSheetChange,
   onHeaderRowChange,
   onContinue,
   onCancel,
 }) => {
-  const problems = mappingProblems(mapping, layout.fields);
+  const problems = mappingProblems(mapping, layout.fields, defaults.programme ? ['programme'] : []);
   const unused = unusedColumns(layout.columns, mapping);
   const columnOptions: SelectMenuOption[] = [
     { value: NOT_IN_FILE, label: 'Not in this file' },
@@ -82,6 +99,21 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   ];
   const setField = (key: ImportFieldKey, value: string) =>
     onMappingChange({ ...mapping, [key]: value === NOT_IN_FILE ? null : Number(value) });
+  const setDefault = (key: keyof ImportDefaults, value: string) => onDefaultsChange({ ...defaults, [key]: value });
+  const everyRow = (key: ImportFieldKey): string => {
+    const option = DEFAULTED_FIELD[key];
+    const value = option ? (defaults[option] ?? '').trim() : '';
+    if (!value) return '';
+    return key === 'programme' ? describeProgramme(value).field : value;
+  };
+  const programmeOptions: SelectMenuOption[] = [
+    { value: FROM_FILE, label: "Use the file's programme column" },
+    ...PROGRAMME_OPTIONS.map((programme) => ({
+      value: programme,
+      label: describeProgramme(programme).field,
+      description: describeProgramme(programme).detail,
+    })),
+  ];
 
   return (
     <section
@@ -169,18 +201,82 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
                 onChange={(value) => setField(field.key, value)}
                 disabled={busy}
               />
-              <p className="text-[11px] font-semibold text-slate-500 truncate" title={column?.samples.join(', ')}>
-                {column
-                  ? column.samples.length
-                    ? column.samples.join(' · ')
-                    : 'This column is empty.'
-                  : field.required
-                    ? 'Choose the column that holds this.'
-                    : 'Left blank for every student.'}
-              </p>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-500 truncate" title={column?.samples.join(', ')}>
+                  {column
+                    ? column.samples.length
+                      ? column.samples.join(' · ')
+                      : 'This column is empty.'
+                    : everyRow(field.key)
+                      ? `Every row: ${everyRow(field.key)}`
+                      : field.required
+                        ? DEFAULTED_FIELD[field.key]
+                          ? 'Choose its column, or set it for every row below.'
+                          : 'Choose the column that holds this.'
+                        : 'Left blank for every student.'}
+                </p>
+                {column && everyRow(field.key) && (
+                  <p className="text-[10.5px] font-bold text-indigo-600 truncate">Blank cells: {everyRow(field.key)}</p>
+                )}
+              </div>
             </div>
           );
         })}
+      </div>
+
+      <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <Rows3 className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+          <div>
+            <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-500">For Every Row</h4>
+            <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+              Fills cells that are blank in your file, or a column it does not have. Values already in the file are kept.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <p className="form-label">Programme</p>
+            <SelectMenu
+              size="sm"
+              aria-label="Programme for every row"
+              value={defaults.programme ?? FROM_FILE}
+              options={programmeOptions}
+              onChange={(value) => setDefault('programme', value)}
+              disabled={busy}
+            />
+          </div>
+          <label className="flex flex-col">
+            <span className="form-label">Intake</span>
+            <input
+              type="text"
+              value={defaults.intake ?? ''}
+              onChange={(event) => setDefault('intake', event.target.value)}
+              maxLength={32}
+              placeholder="e.g. 2026/2027 Semester I"
+              disabled={busy}
+              className="form-control form-control-sm"
+            />
+          </label>
+          <label className="flex flex-col">
+            <span className="form-label">Current semester</span>
+            <input
+              type="text"
+              list="registry-import-semester-options"
+              value={defaults.semester ?? ''}
+              onChange={(event) => setDefault('semester', event.target.value)}
+              maxLength={64}
+              placeholder="e.g. Semester I, 2026/2027 Session"
+              disabled={busy}
+              className="form-control form-control-sm"
+            />
+            <datalist id="registry-import-semester-options">
+              {semesterSuggestions.map((semester) => (
+                <option key={semester} value={semester} />
+              ))}
+            </datalist>
+          </label>
+        </div>
       </div>
 
       {unused.length > 0 && (

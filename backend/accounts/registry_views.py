@@ -8,6 +8,8 @@ The supervisor shown on a record is read, never written, from the student's
 active primary ``SupervisorAppointment`` in the ``appointments`` app.
 """
 import logging
+from collections import Counter
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -15,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import get_connection, send_mail
 from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Prefetch, Q
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
@@ -41,7 +44,7 @@ from .registry_import import (
     validate_import_rows,
 )
 from .session_tokens import blacklist_user_refresh_tokens
-from .throttles import AccessLinkRateThrottle
+from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
 from .tokens import activation_link
 from .validators import matric_problem, validate_phone
 from .views import send_password_reset_email
@@ -406,6 +409,31 @@ def _import_row(row):
     return {**row, "result": "created", "invitationSent": False}, student
 
 
+def _send_activation_emails(users):
+    """Email each user their activation link over one mail connection.
+    Returns ``{user pk: sent}``."""
+    if not users:
+        return {}
+    connection = get_connection()
+    try:
+        connection.open()
+    except Exception:
+        logger.exception("Could not open the mail connection for activation emails.")
+    sent = {}
+    try:
+        for user in users:
+            sent[user.pk] = send_activation_email(user, connection=connection)
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
+    return sent
+
+
+EMAIL_NOT_SENT = "activation email could not be sent"
+
+
 def _batch_entry(row, issue=None):
     """One row of an import batch's record: every row that was not simply
     created, plus created rows whose activation email failed."""
@@ -450,6 +478,7 @@ def student_import_view(request):
     except ImportFileError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+    send_invites = options["sendInvites"] if options else True
     if str(request.data.get("dryRun", "")).lower() in {"1", "true", "yes"}:
         return Response({"fileName": uploaded.name, "rows": rows})
 
@@ -478,28 +507,29 @@ def student_import_view(request):
         skipped_count=sum(1 for r in results if r["result"] == "skipped"),
         failed_count=sum(1 for r in results if r["result"] == "failed"),
         problems=problems,
+        created_students=[{"id": student.matric_no, "line": result["line"]} for result, student in new_students],
+        invitations_held=not send_invites and bool(new_students),
+        settings_used={"defaults": (options or {}).get("defaults") or {}, "sendInvites": send_invites},
     )
 
-    # One mail connection for the whole batch instead of one per student.
-    connection = get_connection()
-    try:
-        connection.open()
-    except Exception:
-        logger.exception("Could not open the mail connection for import %s.", batch.pk)
-    try:
-        for result, student in new_students:
-            result["invitationSent"] = send_activation_email(student.user, connection=connection)
-    finally:
-        try:
-            connection.close()
-        except Exception:
-            pass
+    if not send_invites:
+        # The office sends them later from Recent Imports.
+        for result, _ in new_students:
+            result["invitationHeld"] = True
+        return Response(
+            {"batch": batch.to_public_dict(), "rows": results},
+            status=status.HTTP_201_CREATED,
+        )
+
+    sent = _send_activation_emails([student.user for _, student in new_students])
+    for result, student in new_students:
+        result["invitationSent"] = sent[student.user.pk]
 
     unsent = [r for r, _ in new_students if not r["invitationSent"]]
     if unsent:
         batch.invitations_failed = len(unsent)
         batch.problems = problems + [
-            _batch_entry(r, issue="activation email could not be sent") for r in unsent
+            _batch_entry(r, issue=EMAIL_NOT_SENT) for r in unsent
         ]
         batch.save(update_fields=["invitations_failed", "problems"])
     return Response(
@@ -527,6 +557,97 @@ def student_import_inspect_view(request):
         return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
     except ImportFileError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _invitation_outcome(user, sent):
+    """What a held activation email did for one student of the import."""
+    if not user.is_active:
+        return "suspended"
+    if user.has_usable_password():
+        return "alreadyActivated"
+    return "sent" if sent[user.pk] else "failed"
+
+
+# A second send of the same import within this time is refused, so a double
+# click or two office staff cannot email every student twice.
+INVITATION_REPEAT_WAIT = timedelta(minutes=2)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([BatchInvitationRateThrottle])
+def import_batch_invitations_view(request, batch_id):
+    """Send the activation emails an import held back, or send them again.
+
+    Only students from that import who are still active and have not set a
+    password are emailed, so it never reaches anyone who has activated.
+    Each student's outcome comes back with its file line, and emails that
+    could not be sent are recorded on the import, as when an import sends
+    them straight away.
+    """
+    _require_office_admin(request)
+    with transaction.atomic():
+        batch = RegistryImportBatch.objects.select_for_update().filter(pk=batch_id).first()
+        if batch is None:
+            return Response({"error": "No such import."}, status=status.HTTP_404_NOT_FOUND)
+        if batch.invitations_sent_at and timezone.now() - batch.invitations_sent_at < INVITATION_REPEAT_WAIT:
+            return Response(
+                {"error": "Activation emails for this import were sent a moment ago. Wait a few minutes before sending them again."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        lines = {entry["id"]: entry["line"] for entry in batch.created_students}
+        students = sorted(
+            Student.objects.select_related("user").filter(matric_no__in=list(lines)),
+            key=lambda student: lines[student.matric_no],
+        )
+        waiting = [
+            student.user
+            for student in students
+            if student.user.is_active and not student.user.has_usable_password()
+        ]
+        sent = _send_activation_emails(waiting)
+        outcomes = [
+            {
+                "id": student.matric_no,
+                "line": lines[student.matric_no],
+                "name": student.user.full_name,
+                "outcome": _invitation_outcome(student.user, sent),
+            }
+            for student in students
+        ]
+        # A student emailed now, or who has activated since, replaces any
+        # earlier failure; suspended students keep theirs.
+        settled = {entry["id"] for entry in outcomes if entry["outcome"] != "suspended"}
+        batch.problems = [
+            problem
+            for problem in batch.problems
+            if not (problem.get("issue") == EMAIL_NOT_SENT and problem.get("id") in settled)
+        ] + [
+            _batch_entry({**entry, "status": "Ready", "result": "created"}, issue=EMAIL_NOT_SENT)
+            for entry in outcomes
+            if entry["outcome"] == "failed"
+        ]
+        batch.invitations_held = False
+        batch.invitations_sent_at = timezone.now()
+        batch.invitations_failed = sum(1 for problem in batch.problems if problem.get("issue") == EMAIL_NOT_SENT)
+        batch.save(
+            update_fields=["invitations_held", "invitations_sent_at", "invitations_failed", "problems"]
+        )
+    counts = Counter(entry["outcome"] for entry in outcomes)
+    return Response(
+        {
+            "sent": counts["sent"],
+            "failed": counts["failed"],
+            "alreadyActivated": counts["alreadyActivated"],
+            "suspended": counts["suspended"],
+            "notFound": len(lines) - len(students),
+            "students": [
+                {"id": entry["id"], "line": entry["line"], "outcome": entry["outcome"]}
+                for entry in outcomes
+            ],
+            "batch": batch.to_public_dict(),
+        }
+    )
 
 
 @api_view(["GET"])

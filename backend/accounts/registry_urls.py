@@ -26,4 +26,9 @@ urlpatterns = [
         name="registry-student-access-link",
     ),
     path("imports/", registry_views.import_batches_view, name="registry-imports"),
+    path(
+        "imports/<int:batch_id>/send-invitations/",
+        registry_views.import_batch_invitations_view,
+        name="registry-import-invitations",
+    ),
 ]

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { AlertTriangle, CheckCircle, Download, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Download, MailWarning, Send, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { differenceWarning, rowExplanation } from '../utils/registryImport';
@@ -14,6 +14,9 @@ interface RegistryImportResultProps {
   result: ImportCommitResponse;
   onDownloadReport: () => void;
   onClose: () => void;
+  /** Sends the activation emails this import held back. */
+  onSendHeld?: () => void;
+  sendingHeld?: boolean;
 }
 
 const ResultList: React.FC<{ title: string; note?: string; rows: ImportPreviewRow[] }> = ({ title, note, rows }) => (
@@ -48,12 +51,21 @@ const ResultList: React.FC<{ title: string; note?: string; rows: ImportPreviewRo
 );
 
 /** What an import did, row by row, so nothing is skipped without the office seeing it. */
-export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({ result, onDownloadReport, onClose }) => {
+export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
+  result,
+  onDownloadReport,
+  onClose,
+  onSendHeld,
+  sendingHeld = false,
+}) => {
   const { batch, rows } = result;
   const registered = rows.filter((row) => row.result === 'skipped' && row.status === 'Already Registered');
   const repeated = rows.filter((row) => row.result === 'skipped' && row.status === 'Duplicate In File');
   const notImported = rows.filter((row) => row.result === 'failed');
-  const emailNotSent = rows.filter((row) => row.result === 'created' && row.invitationSent === false);
+  const emailNotSent = rows.filter(
+    (row) => row.result === 'created' && row.invitationSent === false && !row.invitationHeld,
+  );
+  const held = batch.invitationsHeld ? rows.filter((row) => row.result === 'created' && row.invitationHeld) : [];
   const counts = [
     { label: 'Created', value: batch.created, tone: 'text-emerald-700' },
     { label: 'Already registered', value: registered.length, tone: 'text-sky-700' },
@@ -90,6 +102,22 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({ resu
         ))}
       </dl>
 
+      {held.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-[11.5px] font-bold text-amber-800">
+            <MailWarning className="w-4 h-4 mt-px shrink-0" />
+            <span>
+              Activation emails are on hold for {held.length} student{held.length === 1 ? '' : 's'}. Send them when you are
+              ready, here or from Recent Imports.
+            </span>
+          </p>
+          {onSendHeld && (
+            <PortalButton variant="primary" size="sm" icon={Send} onClick={onSendHeld} isLoading={sendingHeld} className="shrink-0">
+              Send Activation Emails Now
+            </PortalButton>
+          )}
+        </div>
+      )}
       {registered.length > 0 && (
         <ResultList
           title="Already registered, so skipped"
