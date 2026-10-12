@@ -10,6 +10,9 @@ interface ToggleSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  /** Ids of text already on screen that names and describes the switch; no label is repeated beside it. */
+  labelledBy?: string;
+  describedBy?: string;
   className?: string;
 }
 
@@ -18,6 +21,8 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   checked,
   onChange,
   label,
+  labelledBy,
+  describedBy,
   className = ''
 }) => {
   return (
@@ -27,19 +32,21 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
         type="button"
         role="switch"
         aria-checked={checked}
-        aria-label={label}
+        aria-label={labelledBy ? undefined : label}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         onClick={() => onChange(!checked)}
-        className={`w-10 h-5.5 shrink-0 rounded-full transition-colors relative duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-navy/20 ${
+        className={`w-9 h-5 shrink-0 rounded-full transition-colors relative duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-navy/20 ${
           checked ? 'bg-brand-navy' : 'bg-slate-200'
         }`}
       >
         <span
-          className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform duration-200 shadow-xs ${
-            checked ? 'translate-x-5' : 'translate-x-0.5'
+          className={`w-4 h-4 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform duration-200 shadow-sm ${
+            checked ? 'translate-x-4' : 'translate-x-0'
           }`}
         />
       </button>
-      {label && (
+      {label && !labelledBy && (
         <span id={`toggle-label-${id}`} className="text-xs font-bold text-slate-700">
           {label}
         </span>
