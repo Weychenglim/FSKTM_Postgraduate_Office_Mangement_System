@@ -61,6 +61,8 @@ export interface ImportPreviewRow {
   programme: string;
   email: string;
   phone: string;
+  intake?: string;
+  semester?: string;
   status: ImportRowStatus;
   issue: string;
   result?: 'created' | 'skipped' | 'failed';

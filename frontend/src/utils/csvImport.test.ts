@@ -19,12 +19,20 @@ assert.ok(CSV_TEMPLATE.includes(PROGRAMME_OPTIONS[0]));
 assert.equal(
   rowsToCsv([
     { id: 'WGA1', name: 'Tan, Mei Ling', programme: PROGRAMME_OPTIONS[1], email: 'mei@um.edu.my', phone: '' },
-    { id: 'WGA2', name: 'Said "Sam" Ali', programme: PROGRAMME_OPTIONS[2], email: 'sam@um.edu.my', phone: '012-1' },
+    {
+      id: 'WGA2',
+      name: 'Said "Sam" Ali',
+      programme: PROGRAMME_OPTIONS[2],
+      email: 'sam@um.edu.my',
+      phone: '012-1',
+      intake: '2026/2027 Semester I',
+      semester: 'Semester I, 2026/2027',
+    },
   ]),
   [
-    'student_id,full_name,programme,email,phone',
-    `WGA1,"Tan, Mei Ling",${PROGRAMME_OPTIONS[1]},mei@um.edu.my,`,
-    `WGA2,"Said ""Sam"" Ali",${PROGRAMME_OPTIONS[2]},sam@um.edu.my,012-1`,
+    'student_id,full_name,programme,email,phone,intake,current_semester',
+    `WGA1,"Tan, Mei Ling",${PROGRAMME_OPTIONS[1]},mei@um.edu.my,,,`,
+    `WGA2,"Said ""Sam"" Ali",${PROGRAMME_OPTIONS[2]},sam@um.edu.my,012-1,2026/2027 Semester I,"Semester I, 2026/2027"`,
   ].join('\n'),
 );
 

@@ -21,22 +21,28 @@ export const CSV_HEADERS = [
   'programme',
   'email',
   'phone',
+  'intake',
+  'current_semester',
 ] as const;
 
 export const CSV_TEMPLATE = [
   CSV_HEADERS.join(','),
-  `WGA260001,Nurul Huda binti Kamal,${PROGRAMME_OPTIONS[0]},wga260001@siswa.um.edu.my,012-3456789`,
-  `WGA260002,Lim Wei Jie,${PROGRAMME_OPTIONS[1]},wga260002@siswa.um.edu.my,013-2223344`,
+  `WGA260001,Nurul Huda binti Kamal,${PROGRAMME_OPTIONS[0]},wga260001@siswa.um.edu.my,012-3456789,2026/2027 Semester I,Semester I 2026/2027`,
+  `WGA260002,Lim Wei Jie,${PROGRAMME_OPTIONS[1]},wga260002@siswa.um.edu.my,013-2223344,2026/2027 Semester I,Semester I 2026/2027`,
   '',
 ].join('\n');
 
 const quote = (value: string) =>
   /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 
-export function rowsToCsv(rows: Pick<ImportPreviewRow, 'id' | 'name' | 'programme' | 'email' | 'phone'>[]): string {
+type CsvRow = Pick<ImportPreviewRow, 'id' | 'name' | 'programme' | 'email' | 'phone' | 'intake' | 'semester'>;
+
+export function rowsToCsv(rows: CsvRow[]): string {
   return [
     CSV_HEADERS.join(','),
-    ...rows.map((r) => [r.id, r.name, r.programme, r.email, r.phone].map(quote).join(',')),
+    ...rows.map((r) =>
+      [r.id, r.name, r.programme, r.email, r.phone, r.intake ?? '', r.semester ?? ''].map(quote).join(','),
+    ),
   ].join('\n');
 }
 

@@ -11,6 +11,11 @@ urlpatterns = [
         name="registry-student-import",
     ),
     path(
+        "students/import/inspect/",
+        registry_views.student_import_inspect_view,
+        name="registry-student-import-inspect",
+    ),
+    path(
         "students/<str:matric_no>/",
         registry_views.student_record_detail_view,
         name="registry-student-detail",

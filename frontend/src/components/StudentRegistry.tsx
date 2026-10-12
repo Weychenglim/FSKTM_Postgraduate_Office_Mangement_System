@@ -99,6 +99,8 @@ const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
   programme: 'An approved programme',
   email: 'Valid email, unique',
   phone: 'Optional',
+  intake: 'Optional, e.g. 2026/2027 Semester I',
+  current_semester: 'Optional',
 };
 
 // ==================== COMPONENT PATTERNS TYPES ====================

@@ -32,7 +32,14 @@ from .authorization import coordinator_scope_q
 from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
 from .programmes import APPROVED_PROGRAMMES
-from .registry_import import ImportFileError, read_import_file, validate_import_rows
+from .registry_import import (
+    ImportFileError,
+    ImportOptionsError,
+    inspect_import_file,
+    parse_import_options,
+    read_import_file,
+    validate_import_rows,
+)
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle
 from .tokens import activation_link
@@ -379,6 +386,8 @@ def _import_row(row):
             "email": row["email"],
             "programme": row["programme"],
             "phone": row["phone"],
+            "intakeDate": row.get("intake", ""),
+            "semester": row.get("semester", ""),
         }
     )
     if not serializer.is_valid():
@@ -434,7 +443,10 @@ def student_import_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     try:
-        rows = validate_import_rows(read_import_file(uploaded))
+        options = parse_import_options(request.data.get("options"))
+        rows = validate_import_rows(read_import_file(uploaded, options))
+    except ImportOptionsError as exc:
+        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
     except ImportFileError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -494,6 +506,27 @@ def student_import_view(request):
         {"batch": batch.to_public_dict(), "rows": results},
         status=status.HTTP_201_CREATED,
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def student_import_inspect_view(request):
+    """Describe an uploaded file's layout (sheets, column-name row, columns
+    with sample values, suggested matches) so the office can confirm which
+    column is which before any row is checked (UC04)."""
+    _require_office_admin(request)
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return Response(
+            {"error": "Choose a CSV or XLSX file to import."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        return Response(inspect_import_file(uploaded, parse_import_options(request.data.get("options"))))
+    except ImportOptionsError as exc:
+        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+    except ImportFileError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
