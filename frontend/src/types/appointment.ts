@@ -142,6 +142,7 @@ export interface PanelRecord extends WorkflowAgeingMetadata {
 // A pending supervisor appointment request shown to a lecturer to review.
 export interface SupervisorRequest extends WorkflowAgeingMetadata {
   applicationId?: number;
+  semester?: string;
   studentId: string;
   studentName: string;
   programme: string;
@@ -381,14 +382,19 @@ export interface SubmittedRecommendation extends WorkflowAgeingMetadata {
 }
 
 // A past supervisor appointment request the lecturer already approved/rejected.
-export interface SupervisorRequestHistoryRow {
+export interface SupervisorRequestHistoryRow extends WorkflowAgeingMetadata {
   requestId: string;
+  applicationId?: number;
+  status?: SupervisorApplicationWorkflowStatus;
+  submittedAt?: string;
+  supervisorDecisionAt?: string | null;
+  coordinatorDecisionAt?: string | null;
   studentName: string;
   studentId: string;
   programme: string;
   researchTitle: string;
   submittedDate: string;
-  decision: 'Approved' | 'Rejected' | 'Cancelled';
+  decision: 'Approved' | 'Rejected' | 'Cancelled' | 'Pending Approval';
   semester: string;
   abstract: string;
   decisionReason?: string;

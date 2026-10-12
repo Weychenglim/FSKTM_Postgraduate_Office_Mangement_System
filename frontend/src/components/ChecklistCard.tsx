@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,11 +25,11 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
   return (
     <div id="checklist-card-section" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
       <div className="flex justify-between items-start mb-1">
-        <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
+        <h3 className="section-heading">
           Evaluation Setup Checklist
         </h3>
       </div>
-      <p className="text-slate-500 text-xs font-medium mb-6">
+      <p className="card-description mb-6">
         Complete these setup steps before lecturers begin mark entry.
       </p>
 
@@ -49,7 +49,7 @@ export const ChecklistCard: React.FC<ChecklistCardProps> = ({
                   <Clock3 className="w-5.5 h-5.5 text-amber-500" />
                 )}
               </div>
-              <span className="text-slate-800 font-bold text-[13px] tracking-tight group-hover:text-slate-950 transition-colors">
+              <span className="card-value group-hover:text-slate-950 transition-colors">
                 {item.taskName}
               </span>
             </div>

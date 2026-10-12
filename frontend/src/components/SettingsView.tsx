@@ -156,7 +156,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
       {loading && <p role="status">Loading settings…</p>}
       {saving && <p role="status">Saving settings…</p>}
-      {loadError && <div role="alert" className="text-sm text-red-700">{loadError} <PortalButton onClick={() => setReload((value) => value + 1)}>Retry</PortalButton></div>}
+      {loadError && <div role="alert" className="card-description text-red-700">{loadError} <PortalButton onClick={() => setReload((value) => value + 1)}>Retry</PortalButton></div>}
 
       <fieldset disabled={loading || !!loadError || saving} className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
         {/* Profile summary */}
@@ -165,7 +165,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#091124] to-[#1e2c54] flex items-center justify-center text-indigo-200 font-extrabold text-2xl border border-slate-200 shadow-sm">
               {initials}
             </div>
-            <h3 className="mt-4 text-base font-extrabold text-brand-navy tracking-tight">
+            <h3 className="section-label mt-4">
               {currentUser.fullName}
             </h3>
             <div className="mt-2">
@@ -213,7 +213,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                   onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
-              <p id="settings-email-policy" className="text-xs text-slate-500 mb-4">Email changes are managed by the Office.</p>
+              <p id="settings-email-policy" className="card-description mb-4">Email changes are managed by the Office.</p>
               <div className="flex justify-end">
                 <PortalButton type="submit" variant="primary" size="md" icon={Save}>
                   Save Changes
@@ -277,8 +277,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 onChange={setPref('announcementAlerts')}
                 id="pref-ann"
               />
-              <p className="py-3 text-xs text-slate-500">Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</p>
-              <p className="py-3 text-xs text-slate-500">Email notifications, scheduled deadline reminders and weekly summaries: Not available.</p>
+              <p className="card-description py-3">Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</p>
+              <p className="card-description py-3">Email notifications, scheduled deadline reminders and weekly summaries: Not available.</p>
             </div>
             <div className="flex justify-end mt-5">
               <PortalButton
@@ -316,8 +316,8 @@ const SummaryRow: React.FC<{ icon: React.ElementType; label: string; value: stri
       <Icon className="w-4 h-4 text-slate-400" />
     </div>
     <div className="min-w-0">
-      <span className="form-label block">{label}</span>
-      <span className="text-xs font-bold text-slate-800 break-words">{value}</span>
+      <span className="card-label block">{label}</span>
+      <span className="card-value break-words">{value}</span>
     </div>
   </div>
 );
@@ -333,7 +333,7 @@ const SectionTitle: React.FC<{ icon: React.ElementType; title: string; subtitle:
     </div>
     <div className="min-w-0">
       <h3 className="section-label">{title}</h3>
-      <p className="text-[11px] text-slate-500 font-medium">{subtitle}</p>
+      <p className="card-description">{subtitle}</p>
     </div>
   </div>
 );
@@ -347,8 +347,8 @@ const PrefRow: React.FC<{
 }> = ({ id, title, description, checked, onChange }) => (
   <div className="flex items-center justify-between gap-4 py-3.5">
     <div className="min-w-0">
-      <p className="text-xs font-bold text-slate-800">{title}</p>
-      <p className="text-[11px] text-slate-500 font-medium mt-0.5">{description}</p>
+      <p className="card-value text-slate-800">{title}</p>
+      <p className="card-description mt-0.5">{description}</p>
     </div>
     <ToggleSwitch id={id} checked={checked} onChange={onChange} label={title} className="shrink-0" />
   </div>

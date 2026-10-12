@@ -989,7 +989,7 @@ def build_workflow_report(user, query_params=None, now=None):
         "capacity": capacity,
         "reconciliation": reconciliation_summary,
         "attention": _attention(
-            supervisor_rows,
+            [*supervisor_rows, *amendment_rows],
             panel_rows,
             mark_rows,
             [*participant_attention, *capacity_attention],

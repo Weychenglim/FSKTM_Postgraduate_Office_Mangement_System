@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -167,10 +167,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         {/* Card 1: Total Submitted */}
         <div id="stat-card-total" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               Total Submitted
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {statsTotal}
             </span>
           </div>
@@ -182,10 +182,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         {/* Card 2: Approved */}
         <div id="stat-card-approved" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               Approved
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {statsApprovedCount}
             </span>
           </div>
@@ -197,10 +197,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         {/* Card 3: Pending Approval */}
         <div id="stat-card-pending" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               Pending Approval
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {statsPendingCount}
             </span>
           </div>
@@ -212,10 +212,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         {/* Card 4: Rejected */}
         <div id="stat-card-rejected" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               Rejected
             </span>
-            <span className="text-2xl font-black text-rose-600">
+            <span className="card-metric text-rose-600">
               {statsRejectedCount}
             </span>
           </div>
@@ -227,10 +227,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
         {/* Card 5: Cancelled by Supervisor */}
         <div id="stat-card-cancelled" className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs flex items-center justify-between hover:border-slate-300 transition duration-300">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               Cancelled
             </span>
-            <span className="text-2xl font-black text-slate-600">
+            <span className="card-metric text-slate-600">
               {statsCancelledCount}
             </span>
           </div>
@@ -247,7 +247,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
           
           {/* Input field: Search Students */}
           <div className="md:col-span-4 space-y-1.5 text-left font-sans">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            <label className="form-label text-slate-400 uppercase tracking-wider block">
               Search Students
             </label>
             <div className="relative">
@@ -265,7 +265,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
 
           {/* Dropdown field: Status */}
           <div className="md:col-span-3 space-y-1.5 text-left font-sans col-span-2">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            <label className="form-label text-slate-400 uppercase tracking-wider block">
               Status
             </label>
             <div className="relative">
@@ -287,7 +287,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
 
           {/* Dropdown field: Semester */}
           <div className="md:col-span-3 space-y-1.5 text-left font-sans col-span-2">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            <label className="form-label text-slate-400 uppercase tracking-wider block">
               Semester
             </label>
             <div className="relative">
@@ -337,13 +337,13 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                     <table className="data-table min-w-[850px] text-xs">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-150 text-[10px] font-bold text-slate-400 tracking-wider uppercase select-none">
-                  <th className="py-4 px-6 md:w-[130px]">ID</th>
-                  <th className="py-4 px-6 md:w-[220px]">STUDENT</th>
-                  <th className="py-4 px-6">RESEARCH TITLE</th>
-                  <th className="py-4 px-6 md:w-[200px]">RECOMMENDED PANEL</th>
-                  <th className="py-4 px-6 md:w-[110px]">DATE</th>
-                  <th className="py-4 px-6 md:w-[130px]">STATUS</th>
-                  <th className="py-4 px-6 text-center md:w-[90px]">ACTION</th>
+                  <th className="py-4 px-6 md:w-[130px] text-[10px] font-extrabold uppercase tracking-wider">ID</th>
+                  <th className="py-4 px-6 md:w-[220px] text-[10px] font-extrabold uppercase tracking-wider">STUDENT</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase tracking-wider">RESEARCH TITLE</th>
+                  <th className="py-4 px-6 md:w-[200px] text-[10px] font-extrabold uppercase tracking-wider">RECOMMENDED PANEL</th>
+                  <th className="py-4 px-6 md:w-[110px] text-[10px] font-extrabold uppercase tracking-wider">DATE</th>
+                  <th className="py-4 px-6 md:w-[130px] text-[10px] font-extrabold uppercase tracking-wider">STATUS</th>
+                  <th className="py-4 px-6 text-center md:w-[90px] text-[10px] font-extrabold uppercase tracking-wider">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-brand-navy">
@@ -380,18 +380,18 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                         className="hover:bg-slate-50/40 transition-colors"
                       >
                         {/* ID */}
-                        <td className="py-5 px-6 font-mono font-black text-slate-500">
+                        <td className="py-5 px-6 font-mono font-bold text-slate-500">
                           {row.id}
                         </td>
 
                         {/* STUDENT name and id */}
-                        <td className="py-5 px-6">
+                        <td className="py-5 px-6 text-xs font-semibold">
                           <div className="flex items-center gap-3">
                             <div className="w-8.5 h-8.5 bg-blue-50/90 text-blue-600 font-extrabold text-[10px] rounded-full flex items-center justify-center shrink-0 border border-blue-100/40 select-none">
                               {studentInitials}
                             </div>
                             <div className="min-w-0">
-                              <span className="font-extrabold text-brand-navy block truncate">
+                              <span className="font-bold text-brand-navy block truncate">
                                 {row.studentName}
                               </span>
                               <span className="text-[10px] font-mono text-slate-400 font-bold block mt-0.5">
@@ -407,7 +407,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                         </td>
 
                         {/* RECOMMENDED PANEL */}
-                        <td className="py-5 px-6">
+                        <td className="py-5 px-6 text-xs font-semibold">
                           <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                             <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="truncate">{row.recommendedPanel}</span>
@@ -415,12 +415,12 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                         </td>
 
                         {/* SUBMISSION DATE */}
-                        <td className="py-5 px-6 font-extrabold text-slate-400">
+                        <td className="py-5 px-6 font-semibold text-slate-400">
                           {row.date}
                         </td>
 
                         {/* STATUS BADGES MAPPED */}
-                        <td className="py-5 px-6">
+                        <td className="py-5 px-6 text-xs font-semibold">
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
                             row.status === 'Approved'
                               ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]'
@@ -435,7 +435,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                         </td>
 
                         {/* ACTION View trigger */}
-                        <td className="py-5 px-6 text-center select-none">
+                        <td className="py-5 px-6 text-center select-none text-xs font-semibold">
                           <button
                             type="button"
                             onClick={() => {
@@ -513,10 +513,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
             <Info className="w-4 h-4 text-slate-500" />
           </div>
           <div className="space-y-1">
-            <h4 className="text-[11px] font-black text-brand-navy uppercase tracking-wider">
+            <h4 className="section-label">
               Recommendation Milestones
             </h4>
-            <p className="text-slate-450 text-slate-500 text-xs font-medium leading-relaxed">
+            <p className="card-description text-slate-450">
               Approved recommendations are locked for scheduling verification. Pending statuses imply coordinator validation stage reviews are actively moving.
             </p>
           </div>
@@ -527,10 +527,10 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
             <Layers className="w-4 h-4 text-slate-500" />
           </div>
           <div className="space-y-1">
-            <h4 className="text-[11px] font-black text-brand-navy uppercase tracking-wider">
+            <h4 className="section-label">
               Workload Restrictions
             </h4>
-            <p className="text-slate-450 text-slate-500 text-xs font-medium leading-relaxed">
+            <p className="card-description text-slate-450">
               Assignments keep each selected lecturer bound to the university quota parameters (max 5 concurrent panel seats per academic calendar).
             </p>
           </div>

@@ -25,8 +25,10 @@ from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
     PanelRecommendation,
+    ResearchAmendment,
     StudentResearchProfile,
     SupervisorApplication,
+    SupervisorAppointment,
 )
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
@@ -473,6 +475,33 @@ class WorkflowReportTests(APITestCase):
         response = self.client.get("/api/dashboard/reports/")
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_lecturer_attention_includes_only_owned_pending_research_requests(self):
+        self.pending_supervisor.status = SupervisorApplication.Status.APPROVED
+        self.pending_supervisor.save(update_fields=["status"])
+        SupervisorAppointment.objects.create(
+            application=self.pending_supervisor, student=self.student,
+            supervisor=self.supervisor, approved_by=self.coordinator,
+        )
+        requests = []
+        for student, profile in [(self.student, self.profile), (self.foreign_student, self.foreign_profile)]:
+            requests.append(ResearchAmendment.objects.create(
+                student=student, profile=profile, initiated_by=student.user,
+                kind=ResearchAmendment.Kind.RESEARCH,
+                status=ResearchAmendment.Status.PENDING_SUPERVISOR,
+                source_programme=student.programme, before_values={}, after_values={},
+                baseline_revision=0, academic_semester=self.academic_semester,
+                reason="Synthetic title clarification", student_name=student.user.full_name,
+                matric_no=student.matric_no,
+            ))
+        self.authenticate(self.supervisor)
+        response = self.client.get("/api/dashboard/reports/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["researchAmendments"]["total"], 1)
+        attention = [item for item in response.data["attention"] if item["recordType"] == "RESEARCH_AMENDMENT"]
+        self.assertEqual([item["recordId"] for item in attention], [str(requests[0].pk)])
+        self.assertEqual(attention[0]["kind"], "WAITING")
+        self.assertEqual(attention[0]["waitingOn"], "SUPERVISOR")
 
     def test_report_validates_and_applies_date_range(self):
         self.authenticate(self.office)

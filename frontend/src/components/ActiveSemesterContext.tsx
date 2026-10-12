@@ -35,8 +35,8 @@ export const ActiveSemesterContext: React.FC<ActiveSemesterContextProps> = ({ on
     <div className="flex flex-wrap items-center gap-3 border-y border-slate-200 bg-white px-4 py-3">
       <CalendarRange className="h-5 w-5 text-sky-700" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold uppercase text-slate-500">Academic semester</p>
-        <p className="truncate text-sm font-bold text-slate-900">
+        <p className="card-label">Academic semester</p>
+        <p className="card-value truncate text-slate-900">
           {!loaded ? 'Loading semester...' : semester?.label ?? 'No active semester'}
         </p>
       </div>

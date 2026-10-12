@@ -22,6 +22,10 @@ export const APP_ROUTES = {
   supervisorAppointmentHistory: '/supervisor-appointments/history',
   supervisorAppointmentRequirements: '/supervisor-appointments/requirements',
   supervisorAppointmentSupervisees: '/supervisor-appointments/supervisees',
+  supervisorAppointmentApplications: '/supervisor-appointments/applications',
+  supervisorResearchChanges: '/supervisor-appointments/research-changes',
+  supervisorResearchProfile: '/supervisor-appointments/research-changes/profile',
+  supervisorResearchNew: '/supervisor-appointments/research-changes/new',
   letters: '/letters',
   announcements: '/announcements',
   marks: '/marks',
@@ -93,6 +97,9 @@ export const routeForMarkRecord = (recordId: string): string =>
 export const routeForSupervisorApplication = (applicationId: string): string =>
   `${APP_ROUTES.supervisorAppointments}/${encodeURIComponent(applicationId)}`;
 
+export const routeForSupportingSupervisorRequest = (nominationId: string): string =>
+  `${APP_ROUTES.supervisorAppointments}/supporting-requests/${encodeURIComponent(nominationId)}`;
+
 export const routeForSupervisorWorkload = (): string =>
   APP_ROUTES.supervisorAppointmentWorkload;
 
@@ -107,6 +114,9 @@ export const routeForSupervisorRequirements = (): string =>
 
 export const routeForSupervisorSupervisee = (studentId: string): string =>
   `${APP_ROUTES.supervisorAppointmentSupervisees}/${encodeURIComponent(studentId)}`;
+
+export const routeForSupervisorResearchRequest = (requestId: string): string =>
+  `${APP_ROUTES.supervisorResearchChanges}/${encodeURIComponent(requestId)}`;
 
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
@@ -165,6 +175,11 @@ export const isKnownAppPath = (pathname: string): boolean => {
       || pathname === APP_ROUTES.supervisorAppointmentNew
       || pathname === APP_ROUTES.supervisorAppointmentHistory
       || pathname === APP_ROUTES.supervisorAppointmentRequirements
+      || pathname === APP_ROUTES.supervisorAppointmentApplications
+      || pathname === APP_ROUTES.supervisorAppointmentSupervisees
+      || pathname === APP_ROUTES.supervisorResearchChanges
+      || /^research-changes\/[^/]+$/.test(supervisorSubpath)
+      || /^supporting-requests\/[^/]+$/.test(supervisorSubpath)
       || /^supervisees\/[^/]+$/.test(supervisorSubpath)
       || /^[^/]+$/.test(supervisorSubpath)
     );
@@ -197,6 +212,9 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
   }
 
   if (target.targetModule === 'SUPERVISOR_APPOINTMENTS') {
+    if (target.recordType === 'RESEARCH_AMENDMENT' && target.recordId) {
+      return routeForSupervisorResearchRequest(target.recordId);
+    }
     return APP_ROUTES.supervisorAppointments;
   }
 

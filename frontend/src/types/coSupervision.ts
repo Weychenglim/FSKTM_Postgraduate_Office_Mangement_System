@@ -7,6 +7,8 @@ export interface CoSupervisorNomination {
   studentId: number;
   matricNo: string;
   studentName: string;
+  programme?: string;
+  semester?: string;
   candidate: TeamPerson;
   nominator: TeamPerson;
   status: 'SUBMITTED_TO_CO_SUPERVISOR' | 'PENDING_COORDINATOR' | 'APPROVED' | 'REJECTED_BY_CO_SUPERVISOR' | 'REJECTED_BY_COORDINATOR' | 'CANCELLED';

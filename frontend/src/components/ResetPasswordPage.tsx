@@ -72,10 +72,10 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
 
       {!isDone ? (
         <AuthCard id="reset-password-card" badgeIcon={Lock}>
-          <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+          <h2 className="page-title font-sans">
             Set a New Password
           </h2>
-          <p className="text-[11.5px] sm:text-[12px] text-slate-500 font-bold mt-1.5 mb-8 leading-relaxed font-sans px-2">
+          <p className="card-description mt-1.5 mb-8 font-sans px-2">
             Choose a strong new password for your FSKTM Postgraduate Office account.
           </p>
 
@@ -114,10 +114,10 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
         </AuthCard>
       ) : (
         <AuthCard id="reset-success-card" badgeIcon={Check} badgeCircle>
-          <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+          <h2 className="page-title font-sans">
             Password Updated
           </h2>
-          <div className="text-slate-600 text-xs sm:text-[12.5px] leading-relaxed font-semibold mt-4 mb-6 font-sans px-1">
+          <div className="card-description text-slate-600 mt-4 mb-6 font-sans px-1">
             Your password has been reset successfully. You can now sign in with your new password.
           </div>
 

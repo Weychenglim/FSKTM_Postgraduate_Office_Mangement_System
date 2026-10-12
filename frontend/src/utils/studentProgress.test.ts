@@ -53,5 +53,18 @@ assert.deepEqual(
   visibleProgressTabs(sections),
   ['OVERVIEW', 'SUPERVISOR', 'PANEL', 'TIMELINE'],
 );
+assert.deepEqual(
+  visibleProgressTabs(sections, 'PUBLIC'),
+  ['SUPERVISOR', 'PANEL', 'TIMELINE'],
+  'Student records open on the first authorised history section without repeating the dashboard overview',
+);
+assert.deepEqual(visibleProgressTabs(['MARKS'], 'PUBLIC'), [],
+  'Students must not see evaluation sections even if a stale response includes Marks');
+assert.deepEqual(visibleProgressTabs(['SUPERVISOR', 'MARKS', 'TIMELINE'], 'PUBLIC'),
+  ['SUPERVISOR', 'TIMELINE']);
+assert.deepEqual(visibleProgressTabs(['MARKS'], 'INTERNAL'), ['OVERVIEW', 'MARKS'],
+  'Authorised staff keep Marks tracking');
+assert.deepEqual(visibleProgressTabs([], 'PUBLIC'), []);
+assert.deepEqual(visibleProgressTabs([], 'INTERNAL'), ['OVERVIEW']);
 
 console.log('studentProgress tests passed');

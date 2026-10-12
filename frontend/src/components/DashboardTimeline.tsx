@@ -75,13 +75,13 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#f1f5f9] pb-4">
         <div id="timeline-title-meta" className="space-y-1 text-left">
-          <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest leading-none">
+          <h3 className="section-label text-slate-500 uppercase tracking-widest leading-none">
             Semester Timeline
           </h3>
-          <span className="text-lg font-black text-brand-navy block mt-1 tracking-tight">
+          <span className="section-heading text-brand-navy block mt-1 tracking-tight">
             {scopedTimeline?.available ? formatSessionTitle(scopedTimeline.session) : 'Active Semester Timeline'}
           </span>
-          <span className="text-[10px] text-slate-400 font-bold block">
+          <span className="card-caption text-slate-400 block">
             {scopedTimeline?.available && scopedTimeline.uploadedAt
               ? `Active - Uploaded ${formatDisplayDate(scopedTimeline.uploadedAt)}`
               : 'Timeline status updates when office staff upload the active semester file'}
@@ -144,14 +144,14 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
       ) : !scopedTimeline?.available ? (
         <div className="rounded-2xl border border-dashed border-slate-250 bg-slate-50/60 px-5 py-8 text-center">
           <ListTodo className="w-6 h-6 text-slate-400 mx-auto mb-3" />
-          <p className="text-sm font-black text-brand-navy">
+          <p className="card-value text-brand-navy">
             {scopedTimeline?.message || 'No timeline available at now'}
           </p>
         </div>
       ) : scopedTimeline.levels.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-250 bg-slate-50/60 px-5 py-8 text-center">
           <ListTodo className="w-6 h-6 text-slate-400 mx-auto mb-3" />
-          <p className="text-sm font-black text-brand-navy">
+          <p className="card-value text-brand-navy">
             No timeline tasks are assigned to your role yet.
           </p>
         </div>

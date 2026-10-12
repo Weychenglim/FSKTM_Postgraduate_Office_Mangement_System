@@ -1,4 +1,6 @@
-﻿/**
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -80,17 +82,17 @@ export const PanelWorkloadSnapshotRow = ({ record: w }: { record: PanelWorkloadR
   return (
   <div className="space-y-1.5">
     <div className="flex items-center justify-between text-[11px] font-bold">
-      <span className="text-slate-800">{w.name}</span>
+      <span className="card-description">{w.name}</span>
       <span className={`text-[9px] font-black ${
         tone === 'full' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' :
         tone === 'neutral' ? 'text-slate-500' : 'text-emerald-600'
       }`}>{label.toUpperCase()}</span>
     </div>
     <div className="flex items-center justify-between text-[10px] text-slate-450">
-      <span>{w.currentStudents} / {w.workloadLimit} reserved panel seats</span>
+      <span className="card-description">{w.currentStudents} / {w.workloadLimit} reserved panel seats</span>
     </div>
     {w.capacityState === 'TEMPORARILY_UNAVAILABLE' && w.unavailableUntil && (
-      <p className="text-[10px] text-amber-700">Unavailable until {w.unavailableUntil}</p>
+      <p className="card-description text-amber-700">Unavailable until {w.unavailableUntil}</p>
     )}
     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
       <div className={`h-full rounded-full ${
@@ -142,23 +144,23 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   }, [loadWorkloads]);
 
   // Main input filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
+  const [searchQuery, setSearchQuery] = useListState('PanelAppointmentManagement', 'searchQuery', '');
+  const [programmeFilter, setProgrammeFilter] = useListState('PanelAppointmentManagement', 'programmeFilter', 'All Programmes');
+  const [semesterFilter, setSemesterFilter] = useListState('PanelAppointmentManagement', 'semesterFilter', 'All Semesters');
   const [recordOrder, setRecordOrder] = useState<'default' | 'longest'>('default');
 
   // Interactive pill filter selection
-  const [activeTab, setActiveTab] = useState<PanelRecordStatusTab>('All Records');
+  const [activeTab, setActiveTab] = useListState<PanelRecordStatusTab>('PanelAppointmentManagement', 'activeTab', 'All Records');
 
   // Trigger filters only when 'Apply Filters' is specifically clicked (screenshot business requirement)
-  const [appliedFilters, setAppliedFilters] = useState({
+  const [appliedFilters, setAppliedFilters] = useListState('PanelAppointmentManagement', 'appliedFilters', {
     search: '',
     programme: 'All Programmes',
     semester: 'All Semesters'
   });
 
   // Pagination page tracker
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('PanelAppointmentManagement', 'currentPage', 1);
   const itemsPerPage = 10;
 
   // Toast Notification
@@ -245,8 +247,8 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   );
 
   useEffect(() => {
-    setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
-  }, [filteredRecords.length]);
+    if (!loading && !error) setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
+  }, [filteredRecords.length, loading, error, setCurrentPage]);
 
   // CSV Exporter
   const handleExportCSV = () => {
@@ -313,9 +315,9 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
       {routeView === 'detail' && (
         loading ? (
-          <LoadingState message="Loading panel appointment record…" />
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><LoadingState message="Loading panel appointment record…" /></RecordPage>
         ) : error ? (
-          <ErrorState message={error} onRetry={loadRecords} />
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>
         ) : selectedRouteRecord ? (
           <PanelAppointmentDetail
             onBack={navigateToList}
@@ -323,12 +325,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             onLifecycleChanged={loadRecords}
           />
         ) : (
-          <EmptyState
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><EmptyState
             title="Panel appointment record not found"
             description="The requested panel appointment record does not exist or is no longer available."
-            actionLabel="Back to Panel Appointments"
-            onAction={navigateToList}
-          />
+          /></RecordPage>
         )
       )}
 
@@ -356,10 +356,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             <div className="bg-white border-l-4 border-l-red-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                  <span className="card-label block">
                     Students Without Panel
                   </span>
-                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                  <span className="card-metric block mt-2.5">
                     {panelSummary.withoutPanel}
                   </span>
                 </div>
@@ -369,7 +369,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-[#e11d48] text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="danger" pulse />
-                <span>No approved panel record.</span>
+                <span className="card-description text-[#e11d48]">No approved panel record.</span>
               </div>
             </div>
 
@@ -377,10 +377,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             <div className="bg-white border-l-4 border-l-blue-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                  <span className="card-label block">
                     Pending Recommendations
                   </span>
-                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                  <span className="card-metric block mt-2.5">
                     {panelSummary.pending}
                   </span>
                 </div>
@@ -390,7 +390,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-amber-600 text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="warning" />
-                <span>Panel recommendations still in workflow.</span>
+                <span className="card-description text-amber-600">Panel recommendations still in workflow.</span>
               </div>
             </div>
 
@@ -398,10 +398,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             <div className="bg-white border-l-4 border-l-emerald-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                  <span className="card-label block">
                     Approved Panels
                   </span>
-                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                  <span className="card-metric block mt-2.5">
                     {panelSummary.approved}
                   </span>
                 </div>
@@ -411,7 +411,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-emerald-600 text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="success" />
-                <span>Confirmed panel appointments.</span>
+                <span className="card-description text-emerald-600">Confirmed panel appointments.</span>
               </div>
             </div>
 
@@ -419,10 +419,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                  <span className="card-label block">
                     Rejected Records
                   </span>
-                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                  <span className="card-metric block mt-2.5">
                     {panelSummary.rejected}
                   </span>
                 </div>
@@ -432,7 +432,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-rose-600 text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="danger" />
-                <span>Rejected panel recommendation records.</span>
+                <span className="card-description text-rose-600">Rejected panel recommendation records.</span>
               </div>
             </div>
 
@@ -440,10 +440,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             <div className="bg-white border-l-4 border-l-slate-500 border border-y-slate-205 border-r-slate-205 rounded-xl p-5 shadow-3xs flex flex-col justify-between hover:shadow-2xs transition group">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                  <span className="card-label block">
                     Cancelled Records
                   </span>
-                  <span className="text-3xl font-black text-brand-navy block mt-2.5">
+                  <span className="card-metric block mt-2.5">
                     {panelSummary.cancelled}
                   </span>
                 </div>
@@ -453,7 +453,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               </div>
               <div className="flex items-center gap-1.5 mt-4 text-slate-600 text-[10px] font-extrabold tracking-wide">
                 <StatusDot tone="neutral" />
-                <span>Cancelled before appointment.</span>
+                <span className="card-description">Cancelled before appointment.</span>
               </div>
             </div>
 
@@ -466,7 +466,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             
             {/* Filter Section (Left Col) */}
             <div className="bg-white border border-slate-205 p-6 rounded-2xl shadow-3xs text-left">
-              <h3 className="font-extrabold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
+              <h3 className="section-label mb-5 flex items-center gap-2">
                 <Search className="w-4 h-4 text-slate-400" />
                 <span>Search Records</span>
               </h3>
@@ -476,7 +476,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                 
                 {/* Search Text field */}
                 <div>
-                  <label htmlFor="student-id-query" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="student-id-query" className="form-label block mb-1.5">
                     Search Records
                   </label>
                   <div className="relative">
@@ -497,7 +497,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                   
                   {/* Programme Selection */}
                   <div>
-                    <label htmlFor="programme-selection-field" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    <label htmlFor="programme-selection-field" className="form-label block mb-1.5">
                       Programme
                     </label>
                     <div className="relative">
@@ -518,7 +518,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
                   {/* Semester Selection */}
                   <div>
-                    <label htmlFor="semester-selection-field" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    <label htmlFor="semester-selection-field" className="form-label block mb-1.5">
                       Semester
                     </label>
                     <div className="relative">
@@ -537,7 +537,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                   </div>
 
                   <div>
-                    <label htmlFor="panel-record-order" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    <label htmlFor="panel-record-order" className="form-label block mb-1.5">
                       Order
                     </label>
                     <div className="relative">
@@ -612,10 +612,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             
             <div className="px-6 py-5 border-b border-light-slate flex items-center justify-between">
               <div>
-                <h3 className="font-extrabold text-brand-navy text-sm uppercase tracking-wider">
+                <h3 className="section-label">
                   Panel Appointment Records
                 </h3>
-                <span className="text-slate-450 text-xs font-medium block mt-0.5">
+                <span className="card-description block mt-0.5">
                   View and monitor panel appointment records across students and faculty members.
                 </span>
               </div>
@@ -648,13 +648,13 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-0">
+                      <td colSpan={8} className="p-0 text-xs font-semibold">
                         <LoadingState message="Loading panel appointments…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={8} className="p-0">
+                      <td colSpan={8} className="p-0 text-xs font-semibold">
                         <ErrorState message={error} onRetry={loadRecords} />
                       </td>
                     </tr>
@@ -670,34 +670,34 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           >
                             {rec.id}
                           </button>
-                          <span className="text-slate-500 font-medium block mt-0.5 break-words">
+                          <span className="card-description block mt-0.5 break-words">
                             {rec.studentName}
                           </span>
                         </td>
 
                         {/* Program & Semester info */}
                         <td className="data-td px-3 align-top leading-relaxed">
-                          <span className="font-bold text-slate-700 block break-words">{rec.programme}</span>
-                          <span className="text-[10px] text-slate-450 font-medium mt-0.5 block">{rec.semester}</span>
+                          <span className="card-value block break-words">{rec.programme}</span>
+                          <span className="card-description mt-0.5 block">{rec.semester}</span>
                         </td>
 
                         {/* Supervisor */}
-                        <td className="data-td px-3 align-top font-bold text-slate-700 break-words">
+                        <td className="data-td-strong px-3 align-top text-slate-700 break-words">
                           {rec.supervisor}
                         </td>
 
                         {/* Panel Member Status Vetted color styles */}
                         <td className="data-td px-3 align-top">
                           {rec.panelMember === 'Not Assigned' ? (
-                            <span className="text-red-600 font-extrabold tracking-wide uppercase text-[10px]">
+                            <span className="card-label text-red-600">
                               Not Assigned
                             </span>
                           ) : rec.panelMember === 'Pending' ? (
-                            <span className="text-slate-450 font-bold italic">
+                            <span className="card-value italic">
                               Pending
                             </span>
                           ) : (
-                            <span className="font-extrabold text-slate-800 text-[11px] break-words">
+                            <span className="card-value break-words">
                               {rec.panelMember}
                             </span>
                           )}
@@ -732,12 +732,12 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                           )}
                         </td>
 
-                        <td className="data-td px-3 align-top text-[10px] font-bold text-slate-500 leading-relaxed">
+                        <td className="data-td-strong px-3 align-top text-slate-500 leading-relaxed">
                           {formatWaitingText(rec)}
                         </td>
 
                         {/* Action date */}
-                        <td className="data-td px-3 align-top font-bold text-slate-500 font-mono text-[10px] whitespace-normal">
+                        <td className="data-td-strong px-3 align-top text-slate-500 font-mono whitespace-normal">
                           {rec.updatedDate}
                         </td>
 
@@ -748,7 +748,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                               onClick={() => onNavigateToDossier?.(rec.id)}
                               className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                             >
-                              View Dossier
+                              View student record
                             </button>
                             <button
                               onClick={() => handleViewDetail(rec)}
@@ -763,7 +763,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 font-bold whitespace-nowrap">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 whitespace-nowrap text-xs font-bold">
                         No panel appointment records meet the applied search and status parameters.
                       </td>
                     </tr>
@@ -776,7 +776,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             {/* Pagination Controls aligning with mockup exact styling */}
             <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
               
-              <span className="text-slate-450 font-medium">
+              <span className="card-description">
                 Showing {recordRange.start} to {recordRange.end} of {recordRange.total} records
               </span>
 
@@ -834,7 +834,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
                   <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                  <h4 className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                  <h4 className="section-label">
                     Records Needing Attention
                   </h4>
                 </div>
@@ -843,10 +843,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                   {attentionItems.map((item) => (
                     <div key={item.id} className="flex items-start justify-between gap-2.5 text-xs font-sans">
                       <div className="text-left">
-                        <span className="font-bold text-slate-800 block leading-snug">
+                        <span className="card-value block">
                           {item.label}
                         </span>
-                        <span className="text-[10px] font-bold text-amber-600">
+                        <span className="card-value text-amber-600">
                           {item.desc}
                         </span>
                       </div>
@@ -868,7 +868,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
               {/* Box B: Panel Workload Snapshot */}
               <div className="bg-white border border-slate-205 p-5 rounded-2xl shadow-3xs text-xs font-sans">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                  <span className="card-label">
                     Panel Workload Snapshot
                   </span>
                   <TrendingUp className="w-4 h-4 text-slate-450" />
@@ -878,7 +878,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                   {workloadSnapshotRows.length > 0 ? workloadSnapshotRows.map((w) => (
                     <PanelWorkloadSnapshotRow key={w.id} record={w} />
                   )) : (
-                    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-[11px] font-bold text-slate-400">
+                    <div className="card-value rounded-xl border border-dashed border-slate-200 p-4 text-center">
                       No panel workload records available yet.
                     </div>
                   )}
@@ -894,10 +894,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
 
               {/* Box C: Quick Tip dark panel */}
               <div className="bg-brand-navy text-slate-300 rounded-2xl p-5 text-left relative overflow-hidden shadow-sm">
-                <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 block mb-2">
+                <span className="card-label block mb-2">
                   System Tip
                 </span>
-                <p className="text-xs font-sans text-slate-300 leading-relaxed font-semibold">
+                <p className="card-description font-sans text-slate-300">
                   Panel recommendations become appointed panels only after selected panel acceptance and Programme Coordinator confirmation.
                 </p>
               </div>

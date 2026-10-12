@@ -325,6 +325,8 @@ def announcement_attachment(request, pk):
 def notifications_list(request):
     """The caller's own notification feed (optionally ``?unread=true``)."""
     queryset = Notification.objects.filter(recipient=request.user)
+    if request.user.role == User.Role.STUDENT:
+        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
     if request.query_params.get("unread", "").lower() in ("1", "true", "yes"):
         queryset = queryset.filter(is_read=False)
     return Response([n.to_public_dict() for n in queryset])
@@ -334,7 +336,10 @@ def notifications_list(request):
 @permission_classes([IsAuthenticated])
 def notification_mark_read(request, pk):
     """Mark one of the caller's notifications read (or unread via ``isRead``)."""
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    queryset = Notification.objects.filter(recipient=request.user)
+    if request.user.role == User.Role.STUDENT:
+        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
+    notification = get_object_or_404(queryset, pk=pk)
     is_read = request.data.get("isRead", True)
     notification.is_read = bool(is_read)
     notification.save(update_fields=["is_read"])

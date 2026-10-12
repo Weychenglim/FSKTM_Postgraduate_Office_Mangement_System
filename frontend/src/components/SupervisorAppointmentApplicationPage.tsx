@@ -1,24 +1,11 @@
-﻿/**
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Users, 
-  Search, 
-  ArrowLeft, 
-  Send, 
-  HelpCircle, 
-  CheckCircle, 
-  Clock, 
-  AlertTriangle,
-  FileText,
-  ShieldCheck,
-  Zap,
-  Info
-} from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Search, Send, CheckCircle, FileText } from 'lucide-react';
 import { StudentSupervisorApplication, SupervisorApplicationRecord, SupervisorCandidate, SupervisorDocumentRequirement } from '../types';
 import {
   createSupervisorApplication,
@@ -34,8 +21,37 @@ import {
   validateSupervisorDocumentSelection,
 } from '../utils/supervisorDocuments';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
-import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
+import { AppointmentGuidance } from './AppointmentPrimitives';
+
+export function SupervisorCandidateOption({ candidate, selected, onToggle, busy = false }: {
+  candidate: SupervisorCandidate; selected: boolean; onToggle: () => void; busy?: boolean;
+}) {
+  const selectable = candidate.selectable ?? candidate.filled < candidate.total;
+  const capacity = candidate.capacityState ? capacityStateLabel(candidate.capacityState) : selectable ? 'Available' : 'Full';
+  return <button type="button" aria-pressed={selected} onClick={onToggle} disabled={busy || !selectable}
+    className={`flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${selected ? 'border-indigo-500 bg-indigo-50' : selectable ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+    <span className="flex min-w-0 items-center gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-xs font-bold text-white">{candidate.initials}</span>
+      <span className="min-w-0"><span className="card-value block break-words">{candidate.name}</span><span className="card-description mt-1 block break-words">{candidate.domain}</span></span>
+    </span>
+    <span className="flex flex-wrap items-center gap-2">
+      {selected ? <span className="card-value flex items-center gap-1.5 text-indigo-700"><CheckCircle aria-hidden="true" className="h-4 w-4" />Selected</span> : null}
+      <StatusBadge tone={selectable ? 'neutral' : 'danger'}>{capacity} · {candidate.filled}/{candidate.total} filled</StatusBadge>
+    </span>
+  </button>;
+}
+
+export function SupervisorSelectionSummary({ candidate, onClear, busy = false }: {
+  candidate: SupervisorCandidate | null; onClear: () => void; busy?: boolean;
+}) {
+  return <aside aria-label="Selected supervisor" aria-live="polite" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <h4 className="card-label">Selected supervisor</h4>
+    {candidate ? <><p className="section-label break-words">{candidate.name}</p><p className="card-description">{candidate.domain}</p>
+      <PortalButton size="sm" variant="ghost" disabled={busy} onClick={onClear}>Clear selection</PortalButton></> : <p className="card-description">No supervisor selected.</p>}
+  </aside>;
+}
 
 interface SupervisorAppointmentApplicationPageProps {
   onBack: () => void;
@@ -48,11 +64,11 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   onSuccess,
   replacementApplication,
 }) => {
-  // Stepper tracking - decorative/informational as matched in screenshots
+  // All sections are available together; these links are navigation, not a wizard.
   const steps = [
-    { number: 1, title: 'Project Details', subtitle: 'Research Foundations' },
-    { number: 2, title: 'Supervisor Selection', subtitle: 'Academic Matching' },
-    { number: 3, title: 'Document Upload', subtitle: 'Supporting Evidence' }
+    { number: 1, title: 'Project details', target: 'project-details' },
+    { number: 2, title: 'Supervisor selection', target: 'supervisor-selection' },
+    { number: 3, title: 'Supporting documents', target: 'supporting-documents' }
   ];
 
   // Form Fields
@@ -66,12 +82,33 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   const [selectedFiles, setSelectedFiles] = useState<Map<string, File>>(new Map());
   const [requirementsLoading, setRequirementsLoading] = useState(true);
   const [requirementsError, setRequirementsError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'info' | 'success' | 'warning' | 'danger'>('danger');
+  const toastTimer = useRef<number | null>(null);
+
+  const clearToast = useCallback(() => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = null;
+    setToastMessage(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+  }, []);
+
+  const showToast = (message: string, tone: 'info' | 'success' | 'warning' | 'danger' = 'danger') => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    setToastMessage(message);
+    setToastTone(tone);
+    toastTimer.current = window.setTimeout(clearToast, 4000);
+  };
 
   const [supervisors, setSupervisors] = useState<SupervisorCandidate[]>([]);
   const [loadingSupervisors, setLoadingSupervisors] = useState(true);
   const [supervisorsError, setSupervisorsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
+  const navigationComplete = useRef(false);
 
   const loadSupervisors = useCallback(() => {
     setLoadingSupervisors(true);
@@ -115,14 +152,14 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
     if (file) {
       const fileError = validateSupervisorDocumentFile(file);
       if (fileError) {
-        setFormError(fileError);
+        showToast(fileError, 'danger');
         return;
       }
       const prospectiveFiles = new Map(selectedFiles);
       prospectiveFiles.set(code, file);
       const totalBytes = [...prospectiveFiles.values()].reduce((total, item) => total + item.size, 0);
       if (totalBytes > SUPERVISOR_DOCUMENT_MAX_TOTAL_BYTES) {
-        setFormError('Supervisor application documents must not exceed 10 MB combined.');
+        showToast('Supervisor application documents must not exceed 10 MB combined.', 'danger');
         return;
       }
     }
@@ -132,40 +169,40 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       else next.delete(code);
       return next;
     });
-    setFormError(null);
   };
 
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
+    if (submitInFlight.current) return;
 
     if (!researchTitle.trim()) {
-      setFormError("Provide your proposed research title.");
+      showToast("Provide your proposed research title.", 'danger');
       return;
     }
     if (!researchArea.trim()) {
-      setFormError("Provide your research area.");
+      showToast("Provide your research area.", 'danger');
       return;
     }
     if (!researchAbstract.trim()) {
-      setFormError("Provide your research abstract.");
+      showToast("Provide your research abstract.", 'danger');
       return;
     }
     if (!selectedSupervisorId) {
-      setFormError("Choose a proposed research supervisor.");
+      showToast("Choose a proposed research supervisor.", 'danger');
       return;
     }
     if (replacementApplication && !replacementReason.trim()) {
-      setFormError('Provide a reason for changing Supervisor.');
+      showToast('Provide a reason for changing Supervisor.', 'danger');
       return;
     }
     const documentError = validateSupervisorDocumentSelection(requirements, selectedFiles);
     if (documentError) {
-      setFormError(documentError);
+      showToast(documentError, 'danger');
       return;
     }
 
+    submitInFlight.current = true;
     setSubmitting(true);
     try {
       const body = buildSupervisorApplicationFormData({
@@ -177,64 +214,48 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         replacementReason: replacementReason.trim(),
       }, selectedFiles);
       const record = await createSupervisorApplication(body);
+      showToast('Supervisor application submitted successfully!', 'success');
+      navigationComplete.current = true;
       onSuccess(toStudentSupervisorApplication(record));
     } catch (reason) {
-      setFormError(reason instanceof Error ? reason.message : 'Supervisor application could not be submitted.');
+      const message = reason instanceof Error ? reason.message : 'Supervisor application could not be submitted.';
+      showToast(message, 'danger');
     } finally {
+      submitInFlight.current = false;
       setSubmitting(false);
     }
   };
 
   return (
-    <form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
-      
-      <PageHeader
-        title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'}
-        subtitle={replacementApplication
+    <RecordPage navigationComplete={navigationComplete} title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'} subtitle={replacementApplication
           ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
-          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'}
-        backLabel="Back to Supervisor Appointments"
-        onBack={onBack}
-        subtitleClassName="max-w-4xl leading-relaxed"
-      />
+          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'} backLabel="Back to Applications" onBack={onBack} dirty={researchTitle !== (replacementApplication?.researchTitle ?? '') || researchArea !== (replacementApplication?.researchArea ?? '') || researchAbstract !== (replacementApplication?.researchAbstract ?? '') || !!replacementReason.trim() || selectedSupervisorId !== null || selectedFiles.size > 0} busy={submitting}><form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
+      <PortalToast message={toastMessage} tone={toastTone} onClose={clearToast} />
+      
+
 
       {/* ========================================================================= */}
       {/* 2. THREE-STEPPER HEADER CAROUSEL                                          */}
       {/* ========================================================================= */}
-      <div id="application-stepper-row" className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-6 select-none">
-        {steps.map((st, idx) => (
-          <div key={st.number} className="flex items-center gap-3.5">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-              idx === 0 
-                ? 'bg-brand-navy text-white shadow-xs' 
-                : 'bg-slate-200 text-slate-550 text-slate-500'
-            }`}>
-              {st.number}
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-800 tracking-tight leading-none">
-                {st.title}
-              </h3>
-              <p className="text-[10px] text-slate-450 text-slate-400 font-medium font-mono mt-1">
-                {st.subtitle}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <nav id="application-stepper-row" aria-label="Application sections" className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <ol className="grid gap-2 md:grid-cols-3">{steps.map(st => <li key={st.number}><a href={`#${st.target}`} className="flex items-center gap-3 rounded-xl p-2 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">{st.number}</span>
+          <span className="card-value text-slate-800">{st.title}</span>
+        </a></li>)}</ol>
+      </nav>
 
       {/* ========================================================================= */}
       {/* 3. STEP 1: RESEARCH PROJECT DETAILS                                      */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
-        <h3 className="text-sm font-bold text-brand-navy uppercase tracking-wider flex items-center gap-2 select-none border-b border-slate-100 pb-3">
+      <div id="project-details" className="scroll-mt-24 bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
+        <h3 className="section-label flex items-center gap-2 select-none border-b border-slate-100 pb-3">
           <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[11px] font-black">1</span>
           Research Project Details
         </h3>
 
         {replacementApplication && (
           <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <label htmlFor="replacement-reason-input" className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+            <label htmlFor="replacement-reason-input" className="form-label uppercase text-amber-800 tracking-wider block">
               Replacement reason
             </label>
             <textarea
@@ -243,14 +264,14 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
               value={replacementReason}
               onChange={(event) => setReplacementReason(event.target.value)}
               placeholder="Explain why a different Supervisor is requested"
-              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800"
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-xs font-bold text-slate-800"
             />
           </div>
         )}
 
         {/* Input Field: Research Title */}
         <div className="space-y-1.5">
-          <label htmlFor="research-title-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+          <label htmlFor="research-title-input" className="form-label uppercase text-slate-400 tracking-wider block">
             Research Title
           </label>
           <input
@@ -259,12 +280,12 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             value={researchTitle}
             onChange={(e) => setResearchTitle(e.target.value)}
             placeholder="Enter the full working title of your research"
-            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-805 text-slate-800 placeholder-slate-400 transition"
+            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-bold text-slate-805 text-slate-800 placeholder-slate-400 transition"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="research-area-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+          <label htmlFor="research-area-input" className="form-label uppercase text-slate-400 tracking-wider block">
             Research Area
           </label>
           <input
@@ -274,13 +295,13 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             onChange={(e) => setResearchArea(e.target.value)}
             placeholder="For example, Human-Centred Artificial Intelligence"
             maxLength={255}
-            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 transition"
+            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 transition"
           />
         </div>
 
         {/* Text Area Field: Research Abstract */}
         <div className="space-y-1.5">
-          <label htmlFor="research-abstract-input" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+          <label htmlFor="research-abstract-input" className="form-label uppercase text-slate-400 tracking-wider block">
             Research Abstract
           </label>
           <textarea
@@ -289,7 +310,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             value={researchAbstract}
             onChange={(e) => setResearchAbstract(e.target.value)}
             placeholder="Provide a concise summary of your research objectives, methodology, and expected outcomes (max 500 words)..."
-            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3.5 text-xs font-semibold text-slate-805 text-slate-800 placeholder-slate-400 transition leading-relaxed"
+            className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 focus:ring-offset-0 rounded-xl px-4 py-3.5 text-xs font-bold text-slate-805 text-slate-800 placeholder-slate-400 transition leading-relaxed"
           />
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold font-mono pt-1">
             <span>Minimum word count parameter recommended for review: 150 words</span>
@@ -301,8 +322,8 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       {/* ========================================================================= */}
       {/* 4. STEP 2: SUPERVISOR SELECTION                                          */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
-        <h3 className="text-sm font-bold text-brand-navy uppercase tracking-wider flex items-center gap-2 select-none border-b border-slate-100 pb-3">
+      <div id="supervisor-selection" className="scroll-mt-24 bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
+        <h3 className="section-label flex items-center gap-2 select-none border-b border-slate-100 pb-3">
           <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[11px] font-black">2</span>
           Supervisor Selection
         </h3>
@@ -311,7 +332,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           
           {/* Left panel: Search filter + selection list (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block leading-none">
+            <span className="card-label uppercase text-slate-400 tracking-wider block leading-none">
               Select Proposed Supervisor
             </span>
 
@@ -323,7 +344,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name or expertise..."
-                className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 pl-10 pr-4 py-3 text-xs font-semibold text-slate-800 placeholder-slate-400 transition rounded-xl"
+                className="w-full bg-slate-50 hover:bg-slate-50/75 focus:bg-white border-0 focus:ring-2 focus:ring-indigo-500/85 pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 transition rounded-xl"
               />
             </div>
 
@@ -337,61 +358,10 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                   onRetry={loadSupervisors}
                 />
               ) : filteredSupervisors.length > 0 ? (
-                filteredSupervisors.map((sv) => {
-                  const isSelected = selectedSupervisorId === sv.id;
-                  const isSelectable = sv.selectable ?? sv.filled < sv.total;
-                  const capacityLabel = sv.capacityState
-                    ? capacityStateLabel(sv.capacityState)
-                    : isSelectable ? 'Available' : 'Full';
-                  
-                  return (
-                    <button
-                      type="button"
-                      key={sv.id}
-                      onClick={() => {
-                        setSelectedSupervisorId(sv.id);
-                        setFormError(null);
-                      }}
-                      disabled={!isSelectable}
-                      className={`flex w-full items-center justify-between p-3.5 border rounded-xl transition cursor-pointer text-left select-none ${
-                        isSelected 
-                          ? 'bg-indigo-50/40 border-indigo-400 shadow-3xs' 
-                          : !isSelectable
-                            ? 'bg-slate-50/50 border-slate-200/50 opacity-60 cursor-not-allowed' 
-                            : 'bg-white border-slate-200/80 hover:bg-slate-50'
-                      }`}
-                    >
-                      {/* Avatar Initials block */}
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shrink-0 uppercase ${
-                          isSelected ? 'bg-indigo-600 text-white' : 'bg-brand-navy text-white'
-                        }`}>
-                          {sv.initials}
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-extrabold text-slate-900">
-                            {sv.name}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-0.5">
-                            Expertise: {sv.domain}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Right capacity indicator slots chip */}
-                      <StatusBadge
-                        tone={!isSelectable ? 'danger' : isSelected ? 'brand' : 'neutral'}
-                        dot
-                        className="py-1.5 text-[9px]"
-                      >
-                        <span>{capacityLabel} · {sv.filled}/{sv.total} filled</span>
-                      </StatusBadge>
-
-                    </button>
-                  );
-                })
+                filteredSupervisors.map(sv => <SupervisorCandidateOption key={sv.id} candidate={sv} selected={selectedSupervisorId === sv.id} busy={submitting}
+                  onToggle={() => setSelectedSupervisorId(current => current === sv.id ? null : sv.id)} />)
               ) : (
-                <div className="p-8 text-center text-slate-400 font-semibold text-xs border border-dashed border-slate-200 rounded-xl">
+                <div className="card-description p-8 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   No matching supervisors found
                 </div>
               )}
@@ -400,19 +370,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
           {/* Right panel matching rule descriptor (5 cols) */}
           <div className="lg:col-span-5 h-full">
-            <div className="bg-[#f0fdf4]/50 border border-[#bbf7d0]/60 rounded-2xl p-5 flex gap-4 items-start relative h-full">
-              <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
-                <Info className="w-5 h-5" />
-              </div>
-              <div className="space-y-1.5 pt-0.5 select-none">
-                <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider">
-                  Supervisor selection
-                </h4>
-                <p className="text-slate-500 text-[11px] font-semibold leading-relaxed">
-                  Search the persisted supervisor directory by name or specialization, then select a supervisor with available capacity.
-                </p>
-              </div>
-            </div>
+            <SupervisorSelectionSummary candidate={supervisors.find(sv => sv.id === selectedSupervisorId) ?? null} onClear={() => setSelectedSupervisorId(null)} busy={submitting} />
           </div>
 
         </div>
@@ -421,8 +379,8 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       {/* ========================================================================= */}
       {/* 5. STEP 3: SUPPORTING DOCUMENTS UPLOAD ZONE                               */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
-        <h3 className="text-sm font-bold text-brand-navy uppercase tracking-wider flex items-center gap-2 select-none border-b border-slate-100 pb-3">
+      <div id="supporting-documents" className="scroll-mt-24 bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 space-y-5 shadow-3xs text-left">
+        <h3 className="section-label flex items-center gap-2 select-none border-b border-slate-100 pb-3">
           <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[11px] font-black">3</span>
           Supporting Documents
         </h3>
@@ -432,7 +390,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         ) : requirementsError ? (
           <ErrorState message={requirementsError} onRetry={loadRequirements} />
         ) : requirements.length === 0 ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+          <div className="card-description rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
             Document requirements are not configured. Contact the Postgraduate Office before submitting.
           </div>
         ) : (
@@ -452,16 +410,16 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-extrabold text-slate-800">{requirement.label}</p>
+                      <p className="card-value text-slate-800">{requirement.label}</p>
                       <StatusBadge tone={requirement.isRequired ? 'warning' : 'neutral'}>
                         {requirement.isRequired ? 'Required' : 'Optional'}
                       </StatusBadge>
                     </div>
-                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-slate-500">
+                    <p className="card-description mt-1">
                       {requirement.description || 'Attach the relevant supporting document.'}
                     </p>
                     {file && (
-                      <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
+                      <div className="card-value mt-3 flex items-center gap-2 text-emerald-700">
                         <FileText className="h-3.5 w-3.5" />
                         <span className="max-w-xs truncate">{file.name}</span>
                         <span className="font-mono text-slate-400">{formatSupervisorDocumentSize(file.size)}</span>
@@ -490,7 +448,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
                 </div>
               );
             })}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-400">
+            <div className="card-caption flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-slate-400">
               <span>PDF or DOCX; one file per requirement; 10 MB combined</span>
               <span>
                 {requirements.filter((item) => item.isRequired && selectedFiles.has(item.code)).length}
@@ -507,7 +465,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       {/* 6. SUBMISSION ACTION CONTROL BAR                                            */}
       {/* ========================================================================= */}
       <div id="sticky-draft-submit-control" className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 select-none">
-        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+        <div className="card-caption uppercase text-slate-400 tracking-wider">
           Applications submit directly to the selected supervisor
         </div>
 
@@ -525,58 +483,16 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
         </div>
       </div>
 
-      {formError && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700" role="alert">
-          {formError}
-        </div>
-      )}
-
       {/* ========================================================================= */}
       {/* 7. SUPPORTING CARDS FOOTER CONTAINER                                     */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Eligibility Checked */}
-        <div className="bg-[#e0f2fe]/30 border border-sky-100 rounded-2xl p-5 shadow-3xs select-none">
-          <div className="w-10 h-10 rounded-xl bg-sky-100/70 flex items-center justify-center text-sky-600 mb-4">
-            <ShieldCheck className="w-5 h-5 stroke-[2.3]" />
-          </div>
-          <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Submission prerequisites
-          </h4>
-          <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-            Submission is available when an active semester, supervisor capacity, and configured document requirements are available.
-          </p>
-        </div>
+      <AppointmentGuidance cards={[
+        {title:'One pending request at a time', content:<p>Only one request can await a decision. You may cancel while it awaits Supervisor review; after cancellation or rejection, you can apply again.</p>},
+        replacementApplication
+          ? {title:'Changing your supervisor',content:<p>Provide a replacement reason and fresh supporting documents. Your current supervisor remains assigned until the replacement is approved.</p>}
+          : {title:'When your appointment starts',content:<p>The selected Supervisor reviews your request, followed by the Programme Coordinator. Your appointment starts only after final approval.</p>},
+      ]} />
 
-        {/* Review Process */}
-        <div className="bg-[#f3e8ff]/30 border border-[#e9d5ff]/70 rounded-2xl p-5 shadow-3xs select-none">
-          <div className="w-10 h-10 rounded-xl bg-purple-100/70 flex items-center justify-center text-purple-600 mb-4">
-            <Clock className="w-5 h-5 stroke-[2.3]" />
-          </div>
-          <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Review Process
-          </h4>
-          <p className="text-slate-500 text-xs font-semibold leading-relaxed font-sans">
-            Review progress follows the recorded faculty workflow. No formal turnaround target is currently configured.
-          </p>
-        </div>
-
-        {/* Need Assistance? */}
-        <div className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-5 shadow-3xs select-none">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-4">
-            <HelpCircle className="w-5 h-5 stroke-[2.3]" />
-          </div>
-          <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider mb-2">
-            Need Assistance?
-          </h4>
-          <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-            Contact the FSKTM Office Directory or use our FAQ Chatbot for technical issues.
-          </p>
-        </div>
-
-      </div>
-
-    </form>
+    </form></RecordPage>
   );
 };

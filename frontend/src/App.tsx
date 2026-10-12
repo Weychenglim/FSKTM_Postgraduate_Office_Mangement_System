@@ -40,11 +40,13 @@ import {
   routeForPanelWorkload,
   routeForStudentProgress,
   routeForSupervisorApplication,
+  routeForSupportingSupervisorRequest,
   routeForSupervisorHistory,
   routeForSupervisorNewApplication,
   routeForSupervisorRequirements,
   routeForSupervisorSupervisee,
   routeForSupervisorWorkload,
+  routeForSupervisorResearchRequest,
   routeForSidebarItem,
   sidebarItemForPath,
 } from './constants/routes';
@@ -63,6 +65,7 @@ import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { MarkRecordStatusTab } from './utils/markRecords';
+import { recordBackSteps, recordReturn, recordSourceLabel } from './utils/recordNavigation';
 import {
   buildMarksSetupChecklist,
   formatPeriodStatus,
@@ -107,6 +110,7 @@ const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./compone
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
 const WorkflowReports = lazyNamed('WorkflowReports', () => import('./components/WorkflowReports'));
 const StudentProgressDossier = lazyNamed('StudentProgressDossier', () => import('./components/StudentProgressDossier'));
+const StaffResearchWorkspace = lazyNamed('StaffResearchWorkspace', () => import('./components/StaffResearchWorkspace'));
 const CoordinatorSupervisorApprovals = lazyNamed('CoordinatorSupervisorApprovals', () => import('./components/CoordinatorSupervisorApprovals'));
 const StudentSupervisorAppointment = lazyNamed('StudentSupervisorAppointment', () => import('./components/StudentSupervisorAppointment'));
 const StudentPanelAppointment = lazyNamed('StudentPanelAppointment', () => import('./components/StudentPanelAppointment'));
@@ -214,14 +218,26 @@ export default function App() {
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
   const isSupervisorRequirementsRoute = pathname === APP_ROUTES.supervisorAppointmentRequirements;
+  const isSupervisorApplicationsRoute = pathname === APP_ROUTES.supervisorAppointmentApplications;
+  const isSupervisorSuperviseesRoute = pathname === APP_ROUTES.supervisorAppointmentSupervisees;
+  const supervisorResearchMatch = matchPath(`${APP_ROUTES.supervisorResearchChanges}/:requestId`, pathname);
+  const isSupervisorResearchRoute = pathname === APP_ROUTES.supervisorResearchChanges || Boolean(supervisorResearchMatch);
+  const supervisorResearchView = pathname === APP_ROUTES.supervisorResearchNew ? 'new' : pathname === APP_ROUTES.supervisorResearchProfile ? 'profile' : supervisorResearchMatch ? 'detail' : 'list';
+  const supervisorResearchRequestId = supervisorResearchView === 'detail' ? supervisorResearchMatch?.params.requestId : undefined;
   const supervisorSuperviseeMatch = matchPath(`${APP_ROUTES.supervisorAppointmentSupervisees}/:studentId`, pathname);
   const supervisorSuperviseeStudentId = supervisorSuperviseeMatch?.params.studentId;
+  const supportingRequestMatch = matchPath(`${APP_ROUTES.supervisorAppointments}/supporting-requests/:nominationId`, pathname);
+  const supportingRequestId = supportingRequestMatch?.params.nominationId;
   const isSupervisorFixedRoute = (
     isSupervisorWorkloadRoute
     || isSupervisorNewRoute
     || isSupervisorHistoryRoute
     || isSupervisorRequirementsRoute
+    || isSupervisorApplicationsRoute
+    || isSupervisorSuperviseesRoute
+    || isSupervisorResearchRoute
     || Boolean(supervisorSuperviseeStudentId)
+    || Boolean(supportingRequestId)
   );
   const supervisorApplicationMatch = isSupervisorFixedRoute
     ? null
@@ -263,14 +279,44 @@ export default function App() {
     ? currentUser?.studentId
     : dashboardProgressMatch?.params.studentId;
   const isStudentUnsupportedSupervisorRoute =
-    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || isSupervisorRequirementsRoute || Boolean(supervisorSuperviseeStudentId));
+    isStudentWorkspace && (isSupervisorWorkloadRoute || isSupervisorHistoryRoute || isSupervisorRequirementsRoute || isSupervisorSuperviseesRoute || Boolean(supervisorSuperviseeStudentId) || Boolean(supportingRequestId));
   const isLecturerUnsupportedSupervisorRoute =
-    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute || isSupervisorRequirementsRoute);
+    isLecturerWorkspace && (isSupervisorWorkloadRoute || isSupervisorNewRoute || isSupervisorRequirementsRoute || isSupervisorApplicationsRoute || pathname === APP_ROUTES.supervisorResearchNew);
   const isCoordinatorUnsupportedSupervisorRoute =
-    isCoordinatorWorkspace && isSupervisorFixedRoute;
+    isCoordinatorWorkspace && isSupervisorFixedRoute && !isSupervisorSuperviseesRoute && !supervisorSuperviseeStudentId && !supportingRequestId;
   const isOfficeUnsupportedSupervisorRoute =
     currentUser?.role === 'Office Staff/Admin'
-    && (isSupervisorNewRoute || isSupervisorHistoryRoute || Boolean(supervisorSuperviseeStudentId));
+    && (isSupervisorNewRoute || isSupervisorHistoryRoute || isSupervisorApplicationsRoute || isSupervisorResearchRoute || Boolean(supportingRequestId));
+
+  const supervisorReturn = (parent: string, label: string) => recordReturn(location.state?.recordReturn, { path: parent + location.search, label }, APP_ROUTES.supervisorAppointments);
+  const openSupervisorRecord = (target: string, parent: string, label: string) => {
+    const source = pathname === parent || (parent === APP_ROUTES.supervisorAppointments && isSupervisorHistoryRoute)
+      ? { path: pathname + location.search, label, historyIndex: window.history.state?.idx }
+      : supervisorReturn(parent, label);
+    navigate(target + location.search, { state: { recordReturn: source } });
+  };
+  const returnToSupervisorList = (parent: string, label: string) => {
+    const source = supervisorReturn(parent, label);
+    const steps = recordBackSteps(window.history.state?.idx, source);
+    if (steps) navigate(-steps); else navigate(source.path, { replace: true });
+  };
+  const dossierReturn = recordReturn(location.state?.dossierReturn, { path: APP_ROUTES.dashboard, label: 'Dashboard' }, '');
+  const openDossier = (studentId: string) => navigate(routeForStudentProgress(studentId), { state: {
+    dossierReturn: { path: pathname + location.search, label: recordSourceLabel(pathname), historyIndex: window.history.state?.idx },
+    recordReturn: location.state?.recordReturn,
+  } });
+  const returnFromDossier = () => {
+    const steps = recordBackSteps(window.history.state?.idx, dossierReturn);
+    if (steps) navigate(-steps); else navigate(dossierReturn.path, { replace: true, state: {recordReturn: location.state?.recordReturn} });
+  };
+  const returnToPanelList = () => {
+    const source = recordReturn(location.state?.recordReturn, {path: APP_ROUTES.panelAppointments + location.search, label: 'Panel Appointments'}, APP_ROUTES.panelAppointments);
+    const steps = recordBackSteps(window.history.state?.idx, source);
+    if (steps) navigate(-steps); else navigate(source.path, {replace: true});
+  };
+  const openPanelRecord = (path: string) => navigate(path + location.search, { state: {
+    recordReturn: { path: pathname + location.search, label: recordSourceLabel(pathname), historyIndex: window.history.state?.idx },
+  } });
   const isUnauthorizedSupervisorRequirementsRoute = Boolean(
     isSupervisorRequirementsRoute
     && currentUser
@@ -502,7 +548,7 @@ export default function App() {
               isLecturerWorkspace ? (
                 <LecturerMarksEntry
                   onBackToDashboard={() => navigate(APP_ROUTES.dashboard)}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToDossier={openDossier}
                   onNavigateToRequirements={() => navigate(routeForSupervisorRequirements())}
                 />
               ) : isMarksConfigRoute ? (
@@ -518,12 +564,12 @@ export default function App() {
                 <MarkEntryRecords 
                   onBack={() => navigate(APP_ROUTES.marks)}
                   initialStatusTab={marksRecordStatusTab}
-                  onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId))}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onViewRecordDetail={(recordId) => navigate(routeForMarkRecord(recordId), { state: { recordReturn: { path: pathname + location.search, label: 'Mark Entry Records', historyIndex: window.history.state?.idx } } })}
+                  onNavigateToDossier={openDossier}
                 />
               ) : markRecordId ? (
                 <MarkEntryRecordDetail
-                  onBack={() => navigate(APP_ROUTES.marksRecords)}
+                  onBack={() => { const source = recordReturn(location.state?.recordReturn, { path: APP_ROUTES.marksRecords, label: 'Mark Entry Records' }, APP_ROUTES.marks); const steps = recordBackSteps(window.history.state?.idx, source); if (steps) navigate(-steps); else navigate(source.path, { replace: true }); }}
                   recordId={markRecordId}
                 />
               ) : (
@@ -640,11 +686,11 @@ export default function App() {
                       : 'list'
                   }
                   routeAssignmentStudentId={panelAssignmentStudentId}
-                  onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                  onNavigateToList={returnToPanelList}
                   onNavigateToSubmitted={() => navigate(routeForPanelSubmittedRecommendations())}
                   onNavigateToReviewed={() => navigate(routeForPanelReviewedRequests())}
-                  onNavigateToAssignment={(studentId) => navigate(routeForPanelAssignment(studentId))}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToAssignment={(studentId) => openPanelRecord(routeForPanelAssignment(studentId))}
+                  onNavigateToDossier={openDossier}
                 />
               ) : (
                 <PanelAppointmentManagement
@@ -656,10 +702,10 @@ export default function App() {
                       : 'list'
                   }
                   routeRecordId={panelRecordId}
-                  onNavigateToList={() => navigate(APP_ROUTES.panelAppointments)}
+                  onNavigateToList={returnToPanelList}
                   onNavigateToWorkload={() => navigate(routeForPanelWorkload())}
-                  onNavigateToRecord={(recordId) => navigate(routeForPanelRecord(recordId))}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToRecord={(recordId) => openPanelRecord(routeForPanelRecord(recordId))}
+                  onNavigateToDossier={openDossier}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
@@ -670,6 +716,13 @@ export default function App() {
                 <SupervisorDocumentRequirements
                   onBack={() => navigate(APP_ROUTES.supervisorAppointments)}
                 />
+              ) : isSupervisorResearchRoute && (isCoordinatorWorkspace || currentUser.role === 'Office Staff/Admin') ? (
+                <StaffResearchWorkspace role={currentUser.role} routeView={supervisorResearchView} routeRequestId={supervisorResearchRequestId}
+                  onNavigateToList={() => { if (supervisorResearchView === 'list') returnToSupervisorList(APP_ROUTES.supervisorAppointments, 'Supervisor Appointments'); else returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes'); }}
+                  onNavigateToRequest={(id) => openSupervisorRecord(routeForSupervisorResearchRequest(id), APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToProfile={() => openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToNew={() => openSupervisorRecord(APP_ROUTES.supervisorResearchNew, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                />
               ) : isStudentUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isStudentWorkspace ? (
@@ -677,35 +730,62 @@ export default function App() {
                   lifecycleStatus={currentUser.participantLifecycleStatus}
                   onShowFAQChatbot={() => navigate(APP_ROUTES.faq)}
                   initialApplicationId={supervisorApplicationId}
-                  routeView={isSupervisorNewRoute ? 'newApplication' : 'overview'}
-                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
-                  onNavigateToNewApplication={() => navigate(routeForSupervisorNewApplication())}
-                  onNavigateToApplication={(applicationId) => navigate(routeForSupervisorApplication(applicationId))}
+                  routeView={isSupervisorNewRoute ? 'newApplication' : isSupervisorResearchRoute ? 'research' : isSupervisorApplicationsRoute || supervisorApplicationId ? 'applications' : 'overview'}
+                  onNavigateToList={() => returnToSupervisorList(APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
+                  onNavigateToNewApplication={() => openSupervisorRecord(routeForSupervisorNewApplication(), APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
+                  onNavigateToApplication={(applicationId) => openSupervisorRecord(routeForSupervisorApplication(applicationId), APP_ROUTES.supervisorAppointmentApplications, 'Applications')}
+                  researchView={supervisorResearchView}
+                  researchRequestId={supervisorResearchRequestId}
+                  onNavigateToResearchList={() => returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToResearchProfile={() => openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToResearchNew={() => openSupervisorRecord(APP_ROUTES.supervisorResearchNew, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToResearchRequest={(id) => openSupervisorRecord(routeForSupervisorResearchRequest(id), APP_ROUTES.supervisorResearchChanges, 'Research changes')}
                 />
               ) : isCoordinatorUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isCoordinatorWorkspace ? (
                 <CoordinatorSupervisorApprovals
+                  onNavigateToList={() => returnToSupervisorList(supervisorSuperviseeStudentId ? APP_ROUTES.supervisorAppointmentSupervisees : APP_ROUTES.supervisorAppointments, supervisorSuperviseeStudentId ? 'Supervisory teams' : 'Appointment requests')}
+                  onNavigateToApplication={(id) => openSupervisorRecord(routeForSupervisorApplication(id), isSupervisorSuperviseesRoute ? APP_ROUTES.supervisorAppointmentSupervisees : APP_ROUTES.supervisorAppointments, isSupervisorSuperviseesRoute ? 'Supervisory teams' : 'Appointment requests')}
+                  backLabel={`Back to ${supervisorReturn(APP_ROUTES.supervisorAppointments, 'Appointment requests').label}`}
+                  initialSupportingId={supportingRequestId}
+                  onNavigateToSupportingRequest={(id) => openSupervisorRecord(routeForSupportingSupervisorRequest(id), APP_ROUTES.supervisorAppointments, 'Appointment requests')}
+                  workspaceView={isSupervisorSuperviseesRoute || supervisorSuperviseeStudentId ? 'teams' : 'requests'}
+                  routeTeamStudentId={supervisorSuperviseeStudentId}
+                  onNavigateToTeam={(id) => openSupervisorRecord(routeForSupervisorSupervisee(id), APP_ROUTES.supervisorAppointmentSupervisees, 'Supervisory teams')}
                   initialApplicationId={supervisorApplicationId}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToDossier={openDossier}
                 />
               ) : isLecturerUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
               ) : isLecturerWorkspace ? (
                 <LecturerSupervisorAppointments
+                  lecturerId={currentUser.id}
                   initialApplicationId={supervisorApplicationId}
+                  initialSupportingId={supportingRequestId}
+                  onNavigateToRequest={(id, kind) => openSupervisorRecord(kind === 'supporting' ? routeForSupportingSupervisorRequest(id) : routeForSupervisorApplication(id), APP_ROUTES.supervisorAppointments, 'Appointment requests')}
                   routeView={
                     isSupervisorHistoryRoute
                       ? 'history'
+                      : isSupervisorResearchRoute
+                      ? 'research'
+                      : isSupervisorSuperviseesRoute
+                      ? 'supervisees'
                       : supervisorSuperviseeStudentId
                       ? 'superviseeDetail'
                       : 'list'
                   }
                   routeSuperviseeStudentId={supervisorSuperviseeStudentId}
-                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  onNavigateToList={() => returnToSupervisorList(APP_ROUTES.supervisorAppointments, 'Appointment requests')}
                   onNavigateToHistory={() => navigate(routeForSupervisorHistory())}
-                  onNavigateToSupervisee={(studentId) => navigate(routeForSupervisorSupervisee(studentId))}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToSupervisee={(studentId) => openSupervisorRecord(routeForSupervisorSupervisee(studentId), APP_ROUTES.supervisorAppointmentSupervisees, 'My supervisees')}
+                  onNavigateToSupervisees={() => returnToSupervisorList(APP_ROUTES.supervisorAppointmentSupervisees, 'My supervisees')}
+                  researchView={supervisorResearchView}
+                  researchRequestId={supervisorResearchRequestId}
+                  onNavigateToResearchList={() => returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToResearchProfile={() => openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToResearchRequest={(id) => openSupervisorRecord(routeForSupervisorResearchRequest(id), APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  onNavigateToDossier={openDossier}
                   onNavigateToPanelRecommendation={(studentId) => navigate(routeForPanelRecommendationStart(studentId))}
                 />
               ) : isOfficeUnsupportedSupervisorRoute ? (
@@ -715,15 +795,21 @@ export default function App() {
                   routeView={
                     isSupervisorWorkloadRoute
                       ? 'workload'
+                      : supervisorSuperviseeStudentId ? 'teamDetail'
+                      : isSupervisorSuperviseesRoute ? 'teams'
                       : supervisorApplicationId
                       ? 'detail'
                       : 'list'
                   }
                   routeRecordId={supervisorApplicationId}
-                  onNavigateToList={() => navigate(APP_ROUTES.supervisorAppointments)}
+                  routeTeamStudentId={supervisorSuperviseeStudentId}
+                  onNavigateToTeam={(id) => openSupervisorRecord(routeForSupervisorSupervisee(id), APP_ROUTES.supervisorAppointmentSupervisees, 'Supervisory teams')}
+                  onNavigateToTeams={() => returnToSupervisorList(APP_ROUTES.supervisorAppointmentSupervisees, 'Supervisory teams')}
+                  onNavigateToRequirements={() => navigate(routeForSupervisorRequirements())}
+                  onNavigateToList={() => returnToSupervisorList(APP_ROUTES.supervisorAppointments, 'Appointment records')}
                   onNavigateToWorkload={() => navigate(routeForSupervisorWorkload())}
-                  onNavigateToRecord={(recordId) => navigate(routeForSupervisorApplication(recordId))}
-                  onNavigateToDossier={(studentId) => navigate(routeForStudentProgress(studentId))}
+                  onNavigateToRecord={(recordId) => openSupervisorRecord(routeForSupervisorApplication(recordId), APP_ROUTES.supervisorAppointments, 'Appointment records')}
+                  onNavigateToDossier={openDossier}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
@@ -760,7 +846,8 @@ export default function App() {
                 <StudentProgressDossier
                   studentId={dossierStudentId}
                   currentUserRole={currentUser.role}
-                  onBack={() => navigate(APP_ROUTES.dashboard)}
+                  onBack={returnFromDossier}
+                  backLabel={`Back to ${dossierReturn.label}`}
                   onNavigateToRoute={navigate}
                 />
               ) : isDashboardReportsRoute && isStudentWorkspace ? (

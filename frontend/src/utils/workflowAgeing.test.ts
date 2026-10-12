@@ -114,6 +114,11 @@ assert.equal(
   '/supervisor-appointments/A%2F42',
 );
 assert.equal(
+  resolveDashboardTaskRoute({ ...taskDefaults, targetModule: 'SUPERVISOR_APPOINTMENTS', recordType: 'RESEARCH_AMENDMENT', recordId: '2' }),
+  '/supervisor-appointments/research-changes/2',
+  'Research action-centre links open the named record rather than the module root',
+);
+assert.equal(
   resolveDashboardTaskRoute({
     ...taskDefaults,
     targetModule: 'PANEL_APPOINTMENTS',

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,7 @@ export const RecentSupervisorAppointmentsCard: React.FC<RecentSupervisorAppointm
   return (
     <div id="recent-appointments-section" className="space-y-2 text-left font-sans">
       {/* Group Title label */}
-      <h5 className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider">
+      <h5 className="section-label text-[#475569]">
         Recent Supervisor Appointments
       </h5>
 
@@ -35,10 +35,10 @@ export const RecentSupervisorAppointmentsCard: React.FC<RecentSupervisorAppointm
             >
               {/* Left Details */}
               <div className="space-y-1 text-left">
-                <span className="font-bold text-brand-navy text-xs block">
+                <span className="card-value text-brand-navy block">
                   {apt.studentName}
                 </span>
-                <span className="text-[10px] text-slate-400 font-bold block">
+                <span className="card-caption text-slate-400 block">
                   {apt.date}
                 </span>
               </div>

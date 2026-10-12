@@ -1,11 +1,12 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
-  Users, 
+  Users,
+  RefreshCw,
   Clock, 
   CheckCircle, 
   ChevronRight, 
@@ -36,6 +37,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
+import { supervisorResearchPage } from '../utils/supervisorWorkspace';
+import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -53,6 +56,13 @@ import {
 import { capacityStateLabel } from '../utils/lecturerCapacity';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
+import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
+import { LecturerAppointmentRequests } from './LecturerAppointmentRequests';
+import { useLocation } from 'react-router';
+import { AppointmentSection, AppointmentMemberCard, AppointmentSummaryCard } from './AppointmentPrimitives';
+import { LecturerAppointmentGuidance } from './LecturerAppointmentGuidance';
+import { RecordPage } from './RecordPage';
+import { LecturerSuperviseesWorkspace } from './LecturerSuperviseesWorkspace';
 
 // ==================== REUSABLE DEFINITIONS & MOTIFS ====================
 
@@ -71,76 +81,9 @@ interface SummaryCardProps {
 /**
  * Standard counter info block with subtle drop shadow and sleek tracking.
  */
-export const SummaryCard: React.FC<SummaryCardProps> = ({
-  title,
-  value,
-  subtext,
-  badge,
-  badgeType = 'success',
-  progress
-}) => {
-  const utilization = progress && progress.max > 0
-    ? Math.min(100, Math.max(0, (progress.current / progress.max) * 100))
-    : 0;
-
-  return (
-    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs flex flex-col justify-between h-auto relative overflow-hidden group hover:border-[#cbd5e1] transition-all duration-300">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1 text-left">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-            {title}
-          </span>
-          {subtext && !progress && (
-            <span className="text-[10px] font-bold text-slate-400 block pt-0.5 uppercase tracking-wider">
-              {subtext}
-            </span>
-          )}
-        </div>
-        {badge && (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border select-none ${
-            badgeType === 'success' 
-              ? 'bg-[#e6fbf2] text-[#00a15c] border-[#bef5db]'
-              : 'bg-amber-50 text-amber-600 border-amber-200'
-          }`}>
-            <span className={`w-1 h-1 rounded-full ${badgeType === 'success' ? 'bg-[#00a15c] animate-pulse' : 'bg-amber-500'}`} />
-            {badge}
-          </span>
-        )}
-      </div>
-
-      <div className="text-left mt-4">
-        <span className="text-3xl font-black text-brand-navy tracking-tight block">
-          {progress ? (
-            <span className="font-sans">
-              {progress.current} <span className="text-slate-300 font-medium">/ {progress.max} Students</span>
-            </span>
-          ) : value}
-        </span>
-      </div>
-
-      {progress && (
-        <div className="mt-4 space-y-1.5 w-full">
-          <div className="w-full bg-[#f1f5f9] rounded-full h-2 overflow-hidden">
-            <div 
-              className="bg-brand-navy h-full rounded-full transition-all duration-500"
-              style={{ width: `${utilization}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Progress Load: {Math.round(utilization)}%</span>
-            <span>Capacity</span>
-          </div>
-        </div>
-      )}
-
-      {subtext && progress && (
-        <span className="text-[10px] font-bold text-slate-400 text-left block pt-1.5 uppercase tracking-wider">
-          {subtext}
-        </span>
-      )}
-    </div>
-  );
-};
+export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext, badge, badgeType = 'success', progress }) => (
+  <AppointmentSummaryCard title={title} value={value} description={subtext} badge={badge} tone={badgeType} progress={progress} />
+);
 
 interface ActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
@@ -225,13 +168,13 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({
         {initials}
       </div>
       <div className="text-left">
-        <h4 className="text-sm font-black text-brand-navy leading-snug">
+        <h4 className="section-label leading-snug">
           {studentName}
         </h4>
-        <p className="text-[12px] text-slate-500 font-extrabold mt-0.5 leading-none">
+        <p className="card-description mt-0.5">
           {programme}
         </p>
-        <p className="text-[11px] text-slate-400 font-bold mt-1 leading-none">
+        <p className="card-description mt-1">
           Submitted: {submittedDate}
         </p>
       </div>
@@ -252,7 +195,7 @@ export const InfoCard: React.FC<InfoCardProps> = ({
 }) => {
   return (
     <div className={`space-y-2 text-left ${className}`}>
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+      <span className="card-label text-slate-400 block leading-none">
         {label}
       </span>
       {children}
@@ -287,7 +230,7 @@ export const FormTextarea: React.FC<FormTextareaProps> = ({
 
 export const NoticeText: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed mt-1 select-none text-left">
+    <p className="card-description mt-1 select-none text-left">
       {children}
     </p>
   );
@@ -341,7 +284,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
           
           {/* Header block with close icon */}
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none shrink-0">
-            <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
+            <h3 className="section-label">
               Supervisor Request Review
             </h3>
             <button 
@@ -364,13 +307,13 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
 
             {/* Research Abstract */}
             <InfoCard label="RESEARCH ABSTRACT">
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl card-description text-slate-600 text-left">
                 {request.abstract || 'No research abstract was provided with this application.'}
               </div>
             </InfoCard>
 
             <InfoCard label="RESEARCH AREA">
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold text-slate-600 leading-relaxed text-left">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl card-description text-slate-600 text-left">
                 {request.researchArea || 'Not recorded'}
               </div>
             </InfoCard>
@@ -385,7 +328,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
             <WorkflowAuditLog events={request.workflow} />
 
             {request.participantEligible === false && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-800">
+              <p className="card-description rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
                 This Student is {request.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
               </p>
             )}
@@ -421,7 +364,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
               </NoticeText>
             </div>
             ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-[11px] font-semibold text-slate-600">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 card-description text-slate-600">
                 This workflow record is read-only because the request is no longer awaiting your decision.
               </div>
             )}
@@ -444,97 +387,24 @@ interface RequestCardProps {
 /**
  * Clean container matching high fidelity request designs exactly.
  */
-export const RequestCard: React.FC<RequestCardProps> = ({
-  request,
-  onOpen,
-  onViewDossier,
-}) => {
-  const initials = request.studentName
-    .split(' ')
-    .slice(0, 2)
-    .map(w => w[0])
-    .join('')
-    .toUpperCase();
+export const RequestCard: React.FC<RequestCardProps> = ({ request, onOpen, onViewDossier }) => (
+  <div id={`request-card-${request.studentId}`}>
+    <AppointmentMemberCard label="Applicant" name={request.studentName} status={request.status} tone="warning" actions={<>
+      <PortalButton size="sm" onClick={onViewDossier}>View student record</PortalButton>
+      <PortalButton size="sm" variant="primary" onClick={onOpen}>Open Request</PortalButton>
+    </>}>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div><dt className="card-label">Student ID</dt><dd className="card-value break-words">{request.studentId}</dd></div>
+        <div><dt className="card-label">Programme</dt><dd className="card-value break-words">{request.programme}</dd></div>
+        <div><dt className="card-label">Submitted</dt><dd className="card-value">{request.submittedDate}</dd></div>
+        <div><dt className="card-label">Waiting</dt><dd className="card-description">{formatSupervisorWaiting(request)}</dd></div>
+      </dl>
+      <div className="space-y-1 pt-2"><p className="card-label">Proposed research title</p><p className="card-value break-words">{request.proposedTopic}</p></div>
+    </AppointmentMemberCard>
+  </div>
+);
 
-  return (
-    <div id={`request-card-${request.studentId}`} className="bg-white border border-[#e2e8f0]/80 rounded-2xl p-6 shadow-3xs hover:border-[#cbd5e1] transition-all duration-300 text-left h-full flex flex-col justify-between">
-      <div>
-        {/* Author metadata header */}
-        <div className="flex justify-between items-start gap-3">
-          <div className="flex gap-4 items-center">
-            <div className="w-12 h-12 bg-slate-100 text-slate-500 font-black text-sm rounded-xl flex items-center justify-center tracking-widest shrink-0 border border-slate-200/50">
-              {initials}
-            </div>
-            <div>
-              <h4 className="text-sm font-extrabold text-brand-navy leading-snug">
-                {request.studentName}
-              </h4>
-              <p className="text-[11px] text-slate-400 font-bold mt-0.5">
-                {request.programme} <span className="mx-1 text-slate-200">•</span> ID: <span className="font-mono">{request.studentId}</span>
-              </p>
-              <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                Submitted: {request.submittedDate}
-              </p>
-              <p className="text-[10px] text-amber-700 font-bold mt-1">
-                {formatSupervisorWaiting(request)}
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right flex flex-col items-end gap-1.5">
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-              RECEIVED: {request.receivedTime}
-            </span>
-            <StatusChip status={request.status} />
-          </div>
-        </div>
-
-        {/* Proposed research topic container block */}
-        <div className="mt-5 p-4.5 bg-[#f8fafc] border border-slate-100 rounded-2xl">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-            PROPOSED TOPIC
-          </span>
-          <h5 className="text-[12.5px] font-extrabold text-brand-navy leading-relaxed">
-            {request.proposedTopic}
-          </h5>
-        </div>
-      </div>
-
-      <div className="mt-6 pt-1 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={onViewDossier}
-          className="w-full py-2 text-center text-blue-700 font-black uppercase text-[10px] tracking-wider hover:underline"
-        >
-          View Dossier
-        </button>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="w-full py-3 text-center border border-brand-navy text-brand-navy font-black uppercase text-[10px] tracking-wider rounded-xl hover:bg-slate-50 transition-all duration-200 cursor-pointer"
-        >
-          Open Request
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Standard clock/empty state feedback box.
- */
-export const EmptyStateCard: React.FC = () => {
-  return (
-    <div id="no-more-requests" className="bg-white border border-dashed border-slate-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center h-full min-h-[290px] select-none">
-      <div className="w-12 h-12 bg-slate-50 text-slate-350 border border-slate-100 rounded-full flex items-center justify-center mb-3">
-        <Clock className="w-5 h-5 text-slate-400 opacity-60 stroke-[1.8]" />
-      </div>
-      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-        No further requests at this time.
-      </h4>
-    </div>
-  );
-};
+export const EmptyStateCard: React.FC = () => <p className="card-description rounded-xl bg-slate-50 p-4">No pending supervisor requests.</p>;
 
 // ActiveSuperviseeRow now lives in src/types.
 
@@ -542,7 +412,6 @@ interface DataTableProps {
   data: ActiveSuperviseeRow[];
   onOpenRow: (row: ActiveSuperviseeRow) => void;
   onViewDossier: (studentId: string) => void;
-  onFilterClick: () => void;
 }
 
 /**
@@ -551,91 +420,69 @@ interface DataTableProps {
 export const DataTable: React.FC<DataTableProps> = ({
   data,
   onOpenRow,
-  onViewDossier,
-  onFilterClick
+  onViewDossier
 }) => {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const visibleRows = data.filter(row => `${row.studentId} ${row.studentName} ${row.researchTitle}`.toLowerCase().includes(query));
   return (
-    <div id="supervisees-table-block" className="space-y-4 text-left">
-      {/* Header filter actions section */}
-      <div className="flex justify-between items-center select-none">
-        <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
-          Active Supervisees
-        </h3>
-        <button 
-          onClick={onFilterClick}
-          className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-3xs"
-        >
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
-          <span>Filter</span>
-        </button>
-      </div>
-
+    <AppointmentSection id="supervisees-table-block" title="Active Supervisees" description="Your active primary supervision appointments.">
+      {data.length > 1 ? <label className="form-label block max-w-lg">Find a supervisee<input type="search" className="form-control form-control-sm mt-1" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, student ID or research title" /></label> : null}
       {/* Main database layout listing */}
       <div className="bg-white rounded-2xl border border-[#e2e8f0]/80 overflow-hidden shadow-3xs">
         <div className="overflow-x-auto">
-          <table className="data-table min-w-[750px] text-xs">
+          <table className="data-table table-fixed min-w-[850px] text-xs">
+            <colgroup>{[16,22,26,12,10,14].map(width => <col key={width} style={{width:`${width}%`}} />)}</colgroup>
             <thead>
               <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                <th className="py-4.5 px-6">STUDENT ID</th>
-                <th className="py-4.5 px-6">STUDENT NAME</th>
-                <th className="py-4.5 px-6">RESEARCH TITLE</th>
-                <th className="py-4.5 px-6">APPT. DATE</th>
-                <th className="py-4.5 px-6">STATUS</th>
-                <th className="py-4.5 px-6 text-center">ACTION</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3">STUDENT ID</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3">STUDENT NAME</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3">RESEARCH TITLE</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3">APPT. DATE</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3">STATUS</th>
+                <th className="data-th whitespace-nowrap py-4.5 px-3 text-center">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-brand-navy">
-              {data.length === 0 && (
+              {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
-                    No active supervisees assigned yet.
+                  <td colSpan={6} className="card-description py-12 text-center text-slate-400">
+                    {query ? 'No matching supervisees.' : 'No active supervisees assigned yet.'}
                   </td>
                 </tr>
               )}
-              {data.map((row) => {
-                const initials = row.studentName
-                  .split(' ')
-                  .slice(0, 2)
-                  .map(w => w[0])
-                  .join('')
-                  .toUpperCase();
-
+              {visibleRows.map((row) => {
                 return (
                   <tr key={row.studentId} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-4 px-6 font-mono font-bold text-slate-505 text-slate-500">
+                    <td className="py-4 px-3 whitespace-nowrap font-mono font-bold text-slate-505 text-slate-500">
                       {row.studentId}
                     </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-100 text-slate-505 text-slate-500 font-extrabold text-[10px] rounded-lg flex items-center justify-center shrink-0 border border-slate-200/50">
-                          {initials}
-                        </div>
-                        <span className="font-extrabold text-brand-navy tracking-tight">{row.studentName}</span>
-                      </div>
+                    <td className="data-td py-4 px-3">
+                      <span className="card-value whitespace-nowrap text-brand-navy">{row.studentName}</span>
                     </td>
-                    <td className="py-4 px-6 font-semibold text-slate-500 max-w-[280px] truncate" title={row.researchTitle}>
+                    <td className="data-td py-4 px-3 text-slate-500 whitespace-normal break-words" title={row.researchTitle}>
                       {row.researchTitle}
                     </td>
-                    <td className="py-4 px-6 font-bold text-slate-450 text-slate-400 font-sans">
+                    <td className="data-td-strong whitespace-nowrap py-4 px-3 text-slate-450 text-slate-400 font-sans">
                       {row.appointmentDate}
                     </td>
-                    <td className="py-4 px-6">
-                      <StatusChip status={row.status} />
+                    <td className="data-td py-4 px-3">
+                      <StatusBadge tone={row.status === 'ACTIVE' ? 'success' : 'neutral'}>{row.status}</StatusBadge>
                     </td>
-                    <td className="py-4 px-6 text-center">
+                    <td className="data-td py-4 px-3 text-center">
                       <div className="flex flex-col items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => onViewDossier(row.studentId)}
                           className="text-[9px] font-black uppercase text-blue-700 hover:underline"
                         >
-                          View Dossier
+                          View student record
                         </button>
                         <button
                           onClick={() => onOpenRow(row)}
-                        className="px-4.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                        className="px-3.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
                         >
-                          Open
+                          View supervision
                         </button>
                       </div>
                     </td>
@@ -646,481 +493,96 @@ export const DataTable: React.FC<DataTableProps> = ({
           </table>
         </div>
       </div>
-    </div>
+    </AppointmentSection>
   );
 };
 
 // ==================== MAIN SCREEN WORKFLOW CONTAINER ====================
 
 interface LecturerSupervisorAppointmentsProps {
+  lecturerId?: string;
   onBack?: () => void;
   initialApplicationId?: string;
-  routeView?: 'list' | 'history' | 'superviseeDetail';
+  initialSupportingId?: string;
+  onNavigateToRequest?: (id: string, kind: 'primary' | 'supporting') => void;
+  requestBackLabel?: string;
+  routeView?: 'list' | 'supervisees' | 'research' | 'history' | 'superviseeDetail';
   routeSuperviseeStudentId?: string;
   onNavigateToList?: () => void;
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
   onNavigateToPanelRecommendation?: (studentId: string) => void;
+  onNavigateToSupervisees?: () => void;
+  researchView?: 'list' | 'detail' | 'profile' | 'new';
+  researchRequestId?: string;
+  onNavigateToResearchRequest?: (id: string) => void;
+  onNavigateToResearchList?: () => void;
+  onNavigateToResearchProfile?: () => void;
 }
 
 export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointmentsProps> = ({
-  onBack,
-  initialApplicationId,
-  routeView = 'list',
-  routeSuperviseeStudentId,
-  onNavigateToList,
-  onNavigateToHistory,
-  onNavigateToSupervisee,
-  onNavigateToDossier,
-  onNavigateToPanelRecommendation,
+  lecturerId,
+  initialApplicationId, initialSupportingId, onNavigateToRequest, requestBackLabel, routeView = 'list', routeSuperviseeStudentId,
+  onNavigateToList, onNavigateToSupervisee, onNavigateToDossier,
+  onNavigateToPanelRecommendation, onNavigateToSupervisees,
+  researchView = 'list', researchRequestId, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
-  const [summaryLoad, setSummaryLoad] = useState({ current: 0, max: 0 });
+  const { search: workspaceSearch } = useLocation();
+  const isHistoryView = new URLSearchParams(workspaceSearch).get('view') === 'history'
+    || (routeView === 'history' && !new URLSearchParams(workspaceSearch).has('view'));
   const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
-
-  // Pending requests, active supervisees, and workload come from Django.
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
   const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const loadData = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      getSupervisorRequests(),
-      getActiveSupervisees(),
-      getOwnSupervisorWorkload(),
-    ])
-      .then(([requests, active, workload]) => {
-        setRequestsList(orderSupervisorQueueOldestFirst(requests));
-        setSupervisees(active);
-        setSummaryLoad({
-          current: workload.currentStudents,
-          max: workload.workloadLimit,
-        });
-        setCapacity(workload);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Request detail remains local; page-level history/supervisee screens are route controlled.
-  const [detailView, setDetailView] = useState<'requestDetail' | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [detailRejectReason, setDetailRejectReason] = useState('');
-
-  useEffect(() => {
-    if (!initialApplicationId) return;
-    const request = requestsList.find(
-      (item) => String(item.applicationId) === String(initialApplicationId),
-    );
-    getSupervisorApplication(initialApplicationId)
-      .then((detail) => {
-        setSelectedRequest({
-          ...request,
-          ...detail,
-          proposedTopic: detail.researchTitle,
-          researchArea: detail.researchArea,
-          abstract: detail.researchAbstract,
-          submittedDate: formatMalaysiaDate(detail.submittedAt),
-        });
-        setDetailRejectReason('');
-        setIsDrawerOpen(true);
-      })
-      .catch(() => {
-        if (!request) return;
-        setSelectedRequest(request);
-        setDetailRejectReason('');
-        setIsDrawerOpen(true);
-      });
-  }, [initialApplicationId, requestsList]);
-
-  const [toastText, setToastText] = useState<string | null>(null);
-
-  const showToast = (txt: string) => {
-    setToastText(txt);
-    setTimeout(() => setToastText(null), 3000);
-  };
-
-  const handleOpenRequest = async (req: any) => {
-    setDetailRejectReason('');
-    if (req.applicationId === undefined) {
-      setSelectedRequest(req);
-      setIsDrawerOpen(true);
-      return;
-    }
+  const [researchRefresh, setResearchRefresh] = useState(0);
+  const [teamRefresh, setTeamRefresh] = useState(0);
+  const loadVersion = useRef(0);
+  const loadData = useCallback(async () => {
+    const version = ++loadVersion.current;
+    setLoading(true); setError(null);
     try {
-      const detail = await getSupervisorApplication(req.applicationId);
-      setSelectedRequest({ ...req, ...detail });
-      setIsDrawerOpen(true);
-    } catch (reason) {
-      showToast(reason instanceof Error ? reason.message : 'Failed to load request history.');
-    }
-  };
-
-  const selectedSupervisee = useMemo(() => {
-    if (!routeSuperviseeStudentId) return null;
-    return supervisees.find(
-      (item) => String(item.studentId) === String(routeSuperviseeStudentId),
-    ) ?? null;
-  }, [supervisees, routeSuperviseeStudentId]);
-
-  const navigateToList = onNavigateToList ?? (() => undefined);
-
-  const handleOpenSupervisee = (supe: ActiveSuperviseeRow) => {
-    onNavigateToSupervisee?.(supe.studentId);
-  };
-
-  const handleApproveRequest = async (id: string) => {
-    // Add request student to active list
-    const studentReq = requestsList.find(r => r.studentId === id);
-    if (studentReq) {
-      try {
-        if (studentReq.applicationId !== undefined) {
-          await acceptSupervisorApplication(studentReq.applicationId);
-        }
-      } catch (reason) {
-        showToast(reason instanceof Error ? reason.message : 'Failed to accept supervisor request.');
-        return;
+      const [requests, active, workload] = await Promise.all([getSupervisorRequests(), getActiveSupervisees(), getOwnSupervisorWorkload()]);
+      if (version === loadVersion.current) {
+        setRequestsList(orderSupervisorQueueOldestFirst(requests)); setSupervisees(active); setCapacity(workload);
       }
-      await loadData();
-      setDetailRejectReason('');
-      showToast(`${studentReq.studentName}'s request was forwarded to the Programme Coordinator.`);
-      setIsDrawerOpen(false);
-      navigateToList();
-    }
-  };
+    } catch (failure) { if (version === loadVersion.current) { setError(failure instanceof Error ? failure.message : 'Supervisor appointments could not be loaded.'); setRequestsList([]); setSupervisees([]); setCapacity(null); } }
+    finally { if (version === loadVersion.current) setLoading(false); }
+  }, []);
+  useEffect(() => { void loadData(); return () => { loadVersion.current += 1; }; }, [loadData]);
+  const selectedSupervisee = supervisees.find(row => row.studentId === routeSuperviseeStudentId);
+  const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
+  const isSupervisionDetail = routeView === 'superviseeDetail';
+  const refresh = () => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); };
+  const refreshAction = <PortalButton size="sm" icon={RefreshCw} disabled={loading || workspaceBusy} onClick={refresh}>Refresh</PortalButton>;
+  if (initialApplicationId || initialSupportingId) return <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh}
+    onChanged={loadData} initialApplicationId={initialApplicationId} initialSupportingId={initialSupportingId} onCloseRoute={onNavigateToList} backLabel={requestBackLabel} onNavigateToDossier={onNavigateToDossier} />;
+  if (researchPage) return <RecordPage title={researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})} actions={refreshAction}>
+    <LecturerResearchWorkspace hideHeader showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
+      onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
+      refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />
+  </RecordPage>;
+  if (isSupervisionDetail) return <RecordPage title="Supervision details" backLabel="Back to My supervisees" onBack={onNavigateToSupervisees ?? (() => {})} actions={refreshAction}>
+    {loading ? <LoadingState message="Loading supervision details…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
+      {selectedSupervisee ? <ActiveSuperviseeDetail hideHeader onBack={onNavigateToSupervisees ?? (() => {})} onViewStudentRecord={() => onNavigateToDossier?.(selectedSupervisee.studentId)} onRecommendPanel={onNavigateToPanelRecommendation} supervisee={selectedSupervisee} /> : null}
+      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
+    </>}
+  </RecordPage>;
+  return <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">
+    <PageHeader title="Supervisor Appointments" subtitle="Review appointment requests, manage your supervisees and follow research changes."
+      actions={<PortalButton size="sm" icon={RefreshCw} disabled={loading || workspaceBusy} onClick={refresh}>Refresh</PortalButton>} />
+    <SupervisorWorkspaceNavigation role="Lecturer" />
+    {(routeView === 'list' || routeView === 'history') && <div className="space-y-5">
+      <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh} historyRoute={routeView === 'history'} onChanged={loadData} onNavigateToRequest={onNavigateToRequest} workload={capacity} onNavigateToDossier={onNavigateToDossier} onBusyChange={setWorkspaceBusy} />
+      {!isHistoryView && <LecturerAppointmentGuidance module="supervisor" section="requests" />}
+    </div>}
+    {routeView === 'supervisees' && <LecturerSuperviseesWorkspace key="roster" role="Lecturer" lecturerId={lecturerId} view="roster" showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onNavigateToStudent={onNavigateToSupervisee} />}
+    {routeView === 'research' && <LecturerResearchWorkspace hideHeader={false} showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
+      onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
+      refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />}
+    {routeView === 'research' && !isHistoryView && <LecturerAppointmentGuidance module="supervisor" section="research" />}
 
-  const handleRejectRequest = async (id: string, reason: string) => {
-    const studentReq = requestsList.find(r => r.studentId === id);
-    if (studentReq) {
-      try {
-        if (studentReq.applicationId !== undefined) {
-          await rejectSupervisorApplication(studentReq.applicationId, reason);
-        }
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : 'Failed to reject supervisor request.');
-        return;
-      }
-      setRequestsList(prev => prev.filter(r => r.studentId !== id));
-      setDetailRejectReason('');
-      showToast(`Appointment declined for student ${studentReq.studentName}. Action logged successfully.`);
-      setIsDrawerOpen(false);
-      navigateToList();
-    }
-  };
-
-  return (
-    <div id="lecturer-portal-workspace" className="space-y-8 animate-fade-in text-left">
-      
-      <PortalToast message={toastText} />
-
-      {/* RENDER ACTIVE SCREEN BASED ON DETAILED ROUTE STATE */}
-      {routeView === 'list' && (
-        <div id="overview-listing-screen" className="space-y-8">
-          
-          <PageHeader
-            title="Supervisor Appointments"
-            subtitle="Manage your active supervisees and review incoming supervisor appointment requests."
-            subtitleClassName="leading-relaxed max-w-4xl"
-            className="select-none"
-          />
-          <SupervisoryTeamManagement role="Lecturer" onChanged={loadData} />
-
-          {loading ? (
-            <LoadingState message="Loading supervisor appointments…" />
-          ) : error ? (
-            <ErrorState message={error} onRetry={loadData} />
-          ) : (
-          <>
-
-          {/* TWO SUMMARY CARDS GRID */}
-          <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none">
-            <SummaryCard
-              title="Supervisory Load"
-              subtext={`${capacity?.semesterCode ?? 'No active semester'} · ${capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}`}
-              value=""
-              badge={capacity?.capacityState ? capacityStateLabel(capacity.capacityState) : 'Not configured'}
-              badgeType={capacity?.selectable ? 'success' : 'warning'}
-              progress={summaryLoad}
-            />
-            <SummaryCard
-              title="Pending Requests"
-              value={`${requestsList.length} New`}
-              subtext="Awaiting your review."
-              badge={requestsList.length > 0 ? "Needs Review" : "Up-To-Date"}
-              badgeType={requestsList.length > 0 ? 'warning' : 'success'}
-            />
-          </div>
-
-          {/* PENDING SUPERVISOR REQUESTS CONTAINER SECTION */}
-          <div id="pending-requests-section" className="space-y-4">
-            <div className="flex justify-between items-center select-none">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-sm font-black text-brand-navy uppercase tracking-wider">
-                  Pending Supervisor Requests
-                </h3>
-                {requestsList.length > 0 && (
-                  <span className="bg-blue-600 border border-blue-500 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-lg select-none">
-                    {requestsList.length} New
-                  </span>
-                )}
-              </div>
-              <button 
-                type="button"
-                onClick={onNavigateToHistory}
-                className="text-xs font-extrabold text-[#2563eb] hover:text-blue-800 tracking-wide transition-colors cursor-pointer"
-              >
-                View Request History
-              </button>
-            </div>
-
-            {/* Side-by-side Layout: Left Request list, Right clock info block */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-              {requestsList.map((req) => (
-                <div key={req.studentId}>
-                  <RequestCard
-                    request={req}
-                    onOpen={() => handleOpenRequest(req)}
-                    onViewDossier={() => onNavigateToDossier?.(req.studentId)}
-                  />
-                </div>
-              ))}
-              
-              {requestsList.length === 0 ? (
-                <div className="lg:col-span-2">
-                  <EmptyStateCard />
-                </div>
-              ) : (
-                <div>
-                  <EmptyStateCard />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ACTIVE SUPERVISEES DETAILS LIST TABLE */}
-          <DataTable
-            data={supervisees}
-            onOpenRow={handleOpenSupervisee}
-            onViewDossier={(studentId) => onNavigateToDossier?.(studentId)}
-            onFilterClick={() => showToast("Filters initialized. Click on candidate rows to begin edit updates.")}
-          />
-
-          </>
-          )}
-
-        </div>
-      )}
-
-      {/* DETAIL SCREEN 1: PENDING SUPERVISOR REQUEST DETAIL */}
-      {detailView === 'requestDetail' && selectedRequest && (
-        <motion.div 
-          initial={{ opacity: 0, y: 15 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          className="space-y-6 text-left"
-        >
-          <PortalButton
-            onClick={() => setDetailView(null)}
-            variant="ghost"
-            size="sm"
-            icon={ArrowLeft}
-            className="mb-3 px-0 hover:bg-transparent"
-          >
-            Back to Appointments List
-          </PortalButton>
-
-          {/* Profile overview box layout */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-3xs grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
-            
-            {/* Left panel metrics context */}
-            <div className="lg:col-span-4 space-y-6 border-b lg:border-b-0 lg:border-r border-slate-100 pb-6 lg:pb-0 lg:pr-8">
-              <div className="flex gap-4 items-center">
-                <div className="w-16 h-16 bg-[#eff6ff] text-blue-600 font-extrabold text-xl rounded-2xl flex items-center justify-center tracking-widest shrink-0 border border-blue-50 animate-pulse">
-                  {selectedRequest.studentName.split(' ')[0][0]}{selectedRequest.studentName.split(' ').slice(-1)[0][0]}
-                </div>
-                <div>
-                  <h2 className="text-lg font-black text-brand-navy leading-snug">
-                    {selectedRequest.studentName}
-                  </h2>
-                  <span className="inline-block mt-1.5">
-                    <StatusChip status={selectedRequest.status} />
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-4 space-y-4 font-sans text-xs">
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
-                    STUDENT ID NUMBER
-                  </span>
-                  <span className="font-mono text-xs font-black text-brand-navy block mt-1 bg-[#f8fafc] px-3 py-2 border border-slate-150 rounded-xl">
-                    {selectedRequest.studentId}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
-                    ACADEMIC COURSEWAY
-                  </span>
-                  <span className="text-xs font-extrabold text-slate-800 block mt-1 leading-relaxed">
-                    {selectedRequest.programme}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
-                    SUBMISSION DATE
-                  </span>
-                  <span className="text-xs font-extrabold text-slate-800 block mt-1">
-                    {selectedRequest.submittedDate} ({selectedRequest.receivedTime})
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
-                    REMAINING SEATS
-                  </span>
-                  <span className="text-xs font-extrabold text-[#00a15c] block mt-1">
-                    {capacity?.availableSlots ?? Math.max(summaryLoad.max - summaryLoad.current, 0)}
-                    {' '}/ {summaryLoad.max} Slots Available
-                  </span>
-                  <span className="mt-1 block text-[10px] font-bold text-slate-500">
-                    {capacity?.semesterCode ?? 'No active semester'} · {capacity?.capacityPlanVersion ? `Plan v${capacity.capacityPlanVersion}` : 'Plan not configured'}
-                    {capacity?.unavailableUntil ? ` · Unavailable until ${capacity.unavailableUntil}` : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right panel proposal text content */}
-            <div className="lg:col-span-8 space-y-6">
-              <div>
-                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block leading-none mb-3">
-                  Proposed Research Topic
-                </span>
-                <h3 className="text-lg md:text-xl font-black text-brand-navy leading-snug">
-                  {selectedRequest.proposedTopic}
-                </h3>
-              </div>
-
-              <div className="bg-[#f8fafc] border border-slate-100 rounded-2xl p-6 text-left space-y-3 font-sans">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                  CANDIDATE SYNOPSIS ABSTRACT
-                </span>
-                <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                  {selectedRequest.abstract}
-                </p>
-              </div>
-
-              {/* Action operations controls */}
-              {selectedRequest.participantEligible === false ? (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-[11px] font-bold text-amber-800">
-                  This Student is {selectedRequest.participantLifecycleStatus?.toLowerCase()}; the request remains visible but is non-actionable until eligible.
-                </p>
-              ) : (
-              <div className="border-t border-slate-100 pt-6 space-y-4">
-                <FormTextarea
-                  label="REASON FOR REJECTION"
-                  placeholder="Enter reason before declining this supervisor appointment request."
-                  value={detailRejectReason}
-                  onChange={(event) => setDetailRejectReason(event.target.value)}
-                />
-                <NoticeText>
-                  A reason is required before declining this supervisor appointment request.
-                </NoticeText>
-                <div className="flex flex-col sm:flex-row justify-end items-center gap-3.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!detailRejectReason.trim()) {
-                        showToast('A rejection reason is required.');
-                        return;
-                      }
-                      handleRejectRequest(selectedRequest.studentId, detailRejectReason.trim());
-                    }}
-                    className="w-full sm:w-auto px-6 py-3 border border-rose-250 hover:bg-rose-50 text-rose-600 hover:text-rose-800 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none text-center"
-                  >
-                    Decline Roster
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApproveRequest(selectedRequest.studentId)}
-                    className="w-full sm:w-auto bg-brand-navy hover:bg-slate-800 text-white px-8 py-3.5 font-extrabold text-[10.5px] uppercase tracking-widest rounded-xl shadow-sm cursor-pointer select-none text-center flex items-center justify-center gap-2"
-                  >
-                    <Check className="w-4 h-4 text-indigo-300 stroke-[3.5]" />
-                    <span>Accept Roster Assignment</span>
-                  </button>
-                </div>
-              </div>
-              )}
-
-            </div>
-
-          </div>
-
-        </motion.div>
-      )}
-
-      {/* DETAIL SCREEN 2: ACTIVE SUPERVISEE DETAIL */}
-      {routeView === 'superviseeDetail' && loading && (
-        <LoadingState message="Loading supervisee detail…" />
-      )}
-
-      {routeView === 'superviseeDetail' && !loading && error && (
-        <ErrorState message={error} onRetry={loadData} />
-      )}
-
-      {routeView === 'superviseeDetail' && selectedSupervisee && (
-        <motion.div 
-          initial={{ opacity: 0, y: 15 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          className="space-y-6 text-left"
-        >
-          <ActiveSuperviseeDetail 
-            onBack={navigateToList}
-            onRecommendPanel={onNavigateToPanelRecommendation}
-            supervisee={selectedSupervisee}
-          />
-        </motion.div>
-      )}
-
-      {routeView === 'superviseeDetail' && !loading && !error && !selectedSupervisee && (
-        <EmptyState
-          title="Active supervisee not found"
-          description="The requested supervisee record does not exist or is no longer available."
-          actionLabel="Back to Supervisor Appointments"
-          onAction={navigateToList}
-        />
-      )}
-
-      {/* DETAIL SCREEN 3: SUPERVISOR REQUEST HISTORY */}
-      {routeView === 'history' && (
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
-          <SupervisorRequestHistory onBack={navigateToList} />
-        </motion.div>
-      )}
-
-      {/* RIGHT DRAWER: Supervisor Request Review Drawer */}
-      <RightDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        request={selectedRequest}
-        onApprove={handleApproveRequest}
-        onReject={handleRejectRequest}
-      />
-
-    </div>
-  );
+  </div>;
 };

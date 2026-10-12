@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -209,7 +209,7 @@ export const StudentFAQChatbot: React.FC = () => {
                       </div>
                       <div className="text-left leading-none min-w-0">
                         <span className="text-xs font-bold text-slate-800 block truncate">{msg.attachment.name}</span>
-                        <span className="text-[9px] font-bold text-slate-400 block mt-1 font-mono">{msg.attachment.size}</span>
+                        <span className="card-caption text-slate-400 block mt-1 font-mono">{msg.attachment.size}</span>
                       </div>
                     </div>
 
@@ -335,7 +335,7 @@ export const StudentFAQChatbot: React.FC = () => {
             </div>
 
             {/* Dynamic AI disclaimer helper note */}
-            <div className="flex items-center justify-center gap-1.5 text-slate-400 text-[10px] leading-normal select-none text-center">
+            <div className="flex items-center justify-center gap-1.5 card-caption text-slate-400 leading-normal select-none text-center">
               <Info className="w-3.5 h-3.5 text-slate-350 shrink-0" />
               <p>
                 FSKTM Academic Assistant may produce inaccurate information about specific faculty policies. Always verify with official documentation.

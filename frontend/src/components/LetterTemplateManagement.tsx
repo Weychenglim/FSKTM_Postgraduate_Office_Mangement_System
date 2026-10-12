@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -305,7 +305,7 @@ export const LetterTemplateManagement: React.FC = () => {
               <h2 className="section-label uppercase tracking-wider">
                 Templates Library
               </h2>
-              <span className="text-[10px] font-black text-slate-400">
+              <span className="card-value">
                 {templates.length} Forms
               </span>
             </div>
@@ -342,7 +342,7 @@ export const LetterTemplateManagement: React.FC = () => {
               ) : error ? (
                 <ErrorState message={error} onRetry={loadTemplates} />
               ) : filteredTemplates.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 font-bold">
+                <div className="card-value py-8 text-center">
                   No matching templates found.
                 </div>
               ) : (
@@ -440,7 +440,7 @@ export const LetterTemplateManagement: React.FC = () => {
             <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-indigo-300" />
-                <span className="text-[11px] font-black uppercase tracking-wider">
+                <span className="card-label text-white">
                   Template Editor
                 </span>
               </div>
@@ -474,7 +474,7 @@ export const LetterTemplateManagement: React.FC = () => {
                 
                 {/* Template Name input */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <label className="form-label">
                     Template Name
                   </label>
                   <input
@@ -488,7 +488,7 @@ export const LetterTemplateManagement: React.FC = () => {
 
                 {/* Letter Type custom selection dropdown */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <label className="form-label">
                     Letter Type
                   </label>
                   <div className="relative">
@@ -513,10 +513,10 @@ export const LetterTemplateManagement: React.FC = () => {
               {/* Row 2: Placeholder Tag insertions block */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between select-none">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <label className="form-label">
                     Placeholder Tags
                   </label>
-                  <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wide">
+                  <span className="card-label">
                     Click to insert at cursor position
                   </span>
                 </div>
@@ -594,7 +594,7 @@ export const LetterTemplateManagement: React.FC = () => {
 
                   </div>
 
-                  <div className="text-[10px] text-slate-400 font-bold">
+                  <div className="card-value">
                     **bold** · *italic* · __underline__ · - list
                   </div>
                 </div>
@@ -609,7 +609,7 @@ export const LetterTemplateManagement: React.FC = () => {
                     setContentError(null);
                   }}
                   aria-invalid={contentError ? true : undefined}
-                  className="w-full p-4 text-xs font-semibold text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition"
+                  className="w-full p-4 text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                   placeholder="Draft your main letter content using placeholder keys..."
                 />
 
@@ -700,10 +700,10 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* Mini card: Placeholders used count */}
                 <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left select-none">
                   <div>
-                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                    <span className="card-label">
                       Placeholders Used
                     </span>
-                    <h4 className="text-lg font-black text-slate-900 mt-1">
+                    <h4 className="section-heading mt-1">
                       0{countPlaceholdersUsed(editorContent)}
                     </h4>
                   </div>
@@ -715,7 +715,7 @@ export const LetterTemplateManagement: React.FC = () => {
                 {/* Mini card: Template status control */}
                 <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left">
                   <div>
-                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                    <span className="card-label">
                       Template Status
                     </span>
                     
@@ -725,7 +725,7 @@ export const LetterTemplateManagement: React.FC = () => {
                         aria-label="Template Status Option"
                         value={editorStatus}
                         onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
-                        className="bg-transparent border-none text-xs font-black text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
+                        className="bg-transparent border-none text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight font-sans not-italic normal-case tracking-normal text-xs font-bold"
                       >
                         <option value="Active">● Active / Live</option>
                         <option value="Draft">● Draft / Sandbox</option>

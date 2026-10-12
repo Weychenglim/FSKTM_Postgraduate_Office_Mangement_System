@@ -262,11 +262,11 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       <section className="border-y border-slate-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Current faculty semester</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-900">
+            <p className="card-label">Current faculty semester</p>
+            <h2 className="section-heading mt-1 text-slate-900">
               {active?.label ?? 'No effective active semester'}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="card-description mt-1">
               {active
                 ? `${displayDate(active.startsOn)} to ${displayDate(active.endsOn)}`
                 : 'New workflows remain paused until a semester is activated.'}
@@ -293,7 +293,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             {value === 'ALL' ? 'All' : formatSemesterLifecycle(value)}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-sm font-medium text-slate-700">
+        <label className="card-description ml-auto flex items-center gap-2">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -313,34 +313,34 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
           <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Semester</th>
-                <th className="px-4 py-3">Dates</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Timeline</th>
-                <th className="px-4 py-3">Marks periods</th>
-                <th className="px-4 py-3">Tasks</th>
-                <th className="px-4 py-3 text-right">Manage</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Semester</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Dates</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Status</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Timeline</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Marks periods</th>
+                <th className="px-4 py-3 text-[10px] font-extrabold">Tasks</th>
+                <th className="px-4 py-3 text-right text-[10px] font-extrabold">Manage</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {visible.map((semester) => (
                 <tr key={semester.id} className="bg-white">
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-slate-900">{semester.label}</p>
+                  <td className="px-4 py-4 text-xs font-semibold">
+                    <p className="card-value">{semester.label}</p>
                     <p className="font-mono text-xs text-slate-500">{semester.code}</p>
                   </td>
-                  <td className="px-4 py-4 text-slate-700">
+                  <td className="px-4 py-4 text-slate-700 text-xs font-semibold">
                     {displayDate(semester.startsOn)} to {displayDate(semester.endsOn)}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-4 text-xs font-semibold">
                     <StatusBadge tone={getStatusBadgeTone(semester.effectiveStatus)}>
                       {formatSemesterLifecycle(semester.effectiveStatus)}
                     </StatusBadge>
                   </td>
-                  <td className="px-4 py-4 text-slate-700">{semester.timelineCount ?? 0} version(s)</td>
-                  <td className="px-4 py-4 text-slate-700">{semester.marksPeriodCount ?? 0}</td>
-                  <td className="px-4 py-4 text-slate-700">{semester.marksTaskCount ?? 0}</td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4 text-slate-700 text-xs font-semibold">{semester.timelineCount ?? 0} version(s)</td>
+                  <td className="px-4 py-4 text-slate-700 text-xs font-semibold">{semester.marksPeriodCount ?? 0}</td>
+                  <td className="px-4 py-4 text-slate-700 text-xs font-semibold">{semester.marksTaskCount ?? 0}</td>
+                  <td className="px-4 py-4 text-right text-xs font-semibold">
                     <PortalButton icon={Edit3} variant="secondary" onClick={() => beginEdit(semester)}>
                       Open
                     </PortalButton>
@@ -355,8 +355,8 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       <PortalCard className="p-5">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-500">Configuration</p>
-            <h2 className="text-lg font-bold text-slate-900">
+            <p className="card-label">Configuration</p>
+            <h2 className="section-heading">
               {selected ? selected.label : 'Create draft semester'}
             </h2>
           </div>
@@ -364,47 +364,47 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         </div>
 
         <form onSubmit={saveDraft} className="grid gap-4 md:grid-cols-2">
-          <label className="text-sm font-semibold text-slate-700">
+          <label className="form-label">
             Academic session
             <input
               value={form.academicSession}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => setForm({ ...form, academicSession: event.target.value })}
               placeholder="2026/2027"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
           </label>
-          <label className="text-sm font-semibold text-slate-700">
+          <label className="form-label">
             Term
             <select
               value={form.term}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => setForm({ ...form, term: event.target.value as AcademicSemesterInput['term'] })}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             >
               <option value="SEMESTER_I">Semester I</option>
               <option value="SEMESTER_II">Semester II</option>
               <option value="SPECIAL">Special semester</option>
             </select>
           </label>
-          <label className="text-sm font-semibold text-slate-700">
+          <label className="form-label">
             Starts on
             <input
               type="date"
               value={form.startsOn}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => setForm({ ...form, startsOn: event.target.value })}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
           </label>
-          <label className="text-sm font-semibold text-slate-700">
+          <label className="form-label">
             Ends on
             <input
               type="date"
               value={form.endsOn}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => setForm({ ...form, endsOn: event.target.value })}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
           </label>
           {(!selected || selected.lifecycleStatus === 'DRAFT') ? (
@@ -418,7 +418,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
         {selected && lifecycleActions.length ? (
           <div className="mt-6 border-t border-slate-200 pt-5">
-            <p className="mb-3 text-sm font-bold text-slate-900">Lifecycle actions</p>
+            <p className="card-value mb-3">Lifecycle actions</p>
             <div className="flex flex-wrap gap-2">
               {lifecycleActions.map((action) => {
                 const icons = { activate: CheckCircle2, close: XCircle, archive: Archive, extend: Clock3 };
@@ -446,8 +446,8 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         <PortalCard className="border-sky-200 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase text-sky-700">Confirm lifecycle change</p>
-              <h3 className="font-bold text-slate-900">
+              <p className="card-label text-sky-700">Confirm lifecycle change</p>
+              <h3 className="section-label">
                 {transition === 'activate' && active && active.id !== selected.id
                   ? `Hand over from ${active.label} to ${selected.label}`
                   : `${formatSemesterLifecycle(transition.toUpperCase())} ${selected.label}`}
@@ -458,24 +458,24 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             </button>
           </div>
           {transition === 'extend' ? (
-            <label className="mt-4 block text-sm font-semibold text-slate-700">
+            <label className="form-label mt-4 block">
               New end date
               <input
                 type="date"
                 min={selected.endsOn}
                 value={extensionEnd}
                 onChange={(event) => setExtensionEnd(event.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 md:max-w-xs"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 md:max-w-xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
               />
             </label>
           ) : null}
-          <label className="mt-4 block text-sm font-semibold text-slate-700">
+          <label className="form-label mt-4 block">
             Reason
             <textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
               placeholder="Record the operational reason for this change."
             />
           </label>
@@ -498,23 +498,23 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
       {selected ? (
         <section className="border-y border-slate-200 py-5">
-          <h2 className="text-sm font-bold text-slate-900">Semester audit history</h2>
+          <h2 className="section-label">Semester audit history</h2>
           {auditsLoading ? <LoadingState message="Loading semester audit history…" />
             : auditError ? <ErrorState message={auditError} onRetry={() => setAuditAttempt((value) => value + 1)} />
             : !audits.length ? (
-            <p className="mt-2 text-sm text-slate-500">No audit events are available.</p>
+            <p className="card-description mt-2">No audit events are available.</p>
           ) : (
             <div className="mt-3 divide-y divide-slate-200">
               {audits.map((audit) => (
                 <div key={audit.id} className="grid gap-1 py-3 md:grid-cols-[160px_1fr_180px]">
-                  <p className="text-xs font-bold uppercase text-slate-600">
+                  <p className="card-label">
                     {formatSemesterLifecycle(audit.action)}
                   </p>
                   <div>
-                    <p className="text-sm text-slate-800">{audit.reason || 'Configuration created.'}</p>
-                    <p className="text-xs text-slate-500">{audit.actor}</p>
+                    <p className="card-description">{audit.reason || 'Configuration created.'}</p>
+                    <p className="card-description">{audit.actor}</p>
                   </div>
-                  <time className="text-xs text-slate-500 md:text-right">
+                  <time className="card-caption text-slate-500 md:text-right">
                     {formatMalaysiaDateTime(audit.createdAt)}
                   </time>
                 </div>

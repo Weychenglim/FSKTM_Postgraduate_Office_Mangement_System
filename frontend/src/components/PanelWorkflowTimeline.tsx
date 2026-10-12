@@ -53,11 +53,11 @@ export const PanelWorkflowTimeline: React.FC<{ items: PanelWorkflowItem[] }> = (
           </div>
 
           <div className="pt-0.5 space-y-0.5 select-none">
-            <h5 className={`text-xs font-extrabold ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
+            <h5 className={`card-value ${item.status === 'pending' ? 'text-slate-400' : 'text-slate-800'}`}>
               {item.label}
             </h5>
             {(item.timestamp || item.subtext) && (
-              <p className={`text-[10px] font-bold ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
+              <p className={`card-caption ${item.status === 'pending' ? 'text-slate-350' : 'text-slate-400'}`}>
                 {item.timestamp || item.subtext}
               </p>
             )}

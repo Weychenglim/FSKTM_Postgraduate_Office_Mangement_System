@@ -211,7 +211,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                 key={String(label)}
                 className="bg-white border border-slate-200 rounded-lg p-5 shadow-3xs"
               >
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <span className="card-label">
                   {label}
                 </span>
                 <div className={`text-3xl font-black mt-3 ${tone}`}>
@@ -225,12 +225,12 @@ export const SupervisorWorkloadMonitoring: React.FC<
             <div className="lg:col-span-8 bg-white border border-slate-200 p-6 space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Filter className="w-4 h-4 text-brand-navy" />
-                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                <h2 className="section-label">
                   Filter Supervisors
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <label className="space-y-1.5">
+                <label className="form-label space-y-1.5">
                   <span className="form-label block">Search</span>
                   <div className="relative">
                     <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -242,7 +242,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     />
                   </div>
                 </label>
-                <label className="space-y-1.5">
+                <label className="form-label space-y-1.5">
                   <span className="form-label block">Department</span>
                   <select
                     value={selectedDepartment}
@@ -255,7 +255,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     ))}
                   </select>
                 </label>
-                <label className="space-y-1.5">
+                <label className="form-label space-y-1.5">
                   <span className="form-label block">Workload Status</span>
                   <select
                     value={selectedStatus}
@@ -279,7 +279,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
             <div className="lg:col-span-4 bg-white border border-slate-200 p-6 space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Users className="w-4 h-4 text-brand-navy" />
-                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                <h2 className="section-label">
                   Workload Distribution
                 </h2>
               </div>
@@ -290,11 +290,11 @@ export const SupervisorWorkloadMonitoring: React.FC<
               ].map(([label, value, tone]) => (
                 <div key={String(label)} className="space-y-1.5">
                   <div className="flex justify-between font-bold text-slate-600">
-                    <span className="flex items-center gap-2">
+                    <span className="card-description flex items-center gap-2">
                       <StatusDot tone={tone as 'success' | 'warning' | 'danger'} />
                       {label}
                     </span>
-                    <span>{value}</span>
+                    <span className="card-description">{value}</span>
                   </div>
                   <ProgressBar
                     value={Number(value)}
@@ -303,7 +303,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                   />
                 </div>
               ))}
-              <p className="pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+              <p className="card-description pt-3 border-t border-slate-100">
                 Average active load: {summary.average.toFixed(1)} students per supervisor.
               </p>
             </div>
@@ -312,10 +312,10 @@ export const SupervisorWorkloadMonitoring: React.FC<
           <section className="bg-white border border-slate-200 overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                <h2 className="section-label">
                   Supervisor Workload Records
                 </h2>
-                <p className="text-[10px] font-semibold text-slate-400 mt-1">
+                <p className="card-description mt-1">
                   Active appointments against each configured supervision limit.
                 </p>
               </div>
@@ -352,23 +352,23 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     {paginatedRecords.map((record) => (
                       <tr key={record.lecturerId}>
                         <td className="data-td">
-                          <div className="font-black text-slate-800">
+                          <div className="card-value">
                             {record.lecturerName}
                           </div>
                           <div className="font-mono text-[10px] text-slate-400 mt-1">
                             {record.lecturerId}
                           </div>
                         </td>
-                        <td className="data-td font-semibold text-slate-500">
+                        <td className="data-td text-slate-500">
                           {record.department || '-'}
                         </td>
-                        <td className="data-td text-center font-black">
+                        <td className="data-td-strong text-center">
                           {record.currentStudents}
                         </td>
-                        <td className="data-td text-center font-black">
+                        <td className="data-td-strong text-center">
                           {record.workloadLimit}
                         </td>
-                        <td className="data-td text-center font-bold text-slate-600">
+                        <td className="data-td-strong text-center text-slate-600">
                           {capacityUtilization(
                             record.currentStudents,
                             record.workloadLimit,
@@ -401,7 +401,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
 
             {filteredRecords.length > 0 && (
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                <span className="card-label">
                   Showing {(safePage - 1) * ITEMS_PER_PAGE + 1}-
                   {Math.min(safePage * ITEMS_PER_PAGE, filteredRecords.length)}
                   {' '}of {filteredRecords.length}
@@ -415,7 +415,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     aria-label="Previous workload page"
                   />
-                  <span className="text-xs font-black text-slate-600">
+                  <span className="card-value">
                     {safePage}/{totalPages}
                   </span>
                   <PortalButton
@@ -435,7 +435,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
 
           <div className="bg-blue-50 border border-blue-100 p-5 flex gap-3">
             <Info className="w-5 h-5 text-blue-600 shrink-0" />
-            <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+            <p className="card-description">
               Workload is calculated from persisted active supervisor appointments.
               Capacity is resolved from the active semester's published plan.
             </p>
@@ -444,6 +444,8 @@ export const SupervisorWorkloadMonitoring: React.FC<
       )}
 
       <RightDrawer
+        backLabel="Back to Supervisor Workload Monitoring"
+        pageKey={`supervisor-workload:${selectedLecturer?.lecturerId}`}
         isOpen={selectedLecturer !== null}
         onClose={() => setSelectedLecturer(null)}
         title={selectedLecturer
@@ -453,19 +455,19 @@ export const SupervisorWorkloadMonitoring: React.FC<
         {selectedLecturer && (
           <div className="space-y-5">
             <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-sm font-black text-brand-navy">
+              <h3 className="section-label">
                 {selectedLecturer.lecturerName}
               </h3>
-              <p className="text-xs font-semibold text-slate-500 mt-1">
+              <p className="card-description mt-1">
                 {selectedLecturer.department || 'Department not recorded'}
               </p>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="card-description mt-1">
                 {selectedLecturer.email}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-50 p-3">
-                <span className="text-[9px] font-black uppercase text-slate-400">
+                <span className="card-label">
                   Active students
                 </span>
                 <div className="text-xl font-black text-brand-navy mt-1">
@@ -473,7 +475,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                 </div>
               </div>
               <div className="bg-slate-50 p-3">
-                <span className="text-[9px] font-black uppercase text-slate-400">
+                <span className="card-label">
                   Configured limit
                 </span>
                 <div className="text-xl font-black text-brand-navy mt-1">
@@ -482,17 +484,17 @@ export const SupervisorWorkloadMonitoring: React.FC<
               </div>
             </div>
             <div className="border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
-              <div className="flex justify-between gap-3"><span>Semester</span><strong>{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
-              <div className="mt-2 flex justify-between gap-3"><span>Capacity plan</span><strong>{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
-              <div className="mt-2 flex justify-between gap-3"><span>Capacity state</span><strong>{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</strong></div>
-              {selectedLecturer.unavailableUntil && <div className="mt-2 flex justify-between gap-3"><span>Unavailable until</span><strong>{selectedLecturer.unavailableUntil}</strong></div>}
+              <div className="flex justify-between gap-3"><span className="card-description">Semester</span><strong className="card-value">{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span className="card-description">Capacity plan</span><strong className="card-value">{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
+              <div className="mt-2 flex justify-between gap-3"><span className="card-description">Capacity state</span><strong className="card-value">{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</strong></div>
+              {selectedLecturer.unavailableUntil && <div className="mt-2 flex justify-between gap-3"><span className="card-description">Unavailable until</span><strong className="card-value">{selectedLecturer.unavailableUntil}</strong></div>}
             </div>
             <div>
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">
+              <h4 className="section-label mb-3">
                 Active supervisees
               </h4>
               {selectedLecturer.supervisees.length === 0 ? (
-                <p className="text-xs text-slate-500">
+                <p className="card-description">
                   No active supervisees.
                 </p>
               ) : (
@@ -504,7 +506,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     >
                       <div className="flex justify-between gap-3">
                         <div>
-                          <div className="text-xs font-black text-brand-navy">
+                          <div className="card-value">
                             {supervisee.name}
                           </div>
                           <div className="font-mono text-[10px] text-slate-400 mt-1">
@@ -515,10 +517,10 @@ export const SupervisorWorkloadMonitoring: React.FC<
                           {supervisee.status}
                         </StatusBadge>
                       </div>
-                      <p className="text-[11px] font-semibold text-slate-600 mt-3">
+                      <p className="card-description mt-3">
                         {supervisee.topic}
                       </p>
-                      <p className="text-[10px] text-slate-400 mt-2">
+                      <p className="card-description mt-2">
                         {supervisee.programme} · Appointed {supervisee.appointmentDate}
                         {' · '}{supervisee.supervisionRole === 'CO_SUPERVISOR' ? 'Co-supervisor' : 'Primary supervisor'}
                       </p>

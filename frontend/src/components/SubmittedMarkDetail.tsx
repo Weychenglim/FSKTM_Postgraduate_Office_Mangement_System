@@ -6,22 +6,24 @@
 import React from 'react';
 import { CalendarClock, Lock } from 'lucide-react';
 
+import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import {
-  PageHeader,
   PortalCard,
   StatusBadge,
 } from './PortalPrimitives';
 
 interface SubmittedMarkDetailProps {
   task: EvaluationTask;
+  backLabel?: string;
   onBack: () => void;
 }
 
 export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
   task,
   onBack,
+  backLabel = 'Back to Marks Entry',
 }) => {
   const components = task.components || [];
   const calculatedTotal = components.reduce(
@@ -37,46 +39,46 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     : Number(task.totalMark).toFixed(2);
 
   return (
-    <div id="submitted-mark-detail-page" className="space-y-6 text-left">
-      <PageHeader
+      <RecordPage
         title="Submitted Mark Detail"
         subtitle="Review the persisted rubric scores and evaluator feedback for this locked submission."
-        backLabel="Back to Marks Entry"
+        backLabel={backLabel}
         onBack={onBack}
+        pageKey={`marks-submitted:${task.id}`}
         actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
-      />
+      >
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
         <div className="space-y-6">
           <PortalCard padding="lg" className="rounded-lg">
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Student</dt>
-                <dd className="mt-1 text-sm font-extrabold text-brand-navy">{task.studentName}</dd>
+                <dt className="card-label">Student</dt>
+                <dd className="card-value mt-1">{task.studentName}</dd>
                 <dd className="mt-0.5 font-mono text-blue-700">{task.studentId}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Evaluator role</dt>
-                <dd className="mt-1 font-bold text-slate-700">{task.evaluatorRoleLabel || task.evaluatorRole || 'Evaluator'}</dd>
+                <dt className="card-label">Evaluator role</dt>
+                <dd className="card-value mt-1 text-slate-700">{task.evaluatorRoleLabel || task.evaluatorRole || 'Evaluator'}</dd>
               </div>
               <div className="md:col-span-2">
-                <dt className="font-extrabold uppercase text-slate-400">Research title</dt>
-                <dd className="mt-1 font-bold leading-relaxed text-slate-700">{task.researchTitle}</dd>
+                <dt className="card-label">Research title</dt>
+                <dd className="card-value mt-1 leading-relaxed text-slate-700">{task.researchTitle}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Semester</dt>
-                <dd className="mt-1 font-bold text-slate-700">{task.semester}</dd>
+                <dt className="card-label">Semester</dt>
+                <dd className="card-value mt-1 text-slate-700">{task.semester}</dd>
               </div>
               <div>
-                <dt className="font-extrabold uppercase text-slate-400">Submitted</dt>
-                <dd className="mt-1 font-bold text-slate-700">{task.submittedDate || 'Submitted'}</dd>
+                <dt className="card-label">Submitted</dt>
+                <dd className="card-value mt-1 text-slate-700">{task.submittedDate || 'Submitted'}</dd>
               </div>
             </dl>
           </PortalCard>
 
           <PortalCard padding="none" className="overflow-hidden rounded-lg">
             <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-              <h2 className="text-xs font-extrabold uppercase text-slate-600">Rubric scores</h2>
+              <h2 className="section-label text-slate-600">Rubric scores</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="data-table min-w-[680px]">
@@ -100,9 +102,9 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-slate-200 bg-slate-50">
-                    <td className="px-4 py-3 text-xs font-extrabold text-slate-700">Total</td>
-                    <td className="px-4 py-3 text-center text-xs font-bold text-slate-600">{maximum.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-center text-sm font-black text-brand-navy">{total}</td>
+                    <td className="data-td-strong px-4 py-3 text-slate-700">Total</td>
+                    <td className="data-td-strong px-4 py-3 text-center text-slate-600">{maximum.toFixed(2)}</td>
+                    <td className="data-td-strong px-4 py-3 text-center text-brand-navy">{total}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -111,8 +113,8 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
           </PortalCard>
 
           <PortalCard padding="lg" className="rounded-lg">
-            <h2 className="text-xs font-extrabold uppercase text-slate-600">Overall comments</h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            <h2 className="section-label text-slate-600">Overall comments</h2>
+            <p className="card-description mt-3 whitespace-pre-wrap leading-relaxed text-slate-700">
               {task.comments || 'No overall comments were entered.'}
             </p>
           </PortalCard>
@@ -120,7 +122,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
 
         <aside className="space-y-5 xl:sticky xl:top-6">
           <PortalCard padding="lg" className="rounded-lg bg-brand-navy text-white">
-            <p className="text-[9px] font-black uppercase text-indigo-300">Submitted total</p>
+            <p className="card-label text-indigo-300">Submitted total</p>
             <p className="mt-2 text-4xl font-black">
               {total}
               <span className="text-sm text-slate-400"> / {maximum.toFixed(2)}</span>
@@ -130,9 +132,9 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
             <div className="flex items-start gap-3">
               <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
               <div>
-                <h2 className="text-xs font-extrabold uppercase text-slate-600">Deadline state</h2>
-                <p className="mt-2 text-sm font-bold text-slate-800">{formatDeadlineText(task)}</p>
-                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                <h2 className="section-label text-slate-600">Deadline state</h2>
+                <p className="card-value mt-2 text-slate-800">{formatDeadlineText(task)}</p>
+                <p className="card-description mt-2">
                   This submission is locked. Authorized corrections are recorded by the postgraduate office.
                 </p>
               </div>
@@ -140,6 +142,6 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
           </PortalCard>
         </aside>
       </div>
-    </div>
+    </RecordPage>
   );
 };

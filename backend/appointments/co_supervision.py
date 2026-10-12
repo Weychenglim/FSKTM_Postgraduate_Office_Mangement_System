@@ -255,7 +255,7 @@ def _workflow(row, actor, action, previous="", reason=""):
         reason=reason,
     )
     recipients = {
-        user.pk: user for user in [row.candidate, row.nominator, row.student.user]
+        user.pk: user for user in [row.candidate, row.nominator]
     }
     if row.status == CoSupervisorNomination.Status.PENDING_COORDINATOR:
         for user in programme_coordinators(row.student.programme):
@@ -443,13 +443,14 @@ def end_locked(row, *, actor, outcome, reason):
                 action="SYSTEM_CANCEL_PREDECESSOR_ENDED",
             )
     for recipient in [row.supervisor, row.student.user]:
+        is_student = recipient.pk == row.student.user_id
         publish_workflow_notification(
             recipient=recipient,
             actor=actor,
             event_key=f"co-supervisor-appointment:{row.pk}:ended",
-            title="Co-supervisor appointment ended",
-            summary=f"{row.student.user.full_name}: {row.get_end_outcome_display()}.",
-            message=reason,
+            title="Supporting supervisor appointment ended" if is_student else "Co-supervisor appointment ended",
+            summary=f"{row.supervisor.full_name}'s supporting appointment has ended." if is_student else f"{row.student.user.full_name}: {row.get_end_outcome_display()}.",
+            message="Your updated supporting appointment record is available in My supervisors." if is_student else reason,
             module_label="Supervisor Appointments",
             target_module="SUPERVISOR_APPOINTMENTS",
             record_type="CO_SUPERVISOR_APPOINTMENT",
@@ -564,6 +565,18 @@ def decide(*, nomination_id, actor, action, reason=""):
             supersedes=row.replaces_appointment,
         )
         _lifecycle(appointment, actor, "ACTIVATED")
+        publish_workflow_notification(
+            recipient=student.user,
+            actor=actor,
+            event_key=f"co-supervisor-appointment:{appointment.pk}:activated",
+            title="Supporting supervisor appointed",
+            summary=f"{row.candidate.full_name} is now your supporting supervisor.",
+            message="Your confirmed supporting appointment is available in My supervisors.",
+            module_label="Supervisor Appointments",
+            target_module="SUPERVISOR_APPOINTMENTS",
+            record_type="CO_SUPERVISOR_APPOINTMENT",
+            record_id=appointment.pk,
+        )
         # Snapshot the checked policy before the new appointment changes workload.
         consume(row, actor, capacity_result)
     row.reason = reason if action in {"reject", "coordinator-reject"} else ""
@@ -638,6 +651,8 @@ def waiting_metadata(row):
 
 
 def serialize_nomination(row, actor):
+    if actor.role == User.Role.STUDENT:
+        raise CoSupervisionForbidden("Supporting nominations are staff workflow records.")
     return {
         "id": row.pk,
         "studentId": row.student_id,
@@ -654,6 +669,7 @@ def serialize_nomination(row, actor):
             row.cancelled_at or row.coordinator_decided_at or row.candidate_decided_at
         ),
         "academicSemesterId": row.academic_semester_id,
+        "semester": row.academic_semester.label if row.academic_semester_id else "",
         "primaryAppointmentId": row.primary_appointment_id,
         "replacesAppointmentId": row.replaces_appointment_id,
         "allowedActions": allowed_actions(row, actor),
@@ -673,12 +689,12 @@ def serialize_appointment(row, actor):
         "status": row.status,
         "appointmentDate": iso(row.appointment_date),
         "endOutcome": row.end_outcome,
-        "endReason": row.end_reason,
+        "endReason": "" if actor.role == User.Role.STUDENT else row.end_reason,
         "endedAt": iso(row.ended_at),
         "supersedesId": row.supersedes_id,
-        "nominationId": row.nomination_id,
+        "nominationId": None if actor.role == User.Role.STUDENT else row.nomination_id,
         "canEnd": row.status == "ACTIVE" and can_manage(actor, row.student),
-        "history": [serialize_event(event) for event in row.lifecycle_events.all()],
+        "history": [] if actor.role == User.Role.STUDENT else [serialize_event(event) for event in row.lifecycle_events.all()],
     }
 
 
@@ -693,7 +709,7 @@ def serialize_team(student, actor):
     ).first()
     nominations = [
         serialize_nomination(row, actor)
-        for row in nominations_queryset().filter(student=student)
+        for row in (nominations_queryset().none() if actor.role == User.Role.STUDENT else nominations_queryset().filter(student=student))
     ]
     appointments = [
         serialize_appointment(row, actor)
@@ -778,6 +794,8 @@ def workspace(actor):
         .filter(Q(student_id__in=ids) | Q(candidate=actor) | Q(nominator=actor))
         .distinct()
     )
+    if actor.role == User.Role.STUDENT:
+        nominations = nominations.none()
     appointments = (
         appointments_queryset()
         .filter(Q(student_id__in=ids) | Q(supervisor=actor))

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -125,8 +125,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-sm z-50 p-2 text-left"
                 >
                   <div className="px-3 py-2 border-b border-slate-150 mb-1.5">
-                    <span className="text-xs font-extrabold text-slate-800 block">{userName}</span>
-                    <span className="text-[10px] text-slate-400 block font-mono">{userRole}</span>
+                    <span className="card-value text-slate-800 block">{userName}</span>
+                    <span className="card-caption text-slate-400 block">{userRole}</span>
                   </div>
 
                   <button

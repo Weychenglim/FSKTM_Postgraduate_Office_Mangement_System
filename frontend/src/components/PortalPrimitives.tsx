@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Loader2, LucideIcon, X, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft, Info, Loader2, LucideIcon, X } from 'lucide-react';
+import { PortalModal, useModalTitle } from './PortalModal';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -118,6 +119,7 @@ interface PageHeaderProps {
   subtitle?: string;
   actions?: React.ReactNode;
   backLabel?: string;
+  backDisabled?: boolean;
   onBack?: () => void;
   className?: string;
   subtitleClassName?: string;
@@ -128,6 +130,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   subtitle,
   actions,
   backLabel,
+  backDisabled = false,
   onBack,
   className = '',
   subtitleClassName = ''
@@ -135,12 +138,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   <div className={joinClasses('flex flex-col md:flex-row md:items-start md:justify-between gap-4 text-left', className)}>
     <div>
       {onBack && backLabel && (
-        <button type="button" onClick={onBack} className="back-link group mb-3">
+        <button type="button" onClick={onBack} disabled={backDisabled} className="back-link group mb-3 disabled:opacity-50">
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>{backLabel}</span>
         </button>
       )}
-      <h1 className="page-title">{title}</h1>
+      <h1 className="page-title" tabIndex={-1}>{title}</h1>
       {subtitle && <p className={joinClasses('page-subtitle', subtitleClassName)}>{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div>}
@@ -367,6 +370,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const titleId = useModalTitle();
   if (!isOpen) return null;
 
   const toneClass: Record<ConfirmTone, {
@@ -398,18 +402,10 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   const toneConfig = toneClass[tone];
   const Icon = icon || AlertTriangle;
 
-  const node = (
-    <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 px-4 py-6 font-sans backdrop-blur-[2px]"
-      role="presentation"
-      onMouseDown={onCancel}
-    >
+  return (
+    <PortalModal isOpen={isOpen} onClose={onCancel} busy={isLoading} labelledBy={titleId} className="max-w-md p-6">
       <div
-        className="w-full max-w-md rounded-3xl border border-white/80 bg-white p-6 text-left shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="portal-confirm-title"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="text-left"
       >
         <div className="flex items-start gap-4">
           <div className={joinClasses('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border', toneConfig.iconWrap)}>
@@ -419,10 +415,10 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
             <p className={joinClasses('text-[10px] font-black uppercase tracking-[0.2em]', toneConfig.eyebrow)}>
               Confirmation Required
             </p>
-            <h2 id="portal-confirm-title" className="mt-1 text-lg font-black leading-tight text-brand-navy">
+            <h2 id={titleId} className="section-heading mt-1 leading-tight">
               {title}
             </h2>
-            <div className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">
+            <div className="card-description mt-3 text-slate-600">
               {message}
             </div>
           </div>
@@ -445,10 +441,8 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
           </PortalButton>
         </div>
       </div>
-    </div>
+    </PortalModal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
 
 type ToastTone = 'info' | 'success' | 'warning' | 'danger';
@@ -457,33 +451,88 @@ interface PortalToastProps {
   message: string | null;
   tone?: ToastTone;
   className?: string;
+  onClose?: () => void;
 }
 
-export const PortalToast: React.FC<PortalToastProps> = ({ message, tone = 'info', className = '' }) => {
-  if (!message) return null;
+const PortalToastNotification: React.FC<PortalToastProps & { message: string }> = ({ message, tone = 'info', className = '', onClose }) => {
+  const [dismissed, setDismissed] = useState(false);
 
-  const toneClass: Record<ToastTone, { wrapper: string; icon: LucideIcon }> = {
-    info: { wrapper: 'bg-brand-navy text-white border-white/10', icon: CheckCircle2 },
-    success: { wrapper: 'bg-emerald-700 text-white border-emerald-500/30', icon: CheckCircle2 },
-    warning: { wrapper: 'bg-amber-700 text-white border-amber-500/30', icon: CheckCircle2 },
-    danger: { wrapper: 'bg-rose-700 text-white border-rose-500/30', icon: XCircle }
+  if (dismissed) return null;
+
+  const toneConfig: Record<ToastTone, {
+    border: string;
+    iconBg: string;
+    iconColor: string;
+    icon: LucideIcon;
+  }> = {
+    info: {
+      border: 'border-slate-200',
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      icon: Info,
+    },
+    success: {
+      border: 'border-emerald-200',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      icon: CheckCircle2,
+    },
+    warning: {
+      border: 'border-amber-200',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      icon: AlertTriangle,
+    },
+    danger: {
+      border: 'border-rose-200',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+      icon: AlertCircle,
+    }
   };
 
-  const Icon = toneClass[tone].icon;
+  const currentTone = toneConfig[tone] ?? toneConfig.info;
+  const Icon = currentTone.icon;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    onClose?.();
+  };
 
   // Rendered through a portal into <body> so it is always anchored to the
   // viewport (never trapped by a transformed/clipping ancestor) and is placed
   // top-right below the sticky header while staying above every app layer.
   const node = (
-    <div className={joinClasses(
-      'fixed top-20 right-6 z-[9999] px-5 py-3 rounded-xl shadow-lg border flex items-center gap-2.5 max-w-sm font-sans animate-fade-in',
-      toneClass[tone].wrapper,
-      className
-    )}>
-      <Icon className="w-4 h-4 shrink-0" />
-      <span className="text-[11px] font-bold tracking-wide leading-snug">{message}</span>
+    <div
+      role={tone === 'danger' ? 'alert' : 'status'}
+      aria-atomic="true"
+      className={joinClasses(
+        'fixed top-20 right-4 z-[9999] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.10)] flex items-start gap-3 font-sans',
+        currentTone.border,
+        className
+      )}
+    >
+      <div aria-hidden="true" className={joinClasses('h-8 w-8 rounded-lg flex items-center justify-center shrink-0', currentTone.iconBg, currentTone.iconColor)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1 py-1.5 text-left">
+        <p className="card-description text-slate-800 [overflow-wrap:anywhere]">{message}</p>
+      </div>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        aria-label="Dismiss notification"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 cursor-pointer"
+      >
+        <X className="w-4 h-4" />
+      </button>
     </div>
   );
 
   return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
+
+// A new message or a cleared notification starts a fresh dismissal lifecycle.
+export const PortalToast: React.FC<PortalToastProps> = (props) => props.message ? (
+  <PortalToastNotification key={`${props.tone ?? 'info'}:${props.message}`} {...props} message={props.message} />
+) : null;

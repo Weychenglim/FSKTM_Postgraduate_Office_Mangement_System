@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,7 +31,7 @@ export const FormTextarea: React.FC<FormTextareaProps> = ({
         {...props}
       />
       {error && (
-        <span id={`textarea-err-${id}`} className="text-xs text-red-500 mt-1.5 font-medium">
+        <span id={`textarea-err-${id}`} className="card-description text-red-500 mt-1.5">
           {error}
         </span>
       )}

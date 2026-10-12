@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,10 +23,10 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
     <div id="workload-summary-card-container" className="bg-white border border-[#e2e8f0] rounded-xl p-5 text-left font-sans space-y-4">
       {/* Header Row */}
       <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-3">
-        <span className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider">
+        <span className="section-label">
           Workload Summary
         </span>
-        <span className="text-[10px] font-bold text-[#64748b]">
+        <span className="card-caption">
           {semester}
         </span>
       </div>
@@ -35,30 +35,30 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
       <div className="grid grid-cols-3 divide-x divide-[#f1f5f9] text-center py-1">
         {/* Supervisees */}
         <div className="flex flex-col items-center justify-center space-y-1">
-          <span className="text-2xl font-extrabold text-brand-navy">
+          <span className="card-metric">
             {currentStudents}
           </span>
-          <span className="text-[9px] font-extrabold text-[#64748b] tracking-wider uppercase">
+          <span className="card-caption">
             Supervisees
           </span>
         </div>
 
         {/* Workload Limit */}
         <div className="flex flex-col items-center justify-center space-y-1">
-          <span className="text-2xl font-extrabold text-brand-navy">
+          <span className="card-metric">
             {workloadLimit}
           </span>
-          <span className="text-[9px] font-extrabold text-[#64748b] tracking-wider uppercase">
+          <span className="card-caption">
             Workload Limit
           </span>
         </div>
 
         {/* Slots Available */}
         <div className="flex flex-col items-center justify-center space-y-1">
-          <span className="text-2xl font-extrabold text-[#2563eb]">
+          <span className="card-metric text-blue-600">
             {slotsAvailable}
           </span>
-          <span className="text-[9px] font-extrabold text-[#64748b] tracking-wider uppercase">
+          <span className="card-caption">
             Slots Available
           </span>
         </div>
@@ -67,8 +67,8 @@ export const WorkloadSummaryCard: React.FC<WorkloadSummaryCardProps> = ({
       {/* Progress Bar Gauge */}
       <div className="space-y-2 pt-2 border-t border-[#f1f5f9]">
         <div className="flex justify-between items-center text-xs">
-          <span className="font-bold text-[#475569]">Capacity Utilization</span>
-          <span className="font-extrabold text-brand-navy">{utilizationPercent}%</span>
+          <span className="card-label text-[#475569]">Capacity Utilization</span>
+          <span className="card-value text-brand-navy">{utilizationPercent}%</span>
         </div>
         <div className="w-full h-2.5 bg-[#f1f5f9] rounded-full overflow-hidden">
           <div

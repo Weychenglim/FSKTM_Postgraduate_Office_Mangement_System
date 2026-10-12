@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -121,6 +121,14 @@
   .section-heading { @apply text-lg font-extrabold text-brand-navy tracking-tight; }
   .section-label   { @apply text-sm font-extrabold text-brand-navy; }
 
+  /* Card text roles shared across portal modules. Keep titles, metrics,
+     metadata, descriptions and compact captions distinct. */
+  .card-label       { @apply font-sans not-italic normal-case tracking-normal text-xs font-semibold text-slate-500; }
+  .card-value       { @apply font-sans not-italic normal-case tracking-normal text-xs font-bold text-brand-navy; }
+  .card-description { @apply font-sans not-italic normal-case tracking-normal text-xs font-medium leading-relaxed text-slate-500; }
+  .card-caption     { @apply font-sans not-italic normal-case tracking-normal text-[10px] font-medium text-slate-500; }
+  .card-metric      { @apply text-2xl font-extrabold text-brand-navy tracking-tight tabular-nums; }
+
   /* Standard white content card */
   .app-card { @apply bg-white rounded-2xl border border-slate-200/80; }
 
@@ -139,7 +147,7 @@
   /* Form and filter controls */
   .filter-toolbar { @apply bg-slate-50 p-4 rounded-2xl border border-slate-100; }
   .form-label     { @apply text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mb-1.5; }
-  .form-control   { @apply w-full bg-white border border-slate-200 text-xs font-bold text-slate-800 rounded-xl outline-none transition-all focus:ring-1 focus:ring-brand-navy focus:border-brand-navy placeholder:text-slate-400; }
+  .form-control   { @apply font-sans not-italic normal-case tracking-normal w-full bg-white border border-slate-200 text-xs font-bold text-slate-800 rounded-xl outline-none transition-all focus:ring-1 focus:ring-brand-navy focus:border-brand-navy placeholder:text-slate-400; }
   .form-control-sm{ @apply py-2.5 px-3; }
   .form-control-md{ @apply py-3 px-3.5; }
   .form-control-error { @apply border-rose-300 focus:border-rose-500 focus:ring-rose-500; }

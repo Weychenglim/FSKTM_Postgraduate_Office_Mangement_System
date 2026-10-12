@@ -139,7 +139,7 @@ export const TimelineNextActions: React.FC<TimelineNextActionsProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h2 className="section-heading">{title}</h2>
-          <p className="text-xs md:text-sm text-slate-500 font-medium mt-1.5">
+          <p className="card-description mt-1.5">
             {subtitle}
           </p>
         </div>
@@ -182,10 +182,10 @@ export const TimelineNextActions: React.FC<TimelineNextActionsProps> = ({
                     <Icon className="w-4.5 h-4.5" />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-xs font-black text-brand-navy block leading-snug">
+                    <span className="card-value text-brand-navy block leading-snug">
                       {entry.title}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-1 leading-relaxed">
+                    <span className="card-caption text-slate-400 block mt-1 leading-relaxed">
                       {entry.level} - {entry.action || entry.targetRoles.map((role) => roleLabels[role]).join(' / ')}
                     </span>
                   </div>
@@ -194,7 +194,7 @@ export const TimelineNextActions: React.FC<TimelineNextActionsProps> = ({
                   <StatusBadge tone={statusTone[entry.status]} dot className="hidden md:inline-flex">
                     {entry.status}
                   </StatusBadge>
-                  <span className="hidden sm:inline text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <span className="card-caption hidden sm:inline uppercase tracking-wider text-slate-400">
                     {formatDateRange(entry)}
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />

@@ -192,7 +192,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 select-none">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                <span className="card-label uppercase text-slate-400 tracking-widest">
                   Letter Templates
                 </span>
                 <span className="bg-slate-100 text-slate-600 font-bold text-[9px] px-2 py-0.5 rounded-full font-mono">
@@ -226,7 +226,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2">
                             <FileText className={`w-4 h-4 ${isSelected ? 'text-brand-navy stroke-[2.3]' : 'text-slate-400'}`} />
-                            <span className={`text-xs font-black leading-tight ${isSelected ? 'text-brand-navy' : 'text-slate-800'}`}>
+                            <span className={`card-value leading-tight ${isSelected ? 'text-brand-navy' : 'text-slate-800'}`}>
                               {tpl.name}
                             </span>
                           </div>
@@ -234,7 +234,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                             {tpl.type}
                           </span>
                         </div>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-2 leading-relaxed">
+                        <p className="card-description mt-2">
                           {tpl.description}
                         </p>
                       </button>
@@ -247,7 +247,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             <div className="pt-6 border-t border-slate-100 space-y-4 select-none">
               <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                 <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-                <p className="text-[10px] font-semibold text-slate-500 leading-normal">
+                <p className="card-description">
                   Selecting a template updates the preview live. Your details are filled in automatically from your student record — fields left blank are completed by the postgraduate office.
                 </p>
               </div>
@@ -261,7 +261,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4 select-none">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-brand-navy uppercase tracking-wider">Preview Pane</span>
+                <span className="section-label text-brand-navy uppercase tracking-wider">Preview Pane</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-lg p-1">

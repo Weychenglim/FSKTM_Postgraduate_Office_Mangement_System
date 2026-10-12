@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,7 +33,7 @@ export const AuditLogCard: React.FC<AuditLogCardProps> = ({
 }) => {
   return (
     <div id={id} className="text-left mt-6">
-      <span className="text-[10px] uppercase font-extrabold text-slate-400 tracking-[0.15em] block mb-3.5">
+      <span className="section-label block mb-3.5">
         System Audit Log
       </span>
 
@@ -44,10 +44,10 @@ export const AuditLogCard: React.FC<AuditLogCardProps> = ({
             className="p-3 bg-white border border-slate-200 rounded-xl text-left shadow-3xs transition-all"
           >
             <div className="flex gap-2 items-baseline text-xs">
-              <span className="text-[10px] font-extrabold text-brand-navy tracking-tight shrink-0 font-sans">
+              <span className="card-label shrink-0">
                 {log.timestamp}:
               </span>
-              <span className="text-[11px] text-slate-600 font-medium leading-relaxed">
+              <span className="card-description">
                 {log.message}
               </span>
             </div>

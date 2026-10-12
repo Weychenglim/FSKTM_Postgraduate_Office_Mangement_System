@@ -37,7 +37,7 @@ export async function assertSupervisorLifecycleRows(tab) {
 
 export async function assertInternalDossierLifecycle(tab) {
   const text = await tab.playwright.getByRole('main').innerText();
-  assert.match(text, /Academic lifecycle/);
+  assert.match(text, /Enrolment Status/);
   assert.match(text, /Acceptance: temporary study deferral/);
   assert.match(text, /Lifecycle Office/);
   assert.match(text, /Malaysia, UTC\+08:00/);

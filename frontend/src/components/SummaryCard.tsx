@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -47,18 +47,18 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         onClick ? 'hover:shadow-sm hover:border-slate-300' : ''
       }`}
     >
-      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2.5">
+      <span className="card-label block mb-2.5">
         {title}
       </span>
 
       <div className="flex items-center gap-2 mb-2">
         <StatusDot tone={getBadgeTone()} className="w-2 h-2" />
-        <span className="text-brand-navy font-extrabold text-[19px] tracking-tight">
+        <span className="card-metric">
           {badgeText}
         </span>
       </div>
 
-      <span className="text-xs text-slate-400 font-medium leading-none block">
+      <span className="card-description block">
         {subtext}
       </span>
 

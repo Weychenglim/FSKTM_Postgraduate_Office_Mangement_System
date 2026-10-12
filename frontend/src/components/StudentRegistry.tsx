@@ -1,4 +1,6 @@
-﻿/**
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -95,13 +97,13 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext,
   return (
     <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 flex items-start justify-between relative overflow-hidden transition-all duration-300 hover:shadow-sm group">
       <div className="space-y-1.5 text-left select-none">
-        <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block">
+        <span className="card-label block">
           {title}
         </span>
-        <h2 className="text-2xl font-black text-brand-navy tracking-tight font-sans">
+        <h2 className="card-metric">
           {value}
         </h2>
-        <span className="text-[10px] font-bold text-slate-500 block">
+        <span className="card-value block">
           {subtext}
         </span>
       </div>
@@ -166,7 +168,7 @@ export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ 
   return (
     <div className="flex items-center gap-2 select-none">
       <StatusDot tone={dotTone[status]} pulse className="w-2 h-2" />
-      <span className="text-slate-700 font-extrabold text-[11.5px]">
+      <span className="card-value">
         {status}
       </span>
     </div>
@@ -226,19 +228,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
   const [currentView, setCurrentView] = useState<'list' | 'register'>('list');
   const [registerActiveTab, setRegisterActiveTab] = useState<'bulk' | 'single'>('single');
-  const [registryModuleTab, setRegistryModuleTab] = useState<'students' | 'staff_lecturers'>('students');
+  const [registryModuleTab, setRegistryModuleTab] = useListState<'students' | 'staff_lecturers'>('StudentRegistry', 'registryModuleTab', 'students');
 
   // Lists Filters States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProgramme, setSelectedProgramme] = useState<string>('All');
-  const [selectedSemester, setSelectedSemester] = useState<string>('All');
-  const [selectedAcademicStatus, setSelectedAcademicStatus] = useState<string>('All');
-  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useListState('StudentRegistry', 'searchQuery', '');
+  const [selectedProgramme, setSelectedProgramme] = useListState<string>('StudentRegistry', 'selectedProgramme', 'All');
+  const [selectedSemester, setSelectedSemester] = useListState<string>('StudentRegistry', 'selectedSemester', 'All');
+  const [selectedAcademicStatus, setSelectedAcademicStatus] = useListState<string>('StudentRegistry', 'selectedAcademicStatus', 'All');
+  const [selectedSupervisor, setSelectedSupervisor] = useListState<string>('StudentRegistry', 'selectedSupervisor', 'All');
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('StudentRegistry', 'currentPage', 1);
   const itemsPerPage = 3; 
 
   // Multi Selector state
@@ -815,7 +817,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     setSearchQuery(e.target.value);
                     setCurrentPage(1); 
                   }}
-                  className="w-full bg-white border border-slate-200 text-xs font-bold text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs"
+                  className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
                 />
               </div>
 
@@ -830,7 +832,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       setSelectedProgramme(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
                   >
                     <option value="All">Programme: All</option>
                     {PROGRAMME_OPTIONS.map((programme) => (
@@ -848,7 +850,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       setSelectedSemester(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
                   >
                     <option value="All">Semester: All</option>
                     {semesterOptions.map((semester) => (
@@ -866,7 +868,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       setSelectedAcademicStatus(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
                   >
                     <option value="All">Status: All</option>
                     {ACADEMIC_STATUSES.map((academicStatus) => (
@@ -984,19 +986,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={columnCount} className="p-0">
+                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
                         <LoadingState message="Loading students…" />
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={columnCount} className="p-0">
+                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
                         <ErrorState message={error} onRetry={loadStudents} />
                       </td>
                     </tr>
                   ) : displayedStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={columnCount} className="py-12 text-center text-slate-400 font-extrabold select-none">
+                      <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
                         No matching students found. Adjust the search or filters and try again.
                       </td>
                     </tr>
@@ -1027,7 +1029,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                 {student.avatarText}
                               </div>
                               <div>
-                                <h4 className="text-[12.5px] font-black text-brand-navy leading-snug">
+                                <h4 className="section-label">
                                   {student.name}
                                 </h4>
                                 <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
@@ -1089,13 +1091,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             {/* LOWER PORTAL PAGINATION FOOTER */}
             <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-[#e2e8f0] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
               
-              <div className="text-[11px] text-slate-500 font-bold text-left">
-                Showing <strong className="text-slate-800">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
-                <strong className="text-slate-800">
+              <div className="card-value text-left">
+                Showing <strong className="card-value">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
+                <strong className="card-value">
                   {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
                 </strong>{' '}
-                of <strong className="text-slate-800">{filteredStudents.length}</strong> entries{' '}
-                <span className="text-slate-400 font-semibold">
+                of <strong className="card-value">{filteredStudents.length}</strong> entries{' '}
+                <span className="card-description">
                   (Total {summary.total.toLocaleString()} overall)
                 </span>
               </div>
@@ -1155,15 +1157,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* SCREEN B: REGISTER NEW STUDENTS (CSV IMPORT & MANUAL FORM) */}
       {/* ========================================================== */}
       {currentView === 'register' && !readOnly && (
-        <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
+        <RecordPage title="Register New Students" backLabel="Back to Student Registry" onBack={() => setCurrentView('list')} pageKey="registry-student-registration" dirty={!!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone || !!manualFormData.intakeBatch || !!manualFormData.researchTitle || !!manualFormData.supervisor || manualFormData.programme !== 'Select registered programme' || manualFormData.semester !== 'Semester 1' || !manualFormData.sendCredentialsImmediately || uploadedFile !== null} busy={isProcessingCsv || saving}>{requestBack => <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
           
-          <PageHeader
-            title="Register New Students"
-            subtitle="Secretariat Onboarding Utility"
-            backLabel="Back to Student Registry"
-            onBack={() => setCurrentView('list')}
-            className="mb-6"
-          />
+
 
           {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
           <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3">
@@ -1205,8 +1201,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-brand-navy">File Upload</h3>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                        <h3 className="section-label">File Upload</h3>
+                        <p className="card-description mt-0.5">
                           Drag and drop your student registry CSV or XLSX file below.
                         </p>
                       </div>
@@ -1245,7 +1241,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {isProcessingCsv ? (
                         <div className="space-y-2 py-4">
                           <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-                          <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Checking the file…</span>
+                          <span className="card-value text-indigo-650 block">Checking the file…</span>
                         </div>
                       ) : uploadedFile ? (
                         <div className="space-y-3 py-2">
@@ -1253,8 +1249,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             <CheckCircle className="w-6 h-6" />
                           </div>
                           <div>
-                            <span className="text-[12px] font-black text-slate-800 block select-all">{uploadedFile.name}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
+                            <span className="card-value block select-all">{uploadedFile.name}</span>
+                            <span className="card-description block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
                           </div>
                           <button
                             type="button"
@@ -1274,8 +1270,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             <UploadCloud className="w-5.5 h-5.5" />
                           </div>
                           <div>
-                            <span className="text-xs font-black text-slate-800 block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
+                            <span className="card-value block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
+                            <span className="card-description block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
                           </div>
                         </div>
                       )}
@@ -1337,8 +1333,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     {/* Upper title and verification counters */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="text-sm font-black text-brand-navy">Import Preview & Validation</h3>
-                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                        <h3 className="section-label">Import Preview & Validation</h3>
+                        <p className="card-description mt-0.5">
                           Verification outcome mapping for staged candidate accounts row matrices.
                         </p>
                       </div>
@@ -1359,7 +1355,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             : 'bg-slate-50 text-slate-400 border-slate-150'
                         }`}>
                           <AlertTriangle className="w-3 h-3" />
-                          <span>{warningCsvCount} Warning</span>
+                          <span className="card-description">{warningCsvCount} Warning</span>
                         </div>
 
                         {/* Duplicate indicator */}
@@ -1369,7 +1365,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             : 'bg-slate-50 text-slate-400 border-slate-150'
                         }`}>
                           <AlertCircle className="w-3 h-3" />
-                          <span>{duplicateCsvCount} Duplicate</span>
+                          <span className="card-description">{duplicateCsvCount} Duplicate</span>
                         </div>
 
                       </div>
@@ -1419,7 +1415,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                       type="text" 
                                       value={editRowFields.name}
                                       onChange={(e) => setEditRowFields({ ...editRowFields, name: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                                     />
                                   </td>
                                   <td className="data-td">
@@ -1427,7 +1423,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                       type="text" 
                                       value={editRowFields.programme}
                                       onChange={(e) => setEditRowFields({ ...editRowFields, programme: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
                                     />
                                   </td>
                                   <td className="data-td text-center">
@@ -1466,9 +1462,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                             return (
                               <tr key={item.line} className="hover:bg-slate-50/50 transition">
-                                <td className="data-td font-bold font-mono text-slate-600">{item.id}</td>
-                                <td className="data-td font-extrabold text-slate-850">{item.name}</td>
-                                <td className="data-td font-bold text-slate-500">{item.programme}</td>
+                                <td className="data-td-strong font-mono text-slate-600">{item.id}</td>
+                                <td className="data-td-strong text-slate-850">{item.name}</td>
+                                <td className="data-td-strong text-slate-500">{item.programme}</td>
                                 
                                 {/* Status Outcome render badge */}
                                 <td className="data-td text-center">
@@ -1519,7 +1515,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Cancel on left */}
                       <button
                         type="button"
-                        onClick={() => setCurrentView('list')}
+                        onClick={requestBack}
                         className="text-slate-500 hover:text-slate-800 font-extrabold uppercase text-[10.5px] tracking-wider transition-colors cursor-pointer"
                       >
                         Cancel
@@ -1570,7 +1566,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-700">
                       <UserPlus className="w-5 h-5 text-indigo-600" />
                     </div>
-                    <h2 className="text-base font-extrabold text-brand-navy tracking-tight animate-fade-in">
+                    <h2 className="section-label animate-fade-in">
                       New Student Registration
                     </h2>
                   </div>
@@ -1582,14 +1578,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="space-y-6">
                       <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
                         <UserSquare className="w-4.5 h-4.5 text-slate-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-650">
+                        <span className="card-label">
                           Personal Information
                         </span>
                       </div>
 
                       {/* Full Name */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="full-name" className="text-xs font-extrabold text-slate-705 mb-2">
+                        <label htmlFor="full-name" className="form-label mb-2">
                           Full Name
                         </label>
                         <input
@@ -1599,7 +1595,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="Enter student's legal full name"
                           value={manualFormData.name}
                           onChange={(e) => setManualFormData({ ...manualFormData, name: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                         />
                       </div>
 
@@ -1607,7 +1603,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {/* Student ID */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="student-id" className="text-xs font-extrabold text-slate-705 mb-2">
+                          <label htmlFor="student-id" className="form-label mb-2">
                             Student ID (Matric No.)
                           </label>
                           <input
@@ -1623,7 +1619,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                         {/* Official Email */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="official-email" className="text-xs font-extrabold text-slate-705 mb-2">
+                          <label htmlFor="official-email" className="form-label mb-2">
                             Official Email
                           </label>
                           <input
@@ -1633,14 +1629,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             placeholder="student@siswa.um.edu.my"
                             value={manualFormData.email}
                             onChange={(e) => setManualFormData({ ...manualFormData, email: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                           />
                         </div>
                       </div>
 
                       {/* Phone Number */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="phone-number" className="text-xs font-extrabold text-slate-705 mb-2">
+                        <label htmlFor="phone-number" className="form-label mb-2">
                           Phone Number
                         </label>
                         <input
@@ -1649,7 +1645,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="+60 1X-XXXXXXX"
                           value={manualFormData.phone}
                           onChange={(e) => setManualFormData({ ...manualFormData, phone: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                         />
                       </div>
                     </div>
@@ -1658,14 +1654,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="space-y-6 pt-4">
                       <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
                         <GraduationCap className="w-5 h-5 text-slate-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-605">
+                        <span className="card-label">
                           Academic Information
                         </span>
                       </div>
 
                       {/* Programme Select */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="programme-selection" className="text-xs font-extrabold text-slate-705 mb-2">
+                        <label htmlFor="programme-selection" className="form-label mb-2">
                           Programme
                         </label>
                         <div className="relative">
@@ -1673,7 +1669,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             id="programme-selection"
                             value={manualFormData.programme}
                             onChange={(e) => setManualFormData({ ...manualFormData, programme: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                            className="w-full bg-[#f8fafc] text-slate-800 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition cursor-pointer appearance-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
                           >
                             <option value="Select registered programme" disabled>Select registered programme</option>
                             {PROGRAMME_OPTIONS.map((programme) => (
@@ -1690,7 +1686,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {/* Intake Batch */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="intake-batch" className="text-xs font-extrabold text-slate-705 mb-2">
+                          <label htmlFor="intake-batch" className="form-label mb-2">
                             Intake Batch
                           </label>
                           <input
@@ -1699,13 +1695,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             placeholder="e.g. 2023/2024"
                             value={manualFormData.intakeBatch}
                             onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                           />
                         </div>
 
                         {/* Current Semester */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="current-semester" className="text-xs font-extrabold text-slate-705 mb-2">
+                          <label htmlFor="current-semester" className="form-label mb-2">
                             Current Semester
                           </label>
                           <div className="relative">
@@ -1713,7 +1709,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                               id="current-semester"
                               value={manualFormData.semester}
                               onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                              className="w-full bg-[#f8fafc] text-slate-800 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition font-semibold cursor-pointer appearance-none"
+                              className="w-full bg-[#f8fafc] text-slate-800 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition cursor-pointer appearance-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
                             >
                               <option value="Semester 1">Semester 1</option>
                               <option value="Semester 2">Semester 2</option>
@@ -1728,7 +1724,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                       {/* Research Title (Optional) */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="research-title" className="text-xs font-extrabold text-slate-750 mb-2">
+                        <label htmlFor="research-title" className="form-label mb-2">
                           Research Title (Optional)
                         </label>
                         <input
@@ -1737,13 +1733,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="Tentative research title..."
                           value={manualFormData.researchTitle}
                           onChange={(e) => setManualFormData({ ...manualFormData, researchTitle: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                         />
                       </div>
 
                       {/* Assigned Supervisor (Optional) */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="assigned-supervisor" className="text-xs font-extrabold text-slate-750 mb-2">
+                        <label htmlFor="assigned-supervisor" className="form-label mb-2">
                           Assigned Supervisor (Optional)
                         </label>
                         <input
@@ -1752,7 +1748,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="Search and assign supervisor"
                           value={manualFormData.supervisor}
                           onChange={(e) => setManualFormData({ ...manualFormData, supervisor: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-semibold"
+                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
                         />
                       </div>
                     </div>
@@ -1761,7 +1757,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="space-y-6 pt-4">
                       <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
                         <Mail className="w-4.5 h-4.5 text-slate-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-605">
+                        <span className="card-label">
                           Account Settings
                         </span>
                       </div>
@@ -1769,7 +1765,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Info Box */}
                       <div id="notice-box-credentials" className="bg-[#f0f5ff] border border-[#d0e0ff] text-[#1e3a8a] rounded-2xl p-4 flex items-start gap-3">
                         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                        <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
+                        <p className="card-description text-left">
                           No password is created. The student receives an activation link and
                           chooses their own password, so no credential is ever sent by email.
                         </p>
@@ -1778,10 +1774,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Send credentials toggle switch */}
                       <div className="border border-slate-200 rounded-2xl p-5 flex items-center justify-between bg-white shadow-3xs">
                         <div className="text-left space-y-1 pr-4">
-                          <h4 className="text-xs font-extrabold text-slate-900">
+                          <h4 className="section-label">
                             Send activation link immediately
                           </h4>
-                          <p className="text-[11px] text-slate-500 font-medium leading-normal">
+                          <p className="card-description">
                             Email the student a link to set their password. Leave off to register
                             the account now and invite them later.
                           </p>
@@ -1813,7 +1809,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Cancel Setup btn */}
                       <button
                         type="button"
-                        onClick={() => setCurrentView('list')}
+                        onClick={requestBack}
                         className="px-5 py-3 text-slate-550 hover:text-brand-navy font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
                       >
                         Cancel
@@ -1849,7 +1845,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
                     <Info className="w-4.5 h-4.5" />
                   </div>
-                  <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                  <h3 className="section-label">
                     Import Guidelines
                   </h3>
                 </div>
@@ -1877,7 +1873,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="p-1.5 rounded-lg bg-pink-50 text-pink-600 border border-pink-100">
                       <Layers className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                    <h3 className="section-label">
                       Registry Snapshot
                     </h3>
                   </div>
@@ -1888,8 +1884,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   
                   {/* Item 1: Total count */}
                   <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                    <span className="text-[9.5px] uppercase font-black text-slate-400 block tracking-wide">Total Registered</span>
-                    <h3 className="text-2xl font-black text-blue-700 tracking-tight font-sans mt-1">{students.length.toLocaleString()}</h3>
+                    <span className="card-label block">Total Registered</span>
+                    <h3 className="card-metric text-blue-700 mt-1">{students.length.toLocaleString()}</h3>
                     <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
                       <GraduationCap className="w-8 h-8" />
                     </div>
@@ -1897,8 +1893,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                   {/* Item 2: Pending count */}
                   <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                    <span className="text-[9.5px] uppercase font-black text-slate-400 block tracking-wide">Awaiting Activation</span>
-                    <h3 className="text-2xl font-black text-amber-700 tracking-tight font-sans mt-1">
+                    <span className="card-label block">Awaiting Activation</span>
+                    <h3 className="card-metric text-amber-700 mt-1">
                       {students.filter(s => s.activated === false).length.toLocaleString()}
                     </h3>
                     <div className="absolute right-3 bottom-2 text-amber-600/15">
@@ -1916,7 +1912,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
                       <FileText className="w-4.5 h-4.5" />
                     </div>
-                    <h3 className="text-xs font-black text-brand-navy uppercase tracking-wider">
+                    <h3 className="section-label">
                       Recent Imports
                     </h3>
                   </div>
@@ -1978,7 +1974,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
           </div>
 
-        </div>
+        </div>}</RecordPage>
       )}
         </>
       ) : (
@@ -1991,42 +1987,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {createPortal(
-        <AnimatePresence>
-        {viewingStudent && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
-            <div className="absolute inset-0" onClick={() => setViewingStudent(null)} />
-            
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
-            >
-              {/* Header block */}
-              <div className="bg-[#121c2e] p-6 text-white flex items-center justify-between select-none">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
-                    <GraduationCap className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-black uppercase tracking-wider text-slate-100">
-                      Student Document Record
-                    </h2>
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                      Reference verification ID logs
-                    </p>
-                  </div>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setViewingStudent(null)}
-                  className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="w-4.5 h-4.5" />
-                </button>
-              </div>
+      {viewingStudent ? <RecordPage title="Student details" backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={false} busy={statusSaving || saving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
               {/* Core student details body */}
               <div className="p-6 md:p-8 space-y-6">
@@ -2037,7 +1998,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     {viewingStudent.avatarText}
                   </div>
                   <div className="text-left">
-                    <h3 className="text-sm font-black text-slate-800 leading-snug">{viewingStudent.name}</h3>
+                    <h3 className="section-label">{viewingStudent.name}</h3>
                     <p className="text-[10.5px] text-slate-500 font-mono mt-0.5">{viewingStudent.id}</p>
                   </div>
                 </div>
@@ -2047,7 +2008,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   
                   {/* Programe Mapped */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-400 block mb-1">
+                    <span className="card-label block mb-1">
                       Programme Mapped
                     </span>
                     <ProgrammeChip label={viewingStudent.programme} />
@@ -2055,7 +2016,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                   {/* Academic Status checks */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                    <span className="card-label block mb-1">
                       Academic Status
                     </span>
                     <StatusChip status={viewingStudent.academicStatus} />
@@ -2063,21 +2024,21 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                   {/* Semester details */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                    <span className="card-label block mb-1">
                       Admission Intake
                     </span>
                     <span className="text-slate-800 font-bold flex items-center gap-1.5 pt-0.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{viewingStudent.semester}</span>
+                      <span className="card-description">{viewingStudent.semester}</span>
                     </span>
                   </div>
 
                   {/* Academic supervisorassigned */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                    <span className="card-label block mb-1">
                       Academic Supervisor
                     </span>
-                    <span className="text-slate-850 font-black block pt-0.5">
+                    <span className="card-value block pt-0.5">
                       {viewingStudent.supervisor || 'Not assigned'}
                       {viewingStudent.supervisorStaffNo && (
                         <span className="font-mono font-semibold text-slate-500 text-[10px] ml-1.5">{viewingStudent.supervisorStaffNo}</span>
@@ -2087,18 +2048,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                   {/* Contact Email */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-455 block mb-1">
+                    <span className="card-label block mb-1">
                       Administrative Email
                     </span>
                     <span className="text-blue-600 font-bold hover:underline select-all flex items-center gap-1.5 break-all pt-0.5">
                       <Mail className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{viewingStudent.email}</span>
+                      <span className="card-description text-blue-600">{viewingStudent.email}</span>
                     </span>
                   </div>
 
                   {/* Mobile phone Contact */}
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-455 block mb-1">
+                    <span className="card-label block mb-1">
                       Direct Mobile Contact
                     </span>
                     <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone}</span>
@@ -2172,7 +2133,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 )}
 
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 space-y-3">
-                  <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
+                  <h4 className="section-label block">
                     Account
                   </h4>
 
@@ -2214,8 +2175,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
               {/* footer buttons modal */}
               <div className="bg-slate-50/80 px-6 py-4.5 border-t border-slate-200/60 flex items-center justify-between text-xs select-none">
-                <span className="text-[10px] text-slate-450 font-bold">
-                  Credentials status: <strong className="text-slate-700 font-extrabold uppercase">{viewingStudent.accountStatus}</strong>
+                <span className="card-value">
+                  Credentials status: <strong className="card-value">{viewingStudent.accountStatus}</strong>
                 </span>
 
                 <div className="flex gap-2">
@@ -2263,23 +2224,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => setViewingStudent(null)}
-                    className="px-4 py-2 bg-slate-200/60 hover:bg-slate-200 text-slate-650 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
-                  >
-                    Close Profile
-                  </button>
+
 
                 </div>
               </div>
 
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </section>}</RecordPage> : null}
 
     </div>
   );

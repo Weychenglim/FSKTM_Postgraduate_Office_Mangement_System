@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { RecordPage } from './RecordPage';
+import { PortalConfirmModal } from './PortalPrimitives';
+const page = renderToStaticMarkup(<RecordPage title="Appointment request" backLabel="Back to Appointment requests" onBack={() => {}}><p>Recorded progress</p></RecordPage>);
+assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
+assert.ok(page.indexOf('Back to Appointment requests') < page.indexOf('<h1'));
+assert.doesNotMatch(page, /<dialog|role="dialog"|<nav|Supervisor Appointments/);
+assert.match(page, /Recorded progress/);
+const editing = renderToStaticMarkup(<RecordPage title="Research change request" backLabel="Back to research changes" dirty actions={<button>Refresh</button>} onBack={() => {}}>Draft</RecordPage>);
+assert.match(editing, /<fieldset disabled=""[^>]*><button>Refresh<\/button><\/fieldset>/, 'Page refresh cannot replace an unsaved draft');
+const busy = renderToStaticMarkup(<PortalConfirmModal isOpen title="Confirm decision" message="Decision context" isLoading onConfirm={() => {}} onCancel={() => {}} />);
+assert.match(busy, /<dialog[^>]+aria-modal="true"/);
+assert.equal((busy.match(/disabled=""/g) ?? []).length, 2);
+console.log('Record frame is a main-content page with a single labelled return; busy modal controls stay disabled');

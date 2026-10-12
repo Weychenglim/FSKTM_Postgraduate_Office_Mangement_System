@@ -71,10 +71,10 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
     <PortalCard id="monitoring-card" padding="lg">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-1">
         <div>
-          <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">
+          <h3 className="section-heading">
             Mark Submission Monitoring
           </h3>
-          <p className="text-slate-500 text-xs font-medium mt-1">
+          <p className="card-description mt-1">
             Live completion status of active evaluation tasks across evaluation periods.
           </p>
         </div>
@@ -90,21 +90,21 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
           <div id="semester-progress-hero" className="p-5 bg-slate-50/80 border border-slate-100 rounded-2xl my-6">
             <div className="flex justify-between items-start mb-3">
               <div className="flex flex-col">
-                <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Semester scope</span>
-                <span className="text-sm font-extrabold text-brand-navy mt-0.5">{semesterScope}</span>
+                <span className="card-label">Semester scope</span>
+                <span className="card-value mt-0.5">{semesterScope}</span>
               </div>
               <div className="flex flex-col text-right">
                 <div className="flex items-baseline justify-end gap-1">
                   <span className="text-2xl font-extrabold text-brand-navy">{summary.submitted}</span>
-                  <span className="text-xs text-slate-400 font-bold">/ {summary.total} submitted</span>
+                  <span className="card-value">/ {summary.total} submitted</span>
                 </div>
-                <span className="text-[9px] font-extrabold text-slate-500 tracking-wider mt-1 block uppercase">
+                <span className="card-label mt-1 block">
                   {summary.incomplete} incomplete
                 </span>
               </div>
             </div>
             <ProgressBar value={summary.submitted} max={summary.total || 1} tone="brand" trackClassName="h-2.5" />
-            <p className="text-[10px] font-bold text-slate-400 mt-2">{submittedRatio}% submission completion</p>
+            <p className="card-description mt-2">{submittedRatio}% submission completion</p>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -127,7 +127,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
                     {card.label}
                   </span>
-                  <span className={`text-xl font-black tracking-tight block my-1 ${card.label === 'Overdue' ? 'text-rose-600' : 'text-slate-800'}`}>
+                  <span className={`card-metric block my-1 ${card.label === 'Overdue' ? 'text-rose-600' : 'text-slate-800'}`}>
                     {card.count}
                   </span>
                   <StatusBadge tone={statusTone[card.label]} className="rounded-md px-2 py-0.5 text-[9px]">
@@ -140,7 +140,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
 
           <div className="mb-6 p-4 rounded-2xl border border-slate-100 bg-[#f8fafc]/90 text-left">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
+              <span className="card-label">
                 {selectedStatusGroup === 'All Records' ? 'Recent mark records' : `${selectedStatusGroup} records`}
               </span>
               <PortalButton
@@ -155,13 +155,13 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
 
             <div className="space-y-2.5">
               {selectedRecords.length === 0 ? (
-                <p className="text-xs font-bold text-slate-400 py-2">No records match this status.</p>
+                <p className="card-description py-2">No records match this status.</p>
               ) : (
                 selectedRecords.map((record) => (
                   <div key={record.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
                     <div>
-                      <span className="font-semibold text-slate-800 block">{record.panelMember}</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                      <span className="card-description block">{record.panelMember}</span>
+                      <span className="card-description block mt-0.5">
                         Student: {record.studentName} · {record.evaluatorRoleLabel || record.evaluatorRole || 'Evaluator'}
                       </span>
                     </div>
@@ -179,25 +179,25 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
 
           <div id="split-monitoring-columns" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100">
             <div id="column-followup" className="flex flex-col text-left">
-              <span className="text-[11px] font-extrabold text-brand-navy tracking-wider uppercase mb-4 block">
+              <span className="card-label mb-4 block">
                 Needs Follow-up
               </span>
               <ul className="space-y-3.5 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-3">
                   <StatusDot tone="danger" />
-                  <span><strong>{summary.overdue} overdue</strong> mark entries</span>
+                  <span className="card-description"><strong className="card-value">{summary.overdue} overdue</strong> mark entries</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <StatusDot tone="neutral" />
-                  <span><strong>{summary.notStarted} tasks</strong> not started</span>
+                  <span className="card-description"><strong className="card-value">{summary.notStarted} tasks</strong> not started</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <StatusDot tone="info" />
-                  <span><strong>{summary.draft} drafts</strong> not submitted</span>
+                  <span className="card-description"><strong className="card-value">{summary.draft} drafts</strong> not submitted</span>
                 </li>
                 <li className="flex items-center gap-2.5 p-3.5 bg-slate-50 border border-slate-100 text-slate-700 rounded-xl mt-3">
                   <Clock className="w-4 h-4 text-slate-500 shrink-0" />
-                  <span className="font-extrabold text-xs">
+                  <span className="card-value">
                     {summary.incomplete} total records still require monitoring
                   </span>
                 </li>
@@ -205,7 +205,7 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
             </div>
 
             <div id="column-recent-activity" className="flex flex-col text-left">
-              <span className="text-[11px] font-extrabold text-brand-navy tracking-wider uppercase mb-4 block">
+              <span className="card-label mb-4 block">
                 Recent Activity
               </span>
               <div className="space-y-4">
@@ -219,10 +219,10 @@ export const MarkSubmissionMonitoring: React.FC<MarkSubmissionMonitoringProps> =
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <p className="text-xs font-semibold text-slate-700 leading-normal">
-                        <strong>{record.panelMember}</strong> · {record.studentName}
+                      <p className="card-description leading-normal">
+                        <strong className="card-value">{record.panelMember}</strong> · {record.studentName}
                       </p>
-                      <span className="text-[10px] text-slate-400 font-medium mt-0.5">
+                      <span className="card-description mt-0.5">
                         {record.status === 'Submitted' ? `Submitted ${record.submittedDate}` : record.status === 'Draft' ? 'Draft saved' : record.status}
                       </span>
                     </div>

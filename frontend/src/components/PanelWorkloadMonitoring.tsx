@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -184,34 +185,34 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
       <div id="workload-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-3xs">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+          <span className="card-label block">
             Total Panel Lecturers
           </span>
-          <span className="text-3xl font-black text-brand-navy block mt-3">{summary.totalPanels}</span>
+          <span className="card-metric text-brand-navy block mt-3">{summary.totalPanels}</span>
         </div>
 
         <div className="bg-white border-l-4 border-l-emerald-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+          <span className="card-label block">
             Available
           </span>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-3xl font-black text-slate-850">{summary.available}</span>
-            <span className="text-xs font-bold text-emerald-600">{availablePercentage}%</span>
+            <span className="card-metric text-slate-850">{summary.available}</span>
+            <span className="card-value text-emerald-600">{availablePercentage}%</span>
           </div>
         </div>
 
         <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+          <span className="card-label block">
             Near Limit
           </span>
-          <span className="text-3xl font-black text-amber-500 block mt-3">{summary.nearLimit}</span>
+          <span className="card-metric text-amber-500 block mt-3">{summary.nearLimit}</span>
         </div>
 
         <div className="bg-white border-l-4 border-l-red-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+          <span className="card-label block">
             Full Load
           </span>
-          <span className="text-3xl font-black text-red-600 block mt-3">{summary.fullLoad}</span>
+          <span className="card-metric text-red-600 block mt-3">{summary.fullLoad}</span>
         </div>
       </div>
 
@@ -219,7 +220,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         <div className="lg:col-span-8 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs space-y-5">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3.5">
             <SlidersHorizontal className="w-4 h-4 text-slate-400" />
-            <span className="font-extrabold text-brand-navy uppercase tracking-wider text-xs">
+            <span className="card-label">
               Filter Panel Workload
             </span>
           </div>
@@ -287,7 +288,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         </div>
 
         <div className="lg:col-span-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs">
-          <span className="text-[10px] font-black text-brand-navy uppercase tracking-widest block border-b border-slate-100 pb-3">
+          <span className="card-label block border-b border-slate-100 pb-3">
             Workload Distribution
           </span>
           <div className="space-y-4 pt-5">
@@ -296,9 +297,9 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                 <div className="flex justify-between items-center text-[11px] font-bold">
                   <div className="flex items-center gap-1.5">
                     <StatusDot tone={tone} />
-                    <span className="text-slate-700 font-semibold">{label}</span>
+                    <span className="card-description">{label}</span>
                   </div>
-                  <span className="text-slate-850 font-extrabold">{summary[key]}</span>
+                  <span className="card-value">{summary[key]}</span>
                 </div>
                 <ProgressBar value={summary[key]} max={summary.totalPanels} tone={tone} trackClassName="h-2 bg-slate-105" />
               </div>
@@ -309,7 +310,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
       <div id="workload-records-card" className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs text-left">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+          <span className="card-label">
             Panel Workload Records
           </span>
           <PortalButton onClick={handleExportCSV} variant="secondary" size="sm" icon={Download}>
@@ -335,33 +336,33 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             <tbody className="divide-y divide-slate-100 font-sans text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-0">
+                  <td colSpan={9} className="p-0 text-xs font-semibold">
                     <LoadingState message="Loading panel workload records..." />
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={9} className="p-0">
+                  <td colSpan={9} className="p-0 text-xs font-semibold">
                     <ErrorState message={error} onRetry={loadWorkloads} />
                   </td>
                 </tr>
               ) : paginatedLecturers.length > 0 ? (
                 paginatedLecturers.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-55 transition-colors">
-                    <td className="data-td font-semibold text-slate-500 font-mono text-[11px]">{record.id}</td>
+                    <td className="data-td text-slate-500 font-mono">{record.id}</td>
                     <td className="data-td">
                       <div className="flex items-center gap-3 text-left">
                         <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-extrabold tracking-wider text-[11px]">
                           {record.initials}
                         </div>
-                        <span className="font-extrabold text-brand-navy text-xs">{record.name}</span>
+                        <span className="card-value">{record.name}</span>
                       </div>
                     </td>
-                    <td className="data-td font-bold text-slate-600">{record.department || 'Not recorded'}</td>
-                    <td className="data-td text-center font-black text-brand-navy text-sm">{record.currentStudents}</td>
-                    <td className="data-td text-center font-bold text-emerald-600">{record.confirmedAppointments}</td>
-                    <td className="data-td text-center font-bold text-amber-600">{record.pendingNominations}</td>
-                    <td className="data-td text-center font-bold text-slate-400 text-xs">{record.workloadLimit}</td>
+                    <td className="data-td-strong text-slate-600">{record.department || 'Not recorded'}</td>
+                    <td className="data-td-strong text-center text-brand-navy">{record.currentStudents}</td>
+                    <td className="data-td-strong text-center text-emerald-600">{record.confirmedAppointments}</td>
+                    <td className="data-td-strong text-center text-amber-600">{record.pendingNominations}</td>
+                    <td className="data-td-strong text-center text-slate-400">{record.workloadLimit}</td>
                     <td className="data-td">
                       <div className="flex items-center justify-center">
                         <StatusBadge tone={getStatusBadgeTone(record.capacityState ?? record.availability)} dot className="text-[9px] px-2.5 py-0.5">
@@ -386,7 +387,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-450 font-semibold whitespace-nowrap">
+                  <td colSpan={9} className="py-12 text-center text-slate-450 whitespace-nowrap text-xs font-semibold">
                     No lecturer panel workload records match the applied filters.
                   </td>
                 </tr>
@@ -396,7 +397,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         </div>
 
         <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans text-xs">
-          <span className="text-slate-450 font-semibold">
+          <span className="card-description">
             Showing {filteredLecturers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredLecturers.length)} of {filteredLecturers.length} panel lecturers
           </span>
           <div className="flex items-center gap-1.5 select-none">
@@ -436,37 +437,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         </div>
       </div>
 
-      <AnimatePresence>
-        {isDrawerOpen && selectedLecturer && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-brand-navy/60 z-40 backdrop-blur-sm cursor-pointer"
-            />
-
-            <motion.div
-              initial={{ x: '100%', opacity: 0.9 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0.9 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 bottom-0 h-full w-full max-w-xl bg-slate-50 shadow-sm z-50 overflow-hidden flex flex-col border-l border-slate-200 text-left font-sans"
-            >
-              <div className="bg-white p-5 border-b border-slate-200 flex items-center justify-between shadow-3xs">
-                <h3 className="text-base font-extrabold text-brand-navy tracking-tight">
-                  Lecturer Workload Detail
-                </h3>
-                <button
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-brand-navy hover:bg-slate-100 transition focus:outline-none cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      {isDrawerOpen && selectedLecturer ? <RecordPage title="Panel workload details" backLabel="Back to Panel Workload Monitoring" onBack={() => setIsDrawerOpen(false)} pageKey={`panel-workload:${selectedLecturer.id}`}><section className="space-y-5">
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-16 h-16 rounded-xl bg-blue-50 text-blue-650 flex items-center justify-center font-black text-lg border border-blue-100 uppercase">
@@ -474,7 +445,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h4 className="font-extrabold text-brand-navy text-sm truncate leading-tight">
+                        <h4 className="section-label truncate leading-tight">
                           {selectedLecturer.name}
                         </h4>
                         <StatusBadge tone={getStatusBadgeTone(selectedLecturer.capacityState ?? selectedLecturer.availability)} dot className="text-[8px] px-2 py-0.5">
@@ -482,18 +453,18 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                         </StatusBadge>
                       </div>
                       <div className="mt-3 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                        <div className="flex justify-between gap-3"><span>Semester</span><strong>{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
-                        <div className="mt-1.5 flex justify-between gap-3"><span>Capacity plan</span><strong>{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
-                        {selectedLecturer.unavailableUntil && <div className="mt-1.5 flex justify-between gap-3"><span>Unavailable until</span><strong>{selectedLecturer.unavailableUntil}</strong></div>}
+                        <div className="flex justify-between gap-3"><span className="card-description">Semester</span><strong className="card-value">{selectedLecturer.semesterCode ?? 'Not configured'}</strong></div>
+                        <div className="mt-1.5 flex justify-between gap-3"><span className="card-description">Capacity plan</span><strong className="card-value">{selectedLecturer.capacityPlanVersion ? `v${selectedLecturer.capacityPlanVersion}` : 'Not configured'}</strong></div>
+                        {selectedLecturer.unavailableUntil && <div className="mt-1.5 flex justify-between gap-3"><span className="card-description">Unavailable until</span><strong className="card-value">{selectedLecturer.unavailableUntil}</strong></div>}
                       </div>
                       <div className="mt-2.5 space-y-1.5 text-[11px] font-semibold text-slate-500">
                         <div className="flex justify-between">
-                          <span className="text-slate-400">ID</span>
+                          <span className="card-description">ID</span>
                           <span className="font-mono text-brand-navy font-bold">{selectedLecturer.id}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-400">Dept.</span>
-                          <span className="text-brand-navy truncate max-w-[260px] text-right">{selectedLecturer.department}</span>
+                          <span className="card-description">Dept.</span>
+                          <span className="card-description truncate max-w-[260px] text-right">{selectedLecturer.department}</span>
                         </div>
                       </div>
                     </div>
@@ -502,7 +473,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
                   <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
-                    <span className="font-extrabold text-brand-navy text-[10px] uppercase tracking-wider">
+                    <span className="card-label">
                       Reserved Workload Summary
                     </span>
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">
@@ -512,34 +483,34 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                   <div className="grid grid-cols-4 gap-2.5 text-center">
                     <div className="p-2 border-r border-slate-100">
-                      <span className="text-2xl font-black text-brand-navy block leading-none">
+                      <span className="card-metric text-brand-navy block leading-none">
                         {selectedLecturer.currentStudents}
                       </span>
-                      <span className="text-[8.5px] font-bold text-slate-450 uppercase block mt-1.5 leading-tight">
+                      <span className="card-label block mt-1.5">
                         Reserved
                       </span>
                     </div>
                     <div className="p-2 border-r border-slate-100">
-                      <span className="text-2xl font-black text-emerald-600 block leading-none">
+                      <span className="card-metric text-emerald-600 block leading-none">
                         {selectedLecturer.confirmedAppointments}
                       </span>
-                      <span className="text-[8.5px] font-bold text-slate-450 uppercase block mt-1.5 leading-tight">
+                      <span className="card-label block mt-1.5">
                         Confirmed
                       </span>
                     </div>
                     <div className="p-2 border-r border-slate-100">
-                      <span className="text-2xl font-black text-amber-600 block leading-none">
+                      <span className="card-metric text-amber-600 block leading-none">
                         {selectedLecturer.pendingNominations}
                       </span>
-                      <span className="text-[8.5px] font-bold text-slate-450 uppercase block mt-1.5 leading-tight">
+                      <span className="card-label block mt-1.5">
                         Pending
                       </span>
                     </div>
                     <div className="p-2">
-                      <span className="text-2xl font-black text-blue-600 block leading-none">
+                      <span className="card-metric text-blue-600 block leading-none">
                         {Math.max(0, selectedLecturer.workloadLimit - selectedLecturer.currentStudents)}
                       </span>
-                      <span className="text-[8.5px] font-bold text-slate-450 uppercase block mt-1.5 leading-tight">
+                      <span className="card-label block mt-1.5">
                         Slots
                       </span>
                     </div>
@@ -547,8 +518,8 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
 
                   <div className="space-y-1.5 pt-1.5">
                     <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500">
-                      <span>Capacity Utilization</span>
-                      <span className="text-brand-navy font-bold">{getPanelWorkloadUtilization(selectedLecturer)}%</span>
+                      <span className="card-description">Capacity Utilization</span>
+                      <span className="card-value">{getPanelWorkloadUtilization(selectedLecturer)}%</span>
                     </div>
                     <ProgressBar
                       value={getPanelWorkloadUtilization(selectedLecturer)}
@@ -560,7 +531,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                 </div>
 
                 <div className="space-y-2">
-                  <span className="font-extrabold text-brand-navy text-[10px] uppercase tracking-wider block text-left">
+                  <span className="card-label block text-left">
                     Workload Items
                   </span>
                   <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-3xs">
@@ -577,23 +548,23 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                           selectedLecturer.workloadItems.map((item) => (
                             <tr key={`${item.type}-${item.studentId}`} className="hover:bg-slate-50/50 transition-colors">
                               <td className="data-td">
-                                <div className="font-extrabold text-brand-navy break-words">{item.studentName}</div>
+                                <div className="card-value break-words">{item.studentName}</div>
                                 <div className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">{item.studentId}</div>
                               </td>
-                              <td className="data-td text-slate-600 font-medium leading-relaxed break-words py-2.5">
+                              <td className="data-td text-slate-600 leading-relaxed break-words py-2.5">
                                 {item.researchTitle}
                               </td>
                               <td className="data-td text-right">
                                 <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'} className="text-[8px] px-2 py-0.5">
                                   {item.type === 'Confirmed Appointment' ? 'Confirmed' : 'Pending'}
                                 </StatusBadge>
-                                <span className="block text-[9px] font-bold text-slate-400 mt-1">{item.date}</span>
+                                <span className="card-caption block mt-1">{item.date}</span>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={3} className="py-6 text-center text-slate-400 font-medium">
+                            <td colSpan={3} className="py-6 text-center text-slate-400 text-xs font-semibold">
                               No confirmed appointments or pending nominations for this lecturer.
                             </td>
                           </tr>
@@ -602,17 +573,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </table>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white p-5 border-t border-slate-200 flex items-center justify-end gap-3 shadow-sm">
-                <PortalButton onClick={() => setIsDrawerOpen(false)} variant="secondary" size="md">
-                  Close
-                </PortalButton>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </section></RecordPage> : null}
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -192,7 +193,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
           ] as const).map(([label, value, tone]) => (
             <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-3xs">
               <StatusBadge tone={tone}>{label}</StatusBadge>
-              <p className="mt-3 text-2xl font-black text-brand-navy">{value}</p>
+              <p className="card-metric mt-3">{value}</p>
             </div>
           ))}
         </section>
@@ -200,16 +201,16 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-3xs">
         <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-3 xl:grid-cols-6">
-          <label className="relative md:col-span-2">
+          <label className="form-label relative md:col-span-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             <input
-              className="form-input w-full pl-9"
+              className="form-control form-control-md w-full pl-9 font-sans not-italic normal-case tracking-normal text-xs font-bold"
               placeholder="Search record, student, or programme"
               value={filters.search ?? ''}
               onChange={(event) => setFilter('search', event.target.value)}
             />
           </label>
-          <select className="form-input" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
+          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
             <option value="">All modules</option>
             <option value="DASHBOARD">Dashboard / Timeline</option>
             <option value="SUPERVISOR_APPOINTMENTS">Supervisor</option>
@@ -217,17 +218,17 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
             <option value="MARKS">Marks</option>
             <option value="WORKFLOW_TRACKING">Workflow Tracking</option>
           </select>
-          <select className="form-input" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
+          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
             <option value="">All severities</option>
             <option value="BLOCKING">Blocking</option>
             <option value="WARNING">Warning</option>
           </select>
-          <select className="form-input" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
+          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
             <option value="">All repair states</option>
             <option value="REPAIRABLE">Repairable</option>
             <option value="REVIEW_REQUIRED">Review required</option>
           </select>
-          <select className="form-input" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
+          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
             <option value="">All programmes</option>
             {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
@@ -252,13 +253,13 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
               <tbody>{data.results.map((issue) => (
                 <tr key={issue.issueId} className="data-row">
                   <td className="data-td max-w-[360px]">
-                    <p className="font-black text-brand-navy">{issue.title}</p>
-                    <p className="mt-1 text-[10.5px] font-semibold text-slate-500">{issue.summary}</p>
+                    <p className="card-value">{issue.title}</p>
+                    <p className="card-description mt-1">{issue.summary}</p>
                   </td>
-                  <td className="data-td font-bold text-slate-600">{humanize(issue.module)}</td>
+                  <td className="data-td-strong text-slate-600">{humanize(issue.module)}</td>
                   <td className="data-td">
-                    <p className="font-bold text-slate-700">{humanize(issue.recordType)} #{issue.recordId}</p>
-                    <p className="text-[10px] text-slate-400">{issue.studentId ?? issue.programme ?? 'Faculty-wide'}</p>
+                    <p className="card-value">{humanize(issue.recordType)} #{issue.recordId}</p>
+                    <p className="card-description">{issue.studentId ?? issue.programme ?? 'Faculty-wide'}</p>
                   </td>
                   <td className="data-td space-x-2">
                     <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{issue.severity}</StatusBadge>
@@ -275,7 +276,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
 
         {data && data.count > data.pageSize && (
           <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-            <p className="font-bold text-slate-500">Page {data.page} of {pageCount}</p>
+            <p className="card-value">Page {data.page} of {pageCount}</p>
             <div className="flex gap-2">
               <PortalButton size="icon" icon={ChevronLeft} title="Previous page" disabled={data.page <= 1} onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, data.page - 1) }))} />
               <PortalButton size="icon" icon={ChevronRight} title="Next page" disabled={data.page >= pageCount} onClick={() => setFilters((current) => ({ ...current, page: data.page + 1 }))} />
@@ -285,19 +286,10 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
       </section>
 
       {(previewing || preview) && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/25" role="dialog" aria-modal="true">
-          <button type="button" className="min-w-0 flex-1 cursor-default" aria-label="Close preview" onClick={closePreview} />
-          <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-xl md:p-7">
+        <RecordPage title={preview?.issue.title ?? 'Workflow issue'} backLabel="Back to Workflow Reconciliation" onBack={closePreview} pageKey="reconciliation-review" dirty={!!reason.trim() || confirmed} busy={saving}>
             {previewing && !preview ? <LoadingState message="Validating current issue state..." /> : preview && (
               <div className="space-y-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-black uppercase text-slate-400">Preview current state</p>
-                    <h2 className="mt-1 text-lg font-black text-brand-navy">{preview.issue.title}</h2>
-                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{preview.issue.summary}</p>
-                  </div>
-                  <PortalButton size="icon" variant="ghost" icon={X} title="Close preview" onClick={closePreview} />
-                </div>
+                <p className="card-description">{preview.issue.summary}</p>
 
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge tone={preview.issue.severity === 'BLOCKING' ? 'danger' : 'warning'} icon={AlertTriangle}>{preview.issue.severity}</StatusBadge>
@@ -305,7 +297,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 </div>
 
                 <section className="rounded-lg border border-slate-200">
-                  <h3 className="border-b border-slate-200 px-4 py-3 text-[10px] font-black uppercase text-slate-500">Affected record</h3>
+                  <h3 className="section-label border-b border-slate-200 px-4 py-3">Affected record</h3>
                   <dl className="divide-y divide-slate-100">
                     {Object.entries(preview.issue.currentState).map(([key, value]) => (
                       <div key={key} className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-3">
@@ -327,18 +319,18 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
 
                 {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? (
                   <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
-                    <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><h3 className="font-black">Verified repair available</h3></div>
-                    <select className="form-input w-full bg-white" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
+                    <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><h3 className="section-label text-emerald-800">Verified repair available</h3></div>
+                    <select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
                       {preview.allowedResolutions.map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
                     </select>
                     {selectedResolution?.requiresProgramme && (
-                      <select className="form-input w-full bg-white" value={programme} onChange={(event) => setProgramme(event.target.value)}>
+                      <select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
                         <option value="">Select managed programme</option>
                         {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
                     )}
-                    <textarea className="form-input min-h-24 w-full bg-white" placeholder="Mandatory reason for this repair" value={reason} onChange={(event) => setReason(event.target.value)} />
-                    <label className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3 font-bold text-slate-700">
+                    <textarea className="form-control form-control-md min-h-24 w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" placeholder="Mandatory reason for this repair" value={reason} onChange={(event) => setReason(event.target.value)} />
+                    <label className="card-description flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3">
                       <input type="checkbox" className="mt-0.5" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
                       <span>I confirm this individual repair after reviewing the current state and affected identifiers.</span>
                     </label>
@@ -346,25 +338,24 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                   </section>
                 ) : (
                   <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <div className="flex items-center gap-2 text-blue-800"><ShieldCheck className="h-4 w-4" /><h3 className="font-black">Review required</h3></div>
-                    <p className="mt-2 font-semibold leading-5 text-blue-700">Portal repair is unsafe because it could rewrite or merge authoritative history.</p>
-                    {preview.issue.dependencies.map((item) => <p key={item} className="mt-2 text-[11px] font-bold text-blue-800">{item}</p>)}
+                    <div className="flex items-center gap-2 text-blue-800"><ShieldCheck className="h-4 w-4" /><h3 className="section-label text-blue-800">Review required</h3></div>
+                    <p className="card-description mt-2 text-blue-700">Portal repair is unsafe because it could rewrite or merge authoritative history.</p>
+                    {preview.issue.dependencies.map((item) => <p key={item} className="card-value mt-2 text-blue-800">{item}</p>)}
                   </section>
                 )}
 
                 <section className="rounded-lg border border-slate-200">
-                  <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3"><History className="h-4 w-4 text-slate-500" /><h3 className="font-black text-brand-navy">Repair audit history</h3></div>
-                  {selectedAudits.length === 0 ? <p className="p-4 font-semibold text-slate-400">No prior repair audit for this record.</p> : selectedAudits.map((audit) => (
+                  <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3"><History className="h-4 w-4 text-slate-500" /><h3 className="section-label">Repair audit history</h3></div>
+                  {selectedAudits.length === 0 ? <p className="card-description p-4">No prior repair audit for this record.</p> : selectedAudits.map((audit) => (
                     <div key={audit.id} className="border-b border-slate-100 p-4 last:border-0">
-                      <div className="flex justify-between gap-3"><p className="font-black text-slate-700">{humanize(audit.action)}</p><time className="text-[10px] font-bold text-slate-400">{new Date(audit.createdAt).toLocaleString('en-MY')}</time></div>
-                      <p className="mt-1 font-semibold text-slate-500">{audit.actor.name}: {audit.reason}</p>
+                      <div className="flex justify-between gap-3"><p className="card-value">{humanize(audit.action)}</p><time className="card-caption text-slate-400">{new Date(audit.createdAt).toLocaleString('en-MY')}</time></div>
+                      <p className="card-description mt-1">{audit.actor.name}: {audit.reason}</p>
                     </div>
                   ))}
                 </section>
               </div>
             )}
-          </aside>
-        </div>
+          </RecordPage>
       )}
     </div>
   );

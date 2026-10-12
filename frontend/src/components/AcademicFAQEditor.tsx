@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -254,7 +254,7 @@ export const AcademicFAQEditor: React.FC = () => {
             
             {/* Field 1: Intent Category Dropdown */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label uppercase tracking-wider text-slate-400">
                 Intent Category
               </label>
               <div className="relative">
@@ -278,7 +278,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 2: Question Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label uppercase tracking-wider text-slate-400">
                 Question
               </label>
               <input
@@ -292,7 +292,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 3: Keywords / Alternative Phrasings Tags */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label uppercase tracking-wider text-slate-400">
                 Keywords / Alternative Phrasings
               </label>
               
@@ -337,7 +337,7 @@ export const AcademicFAQEditor: React.FC = () => {
 
             {/* Field 4: Rich Text Answer Content wrapper */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <label className="form-label uppercase tracking-wider text-slate-400">
                 Answer
               </label>
 
@@ -401,6 +401,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 {/* Textarea for actual content */}
                 <textarea
                   rows={9}
+                  data-typography="formatted-content"
                   value={answerBody}
                   onChange={(e) => setAnswerBody(e.target.value)}
                   className={`form-control form-control-md rounded-none border-0 bg-slate-50/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
@@ -442,7 +443,7 @@ export const AcademicFAQEditor: React.FC = () => {
             <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
               <div className="flex items-center gap-2">
                 <MessageSquareCode className="w-4.5 h-4.5 text-indigo-300" />
-                <span className="text-[11px] font-black tracking-wide uppercase">
+                <span className="section-label tracking-wide uppercase text-white">
                   Real-Time Preview
                 </span>
               </div>
@@ -467,7 +468,7 @@ export const AcademicFAQEditor: React.FC = () => {
                       className={`flex flex-col text-left max-w-[85%] ${isStudent ? 'ml-auto items-end' : 'mr-auto items-start'}`}
                     >
                       {/* Bubble Text */}
-                      <div className={`p-4 rounded-2xl text-[11px] font-semibold leading-relaxed ${
+                      <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed ${
                         isStudent 
                           ? 'bg-slate-200 text-brand-navy rounded-br-none' 
                           : 'bg-brand-navy text-white rounded-bl-none shadow-sm'
@@ -476,7 +477,7 @@ export const AcademicFAQEditor: React.FC = () => {
                       </div>
 
                       {/* Footer descriptor beneath bubble */}
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[9px] font-bold text-slate-400">
+                      <div className="card-caption mt-1 flex flex-wrap items-center gap-2 text-slate-400">
                         <span>{isStudent ? `Student • ${msg.timestamp}` : `AI Assistant • ${msg.timestamp}`}</span>
                         
                         {/* If bot, display Confidence badge metrics */}
@@ -543,11 +544,11 @@ export const AcademicFAQEditor: React.FC = () => {
         {/* Metric 1: Total FAQ entries */}
         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl flex items-center justify-between shadow-3xs">
           <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-405 tracking-wider">
+            <span className="card-label uppercase text-slate-405 tracking-wider">
               Total FAQ Entries
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="card-metric text-slate-900 tracking-tight">
                 1,248
               </span>
               <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full select-none">
@@ -563,11 +564,11 @@ export const AcademicFAQEditor: React.FC = () => {
         {/* Metric 2: Avg Response Confidence */}
         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl flex items-center justify-between shadow-3xs">
           <div className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-405 tracking-wider">
+            <span className="card-label uppercase text-slate-405 tracking-wider">
               Avg Response Confidence
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 tracking-tight">
+              <span className="card-metric text-slate-900 tracking-tight">
                 94.2%
               </span>
               <span className="text-[10px] font-black text-emerald-605 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full select-none">

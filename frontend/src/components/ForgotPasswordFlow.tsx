@@ -145,7 +145,7 @@ export const FormInput: React.FC<FormInputProps> = ({
     <div id={`auth-input-wrapper-${id}`} className="w-full flex flex-col text-left mb-6">
       <label
         htmlFor={id}
-        className="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-2 select-none font-sans font-extrabold"
+        className="form-label block mb-2 select-none font-sans"
       >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
@@ -180,7 +180,7 @@ export const FormInput: React.FC<FormInputProps> = ({
         )}
       </div>
       {error && (
-        <span className="text-[10px] text-red-500 mt-1.5 font-bold font-sans">
+        <span className="card-description text-red-500 mt-1.5 font-sans">
           {error}
         </span>
       )}
@@ -252,7 +252,7 @@ export const InfoMessage: React.FC<InfoMessageProps> = ({
       <div className="p-1 rounded-md text-slate-400 shrink-0">
         <Icon className="w-4.5 h-4.5 stroke-[2.5]" />
       </div>
-      <p className="text-[10px] sm:text-[10.5px] text-slate-500 font-bold leading-relaxed font-sans">
+      <p className="card-description font-sans">
         {message}
       </p>
     </div>
@@ -270,7 +270,7 @@ export const FooterText: React.FC<FooterTextProps> = ({
   text = "FSKTM Postgraduate Office System — Universiti Malaya" 
 }) => {
   return (
-    <p className="text-[10px] font-bold text-slate-400/90 tracking-wide mt-6 font-sans select-none">
+    <p className="card-caption text-slate-400/90 mt-6 font-sans select-none">
       {text}
     </p>
   );
@@ -356,10 +356,10 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
               id="forgot-password-card" 
               badgeIcon={Lock}
             >
-              <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+              <h2 className="page-title font-sans">
                 Forgot Password
               </h2>
-              <p className="text-[11.5px] sm:text-[12px] text-slate-500 font-bold mt-1.5 mb-8 leading-relaxed font-sans px-2">
+              <p className="card-description mt-1.5 mb-8 font-sans px-2">
                 Enter your registered email address and we will send you a password reset link
               </p>
 
@@ -431,16 +431,16 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
               badgeIcon={Check}
               badgeCircle={true}
             >
-              <h2 className="text-xl sm:text-2xl font-black text-[#0c1424] tracking-tight font-sans">
+              <h2 className="page-title font-sans">
                 Email Sent Successfully
               </h2>
               
-              <div className="text-slate-600 text-xs sm:text-[12.5px] leading-relaxed font-semibold mt-4 mb-6 font-sans px-1">
+              <div className="card-description text-slate-600 mt-4 mb-6 font-sans px-1">
                 A password reset link has been sent to{" "}
-                <strong className="text-slate-900 font-extrabold break-all">{email || "your.email@um.edu.my"}</strong>. 
+                <strong className="card-value text-slate-900 break-all">{email || "your.email@um.edu.my"}</strong>.
                 Please check your inbox and follow the instructions to reset your password.
                 
-                <p className="text-[10px] sm:text-[10.5px] text-slate-450 font-extrabold text-[#748094] mt-2.5">
+                <p className="card-description text-slate-500 mt-2.5">
                   The reset link will expire in 30 minutes.
                 </p>
               </div>
