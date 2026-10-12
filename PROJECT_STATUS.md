@@ -1,5 +1,43 @@
 # Project Status
 
+## Activation Links, Clearer Account Emails and Registry Dropdowns (2026-10-12)
+
+- Requested by Xiang after reviewing the student activation email.
+- **Activation links have no time limit (new design decision D7).**
+  - They use their own signed token (`accounts/tokens.py`). The token works only while the account has never had a password.
+  - It stops working as soon as a password is set, whether through the activation link, a reset link or Settings.
+  - Every activation email already sent stays valid until the student activates; after that, all of them stop working.
+  - Trade-off for the report: an activation email forwarded before use stays usable until the student activates. The office still sees "Not activated" in the Registry, and suspending the account blocks the link.
+- **Reset links are unchanged.** They expire after 30 minutes, work once, and stop working when the password changes in any other way.
+- **The link is checked before the form appears.** `POST /api/auth/password-reset/confirm/` with `dryRun: true` reports whether the link still works and which kind it is, and changes nothing.
+  - This is a dry run of the existing endpoint, so the public API list pinned by `accounts/test_api_security.py` is unchanged.
+  - Checks have their own limit (`AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE`, default 30/hour per address), so opening the page never uses up the attempts to set a password.
+  - Saving a password re-checks the link under a row lock, so two tabs cannot both use one link.
+  - A used, expired or broken link answers 400 with `code: "invalid_link"`.
+- **Emails rewritten** (`accounts/account_emails.py`).
+  - They follow the GOV.UK guidance for service emails: why the email was sent comes first, one idea per sentence, no contractions, and web addresses in full.
+  - Both now tell the person how to sign in: email plus Student ID (matric number), or Staff ID for staff.
+  - The activation email says the link does not expire and works once. The reset email keeps its 30-minute limit.
+  - The reset subject is now "Reset your FSKTM Postgraduate Office password".
+- **Link pages.**
+  - Activation emails open `/activate-account`: "Activate Your Account", then "Account Activated".
+  - Reset emails still open `/reset-password`.
+  - A link that no longer works shows "Link No Longer Valid" before any typing. Activation links then offer Go to Sign In and Forgot Password?; reset links offer Request a New Link.
+- **Registry dropdowns.**
+  - Every native `<select>` in the Student Registry is now `SelectMenu`, a styled list built on the WAI-ARIA select-only combobox pattern (arrow keys, Home/End, type-ahead, Escape).
+  - That covers the four list filters, the registration form's Programme field, and the record's Programme and new-status fields.
+  - Programmes read "Data Science / Master · Coursework" with their colour icon.
+  - The list is portalled, so the record dialog cannot clip it, and it stays on screen at phone width.
+- **Teammate-written docs now out of date** (not edited; Xiang to pass them on).
+  - `ARCHITECTURE_AND_CODING_DESIGN.md` lists the throttle scopes as login, reset request and reset confirmation. There is now also a link-check scope for `dryRun` requests.
+  - `docs/WHOLE_SYSTEM_END_TO_END_TEST_GUIDE.md` still calls the Student Registry backend missing. It has been live at `/api/registry/` since PR #15.
+- **Verification.**
+  - All 940 backend tests pass with `--parallel 2`, including 19 new ones in `accounts/test_password_links.py`. Those include a link used 400 days after it was sent and two tabs submitting one link at the same moment.
+  - All 93 frontend scripts pass, including the new `selectMenu.test.ts`, `RegistryDropdowns.test.ts` and `passwordLinkCopy.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - A live run against `runserver` (console email) and Chrome used temporary `smoke.links.*` accounts, removed afterwards.
+    - It covered: register a student; activate from the emailed link; reopen the used link; sign in with the matric number; forgot password; reset; reopen the reset link; then the dropdowns at desktop and phone widths.
+    - Every functional check passed. Chrome logged only the expected 400s for the reopened links (twice each, because React StrictMode repeats effects in development) and the existing 401 from the sign-in page's session check.
+
 ## Student My Records and Partly-Done Plan Completion (2026-10-11)
 
 - Phase 9 of the partly-done plan (UC06), commit `39535ce`. **This completes the plan: phases 1 to 9 are done.**
