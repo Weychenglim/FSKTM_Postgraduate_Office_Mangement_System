@@ -37,8 +37,8 @@ export const SIDEBAR_MENU_ORDER: SidebarItemId[] = [
   SIDEBAR_ITEMS.ANNOUNCEMENTS,
   SIDEBAR_ITEMS.MARKS_ENTRY,
   SIDEBAR_ITEMS.PANEL_APPOINTMENTS,
-  SIDEBAR_ITEMS.SETTINGS,
 ];
+// Settings is not listed: it opens from the profile menu in the header.
 
 /**
  * Maps sub-view / drawer names back to the top-level sidebar entry that should

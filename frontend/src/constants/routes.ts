@@ -44,7 +44,7 @@ export const APP_ROUTES = {
   panelAppointmentAssignments: '/panel-appointments/assignments',
   notifications: '/notifications',
   settings: '/settings',
-  myRecords: '/my-records',
+  myProfile: '/my-profile',
 } as const;
 
 const SIDEBAR_TO_ROUTE: Record<SidebarItemId, string> = {
@@ -158,8 +158,8 @@ export const isKnownAppPath = (pathname: string): boolean => {
     return true;
   }
 
-  // The student's own records page sits under the Dashboard sidebar entry.
-  if (pathname === APP_ROUTES.myRecords) {
+  // The student's own profile page sits under the Dashboard sidebar entry.
+  if (pathname === APP_ROUTES.myProfile) {
     return true;
   }
 

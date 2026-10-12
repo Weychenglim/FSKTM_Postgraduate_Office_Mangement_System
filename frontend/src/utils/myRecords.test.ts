@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { GeneratedLetter, NotificationItem, StudentProgressDossier } from '../types';
-import { SIDEBAR_ITEMS } from '../constants/navigation';
+import { SIDEBAR_ITEMS, SIDEBAR_MENU_ORDER } from '../constants/navigation';
 import { APP_ROUTES, isKnownAppPath, sidebarItemForPath } from '../constants/routes';
 import { announcementItems, appointmentRows, humanStatus, marksRows, recordCounts } from './myRecords';
 
@@ -59,17 +59,20 @@ const hidden = { supervisor: null, panel: null, marks: null } as unknown as Stud
 assert.deepEqual(appointmentRows(hidden), []);
 assert.deepEqual(marksRows(hidden), []);
 
-// /my-records is a real page under the Dashboard entry, for students only
-assert.equal(APP_ROUTES.myRecords, '/my-records');
-assert.equal(isKnownAppPath('/my-records'), true);
-assert.equal(sidebarItemForPath('/my-records'), SIDEBAR_ITEMS.DASHBOARD);
+// /my-profile is a real page under the Dashboard entry, for students only
+assert.equal(APP_ROUTES.myProfile, '/my-profile');
+assert.equal(isKnownAppPath('/my-profile'), true);
+assert.equal(sidebarItemForPath('/my-profile'), SIDEBAR_ITEMS.DASHBOARD);
 const app = readFileSync(resolve('src/App.tsx'), 'utf8');
-assert.match(app, /pathname === APP_ROUTES\.myRecords && !isStudentWorkspace \? \(\s*<Navigate to=\{APP_ROUTES\.dashboard\} replace \/>/);
+assert.match(app, /pathname === APP_ROUTES\.myProfile && !isStudentWorkspace \? \(\s*<Navigate to=\{APP_ROUTES\.dashboard\} replace \/>/);
 const header = readFileSync(resolve('src/components/TopHeader.tsx'), 'utf8');
-assert.match(header, /if \(userRole === 'Student'\) navigate\(APP_ROUTES\.myRecords\)/);
+assert.match(header, /navigate\(userRole === 'Student' \? APP_ROUTES\.myProfile : APP_ROUTES\.settings\)/);
+assert.match(header, /<span>My Profile<\/span>/);
+assert.match(header, /setDropdownOpen\(false\); navigate\(APP_ROUTES\.settings\);/, 'Settings in the profile menu opens Settings');
+assert.ok(!SIDEBAR_MENU_ORDER.includes(SIDEBAR_ITEMS.SETTINGS), 'Settings is in the profile menu, not the sidebar');
 const page = readFileSync(resolve('src/components/StudentMyRecords.tsx'), 'utf8');
 for (const text of ['No records found.', 'Available when File Management is released', 'Change in Settings', 'getStudentProgressDossier(currentUser.studentId)']) {
-  assert.ok(page.includes(text), `My Records is missing ${text}`);
+  assert.ok(page.includes(text), `My Profile is missing ${text}`);
 }
 
-console.log('My Records tests passed.');
+console.log('My Profile tests passed.');

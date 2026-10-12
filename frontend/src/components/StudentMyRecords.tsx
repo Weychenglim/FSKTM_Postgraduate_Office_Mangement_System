@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Student "My Records" (UC06): the profile plus every record linked to it.
+// Student "My Profile" (UC06): the profile plus every record linked to it.
 // Supervisor, Panel and Marks come from the progress dossier, letters from
 // the issued-letter register, announcements from the notification feed.
 
@@ -110,7 +110,7 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
     <div id="student-my-records" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toast} />
       <PageHeader
-        title="My Records"
+        title="My Profile"
         subtitle="Your profile and every record linked to it, in one place."
         backLabel="Back to Dashboard"
         onBack={() => onNavigate(APP_ROUTES.dashboard)}

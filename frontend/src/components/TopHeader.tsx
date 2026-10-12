@@ -232,22 +232,22 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
-                      // Students get their profile and linked records page.
-                      if (userRole === 'Student') navigate(APP_ROUTES.myRecords);
-                      else onHelpdeskTrigger();
+                      // Students get their profile and linked records page; staff
+                      // details live on the Settings page.
+                      navigate(userRole === 'Student' ? APP_ROUTES.myProfile : APP_ROUTES.settings);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <User className="w-4 h-4 text-slate-400" />
-                    <span>{userRole === 'Student' ? 'My Records' : 'My Profile details'}</span>
+                    <span>My Profile</span>
                   </button>
 
                   <button
-                    onClick={() => { setDropdownOpen(false); }}
+                    onClick={() => { setDropdownOpen(false); navigate(APP_ROUTES.settings); }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <Settings className="w-4 h-4 text-slate-400" />
-                    <span>System Settings</span>
+                    <span>Settings</span>
                   </button>
 
                   <div className="h-[1px] bg-slate-100 my-1.5" />

@@ -827,9 +827,9 @@ export default function App() {
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              pathname === APP_ROUTES.myRecords && !isStudentWorkspace ? (
+              pathname === APP_ROUTES.myProfile && !isStudentWorkspace ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
-              ) : pathname === APP_ROUTES.myRecords ? (
+              ) : pathname === APP_ROUTES.myProfile ? (
                 <StudentMyRecords
                   currentUser={currentUser}
                   onNavigate={(route, state) => navigate(route, state ? { state } : undefined)}

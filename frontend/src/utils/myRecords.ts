@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// The student's "My Records" page (UC06): counts and table rows built from
+// The student's "My Profile" page (UC06): counts and table rows built from
 // the progress dossier, issued letters and the notification feed.
 
 import type { GeneratedLetter, NotificationItem, StudentProgressDossier } from '../types';
