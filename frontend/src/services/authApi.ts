@@ -46,11 +46,15 @@ function onPortalPage(): boolean {
 // cannot delete the refresh cookie that the new sign-in has just set.
 let pendingLogout: Promise<void> = Promise.resolve();
 
-export async function login(identifier: string, password: string): Promise<LoginResponse> {
+/**
+ * Sign in. With rememberMe the session survives closing the browser for the
+ * refresh lifetime; without it the session ends when the browser closes.
+ */
+export async function login(identifier: string, password: string, rememberMe = false): Promise<LoginResponse> {
   await pendingLogout;
   const res = await request<LoginResponse>('/auth/login/', {
     method: 'POST',
-    body: JSON.stringify({ identifier, password }),
+    body: JSON.stringify({ identifier, password, rememberMe }),
   }, { retryAuth: false });
   setAuthToken(res.token);
   return res;

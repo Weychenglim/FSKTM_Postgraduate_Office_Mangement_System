@@ -21,8 +21,6 @@ from rest_framework.decorators import (
 from rest_framework.exceptions import PermissionDenied, UnsupportedMediaType
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from letters.details import letter_details
 from letters.eligibility import inactive_student_refusal
@@ -43,6 +41,9 @@ from .serializers import (
 from .session_tokens import (
     blacklist_user_refresh_tokens,
     delete_refresh_cookie,
+    SessionTokenRefreshSerializer,
+    issue_refresh,
+    remembered,
     set_refresh_cookie,
 )
 from .throttles import (
@@ -106,11 +107,12 @@ def login_view(request):
         raise TechnicalAccountForbidden()
 
     User.objects.filter(pk=user.pk).update(last_portal_login=timezone.now())
-    refresh = RefreshToken.for_user(user)
+    remember = serializer.validated_data["rememberMe"]
+    refresh = issue_refresh(user, remember)
     response = Response(
         {"token": str(refresh.access_token), "user": user.to_public_dict()}
     )
-    return set_refresh_cookie(response, refresh)
+    return set_refresh_cookie(response, refresh, remember)
 
 
 @api_view(["POST"])
@@ -124,10 +126,10 @@ def refresh_view(request):
             TechnicalAccountForbidden.default_detail, status=status.HTTP_403_FORBIDDEN
         )
         return delete_refresh_cookie(response)
-    serializer = TokenRefreshSerializer(data={"refresh": str(request.auth)})
+    serializer = SessionTokenRefreshSerializer(data={"refresh": str(request.auth)})
     serializer.is_valid(raise_exception=True)
     response = Response({"token": serializer.validated_data["access"]})
-    return set_refresh_cookie(response, serializer.validated_data["refresh"])
+    return set_refresh_cookie(response, serializer.validated_data["refresh"], remembered(request.auth))
 
 
 @api_view(["POST"])
@@ -176,14 +178,16 @@ def change_password_view(request):
     request.user.save(update_fields=["password", "must_change_password"])
     blacklist_user_refresh_tokens(request.user)
 
-    refresh = RefreshToken.for_user(request.user)
+    # The new session keeps the "Remember me" choice of the one in use.
+    remember = remembered(request.auth)
+    refresh = issue_refresh(request.user, remember)
     response = Response(
         {
             "message": "Your password has been updated.",
             "token": str(refresh.access_token),
         }
     )
-    return set_refresh_cookie(response, refresh)
+    return set_refresh_cookie(response, refresh, remember)
 
 
 PREFERENCE_FIELDS = {

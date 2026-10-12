@@ -49,6 +49,21 @@ const authApi = await import('./authApi');
   assert.deepEqual(expiries, []);
 }
 
+// "Remember me" goes with the sign-in, and is off unless ticked.
+{
+  const bodies: unknown[] = [];
+  globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return Promise.resolve(json(200, { token: 'session-c', user: { id: '1' } }));
+  }) as typeof fetch;
+  await authApi.login('user@example.test', 'pw');
+  await authApi.login('user@example.test', 'pw', true);
+  assert.deepEqual(bodies, [
+    { identifier: 'user@example.test', password: 'pw', rememberMe: false },
+    { identifier: 'user@example.test', password: 'pw', rememberMe: true },
+  ]);
+}
+
 // A logout whose refresh cookie is already gone is not a "session expired".
 {
   globalThis.fetch = (async () => json(401, { detail: 'A valid refresh session is required.' })) as typeof fetch;

@@ -15,6 +15,8 @@ class LoginSerializer(serializers.Serializer):
 
     identifier = serializers.CharField()
     password = serializers.CharField(write_only=True, trim_whitespace=False, style={"input_type": "password"})
+    # Off unless ticked, so a shared computer does not stay signed in.
+    rememberMe = serializers.BooleanField(required=False, default=False)
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

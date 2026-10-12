@@ -267,6 +267,11 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Without "Remember me" a sign-in ends this long after its last use, and its
+# cookie is dropped when the browser closes.
+JWT_SESSION_REFRESH_LIFETIME = timedelta(
+    hours=max(env_int("JWT_SESSION_REFRESH_HOURS", 12), 1)
+)
 JWT_REFRESH_COOKIE_NAME = "fsktm_refresh_token"
 JWT_REFRESH_COOKIE_PATH = "/api/auth/"
 JWT_REFRESH_COOKIE_SECURE = not DEBUG
