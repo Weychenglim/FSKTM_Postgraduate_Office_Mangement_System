@@ -41,12 +41,14 @@ import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { RegistryImportResult } from './RegistryImportResult';
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
+  ImportCommitResponse,
   ImportPreviewRow,
   RegistryImportBatch,
   StudentAcademicStatus,
@@ -78,6 +80,18 @@ import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 import { downloadCsv } from '../utils/csvExport';
 import { pageWindow } from '../utils/pageWindow';
+import {
+  BATCH_PROBLEM_COLUMNS,
+  IMPORT_REPORT_COLUMNS,
+  IMPORT_ROW_FILTERS,
+  type ImportRowFilter,
+  batchSummary,
+  differenceWarning,
+  filterImportRows,
+  rowExplanation,
+  skipNotice,
+  summariseImportRows,
+} from '../utils/registryImport';
 
 const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
   student_id: 'Matric number, unique',
@@ -286,6 +300,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // so nothing can be committed that did not come from the office's own file.
   const [csvPreviewRecords, setCsvPreviewRecords] = useState<ImportPreviewRow[]>([]);
   const [csvFatalError, setCsvFatalError] = useState<string | null>(null);
+  const [importFilter, setImportFilter] = useState<ImportRowFilter>('all');
+  // What the last import did, kept on screen so skipped students are seen.
+  const [importResult, setImportResult] = useState<ImportCommitResponse | null>(null);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -575,6 +592,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setCsvPreviewRecords([]);
     setCsvFatalError(null);
     setEditingCsvLine(null);
+    setImportFilter('all');
   };
 
   // The server checks the file (CSV or XLSX) and returns each row's status;
@@ -583,14 +601,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
+    setImportResult(null);
     try {
       const { rows } = await previewStudentImport(file);
       setCsvPreviewRecords(rows);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
       setRowsEdited(false);
-      const ready = rows.filter(r => r.status === 'Ready').length;
-      triggerToast(`Checked ${rows.length} rows: ${ready} ready, ${rows.length - ready} need attention.`);
+      setImportFilter('all');
+      const checked = summariseImportRows(rows);
+      triggerToast(
+        `Checked ${checked.total} rows: ${checked.ready} ready, ${checked.skipped} will be skipped, ${checked.fix} need fixing.`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'That file could not be read.';
       clearImport();
@@ -660,32 +682,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setSaving(true);
     setCsvFatalError(null);
     try {
-      const { batch, rows } = await commitStudentImport(file);
+      const result = await commitStudentImport(file);
+      const { batch, rows } = result;
       loadStudents();
       loadRecentImports(showAllImports ? 50 : 5);
 
-      const emailNote = batch.invitationsFailed > 0
-        ? ` ${batch.invitationsFailed} activation email(s) could not be sent. Use Send Activation Link on those students.`
-        : '';
-      const leftOver = rows.filter(r => r.result !== 'created');
-      if (leftOver.length === 0) {
+      // The result panel lists every skipped and failed row. Only the rows that
+      // were not imported stay in the preview, so they can be fixed and sent
+      // again; skipped students need nothing more.
+      setImportResult(result);
+      const notImported = rows.filter(r => r.result === 'failed');
+      if (notImported.length === 0) {
         clearImport();
-        setCurrentView('list');
-        triggerToast(`Created ${batch.created} student accounts.${emailNote}`);
-        return;
+      } else {
+        setCsvPreviewRecords(notImported);
+        setRowsEdited(true);
+        setImportFilter('all');
       }
-
-      // Keep the reviewer here with only the rows that were not created, so
-      // they can be corrected and imported again.
-      setCsvPreviewRecords(leftOver);
-      setRowsEdited(true);
-      setCsvFatalError(
-        [
-          `Created ${batch.created}, skipped ${batch.skipped}, not imported ${batch.failed}.${emailNote}`,
-          ...leftOver.map(r => `line ${r.line} (${r.id || 'no id'}): ${r.issue}`),
-        ].join('\n'),
-      );
-      triggerToast(`Created ${batch.created}. ${leftOver.length} row(s) were not imported. See the list below.`);
+      triggerToast(`Import finished: ${batchSummary(batch)}.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The import could not be completed.';
       setCsvFatalError(message);
@@ -697,14 +711,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
   const downloadImportProblems = (batch: RegistryImportBatch) => {
     downloadCsv(
-      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-problems.csv'),
+      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-skipped-and-not-imported.csv'),
       batch.problems,
-      [
-        { header: 'line', value: (p) => p.line },
-        { header: 'student_id', value: (p) => p.id },
-        { header: 'result', value: (p) => p.result },
-        { header: 'issue', value: (p) => p.issue },
-      ],
+      BATCH_PROBLEM_COLUMNS,
+    );
+  };
+
+  const downloadImportReport = () => {
+    if (!importResult) return;
+    downloadCsv(
+      reviewedFileName(importResult.batch.fileName).replace('-reviewed.csv', '-import-report.csv'),
+      importResult.rows,
+      IMPORT_REPORT_COLUMNS,
     );
   };
 
@@ -756,11 +774,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const displayedStudents = filteredStudents.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
 
   // Render variables for Bulk Indicators
-  const readyCsvCount = csvPreviewRecords.filter(r => r.status === 'Ready').length;
-  const duplicateCsvCount = csvPreviewRecords.filter(
-    r => r.status === 'Duplicate In File' || r.status === 'Already Registered',
-  ).length;
-  const toFixCsvCount = csvPreviewRecords.length - readyCsvCount - duplicateCsvCount;
+  const importSummary = summariseImportRows(csvPreviewRecords);
+  const readyCsvCount = importSummary.ready;
+  const visibleImportRows = filterImportRows(csvPreviewRecords, importFilter);
+  const skipText = skipNotice(importSummary);
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
@@ -1117,7 +1134,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             options={REGISTER_TABS}
             value={registerActiveTab}
             onChange={setRegisterActiveTab}
-            labels={{ bulk: 'Bulk Import via CSV', single: 'Single Student Entry' }}
+            labels={{ bulk: 'Bulk Import (Excel or CSV)', single: 'Single Student Entry' }}
             className="w-fit"
           />
 
@@ -1130,7 +1147,15 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* TAB 1: BULK IMPORT ACTIVE VIEW */}
               {registerActiveTab === 'bulk' && (
                 <div className="space-y-6">
-                  
+
+                  {importResult && (
+                    <RegistryImportResult
+                      result={importResult}
+                      onDownloadReport={downloadImportReport}
+                      onClose={() => setImportResult(null)}
+                    />
+                  )}
+
                   {/* CSV FILE UPLOAD CARD */}
                   <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
@@ -1260,238 +1285,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <PortalButton variant="secondary" size="sm" icon={Download} onClick={downloadCsvTemplate} className="self-start sm:self-center">
                         Download CSV Template
                       </PortalButton>
-                    </div>
-
-                  </div>
-
-                  {/* IMPORT PREVIEW & VALIDATION SYSTEM LIST CONTAINER */}
-                  <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
-
-                    {/* Upper title and verification counters */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
-                      <div>
-                        <h3 className="section-label">Import Preview & Validation</h3>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                          Check each row before the accounts are created.
-                        </p>
-                      </div>
-
-                      {/* VALIDATION OUTPUT PILLS */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-
-                        {/* Ready indicator */}
-                        <div className="px-2.5 py-1 bg-emerald-50 text-[#00a15c] border border-[#bef5db] font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>{readyCsvCount} Ready</span>
-                        </div>
-
-                        {/* Rows that need correcting before they can be imported */}
-                        <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
-                          toFixCsvCount > 0
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-slate-50 text-slate-400 border-slate-150'
-                        }`}>
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>{toFixCsvCount} To Fix</span>
-                        </div>
-
-                        {/* Duplicate indicator */}
-                        <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
-                          duplicateCsvCount > 0 
-                            ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                            : 'bg-slate-50 text-slate-400 border-slate-150'
-                        }`}>
-                          <AlertCircle className="w-3 h-3" />
-                          <span>{duplicateCsvCount} Duplicate / Registered</span>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* Parse failures and per-row commit failures */}
-                    {csvFatalError && (
-                      <div role="alert" className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
-                        <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
-                          Import problems
-                        </p>
-                        <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
-                          {csvFatalError}
-                        </pre>
-                      </div>
-                    )}
-
-                    {/* PREVIEW DATATABLE MAP */}
-                    <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
-                      <table className="data-table">
-                        <thead>
-                          <tr className="data-thead bg-slate-50 select-none">
-                            <th className="data-th">Student ID</th>
-                            <th className="data-th">Candidate Name</th>
-                            <th className="data-th">Programme</th>
-                            <th className="data-th text-center">Validation Status</th>
-                            <th className="data-th">Issue</th>
-                            <th className="data-th text-center">Edit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-150 text-xs">
-                          {csvPreviewRecords.map((item) => {
-                            const isBeingEdited = editingCsvLine === item.line;
-
-                            if (isBeingEdited) {
-                              return (
-                                <tr key={item.line} className="bg-amber-50/60 font-medium">
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.id}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, id: e.target.value })}
-                                      className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.name}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, name: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.programme}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, programme: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td text-center">
-                                    <input
-                                      type="text"
-                                      aria-label="Email"
-                                      placeholder="Email"
-                                      value={editRowFields.email}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, email: e.target.value })}
-                                      className="w-32 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td">
-                                    <input
-                                      type="text"
-                                      aria-label="Phone"
-                                      placeholder="Phone (optional)"
-                                      value={editRowFields.phone}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, phone: e.target.value })}
-                                      className="w-28 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={handleSaveEditedRow}
-                                        disabled={isProcessingCsv}
-                                        className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50"
-                                        title="Confirm Changes"
-                                      >
-                                        <Check className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingCsvLine(null)}
-                                        className="p-1 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded text-[10px] uppercase font-bold cursor-pointer"
-                                        title="Discard Changes"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            }
-
-                            return (
-                              <tr key={item.line} className="hover:bg-slate-50/50 transition">
-                                <td className="data-td font-bold font-mono text-slate-600">{item.id}</td>
-                                <td className="data-td font-extrabold text-slate-850">{item.name}</td>
-                                <td className="data-td font-bold text-slate-500">{item.programme}</td>
-                                
-                                {/* Status Outcome render badge */}
-                                <td className="data-td text-center">
-                                  {item.status === 'Ready' && (
-                                    <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
-                                      <Check className="w-3 h-3 stroke-[2.5]" />
-                                      <span>Ready</span>
-                                    </span>
-                                  )}
-                                  {item.status === 'Missing Email' && (
-                                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
-                                      <AlertTriangle className="w-3 h-3 animate-bounce" />
-                                      <span>Missing Email</span>
-                                    </span>
-                                  )}
-                                  {item.status !== 'Ready' && item.status !== 'Missing Email' && (
-                                    <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
-                                      <AlertCircle className="w-3 h-3" />
-                                      <span>{item.status}</span>
-                                    </span>
-                                  )}
-                                </td>
-
-                                <td className="data-td text-[10.5px] font-semibold text-slate-600 max-w-[16rem]">
-                                  {item.status === 'Ready' ? '' : item.issue}
-                                </td>
-
-                                {/* Actions pencil trigger */}
-                                <td className="data-td text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditingRow(item)}
-                                    className="p-1 px-1.5 hover:bg-slate-100 rounded border border-transparent hover:border-slate-205 text-slate-450 hover:text-slate-900 transition-all cursor-pointer"
-                                    title="Edit Row"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* BOTTON FORM ACTION CONTROLS */}
-                    <div className="flex items-center justify-between mt-6 select-none">
-                      
-                      <PortalButton variant="secondary" size="md" onClick={() => setCurrentView('list')}>
-                        Cancel
-                      </PortalButton>
-
-                      {/* Primary actions on right */}
-                      <div className="flex items-center gap-3">
-                        
-                        {/* Rows with problems are corrected individually via the
-                            Edit action on each row. Auto-filling an email or a
-                            matric number would attach a real account to the
-                            wrong person. */}
-
-                        {csvPreviewRecords.length > readyCsvCount && (
-                          <span className="text-[10px] font-semibold text-slate-500 max-w-[220px] text-right">
-                            Rows that are not Ready are left out and listed after the import.
-                          </span>
-                        )}
-
-                        <PortalButton
-                          variant="primary"
-                          size="md"
-                          icon={UserCheck}
-                          onClick={handleCommitVerifiedCsv}
-                          disabled={saving || isProcessingCsv || readyCsvCount === 0}
-                        >
-                          {saving ? 'Creating accounts…' : `Create ${readyCsvCount} Ready Account${readyCsvCount === 1 ? '' : 's'}`}
-                        </PortalButton>
-
-                      </div>
-
                     </div>
 
                   </div>
@@ -1825,7 +1618,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             {batch.fileName}
                           </span>
                           <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
-                            {new Date(batch.createdAt).toLocaleDateString()} • {batch.created} created, {batch.skipped} skipped, {batch.failed} not imported
+                            {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
                           </span>
                           {batch.uploadedBy && (
                             <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
@@ -1838,7 +1631,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           type="button"
                           onClick={() => downloadImportProblems(batch)}
                           className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
-                          title="Download the rows that need attention"
+                          title="Download the rows that were skipped or not imported"
+                          aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
@@ -1849,6 +1643,315 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
 
             </div>
+            )}
+
+            {/* The preview gets the full width: it is where the office works. */}
+            {registerActiveTab === 'bulk' && (
+              <div className="lg:col-span-5">
+                    {/* IMPORT PREVIEW & VALIDATION SYSTEM LIST CONTAINER */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
+
+                      {/* Upper title and verification counters */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
+                        <div>
+                          <h3 className="section-label">Import Preview & Validation</h3>
+                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                            Check each row before the accounts are created.
+                          </p>
+                        </div>
+
+                        {/* VALIDATION OUTPUT PILLS */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+
+                          {/* Ready indicator */}
+                          <div className="px-2.5 py-1 bg-emerald-50 text-[#00a15c] border border-[#bef5db] font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>{readyCsvCount} Ready</span>
+                          </div>
+
+                          {/* Already in the registry: skipped, and listed so the office sees who */}
+                          <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
+                            importSummary.alreadyRegistered > 0
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-150'
+                          }`}>
+                            <UserCheck className="w-3 h-3" />
+                            <span>{importSummary.alreadyRegistered} Already Registered</span>
+                          </div>
+
+                          {importSummary.repeated > 0 && (
+                            <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-slate-100 text-slate-600 border-slate-200">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>{importSummary.repeated} Repeated</span>
+                            </div>
+                          )}
+
+                          {/* Rows that need correcting before they can be imported */}
+                          <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
+                            importSummary.fix > 0
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-150'
+                          }`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{importSummary.fix} To Fix</span>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {csvPreviewRecords.length > 0 && (
+                        <SegmentedControl<ImportRowFilter>
+                          options={IMPORT_ROW_FILTERS}
+                          value={importFilter}
+                          onChange={setImportFilter}
+                          labels={{
+                            all: `All (${importSummary.total})`,
+                            ready: `Ready (${importSummary.ready})`,
+                            skipped: `Skipped (${importSummary.skipped})`,
+                            fix: `Need Fixing (${importSummary.fix})`,
+                          }}
+                          className="w-fit max-w-full overflow-x-auto mb-3"
+                        />
+                      )}
+
+                      {/* Parse failures and per-row commit failures */}
+                      {csvFatalError && (
+                        <div role="alert" className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
+                            Import problems
+                          </p>
+                          <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
+                            {csvFatalError}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* PREVIEW DATATABLE MAP */}
+                      <div className={`border border-slate-150 rounded-xl overflow-x-auto mt-2 ${THIN_SCROLLBAR}`}>
+                        <table className="data-table">
+                          <thead>
+                            <tr className="data-thead bg-slate-50 select-none">
+                              <th className="data-th">Student ID</th>
+                              <th className="data-th">Student</th>
+                              <th className="data-th">Programme</th>
+                              <th className="data-th text-center">Validation Status</th>
+                              <th className="data-th text-center">Edit</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-xs">
+                            {csvPreviewRecords.length > 0 && visibleImportRows.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-slate-400 font-extrabold">
+                                  No rows in this group.
+                                </td>
+                              </tr>
+                            )}
+                            {visibleImportRows.map((item) => {
+                              const isBeingEdited = editingCsvLine === item.line;
+
+                              if (isBeingEdited) {
+                                return (
+                                  <tr key={item.line} className="bg-amber-50/60 font-medium">
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.id}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, id: e.target.value })}
+                                        className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.name}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, name: e.target.value })}
+                                        className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.programme}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, programme: e.target.value })}
+                                        className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <div className="flex flex-col gap-1.5">
+                                        <input
+                                          type="text"
+                                          aria-label="Email"
+                                          placeholder="Email"
+                                          value={editRowFields.email}
+                                          onChange={(e) => setEditRowFields({ ...editRowFields, email: e.target.value })}
+                                          className="w-40 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
+                                        />
+                                        <input
+                                          type="text"
+                                          aria-label="Phone"
+                                          placeholder="Phone (optional)"
+                                          value={editRowFields.phone}
+                                          onChange={(e) => setEditRowFields({ ...editRowFields, phone: e.target.value })}
+                                          className="w-40 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="data-td text-center">
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={handleSaveEditedRow}
+                                          disabled={isProcessingCsv}
+                                          className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50"
+                                          title="Confirm Changes"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingCsvLine(null)}
+                                          className="p-1 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded text-[10px] uppercase font-bold cursor-pointer"
+                                          title="Discard Changes"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              return (
+                                <tr key={item.line} className="hover:bg-slate-50/50 transition">
+                                  <td className="data-td font-bold font-mono text-slate-600 whitespace-nowrap">{item.id}</td>
+                                  <td className="data-td min-w-[12rem]">
+                                    <span className="block font-extrabold text-slate-850">{item.name}</span>
+                                    {rowExplanation(item) && (
+                                      <span className="block mt-0.5 max-w-[22rem] text-[10.5px] font-semibold text-slate-500">
+                                        {rowExplanation(item)}
+                                      </span>
+                                    )}
+                                    {differenceWarning(item) && (
+                                      <span className="mt-1 flex max-w-[22rem] items-start gap-1 text-[10.5px] font-bold text-amber-700">
+                                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+                                        <span>{differenceWarning(item)}</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="data-td text-left" title={item.programme}>
+                                    <span className="block text-[11px] font-bold text-slate-600">{describeProgramme(item.programme).field}</span>
+                                    {describeProgramme(item.programme).detail && (
+                                      <span className="block text-[10px] font-semibold text-slate-400 whitespace-nowrap">
+                                        {describeProgramme(item.programme).detail}
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Status Outcome render badge */}
+                                  <td className="data-td text-center">
+                                    {item.status === 'Ready' && (
+                                      <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <Check className="w-3 h-3 stroke-[2.5]" />
+                                        <span>Ready</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Missing Email' && (
+                                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertTriangle className="w-3 h-3 animate-bounce" />
+                                        <span>Missing Email</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Already Registered' && (
+                                      <span className="inline-flex items-center gap-1 text-sky-700 bg-sky-50 border border-sky-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none whitespace-nowrap">
+                                        <UserCheck className="w-3 h-3" />
+                                        <span>Already Registered</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Duplicate In File' && (
+                                      <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertCircle className="w-3 h-3" />
+                                        <span>Repeated</span>
+                                      </span>
+                                    )}
+                                    {!['Ready', 'Missing Email', 'Already Registered', 'Duplicate In File'].includes(item.status) && (
+                                      <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertCircle className="w-3 h-3" />
+                                        <span>{item.status}</span>
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions pencil trigger */}
+                                  <td className="data-td text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditingRow(item)}
+                                      className="p-1 px-1.5 hover:bg-slate-100 rounded border border-transparent hover:border-slate-205 text-slate-450 hover:text-slate-900 transition-all cursor-pointer"
+                                      title="Edit Row"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* BOTTON FORM ACTION CONTROLS */}
+                      <div className="flex items-center justify-between mt-6 select-none">
+
+                        <PortalButton variant="secondary" size="md" onClick={() => setCurrentView('list')}>
+                          Cancel
+                        </PortalButton>
+
+                        {/* Primary actions on right */}
+                        <div className="flex items-center gap-3">
+
+                          {/* Rows with problems are corrected individually via the
+                              Edit action on each row. Auto-filling an email or a
+                              matric number would attach a real account to the
+                              wrong person. */}
+
+                          {(skipText || importSummary.fix > 0) && (
+                            <div className="text-[10px] font-semibold text-slate-500 max-w-[260px] text-right space-y-0.5">
+                              {skipText && (
+                                <p>
+                                  {skipText}{' '}
+                                  <button
+                                    type="button"
+                                    onClick={() => setImportFilter('skipped')}
+                                    className="font-black text-blue-600 hover:underline cursor-pointer"
+                                  >
+                                    View
+                                  </button>
+                                </p>
+                              )}
+                              {importSummary.fix > 0 && (
+                                <p>
+                                  {importSummary.fix === 1 ? '1 row needs' : `${importSummary.fix} rows need`} fixing and will be left out.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <PortalButton
+                            variant="primary"
+                            size="md"
+                            icon={UserCheck}
+                            onClick={handleCommitVerifiedCsv}
+                            disabled={saving || isProcessingCsv || readyCsvCount === 0}
+                          >
+                            {saving ? 'Creating accounts…' : `Create ${readyCsvCount} Ready Account${readyCsvCount === 1 ? '' : 's'}`}
+                          </PortalButton>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+              </div>
             )}
 
           </div>

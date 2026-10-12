@@ -41,6 +41,19 @@ export type ImportRowStatus =
   | 'Duplicate In File'
   | 'Already Registered';
 
+/** The registry account an already-registered import row matched. */
+export interface ImportExistingRecord {
+  id: string;
+  name: string;
+  email: string;
+  programme: string;
+  academicStatus: string;
+  role: string;
+}
+
+/** Identity details in the file that disagree with the matched record. */
+export type ImportDifference = 'id' | 'name' | 'email';
+
 export interface ImportPreviewRow {
   line: number;
   id: string;
@@ -52,6 +65,23 @@ export interface ImportPreviewRow {
   issue: string;
   result?: 'created' | 'skipped' | 'failed';
   invitationSent?: boolean;
+  existing?: ImportExistingRecord;
+  matchedBy?: 'studentId' | 'email';
+  differences?: ImportDifference[];
+  duplicateOf?: number;
+}
+
+/** A row kept on an import batch's record (older batches lack the optional keys). */
+export interface RegistryImportProblem {
+  line: number;
+  id: string;
+  result: string;
+  issue: string;
+  name?: string;
+  status?: string;
+  existingName?: string;
+  differences?: ImportDifference[];
+  duplicateOf?: number;
 }
 
 export interface RegistryImportBatch {
@@ -62,8 +92,10 @@ export interface RegistryImportBatch {
   created: number;
   skipped: number;
   failed: number;
+  alreadyRegistered?: number;
+  duplicateInFile?: number;
   invitationsFailed: number;
-  problems: { line: number; id: string; result: string; issue: string }[];
+  problems: RegistryImportProblem[];
   createdAt: string;
 }
 

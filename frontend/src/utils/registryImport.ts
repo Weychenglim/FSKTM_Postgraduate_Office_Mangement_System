@@ -1,0 +1,149 @@
+/**
+ * Wording and counts for the Student Registry bulk import: which rows will be
+ * created, which are skipped (already registered, or repeated in the file) and
+ * which need fixing, plus the downloadable import report.
+ */
+
+import type { CsvColumn } from './csvExport';
+import { describeProgramme } from './programmeLabel';
+import type {
+  ImportDifference,
+  ImportPreviewRow,
+  RegistryImportBatch,
+  RegistryImportProblem,
+} from '../types';
+
+export type ImportRowGroup = 'ready' | 'skipped' | 'fix';
+export type ImportRowFilter = 'all' | ImportRowGroup;
+
+export const IMPORT_ROW_FILTERS = ['all', 'ready', 'skipped', 'fix'] as const;
+
+export const importRowGroup = (row: Pick<ImportPreviewRow, 'status'>): ImportRowGroup => {
+  if (row.status === 'Ready') return 'ready';
+  if (row.status === 'Already Registered' || row.status === 'Duplicate In File') return 'skipped';
+  return 'fix';
+};
+
+export interface ImportSummary {
+  total: number;
+  ready: number;
+  alreadyRegistered: number;
+  repeated: number;
+  skipped: number;
+  fix: number;
+}
+
+export const summariseImportRows = (rows: Pick<ImportPreviewRow, 'status'>[]): ImportSummary => {
+  const alreadyRegistered = rows.filter((row) => row.status === 'Already Registered').length;
+  const repeated = rows.filter((row) => row.status === 'Duplicate In File').length;
+  const ready = rows.filter((row) => row.status === 'Ready').length;
+  return {
+    total: rows.length,
+    ready,
+    alreadyRegistered,
+    repeated,
+    skipped: alreadyRegistered + repeated,
+    fix: rows.length - ready - alreadyRegistered - repeated,
+  };
+};
+
+export const filterImportRows = <T extends Pick<ImportPreviewRow, 'status'>>(
+  rows: T[],
+  filter: ImportRowFilter,
+): T[] => (filter === 'all' ? rows : rows.filter((row) => importRowGroup(row) === filter));
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+/** "4 already-registered students and 1 repeated row will be skipped." */
+export const skipNotice = (summary: ImportSummary): string => {
+  const parts = [];
+  if (summary.alreadyRegistered) parts.push(plural(summary.alreadyRegistered, 'already-registered student'));
+  if (summary.repeated) parts.push(plural(summary.repeated, 'repeated row'));
+  return parts.length ? `${parts.join(' and ')} will be skipped.` : '';
+};
+
+/** Who an already-registered row matched in the registry. */
+export const registryMatchText = (row: Pick<ImportPreviewRow, 'existing'>): string => {
+  const existing = row.existing;
+  if (!existing) return '';
+  if (existing.role && existing.role !== 'Student') {
+    const article = /^[aeiou]/i.test(existing.role) ? 'an' : 'a';
+    return `This email belongs to ${existing.name}, ${article} ${existing.role} account.`;
+  }
+  const programme = existing.programme ? `, ${describeProgramme(existing.programme).field}` : '';
+  return `In the registry as ${existing.name} (${existing.id})${programme}.`;
+};
+
+const DIFFERENCE_LABELS: Record<ImportDifference, string> = {
+  name: 'Name',
+  email: 'Email',
+  id: 'Student ID',
+};
+
+/** A warning when the file disagrees with the matched record, which usually means a wrong ID or email. */
+export const differenceWarning = (row: Pick<ImportPreviewRow, 'differences' | 'matchedBy'>): string => {
+  const differences = row.differences ?? [];
+  if (differences.length === 0) return '';
+  const fields = differences.map((field) => DIFFERENCE_LABELS[field]).join(' and ');
+  const check = row.matchedBy === 'email' ? 'this email' : 'this Student ID';
+  return `${fields} ${differences.length === 1 ? 'differs' : 'differ'} from the registry: check ${check}.`;
+};
+
+/** Why a repeated row is skipped. */
+export const repeatedText = (row: Pick<ImportPreviewRow, 'duplicateOf' | 'issue'>): string => {
+  if (!row.duplicateOf) return row.issue;
+  return row.issue.startsWith('same email')
+    ? `Same email as line ${row.duplicateOf}, which is imported instead.`
+    : `Same Student ID as line ${row.duplicateOf}, which is imported instead.`;
+};
+
+/** The explanation shown for a row that is not simply ready. */
+export const rowExplanation = (row: ImportPreviewRow): string => {
+  if (row.status === 'Already Registered') return registryMatchText(row) || row.issue;
+  if (row.status === 'Duplicate In File') return repeatedText(row);
+  return row.status === 'Ready' ? '' : row.issue;
+};
+
+export const importOutcome = (row: ImportPreviewRow): string => {
+  if (row.result === 'created') {
+    return row.invitationSent === false ? 'Created, activation email not sent' : 'Created';
+  }
+  if (row.status === 'Already Registered') return 'Skipped: already registered';
+  if (row.status === 'Duplicate In File') return 'Skipped: repeated in this file';
+  return 'Not imported';
+};
+
+/** Columns of the report the office downloads after an import: every row and what happened to it. */
+export const IMPORT_REPORT_COLUMNS: CsvColumn<ImportPreviewRow>[] = [
+  { header: 'Line', value: (row) => row.line },
+  { header: 'Student ID', value: (row) => row.id },
+  { header: 'Full name', value: (row) => row.name },
+  { header: 'Email', value: (row) => row.email },
+  { header: 'Programme', value: (row) => row.programme },
+  { header: 'Outcome', value: importOutcome },
+  {
+    header: 'Details',
+    value: (row) => [rowExplanation(row), differenceWarning(row)].filter(Boolean).join(' '),
+  },
+];
+
+/** Columns of a past batch's download: the rows that were skipped or not imported. */
+export const BATCH_PROBLEM_COLUMNS: CsvColumn<RegistryImportProblem>[] = [
+  { header: 'Line', value: (problem) => problem.line },
+  { header: 'Student ID', value: (problem) => problem.id },
+  { header: 'Full name', value: (problem) => problem.name ?? '' },
+  { header: 'Result', value: (problem) => problem.result },
+  { header: 'Reason', value: (problem) => problem.issue },
+  { header: 'In the registry as', value: (problem) => problem.existingName ?? '' },
+];
+
+/** "3 created · 4 already registered · 1 not imported" for a past batch. */
+export const batchSummary = (batch: RegistryImportBatch): string => {
+  const parts = [`${batch.created} created`];
+  const repeated = batch.duplicateInFile ?? 0;
+  const registered = batch.alreadyRegistered ?? Math.max(batch.skipped - repeated, 0);
+  if (registered) parts.push(`${registered} already registered`);
+  if (repeated) parts.push(`${repeated} repeated`);
+  if (batch.failed) parts.push(`${batch.failed} not imported`);
+  return parts.join(' · ');
+};

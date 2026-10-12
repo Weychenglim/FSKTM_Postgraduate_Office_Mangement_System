@@ -184,6 +184,34 @@ def _email_problem(email):
     return None
 
 
+def _same_text(first, second):
+    return " ".join((first or "").split()).casefold() == " ".join((second or "").split()).casefold()
+
+
+def _existing_record(user):
+    """The registry record an already-registered row matched, as the office sees it."""
+    student = user._related_or_none("student")
+    return {
+        "id": student.matric_no if student else "",
+        "name": user.full_name,
+        "email": user.email,
+        "programme": student.programme if student else "",
+        "academicStatus": student.status if student else "",
+        "role": user.role,
+    }
+
+
+def _differences(cells, existing, matched_by):
+    """Identity details in the file that disagree with the record it matched,
+    which usually means a wrong Student ID or email in the file."""
+    checks = [("name", cells["full_name"], existing["name"])]
+    if matched_by == "studentId":
+        checks.append(("email", cells["email"], existing["email"]))
+    else:
+        checks.append(("id", cells["student_id"], existing["id"]))
+    return [field for field, in_file, on_record in checks if in_file and not _same_text(in_file, on_record)]
+
+
 def validate_import_rows(rows):
     """Check each row against the same rules as single registration."""
     first_id, first_email = {}, {}
@@ -193,17 +221,21 @@ def validate_import_rows(rows):
         if cells["email"]:
             first_email.setdefault(cells["email"].lower(), line)
 
-    registered_ids = set(
-        Student.objects.annotate(key=Lower("matric_no"))
+    # The matched accounts are kept, not just their keys, so already-registered
+    # rows can show the office who they are. One query each, whatever the size.
+    registered_ids = {
+        student.key: student.user
+        for student in Student.objects.select_related("user")
+        .annotate(key=Lower("matric_no"))
         .filter(key__in=list(first_id))
-        .values_list("key", flat=True)
-    )
-    registered_emails = set(
-        get_user_model()
-        .objects.annotate(key=Lower("email"))
+    }
+    registered_emails = {
+        user.key: user
+        for user in get_user_model()
+        .objects.select_related("student")
+        .annotate(key=Lower("email"))
         .filter(key__in=list(first_email))
-        .values_list("key", flat=True)
-    )
+    }
     # Sign-in accepts a matric or a staff number, so one value cannot be both.
     staff_numbers = {
         number.lower()
@@ -218,9 +250,14 @@ def validate_import_rows(rows):
         matric, name, email = cells["student_id"], cells["full_name"], cells["email"]
         programme = normalise_programme(cells["programme"])
         status, issue = "Ready", ""
+        existing_user = matched_by = duplicate_of = None
 
         field_problem = _field_problem(matric, name, cells["phone"]) if matric and name else None
         email_problem = _email_problem(email) if email else None
+        # A student who is already registered is skipped whatever else the row
+        # says, so that is reported before problems the office would otherwise
+        # be asked to fix for nothing (an extract re-uploaded for late
+        # registrations lists everyone again).
         if not matric or not name:
             status = "Missing Field"
             issue = "student_id is required" if not matric else "full_name is required"
@@ -229,7 +266,15 @@ def validate_import_rows(rows):
             issue = field_problem
         elif first_id[matric.lower()] != line:
             status = "Duplicate In File"
-            issue = f"same student_id as line {first_id[matric.lower()]}"
+            duplicate_of = first_id[matric.lower()]
+            issue = f"same student_id as line {duplicate_of}"
+        elif matric.lower() in staff_numbers:
+            status = "Invalid Field"
+            issue = "this student_id is already used as a staff number"
+        elif matric.lower() in registered_ids:
+            status = "Already Registered"
+            issue = "this matric number is already registered"
+            existing_user, matched_by = registered_ids[matric.lower()], "studentId"
         elif not email:
             status = "Missing Email"
             issue = "email is required; the student needs it to activate the account"
@@ -238,30 +283,31 @@ def validate_import_rows(rows):
             issue = email_problem
         elif first_email[email.lower()] != line:
             status = "Duplicate In File"
-            issue = f"same email as line {first_email[email.lower()]}"
-        elif not programme:
-            status = "Bad Programme"
-            issue = f'"{cells["programme"]}" is not an approved programme'
-        elif matric.lower() in staff_numbers:
-            status = "Invalid Field"
-            issue = "this student_id is already used as a staff number"
-        elif matric.lower() in registered_ids:
-            status = "Already Registered"
-            issue = "this matric number is already registered"
+            duplicate_of = first_email[email.lower()]
+            issue = f"same email as line {duplicate_of}"
         elif email.lower() in registered_emails:
             status = "Already Registered"
             issue = "this email already has an account"
+            existing_user, matched_by = registered_emails[email.lower()], "email"
+        elif not programme:
+            status = "Bad Programme"
+            issue = f'"{cells["programme"]}" is not an approved programme'
 
-        checked.append(
-            {
-                "line": line,
-                "id": matric,
-                "name": name,
-                "programme": programme or cells["programme"],
-                "email": email,
-                "phone": cells["phone"],
-                "status": status,
-                "issue": issue,
-            }
-        )
+        row = {
+            "line": line,
+            "id": matric,
+            "name": name,
+            "programme": programme or cells["programme"],
+            "email": email,
+            "phone": cells["phone"],
+            "status": status,
+            "issue": issue,
+        }
+        if duplicate_of is not None:
+            row["duplicateOf"] = duplicate_of
+        if existing_user is not None:
+            row["existing"] = _existing_record(existing_user)
+            row["matchedBy"] = matched_by
+            row["differences"] = _differences(cells, row["existing"], matched_by)
+        checked.append(row)
     return checked

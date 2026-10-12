@@ -397,6 +397,25 @@ def _import_row(row):
     return {**row, "result": "created", "invitationSent": False}, student
 
 
+def _batch_entry(row, issue=None):
+    """One row of an import batch's record: every row that was not simply
+    created, plus created rows whose activation email failed."""
+    entry = {
+        "line": row["line"],
+        "id": row["id"],
+        "name": row["name"],
+        "status": row["status"],
+        "result": row["result"],
+        "issue": row["issue"] if issue is None else issue,
+    }
+    if "existing" in row:
+        entry["existingName"] = row["existing"]["name"]
+        entry["differences"] = row["differences"]
+    if "duplicateOf" in row:
+        entry["duplicateOf"] = row["duplicateOf"]
+    return entry
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def student_import_view(request):
@@ -437,11 +456,7 @@ def student_import_view(request):
 
     # Record the batch before any mail goes out, so a slow or interrupted send
     # never leaves created accounts without an import record.
-    problems = [
-        {"line": r["line"], "id": r["id"], "result": r["result"], "issue": r["issue"]}
-        for r in results
-        if r["result"] != "created"
-    ]
+    problems = [_batch_entry(r) for r in results if r["result"] != "created"]
     batch = RegistryImportBatch.objects.create(
         file_name=uploaded.name[:255],
         uploaded_by=request.user,
@@ -472,13 +487,7 @@ def student_import_view(request):
     if unsent:
         batch.invitations_failed = len(unsent)
         batch.problems = problems + [
-            {
-                "line": r["line"],
-                "id": r["id"],
-                "result": "created",
-                "issue": "activation email could not be sent",
-            }
-            for r in unsent
+            _batch_entry(r, issue="activation email could not be sent") for r in unsent
         ]
         batch.save(update_fields=["invitations_failed", "problems"])
     return Response(

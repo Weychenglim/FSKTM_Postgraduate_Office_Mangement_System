@@ -472,7 +472,21 @@ class RegistryImportBatch(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
 
+    @staticmethod
+    def problem_status(problem):
+        """A recorded row's status. Batches from before the status was stored
+        are read from the wording of the reason."""
+        if problem.get("status"):
+            return problem["status"]
+        issue = problem.get("issue", "")
+        if issue in ("this matric number is already registered", "this email already has an account"):
+            return "Already Registered"
+        if issue.startswith(("same student_id as line", "same email as line")):
+            return "Duplicate In File"
+        return ""
+
     def to_public_dict(self):
+        statuses = [self.problem_status(problem) for problem in self.problems or []]
         return {
             "id": self.pk,
             "fileName": self.file_name,
@@ -481,6 +495,8 @@ class RegistryImportBatch(models.Model):
             "created": self.created_count,
             "skipped": self.skipped_count,
             "failed": self.failed_count,
+            "alreadyRegistered": statuses.count("Already Registered"),
+            "duplicateInFile": statuses.count("Duplicate In File"),
             "invitationsFailed": self.invitations_failed,
             "problems": self.problems,
             "createdAt": self.created_at.isoformat(),
