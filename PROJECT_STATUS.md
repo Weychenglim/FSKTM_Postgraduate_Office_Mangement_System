@@ -1,5 +1,28 @@
 # Project Status
 
+## Registry Import: The Office's Own Spreadsheet Layout Is Read (2026-10-12)
+
+- Phase 2 of the registry import plan (commit `f465cfb`).
+- **New inspect step.** `POST /api/registry/students/import/inspect/` (Office only) reports, for an uploaded CSV or XLSX:
+  - the sheets, and the sheet holding the student list;
+  - the row with the column names, skipping title rows above it;
+  - every column with its letter and three sample values;
+  - suggested matches from English and Malay column names, for example No. Matrik, Nama Pelajar, E-mel, No. Tel, Sesi Kemasukan.
+  - It also reports columns that are not used (such as IC numbers or a running number) and whether the file is simply our template.
+- **Options.**
+  - Preview and import take an `options` field (sheet, header row, column mapping).
+  - Bad mappings are refused with plain messages, such as "Column B is chosen for both Student ID and Full name" or "Choose a column for: Email".
+  - Requests without options behave exactly as before.
+- **What is read.**
+  - CSV may use commas, semicolons or tabs.
+  - Intake and current semester can now be imported (`IMPORT_HEADERS` and the CSV template gained both columns).
+  - Columns the office does not match never appear in the returned rows and are not saved.
+- **Pending P1.** The column names come from research and will be extended with the office's real ones. An old `.xls` file gets a "save it as .xlsx" message until the real extract shows whether a reader is needed.
+- **Verification.**
+  - 967 backend tests pass with `--parallel 2`, including 18 new ones in `accounts/test_registry_layouts.py`. They use a Maya-style workbook with a notes sheet, two title rows, Malay names, an IC column, and a running-number column.
+  - All 94 frontend scripts, TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - 12/12 live API checks against `runserver` used a workbook of that shape. They covered sheet choice, the column-name row, the matches, the unused columns, the preview (no IC number returned), the import, and the saved intake. The temporary `smoke.import.*` accounts were removed afterwards.
+
 ## Registry Import: Already-Registered Students Listed (2026-10-12)
 
 - Phase 1 of `docs/superpowers/plans/2026-10-12-registry-import-from-office-spreadsheets.md` (commit `b9dbe75`). The plan makes bulk import accept the office's own Maya extract. Xiang said to build it now and amend it when the office answers the two open questions.
