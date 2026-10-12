@@ -23,6 +23,7 @@ import {
   isTransportFailure,
   mockResponse,
   request,
+  requestBlob,
   requestMultipart,
 } from './apiClient';
 
@@ -172,6 +173,11 @@ export async function commitStudentImport(
 /** Email the activation links an import held back (only students still waiting). */
 export async function sendBatchInvitations(batchId: number): Promise<BatchInvitationResult> {
   return request<BatchInvitationResult>(`/registry/imports/${batchId}/send-invitations/`, { method: 'POST' });
+}
+
+/** The Excel template for typing a list: Programme is a dropdown, and Student ID and Phone keep leading zeros. */
+export async function downloadImportTemplate(): Promise<Blob> {
+  return requestBlob('/registry/students/import/template/');
 }
 
 export async function getRecentImports(limit = 5): Promise<RegistryImportBatch[]> {

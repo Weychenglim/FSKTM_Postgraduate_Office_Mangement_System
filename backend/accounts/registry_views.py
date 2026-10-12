@@ -17,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import get_connection, send_mail
 from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Prefetch, Q
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -44,6 +45,7 @@ from .registry_import import (
     validate_import_rows,
 )
 from .registry_profiles import remember_layout
+from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
@@ -599,6 +601,17 @@ def _invitation_outcome(user, sent):
     if user.has_usable_password():
         return "alreadyActivated"
     return "sent" if sent[user.pk] else "failed"
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_import_template_view(request):
+    """The Excel template for typing a list (UC04). The office's own
+    spreadsheet imports as it is, so the template is optional."""
+    _require_office_admin(request)
+    response = HttpResponse(build_template(), content_type=XLSX_CONTENT_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{TEMPLATE_FILE_NAME}"'
+    return response
 
 
 # A second send of the same import within this time is refused, so a double

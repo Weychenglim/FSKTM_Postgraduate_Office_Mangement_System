@@ -344,5 +344,8 @@ assert.match(registry, /<SegmentedControl<'file' \| 'paste'>/, 'rows can be past
 assert.match(registry, /previewImportFile\(file, \{ hasHeader: pasteHasHeader \}\)/, 'pasted rows go through the same steps');
 assert.match(registry, /hasHeader: importHasHeader/, 'rows without column names stay that way');
 assert.match(matchStep, /label: 'No column names'/);
+assert.match(registry, /Download Excel Template/, 'the Excel template is the main template');
+assert.match(registry, /own spreadsheet as it is/, 'the guidelines say the office can upload its own extract');
+assert.doesNotMatch(registry, /The template has the exact layout/);
 
 console.log('Registry import listing tests passed.');

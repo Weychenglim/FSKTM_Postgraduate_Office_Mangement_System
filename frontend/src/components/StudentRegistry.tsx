@@ -69,6 +69,7 @@ import {
   ApiError,
   commitStudentImport,
   createStudent,
+  downloadImportTemplate,
   getParticipant,
   getRecentImports,
   getStudents,
@@ -998,6 +999,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     triggerToast('Downloaded official student import template.');
   };
 
+  // The Excel template keeps leading zeros and offers the programmes as a
+  // dropdown, so a typed list has fewer mistakes than a CSV.
+  const downloadExcelTemplate = async () => {
+    try {
+      const url = window.URL.createObjectURL(await downloadImportTemplate());
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'FSKTM_Student_Registry_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      triggerToast('Downloaded the Excel template.');
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The Excel template could not be downloaded.');
+    }
+  };
+
   // Filtration logic for main Student Listing
   const filteredStudents = students.filter(student => {
     const searchLower = searchQuery.toLowerCase();
@@ -1608,9 +1627,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </AnimatePresence>
                       </div>
 
-                      <PortalButton variant="secondary" size="sm" icon={Download} onClick={downloadCsvTemplate} className="self-start sm:self-center">
-                        Download CSV Template
-                      </PortalButton>
+                      <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                        <PortalButton variant="primary" size="sm" icon={FileSpreadsheet} onClick={() => void downloadExcelTemplate()}>
+                          Download Excel Template
+                        </PortalButton>
+                        <PortalButton variant="secondary" size="sm" icon={Download} onClick={downloadCsvTemplate}>
+                          CSV Template
+                        </PortalButton>
+                      </div>
                     </div>
 
                   </div>
@@ -1856,11 +1880,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                 <div className="space-y-4 text-xs">
                   {[
-                    <>Keep the header row <strong className="text-slate-800 font-bold">{CSV_HEADERS.join(', ')}</strong>. The template has the exact layout.</>,
-                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; letter case does not matter.</>,
+                    <>Upload the office&apos;s <strong className="text-slate-800 font-bold">own spreadsheet as it is</strong>: you confirm which column holds each detail. For a typed list, use the Excel template.</>,
+                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; any other name is chosen once, or its rows skipped.</>,
                     <>Matric numbers and emails must be <strong className="text-slate-800 font-bold">unique</strong> in the file and not already registered. Duplicates are skipped and listed.</>,
-                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password.</>,
-                    <>CSV or XLSX, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
+                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password, now or later.</>,
+                    <>CSV, XLSX or rows pasted from a spreadsheet, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
                   ].map((guideline, index) => (
                     <div key={index} className="flex gap-3">
                       <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
