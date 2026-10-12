@@ -1,3 +1,5 @@
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -186,18 +188,18 @@ export const StudentRegistry: React.FC = () => {
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
   const [currentView, setCurrentView] = useState<'list' | 'register'>('list');
   const [registerActiveTab, setRegisterActiveTab] = useState<'bulk' | 'single'>('single');
-  const [registryModuleTab, setRegistryModuleTab] = useState<'students' | 'staff_lecturers'>('students');
+  const [registryModuleTab, setRegistryModuleTab] = useListState<'students' | 'staff_lecturers'>('StudentRegistry', 'registryModuleTab', 'students');
 
   // Lists Filters States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProgramme, setSelectedProgramme] = useState<string>('All');
-  const [selectedSemester, setSelectedSemester] = useState<string>('All');
-  const [selectedAcademicStatus, setSelectedAcademicStatus] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useListState('StudentRegistry', 'searchQuery', '');
+  const [selectedProgramme, setSelectedProgramme] = useListState<string>('StudentRegistry', 'selectedProgramme', 'All');
+  const [selectedSemester, setSelectedSemester] = useListState<string>('StudentRegistry', 'selectedSemester', 'All');
+  const [selectedAcademicStatus, setSelectedAcademicStatus] = useListState<string>('StudentRegistry', 'selectedAcademicStatus', 'All');
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('StudentRegistry', 'currentPage', 1);
   const itemsPerPage = 3; 
 
   // Multi Selector state
@@ -943,15 +945,9 @@ export const StudentRegistry: React.FC = () => {
       {/* SCREEN B: REGISTER NEW STUDENTS (CSV IMPORT & MANUAL FORM) */}
       {/* ========================================================== */}
       {currentView === 'register' && (
-        <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
+        <RecordPage title="Register New Students" backLabel="Back to Student Registry" onBack={() => setCurrentView('list')} pageKey="registry-student-registration" dirty={!!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone || !!manualFormData.intakeBatch || !!manualFormData.researchTitle || !!manualFormData.supervisor || manualFormData.programme !== 'Select registered programme' || manualFormData.semester !== 'Semester 1' || !manualFormData.sendCredentialsImmediately || (uploadedFile !== null && uploadedFile.name !== 'student_registry_intake_sem1_2025.csv')} busy={isProcessingCsv}>{requestBack => <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
           
-          <PageHeader
-            title="Register New Students"
-            subtitle="Secretariat Onboarding Utility"
-            backLabel="Back to Student Registry"
-            onBack={() => setCurrentView('list')}
-            className="mb-6"
-          />
+
 
           {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
           <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3">
@@ -1286,7 +1282,7 @@ export const StudentRegistry: React.FC = () => {
                       {/* Cancel on left */}
                       <button
                         type="button"
-                        onClick={() => setCurrentView('list')}
+                        onClick={requestBack}
                         className="text-slate-500 hover:text-slate-800 font-extrabold uppercase text-[10.5px] tracking-wider transition-colors cursor-pointer"
                       >
                         Cancel
@@ -1575,7 +1571,7 @@ export const StudentRegistry: React.FC = () => {
                       {/* Cancel Setup btn */}
                       <button
                         type="button"
-                        onClick={() => setCurrentView('list')}
+                        onClick={requestBack}
                         className="px-5 py-3 text-slate-550 hover:text-brand-navy font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
                       >
                         Cancel
@@ -1770,7 +1766,7 @@ export const StudentRegistry: React.FC = () => {
 
           </div>
 
-        </div>
+        </div>}</RecordPage>
       )}
         </>
       ) : (
@@ -1783,42 +1779,7 @@ export const StudentRegistry: React.FC = () => {
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {createPortal(
-        <AnimatePresence>
-        {viewingStudent && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
-            <div className="absolute inset-0" onClick={() => setViewingStudent(null)} />
-            
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
-            >
-              {/* Header block */}
-              <div className="bg-[#121c2e] p-6 text-white flex items-center justify-between select-none">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
-                    <GraduationCap className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="section-label text-slate-100">
-                      Student Document Record
-                    </h2>
-                    <p className="card-description mt-0.5">
-                      Reference verification ID logs
-                    </p>
-                  </div>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setViewingStudent(null)}
-                  className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="w-4.5 h-4.5" />
-                </button>
-              </div>
+      {viewingStudent ? <RecordPage title="Student details" backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={false}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
               {/* Core student details body */}
               <div className="p-6 md:p-8 space-y-6">
@@ -1963,23 +1924,12 @@ export const StudentRegistry: React.FC = () => {
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => setViewingStudent(null)}
-                    className="px-4 py-2 bg-slate-200/60 hover:bg-slate-200 text-slate-650 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
-                  >
-                    Close Profile
-                  </button>
+
 
                 </div>
               </div>
 
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </section>}</RecordPage> : null}
 
     </div>
   );

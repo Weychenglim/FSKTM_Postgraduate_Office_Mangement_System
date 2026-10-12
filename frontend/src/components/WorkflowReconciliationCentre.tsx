@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -285,19 +286,10 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
       </section>
 
       {(previewing || preview) && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/25" role="dialog" aria-modal="true">
-          <button type="button" className="min-w-0 flex-1 cursor-default" aria-label="Close preview" onClick={closePreview} />
-          <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-xl md:p-7">
+        <RecordPage title={preview?.issue.title ?? 'Workflow issue'} backLabel="Back to Workflow Reconciliation" onBack={closePreview} pageKey="reconciliation-review" dirty={!!reason.trim() || confirmed} busy={saving}>
             {previewing && !preview ? <LoadingState message="Validating current issue state..." /> : preview && (
               <div className="space-y-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="card-label">Preview current state</p>
-                    <h2 className="section-heading mt-1">{preview.issue.title}</h2>
-                    <p className="card-description mt-2">{preview.issue.summary}</p>
-                  </div>
-                  <PortalButton size="icon" variant="ghost" icon={X} title="Close preview" onClick={closePreview} />
-                </div>
+                <p className="card-description">{preview.issue.summary}</p>
 
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge tone={preview.issue.severity === 'BLOCKING' ? 'danger' : 'warning'} icon={AlertTriangle}>{preview.issue.severity}</StatusBadge>
@@ -363,8 +355,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 </section>
               </div>
             )}
-          </aside>
-        </div>
+          </RecordPage>
       )}
     </div>
   );

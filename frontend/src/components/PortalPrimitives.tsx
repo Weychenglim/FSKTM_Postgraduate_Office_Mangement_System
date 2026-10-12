@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft, Info, Loader2, LucideIcon, X } from 'lucide-react';
+import { PortalModal, useModalTitle } from './PortalModal';
 
 const joinClasses = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(' ');
@@ -118,6 +119,7 @@ interface PageHeaderProps {
   subtitle?: string;
   actions?: React.ReactNode;
   backLabel?: string;
+  backDisabled?: boolean;
   onBack?: () => void;
   className?: string;
   subtitleClassName?: string;
@@ -128,6 +130,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   subtitle,
   actions,
   backLabel,
+  backDisabled = false,
   onBack,
   className = '',
   subtitleClassName = ''
@@ -135,12 +138,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   <div className={joinClasses('flex flex-col md:flex-row md:items-start md:justify-between gap-4 text-left', className)}>
     <div>
       {onBack && backLabel && (
-        <button type="button" onClick={onBack} className="back-link group mb-3">
+        <button type="button" onClick={onBack} disabled={backDisabled} className="back-link group mb-3 disabled:opacity-50">
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>{backLabel}</span>
         </button>
       )}
-      <h1 className="page-title">{title}</h1>
+      <h1 className="page-title" tabIndex={-1}>{title}</h1>
       {subtitle && <p className={joinClasses('page-subtitle', subtitleClassName)}>{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div>}
@@ -367,6 +370,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const titleId = useModalTitle();
   if (!isOpen) return null;
 
   const toneClass: Record<ConfirmTone, {
@@ -398,18 +402,10 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   const toneConfig = toneClass[tone];
   const Icon = icon || AlertTriangle;
 
-  const node = (
-    <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 px-4 py-6 font-sans backdrop-blur-[2px]"
-      role="presentation"
-      onMouseDown={onCancel}
-    >
+  return (
+    <PortalModal isOpen={isOpen} onClose={onCancel} busy={isLoading} labelledBy={titleId} className="max-w-md p-6">
       <div
-        className="w-full max-w-md rounded-3xl border border-white/80 bg-white p-6 text-left shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="portal-confirm-title"
-        onMouseDown={(event) => event.stopPropagation()}
+        className="text-left"
       >
         <div className="flex items-start gap-4">
           <div className={joinClasses('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border', toneConfig.iconWrap)}>
@@ -419,7 +415,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
             <p className={joinClasses('text-[10px] font-black uppercase tracking-[0.2em]', toneConfig.eyebrow)}>
               Confirmation Required
             </p>
-            <h2 id="portal-confirm-title" className="section-heading mt-1 leading-tight">
+            <h2 id={titleId} className="section-heading mt-1 leading-tight">
               {title}
             </h2>
             <div className="card-description mt-3 text-slate-600">
@@ -445,10 +441,8 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
           </PortalButton>
         </div>
       </div>
-    </div>
+    </PortalModal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
 
 type ToastTone = 'info' | 'success' | 'warning' | 'danger';

@@ -21,6 +21,7 @@ assert.equal(workspace.supervisorWorkspaceSection('Lecturer', '/supervisor-appoi
 assert.equal(workspace.supervisorWorkspaceSection('Lecturer', '/supervisor-appointments/research-changes/42'), 'research');
 assert.equal(workspace.supervisorWorkspaceSection('Student', '/supervisor-appointments/research-changes-old'), 'applications');
 assert.equal(routes.routeForNotificationTarget({ targetModule: 'SUPERVISOR_APPOINTMENTS', recordType: 'RESEARCH_AMENDMENT', recordId: '42' }), '/supervisor-appointments/research-changes/42');
+assert.equal(routes.routeForNotificationTarget({ targetModule: 'SUPERVISOR_APPOINTMENTS', recordType: 'CO_SUPERVISOR_APPOINTMENT', recordId: '42' }), '/supervisor-appointments', 'Supporting appointment notifications open Student My supervisors');
 const records = [
   {id:'SV-1', workflowStatus:'SUBMITTED_TO_SUPERVISOR'},
   {id:'SV-2', workflowStatus:'PENDING_COORDINATOR'},
@@ -34,25 +35,51 @@ console.log('Supervisor workspace deep links, active sections and pending/histor
 const nav = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes/42']}><SupervisorWorkspaceNavigation role="Lecturer" /></MemoryRouter>);
 assert.match(nav, /aria-current="page"[^>]*>Research changes/);
 assert.match(nav, /My supervisees/);
+assert.match(nav, /Appointment requests/);
 assert.doesNotMatch(nav, /Applications|My supervisors/);
 const applications = records.map((row: any, i: number) => ({ ...row, applicationId: i + 1, supervisor: 'Dr Demo', date: '10 Oct 2026', title: 'Synthetic topic', status: row.workflowStatus, documents: [] }));
-const full = renderToStaticMarkup(<StudentSupervisorApplications applications={applications} />);
-assert.match(full, /Pending applications/);
-assert.match(full, /Completed application history/);
+const full = renderToStaticMarkup(<MemoryRouter><StudentSupervisorApplications applications={applications} /></MemoryRouter>);
+assert.match(full, /Applications/);
+assert.match(full, /Requests|History/);
+assert.match(full, /Dr Demo/);
+assert.doesNotMatch(full, /SV-3|SV-4/);
 const compact = renderToStaticMarkup(<StudentSupervisorApplications applications={applications} compact />);
-assert.match(compact, /SV-1|SV-2/);
+assert.match(compact, /Dr Demo/);
 assert.doesNotMatch(compact, /SV-3|SV-4|Completed application history|Synthetic topic/);
 console.log('Shared role navigation and compact current-request presentation pass');
 
 const historyPage = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/history']}><LecturerSupervisorAppointments routeView="history" /></MemoryRouter>);
 assert.equal((historyPage.match(/<h1\b/g) ?? []).length, 1, 'Request history has one page heading');
-assert.ok(historyPage.indexOf('Back to Requests') < historyPage.indexOf('<nav'), 'Back precedes workspace navigation');
+assert.doesNotMatch(historyPage, /Back to Requests/, 'History is a local view, not a nested page');
+assert.match(historyPage, /<h1[^>]*>Supervisor Appointments<\/h1>/);
 assert.doesNotMatch(historyPage.slice(historyPage.indexOf('<nav')), /Back to Supervisor Appointments/);
 for (const role of ['Student', 'Lecturer']) {
   const page = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes/2']}>{role === 'Student' ? <StudentSupervisorAppointment routeView="research" researchView="detail" /> : <LecturerSupervisorAppointments routeView="research" researchView="detail" />}</MemoryRouter>);
   assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
-  assert.match(page, /<h1[^>]*>Research change request<\/h1>/);
-  assert.ok(page.indexOf('Back to research changes') < page.indexOf('<nav'));
-  assert.doesNotMatch(page.slice(page.indexOf('<nav')), /Back to research changes/);
+  if (role === 'Lecturer') {
+    assert.match(page, /<h1[^>]*>Research change request<\/h1>/);
+    assert.doesNotMatch(page, /<nav/, 'A record screen has no list tab bar');
+    assert.ok(page.indexOf('Back to research changes') < page.indexOf('<h1'), 'Back belongs above the record heading');
+  } else {
+    assert.match(page, /<h1[^>]*>Research change request<\/h1>/);
+    assert.doesNotMatch(page, /<nav/, 'Student research detail also leaves the tabbed list');
+  }
 }
-console.log('History and both-role research pages have a single heading and Back before navigation');
+console.log('History stays local; Student and Lecturer research details leave the tabbed list');
+
+assert.equal(routes.routeForSupportingSupervisorRequest('20'), '/supervisor-appointments/supporting-requests/20');
+assert.ok(routes.isKnownAppPath('/supervisor-appointments/supporting-requests/20'));
+assert.equal(routes.isKnownAppPath('/supervisor-appointments/supporting-requests/20/extra'), false);
+for (const detailProps of [{initialApplicationId:'8'}, {initialSupportingId:'20'}, {routeView:'superviseeDetail' as const, routeSuperviseeStudentId:'M123'}]) {
+  const page = renderToStaticMarkup(<MemoryRouter><LecturerSupervisorAppointments {...detailProps} onNavigateToList={() => {}} onNavigateToSupervisees={() => {}} /></MemoryRouter>);
+  assert.equal((page.match(/<h1\b/g) ?? []).length, 1, 'Every routed record, including loading state, has one heading');
+  assert.doesNotMatch(page, /<nav|Supervisor Appointments<\/h1>|Request views/, 'Record loading states do not expose the list navigation');
+  assert.ok(page.indexOf('Back to ') < page.indexOf('<h1'), 'Return appears before the record heading');
+}
+
+for (const routeView of ['list', 'supervisees', 'research'] as const) {
+  const page = renderToStaticMarkup(<MemoryRouter><LecturerSupervisorAppointments routeView={routeView} researchView="list" /></MemoryRouter>);
+  assert.equal((page.match(/>Refresh</g) ?? []).length, 1, `${routeView} has one consistently named page refresh action`);
+  assert.doesNotMatch(page, /Refresh appointments|Refresh teams|Refresh research changes/, 'Lecturer cards do not duplicate the page refresh action');
+  if (routeView !== 'supervisees') assert.match(page, /<header\b[^>]*>[\s\S]*?<h2[^>]*>[\s\S]*?Request views[\s\S]*?<\/header>/, 'Request views belong in the section header beside its title');
+}

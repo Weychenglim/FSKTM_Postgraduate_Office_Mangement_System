@@ -1,3 +1,4 @@
+import { useRecordDraft } from './RecordDraft';
 import React, {useEffect, useRef, useState} from 'react';
 import type {MarkRecordDetail} from '../types';
 import {ApiError} from '../services/apiClient';
@@ -25,6 +26,8 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   const mounted = useRef(true);
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
 
+  const editedScores = record.rubric.components.some(component => component.marksAwarded !== null && values[component.id] !== (component.marksAwarded || '0'));
+  useRecordDraft(!!mode && (!!reason.trim() || (mode === 'correct' && (editedScores || comments !== record.entry.comments))), busy);
   const actions = record.officeActions;
   if (record.entry.status !== 'SUBMITTED' || !actions?.version || (!actions.canCorrect && !actions.canReopen)) return null;
   const components = record.rubric.components.filter(component => component.marksAwarded !== null);

@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -107,6 +108,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   const [supervisorsError, setSupervisorsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submitInFlight = useRef(false);
+  const navigationComplete = useRef(false);
 
   const loadSupervisors = useCallback(() => {
     setLoadingSupervisors(true);
@@ -213,6 +215,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       }, selectedFiles);
       const record = await createSupervisorApplication(body);
       showToast('Supervisor application submitted successfully!', 'success');
+      navigationComplete.current = true;
       onSuccess(toStudentSupervisorApplication(record));
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Supervisor application could not be submitted.';
@@ -224,18 +227,12 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   };
 
   return (
-    <form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
+    <RecordPage navigationComplete={navigationComplete} title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'} subtitle={replacementApplication
+          ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
+          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'} backLabel="Back to Applications" onBack={onBack} dirty={researchTitle !== (replacementApplication?.researchTitle ?? '') || researchArea !== (replacementApplication?.researchArea ?? '') || researchAbstract !== (replacementApplication?.researchAbstract ?? '') || !!replacementReason.trim() || selectedSupervisorId !== null || selectedFiles.size > 0} busy={submitting}><form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
       <PortalToast message={toastMessage} tone={toastTone} onClose={clearToast} />
       
-      <PageHeader
-        title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'}
-        subtitle={replacementApplication
-          ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
-          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'}
-        backLabel="Back to Supervisor Appointments"
-        onBack={onBack}
-        subtitleClassName="max-w-4xl leading-relaxed"
-      />
+
 
       {/* ========================================================================= */}
       {/* 2. THREE-STEPPER HEADER CAROUSEL                                          */}
@@ -496,6 +493,6 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
           : {title:'When your appointment starts',content:<p>The selected Supervisor reviews your request, followed by the Programme Coordinator. Your appointment starts only after final approval.</p>},
       ]} />
 
-    </form>
+    </form></RecordPage>
   );
 };

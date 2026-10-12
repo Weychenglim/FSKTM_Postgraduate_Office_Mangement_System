@@ -1,5 +1,58 @@
 # Architecture and Coding Design
 
+## Student supporting appointment projection (2026-10-12)
+
+co_supervision workspace and team serializers return empty Student nominations and redact supporting appointment staff reasons, nomination IDs and lifecycle audit. Direct nomination serialization denies Student access. Dashboard scoped_nominations returns none for Students. Staff nomination notifications retain existing recipients except Student; approval publishes an appointment-result notification and lifecycle endings use a factual Student message. Notification feeds and direct-read queries exclude legacy Student nomination notices; appointment notification serialization sanitises legacy reasons. Student My supervisors renders factual former appointments without the staff appointment-card projection; Applications no longer mounts supporting history. No schema or dependency changes.
+
+## Office record return feedback (2026-10-12)
+
+The Office appointment RecordPage invokes the existing navigateToList callback directly on Back. It does not set toast state for navigation; return context and record draft/busy guards remain unchanged.
+
+## Supervisor search row identity (2026-10-12)
+
+Office table row keys use applicationId when available, with the existing legacy route key as fallback. A student/appointment route key cannot identify distinct primary application rows; using it caused React to retain unrelated rows during filtering. Row identity remains stable across decisions. Research search shares the change-type projection with its table and indexes displayed research reference forms; authorised data loading and role/history scope remain unchanged.
+
+## Supervisor role hierarchy (2026-10-12)
+
+SupervisorWorkspaceNavigation supports all four role labels on existing routes. Student application and Coordinator primary/supporting projections use RequestWorkspacePrimitives; Office record tables retain administration columns and shared table typography with stacked mobile cells. The controlled research wrapper supports role-specific capabilities and common URL-backed view/search/student/page/size controls. Staff research lists share the Supervisor module heading/navigation; forms/details retain RecordPage. Supervisory team rosters display the primary supervisor for staff and the recorded relationship for lecturers.
+
+The new coordinator-history GET endpoint selects explicit terminal primary application statuses within coordinator_scope_q, including acting delegations. coordinator-records remains the approved appointment endpoint. No migration or dependency change. Office filters use actual loaded programme/semester values, and semester now applies to results. Selected-tab refresh is forwarded to team/research/carryover loaders; child refresh actions are suppressed and busy/draft state disables the owning action. Existing detail guards and return-context helpers remain authoritative.
+
+## Global record navigation follow-up (2026-10-11)
+
+App dispatch uses StaffResearchWorkspace for permitted Coordinator/Office research routes and existing authorised research endpoints. Dashboard research action targets use the same record route as notifications/reports. Coordinator supervisor deep links use getSupervisorApplication alongside its authorised queue/history, with decision availability still derived from queue membership and participant eligibility. Staff supervisor/panel/marks records and local Marks/upload/announcement forms share RecordPage; nested lifecycle/correction controls report drafts and busy state. Local staff research creation closes only after successful API completion in the original mounted scope, before refreshed capabilities can hide the form; API failures retain the draft.
+
+ListState is a Map provided by the authenticated AppLayout. useListState caches only module-scoped UI list controls across route remounts; it never stores records, credentials or draft form contents in browser persistence. Logout unmounts the provider. Local source lists remain mounted where practical so focus and controls survive detail pages. Explicit route status changes reset staff Marks controls; ordinary returns retain them. Panel pagination clamps after loading settles. Login help uses PortalModal.
+
+Inventory: docs/superpowers/specs/2026-10-11-global-navigation-audit.md. Existing route/authentication/business workflow architecture and backend schema are unchanged.
+
+
+## Record page navigation (2026-10-11)
+
+- AppLayout hosts RecordPageProvider inside its existing main element. Local record/form pages render into a sibling host; the mounted originating list becomes hidden and inert, preserving its local state. RecordPage reuses PageHeader and shared typography, with optional dirty/busy navigation guards and focus/scroll restoration.
+- The root uses the existing React Router data-router API for draft navigation blockers. Local page history contains only a view key; routed records retain authorised API loaders and existing record URLs. recordNavigation validates same-module internal return paths before use, retains the originating history index, and supplies atomic filter updates. Successful routed mutations set an explicit completion ref before redirecting; local teardown removes its marker only after a deferred generation check excludes StrictMode replay. RecordHost and RecordDraft contexts are separate from the component module, and nested forms report dirty/busy state to their owning frame. Header actions are disabled while dirty/busy; deferred focus restoration excludes effect replay and newly opened record pages. Local editor reload returns to the owning list; existing routed records retain deep-link loading.
+- PortalModal uses native dialog focus containment, Escape/backdrop handling and focus return. PortalConfirmModal retains its existing visual/action contract through that primitive. This supersedes the older blanket local-drawer guidance for substantial records/forms; brief previews and inline controls remain contextual.
+
+## Responsive Lecturer record tables (2026-10-11)
+
+- Table typography comes directly from the existing shared data-table/data-thead/data-th/data-row/data-td/data-td-strong classes in index.css. Responsive utilities adjust layout and compact mobile spacing without replacing those text styles.
+
+- WorkspaceRecordTable replaces WorkspaceSummaryCard for the Lecturer lists. One semantic table uses responsive row/cell styling to become labelled stacked records below the desktop breakpoint; it never duplicates action controls. Request and roster projections supply only their relevant columns. Native table headers retain column scope and explicit table roles preserve semantics when CSS changes display modes.
+- WorkspacePagination shares validated 10/25/50 row sizes. Appointment/research sizes use existing query-parameter state; routed roster uses query parameters with an atomic page reset. Existing services still fetch their authorised workspace datasets; pagination is client-side and does not claim to reduce API payloads.
+- The App passes the authenticated lecturer identity through the existing container to the roster. Role labels compare that identity with the recorded primary supervisor and active supporting appointments, rather than deriving role from mutable capabilities. WorkspaceRequestReference provides detail-only reference copying and accessible success/failure feedback. No backend, dependency, schema or authority changes.
+
+## Shared Lecturer workspace presentation (2026-10-11)
+
+- WorkspaceSectionHeader, WorkspaceSummaryCard, RequestFilters and WorkspacePagination provide one presentation pattern across the three Lecturer destinations. Research and appointment summaries share student-first content, faculty date formatting, status labels and action wording. Routed supervisees use responsive summary cards with the same pagination rather than a wide table.
+- The Lecturer container owns the single Refresh action and existing refresh-version signals reload the active workspace. Optional showRefresh/onBusyChange props let shared children suppress their local refresh controls and disable the page action while loading or mutating; standalone/Student/embedded defaults retain their refresh actions. Existing API calls, authorisation and mutation guards remain authoritative.
+
+## Lecturer ongoing/history request workspaces (2026-10-11)
+
+- LecturerAppointmentRequests combines the existing authorised primary queue/history and co-supervisor workspace using a typed, deduplicated request projection. RequestWorkspacePrimitives provides compact view controls, filters, workflow groups and a native modal review panel with focus containment/Escape/return focus. Existing service mutation endpoints remain authoritative; duplicate-submit and request-version/scope guards cover the new container.
+- The assigned-Lecturer primary history projection adds application ID, actual workflow status, recorded timestamps and waiting metadata, and distinguishes Coordinator-pending/rejected requests from final approval. Existing legacy fields remain available. Pending primary requests and supporting nominations expose semester labels for consistent combined filtering. Supporting detail/retry fetches the current authorised nomination before exposing its actions; primary details retain the student-record link. No schema/dependency/permission change is required.
+- LecturerResearchWorkspace stores view/search/page/student context in React Router query parameters. Shared ResearchAmendments accepts optional controlled Lecturer presentation props, partitions ongoing/final records and retains its default Student/Office/Coordinator rendering and mutation boundaries. Research details resolve all authorised rows independently of the previous student filter; profile viewing resolves the request's student without overwriting the queue filter.
+- Lecturer module headings/navigation stay stable across nested routes. Detail Back and secondary headings live below navigation; appointment History is a local view. Existing history and application deep links remain supported. Faculty date filters and derived research waiting ages use Asia/Kuala_Lumpur calendar days.
+
 ## Routed Supervisor workspace composition (2026-10-10)
 
 - Extend existing Supervisor routes with applications, supervisees list and research list/detail/profile/new views. Shared module navigation reflects the route, while existing authorised service handlers remain the mutation boundary. Office/Coordinator routes retain their current composition.

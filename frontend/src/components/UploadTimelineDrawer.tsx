@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -258,55 +259,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
     );
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div 
-          id="upload-timeline-drawer-root" 
-          className="fixed inset-0 z-50 flex justify-end font-sans text-xs text-left"
-        >
-          {/* Dimmed Background Overlay */}
-          <motion.div
-            id="upload-drawer-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
-            onClick={onClose}
-          />
-
-          <PortalToast message={toastMessage} />
-
-          {/* Slide-In Side Panel Container */}
-          <motion.div
-            id="upload-drawer-panel"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="drawer-panel"
-          >
-            {/* Drawer Header Layout */}
-            <div 
-              id="upload-drawer-header-content" 
-              className="drawer-header"
-            >
-              <div className="flex items-center gap-2.5">
-                <UploadCloud className="w-5 h-5 text-slate-800" />
-                <h3 className="section-label">
-                  Upload Timeline
-                </h3>
-              </div>
-              
-              <button
-                id="upload-drawer-close-btn"
-                onClick={onClose}
-                className="icon-button w-9 h-9"
-                aria-label="Close upload details"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+  if (!isOpen) return null;
+  return <RecordPage title="Import Timeline" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-import" dirty={!!uploadedFile && importedCount === null} busy={isImporting || isValidating}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white"><PortalToast message={toastMessage} />
 
             {/* Scrollable Drawer Body with No Extra Blank Verticals */}
             <div 
@@ -546,7 +500,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
             >
               <PortalButton
                 type="button"
-                onClick={onClose}
+                onClick={requestBack}
                 variant="secondary"
                 size="md"
               >
@@ -582,9 +536,5 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({
               )}
             </div>
 
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+          </section>}</RecordPage>;
 };

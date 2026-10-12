@@ -97,6 +97,9 @@ export const routeForMarkRecord = (recordId: string): string =>
 export const routeForSupervisorApplication = (applicationId: string): string =>
   `${APP_ROUTES.supervisorAppointments}/${encodeURIComponent(applicationId)}`;
 
+export const routeForSupportingSupervisorRequest = (nominationId: string): string =>
+  `${APP_ROUTES.supervisorAppointments}/supporting-requests/${encodeURIComponent(nominationId)}`;
+
 export const routeForSupervisorWorkload = (): string =>
   APP_ROUTES.supervisorAppointmentWorkload;
 
@@ -176,6 +179,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
       || pathname === APP_ROUTES.supervisorAppointmentSupervisees
       || pathname === APP_ROUTES.supervisorResearchChanges
       || /^research-changes\/[^/]+$/.test(supervisorSubpath)
+      || /^supporting-requests\/[^/]+$/.test(supervisorSubpath)
       || /^supervisees\/[^/]+$/.test(supervisorSubpath)
       || /^[^/]+$/.test(supervisorSubpath)
     );

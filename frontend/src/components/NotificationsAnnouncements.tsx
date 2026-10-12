@@ -1,3 +1,4 @@
+import { PortalModal } from './PortalModal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -415,28 +416,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      {createPortal(
-        <AnimatePresence>
-          {selectedNotification && (
-          <div
-            id="notification-modal-overlay"
-            className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
-          >
-            {/* Backdrop Dimmer dismiss area */}
-            <div 
-              id="backdrop-overlay-dismiss"
-              className="absolute inset-0" 
-              onClick={() => setSelectedNotification(null)} 
-            />
-
-            {/* Centered Modal Frame Card */}
-            <motion.div
-              layoutId={`modal-card-${selectedNotification.id}`}
-              initial={{ scale: 0.96, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 15 }}
-              className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
-            >
+      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-preview-title" className="max-w-2xl p-0">
               
               {/* Modal Header Panel - Deep Midnight Theme */}
               <div id="modal-header-panel" className="bg-[#121c2e] px-6 py-4.5 flex items-center justify-between text-white border-b border-white/5 select-none text-left">
@@ -444,7 +424,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   {/* High visual fidelity red bar indicator segment */}
                   <div className="h-4.5 w-1 bg-red-600 rounded-full shrink-0" />
                   
-                  <h2 className="section-label tracking-tight leading-none uppercase text-white truncate max-w-[380px] md:max-w-xl">
+                  <h2 id="notification-preview-title" className="section-label tracking-tight leading-none uppercase text-white truncate max-w-[380px] md:max-w-xl">
                     {selectedNotification.title}
                   </h2>
                 </div>
@@ -567,12 +547,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 </button>
               </div>
 
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </PortalModal> : null}
 
     </div>
   );

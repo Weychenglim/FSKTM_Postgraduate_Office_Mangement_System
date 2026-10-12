@@ -427,10 +427,10 @@ export function LecturerCapacityManagement({ onBack }: LecturerCapacityManagemen
       <PortalToast message={toast} />
       <PageHeader
         title="Lecturer Capacity Management"
+        backLabel="Back to Dashboard" onBack={onBack}
         subtitle="Configure versioned Supervisor and Panel limits and temporary availability by academic semester."
         actions={(
           <>
-            <PortalButton variant="secondary" icon={ArrowLeft} onClick={onBack}>Back</PortalButton>
             <PortalButton icon={RefreshCw} onClick={() => semesterId && void loadSemesterData(semesterId)}>Refresh</PortalButton>
           </>
         )}
@@ -542,7 +542,8 @@ export function LecturerCapacityManagement({ onBack }: LecturerCapacityManagemen
         </>
       )}
 
-      <RightDrawer isOpen={drawerMode !== null} onClose={closeDrawer} title={drawerTitle}>
+      <RightDrawer isOpen={drawerMode !== null} onClose={closeDrawer} title={drawerTitle} backLabel="Back to Lecturer Capacity Management" pageKey={`capacity:${drawerMode}`} busy={saving}
+        dirty={drawerMode === 'entry' ? !!selectedEntry && (supervisorLimit !== String(selectedEntry.supervisorLimit ?? '') || panelLimit !== String(selectedEntry.panelLimit ?? '')) : drawerMode === 'availability' ? availabilityRole !== 'SUPERVISOR' || availabilityLecturerId !== String(selectedPlan?.entries.find(entry => entry.supervisor)?.lecturerId ?? '') || availabilityStartsOn !== (selectedSemester?.startsOn ?? '') || availabilityEndsOn !== (selectedSemester?.startsOn ?? '') || !!availabilityReason.trim() : drawerMode === 'publish' ? !!publishReason.trim() || publishConfirmed : drawerMode === 'cancel' ? !!cancelReason.trim() || cancelConfirmed : false}>
         {drawerError && <ErrorState message={drawerError} />}
         {drawerMode === 'entry' && selectedEntry && <div className="space-y-5"><p className="card-description text-slate-600">Set independent role limits. Zero is valid and blocks new assignment activation.</p>{selectedEntry.supervisor && <label><span className="form-label mb-2 block">Supervisor limit</span><input className="form-control form-control-md text-xs font-bold font-sans normal-case tracking-normal w-full" type="number" min="0" value={supervisorLimit} onChange={(event) => setSupervisorLimit(event.target.value)} /></label>}{selectedEntry.panel && <label><span className="form-label mb-2 block">Panel limit</span><input className="form-control form-control-md text-xs font-bold font-sans normal-case tracking-normal w-full" type="number" min="0" value={panelLimit} onChange={(event) => setPanelLimit(event.target.value)} /></label>}<PortalButton fullWidth variant="primary" icon={Save} isLoading={saving} onClick={() => void saveEntry()}>Save Limits</PortalButton></div>}
 

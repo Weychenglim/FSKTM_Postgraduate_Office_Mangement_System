@@ -444,6 +444,8 @@ export const SupervisorWorkloadMonitoring: React.FC<
       )}
 
       <RightDrawer
+        backLabel="Back to Supervisor Workload Monitoring"
+        pageKey={`supervisor-workload:${selectedLecturer?.lecturerId}`}
         isOpen={selectedLecturer !== null}
         onClose={() => setSelectedLecturer(null)}
         title={selectedLecturer

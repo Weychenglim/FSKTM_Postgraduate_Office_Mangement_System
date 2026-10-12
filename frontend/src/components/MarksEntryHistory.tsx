@@ -1,3 +1,4 @@
+import { useListState } from './ListState';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -26,8 +27,8 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
   onSelectRecord,
   tasksState,
 }) => {
-  const [query, setQuery] = useState('');
-  const [semester, setSemester] = useState('All semesters');
+  const [query, setQuery] = useListState('MarksEntryHistory', 'query', '');
+  const [semester, setSemester] = useListState('MarksEntryHistory', 'semester', 'All semesters');
 
   const semesters = useMemo(
     () => [...new Set(tasksState.map((task) => task.semester))].sort(),

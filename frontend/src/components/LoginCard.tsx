@@ -1,3 +1,4 @@
+import { PortalModal, useModalTitle } from './PortalModal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -11,7 +12,7 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { FormInput } from './FormInput';
 import { PasswordInput } from './PasswordInput';
 import { ActionButton } from './ActionButton';
@@ -35,6 +36,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
   const [errors, setErrors] = useState<{ id?: string; pass?: string }>({});
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
+  const helpTitle = useModalTitle();
   const [activeModal, setActiveModal] = useState<'forgot' | 'helpdesk' | 'manual' | null>(null);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -202,20 +204,13 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         </div>
 
         {/* Absolute modal overlays */}
-        <AnimatePresence>
-          {activeModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-white/95 rounded-3xl p-8 flex flex-col justify-center items-center z-30"
-            >
+        <PortalModal isOpen={activeModal !== null} onClose={() => setActiveModal(null)} labelledBy={helpTitle} className="max-w-md p-8">
               {activeModal === 'forgot' && (
                 <div className="w-full flex flex-col items-center text-center">
                   <div className="w-12 h-12 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center mb-4">
                     <AlertCircle className="w-6 h-6 text-orange-500" />
                   </div>
-                  <h4 className="section-heading">Password Recovery</h4>
+                  <h4 id={helpTitle} className="section-heading">Password Recovery</h4>
                   <p className="card-description mt-2">
                     To maintain FSKTM administration guidelines, please contact the postgraduate office desk with your registered Staff ID / Student Matric card to request password resets.
                   </p>
@@ -233,7 +228,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-[#e0f2fe] flex items-center justify-center mb-4">
                     <Server className="w-6 h-6 text-blue-600" />
                   </div>
-                  <h4 className="section-heading">IT Helpdesk Contact</h4>
+                  <h4 id={helpTitle} className="section-heading">IT Helpdesk Contact</h4>
                   <p className="card-description mt-2">
                     The FSKTM Tech Support is cataloged to assist with student and staff account provisioning, single sign-on issues, and database interruptions.
                   </p>
@@ -250,7 +245,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-4">
                     <Calendar className="w-6 h-6 text-indigo-500" />
                   </div>
-                  <h4 className="section-heading">Student Manual Archive</h4>
+                  <h4 id={helpTitle} className="section-heading">Student Manual Archive</h4>
                   <p className="card-description mt-2">
                     Download the latest guidebooks detailing postgraduate procedures, thesis defence requirements, online registration steps, and grading scales for coursework modules.
                   </p>
@@ -273,9 +268,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               >
                 Close Guidance Window
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </PortalModal>
       </motion.div>
 
       {/* Interactive demo prefiller console */}

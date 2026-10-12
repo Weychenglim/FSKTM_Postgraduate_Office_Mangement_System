@@ -48,7 +48,8 @@ const workspace: import('../types/coSupervision').SupervisoryWorkspace = {
 const studentTeam = renderToStaticMarkup(<StudentSupervisorsOverview workspace={workspace} actions={<button>View appointment</button>} />);
 assert.match(studentTeam, /Dr Primary|Current approved title|No supporting supervisors assigned/);
 assert.match(studentTeam, /<details><summary[^>]*>Research profile<\/summary>/);
-assert.match(studentTeam, /Full current abstract|Supporting appointment history|Research changed|Complementary research expertise/);
+assert.match(studentTeam, /Full current abstract|Previous supporting supervisors/);
+assert.doesNotMatch(studentTeam, /Research changed|Complementary research expertise|Audit history|Ended reason/);
 assert.doesNotMatch(studentTeam, /Timeline and progress|Semester milestone|>Approve<|>End appointment<|>Replace</);
 assert.match(studentTeam, />View appointment</);
 assert.match(renderToStaticMarkup(<StudentSupervisorsOverview workspace={{teams:[],appointments:[],nominations:[]}} />), /Supervisor not appointed/);

@@ -1,3 +1,5 @@
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -142,23 +144,23 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   }, [loadWorkloads]);
 
   // Main input filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
+  const [searchQuery, setSearchQuery] = useListState('PanelAppointmentManagement', 'searchQuery', '');
+  const [programmeFilter, setProgrammeFilter] = useListState('PanelAppointmentManagement', 'programmeFilter', 'All Programmes');
+  const [semesterFilter, setSemesterFilter] = useListState('PanelAppointmentManagement', 'semesterFilter', 'All Semesters');
   const [recordOrder, setRecordOrder] = useState<'default' | 'longest'>('default');
 
   // Interactive pill filter selection
-  const [activeTab, setActiveTab] = useState<PanelRecordStatusTab>('All Records');
+  const [activeTab, setActiveTab] = useListState<PanelRecordStatusTab>('PanelAppointmentManagement', 'activeTab', 'All Records');
 
   // Trigger filters only when 'Apply Filters' is specifically clicked (screenshot business requirement)
-  const [appliedFilters, setAppliedFilters] = useState({
+  const [appliedFilters, setAppliedFilters] = useListState('PanelAppointmentManagement', 'appliedFilters', {
     search: '',
     programme: 'All Programmes',
     semester: 'All Semesters'
   });
 
   // Pagination page tracker
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('PanelAppointmentManagement', 'currentPage', 1);
   const itemsPerPage = 10;
 
   // Toast Notification
@@ -245,8 +247,8 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   );
 
   useEffect(() => {
-    setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
-  }, [filteredRecords.length]);
+    if (!loading && !error) setCurrentPage((page) => clampPage(page, filteredRecords.length, itemsPerPage));
+  }, [filteredRecords.length, loading, error, setCurrentPage]);
 
   // CSV Exporter
   const handleExportCSV = () => {
@@ -313,9 +315,9 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
       {routeView === 'detail' && (
         loading ? (
-          <LoadingState message="Loading panel appointment record…" />
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><LoadingState message="Loading panel appointment record…" /></RecordPage>
         ) : error ? (
-          <ErrorState message={error} onRetry={loadRecords} />
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>
         ) : selectedRouteRecord ? (
           <PanelAppointmentDetail
             onBack={navigateToList}
@@ -323,12 +325,10 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
             onLifecycleChanged={loadRecords}
           />
         ) : (
-          <EmptyState
+          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><EmptyState
             title="Panel appointment record not found"
             description="The requested panel appointment record does not exist or is no longer available."
-            actionLabel="Back to Panel Appointments"
-            onAction={navigateToList}
-          />
+          /></RecordPage>
         )
       )}
 

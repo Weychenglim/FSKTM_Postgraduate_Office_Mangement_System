@@ -1,5 +1,63 @@
 # Project Requirements
 
+## Student supporting appointment visibility (2026-10-12)
+
+Students see confirmed current and former supporting appointments under My supervisors, with supervisor identity and appointment/end dates. They do not see supporting nominations, candidate justifications, staff decision reasons, workflow history or pending nomination dashboard tasks. Applications History contains only Student-submitted applications. In-app notifications alert Students when supporting appointments are confirmed or end and link to My supervisors; nomination activity remains within authorised staff workflow. Existing legacy nomination notices are excluded from Student feeds and direct read responses; legacy appointment notice bodies are sanitised.
+
+## Office navigation feedback (2026-10-12)
+
+Returning from an Office Supervisor appointment record uses the existing labelled Back action without a navigation-success toast. Completed actions and errors retain their feedback.
+
+## Supervisor search verification (2026-10-12)
+
+Office Appointment records search applies with Apply filters and matches loaded student names, matric numbers, supervisors, programmes and research titles case-insensitively with trimmed input. Research request search filters immediately within the selected ongoing/history view and student scope, and recognises displayed change types plus numeric/formatted research references as well as student identity and research title. Clearing search restores the remaining filtered records. Office Applications continues to redirect to Appointment records; the Student Applications route is unchanged.
+
+## Supervisor hierarchy across roles (2026-10-12)
+
+Supervisor lists share the module heading/Refresh, role navigation, relevant summaries, section heading with Requests/History where applicable, filters, responsive table and 10/25/50 pagination. Student retains My supervisors/Applications/Research changes and identifies proposed supervisors in application rows. Office uses Appointment records/Supervisory teams/Research changes. Coordinator uses Appointment requests/Supervisory teams/Research changes. Lecturer keeps its existing three tabs. Current Student supervisors remain member cards; record details retain the independent page standard.
+
+Research requests separate ongoing records from final outcomes for every role; profile revisions remain separate. Coordinator request history includes scoped approved/rejected/cancelled applications through a separate read-only endpoint, without changing approved appointment records. Preserve all existing permissions, lifecycle controls, supporting nominations, administrative filters, exports, workload, requirements, carryover actions and notification links. Students see only confirmed current/former supporting appointments in My supervisors; supporting nominations remain within staff workflow, as specified above.
+
+Design: docs/superpowers/specs/2026-10-12-supervisor-role-hierarchy.md.
+
+This shared hierarchy supersedes older role-specific embedded-list presentation descriptions below. Existing workflow and capability requirements remain authoritative.
+
+## Global navigation coverage (2026-10-11)
+
+The approved record/list/brief-modal/contextual-inline standard applies to all active modules and supported roles. Coordinator and staff notification, report and dashboard action targets must resolve the selected authorised record. Lists retain their UI controls when returning from records or dossiers; drafts and in-flight saves on dedicated forms are protected. Successful local research creation returns to the list without a stale discard warning, while failed creation retains the form. Announcement creation/editing has Announcements as its owning list; saved draft actions remain available. Authentication keeps its own shell and uses shared brief guidance dialogs.
+
+The active-module inventory and intentional contextual exceptions are recorded in docs/superpowers/specs/2026-10-11-global-navigation-audit.md. This requirement does not change workflow permissions or turn every inline setting/preview into a full page.
+
+
+## Record navigation consistency (2026-10-11)
+
+- Substantial records, reviews, comparisons and forms use an independent main-content page with one labelled Back link above its record/form heading. The originating module heading, tab bar, summary and filters appear on lists only. Use existing portal typography; no breadcrumbs.
+- Review/View share a detail layout and retain API-authorised actions, documents and recorded progress. Return preserves the originating list context; existing notification/deep links remain supported. Local editors keep their owning workspace mounted but inaccessible while open and use a transient history entry without storing record payloads.
+- Brief previews/confirmations use the shared accessible modal. Changed drafts require discard confirmation; in-flight mutations prevent navigation. Header refresh actions are unavailable while a draft or mutation is active. Successful saves may return immediately without a discard prompt. This policy supersedes older requirements prescribing drawers/modals for full record review and large forms. See docs/superpowers/specs/2026-10-11-record-navigation-design.md for migration scope.
+
+## Lecturer record lists (2026-10-11)
+
+- All three record tables use the portal's existing table typography and shared data-table/data-th/data-td/data-td-strong styles; no separate font-size, weight or heading casing rules are introduced.
+
+- Supersedes the summary-card list presentation below: Appointment requests and Research changes use aligned desktop tables with Student, Request type, Submitted, Current stage, Waiting at this stage and Action columns. Waiting time is recorded calendar days at the current stage; final outcomes display a dash and unavailable waiting data displays Not recorded.
+- My supervisees uses the same responsive table presentation with Student, Programme, Your role and Action. The role is determined from the signed-in lecturer's recorded active team membership, independently of decision/nomination capabilities. Research titles remain searchable and available in supervision details.
+- Narrow screens show stacked records with explicit field labels and one action per record. Request lists omit programme names and request references; these remain available in details with a Copy reference action. Appointment references remain searchable.
+- All three lists offer 10, 25 or 50 rows per page, defaulting to 10 and returning to the first page when the size changes. Appointment/research page sizes persist with their existing URL filter context. Existing workflow grouping, filters and authorised actions remain intact. This change does not introduce server-side pagination or change API permissions.
+
+## Lecturer workspace presentation consistency (2026-10-11)
+
+- Appointment requests, My supervisees and Research changes share one page-level Refresh action. Requests/History switches sit beside the section title and description; all filters share one bar below that header.
+- Summary cards lead with the student name and matric/programme details, followed by the request type, submitted date/reference and recorded status/age where relevant. Actions align on the right and wrap on narrow screens. Use Review request for authorised decisions, View request for tracking/history, and View supervision for supervisees.
+- Use consistent Malaysia dates, calendar-day waiting wording, Recorded progress headings, profile links and confirmation controls. All three lists use ten records per page with the same pagination layout. Domain-specific actions and permissions remain intact.
+
+## Lecturer request workspace restructuring (2026-10-11)
+
+- Lecturer Supervisor navigation uses Appointment requests, My supervisees and Research changes. Appointment requests combines primary and supporting records in one searchable list with type, actual-status, semester/date filters and local Requests/History views. Research changes has its own independent Requests/History views and student/search filters.
+- Requests retains all ongoing records, grouped by Needs your review, Awaiting Coordinator approval and other ongoing work. Only permitted decisions count toward review badges; cancel-only nominations and ineligible participants do not inflate them. History contains final approved/rejected/cancelled request outcomes. Supporting appointment endings/replacements remain a separately identified activity section.
+- Lecturer acceptance/endorsement is distinct from final approval. Lecturers can follow their authorised requests while Coordinator approval is pending, with recorded stages, dates, reasons and informational calendar-day waiting ages. No estimates, progress percentages or additional approval authority are introduced.
+- Both appointment types open review panels with their existing permitted actions, documents and audit information. Lecturer research/supervision details retain dedicated routes, a stable module heading and contextual Back below module navigation. This supersedes the older Lecturer Back-above-navigation requirement; Student and embedded Office/Coordinator conventions remain unchanged.
+- View, search, filters, pagination and research student selection survive detail/return navigation and reload through URL state. Current research profiles and saved revisions remain separate from request outcome history.
+
 ## Separate Supervisor workspace pages (2026-10-10)
 
 - Student Supervisor navigation separates My supervisors, Applications and Research changes; pending applications are separate from completed history. The overview retains current members, a compact pending-request status and useful visible guidance.

@@ -16,6 +16,59 @@ from .models import (
 class CoSupervisionTests(APITestCase):
     setUp = fixture.AppointmentLifecycleTests.setUp
 
+    def test_student_sees_appointment_results_without_nomination_workflow(self):
+        from announcements.models import Notification
+
+        nomination = self.nominate().data["id"]
+        self.client.force_authenticate(user=self.student_user)
+        for path in ["/api/appointments/co-supervisor/", f"/api/appointments/co-supervisor/students/{self.student.pk}/"]:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["nominations"], [])
+            self.assertNotIn("Additional subject expertise", str(response.data))
+            for team in response.data.get("teams", [response.data]):
+                self.assertEqual(team["nominations"], [])
+                self.assertFalse(any(event["id"].startswith("co-nomination-") for event in team["timeline"]))
+        self.assertFalse(Notification.objects.filter(recipient=self.student_user, record_type="CO_SUPERVISOR_NOMINATION").exists())
+        self.decide(nomination, "accept", self.new_supervisor)
+        self.assertFalse(Notification.objects.filter(recipient=self.student_user, record_type="CO_SUPERVISOR_NOMINATION").exists())
+        self.decide(nomination, "approve", self.coordinator)
+        self.client.force_authenticate(user=self.student_user)
+        result = self.client.get("/api/appointments/co-supervisor/").data
+        self.assertEqual(result["nominations"], [])
+        appointment = result["appointments"][0]
+        self.assertEqual(appointment["supervisor"]["id"], self.new_supervisor.pk)
+        self.assertEqual(appointment["history"], [])
+        self.assertIsNone(appointment["nominationId"])
+        notices = self.client.get("/api/notifications/").data
+        self.assertEqual(len(notices), 1)
+        self.assertEqual(notices[0]["title"], "Supporting supervisor appointed")
+        self.assertNotIn("Additional subject expertise", str(notices))
+        self.client.force_authenticate(user=self.office)
+        self.client.post(f"/api/appointments/co-supervisor/appointments/{appointment['id']}/end/", {"reason": "Internal staff explanation", "outcome": "COMPLETED"}, format="json")
+        self.client.force_authenticate(user=self.student_user)
+        result = self.client.get("/api/appointments/co-supervisor/").data
+        self.assertEqual(result["appointments"][0]["status"], "ENDED")
+        self.assertNotIn("Internal staff explanation", str(result))
+        self.assertNotIn("Internal staff explanation", str(self.client.get("/api/notifications/").data))
+        self.client.force_authenticate(user=self.supervisor)
+        staff = self.client.get("/api/appointments/co-supervisor/").data
+        self.assertEqual(staff["nominations"][0]["justification"], "Additional subject expertise.")
+        self.assertEqual(staff["appointments"][0]["endReason"], "Internal staff explanation")
+
+    def test_legacy_student_notifications_do_not_expose_staff_workflow(self):
+        from announcements.models import Notification
+
+        hidden = Notification.objects.create(recipient=self.student_user, title="Nomination updated", message="Private nomination", record_type="CO_SUPERVISOR_NOMINATION", record_id="1")
+        ended = Notification.objects.create(recipient=self.student_user, title="Appointment ended", message="Private end reason", summary="Internal summary", record_type="CO_SUPERVISOR_APPOINTMENT", record_id="1")
+        self.client.force_authenticate(user=self.student_user)
+        feed = self.client.get("/api/notifications/")
+        self.assertEqual(len(feed.data), 1)
+        self.assertNotIn("Private", str(feed.data))
+        self.assertNotIn("Internal summary", str(feed.data))
+        self.assertEqual(self.client.post(f"/api/notifications/{hidden.pk}/read/").status_code, 404)
+        self.assertNotIn("Private end reason", str(self.client.post(f"/api/notifications/{ended.pk}/read/").data))
+
     def _lecturer(self, email, staff_no, *, supervisor=False, panel=False):
         return fixture.AppointmentLifecycleTests._lecturer(
             self, email, staff_no, supervisor=supervisor or panel, panel=panel

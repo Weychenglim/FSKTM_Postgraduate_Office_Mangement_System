@@ -27,7 +27,7 @@ import {
 import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge } from './PortalPrimitives';
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
@@ -102,6 +102,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   
   // Upload Timeline Drawer Slide-in state
   const [uploadDrawerOpen, setUploadDrawerOpen] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const savingEntryRef = useRef(false);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -235,6 +237,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState(false);
+  const deletingEntryRef = useRef(false);
   const [entryToDelete, setEntryToDelete] = useState<{id: string, name: string} | null>(null);
 
   const handleApplyFilters = () => {
@@ -255,6 +259,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   };
 
   const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
+    if (savingEntryRef.current) return;
+    savingEntryRef.current = true; setSavingEntry(true);
     createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
@@ -264,10 +270,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .catch((e) => {
         triggerToast(e instanceof Error ? e.message : 'Failed to create timeline entry.');
-      });
+      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
   };
 
   const handleEditEntry = (updated: Omit<TimelineEntry, 'status'>) => {
+    if (savingEntryRef.current) return;
+    savingEntryRef.current = true; setSavingEntry(true);
     updateTimelineEntry(updated.id, updated)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
@@ -278,7 +286,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .catch((e) => {
         triggerToast(e instanceof Error ? e.message : 'Failed to update timeline entry.');
-      });
+      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
@@ -286,7 +294,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   };
 
   const confirmDeleteEntry = () => {
-    if (!entryToDelete) return;
+    if (!entryToDelete || deletingEntryRef.current) return;
+    deletingEntryRef.current = true; setDeletingEntry(true);
     const { id, name } = entryToDelete;
     deleteTimelineEntry(id)
       .then(() => {
@@ -299,6 +308,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .finally(() => {
         setEntryToDelete(null);
+        deletingEntryRef.current = false; setDeletingEntry(false);
       });
   };
 
@@ -739,6 +749,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* Add Timeline Slide-in Drawer */}
       <AddTimelineEntryDrawer
+        busy={savingEntry}
         isOpen={addDrawerOpen}
         onClose={() => setAddDrawerOpen(false)}
         onSave={handleAddEntry}
@@ -749,6 +760,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* Edit Timeline Slide-in Drawer */}
       <EditTimelineEntryDrawer
+        busy={savingEntry}
         isOpen={editDrawerOpen}
         onClose={() => {
           setEditDrawerOpen(false);
@@ -771,26 +783,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       />
 
       {/* Delete Confirmation Modal */}
-      {entryToDelete && (
-        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-left animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-6">
-            <div>
-              <h3 className="section-label mb-2">Delete Timeline Entry</h3>
-              <p className="card-description">
-                Are you sure you want to permanently remove <span className="card-value">"{entryToDelete.name}"</span> from the postgraduate master timeline? This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <PortalButton variant="ghost" onClick={() => setEntryToDelete(null)}>
-                Cancel
-              </PortalButton>
-              <PortalButton variant="danger" icon={Trash2} onClick={confirmDeleteEntry}>
-                Delete Entry
-              </PortalButton>
-            </div>
-          </div>
-        </div>
-      )}
+      <PortalConfirmModal isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" isLoading={deletingEntry} onConfirm={confirmDeleteEntry} onCancel={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>
   );

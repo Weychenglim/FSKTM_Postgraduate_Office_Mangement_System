@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -34,6 +35,7 @@ export interface StudentData {
 
 interface RecommendPanelMemberDrawerProps {
   isOpen: boolean;
+  busy?: boolean;
   onClose: () => void;
   student: StudentData;
   candidates: PanelCandidate[];
@@ -43,6 +45,7 @@ interface RecommendPanelMemberDrawerProps {
 
 export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = ({
   isOpen,
+  busy = false,
   onClose,
   student,
   candidates,
@@ -55,6 +58,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     useState<PanelCandidate | null>(
       candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit) ?? null,
     );
+  const initialCandidate = useRef(selectedLecturer?.staffId);
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [replacementReason, setReplacementReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -127,7 +131,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (!canSubmitRecommendation || !selectedLecturer) return;
+    if (busy || !canSubmitRecommendation || !selectedLecturer) return;
     onSubmit(
       recommendationNotes.trim(),
       selectedLecturer.staffId,
@@ -135,53 +139,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     );
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div id="recommend-panel-drawer-container" className="fixed inset-0 z-50 flex justify-end overflow-hidden">
-          {/* Backdrop screen dimmer */}
-          <motion.div
-            id="recommend-panel-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-brand-navy"
-            onClick={onClose}
-          />
-
-          {/* Drawer content sliding container */}
-          <motion.div
-            id="recommend-panel-slideover"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-            className="relative w-full max-w-xl bg-white shadow-sm h-screen flex flex-col justify-between overflow-hidden"
-          >
-            {/* 1. Header with Close control */}
-            <div 
-              id="recommend-panel-header" 
-              className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0"
-            >
-              <h2 id="drawer-main-title" className="section-heading font-sans">
-                {replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'}
-              </h2>
-              <button
-                id="drawer-close-btn"
-                type="button"
-                onClick={onClose}
-                className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition cursor-pointer"
-                aria-label="Close drawer"
-              >
-                <X className="w-4 h-4 stroke-[2.5]" />
-              </button>
-            </div>
-
-            {/* 2. Scrollable Body containing sections */}
-            <div 
-              id="recommend-panel-body" 
-              className="flex-grow overflow-y-auto px-6 py-6 space-y-7 text-left font-sans text-xs scrollbar-thin"
-            >
+  if (!isOpen) return null;
+  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel="Back to Panel Appointments" onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer?.staffId !== initialCandidate.current || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
               {/* SECTION A: Student Summary Card at Top */}
               <div 
                 id="recommend-student-card" 
@@ -486,26 +445,15 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                   rows={4.5}
                 />
               </div>
-            </div>
 
-            {/* 3. Action Buttons Sticky Bottom Bar */}
-            <div 
-              id="recommend-panel-footer" 
-              className="p-6 border-t border-slate-100 bg-white shrink-0 shadow-3xs"
-            >
               <button
                 id="submit-recommendation-btn"
                 type="submit"
                 onClick={handleFormSubmit}
-                disabled={!canSubmitRecommendation}
+                disabled={busy || !canSubmitRecommendation}
                 className="w-full py-3.5 bg-brand-navy hover:bg-slate-850 disabled:bg-slate-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all select-none cursor-pointer text-center"
               >
                 Submit to Panel
               </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+            </section></RecordPage>;
 };

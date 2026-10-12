@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -18,7 +19,7 @@ import {
   Building
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, ProgressBar, RemovableTag, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalToast, ProgressBar, RemovableTag, StatusBadge } from './PortalPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
 
 // Define Props for parent-level control
@@ -93,6 +94,8 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   ]);
 
   // Helper toaster triggers
+  const initial = useRef(JSON.stringify({ studentId, category, selectedModule, semester, notes, tags, access, uploadedFile }));
+  const dirty = !!tagInput || JSON.stringify({ studentId, category, selectedModule, semester, notes, tags, access, uploadedFile }) !== initial.current;
   const [toast, setToast] = useState<string | null>(null);
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -237,17 +240,17 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   };
 
   return (
-    <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
-      
-      <PortalToast message={toast} />
-
-      <PageHeader
+      <RecordPage
         title="Upload New Document"
         subtitle="Add files to the central repository with metadata and tags."
         backLabel="Back to File Repository"
         onBack={onBack}
-        className="mb-6"
-      />
+        pageKey="file-upload-document" dirty={dirty}
+      >{requestBack => (
+
+    <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
+
+      <PortalToast message={toast} />
 
       {/* Responsive Grid layout for side column info */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -487,7 +490,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
             <div className="flex md:items-center justify-between gap-4 pt-6 border-t border-slate-100 flex-col md:flex-row">
               <PortalButton
                 type="button"
-                onClick={onBack}
+                onClick={requestBack}
                 variant="secondary"
                 size="lg"
                 fullWidth
@@ -648,7 +651,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               </span>
               <PortalButton
                 type="button" 
-                onClick={onBack}
+                onClick={requestBack}
                 variant="ghost"
                 size="sm"
                 className="px-2 py-1 text-blue-600 hover:text-blue-700"
@@ -690,5 +693,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
       </div>
 
     </div>
+    )}</RecordPage>
   );
 };

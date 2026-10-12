@@ -46,6 +46,7 @@ class CoSupervisionTrackingTests(APITestCase):
                 for item in build_dashboard_tasks(self.new_panel)
             )
         )
+        self.assertFalse(any(item["recordType"] == "CO_SUPERVISOR_NOMINATION" for item in build_dashboard_tasks(self.student_user)))
         self.assertFalse(
             any(
                 item["recordType"] == "CO_SUPERVISOR_NOMINATION"

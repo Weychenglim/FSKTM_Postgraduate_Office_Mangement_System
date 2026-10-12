@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -419,34 +420,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
       </div>
 
       {/* INTERACTIVE DETAIL VIEW POPUP MODAL (Satisfies "Lecturer can view request details from the Action column") */}
-      <AnimatePresence>
-        {selectedRecord && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setSelectedRecord(null)}
-            />
-
-            {/* Modal Body Card layout */}
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative bg-white rounded-2xl p-7 max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-sm border border-slate-100 z-10 text-left font-sans"
-            >
-              {/* Top dismissal btn */}
-              <button
-                onClick={() => setSelectedRecord(null)}
-                className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="space-y-5">
+      {selectedRecord ? <RecordPage title="Appointment request" backLabel="Back to Request History" onBack={() => setSelectedRecord(null)} pageKey={`supervisor-history:${selectedRecord.requestId}`}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
                 <div>
                   <span className="card-label text-slate-400 uppercase tracking-wider block">
                     HISTORIC DISPOSITION CARD
@@ -537,11 +511,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                   </button>
                 </div>
 
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </section></RecordPage> : null}
 
     </div>
   );

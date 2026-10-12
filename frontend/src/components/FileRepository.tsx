@@ -1,3 +1,5 @@
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -67,16 +69,16 @@ export const FileRepository: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [selectedFileId, setSelectedFileId] = useState<string>('file_1');
   const [isPreviewOpen, setIsPreviewOpen] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useListState('FileRepository', 'searchTerm', '');
   
   // Tag Filter list
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useListState<string[]>('FileRepository', 'selectedTags', []);
   // Dropdown filter parameters
-  const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const [moduleFilter, setModuleFilter] = useState<string>('All');
-  const [semesterFilter, setSemesterFilter] = useState<string>('All');
-  const [fileTypeFilter, setFileTypeFilter] = useState<string>('All');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [categoryFilter, setCategoryFilter] = useListState<string>('FileRepository', 'categoryFilter', 'All');
+  const [moduleFilter, setModuleFilter] = useListState<string>('FileRepository', 'moduleFilter', 'All');
+  const [semesterFilter, setSemesterFilter] = useListState<string>('FileRepository', 'semesterFilter', 'All');
+  const [fileTypeFilter, setFileTypeFilter] = useListState<string>('FileRepository', 'fileTypeFilter', 'All');
+  const [statusFilter, setStatusFilter] = useListState<string>('FileRepository', 'statusFilter', 'All');
 
   // Multi Selection state
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
@@ -84,7 +86,7 @@ export const FileRepository: React.FC = () => {
   // Actions Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [currentSubView, setCurrentSubView] = useState<'repository' | 'upload'>('repository');
-  const [showArchivedOnly, setShowArchivedOnly] = useState(false);
+  const [showArchivedOnly, setShowArchivedOnly] = useListState('FileRepository', 'showArchivedOnly', false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form states for manual uploading entry simulation
@@ -300,36 +302,6 @@ export const FileRepository: React.FC = () => {
   // Calculate generic aggregate stats to feed upper metadata columns
   const activeCount = files.filter(f => f.status === 'Active').length;
   const archivedCount = files.filter(f => f.status === 'Archived').length;
-
-  if (currentSubView === 'upload') {
-    return (
-      <UploadNewDocument 
-        onBack={() => setCurrentSubView('repository')}
-        onUploadSuccess={(newFile) => {
-          const generatedId = `file_${Date.now()}`;
-          const newDocItem: FileItem = {
-            id: generatedId,
-            name: newFile.name,
-            studentId: newFile.studentId,
-            category: newFile.category,
-            sem: newFile.semester,
-            uploadedBy: 'Office Staff/Admin',
-            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-            size: '4.2 MB',
-            status: 'Active',
-            tags: newFile.tags,
-            moduleName: newFile.category === 'Administrative' ? 'Administrative' : newFile.name.substring(0, 20),
-            fileType: newFile.fileType,
-            description: newFile.description
-          };
-          setFiles(prev => [newDocItem, ...prev]);
-          setSelectedFileId(generatedId);
-          setCurrentSubView('repository');
-          triggerToast(`Document "${newFile.name}" has been successfully uploaded & logged.`);
-        }}
-      />
-    );
-  }
 
   return (
     <div id="file-repository-workspace" className="font-sans text-brand-navy text-xs">
@@ -1048,35 +1020,7 @@ export const FileRepository: React.FC = () => {
       </div>
 
       {/* Manual upload simulation dialog modal overlay */}
-      {createPortal(
-        <AnimatePresence>
-        {isUploadOpen && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans text-xs text-left">
-            {/* Backdrop Dismiss */}
-            <div className="absolute inset-0" onClick={() => setIsUploadOpen(false)} />
-
-            {/* Modal Body */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="bg-white rounded-2xl max-w-md w-full p-6 shadow-sm relative z-10 border border-slate-100 text-left font-sans"
-            >
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 select-none">
-                <div className="flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-indigo-500" />
-                  <h3 className="section-label">
-                    Upload New File
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsUploadOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+      {isUploadOpen ? <RecordPage title="Upload file" backLabel="Back to File Repository" onBack={() => setIsUploadOpen(false)} pageKey={"file-upload"} dirty={!!newFileName.trim() || !!newStudentId.trim() || newCategory !== 'Coursework' || newSem !== '2023/24 S1' || newTagsStr !== 'Assignment, Final' || newFileType !== 'pdf' || !!newDescription.trim()}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
               <form onSubmit={handleCreateFile} className="space-y-4">
                 
@@ -1182,7 +1126,7 @@ export const FileRepository: React.FC = () => {
                 <div className="flex items-center gap-2.5 pt-3">
                   <button
                     type="button"
-                    onClick={() => setIsUploadOpen(false)}
+                    onClick={requestBack}
                     className="flex-1 py-2.5 border border-slate-350 bg-white hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer"
                   >
                     Cancel
@@ -1196,13 +1140,35 @@ export const FileRepository: React.FC = () => {
                 </div>
 
               </form>
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </section>}</RecordPage> : null}
 
+      {currentSubView === 'upload' ? (
+      <UploadNewDocument
+        onBack={() => setCurrentSubView('repository')}
+        onUploadSuccess={(newFile) => {
+          const generatedId = `file_${Date.now()}`;
+          const newDocItem: FileItem = {
+            id: generatedId,
+            name: newFile.name,
+            studentId: newFile.studentId,
+            category: newFile.category,
+            sem: newFile.semester,
+            uploadedBy: 'Office Staff/Admin',
+            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+            size: '4.2 MB',
+            status: 'Active',
+            tags: newFile.tags,
+            moduleName: newFile.category === 'Administrative' ? 'Administrative' : newFile.name.substring(0, 20),
+            fileType: newFile.fileType,
+            description: newFile.description
+          };
+          setFiles(prev => [newDocItem, ...prev]);
+          setSelectedFileId(generatedId);
+          setCurrentSubView('repository');
+          triggerToast(`Document "${newFile.name}" has been successfully uploaded & logged.`);
+        }}
+      />
+      ) : null}
     </div>
   );
 };

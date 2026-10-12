@@ -235,12 +235,13 @@ const coordinatorSource = source('CoordinatorSupervisorApprovals.tsx');
 const lecturerSource = source('LecturerSupervisorAppointments.tsx');
 const studentSource = source('StudentSupervisorAppointment.tsx');
 
-assert.match(officeSource, />Waiting</);
+assert.match(officeSource, /Waiting at this stage/);
+assert.match(officeSource, /Current stage/);
 assert.match(officeSource, /Longest waiting/);
 assert.doesNotMatch(officeSource, /pending over 7 days/i);
 assert.doesNotMatch(officeSource, /4 records in queue/i);
 assert.match(officeSource, /formatSupervisorWaiting/);
-assert.match(officeSource, /workload alert records/i);
+assert.match(officeSource, /View workload alerts/i);
 assert.match(coordinatorSource, /orderSupervisorQueueOldestFirst/);
 assert.match(coordinatorSource, /formatSupervisorWaiting/);
 assert.match(lecturerSource, /orderSupervisorQueueOldestFirst/);

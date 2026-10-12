@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -222,11 +223,8 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
     setIsCancelConfirmOpen(true);
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <PortalConfirmModal
+  if (!isOpen) return null;
+  return <RecordPage title="Panel recommendation" backLabel="Back to Submitted recommendations" onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5"><PortalConfirmModal
             isOpen={isCancelConfirmOpen}
             title="Cancel panel recommendation?"
             message="This workflow attempt will be closed permanently and cannot be restored. A replacement recommendation can be submitted later if needed."
@@ -237,43 +235,6 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
             onConfirm={performCancellation}
             onCancel={() => setIsCancelConfirmOpen(false)}
           />
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.35 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-brand-navy z-[80] cursor-default"
-            onClick={onClose}
-          />
-
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 210 }}
-            className="fixed top-0 right-0 h-screen w-full max-w-xl bg-white border-l border-slate-100 shadow-sm z-[90] flex flex-col justify-between"
-          >
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center select-none bg-slate-50/50">
-              <div>
-                <h2 className="section-label">
-                  Recommendation Details
-                </h2>
-                <p className="card-description mt-1">
-                  Confirmation route and submitted panel recommendation record
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-lg bg-white border border-slate-200/70 hover:bg-slate-50 hover:text-rose-500 text-slate-400 transition cursor-pointer flex items-center justify-center shadow-3xs"
-                title="Close details"
-              >
-                <X className="w-4 h-4 stroke-[2.2]" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 font-sans text-left text-xs">
               <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-3xs flex gap-4 items-center">
                 <div className="w-[52px] h-[52px] rounded-xl bg-brand-navy text-white font-black text-sm flex items-center justify-center shrink-0 tracking-wider shadow-sm select-none">
                   {getInitials(recommendation.studentName)}
@@ -505,20 +466,5 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                   </button>
                 </div>
               )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-end select-none bg-slate-50/50">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2.5 bg-white border border-[#e2e8f0] hover:bg-slate-50 text-slate-800 font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-3xs"
-              >
-                Close Details
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
+            </section></RecordPage>;
 };

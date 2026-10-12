@@ -45,6 +45,7 @@ interface StudentProgressDossierProps {
   studentId?: string;
   currentUserRole: UserRole;
   onBack: () => void;
+  backLabel?: string;
   onNavigateToRoute: (route: string) => void;
 }
 
@@ -221,6 +222,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
   studentId,
   currentUserRole,
   onBack,
+  backLabel = 'Back to Dashboard',
   onNavigateToRoute,
 }) => {
   const [dossier, setDossier] = useState<StudentProgressDossierData | null>(null);
@@ -263,11 +265,11 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
     [dossier],
   );
 
-  if (loading) return <LoadingState message={currentUserRole === 'Student' ? 'Loading your academic record…' : 'Loading student progress dossier…'} />;
+  if (loading) return <div className="space-y-5"><PageHeader title={pageTitle} backLabel={backLabel} onBack={onBack} /><LoadingState message={currentUserRole === 'Student' ? 'Loading your academic record…' : 'Loading student progress dossier…'} /></div>;
   if (notFound) {
     return (
       <div className="space-y-5">
-        <PageHeader title={pageTitle} backLabel="Back" onBack={onBack} />
+        <PageHeader title={pageTitle} backLabel={backLabel} onBack={onBack} />
         <EmptyState
           title={currentUserRole === 'Student' ? 'Academic record not available' : 'Dossier not available'}
           description="The student record was not found or is outside your authorised scope."
@@ -277,7 +279,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
     );
   }
   if (error || !dossier) {
-    return <ErrorState message={error ?? 'Unable to load student progress.'} onRetry={loadDossier} />;
+    return <div className="space-y-5"><PageHeader title={pageTitle} backLabel={backLabel} onBack={onBack} /><ErrorState message={error ?? 'Unable to load student progress.'} onRetry={loadDossier} /></div>;
   }
 
   const internal = dossier.visibility === 'INTERNAL';
@@ -295,7 +297,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
         subtitle={internal
           ? 'Authorised current state and complete persisted workflow history.'
           : 'Review your supervision and panel history, semester milestones, and research changes. Upcoming deadlines and actions are on your dashboard.'}
-        backLabel={internal ? 'Back' : 'Back to Dashboard'}
+        backLabel={backLabel}
         onBack={onBack}
         actions={internal && currentUserRole === 'Office Staff/Admin' ? (
           <PortalButton icon={UsersRound} onClick={() => onNavigateToRoute(APP_ROUTES.dashboardParticipantLifecycle)}>

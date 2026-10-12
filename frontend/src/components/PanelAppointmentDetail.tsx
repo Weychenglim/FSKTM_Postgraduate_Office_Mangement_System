@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -12,7 +13,7 @@ import {
   GraduationCap,
   Users,
 } from 'lucide-react';
-import { PageHeader, StatusBadge } from './PortalPrimitives';
+import { StatusBadge } from './PortalPrimitives';
 import { PanelRecord } from '../types';
 import { endPanelAppointment } from '../services';
 import { AppointmentEndControl } from './AppointmentEndControl';
@@ -154,18 +155,21 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
   const panelAssigned = record?.panelMember && !['Not Assigned', 'Pending'].includes(record.panelMember);
 
   return (
-    <div id="panel-appointment-detail-root" className="space-y-8 animate-fade-in text-left font-sans">
-      <PageHeader
+      <RecordPage
         title="Panel Appointment Detail"
         subtitle="View student panel appointment details, appointment status, related records, and supporting documents."
         backLabel="Back to Panel Appointment Management"
         onBack={onBack}
-        subtitleClassName="max-w-2xl"
         actions={(
           <div className="flex flex-wrap items-start justify-end gap-2">
             <span className="inline-flex items-center px-4 py-2 bg-brand-navy text-white text-[11px] font-black tracking-widest rounded-lg uppercase">
               Session {session}
             </span>
+          </div>
+        )}
+      >
+
+    <div id="panel-appointment-detail-root" className="space-y-8 animate-fade-in text-left font-sans">
             {record?.appointmentLifecycle?.status === 'ACTIVE' && (
               <AppointmentEndControl
                 label="Panel Appointment"
@@ -179,10 +183,6 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
                 }}
               />
             )}
-          </div>
-        )}
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
         <div className="lg:col-span-4 space-y-6 md:space-y-8">
           <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-3xs flex flex-col items-start space-y-5">
@@ -390,5 +390,6 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
         </div>
       )}
     </div>
+    </RecordPage>
   );
 };

@@ -5,6 +5,7 @@ import {
   routeForPanelRecommendation,
   routeForPanelRecord,
   routeForSupervisorApplication,
+  routeForSupervisorResearchRequest,
 } from '../constants/routes';
 import type {
   WorkflowAgeingMetadata,
@@ -118,6 +119,7 @@ export const resolveDashboardTaskRoute = (task: DashboardTask): string => {
   }
 
   if (task.targetModule === 'SUPERVISOR_APPOINTMENTS') {
+    if (task.recordType === 'RESEARCH_AMENDMENT' && task.recordId) return routeForSupervisorResearchRequest(task.recordId);
     return task.recordType === 'SUPERVISOR_APPLICATION' && task.recordId
       ? routeForSupervisorApplication(task.recordId)
       : APP_ROUTES.supervisorAppointments;

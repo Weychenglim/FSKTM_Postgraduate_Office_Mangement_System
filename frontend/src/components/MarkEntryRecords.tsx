@@ -1,3 +1,4 @@
+import { useListState } from './ListState';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -51,17 +52,17 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   }, [loadRecords]);
 
   // Form Filter State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
-  const [statusFilter, setStatusFilter] = useState('All Statuses');
-  const [panelFilter, setPanelFilter] = useState('All Members');
+  const [searchQuery, setSearchQuery] = useListState('MarkEntryRecords', 'searchQuery', '');
+  const [programmeFilter, setProgrammeFilter] = useListState('MarkEntryRecords', 'programmeFilter', 'All Programmes');
+  const [semesterFilter, setSemesterFilter] = useListState('MarkEntryRecords', 'semesterFilter', 'All Semesters');
+  const [statusFilter, setStatusFilter] = useListState('MarkEntryRecords', 'statusFilter', 'All Statuses');
+  const [panelFilter, setPanelFilter] = useListState('MarkEntryRecords', 'panelFilter', 'All Members');
 
   // Interactive pill filter selection mapping directly to Status Pill Buttons
-  const [activeTab, setActiveTab] = useState<MarkRecordStatusTab>(initialStatusTab);
+  const [activeTab, setActiveTab] = useListState<MarkRecordStatusTab>('MarkEntryRecords', 'activeTab', initialStatusTab);
 
   // Active query parameters (applied on clicking 'Apply Filters')
-  const [appliedFilters, setAppliedFilters] = useState({
+  const [appliedFilters, setAppliedFilters] = useListState('MarkEntryRecords', 'appliedFilters', {
     search: '',
     programme: 'All Programmes',
     semester: 'All Semesters',
@@ -70,7 +71,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   });
 
   // Current page
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('MarkEntryRecords', 'currentPage', 1);
   const itemsPerPage = 5;
 
   // Notification system
@@ -81,10 +82,11 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     setTimeout(() => setToast(null), 3000);
   };
 
+  const [routeStatus, setRouteStatus] = useListState('MarkEntryRecords', 'routeStatus', initialStatusTab);
   useEffect(() => {
-    setActiveTab(initialStatusTab);
-    setCurrentPage(1);
-  }, [initialStatusTab]);
+    if (routeStatus !== initialStatusTab) { setActiveTab(initialStatusTab); setCurrentPage(1); }
+    setRouteStatus(initialStatusTab);
+  }, [initialStatusTab, routeStatus, setActiveTab, setCurrentPage, setRouteStatus]);
 
   // Run Apply filter logic
   const handleApplyFilters = () => {

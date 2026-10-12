@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -16,7 +17,6 @@ import { getMarkRecordById } from '../services';
 import type { MarkRecordDetail } from '../types';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import {
-  PageHeader,
   PortalCard,
   StatusBadge,
   getStatusBadgeTone,
@@ -86,22 +86,21 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   }, [loadRecord]);
 
   if (loading) {
-    return <LoadingState message="Loading mark record..." />;
+    return <RecordPage title="Mark Entry Record Detail" backLabel="Back to Mark Entry Records" onBack={onBack}><LoadingState message="Loading mark record..." /></RecordPage>;
   }
 
   if (error || !record) {
     return (
-      <div className="space-y-6">
-        <PageHeader
+        <RecordPage
           title="Mark Entry Record Detail"
           backLabel="Back to Mark Entry Records"
           onBack={onBack}
-        />
+        >
         <ErrorState
           message={error || 'Mark record was not found.'}
           onRetry={loadRecord}
         />
-      </div>
+        </RecordPage>
     );
   }
 
@@ -109,8 +108,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   const totalMark = record.entry.totalMark || '—';
 
   return (
-    <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
-      <PageHeader
+      <RecordPage
         title="Mark Entry Record Detail"
         subtitle={`${record.recordId} · persisted evaluator submission and audit history`}
         backLabel="Back to Mark Entry Records"
@@ -120,13 +118,14 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
             {record.assignment.lifecycleStatus === 'ACTIVE' ? statusLabel : record.assignment.lifecycleStatus === 'PAUSED' ? 'Paused' : 'Retired'}
           </StatusBadge>
         )}
-      />
+      >
 
       {notice ? <p role="status" className="card-description rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p> : null}
       <SubmittedMarksActions key={`${record.recordId}:${record.officeActions?.version}`} record={record}
         onChanged={async message => {setNotice(message); await loadRecord();}}
         onReload={async () => {setNotice(null); await loadRecord();}}/>
 
+    <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
       <div className="grid grid-cols-2 lg:grid-cols-4 border-y border-slate-200">
         {[
           ['Total mark', `${totalMark} / ${record.rubric.targetMark}`],
@@ -325,5 +324,6 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         </aside>
       </div>
     </div>
+    </RecordPage>
   );
 };

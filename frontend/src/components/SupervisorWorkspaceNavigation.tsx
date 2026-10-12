@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router';
 import { supervisorWorkspaceLinks, supervisorWorkspaceSection } from '../utils/supervisorWorkspace';
+import type { SupervisorWorkspaceRole } from '../utils/supervisorWorkspace';
 
-export function SupervisorWorkspaceNavigation({ role }: { role: 'Student' | 'Lecturer' }) {
+export function SupervisorWorkspaceNavigation({ role }: { role: SupervisorWorkspaceRole }) {
   const { pathname } = useLocation();
   const selected = supervisorWorkspaceSection(role, pathname);
   return <nav aria-label="Supervisor workspace" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">

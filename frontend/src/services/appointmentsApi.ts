@@ -401,6 +401,10 @@ export async function getCoordinatorSupervisorRecords(): Promise<SupervisorAppli
   return request<SupervisorApplicationRecord[]>('/appointments/supervisor/coordinator-records/');
 }
 
+export async function getCoordinatorSupervisorHistory(): Promise<SupervisorApplicationRecord[]> {
+  return request<SupervisorApplicationRecord[]>('/appointments/supervisor/coordinator-history/');
+}
+
 export async function approveSupervisorApplicationByCoordinator(
   id: number | string,
 ): Promise<SupervisorApplicationRecord> {

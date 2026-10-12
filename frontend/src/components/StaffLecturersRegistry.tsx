@@ -1,3 +1,5 @@
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -414,15 +416,15 @@ export const StaffLecturersRegistry: React.FC<{
   }, [loadStaff]);
 
   // Tab state (sub-tabs)
-  const [activeSubTab, setActiveSubTab] = useState<'Office Staff' | 'Lecturer' | 'Programme Coordinator'>('Office Staff');
+  const [activeSubTab, setActiveSubTab] = useListState<'Office Staff' | 'Lecturer' | 'Programme Coordinator'>('StaffLecturersRegistry', 'activeSubTab', 'Office Staff');
 
   // Filter and search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [searchQuery, setSearchQuery] = useListState('StaffLecturersRegistry', 'searchQuery', '');
+  const [selectedDept, setSelectedDept] = useListState('StaffLecturersRegistry', 'selectedDept', 'All');
+  const [selectedStatus, setSelectedStatus] = useListState('StaffLecturersRegistry', 'selectedStatus', 'All');
 
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useListState('StaffLecturersRegistry', 'currentPage', 1);
   const itemsPerPage = 3; // Pictured in mockup: 3 rows showing
 
   // Inner view state (list of accounts vs. Create New Account screen)
@@ -595,14 +597,9 @@ export const StaffLecturersRegistry: React.FC<{
 
       {innerView === 'create' ? (
         /* ==================== CREATE NEW ACCOUNT VIEW ==================== */
-        <RegistryLayout>
+        <RecordPage title="Create New Account" subtitle="Register a new office staff or lecturer account for the system" backLabel="Back to Staff & Lecturer Accounts" onBack={() => setInnerView('list')} pageKey="registry-create-account" dirty={!!newAccountFormData.name || !!newAccountFormData.id || !!newAccountFormData.email || !!newAccountFormData.phone || newAccountFormData.department !== 'Academic Affairs' || newAccountFormData.role !== 'Office Staff' || newAccountFormData.status !== 'Active' || !newAccountFormData.sendEmailImmediate || isCoordinatorActive}>{requestBack => <RegistryLayout>
           
-          <PageHeader
-            title="Create New Account"
-            subtitle="Register a new office staff or lecturer account for the system."
-            backLabel="Back to Staff & Lecturer Accounts"
-            onBack={() => setInnerView('list')}
-          />
+
 
           {/* Account Type Selector twin block cards */}
           <AccountTypeSelector 
@@ -818,7 +815,7 @@ export const StaffLecturersRegistry: React.FC<{
             </form>
           </FormCard>
 
-        </RegistryLayout>
+        </RegistryLayout>}</RecordPage>
       ) : (
         /* ==================== NORMAL REGISTRY LISTING DESKTOP VIEW ==================== */
         <>
@@ -1175,44 +1172,7 @@ export const StaffLecturersRegistry: React.FC<{
       )}
 
       {/* ==================== ADD NEW ACCOUNT MODAL OVERLAY ==================== */}
-      {createPortal(
-        <AnimatePresence>
-        {isAddAccountOpen && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
-            {/* Backdrop Dismiss */}
-            <div className="absolute inset-0" onClick={() => setIsAddAccountOpen(false)} />
-
-            {/* Modal Box */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
-            >
-              {/* Header */}
-              <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
-                    <UserPlus className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <h2 className="section-label text-slate-150">
-                      Add New Account
-                    </h2>
-                    <p className="card-description mt-0.5">
-                      Registry staff & lecturer onboarding
-                    </p>
-                  </div>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setIsAddAccountOpen(false)}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="w-4.5 h-4.5" />
-                </button>
-              </div>
+      {isAddAccountOpen ? <RecordPage title="Add account" backLabel="Back to Staff & Lecturer Accounts" onBack={() => setIsAddAccountOpen(false)} pageKey={"registry-add-account"} dirty={!!newAccountFormData.name.trim() || !!newAccountFormData.id.trim() || !!newAccountFormData.email.trim() || !!newAccountFormData.phone.trim() || newAccountFormData.department !== 'Academic Affairs' || newAccountFormData.role !== 'Office Staff' || newAccountFormData.status !== 'Active' || !newAccountFormData.sendEmailImmediate}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
               {/* Form Content */}
               <form onSubmit={handleAddAccountSubmit} className="flex-1 flex flex-col">
@@ -1336,7 +1296,7 @@ export const StaffLecturersRegistry: React.FC<{
                 <div className="bg-slate-50 px-6 py-4 border-t border-slate-200/60 flex items-center justify-end gap-2 text-xs select-none">
                   <button
                     type="button"
-                    onClick={() => setIsAddAccountOpen(false)}
+                    onClick={requestBack}
                     className="px-4 py-2 bg-slate-200/60 hover:bg-slate-200 text-slate-650 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
                   >
                     Cancel
@@ -1349,52 +1309,10 @@ export const StaffLecturersRegistry: React.FC<{
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </section>}</RecordPage> : null}
 
       {/* ==================== VIEW ACCOUNT DETAILS MODAL OVERLAY ==================== */}
-      {createPortal(
-        <AnimatePresence>
-        {viewingStaff && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 text-left animate-fade-in">
-            {/* Backdrop Dismiss */}
-            <div className="absolute inset-0" onClick={() => setViewingStaff(null)} />
-
-            {/* Modal Box */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-sm relative z-10 border border-slate-100 flex flex-col font-sans"
-            >
-              {/* Header */}
-              <div className="bg-[#121c2e] p-5 text-white flex items-center justify-between select-none font-sans">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
-                    <Building className="w-4.5 h-4.5" />
-                  </div>
-                  <div>
-                    <h2 className="section-label text-slate-150">
-                      Account Detail Profile
-                    </h2>
-                    <p className="card-description mt-0.5">
-                      FSKTM administration ledger details
-                    </p>
-                  </div>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setViewingStaff(null)}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="w-4.5 h-4.5" />
-                </button>
-              </div>
+      {viewingStaff ? <RecordPage title="Account details" backLabel="Back to Staff & Lecturer Accounts" onBack={() => setViewingStaff(null)} pageKey={`registry-staff:${viewingStaff.id}`} dirty={false}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
               {/* Profile Body */}
               <div className="p-6 md:p-8 space-y-5">
@@ -1477,21 +1395,10 @@ export const StaffLecturersRegistry: React.FC<{
 
               {/* Close footer */}
               <div className="bg-slate-50 px-6 py-4 border-t border-slate-200/60 flex items-center justify-end text-xs select-none">
-                <button
-                  type="button"
-                  onClick={() => setViewingStaff(null)}
-                  className="px-4 py-2 bg-slate-205 hover:bg-slate-300 text-slate-700 rounded-xl font-bold uppercase text-[10px] transition cursor-pointer"
-                >
-                  Close Profile
-                </button>
+
               </div>
 
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </section>}</RecordPage> : null}
 
     </div>
   );

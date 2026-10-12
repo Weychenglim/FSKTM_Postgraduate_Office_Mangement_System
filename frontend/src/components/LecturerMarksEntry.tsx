@@ -1,3 +1,4 @@
+import { useListState } from './ListState';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -124,17 +125,17 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   }, [loadTasks]);
 
   // 2. Filters & Searches State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState('All Semesters');
-  const [selectedStatus, setSelectedStatus] = useState('All Statuses');
+  const [searchTerm, setSearchTerm] = useListState('LecturerMarksEntry', 'searchTerm', '');
+  const [selectedSemester, setSelectedSemester] = useListState('LecturerMarksEntry', 'selectedSemester', 'All Semesters');
+  const [selectedStatus, setSelectedStatus] = useListState('LecturerMarksEntry', 'selectedStatus', 'All Statuses');
   
   // Confirmed filter states
-  const [filteredSearch, setFilteredSearch] = useState('');
-  const [filteredSemester, setFilteredSemester] = useState('All Semesters');
-  const [filteredStatus, setFilteredStatus] = useState('All Statuses');
+  const [filteredSearch, setFilteredSearch] = useListState('LecturerMarksEntry', 'filteredSearch', '');
+  const [filteredSemester, setFilteredSemester] = useListState('LecturerMarksEntry', 'filteredSemester', 'All Semesters');
+  const [filteredStatus, setFilteredStatus] = useListState('LecturerMarksEntry', 'filteredStatus', 'All Statuses');
 
   // View state: 'dashboard' | 'history'
-  const [currentView, setCurrentView] = useState<'dashboard' | 'history'>('dashboard');
+  const [currentView, setCurrentView] = useListState<'dashboard' | 'history'>('LecturerMarksEntry', 'currentView', 'dashboard');
 
   // Active form view state
   const [activeFormTask, setActiveFormTask] = useState<EvaluationTask | null>(null);
@@ -191,8 +192,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
       <PortalToast message={toastMessage} />
 
       <AnimatePresence mode="wait">
-        {!activeFormTask ? (
-          currentView === 'history' ? (
+        {currentView === 'history' ? (
             <MarksEntryHistory
               onBack={() => setCurrentView('dashboard')}
               onSelectRecord={(task) => setActiveFormTask(task)}
@@ -507,15 +507,17 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
 
             </div>
           </motion.div>
-          )
-        ) : activeFormTask.status === 'SUBMITTED' ? (
+          )}
+        {activeFormTask ? activeFormTask.status === 'SUBMITTED' ? (
           <SubmittedMarkDetail
             task={activeFormTask}
+            backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
             onBack={() => setActiveFormTask(null)}
           />
         ) : (
           <MarkEntryDetail
             task={activeFormTask}
+            backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
             onBack={() => setActiveFormTask(null)}
             onSave={async (updatedTask) => {
               try {
@@ -538,7 +540,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               }
             }}
           />
-        )}
+        ) : null}
       </AnimatePresence>
 
     </div>

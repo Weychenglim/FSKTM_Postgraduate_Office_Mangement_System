@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -53,7 +54,7 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   // --- View state: 'create' (draft form) vs 'history' (broadcast records) ---
-  const [view, setView] = useState<'create' | 'history'>('create');
+  const [view, setView] = useState<'create' | 'history'>('history');
 
   // --- 2. Live Broadcast History Data store (loaded from announcementsApi) ---
   const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([]);
@@ -80,6 +81,8 @@ export const AnnouncementManagement: React.FC = () => {
   const [contentBody, setContentBody] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const initialDraft = useRef(JSON.stringify({headline: '', targetAudience: 'All', priorityLevel: 'Info', contentBody: '', existingAttachmentName: null}));
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // When set, the form edits an existing draft (PATCH) instead of creating one.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -121,6 +124,8 @@ export const AnnouncementManagement: React.FC = () => {
   // Shared submit: creates a new announcement, or updates the draft being edited.
   // Publishing (status Active) makes the backend fan it out to the target audience.
   const submitAnnouncement = async (status: 'Active' | 'Draft') => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const payload = {
@@ -141,16 +146,20 @@ export const AnnouncementManagement: React.FC = () => {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
       }
       resetForm();
+      setView('history');
       loadAnnouncements();
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   // Load a draft back into the form for editing.
   const handleEditDraft = (draft: AnnouncementItem) => {
+    initialDraft.current = JSON.stringify({headline: draft.title, targetAudience: audienceFromTarget(draft.target), priorityLevel: draft.priority, contentBody: draft.content ?? draft.summary ?? '', existingAttachmentName: draft.attachmentName ?? null});
+    setView('create');
     setEditingId(draft.id);
     setHeadline(draft.title);
     setContentBody(draft.content ?? draft.summary ?? '');
@@ -213,6 +222,7 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   const resetForm = () => {
+    initialDraft.current = JSON.stringify({headline: '', targetAudience: 'All', priorityLevel: 'Info', contentBody: '', existingAttachmentName: null});
     setHeadline('');
     setTargetAudience('All');
     setPriorityLevel('Info');
@@ -265,38 +275,8 @@ export const AnnouncementManagement: React.FC = () => {
 
       {view === 'create' ? (
       /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
-      <div className="space-y-6">
-
-        <PageHeader
-          title={editingId ? 'Edit Draft Announcement' : 'Draft New Announcement'}
-          subtitle={editingId ? 'Update the draft below, then save it or publish it.' : 'Craft your message for the FSKTM community.'}
-          actions={(
-            <div className="flex items-center gap-2 shrink-0">
-              {editingId && (
-                <PortalButton
-                  type="button"
-                  variant="ghost"
-                  size="md"
-                  icon={X}
-                  onClick={handleCancelEdit}
-                >
-                  Cancel Edit
-                </PortalButton>
-              )}
-              <PortalButton
-                type="button"
-                variant="secondary"
-                size="md"
-                icon={Eye}
-                onClick={() => setView('history')}
-              >
-                View Announcement History
-              </PortalButton>
-            </div>
-          )}
-        />
-
-        {/* Draft form */}
+      <RecordPage title={editingId ? 'Edit Draft Announcement' : 'Draft New Announcement'} subtitle={editingId ? 'Update the draft, then save or publish it.' : 'Craft your message for the FSKTM community.'} backLabel="Back to Announcements" onBack={() => { resetForm(); setView('history'); }} pageKey={`announcement:${editingId ?? 'new'}`} dirty={!!attachedFile || JSON.stringify({headline, targetAudience, priorityLevel, contentBody, existingAttachmentName}) !== initialDraft.current} busy={submitting}>
+      <fieldset disabled={submitting} className="space-y-6">
         <form className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5 text-left shadow-2xs">
 
             {/* Field A: Headline */}
@@ -472,6 +452,35 @@ export const AnnouncementManagement: React.FC = () => {
 
         </form>
 
+
+      </fieldset>
+      </RecordPage>
+      ) : null}
+      {/* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */}
+      <div id="announcements-history-view" className="space-y-6">
+
+        <PageHeader
+          title="Announcements"
+          subtitle="Review and manage past announcements broadcast to the FSKTM community."
+          actions={(
+            <div className="flex flex-wrap items-center gap-3">
+            <PortalButton onClick={() => { resetForm(); setView('create'); }}>New announcement</PortalButton>
+            <div className="relative max-w-xs w-full">
+              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-3.5 h-3.5 text-slate-400" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search announcements..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
+              />
+            </div>
+            </div>
+          )}
+        />
+
         {/* ==================== SAVED DRAFTS (below the form, not in history) ==================== */}
         {drafts.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-2xs">
@@ -558,32 +567,6 @@ export const AnnouncementManagement: React.FC = () => {
             </div>
           </div>
         )}
-
-      </div>
-      ) : (
-      /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
-      <div id="announcements-history-view" className="space-y-6">
-
-        <PageHeader
-          title="Announcement History"
-          subtitle="Review and manage past announcements broadcast to the FSKTM community."
-          backLabel="Back to Draft Announcement"
-          onBack={() => setView('create')}
-          actions={(
-            <div className="relative max-w-xs w-full">
-              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Search announcements..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
-              />
-            </div>
-          )}
-        />
 
           {/* 4 Summary Cards Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -764,8 +747,6 @@ export const AnnouncementManagement: React.FC = () => {
           </div>
 
         </div>
-
-      )}
 
     </div>
   );

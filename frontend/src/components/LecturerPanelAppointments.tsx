@@ -1,3 +1,5 @@
+import { RecordPage } from './RecordPage';
+import { useSearchParams } from 'react-router';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -292,6 +294,8 @@ interface PanelRecommendationReviewDrawerProps {
   onAccept?: (recommendation: PanelRecommendationDraft) => void;
   onReject?: (recommendation: PanelRecommendationDraft, reason: string) => void;
   readOnly?: boolean;
+  routed?: boolean;
+  busy?: boolean;
   onAppointmentEnded?: () => Promise<void>;
 }
 
@@ -303,6 +307,8 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   onAccept,
   onReject,
   readOnly = false,
+  routed = false,
+  busy = false,
   onAppointmentEnded,
 }) => {
   const [rejectionReason, setRejectionReason] = useState('');
@@ -327,43 +333,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
       ? 'Programme Coordinator Review'
       : 'Supervisor Tracking View';
 
-  return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden font-sans">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.45 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-slate-900"
-          onClick={onClose}
-        />
-
-        <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-          className="fixed inset-y-0 right-0 w-screen max-w-md bg-white shadow-sm z-50 border-l border-slate-100 flex flex-col overflow-hidden"
-        >
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none shrink-0">
-            <div>
-              <h3 className="section-label">
-                {reviewerLabel}
-              </h3>
-              <p className="card-description mt-1">
-                Panel recommendation confirmation route
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-slate-100/80 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
-              title="Close Drawer"
-            >
-              <X className="w-5 h-5 stroke-[2]" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+  return <RecordPage title="Panel recommendation" subtitle={reviewerLabel} backLabel="Back to Panel Appointments" onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex gap-4 items-center py-4 border-b border-slate-100 select-none">
               <div className="w-14 h-14 bg-slate-100 text-slate-500 font-black text-sm rounded-full flex items-center justify-center tracking-widest shrink-0 border border-slate-200">
                 {recommendation.studentName
@@ -517,11 +487,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
                 </div>
               </div>
             )}
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
-  );
+          </section>}</RecordPage>;
 };
 
 interface LecturerPanelAppointmentsProps {
@@ -551,11 +517,18 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 }) => {
   // Right Drawer state
   const [isRecommendDrawerOpen, setIsRecommendDrawerOpen] = useState(false);
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const mutation = useRef(false);
   const openedInitialSupervisee = useRef<string | null>(null);
   
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
   const [selectedRecommendationReadOnly, setSelectedRecommendationReadOnly] = useState(false);
+  const previousRoutedRecommendation = useRef(initialRecommendationId);
+  useEffect(() => {
+    if (previousRoutedRecommendation.current && !initialRecommendationId) { setSelectedRecommendation(null); setSelectedRecommendationReadOnly(false); }
+    previousRoutedRecommendation.current = initialRecommendationId;
+  }, [initialRecommendationId]);
   const isCoordinator = currentUser?.role === 'Programme Coordinator';
 
   // Toast Notification
@@ -582,7 +555,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [ownPanelCapacity, setOwnPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
   const [selectedSuperviseeId, setSelectedSuperviseeId] = useState<string | null>(null);
-  const [assignmentSearch, setAssignmentSearch] = useState('');
+  const [listParams, setListParams] = useSearchParams();
+  const assignmentSearch = listParams.get('q') ?? '';
+  const setAssignmentSearch = (value: string) => setListParams(current => { const next = new URLSearchParams(current); if (value) next.set('q', value); else next.delete('q'); return next; }, { replace: true });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -808,6 +783,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       return;
     }
 
+    if (mutation.current) return;
+    mutation.current = true; setMutationBusy(true);
     try {
       const newRec = await createPanelRecommendationApi({
         studentId: recommendationStudent.studentId,
@@ -824,7 +801,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       triggerToast(`Recommendation submitted to selected panel member ${newRec.recommendedMember}.`);
     } catch (e) {
       triggerToast(e instanceof Error ? e.message : 'Failed to save panel recommendation.');
-    }
+    } finally { mutation.current = false; setMutationBusy(false); }
   };
 
   const activeRecommendationsCount = submittedRecs.filter(isPendingPanelRecommendation).length;
@@ -846,6 +823,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       return;
     }
 
+    if (mutation.current) return;
+    mutation.current = true; setMutationBusy(true);
     try {
       const updated = selectedReviewerRole === 'PROGRAMME_COORDINATOR'
         ? await approvePanelRecommendationByCoordinator(recommendation.id)
@@ -864,7 +843,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     } catch (e) {
       triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
       if (e instanceof ApiError && e.status === 409) loadData();
-    }
+    } finally { mutation.current = false; setMutationBusy(false); }
   };
 
   const handleReviewReject = async (recommendation: PanelRecommendationDraft, reason: string) => {
@@ -873,6 +852,8 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       return;
     }
 
+    if (mutation.current) return;
+    mutation.current = true; setMutationBusy(true);
     try {
       const updated = selectedReviewerRole === 'PROGRAMME_COORDINATOR'
         ? await rejectPanelRecommendationByCoordinator(recommendation.id, reason)
@@ -890,7 +871,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       loadData();
     } catch (e) {
       triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
-    }
+    } finally { mutation.current = false; setMutationBusy(false); }
   };
 
   const handleCancelRecommendation = async (
@@ -917,6 +898,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     triggerToast('Panel recommendation cancelled. The reserved panel workload has been released.');
     await loadData();
   };
+
+  if (initialRecommendationId && !selectedRecommendation) return <RecordPage title="Panel recommendation" backLabel="Back to Panel Appointments" onBack={navigateToList}>
+    {loading ? <LoadingState message="Loading panel recommendation…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <EmptyState title="Recommendation not found" description="This recommendation does not exist or is outside your access." />}
+  </RecordPage>;
 
   return (
     <div id="lecturer-panel-module-container" className="space-y-6 text-left pb-12">
@@ -1222,14 +1207,14 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
       {/* RENDER LAYOUT 3: PANEL ASSIGNMENT DETAIL PAGE */}
       {routeView === 'assignmentDetail' && loading && (
-        <LoadingState message="Loading panel assignment…" />
+        <RecordPage title="Panel Assignment Detail" backLabel="Back to Panel Appointments" onBack={navigateToList}><LoadingState message="Loading panel assignment…" /></RecordPage>
       )}
 
       {routeView === 'assignmentDetail' && !loading && error && (
-        <ErrorState message={error} onRetry={loadData} />
+        <RecordPage title="Panel Assignment Detail" backLabel="Back to Panel Appointments" onBack={navigateToList}><ErrorState message={error} onRetry={loadData} /></RecordPage>
       )}
 
-      {routeView === 'assignmentDetail' && selectedAssignment && (
+      {routeView === 'assignmentDetail' && !loading && !error && selectedAssignment && (
         <PanelAssignmentDetail
           assignment={selectedAssignment}
           onBack={navigateToList}
@@ -1240,18 +1225,17 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       )}
 
       {routeView === 'assignmentDetail' && !loading && !error && !selectedAssignment && (
-        <EmptyState
+        <RecordPage title="Panel Assignment Detail" backLabel="Back to Panel Appointments" onBack={navigateToList}><EmptyState
           title="Panel assignment not found"
           description="The requested panel assignment does not exist or is no longer available."
-          actionLabel="Back to Panel Appointments"
-          onAction={navigateToList}
-        />
+        /></RecordPage>
       )}
 
       {/* RIGHT SLIDING DRAWER: RECOMMEND PANEL MEMBER DRAWER */}
       {recommendationStudent && (
         <RecommendPanelMemberDrawer
           isOpen={isRecommendDrawerOpen}
+          busy={mutationBusy}
           onClose={() => setIsRecommendDrawerOpen(false)}
           student={recommendationStudent}
           candidates={panelCandidates.filter(
@@ -1266,9 +1250,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
 
       <PanelRecommendationReviewDrawer
         isOpen={selectedRecommendation !== null}
+        routed={!!initialRecommendationId}
+        busy={mutationBusy}
         onClose={() => {
           setSelectedRecommendation(null);
           setSelectedRecommendationReadOnly(false);
+          if (initialRecommendationId) navigateToList();
         }}
         recommendation={selectedRecommendation}
         reviewerRole={selectedReviewerRole}

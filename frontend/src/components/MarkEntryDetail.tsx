@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Save } from 'lucide-react';
 
+import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import {
-  PageHeader,
   PortalButton,
   PortalConfirmModal,
   PortalCard,
@@ -17,9 +17,10 @@ import {
 
 interface MarkEntryDetailProps {
   task: EvaluationTask;
+  backLabel?: string;
   onBack: () => void;
-  onSave: (updatedTask: EvaluationTask) => void;
-  onSubmit: (updatedTask: EvaluationTask) => void;
+  onSave: (updatedTask: EvaluationTask) => void | Promise<void>;
+  onSubmit: (updatedTask: EvaluationTask) => void | Promise<void>;
 }
 
 const evaluatorRoleLabel = (task: EvaluationTask): string =>
@@ -36,6 +37,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   onBack,
   onSave,
   onSubmit,
+  backLabel = 'Back to Marks Entry',
 }) => {
   const components = task.components || [];
   const [values, setValues] = useState(() => Object.fromEntries(
@@ -50,6 +52,17 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const [comments, setComments] = useState(task.comments || '');
   const [showValidation, setShowValidation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const initial = useRef(JSON.stringify({ values, comments }));
+  const dirty = JSON.stringify({ values, comments }) !== initial.current;
+  const save = async (submit: boolean) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try { await (submit ? onSubmit(buildTask('SUBMITTED')) : onSave(buildTask('DRAFT SAVED'))); }
+    finally { savingRef.current = false; setSaving(false); }
+  };
   const isReadOnly = task.status === 'SUBMITTED' || task.canEdit !== true;
 
   const errors = components.flatMap((component) => {
@@ -92,7 +105,21 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   };
 
   return (
-    <div id="mark-entry-detail-page" className="space-y-6 text-left">
+      <RecordPage
+        title="Mark Entry Detail"
+        subtitle="Enter marks using the persisted rubric version assigned to this evaluation task."
+        backLabel={backLabel}
+        onBack={onBack}
+        pageKey={`marks-entry:${task.id}`} dirty={!isReadOnly && dirty} busy={saving}
+        actions={(
+          <StatusBadge tone={task.status === 'SUBMITTED' ? 'success' : isReadOnly ? 'neutral' : 'info'}>
+            {task.status === 'SUBMITTED' ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
+          </StatusBadge>
+        )}
+      >
+
+
+    <fieldset id="mark-entry-detail-page" disabled={saving} className="space-y-6 text-left">
       <PortalConfirmModal
         isOpen={confirmOpen}
         title="Submit and lock marks?"
@@ -102,21 +129,9 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         tone="warning"
         onConfirm={() => {
           setConfirmOpen(false);
-          if (!isReadOnly && task.canSubmit === true) onSubmit(buildTask('SUBMITTED'));
+          if (!isReadOnly && task.canSubmit === true) void save(true);
         }}
         onCancel={() => setConfirmOpen(false)}
-      />
-
-      <PageHeader
-        title="Mark Entry Detail"
-        subtitle="Enter marks using the persisted rubric version assigned to this evaluation task."
-        backLabel="Back to Marks Entry"
-        onBack={onBack}
-        actions={(
-          <StatusBadge tone={task.status === 'SUBMITTED' ? 'success' : isReadOnly ? 'neutral' : 'info'}>
-            {task.status === 'SUBMITTED' ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
-          </StatusBadge>
-        )}
       />
 
       {task.periodEffectiveStatus ? <p className="card-description text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
@@ -241,7 +256,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   fullWidth
                   icon={Save}
                   variant="secondary"
-                  onClick={() => onSave(buildTask('DRAFT SAVED'))}
+                  onClick={() => void save(false)}
                 >
                   Save draft
                 </PortalButton>
@@ -259,6 +274,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
           </aside>
         </div>
       )}
-    </div>
+    </fieldset>
+    </RecordPage>
   );
 };

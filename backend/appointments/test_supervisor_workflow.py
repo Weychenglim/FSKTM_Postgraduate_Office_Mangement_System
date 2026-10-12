@@ -167,6 +167,46 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             f"/api/appointments/supervisor/applications/{application_id}/supervisor-accept/"
         )
 
+    def test_lecturer_tracking_distinguishes_acceptance_from_final_approval(self):
+        application_id = self.submit_application().data["id"]
+        self.authenticate(self.supervisor_user)
+        pending = self.client.get("/api/appointments/supervisor/requests/").data[0]
+        self.assertEqual(pending["semester"], self.academic_semester.label)
+        self.assertEqual(pending["semesterId"], self.academic_semester.pk)
+        self.assertEqual(self.accept_by_supervisor(application_id).status_code, 200)
+        response = self.client.get("/api/appointments/supervisor/request-history/")
+        self.assertEqual(response.status_code, 200)
+        row = response.data[0]
+        self.assertEqual(row["decision"], "Pending Approval")
+        self.assertEqual(row["status"], "PENDING_COORDINATOR")
+        self.assertEqual(row["applicationId"], application_id)
+        self.assertIsNotNone(row["supervisorDecisionAt"])
+        self.assertIsNone(row["coordinatorDecisionAt"])
+        self.assertEqual(row["waitingOn"], "PROGRAMME_COORDINATOR")
+        self.assertEqual(row["waitingDays"], 0)
+        self.assertEqual(row["semester"], pending["semester"])
+        self.authenticate(self.other_supervisor)
+        self.assertEqual(self.client.get("/api/appointments/supervisor/request-history/").data, [])
+        self.authenticate(self.student_user)
+        self.assertEqual(self.client.get("/api/appointments/supervisor/request-history/").status_code, 403)
+
+    def test_lecturer_tracking_reports_coordinator_rejection_and_recorded_reason(self):
+        application_id = self.submit_application().data["id"]
+        self.accept_by_supervisor(application_id)
+        self.authenticate(self.coordinator)
+        rejected = self.client.post(
+            f"/api/appointments/supervisor/applications/{application_id}/coordinator-reject/",
+            {"reason": "Recorded coordinator decision"}, format="json",
+        )
+        self.assertEqual(rejected.status_code, 200)
+        self.authenticate(self.supervisor_user)
+        row = self.client.get("/api/appointments/supervisor/request-history/").data[0]
+        self.assertEqual(row["decision"], "Rejected")
+        self.assertEqual(row["status"], "REJECTED_BY_COORDINATOR")
+        self.assertEqual(row["decisionReason"], "Recorded coordinator decision")
+        self.assertIsNotNone(row["coordinatorDecisionAt"])
+        self.assertIsNone(row["waitingDays"])
+
     def test_student_submission_creates_pending_request_documents_and_audit_event(self):
         response = self.submit_application()
 
@@ -1129,7 +1169,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
         self.accept_by_supervisor(application_id)
         history = self.client.get("/api/appointments/supervisor/request-history/")
         self.assertEqual(history.status_code, status.HTTP_200_OK)
-        self.assertEqual(history.data[0]["decision"], "Approved")
+        self.assertEqual(history.data[0]["decision"], "Pending Approval")
 
         self.authenticate(self.coordinator)
         coordinator_queue = self.client.get(

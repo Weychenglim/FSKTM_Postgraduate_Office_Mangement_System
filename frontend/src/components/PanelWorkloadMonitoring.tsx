@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -436,37 +437,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
         </div>
       </div>
 
-      <AnimatePresence>
-        {isDrawerOpen && selectedLecturer && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-brand-navy/60 z-40 backdrop-blur-sm cursor-pointer"
-            />
-
-            <motion.div
-              initial={{ x: '100%', opacity: 0.9 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0.9 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 bottom-0 h-full w-full max-w-xl bg-slate-50 shadow-sm z-50 overflow-hidden flex flex-col border-l border-slate-200 text-left font-sans"
-            >
-              <div className="bg-white p-5 border-b border-slate-200 flex items-center justify-between shadow-3xs">
-                <h3 className="section-label">
-                  Lecturer Workload Detail
-                </h3>
-                <button
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-brand-navy hover:bg-slate-100 transition focus:outline-none cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      {isDrawerOpen && selectedLecturer ? <RecordPage title="Panel workload details" backLabel="Back to Panel Workload Monitoring" onBack={() => setIsDrawerOpen(false)} pageKey={`panel-workload:${selectedLecturer.id}`}><section className="space-y-5">
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-3xs space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-16 h-16 rounded-xl bg-blue-50 text-blue-650 flex items-center justify-center font-black text-lg border border-blue-100 uppercase">
@@ -602,17 +573,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                     </table>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white p-5 border-t border-slate-200 flex items-center justify-end gap-3 shadow-sm">
-                <PortalButton onClick={() => setIsDrawerOpen(false)} variant="secondary" size="md">
-                  Close
-                </PortalButton>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </section></RecordPage> : null}
     </div>
   );
 };

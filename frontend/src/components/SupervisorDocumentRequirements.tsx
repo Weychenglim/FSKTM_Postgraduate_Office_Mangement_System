@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
@@ -237,14 +238,7 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
         )}
       </section>
 
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/45" role="dialog" aria-modal="true">
-          <button type="button" className="absolute inset-0 cursor-default" onClick={() => setDrawerOpen(false)} aria-label="Close requirement editor" />
-          <form onSubmit={save} className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-              <div><p className="section-label text-brand-navy">{editing ? 'Edit requirement' : 'Add requirement'}</p><p className="card-description mt-1">Future supervisor applications only</p></div>
-              <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-md p-2 text-slate-400 hover:bg-slate-100" title="Close"><X className="h-4 w-4" /></button>
-            </div>
+      {drawerOpen ? <RecordPage title={editing ? 'Edit document requirement' : 'Add document requirement'} subtitle="Applies to future supervisor applications" backLabel="Back to Document Requirements" onBack={() => setDrawerOpen(false)} pageKey="supervisor-document-requirement" dirty={!!reason.trim() || form.label !== (editing?.label ?? '') || form.description !== (editing?.description ?? '') || form.isRequired !== (editing?.isRequired ?? true) || form.isActive !== (editing?.isActive ?? true) || form.displayOrder !== (editing?.displayOrder ?? requirements.length + 1)} busy={saving}>{requestBack => <form onSubmit={save} className="space-y-5 rounded-2xl border border-slate-200 bg-white">
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
               <label className="block"><span className="form-label">Label</span><input className="form-control form-control-md mt-1.5" value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} required /></label>
               <label className="block"><span className="form-label">Guidance</span><textarea className="form-control mt-1.5 min-h-28" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
@@ -255,12 +249,10 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
               {saveError && <p className="card-description rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}</p>}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <PortalButton type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>Cancel</PortalButton>
+              <PortalButton type="button" variant="secondary" onClick={requestBack}>Cancel</PortalButton>
               <PortalButton type="submit" variant="primary" disabled={saving || !form.label.trim() || Boolean(editing && !reason.trim())}>{saving ? 'Saving...' : 'Save changes'}</PortalButton>
             </div>
-          </form>
-        </div>
-      )}
+          </form>}</RecordPage> : null}
     </div>
   );
 };

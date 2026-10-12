@@ -1,3 +1,5 @@
+import { RecordPage } from './RecordPage';
+import { PortalModal } from './PortalModal';
 import { MarksCompletionWindows } from './MarksCompletionWindows';
 /**
  * @license
@@ -621,34 +623,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         </>
       )}
 
-      {createPortal(
-        <AnimatePresence>
-          {drawerOpen && (
-            <div className="fixed inset-0 z-50 flex justify-end font-sans text-xs text-left">
-              <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
-              <motion.aside
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-                className="relative w-full max-w-xl h-full bg-white shadow-sm border-l border-slate-200 flex flex-col z-10"
-              >
-                <div className="drawer-header">
-                  <div>
-                    <h3 className="section-label">Assign Backup Evaluator</h3>
-                    <p className="card-description mt-1">
-                      Exception-only assignment with audit reason.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDrawerOpen(false)}
-                    className="icon-button w-9 h-9"
-                    aria-label="Close backup evaluator drawer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+      {drawerOpen ? <RecordPage title="Assign Backup Evaluator" subtitle="Exception-only assignment with audit reason" backLabel="Back to Evaluation Task Assignment" onBack={() => setDrawerOpen(false)} pageKey="marks-backup-evaluator" dirty={!!backupForm.studentId || !!backupForm.evaluatorId || !!backupForm.originalTaskId || !!backupForm.reason.trim() || backupForm.confirmed} busy={submittingBackup}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
                 <div className="drawer-body">
                   {formError && (
@@ -776,7 +751,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 <div className="drawer-footer">
                   <button
                     type="button"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={requestBack}
                     className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-black uppercase tracking-wider"
                   >
                     Cancel
@@ -790,33 +765,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     {submittingBackup ? 'Assigning…' : 'Assign Backup'}
                   </button>
                 </div>
-              </motion.aside>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+              </section>}</RecordPage> : null}
 
-      {createPortal(
-        <AnimatePresence>
-          {selectedTask && (
-            <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="absolute inset-0" onClick={() => setSelectedTask(null)} />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
-              >
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                  <h4 className="section-label">Evaluation Task Details</h4>
-                  <button
-                    onClick={() => setSelectedTask(null)}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"
-                  >
-                    &times;
-                  </button>
-                </div>
+      {selectedTask ? <PortalModal isOpen onClose={() => setSelectedTask(null)} labelledBy="evaluation-task-preview-title"><h2 id="evaluation-task-preview-title" className="section-label mb-4">Evaluation task details</h2>
 
                 <div className="space-y-4 text-xs">
                   <div>
@@ -857,12 +808,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 >
                   Close
                 </button>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+              </PortalModal> : null}
     </div>
   );
 };

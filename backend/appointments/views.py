@@ -1827,7 +1827,7 @@ def supervisor_requests_view(request):
     applications = SupervisorApplication.objects.filter(
         proposed_supervisor=request.user,
         status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
-    ).select_related("student", "student__user", "proposed_supervisor")
+    ).select_related("student", "student__user", "proposed_supervisor", "academic_semester")
     rows = [
         {
             "applicationId": application.pk,
@@ -1838,6 +1838,7 @@ def supervisor_requests_view(request):
             "researchArea": application.research_area,
             "submittedDate": format_display_date(application.submitted_at),
             "receivedTime": application.submitted_at.isoformat(),
+            **workflow_semester_payload(application),
             "status": "Pending Review",
             "participantLifecycleStatus": application.student.status.upper(),
             "participantEligible": student_is_workflow_eligible(application.student),
@@ -1989,6 +1990,37 @@ def supervisor_coordinator_queue_view(request):
         coordinator_scope_q(request.user, "student__programme"),
         status=SupervisorApplication.Status.PENDING_COORDINATOR,
     ).select_related("student", "student__user", "proposed_supervisor")
+    return Response(SupervisorApplicationSerializer(applications, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def supervisor_coordinator_history_view(request):
+    if request.user.role != User.Role.COORDINATOR:
+        return error_response(
+            "Only Programme Coordinators can view supervisor request history.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    applications = (
+        SupervisorApplication.objects.filter(
+            coordinator_scope_q(request.user, "student__programme"),
+            status__in=(
+                SupervisorApplication.Status.APPROVED,
+                SupervisorApplication.Status.REJECTED_BY_SUPERVISOR,
+                SupervisorApplication.Status.REJECTED_BY_COORDINATOR,
+                SupervisorApplication.Status.CANCELLED_BY_STUDENT,
+                SupervisorApplication.Status.CANCELLED_BY_OFFICE,
+            ),
+        )
+        .select_related(
+            "student", "student__user", "proposed_supervisor",
+            "appointment__ended_by", "appointment__supersedes",
+        )
+        .prefetch_related(
+            "documents", "workflow_events__actor", "appointment__lifecycle_events__actor",
+        )
+        .order_by("-updated_at", "-pk")
+    )
     return Response(SupervisorApplicationSerializer(applications, many=True).data)
 
 
@@ -2217,6 +2249,12 @@ def supervisor_request_history_view(request):
         [
             {
                 "requestId": f"SV-REQ-{application.pk:05d}",
+                "applicationId": application.pk,
+                "status": application.status,
+                "submittedAt": application.submitted_at.isoformat(),
+                "supervisorDecisionAt": application.supervisor_decided_at.isoformat() if application.supervisor_decided_at else None,
+                "coordinatorDecisionAt": application.coordinator_decided_at.isoformat() if application.coordinator_decided_at else None,
+                **supervisor_waiting_metadata(application),
                 "studentName": application.student.user.full_name,
                 "studentId": application.student.matric_no,
                 "programme": application.student.programme,
@@ -2232,7 +2270,8 @@ def supervisor_request_history_view(request):
                     else (
                         "Rejected"
                         if application.status
-                        == SupervisorApplication.Status.REJECTED_BY_SUPERVISOR
+                        in [SupervisorApplication.Status.REJECTED_BY_SUPERVISOR, SupervisorApplication.Status.REJECTED_BY_COORDINATOR]
+                        else "Pending Approval" if application.status == SupervisorApplication.Status.PENDING_COORDINATOR
                         else "Approved"
                     )
                 ),
@@ -2240,6 +2279,7 @@ def supervisor_request_history_view(request):
                 "abstract": application.research_abstract,
                 "decisionReason": (
                     application.cancellation_reason
+                    or application.coordinator_rejection_reason
                     or application.supervisor_rejection_reason
                 ),
             }

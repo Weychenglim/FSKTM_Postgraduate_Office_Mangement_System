@@ -34,13 +34,13 @@ export function CapacityReassessmentCard({ row, activeSemester, office, busy, on
   </article>;
 }
 
-export function CapacityReassessments({ role, onChanged }: { role?: UserRole; onChanged?: () => void }) {
+export function CapacityReassessments({ role, onChanged, showRefresh = true, refreshVersion = 0, onBusyChange }: { role?: UserRole; onChanged?: () => void; showRefresh?: boolean; refreshVersion?: number; onBusyChange?: (busy: boolean) => void }) {
   // Do not mount the data-loading workspace for roles outside the staff scope.
   if (role !== 'Office Staff/Admin' && role !== 'Programme Coordinator') return null;
-  return <CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} />;
+  return <CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} showRefresh={showRefresh} refreshVersion={refreshVersion} onBusyChange={onBusyChange} />;
 }
 
-function CapacityReassessmentWorkspaceView({ office, onChanged }: { office: boolean; onChanged?: () => void }) {
+function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, refreshVersion, onBusyChange }: { office: boolean; onChanged?: () => void; showRefresh: boolean; refreshVersion: number; onBusyChange?: (busy: boolean) => void }) {
   const [workspace, setWorkspace] = useState<CapacityReassessmentWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ function CapacityReassessmentWorkspaceView({ office, onChanged }: { office: bool
     catch (failure) { if (version.current === token) { setWorkspace(null); setError(failure instanceof Error ? failure.message : 'Capacity reassessments could not be loaded.'); } }
     finally { if (version.current === token) setLoading(false); }
   }, []);
-  useEffect(() => { void load(); return () => { version.current += 1; }; }, [load]);
+  useEffect(() => { void load(); return () => { version.current += 1; }; }, [load, refreshVersion]);
   useEffect(() => { if (edit) { form.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); form.current?.querySelector('textarea')?.focus({ preventScroll: true }); } }, [edit]);
   const save = async () => {
     if (!office || !edit || !reason.trim() || mutating.current) return;
@@ -76,12 +76,14 @@ function CapacityReassessmentWorkspaceView({ office, onChanged }: { office: bool
       if (result.ok) onChanged?.();
     } finally { mutating.current = false; setBusy(false); }
   };
+  useEffect(() => { onBusyChange?.(loading || busy || (!!edit && !!reason.trim())); }, [onBusyChange, loading, busy, edit, reason]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   const query = search.trim().toLowerCase();
   const rows = workspace?.requests.filter(row => `${row.student.name} ${row.student.matricNo} ${row.student.programme} ${row.candidate.name}`.toLowerCase().includes(query)) ?? [];
   const pageCount = Math.max(1, Math.ceil(rows.length / 8));
   const currentPage = Math.min(page, pageCount);
   return <section className="space-y-3 border-t border-slate-200 pt-5" aria-label="Carryover capacity reassessment">
-    <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="section-label">Carryover capacity reassessment</h3><PortalButton size="sm" disabled={busy || loading} onClick={() => { setEdit(null); setReason(''); void load(); }}>Refresh reassessments</PortalButton></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="section-label">Carryover capacity reassessment</h3><>{showRefresh ? <PortalButton size="sm" disabled={busy || loading || (!!edit && !!reason.trim())} onClick={() => { setEdit(null); setReason(''); void load(); }}>Refresh reassessments</PortalButton> : null}</></div>
     <p className="card-description">Office may authorize pending requests from closed semesters to use the current active semester’s capacity policy. This does not approve an appointment or add capacity. The original semester and approval stage remain unchanged; eligibility and workload limits are checked again at approval.</p>
     {!office ? <p className="card-description">Read-only history for students in your authorized programme scope.</p> : null}
     {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}

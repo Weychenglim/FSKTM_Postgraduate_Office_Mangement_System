@@ -1,3 +1,5 @@
+import { useRecordDraft } from './RecordDraft';
+import { useListState } from './ListState';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Users, RefreshCw } from 'lucide-react';
 import { decideCoSupervisor, endCoSupervisor, getCoSupervisorCandidates, getSupervisoryWorkspace, nominateCoSupervisor } from '../services/coSupervisionApi';
@@ -11,6 +13,7 @@ import type { UserRole } from '../types/auth';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { StudentAppointmentSection, StudentAppointmentMemberCard } from './StudentAppointmentPrimitives';
 import { AppointmentMemberCard } from './AppointmentPrimitives';
+import { RequestFilters, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 
 const inputClass = 'form-control form-control-sm mt-1';
 const labels: Record<CoSupervisorAction, string> = { accept: 'Accept', reject: 'Reject', approve: 'Approve', 'coordinator-reject': 'Reject', cancel: 'Cancel nomination' };
@@ -106,6 +109,7 @@ function NominationForm({ team, replacement, busy, onSubmit, onCancel }: {
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [team.studentId, attempt]);
+  useRecordDraft(!!candidateId || !!justification.trim(), busy);
   const selected = candidates.find(row => String(row.id) === candidateId);
   return <form className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 space-y-3" onSubmit={event => { event.preventDefault(); if (selected?.selectable && justification.trim() && !busy) onSubmit(selected.id, justification.trim()); }}>
     <h4 className="section-label">{replacement ? `Replace ${replacement.supervisor.name}` : 'Nominate a co-supervisor'}</h4>
@@ -136,7 +140,7 @@ export function StudentSupervisorsOverview({ workspace, actions, overviewOnly = 
       <div className="space-y-2 rounded-xl border border-slate-200 p-4"><p className="card-label">Supporting supervisors</p>{supporting.length ? supporting.map(row => <div key={row.id} className="space-y-1"><h3 className="section-label">{row.supervisor.name}</h3><p className="card-description">Co-supervisor · Active since {displayDate(row.appointmentDate)}</p></div>) : <p className="card-description">No supporting supervisors assigned.</p>}</div>
     </div>
     {team?.research.title ? <div className="space-y-2"><p className="card-label">Current research title</p><p className="card-value break-words">{team.research.title}</p>{!overviewOnly ? <details><summary className="card-value cursor-pointer text-blue-600">Research profile</summary><dl className="mt-3 space-y-3 rounded-xl bg-slate-50 p-4"><div><dt className="card-label">Programme</dt><dd className="card-description mt-1">{team.programme}</dd></div><div><dt className="card-label">Research area</dt><dd className="card-description mt-1">{team.research.area || 'Not recorded'}</dd></div><div><dt className="card-label">Abstract</dt><dd className="card-description mt-1 whitespace-pre-wrap break-words text-slate-700">{team.research.abstract || 'Not recorded'}</dd></div></dl></details> : null}</div> : null}
-    {!overviewOnly && (workspace.nominations.length || previous.length) ? <details><summary className="card-value cursor-pointer">Supporting appointment history</summary><div className="mt-3 space-y-3">{previous.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={{...row, canEnd: false}} busy={false} canReplace={false} onEnd={() => {}} onReplace={() => {}} />)}{workspace.nominations.map(row => <CoSupervisorNominationCard key={row.id} nomination={{...row, allowedActions: []}} busy={false} onAction={() => {}} />)}</div></details> : null}
+    {previous.length ? <details><summary className="card-value cursor-pointer">Previous supporting supervisors</summary><div className="mt-3 space-y-3">{previous.map(row => <article key={row.id} className="rounded-xl border border-slate-200 p-4"><h3 className="section-label">{row.supervisor.name}</h3><p className="card-description">Supporting supervisor · {displayDate(row.appointmentDate)}{row.endedAt ? ` – ${displayDate(row.endedAt)}` : ''}</p><StatusBadge tone="neutral">Ended</StatusBadge></article>)}</div></details> : null}
   </div>;
 }
 
@@ -191,13 +195,15 @@ export function LecturerSupervisoryTeamCard({ team, busy, initiallyOpen = false,
 
 export type SupervisoryTeamView = 'studentOverview' | 'studentHistory' | 'requests' | 'roster' | 'detail' | 'history';
 
-export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, studentActions, busy, search, page, onSearch, onPage, onNavigateToStudent, onNominate, onEnd, onReplace, onNominationAction }: {
+export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, studentActions, busy, search, page, pageSize: requestedPageSize, onPageSize, lecturerId, role, onSearch, onPage, onNavigateToStudent, onNominate, onEnd, onReplace, onNominationAction }: {
   workspace: SupervisoryWorkspace; view: SupervisoryTeamView; routeStudentId?: string; studentActions?: React.ReactNode;
   busy: boolean; search: string; page: number; onSearch: (value: string) => void; onPage: (value: number) => void;
+  pageSize?: number; onPageSize?: (size: number) => void; lecturerId?: string; role?: UserRole;
   onNavigateToStudent?: (matricNo: string) => void; onNominate: (team: SupervisoryTeam) => void;
   onEnd: (row: CoSupervisorAppointment) => void; onReplace: (team: SupervisoryTeam, row: CoSupervisorAppointment) => void;
   onNominationAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void;
 }) {
+  if (view === 'studentHistory') return null;
   if (view === 'studentOverview') return <StudentSupervisorsOverview workspace={workspace} actions={studentActions} overviewOnly />;
   if (view === 'detail') {
     const team = workspace.teams.find(row => row.matricNo === routeStudentId);
@@ -209,8 +215,8 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
   const unique = <T extends { id: number },>(rows: T[]) => [...new Map(rows.map(row => [row.id, row])).values()];
   const appointments = unique([...workspace.appointments, ...workspace.teams.flatMap(team => team.appointments)]).filter(row => row.status === 'ENDED');
   const nominations = unique([...workspace.nominations, ...workspace.teams.flatMap(team => team.nominations)]);
-  if (view === 'studentHistory' || view === 'history') {
-    const closed = view === 'studentHistory' ? nominations : nominations.filter(row => !row.allowedActions.length);
+  if (view === 'history') {
+    const closed = nominations.filter(row => !row.allowedActions.length);
     return appointments.length || closed.length ? <div className="space-y-3">
       <h3 className="section-label">Supporting appointment history</h3>
       {appointments.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={{ ...row, canEnd: false }} busy={busy} canReplace={false} onEnd={() => {}} onReplace={() => {}} />)}
@@ -223,21 +229,24 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
     return <div className="space-y-4">{searchField}{reviews.length ? <div className="space-y-3"><h3 className="section-label">Nominations requiring action ({reviews.length})</h3>{reviews.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={onNominationAction} />)}</div> : <EmptyState title={query ? 'No matching nominations' : 'No nominations requiring action'} description="Supporting-supervisor nominations awaiting your decision will appear here." />}</div>;
   }
   const teams = workspace.teams.filter(team => `${team.studentName} ${team.matricNo} ${team.programme} ${team.research.title}`.toLowerCase().includes(query));
-  const pageCount = Math.max(1, Math.ceil(teams.length / 8));
+  const pageSize = workspacePageSize(requestedPageSize);
+  const pageCount = Math.max(1, Math.ceil(teams.length / pageSize));
   const currentPage = Math.max(1, Math.min(page, pageCount));
-  return <div className="space-y-4">{searchField}{teams.length ? <div className="overflow-x-auto rounded-2xl border border-slate-200">
-    <table className="data-table min-w-[720px] text-xs"><thead><tr className="data-thead"><th className="data-th">Student</th><th className="data-th">Programme</th><th className="data-th">Research title</th><th className="data-th text-right">Action</th></tr></thead>
-      <tbody>{teams.slice((currentPage - 1) * 8, currentPage * 8).map(team => <tr key={team.studentId} className="data-row">
-        <td className="data-td"><p className="card-value">{team.studentName}</p><p className="card-description">{team.matricNo}</p></td>
-        <td className="data-td">{team.programme}</td><td className="data-td max-w-sm break-words">{team.research.title || 'Research profile pending'}</td>
-        <td className="data-td text-right"><PortalButton size="sm" disabled={!onNavigateToStudent} onClick={() => onNavigateToStudent?.(team.matricNo)} aria-label={`View supervision for ${team.studentName}`}>View supervision</PortalButton></td>
-      </tr>)}</tbody>
-    </table></div> : <EmptyState title={query ? 'No matching supervisees' : 'No current supervisees'} description="Students in your current primary and supporting supervisory teams will appear here." />}
-    {teams.length > 8 ? <div className="card-description flex items-center justify-between"><PortalButton size="sm" disabled={currentPage === 1} onClick={() => onPage(currentPage - 1)}>Previous</PortalButton><span>Page {currentPage} of {pageCount}</span><PortalButton size="sm" disabled={currentPage === pageCount} onClick={() => onPage(currentPage + 1)}>Next</PortalButton></div> : null}
+  const staffView = role === 'Office Staff/Admin' || role === 'Programme Coordinator';
+  return <div className="space-y-5"><RequestFilters search={search} onSearch={onSearch} searchLabel="Find a student" searchPlaceholder="Student name, matric number, programme or research title" />{teams.length ? <section className="space-y-3" aria-label={staffView ? 'Supervisory teams' : 'Current supervisees'}>
+    <div className="flex items-center gap-2"><h3 className="section-label">{staffView ? 'Current teams' : 'Current supervisees'}</h3><span className="card-description">({teams.length})</span></div>
+    <WorkspaceRecordTable label={staffView ? 'Supervisory team records' : 'Current supervisee records'} roster roleLabel={staffView ? 'Primary supervisor' : undefined} rows={teams.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(team => ({
+      key: team.studentId, studentName: team.studentName, matricNo: team.matricNo, programme: team.programme,
+      role: staffView ? team.primarySupervisor?.name ?? 'Awaiting primary appointment' : lecturerId && String(team.primarySupervisor?.id) === lecturerId ? 'Primary supervisor' : lecturerId && team.appointments.some(row => row.status === 'ACTIVE' && String(row.supervisor.id) === lecturerId) ? 'Supporting supervisor' : 'Not recorded',
+      actionLabel: 'View supervision', disabled: !onNavigateToStudent || busy,
+      onOpen: () => onNavigateToStudent?.(team.matricNo), actionAriaLabel: `View supervision for ${team.studentName}`,
+    }))} />
+    </section> : <EmptyState title={query ? 'No matching supervisees' : 'No current supervisees'} description="Students in your current primary and supporting supervisory teams will appear here." />}
+    <WorkspacePagination page={currentPage} pageCount={pageCount} total={teams.length} noun={staffView ? 'teams' : 'supervisees'} onPage={onPage} pageSize={pageSize} onPageSize={onPageSize} />
   </div>;
 }
 
-export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0, studentActions, onRefresh, showResearchChanges = true, view, routeStudentId, onNavigateToStudent }: { onChanged?: () => void; role?: UserRole; refreshVersion?: number; studentActions?: React.ReactNode; onRefresh?: () => void; showResearchChanges?: boolean; view?: SupervisoryTeamView; routeStudentId?: string; onNavigateToStudent?: (matricNo: string) => void }) {
+export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0, studentActions, onRefresh, showResearchChanges = true, showRefresh = true, onBusyChange, view, routeStudentId, onNavigateToStudent, lecturerId, rosterState }: { onChanged?: () => void; role?: UserRole; refreshVersion?: number; studentActions?: React.ReactNode; onRefresh?: () => void; showResearchChanges?: boolean; showRefresh?: boolean; onBusyChange?: (busy: boolean) => void; view?: SupervisoryTeamView; routeStudentId?: string; onNavigateToStudent?: (matricNo: string) => void; lecturerId?: string; rosterState?: { search: string; page: number; size: number; onSearch: (value: string) => void; onPage: (value: number) => void; onPageSize: (value: number) => void } }) {
   const [workspace, setWorkspace] = useState<SupervisoryWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -246,12 +255,22 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
   const [reason, setReason] = useState('');
   const [outcome, setOutcome] = useState<CoSupervisorOutcome>('COMPLETED');
   const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  useEffect(() => { onBusyChange?.(loading || busy); }, [onBusyChange, loading, busy]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+  useRecordDraft(!!edit && (!!reason.trim() || outcome !== 'COMPLETED'), busy);
+  const [localSearch, setLocalSearch] = useListState(`supervisory-teams:${role}`, 'search', '');
+  const search = rosterState?.search ?? localSearch;
+  const setSearch = rosterState?.onSearch ?? setLocalSearch;
+  const [localPage, setLocalPage] = useListState(`supervisory-teams:${role}`, 'page', 1);
+  const page = rosterState?.page ?? localPage;
+  const setPage = rosterState?.onPage ?? setLocalPage;
+  const [localPageSize, setLocalPageSize] = useListState(`supervisory-teams:${role}`, 'size', 10);
+  const pageSize = rosterState?.size ?? localPageSize;
+  const setPageSize = rosterState?.onPageSize ?? setLocalPageSize;
   const version = useRef(0);
   const mutating = useRef(false);
   const editPanel = useRef<HTMLDivElement>(null);
-  useEffect(() => { setEdit(null); setReason(''); setOutcome('COMPLETED'); setSearch(''); setPage(1); setNotice(null); }, [view, routeStudentId]);
+  useEffect(() => { setEdit(null); setReason(''); setOutcome('COMPLETED'); setNotice(null); }, [view, routeStudentId]);
   useEffect(() => {
     if (!edit) return;
     editPanel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -283,18 +302,17 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
   const reviews = workspace?.nominations.filter(row => row.allowedActions.length && `${row.studentName} ${row.matricNo} ${row.candidate.name}`.toLowerCase().includes(query)) ?? [];
   const history = workspace?.appointments.filter(row => !teamIds.has(row.studentId)) ?? [];
   const historicalNominations = workspace?.nominations.filter(row => !teamIds.has(row.studentId) && !row.allowedActions.length) ?? [];
-  const routeContent = workspace && view ? <SupervisoryTeamRouteContent workspace={workspace} view={view} routeStudentId={routeStudentId} studentActions={studentActions} busy={busy} search={search} page={page}
-    onSearch={value => { setSearch(value); setPage(1); }} onPage={setPage} onNavigateToStudent={onNavigateToStudent}
+  const routeContent = workspace && view ? <SupervisoryTeamRouteContent workspace={workspace} role={role} view={view} routeStudentId={routeStudentId} studentActions={studentActions} busy={busy} search={search} page={page}
+    lecturerId={lecturerId} pageSize={pageSize} onPageSize={value => { setPageSize(value); if (!rosterState) setPage(1); }}
+    onSearch={value => { setSearch(value); if (!rosterState) setPage(1); }} onPage={setPage} onNavigateToStudent={onNavigateToStudent}
     onNominate={team => begin({ kind: 'nominate', team, replacement: null })} onEnd={appointment => begin({ kind: 'end', appointment })}
     onReplace={(team, replacement) => begin({ kind: 'nominate', team, replacement })} onNominationAction={(nomination, action) => begin({ kind: 'decision', nomination, action })} /> : null;
-  if (role === 'Student') return <StudentAppointmentSection id="supervisory-team-management" title={view === 'studentHistory' ? 'Supporting appointment history' : 'My supervisors'} description={view === 'studentHistory' ? 'Your recorded supporting appointments and nominations.' : 'Your primary supervisor and supporting supervisors.'} onRefresh={onRefresh ?? (() => void load())} refreshing={loading}>
+  if (role === 'Student') return <StudentAppointmentSection id="supervisory-team-management" title="My supervisors" description="Your confirmed primary and supporting supervisors." onRefresh={showRefresh ? onRefresh ?? (() => void load()) : undefined} refreshing={loading}>
     {loading ? <LoadingState message="Loading your supervisors…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : workspace ? view ? routeContent : <StudentSupervisorsOverview workspace={workspace} actions={studentActions} /> : null}
   </StudentAppointmentSection>;
-  return <section id="supervisory-team-management" className="font-sans space-y-4 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="section-label flex items-center gap-2"><Users className="h-5 w-5" />{view === 'roster' ? 'My supervisees' : view === 'requests' ? 'Supporting-supervisor requests' : view === 'detail' ? 'Supervision details' : view === 'history' ? 'Supporting appointment history' : 'Supervisory teams'}</h2><p className="card-description mt-1">One primary supervisor and up to two supporting co-supervisors.</p></div>
-      <PortalButton size="sm" icon={RefreshCw} disabled={busy || loading} onClick={() => void load()}>Refresh teams</PortalButton>
-    </div>
+  return <section id="supervisory-team-management" className="font-sans space-y-5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm">
+    <WorkspaceSectionHeader title={view === 'roster' ? (role === 'Lecturer' ? 'My supervisees' : 'Supervisory teams') : view === 'requests' ? 'Supporting-supervisor requests' : view === 'detail' ? 'Supervisory team' : view === 'history' ? 'Supporting appointment history' : 'Supervisory teams'} description={view === 'roster' ? (role === 'Lecturer' ? 'View your current supervisees and their supervision details.' : 'View students and their supervisory teams.') : 'One primary supervisor and up to two supporting co-supervisors.'}
+      actions={showRefresh ? <PortalButton size="sm" icon={RefreshCw} disabled={busy || loading} onClick={() => void load()}>Refresh teams</PortalButton> : undefined} />
     {role !== 'Lecturer' ? <p className="card-description">The primary supervisor manages Panel nominations and supervisor Marks. Supporting appointments provide research and progress access.</p> : null}
     {notice ? <p role="status" className="card-description rounded-lg border border-slate-200 bg-slate-50 p-3">{notice}</p> : null}
     <div ref={editPanel}>
@@ -308,7 +326,7 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
       <h3 className="card-value">{edit.kind === 'end' ? `End appointment: ${edit.appointment.supervisor.name}` : `${labels[edit.action]}: ${edit.nomination.candidate.name}`}</h3>
       {edit.kind === 'end' ? <label className="form-label block">Outcome<select className={inputClass} value={outcome} onChange={event => setOutcome(event.target.value as CoSupervisorOutcome)} disabled={busy}><option value="COMPLETED">Completed</option><option value="WITHDRAWN">Withdrawn</option><option value="OTHER">Other</option></select></label> : null}
       {edit.kind === 'end' || !['accept', 'approve'].includes(edit.action) ? <label className="form-label block">Reason<textarea className={inputClass} required rows={2} value={reason} onChange={event => setReason(event.target.value)} disabled={busy} /></label> : <p className="card-description">Confirm this decision for {edit.nomination.studentName}. The current eligibility and appointment rules will be checked again.</p>}
-      <div className="flex gap-2"><PortalButton type="submit" variant="primary" isLoading={busy}>Confirm decision</PortalButton><PortalButton type="button" disabled={busy} onClick={() => setEdit(null)}>Back</PortalButton></div>
+      <div className="flex gap-2"><PortalButton type="submit" variant="primary" isLoading={busy}>Confirm decision</PortalButton><PortalButton type="button" disabled={busy} onClick={() => setEdit(null)}>Cancel</PortalButton></div>
     </form> : null}
     </div>
     {loading ? <LoadingState message="Loading supervisory teams…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : workspace ? view ? routeContent : <>

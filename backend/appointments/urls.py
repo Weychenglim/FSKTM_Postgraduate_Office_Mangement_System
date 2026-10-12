@@ -61,6 +61,7 @@ urlpatterns = [
     path("supervisor/supervisees/", views.active_supervisees_view),
     path("supervisor/request-history/", views.supervisor_request_history_view),
     path("supervisor/coordinator-queue/", views.supervisor_coordinator_queue_view),
+    path("supervisor/coordinator-history/", views.supervisor_coordinator_history_view),
     path("supervisor/coordinator-records/", views.supervisor_coordinator_records_view),
     path(
         "supervisor/applications/<int:pk>/supervisor-accept/",

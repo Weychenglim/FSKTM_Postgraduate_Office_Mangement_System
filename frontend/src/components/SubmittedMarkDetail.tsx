@@ -6,22 +6,24 @@
 import React from 'react';
 import { CalendarClock, Lock } from 'lucide-react';
 
+import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import {
-  PageHeader,
   PortalCard,
   StatusBadge,
 } from './PortalPrimitives';
 
 interface SubmittedMarkDetailProps {
   task: EvaluationTask;
+  backLabel?: string;
   onBack: () => void;
 }
 
 export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
   task,
   onBack,
+  backLabel = 'Back to Marks Entry',
 }) => {
   const components = task.components || [];
   const calculatedTotal = components.reduce(
@@ -37,14 +39,14 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     : Number(task.totalMark).toFixed(2);
 
   return (
-    <div id="submitted-mark-detail-page" className="space-y-6 text-left">
-      <PageHeader
+      <RecordPage
         title="Submitted Mark Detail"
         subtitle="Review the persisted rubric scores and evaluator feedback for this locked submission."
-        backLabel="Back to Marks Entry"
+        backLabel={backLabel}
         onBack={onBack}
+        pageKey={`marks-submitted:${task.id}`}
         actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
-      />
+      >
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
         <div className="space-y-6">
@@ -140,6 +142,6 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
           </PortalCard>
         </aside>
       </div>
-    </div>
+    </RecordPage>
   );
 };

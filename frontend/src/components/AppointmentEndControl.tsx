@@ -1,3 +1,4 @@
+import { useRecordDraft } from './RecordDraft';
 import React, { useState } from 'react';
 import { CircleStop, X } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export const AppointmentEndControl: React.FC<AppointmentEndControlProps> = ({
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  useRecordDraft(open && (!!reason.trim() || outcome !== 'COMPLETED'), submitting);
 
   const close = () => {
     if (submitting) return;

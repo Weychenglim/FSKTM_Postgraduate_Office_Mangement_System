@@ -1,3 +1,4 @@
+import { PortalModal } from './PortalModal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -248,13 +249,10 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
         )}
       </div>
 
-      {selectedEntry && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/55 p-4 font-sans">
-          <div className="absolute inset-0" onClick={() => setSelectedEntry(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {selectedEntry && <PortalModal isOpen onClose={() => setSelectedEntry(null)} labelledBy="timeline-preview-title" className="max-w-lg p-0">
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
               <div>
-                <h3 className="section-label leading-snug">
+                <h3 id="timeline-preview-title" className="section-label leading-snug">
                   {selectedEntry.title || selectedEntry.detail}
                 </h3>
                 <div className="mt-2">
@@ -300,10 +298,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                 </p>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </PortalModal>}
     </div>
   );
 };
