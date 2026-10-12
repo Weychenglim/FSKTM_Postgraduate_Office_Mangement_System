@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -41,7 +41,7 @@ export const RecentUpdatesCard: React.FC<RecentUpdatesCardProps> = ({ onViewHist
   return (
     <div id="recent-updates-panel" className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden text-left shadow-3xs">
       <div className="p-5 pb-3">
-        <span className="font-extrabold text-[13px] text-brand-navy tracking-tight">
+        <span className="section-label">
           Recent Updates
         </span>
       </div>
@@ -50,15 +50,15 @@ export const RecentUpdatesCard: React.FC<RecentUpdatesCardProps> = ({ onViewHist
         {updates.map((item) => (
           <div key={item.id} className="p-5 flex flex-col space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-900">
+              <span className="card-value text-blue-900">
                 {item.author}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">
+              <span className="card-caption">
                 {item.timestamp}
               </span>
             </div>
 
-            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+            <p className="card-description">
               {item.description}
             </p>
 

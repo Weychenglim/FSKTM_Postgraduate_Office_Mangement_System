@@ -34,7 +34,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
     )}
   >
     <Loader2 className="w-7 h-7 text-brand-navy animate-spin" />
-    <span className="text-xs font-bold text-slate-500 tracking-wide">{message}</span>
+    <span className="card-description">{message}</span>
   </div>
 );
 
@@ -82,9 +82,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <Icon className="w-6 h-6 text-slate-400" />
     </div>
     <div className="space-y-1">
-      <h3 className="text-sm font-extrabold text-slate-700">{title}</h3>
+      <h3 className="section-label text-slate-700">{title}</h3>
       {description && (
-        <p className="text-xs font-medium text-slate-500 max-w-sm leading-relaxed">{description}</p>
+        <p className="card-description max-w-sm">{description}</p>
       )}
     </div>
     {actionLabel && onAction && (
@@ -114,8 +114,8 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       <AlertTriangle className="w-6 h-6 text-rose-500" />
     </div>
     <div className="space-y-1">
-      <h3 className="text-sm font-extrabold text-slate-700">Couldn’t load data</h3>
-      <p className="text-xs font-medium text-slate-500 max-w-sm leading-relaxed">{message}</p>
+      <h3 className="section-label text-slate-700">Couldn’t load data</h3>
+      <p className="card-description max-w-sm">{message}</p>
     </div>
     {onRetry && (
       <PortalButton variant="secondary" size="sm" icon={RotateCw} onClick={onRetry} className="mt-1">

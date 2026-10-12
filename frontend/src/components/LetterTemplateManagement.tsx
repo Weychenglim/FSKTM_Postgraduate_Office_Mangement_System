@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -463,7 +463,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
               ) : error ? (
                 <ErrorState message={error} onRetry={loadTemplates} />
               ) : filteredTemplates.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 font-bold">
+                <div className="card-value py-8 text-center">
                   No matching templates found.
                 </div>
               ) : (

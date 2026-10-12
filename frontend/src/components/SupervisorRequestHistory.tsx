@@ -1,4 +1,5 @@
-﻿/**
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,8 +14,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Calendar,
-  Info,
-  HelpCircle,
   ExternalLink,
   ChevronDown,
   X
@@ -33,9 +32,10 @@ import { getSupervisorRequestHistory } from '../services';
 
 interface SupervisorRequestHistoryProps {
   onBack: () => void;
+  hideHeader?: boolean;
 }
 
-export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack }) => {
+export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> = ({ onBack, hideHeader = false }) => {
   // Decided supervisor requests are loaded from the persisted appointment API.
   const [allHistoryRecords, setAllHistoryRecords] = useState<SupervisorRequestHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,14 +132,14 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
   return (
     <div id="supervisor-request-history-page" className="space-y-8 animate-fade-in text-left">
       
-      <PageHeader
+      {!hideHeader && <PageHeader
         title="Supervisor Request History"
         subtitle="View supervisor appointment requests you have approved or rejected."
         backLabel="Back to Supervisor Appointments"
         onBack={onBack}
         subtitleClassName="max-w-4xl leading-relaxed"
         className="select-none"
-      />
+      />}
 
       {/* THREE SUMMARY CARDS GRID */}
       <div id="history-summary-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6 select-none font-sans">
@@ -149,10 +149,10 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
             <Eye className="w-5 h-5 text-indigo-900" />
           </div>
           <div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               TOTAL REVIEWED
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {totalReviewedCount}
             </span>
           </div>
@@ -164,10 +164,10 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
             <CheckCircle className="w-5 h-5 text-[#00a15c]" />
           </div>
           <div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               APPROVED
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {approvedCount}
             </span>
           </div>
@@ -179,10 +179,10 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
             <XCircle className="w-5 h-5 text-rose-500" />
           </div>
           <div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">
+            <span className="card-label text-slate-400 uppercase tracking-widest block leading-none mb-1">
               REJECTED
             </span>
-            <span className="text-2xl font-black text-brand-navy">
+            <span className="card-metric text-brand-navy">
               {rejectedCount}
             </span>
           </div>
@@ -288,13 +288,13 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
             <table className="data-table min-w-[850px] text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-150 text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                  <th className="py-4.5 px-6">REQUEST ID</th>
-                  <th className="py-4.5 px-6">STUDENT</th>
-                  <th className="py-4.5 px-6">RESEARCH TITLE</th>
-                  <th className="py-4.5 px-6 pt-5">SUBMITTED DATE</th>
-                  <th className="py-4.5 px-6">DECISION</th>
-                  <th className="py-4.5 px-6">SEMESTER</th>
-                  <th className="py-4.5 px-6 text-center">ACTION</th>
+                  <th className="py-4.5 px-6 text-[10px] font-extrabold uppercase tracking-wider">REQUEST ID</th>
+                  <th className="py-4.5 px-6 text-[10px] font-extrabold uppercase tracking-wider">STUDENT</th>
+                  <th className="py-4.5 px-6 text-[10px] font-extrabold uppercase tracking-wider">RESEARCH TITLE</th>
+                  <th className="py-4.5 px-6 pt-5 text-[10px] font-extrabold uppercase tracking-wider">SUBMITTED DATE</th>
+                  <th className="py-4.5 px-6 text-[10px] font-extrabold uppercase tracking-wider">DECISION</th>
+                  <th className="py-4.5 px-6 text-[10px] font-extrabold uppercase tracking-wider">SEMESTER</th>
+                  <th className="py-4.5 px-6 text-center text-[10px] font-extrabold uppercase tracking-wider">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-brand-navy">
@@ -327,19 +327,19 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
                     return (
                       <tr key={row.requestId} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 px-6 font-mono font-black text-slate-500">
+                        <td className="py-4 px-6 font-mono font-bold text-slate-500">
                           {row.requestId}
                         </td>
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 text-xs font-semibold">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-slate-100 text-slate-500 font-extrabold text-[10px] rounded-lg flex items-center justify-center shrink-0 border border-slate-200/50 select-none">
                               {initials}
                             </div>
                             <div>
-                              <span className="font-extrabold text-brand-navy tracking-tight block">
+                              <span className="font-bold text-brand-navy tracking-tight block">
                                 {row.studentName}
                               </span>
-                              <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                              <span className="card-caption text-slate-400 block mt-0.5">
                                 {row.studentId}
                               </span>
                             </div>
@@ -351,7 +351,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                         <td className="py-4 px-6 font-bold text-slate-400">
                           {row.submittedDate}
                         </td>
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 text-xs font-semibold">
                           <StatusBadge tone={row.decision === 'Approved' ? 'success' : row.decision === 'Cancelled' ? 'neutral' : 'danger'} dot>
                             {row.decision}
                           </StatusBadge>
@@ -359,7 +359,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                         <td className="py-4 px-6 font-bold text-slate-500">
                           {row.semester}
                         </td>
-                        <td className="py-4 px-6 text-center">
+                        <td className="py-4 px-6 text-center text-xs font-semibold">
                           <button
                             onClick={() => setSelectedRecord(row)}
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-brand-navy hover:text-slate-800 border border-slate-200 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
@@ -419,76 +419,14 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
         </div>
       </div>
 
-      {/* TWO SYSTEM ASSISTANCE CARDS BELOW TABLE LISTINGS */}
-      <div id="system-rules-helper-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none font-sans">
-        
-        {/* SUPERVISION POLICY COGNITIVE BOX */}
-        <div className="bg-[#f8fafc]/50 border border-slate-150 p-6 rounded-2xl flex gap-4 text-left">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <Info className="w-4.5 h-4.5 text-slate-500" />
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider">
-              Supervision Policy
-            </h4>
-            <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-              Remember that each lecturer is generally allocated a maximum of 10 active postgraduate students at any given time. Requests are reviewed based on thematic alignment with your research clusters.
-            </p>
-          </div>
-        </div>
-
-        {/* HELP ASSISTANCE COGNITIVE BOX */}
-        <div className="bg-[#f8fafc]/50 border border-slate-150 p-6 rounded-2xl flex gap-4 text-left">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <HelpCircle className="w-4.5 h-4.5 text-slate-500" />
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="text-xs font-black text-brand-navy uppercase tracking-wider">
-              Need Assistance?
-            </h4>
-            <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-              If you need to change a previous decision or have technical issues viewing student research proposals, please contact the Postgraduate Office at <a href="mailto:support@fsktm.um.edu.my" className="text-[#2563eb] font-bold hover:underline">support@fsktm.um.edu.my</a>.
-            </p>
-          </div>
-        </div>
-
-      </div>
-
       {/* INTERACTIVE DETAIL VIEW POPUP MODAL (Satisfies "Lecturer can view request details from the Action column") */}
-      <AnimatePresence>
-        {selectedRecord && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setSelectedRecord(null)}
-            />
-
-            {/* Modal Body Card layout */}
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative bg-white rounded-2xl p-7 max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-sm border border-slate-100 z-10 text-left font-sans"
-            >
-              {/* Top dismissal btn */}
-              <button
-                onClick={() => setSelectedRecord(null)}
-                className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="space-y-5">
+      {selectedRecord ? <RecordPage title="Appointment request" backLabel="Back to Request History" onBack={() => setSelectedRecord(null)} pageKey={`supervisor-history:${selectedRecord.requestId}`}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
                 <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  <span className="card-label text-slate-400 uppercase tracking-wider block">
                     HISTORIC DISPOSITION CARD
                   </span>
                   <div className="flex items-center justify-between mt-2.5">
-                    <span className="font-mono text-xs font-black text-brand-navy">
+                    <span className="card-value font-mono text-brand-navy">
                       {selectedRecord.requestId}
                     </span>
                     <StatusBadge tone={selectedRecord.decision === 'Approved' ? 'success' : selectedRecord.decision === 'Cancelled' ? 'neutral' : 'danger'} className="py-0.5 text-[9px]">
@@ -503,10 +441,10 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                     {selectedRecord.studentName.split(' ')[0][0]}{selectedRecord.studentName.split(' ').slice(-1)[0][0]}
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-brand-navy">
+                    <h4 className="section-label">
                       {selectedRecord.studentName}
                     </h4>
-                    <p className="text-[11px] text-slate-400 font-bold">
+                    <p className="card-description">
                       {selectedRecord.studentId} <span className="mx-1 text-slate-205">•</span> {selectedRecord.programme}
                     </p>
                   </div>
@@ -515,18 +453,18 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 {/* Semester details */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       DECISION SEMESTER
                     </span>
-                    <span className="text-xs font-black text-slate-700 block mt-0.5">
+                    <span className="card-value text-slate-700 block mt-0.5">
                       {selectedRecord.semester}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       SUBMITTED ON
                     </span>
-                    <span className="text-xs font-black text-slate-700 block mt-0.5">
+                    <span className="card-value text-slate-700 block mt-0.5">
                       {selectedRecord.submittedDate}
                     </span>
                   </div>
@@ -534,20 +472,20 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
 
                 {/* Dissertation proposal */}
                 <div className="space-y-1.5">
-                  <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label text-slate-400 block uppercase tracking-wider">
                     PROPOSED RESERCH TOPIC
                   </span>
-                  <h5 className="text-[12.5px] font-extrabold text-brand-navy leading-snug">
+                  <h5 className="card-value text-brand-navy leading-snug">
                     {selectedRecord.researchTitle}
                   </h5>
                 </div>
 
                 {/* Synopsis abstract */}
                 <div className="p-4 bg-slate-50 rounded-xl space-y-2">
-                  <span className="text-[9px] font-black text-slate-400 block tracking-wider">
+                  <span className="card-caption text-slate-400 block tracking-wider">
                     SYNOPSIS SUMMARY
                   </span>
-                  <p className="text-xs text-slate-600 font-semibold leading-relaxed">
+                  <p className="card-description">
                     {selectedRecord.abstract}
                   </p>
                 </div>
@@ -555,10 +493,10 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 {/* Decline reason block if rejected */}
                 {(selectedRecord.decision === 'Rejected' || selectedRecord.decision === 'Cancelled') && selectedRecord.decisionReason && (
                   <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-xl space-y-1">
-                    <span className="text-[9px] font-black text-rose-500 block tracking-wider">
+                    <span className="card-caption text-rose-500 block tracking-wider">
                       DECLINE REASON LOGGED
                     </span>
-                    <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                    <p className="card-description text-slate-700 leading-relaxed">
                       {selectedRecord.decisionReason}
                     </p>
                   </div>
@@ -573,11 +511,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                   </button>
                 </div>
 
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </section></RecordPage> : null}
 
     </div>
   );

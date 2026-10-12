@@ -112,7 +112,7 @@ if (/currentUserCandidate[\s\S]{0,250}\?\s*currentUserCandidate\.workloadLimit\s
 }
 
 const lecturerSupervisorSource = readFileSync(
-  resolve('src/components/LecturerSupervisorAppointments.tsx'),
+  resolve('src/components/LecturerAppointmentRequests.tsx'),
   'utf8',
 );
 for (const token of ['capacityState', 'capacityPlanVersion', 'unavailableUntil']) {

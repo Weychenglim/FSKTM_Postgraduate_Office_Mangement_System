@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -184,7 +184,7 @@ export const StudentFileSubmission: React.FC = () => {
         className="border-b border-slate-100 pb-5"
         actions={(
           <div className="w-full lg:w-72 space-y-1.5 self-start lg:self-end">
-          <label htmlFor="submission-category-select" className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+          <label htmlFor="submission-category-select" className="form-label uppercase text-slate-400 tracking-wider block">
             Submission Category
           </label>
           <div className="relative">
@@ -234,7 +234,7 @@ export const StudentFileSubmission: React.FC = () => {
               <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-black text-slate-800 truncate" title={uploadingName}>
+              <p className="card-value text-slate-800 truncate" title={uploadingName}>
                 Uploading {uploadingName}
               </p>
               <p className="text-[10px] font-bold text-slate-400 font-mono">
@@ -256,7 +256,7 @@ export const StudentFileSubmission: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <p className="text-sm font-black text-slate-800">
+              <p className="card-value text-slate-800">
                 Drag &amp; drop your thesis or report here, or{' '}
                 <button 
                   type="button" 
@@ -266,7 +266,7 @@ export const StudentFileSubmission: React.FC = () => {
                   browse
                 </button>
               </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+              <p className="card-description">
                 Supported formats: PDF, DOCX up to 50MB
               </p>
             </div>
@@ -277,7 +277,7 @@ export const StudentFileSubmission: React.FC = () => {
       {/* Section Title: Recent Activity */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-brand-navy uppercase tracking-wider">
+          <h2 className="section-label">
             Recent Activity
           </h2>
           <button
@@ -296,12 +296,12 @@ export const StudentFileSubmission: React.FC = () => {
             <table id="recent-activity-table" className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-105 select-none">
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider">File Name</th>
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider">Category</th>
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider">Uploaded</th>
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider">Size</th>
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-450 text-slate-400 tracking-wider text-right">Actions</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">File Name</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Category</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Uploaded</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Size</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Status</th>
+                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -332,7 +332,7 @@ export const StudentFileSubmission: React.FC = () => {
                     return (
                       <tr key={sub.id} className="hover:bg-slate-50/40 transition">
                         {/* File Name cell */}
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 text-xs font-semibold">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                               sub.name.endsWith('.pdf') 
@@ -341,29 +341,29 @@ export const StudentFileSubmission: React.FC = () => {
                             }`}>
                               <File className="w-4 h-4" />
                             </div>
-                            <span className="font-extrabold text-slate-800 text-xs truncate max-w-[210px] block select-all" title={sub.name}>
+                            <span className="font-bold text-slate-800 text-xs truncate max-w-[210px] block select-all" title={sub.name}>
                               {sub.name}
                             </span>
                           </div>
                         </td>
 
                         {/* Category cell */}
-                        <td className="py-4 px-6 text-slate-500">
+                        <td className="py-4 px-6 text-slate-500 text-xs font-semibold">
                           {sub.category}
                         </td>
 
                         {/* Uploaded date cell */}
-                        <td className="py-4 px-6 font-medium text-slate-500">
+                        <td className="py-4 px-6 font-medium text-slate-500 text-xs font-semibold">
                           {sub.uploaded}
                         </td>
 
                         {/* Size cell */}
-                        <td className="py-4 px-6 font-mono text-slate-500 text-[11px]">
+                        <td className="py-4 px-6 font-mono text-slate-500 text-xs text-xs font-semibold">
                           {sub.size}
                         </td>
 
                         {/* Status Chip cell exactly matching color presets */}
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 text-xs font-semibold">
                           {isApproved && (
                             <span className="bg-emerald-50/80 border border-emerald-150 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 select-none">
                               <CheckCircle className="w-3 h-3 text-emerald-600" />
@@ -387,7 +387,7 @@ export const StudentFileSubmission: React.FC = () => {
                         </td>
 
                         {/* Actions item triggers */}
-                        <td className="py-4 px-6 text-right">
+                        <td className="py-4 px-6 text-right text-xs font-semibold">
                           <div className="flex items-center justify-end gap-2 text-slate-400">
                             {/* Download Icon always allowed for all states */}
                             <button

@@ -349,7 +349,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                             {tpl.type}
                           </span>
                         </div>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-2 leading-relaxed">
+                        <p className="card-description mt-2">
                           {tpl.description}
                         </p>
                       </button>

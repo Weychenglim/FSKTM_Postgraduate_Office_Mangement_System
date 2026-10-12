@@ -52,10 +52,10 @@ const CoordinatorCard: React.FC<CoordinatorCardProps> = ({
   >
     <div className="flex items-start justify-between gap-4">
       <div>
-        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+        <span className="card-label text-slate-500 block">
           {title}
         </span>
-        <span className="text-2xl font-black text-brand-navy tracking-tight block mt-3">
+        <span className="card-metric block mt-3">
           {value}
         </span>
       </div>
@@ -65,7 +65,7 @@ const CoordinatorCard: React.FC<CoordinatorCardProps> = ({
     </div>
     <div className="space-y-3 pt-4">
       <StatusBadge tone={badgeTone} className="text-[9px]">{badge}</StatusBadge>
-      <p className="text-[10.5px] text-slate-400 font-bold leading-relaxed">{subtext}</p>
+      <p className="card-description">{subtext}</p>
       <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider ${
         disabled ? 'text-slate-400' : 'text-blue-600 group-hover:text-blue-800'
       }`}>

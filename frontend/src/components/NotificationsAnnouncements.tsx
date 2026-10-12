@@ -1,4 +1,5 @@
-﻿/**
+import { PortalModal } from './PortalModal';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -89,10 +90,10 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({ name, meta, disa
         </div>
         
         <div>
-          <h4 className="text-[11px] font-extrabold text-slate-800 leading-snug">
+          <h4 className="card-value text-slate-800 leading-snug">
             {name}
           </h4>
-          <p className="text-[9.5px] text-slate-450 font-bold mt-0.5">
+          <p className="card-caption text-slate-450 mt-0.5">
             {meta}
           </p>
         </div>
@@ -107,7 +108,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({ name, meta, disa
           <Lock className="w-3.5 h-3.5 text-slate-400" />
           <span>Open Letter</span>
         </button>
-        <span className="text-[9px] text-slate-400 font-extrabold tracking-wide uppercase italic leading-none">
+        <span className="card-caption text-slate-400 tracking-wide uppercase italic leading-none">
           Available after approval
         </span>
       </div>
@@ -121,7 +122,7 @@ interface InfoNoteProps {
 
 export const InfoNote: React.FC<InfoNoteProps> = ({ text }) => {
   return (
-    <div className="flex items-start md:items-center gap-2 text-[10px] text-slate-450 font-bold select-none justify-start px-1">
+    <div className="card-caption flex items-start md:items-center gap-2 text-slate-450 select-none justify-start px-1">
       <Info className="w-4 h-4 text-slate-400 shrink-0" />
       <p className="leading-snug text-left">{text}</p>
     </div>
@@ -138,16 +139,16 @@ export const MetadataGrid: React.FC<MetadataGridProps> = ({ from, to, reference 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4 border-y border-slate-100 my-5 text-left">
       <div className="space-y-1">
-        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">From</span>
-        <h4 className="text-xs font-black text-slate-800">{from}</h4>
+        <span className="card-label uppercase text-slate-400 tracking-wider">From</span>
+        <h4 className="card-value text-slate-800">{from}</h4>
       </div>
       <div className="space-y-1">
-        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">To</span>
-        <h4 className="text-xs font-black text-slate-800">{to}</h4>
+        <span className="card-label uppercase text-slate-400 tracking-wider">To</span>
+        <h4 className="card-value text-slate-800">{to}</h4>
       </div>
       <div className="space-y-1">
-        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Reference</span>
-        <h4 className="text-xs font-bold text-slate-800 tracking-wider font-mono bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 inline-block">
+        <span className="card-label uppercase text-slate-400 tracking-wider">Reference</span>
+        <h4 className="card-value text-slate-800 tracking-wider font-mono bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 inline-block">
           {reference}
         </h4>
       </div>
@@ -178,8 +179,8 @@ export const TabEmptyState: React.FC<TabEmptyStateProps> = ({ tab, searching }) 
       <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-150 flex items-center justify-center mb-4">
         <Icon className="w-6 h-6 text-slate-400" />
       </div>
-      <h3 className="text-sm font-extrabold text-brand-navy tracking-tight">{title}</h3>
-      <p className="text-[11px] text-slate-500 font-medium mt-1.5 max-w-sm leading-relaxed">{message}</p>
+      <h3 className="section-label">{title}</h3>
+      <p className="card-description mt-1.5 max-w-sm">{message}</p>
     </div>
   );
 };
@@ -350,7 +351,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
             />
           </div>
 
-          <div className="text-[10px] text-slate-400 font-bold shrink-0">
+          <div className="card-caption text-slate-400 shrink-0">
             Total {filteredNotifications.length} {noun}
           </div>
         </div>
@@ -391,22 +392,22 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                     {it.isUnread && (
                       <StatusDot tone="info" className="w-2 h-2" />
                     )}
-                    <h3 className="text-xs md:text-sm font-black text-brand-navy tracking-tight hover:text-blue-600 transition-colors">
+                    <h3 className="section-label hover:text-blue-600 transition-colors">
                       {it.title}
                     </h3>
                   </div>
 
-                  <span className="block text-[9.5px] font-black uppercase text-slate-400 tracking-wider">
+                  <span className="card-caption block uppercase text-slate-400 tracking-wider">
                     {it.service}
                   </span>
 
-                  <p className="text-[11px] text-slate-500 font-semibold line-clamp-2 leading-relaxed">
+                  <p className="card-description line-clamp-2">
                     {it.description}
                   </p>
                 </button>
 
                 {/* Right stamp column */}
-                <div className="flex items-center gap-4 text-right text-[10px] font-bold text-slate-400 shrink-0 select-none">
+                <div className="card-caption flex items-center gap-4 text-right text-slate-400 shrink-0 select-none">
                   <span className="hidden sm:inline-block truncate max-w-[120px]">{it.timeAgo.split(', ')[0]}</span>
                   <button
                     type="button"
@@ -426,32 +427,8 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      {createPortal(
-        <AnimatePresence>
-          {selectedNotification && (
-          <div
-            id="notification-modal-overlay"
-            className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[90] p-4 animate-fade-in"
-          >
-            {/* Backdrop Dimmer dismiss area */}
-            <div 
-              id="backdrop-overlay-dismiss"
-              className="absolute inset-0" 
-              onClick={() => setSelectedNotification(null)} 
-            />
+      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-dialog-title" className="max-w-2xl p-0">
 
-            {/* Centered Modal Frame Card */}
-            <motion.div
-              layoutId={`modal-card-${selectedNotification.id}`}
-              initial={{ scale: 0.96, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 15 }}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="notification-dialog-title"
-              className="bg-white rounded-2xl max-w-2xl w-full max-h-[calc(100vh-2rem)] overflow-hidden shadow-sm relative z-[100] border border-slate-100 flex flex-col text-left"
-            >
-              
               <div id="modal-header-panel" className="drawer-header">
                 <div className="flex items-center gap-2.5 min-w-0">
                   {selectedNotification.isAnnouncement
@@ -501,11 +478,11 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
                 {/* Message text body content paragraphs */}
                 <div className="space-y-4">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                  <span className="card-label uppercase tracking-wider text-slate-400 block mb-1">
                     Message
                   </span>
                   
-                  <div className="text-xs font-semibold text-slate-700 leading-relaxed space-y-3 prose pr-2">
+                  <div className="card-description text-slate-700 leading-relaxed space-y-3 prose pr-2">
                     {(selectedNotification.detailedMessage || selectedNotification.description)
                       .split('\n')
                       .filter((line) => line.trim().length > 0)
@@ -518,7 +495,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 {/* Document Attachments Panel: only when the announcement carries a file */}
                 {selectedNotification.attachmentName && (
                   <div className="space-y-2.5">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                    <span className="card-label uppercase tracking-wider text-slate-400 block">
                       Attached Documents
                     </span>
 
@@ -528,10 +505,10 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                           <FileText className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
-                          <h4 className="text-[11px] font-extrabold text-slate-800 leading-snug break-all">
+                          <h4 className="card-value text-slate-800 leading-snug break-all">
                             {selectedNotification.attachmentName}
                           </h4>
-                          <p className="text-[9.5px] text-slate-450 font-bold mt-0.5">
+                          <p className="card-caption text-slate-450 mt-0.5">
                             Attached by {selectedNotification.service}
                           </p>
                         </div>
@@ -565,12 +542,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                 </PortalButton>
               </div>
 
-            </motion.div>
-          </div>
-        )}
-        </AnimatePresence>,
-        document.body
-      )}
+            </PortalModal> : null}
 
     </div>
   );

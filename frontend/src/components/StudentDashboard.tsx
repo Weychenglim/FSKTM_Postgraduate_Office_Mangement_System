@@ -58,7 +58,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             icon={Files}
             onClick={() => onNavigateToRoute(routeForStudentProgress())}
           >
-            View My Progress
+            View My Academic Record
           </PortalButton>
         ) : undefined}
       />
@@ -67,8 +67,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <div>
-            <strong className="block">Academic status: {lifecycleStatus.charAt(0) + lifecycleStatus.slice(1).toLowerCase()}</strong>
-            <p className="mt-1 text-[11px]">Your historical records remain available, but new workflow submissions and academic decisions are currently read-only.</p>
+            <strong className="card-value block text-amber-900">Academic status: {lifecycleStatus.charAt(0) + lifecycleStatus.slice(1).toLowerCase()}</strong>
+            <p className="card-description mt-1 text-amber-900">Your historical records remain available, but new workflow submissions and academic decisions are currently read-only.</p>
           </div>
         </div>
       )}

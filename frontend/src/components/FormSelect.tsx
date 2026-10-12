@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -50,7 +50,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
         </div>
       </div>
       {error && (
-        <span id={`select-err-${id}`} className="text-xs text-red-500 mt-1.5 font-medium">
+        <span id={`select-err-${id}`} className="card-description text-red-500 mt-1.5">
           {error}
         </span>
       )}

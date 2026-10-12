@@ -49,10 +49,10 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
   >
     <div className="flex items-start justify-between gap-4">
       <div>
-        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+        <span className="card-label text-slate-500 block">
           {title}
         </span>
-        <span className="text-2xl font-black text-brand-navy tracking-tight block mt-3">
+        <span className="card-metric block mt-3">
           {value}
         </span>
       </div>
@@ -63,7 +63,7 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
 
     <div className="space-y-3 pt-4">
       <StatusBadge tone={badgeTone} className="text-[9px]">{badge}</StatusBadge>
-      <p className="text-[10.5px] text-slate-400 font-bold leading-relaxed">
+      <p className="card-description">
         {subtext}
       </p>
       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600 group-hover:text-blue-800">
@@ -126,8 +126,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <div>
-            <strong className="block">Retirement transition in progress</strong>
-            <p className="mt-1 text-[11px]">You may resolve existing decisions, but new Supervisor, Panel, and Marks assignments are unavailable.</p>
+            <strong className="card-value block text-amber-900">Retirement transition in progress</strong>
+            <p className="card-description mt-1 text-amber-900">You may resolve existing decisions, but new Supervisor, Panel, and Marks assignments are unavailable.</p>
           </div>
         </div>
       )}
@@ -142,8 +142,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
           <div key={label} className="border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase text-slate-400">{label}</p>
-                <p className="mt-2 text-xl font-black text-brand-navy">
+                <p className="card-label text-slate-400">{label}</p>
+                <p className="card-metric mt-2">
                   {value ? `${value.workloadCount ?? value.currentStudents} / ${value.workloadLimit}` : 'Unavailable'}
                 </p>
               </div>
@@ -154,7 +154,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 <div className="mt-3 h-2 overflow-hidden bg-slate-100">
                   <div className="h-full bg-brand-navy" style={{ width: `${capacityUtilization(value.workloadCount ?? value.currentStudents, value.workloadLimit)}%` }} />
                 </div>
-                <p className="mt-2 text-[10px] font-bold text-slate-500">
+                <p className="card-description mt-2">
                   {value.semesterCode ?? 'No active semester'} · {value.capacityPlanVersion ? `Plan v${value.capacityPlanVersion}` : 'Plan not configured'}
                   {value.unavailableUntil ? ` · Unavailable until ${value.unavailableUntil}` : ''}
                 </p>

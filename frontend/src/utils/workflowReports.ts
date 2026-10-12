@@ -1,4 +1,4 @@
-import type { UserRole, WorkflowReportAttentionItem, WorkflowReportFilters } from '../types';
+import type { UserRole, WorkflowReport, WorkflowReportAttentionItem, WorkflowReportFilters } from '../types';
 import {
   APP_ROUTES,
   routeForDashboardTimeline,
@@ -6,6 +6,7 @@ import {
   routeForWorkflowReconciliation,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
+  routeForSupervisorResearchRequest,
 } from '../constants/routes';
 
 export const buildWorkflowReportQuery = (filters: WorkflowReportFilters): string => {
@@ -25,6 +26,32 @@ export const formatReportMetric = (
   if (value === null || value === undefined || !Number.isFinite(value)) return '-';
   return `${value}${suffix}`;
 };
+
+export function getLecturerReportMetrics(report: WorkflowReport) {
+  const cards = [{
+    id: 'waiting',
+    label: 'Waiting requests',
+    value: report.overview.pendingApprovals,
+    description: 'Assigned workflows awaiting a decision, including other reviewers.',
+  }];
+  if (report.marks) {
+    cards.push(
+      {
+        id: 'evaluations',
+        label: 'Evaluations to complete',
+        value: report.marks.records.filter(row => row.status !== 'SUBMITTED').length,
+        description: 'Your assigned evaluations that have not been submitted.',
+      },
+      {
+        id: 'overdue',
+        label: 'Overdue evaluations',
+        value: report.overview.overdueMarks,
+        description: 'Assigned evaluations past their recorded deadline.',
+      },
+    );
+  }
+  return cards;
+}
 
 export const canAccessWorkflowReports = (role: UserRole): boolean =>
   role === 'Office Staff/Admin'
@@ -47,7 +74,10 @@ export const resolveWorkflowReportRecordRoute = (
   if (item.recordType === 'SUPERVISOR_APPLICATION') {
     return routeForSupervisorApplication(item.recordId);
   }
-  if (item.recordType === 'CO_SUPERVISOR_NOMINATION' || item.recordType === 'CO_SUPERVISOR_APPOINTMENT' || item.recordType === 'RESEARCH_AMENDMENT') {
+  if (item.recordType === 'RESEARCH_AMENDMENT') {
+    return routeForSupervisorResearchRequest(item.recordId);
+  }
+  if (item.recordType === 'CO_SUPERVISOR_NOMINATION' || item.recordType === 'CO_SUPERVISOR_APPOINTMENT') {
     return APP_ROUTES.supervisorAppointments;
   }
   if (item.recordType === 'PANEL_RECOMMENDATION') {

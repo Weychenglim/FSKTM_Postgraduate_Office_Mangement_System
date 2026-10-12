@@ -560,6 +560,8 @@ def notifications_list(request):
     queryset = Notification.objects.filter(recipient=request.user).select_related(
         "recipient", "announcement"
     )
+    if request.user.role == User.Role.STUDENT:
+        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
     if request.query_params.get("unread", "").lower() in ("1", "true", "yes"):
         queryset = queryset.filter(is_read=False)
     return Response([n.to_public_dict() for n in queryset[:NOTIFICATION_FEED_LIMIT]])
@@ -569,7 +571,10 @@ def notifications_list(request):
 @permission_classes([IsAuthenticated])
 def notification_mark_read(request, pk):
     """Mark one of the caller's notifications read (or unread via ``isRead``)."""
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    queryset = Notification.objects.filter(recipient=request.user)
+    if request.user.role == User.Role.STUDENT:
+        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
+    notification = get_object_or_404(queryset, pk=pk)
     try:
         is_read = serializers.BooleanField().to_internal_value(request.data.get("isRead", True))
     except serializers.ValidationError:

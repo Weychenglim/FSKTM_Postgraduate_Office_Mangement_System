@@ -406,18 +406,12 @@ class StudentProgressDossierTests(APITestCase):
             "Unable to participate.",
         )
 
-        mark_task = response.data["marks"]["tasks"][0]
-        self.assertIn(
-            mark_task["status"], {"DRAFT", "OVERDUE", "NOT_STARTED", "SUBMITTED"}
-        )
-        for sensitive_key in (
-            "evaluator",
-            "evaluatorId",
-            "evaluatorRole",
-            "totalMark",
-            "comments",
-        ):
-            self.assertNotIn(sensitive_key, mark_task)
+        self.assertNotIn("MARKS", response.data["visibleSections"])
+        self.assertIsNone(response.data["marks"])
+        self.assertIsNone(response.data["overview"]["marksStatus"])
+        self.assertFalse(any(
+            item["targetModule"] == "MARKS" for item in response.data["attention"]
+        ))
 
         supervisor_record = response.data["supervisor"]["records"][0]
         self.assertNotIn("workflow", supervisor_record)
@@ -451,7 +445,8 @@ class StudentProgressDossierTests(APITestCase):
         self.assertIsNone(response.data["student"]["research"])
         self.assertEqual(len(response.data["supervisor"]["records"]), 1)
         self.assertEqual(response.data["panel"]["records"], [])
-        self.assertEqual(response.data["marks"]["tasks"], [])
+        self.assertNotIn("MARKS", response.data["visibleSections"])
+        self.assertIsNone(response.data["marks"])
         self.assertEqual(len(response.data["timeline"]["entries"]), 1)
 
     def test_terminal_records_do_not_contribute_stale_waiting_metadata(self):

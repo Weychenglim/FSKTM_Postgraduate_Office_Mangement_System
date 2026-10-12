@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,7 +23,7 @@ export const QuickActionsCard: React.FC<QuickActionsProps> = ({
   return (
     <div className="w-full text-left">
       <PortalCard id="quick-actions-card" padding="lg">
-        <h3 className="text-lg font-extrabold text-brand-navy tracking-tight mb-6">
+        <h3 className="section-heading mb-6">
           Quick Actions
         </h3>
 

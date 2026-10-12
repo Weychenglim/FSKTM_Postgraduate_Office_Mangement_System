@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -179,10 +179,10 @@ export const AdministrationDashboard: React.FC<AdministrationDashboardProps> = (
         {/* Left (65% approx): Records Needing Attention Table */}
         <div className="lg:col-span-8 bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
           <div className="space-y-1 block text-left">
-            <h3 className="text-sm font-black text-brand-navy tracking-tight">
+            <h3 className="section-label">
               Records Needing Attention
             </h3>
-            <p className="text-slate-500 font-bold text-[10.5px]">
+            <p className="card-description">
               Records that may require office review or follow-up.
             </p>
           </div>

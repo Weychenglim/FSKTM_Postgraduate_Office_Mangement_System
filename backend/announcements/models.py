@@ -194,6 +194,10 @@ class Notification(models.Model):
 
     def to_public_dict(self):
         """Shape this row the way the frontend ``NotificationItem`` expects."""
+        student_appointment = self.recipient.role == "Student" and self.record_type == "CO_SUPERVISOR_APPOINTMENT"
+        # Legacy appointment messages may contain internal lifecycle reasons.
+        student_summary = "Your supporting supervisor appointment has been updated."
+        student_message = "View your confirmed supporting appointments in My supervisors."
         attachment_name = (
             self.announcement.attachment_name if self.announcement else None
         )
@@ -201,8 +205,8 @@ class Notification(models.Model):
             "id": str(self.pk),
             "title": self.title,
             "service": self.service,
-            "description": self.summary or " ".join(self.message.split())[:90],
-            "detailedMessage": self.message,
+            "description": student_summary if student_appointment else self.summary or " ".join(self.message.split())[:90],
+            "detailedMessage": student_message if student_appointment else self.message,
             "timeAgo": localtime(self.created_at).strftime("%d %b %Y, %I:%M %p"),
             "priority": self.priority,
             "isUnread": not self.is_read,

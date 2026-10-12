@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,7 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
   return (
     <div id="active-supervisees-section" className="space-y-2 text-left font-sans">
       {/* Group Title */}
-      <h5 className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider">
+      <h5 className="section-label text-[#475569] uppercase tracking-wider">
         Active Supervisees
       </h5>
 
@@ -40,14 +40,14 @@ export const ActiveSuperviseesTable: React.FC<ActiveSuperviseesTableProps> = ({ 
                 <tr key={student.id} className="hover:bg-slate-50/40 transition-colors">
                   {/* Student profile and ID */}
                   <td className="data-td font-sans text-left align-top">
-                    <div className="font-extrabold text-brand-navy">{student.name}</div>
-                    <div className="font-mono text-[9px] font-black text-slate-400 mt-1 uppercase">
+                    <div className="font-bold text-brand-navy">{student.name}</div>
+                    <div className="card-caption font-mono text-slate-400 mt-1 uppercase">
                       {student.id}
                     </div>
                   </td>
 
                   {/* Research Topic details */}
-                  <td className="data-td text-left align-top leading-relaxed text-[#334155] font-medium text-slate-600">
+                  <td className="data-td text-left align-top leading-relaxed text-[#334155] text-slate-600">
                     {student.topic}
                   </td>
                 </tr>

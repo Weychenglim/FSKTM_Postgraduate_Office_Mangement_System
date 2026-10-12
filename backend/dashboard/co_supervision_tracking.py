@@ -23,7 +23,7 @@ def scoped_nominations(user, programme=None):
     elif user.role == User.Role.LECTURER:
         rows = rows.filter(Q(candidate=user) | Q(nominator=user))
     elif user.role == User.Role.STUDENT:
-        rows = rows.filter(student__user=user)
+        return rows.none()
     elif user.role != User.Role.OFFICE_ADMIN:
         return rows.none()
     if programme:

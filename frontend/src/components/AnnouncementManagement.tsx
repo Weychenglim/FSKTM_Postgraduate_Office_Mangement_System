@@ -25,10 +25,12 @@ import {
   FileText,
   Pencil,
   Minus,
-  CalendarClock
+  CalendarClock,
+  Plus
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { StatCard } from './StatCard';
+import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementAudienceOptions, AnnouncementItem } from '../types';
 import {
@@ -113,6 +115,11 @@ const scheduleLine = (item: AnnouncementItem) => {
   return `${base}, ${item.status === 'Expired' ? 'expired' : 'expires'} ${formatScheduleMoment(item.expiresAt)}`;
 };
 
+// Headline, audience, priority, content, publish and expiry times,
+// programmes, intakes and the attachment removal, in that order.
+const formSnapshot = (values: unknown[]) => JSON.stringify(values);
+const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', '', [], [], false]);
+
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
   const [toast, setToast] = useState<string | null>(null);
@@ -122,7 +129,7 @@ export const AnnouncementManagement: React.FC = () => {
   };
 
   // --- View state: 'create' (draft form) vs 'history' (broadcast records) ---
-  const [view, setView] = useState<'create' | 'history'>('create');
+  const [view, setView] = useState<'create' | 'history'>('history');
 
   // --- 2. Live Broadcast History Data store (loaded from announcementsApi) ---
   const [historyItems, setHistoryItems] = useState<AnnouncementItem[]>([]);
@@ -154,6 +161,10 @@ export const AnnouncementManagement: React.FC = () => {
   const [contentBody, setContentBody] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  // What the form held when it was opened, so leaving it asks before
+  // discarding changes.
+  const initialDraft = useRef(EMPTY_FORM);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // When set, the form edits an existing announcement (PATCH) instead of creating one.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -258,6 +269,8 @@ export const AnnouncementManagement: React.FC = () => {
       return;
     }
     setScheduleError(null);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const forStudents = targetAudience === 'Students';
@@ -298,12 +311,14 @@ export const AnnouncementManagement: React.FC = () => {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
       }
       resetForm();
+      setView('history');
       loadAnnouncements();
     } catch (err) {
       const fields = fieldErrors(err);
       setScheduleError(fields.publishAt ?? fields.expiresAt ?? null);
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -325,6 +340,17 @@ export const AnnouncementManagement: React.FC = () => {
     setExistingAttachmentName(draft.attachmentName ?? null);
     setRemoveExistingAttachment(false);
     setAttachedFile(null);
+    initialDraft.current = formSnapshot([
+      draft.title,
+      audienceFromTarget(draft.target),
+      draft.priority,
+      draft.content ?? draft.summary ?? '',
+      toMalaysiaDateTimeLocalValue(draft.publishAt),
+      toMalaysiaDateTimeLocalValue(draft.expiresAt),
+      draft.targetProgrammes ?? [],
+      draft.targetIntakes ?? [],
+      false,
+    ]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast(
@@ -405,7 +431,22 @@ export const AnnouncementManagement: React.FC = () => {
     setExistingAttachmentName(null);
     setRemoveExistingAttachment(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    initialDraft.current = EMPTY_FORM;
   };
+
+  const formDirty =
+    !!attachedFile ||
+    formSnapshot([
+      headline,
+      targetAudience,
+      priorityLevel,
+      contentBody,
+      publishAtInput,
+      expiresAtInput,
+      targetProgrammes,
+      targetIntakes,
+      removeExistingAttachment,
+    ]) !== initialDraft.current;
 
   // Deleting is permanent and also removes every recipient's copy, so it is
   // always confirmed first.
@@ -495,17 +536,15 @@ export const AnnouncementManagement: React.FC = () => {
 
       {view === 'create' ? (
       /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
-      <div className="space-y-8">
-
-        <PageHeader
-          title={
+      <RecordPage
+        title={
             editingId
               ? editingStatus === 'Active'
                 ? 'Edit Published Announcement'
                 : editingStatus === 'Scheduled' ? 'Edit Scheduled Announcement' : 'Edit Draft Announcement'
               : 'Draft New Announcement'
           }
-          subtitle={
+        subtitle={
             editingId
               ? editingStatus === 'Active'
                 ? 'Changes reach recipients as soon as you save.'
@@ -514,31 +553,13 @@ export const AnnouncementManagement: React.FC = () => {
                   : 'Update the draft below, then save it or publish it.'
               : 'Craft your message for the FSKTM community.'
           }
-          actions={(
-            <div className="flex items-center gap-2 shrink-0">
-              {editingId && (
-                <PortalButton
-                  type="button"
-                  variant="ghost"
-                  size="md"
-                  icon={X}
-                  onClick={handleCancelEdit}
-                >
-                  Cancel Edit
-                </PortalButton>
-              )}
-              <PortalButton
-                type="button"
-                variant="secondary"
-                size="md"
-                icon={Eye}
-                onClick={() => setView('history')}
-              >
-                View Announcement History
-              </PortalButton>
-            </div>
-          )}
-        />
+        backLabel="Back to Announcements"
+        onBack={() => { resetForm(); setView('history'); }}
+        pageKey={`announcement:${editingId ?? 'new'}`}
+        dirty={formDirty}
+        busy={submitting}
+      >
+      <fieldset disabled={submitting} className="space-y-8">
 
         {/* Draft form. Enter must not trigger a native submit, which reloaded
             the page and lost the draft; the buttons below do the saving. */}
@@ -885,17 +906,18 @@ export const AnnouncementManagement: React.FC = () => {
           </div>
         )}
 
-      </div>
+      </fieldset>
+      </RecordPage>
       ) : (
       /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
       <div id="announcements-history-view" className="space-y-8">
 
         <PageHeader
-          title="Announcement History"
+          title="Announcements"
           subtitle="Review and manage past announcements broadcast to the FSKTM community."
-          backLabel="Back to Draft Announcement"
-          onBack={() => setView('create')}
           actions={(
+            <div className="flex flex-wrap items-center gap-3">
+            <PortalButton icon={Plus} onClick={() => { resetForm(); setView('create'); }}>New announcement</PortalButton>
             <div className="relative max-w-xs w-full">
               <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -907,6 +929,7 @@ export const AnnouncementManagement: React.FC = () => {
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
               />
+            </div>
             </div>
           )}
         />

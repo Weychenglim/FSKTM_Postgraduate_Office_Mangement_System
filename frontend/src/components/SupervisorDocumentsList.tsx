@@ -40,7 +40,7 @@ export const SupervisorDocumentsList: React.FC<Props> = ({
   };
 
   if (documents.length === 0) {
-    return <p className="text-xs font-semibold text-slate-400">No supporting documents were recorded.</p>;
+    return <p className="card-description">No supporting documents were recorded.</p>;
   }
 
   return (
@@ -50,8 +50,8 @@ export const SupervisorDocumentsList: React.FC<Props> = ({
           <div className="flex min-w-0 items-center gap-3">
             <FileText className="h-4 w-4 shrink-0 text-rose-500" />
             <div className="min-w-0">
-              <p className="truncate text-xs font-extrabold text-slate-800">{document.name}</p>
-              <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+              <p className="card-value truncate text-slate-800">{document.name}</p>
+              <p className="card-description mt-0.5">
                 {document.requirementLabel} · {formatSupervisorDocumentSize(document.size)}
               </p>
             </div>
@@ -71,7 +71,7 @@ export const SupervisorDocumentsList: React.FC<Props> = ({
           )}
         </div>
       ))}
-      {error && <p className="text-[10px] font-bold text-rose-600">{error}</p>}
+      {error && <p className="card-description text-rose-600">{error}</p>}
     </div>
   );
 };

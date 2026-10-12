@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -402,6 +402,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 {/* Textarea for actual content */}
                 <textarea
                   rows={9}
+                  data-typography="formatted-content"
                   value={answerBody}
                   onChange={(e) => setAnswerBody(e.target.value)}
                   className={`form-control form-control-md rounded-none border-0 bg-slate-50/50 resize-none leading-relaxed ${isBold ? 'font-black' : ''} ${isItalic ? 'italic' : ''}`}
@@ -466,7 +467,7 @@ export const AcademicFAQEditor: React.FC = () => {
                       className={`flex flex-col text-left max-w-[85%] ${isStudent ? 'ml-auto items-end' : 'mr-auto items-start'}`}
                     >
                       {/* Bubble Text */}
-                      <div className={`p-4 rounded-2xl text-[11px] font-semibold leading-relaxed ${
+                      <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed ${
                         isStudent 
                           ? 'bg-slate-200 text-brand-navy rounded-br-none' 
                           : 'bg-brand-navy text-white rounded-bl-none shadow-sm'
@@ -475,7 +476,7 @@ export const AcademicFAQEditor: React.FC = () => {
                       </div>
 
                       {/* Footer descriptor beneath bubble */}
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[9px] font-bold text-slate-400">
+                      <div className="card-caption mt-1 flex flex-wrap items-center gap-2 text-slate-400">
                         <span>{isStudent ? `Student • ${msg.timestamp}` : `AI Assistant • ${msg.timestamp}`}</span>
                         
                         {/* If bot, display Confidence badge metrics */}

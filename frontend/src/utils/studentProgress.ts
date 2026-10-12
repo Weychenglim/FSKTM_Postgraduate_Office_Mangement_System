@@ -3,11 +3,13 @@ import type {
   StudentProgressSection,
   StudentProgressTab,
   StudentProgressTarget,
+  StudentProgressVisibility,
 } from '../types';
 import {
   APP_ROUTES,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
+  routeForSupervisorResearchRequest,
 } from '../constants/routes';
 
 export const formatProgressStatus = (
@@ -22,7 +24,10 @@ export const formatProgressStatus = (
 
 export const visibleProgressTabs = (
   sections: StudentProgressDossier['visibleSections'],
-): StudentProgressTab[] => ['OVERVIEW', ...sections];
+  visibility: StudentProgressVisibility = 'INTERNAL',
+): StudentProgressTab[] => visibility === 'INTERNAL'
+  ? ['OVERVIEW', ...sections]
+  : sections.filter((section) => section !== 'MARKS');
 
 export const hasProgressSection = (
   sections: StudentProgressSection[],
@@ -47,6 +52,7 @@ export const resolveStudentProgressRecordRoute = (
     return routeForPanelRecommendation(target.recordId);
   }
   if (target.targetModule === 'SUPERVISOR_APPOINTMENTS') {
+    if (target.recordType === 'RESEARCH_AMENDMENT' && target.recordId) return routeForSupervisorResearchRequest(target.recordId);
     return APP_ROUTES.supervisorAppointments;
   }
   if (target.targetModule === 'PANEL_APPOINTMENTS') {

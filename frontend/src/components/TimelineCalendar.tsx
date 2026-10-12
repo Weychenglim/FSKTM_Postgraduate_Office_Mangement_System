@@ -1,3 +1,4 @@
+import { PortalModal } from './PortalModal';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -161,7 +162,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
         ) : (
           <span className="sr-only">{levelLabels[selectedLevel]}</span>
         )}
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+        <span className="card-label">
           {activeEntries.length} {activeEntries.length === 1 ? 'item' : 'items'}
         </span>
       </div>
@@ -170,17 +171,17 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
         <div className="bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-indigo-600" />
-            <h4 className="text-xs font-black text-brand-navy">{levelLabels[selectedLevel]}</h4>
+            <h4 className="section-label">{levelLabels[selectedLevel]}</h4>
           </div>
         </div>
 
         {activeEntries.length === 0 ? (
           <div className="px-5 py-10 text-center bg-white">
             <ListTodo className="w-6 h-6 mx-auto mb-3 text-slate-400" />
-            <p className="text-sm font-black text-brand-navy">
+            <p className="card-value">
               {selectedLevel === 'P2' ? 'P2 timeline is not available yet' : 'P1 timeline is not available yet'}
             </p>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">
+            <p className="card-description mt-1">
               {selectedLevel === 'P2'
                 ? 'P1 starts first.'
                 : 'Upload the active semester timeline to show the first project phase.'}
@@ -198,7 +199,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                 {monthKeys.map((key) => (
                   <div
                     key={key}
-                    className="px-3 pb-2 text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-l first:border-l-0 border-slate-200"
+                    className="card-label px-3 pb-2 border-b border-l first:border-l-0 border-slate-200"
                   >
                     {monthLabel(key)}
                   </div>
@@ -248,13 +249,10 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
         )}
       </div>
 
-      {selectedEntry && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/55 p-4 font-sans">
-          <div className="absolute inset-0" onClick={() => setSelectedEntry(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {selectedEntry && <PortalModal isOpen onClose={() => setSelectedEntry(null)} labelledBy="timeline-preview-title" className="max-w-lg p-0">
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
               <div>
-                <h3 className="text-base font-black text-brand-navy leading-snug">
+                <h3 id="timeline-preview-title" className="section-label leading-snug">
                   {selectedEntry.title || selectedEntry.detail}
                 </h3>
                 <div className="mt-2">
@@ -276,34 +274,31 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
             <div className="px-6 py-5 space-y-4 text-left">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <span className="form-label block">Phase</span>
-                  <p className="text-sm font-black text-brand-navy">{selectedEntry.level}</p>
+                  <span className="card-description form-label block">Phase</span>
+                  <p className="card-value">{selectedEntry.level}</p>
                 </div>
                 <div>
-                  <span className="form-label block">Action</span>
-                  <p className="text-sm font-black text-brand-navy">{selectedEntry.action}</p>
+                  <span className="card-description form-label block">Action</span>
+                  <p className="card-value">{selectedEntry.action}</p>
                 </div>
                 <div>
-                  <span className="form-label block">Start Date</span>
-                  <p className="text-sm font-black text-brand-navy">{formatDisplayDate(selectedEntry.deadlineStart)}</p>
+                  <span className="card-description form-label block">Start Date</span>
+                  <p className="card-value">{formatDisplayDate(selectedEntry.deadlineStart)}</p>
                 </div>
                 <div>
-                  <span className="form-label block">End Date</span>
-                  <p className="text-sm font-black text-brand-navy">{formatDisplayDate(selectedEntry.deadlineEnd)}</p>
+                  <span className="card-description form-label block">End Date</span>
+                  <p className="card-value">{formatDisplayDate(selectedEntry.deadlineEnd)}</p>
                 </div>
               </div>
 
               <div>
-                <span className="form-label block">Description</span>
-                <p className="mt-1 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-semibold text-slate-600 leading-relaxed">
+                <span className="card-description form-label block">Description</span>
+                <p className="card-description mt-1 rounded-2xl bg-slate-50 border border-slate-200 p-4">
                   {selectedEntry.detail}
                 </p>
               </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </PortalModal>}
     </div>
   );
 };

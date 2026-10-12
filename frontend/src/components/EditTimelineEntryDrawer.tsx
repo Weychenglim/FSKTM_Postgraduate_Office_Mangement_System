@@ -1,4 +1,5 @@
-﻿/**
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,6 +31,7 @@ interface EditTimelineEntryDrawerProps {
   entry: TimelineEntry | null;
   onSave: (updatedEntry: TimelineEntry) => void;
   timelineLabel: string;
+  busy?: boolean;
 }
 
 export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = ({
@@ -38,6 +40,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
   entry,
   onSave,
   timelineLabel,
+  busy = false,
 }) => {
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
@@ -120,58 +123,10 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div 
-          id="edit-timeline-entry-drawer" 
-          className="fixed inset-0 z-50 flex justify-end font-sans text-xs text-left"
-        >
-          {/* Dimmed Background Overlay */}
-          <motion.div
-            id="edit-drawer-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
-            onClick={onClose}
-          />
-
-          {/* Slide-In Custom Side Panel */}
-          <motion.div
-            id="edit-drawer-panel"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="drawer-panel"
-          >
-            {/* Header section with closing element */}
-            <div 
-              id="edit-drawer-header" 
-              className="drawer-header"
-            >
-              <div className="flex items-center gap-2.5">
-                <Calendar className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
-                  Edit Timeline Entry
-                </h3>
-              </div>
-              
-              <button
-                id="edit-drawer-close-button"
-                onClick={onClose}
-                className="icon-button w-9 h-9"
-                aria-label="Close edit drawer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Main Form content wrapper with neat spacing limits */}
-            <form 
+  if (!isOpen || !entry) return null;
+  return <RecordPage title="Edit Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-edit" dirty={eventName !== entry.event || category !== entry.category || startDate !== convertToInputDate(entry.startDate) || endDate !== convertToInputDate(entry.endDate) || description !== (entry.description ?? '') || targetRole.join() !== entry.targetRole.join()} busy={busy}>{requestBack => <form
               onSubmit={handleSubmit}
-              className="flex-1 flex flex-col h-full overflow-hidden"
+              className="space-y-5 rounded-2xl border border-slate-200 bg-white"
             >
               <div 
                 id="edit-drawer-body" 
@@ -179,11 +134,11 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
               >
                 {/* Context Indicator Alert banner */}
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                  <span className="card-label block">
                     Target Context Info
                   </span>
-                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    You are updating a milestone in <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
+                  <p className="card-description">
+                    You are updating a milestone in <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Saved changes are persisted immediately.
                   </p>
                 </div>
 
@@ -330,7 +285,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
               >
                 <PortalButton
                   type="button"
-                  onClick={onClose}
+                  onClick={requestBack}
                   variant="secondary"
                   size="md"
                 >
@@ -347,11 +302,5 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                   Save Changes
                 </PortalButton>
               </div>
-            </form>
-
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+            </form>}</RecordPage>;
 };

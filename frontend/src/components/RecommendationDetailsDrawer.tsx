@@ -1,3 +1,4 @@
+import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -222,11 +223,8 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
     setIsCancelConfirmOpen(true);
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <PortalConfirmModal
+  if (!isOpen) return null;
+  return <RecordPage title="Panel recommendation" backLabel="Back to Submitted recommendations" onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5"><PortalConfirmModal
             isOpen={isCancelConfirmOpen}
             title="Cancel panel recommendation?"
             message="This workflow attempt will be closed permanently and cannot be restored. A replacement recommendation can be submitted later if needed."
@@ -237,52 +235,15 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
             onConfirm={performCancellation}
             onCancel={() => setIsCancelConfirmOpen(false)}
           />
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.35 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-brand-navy z-[80] cursor-default"
-            onClick={onClose}
-          />
-
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 210 }}
-            className="fixed top-0 right-0 h-screen w-full max-w-xl bg-white border-l border-slate-100 shadow-sm z-[90] flex flex-col justify-between"
-          >
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center select-none bg-slate-50/50">
-              <div>
-                <h2 className="text-base font-black text-brand-navy tracking-tight">
-                  Recommendation Details
-                </h2>
-                <p className="text-[11px] text-slate-400 font-bold mt-1">
-                  Confirmation route and submitted panel recommendation record
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-lg bg-white border border-slate-200/70 hover:bg-slate-50 hover:text-rose-500 text-slate-400 transition cursor-pointer flex items-center justify-center shadow-3xs"
-                title="Close details"
-              >
-                <X className="w-4 h-4 stroke-[2.2]" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 font-sans text-left text-xs">
               <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-3xs flex gap-4 items-center">
                 <div className="w-[52px] h-[52px] rounded-xl bg-brand-navy text-white font-black text-sm flex items-center justify-center shrink-0 tracking-wider shadow-sm select-none">
                   {getInitials(recommendation.studentName)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[17px] font-black text-brand-navy leading-tight">
+                  <h3 className="section-heading text-brand-navy leading-tight">
                     {recommendation.studentName}
                   </h3>
-                  <div className="text-slate-500 font-bold text-[10.5px] mt-1 space-y-0.5">
+                  <div className="card-description text-slate-500 mt-1 space-y-0.5">
                     <p className="font-mono text-brand-navy/85">ID: {recommendation.studentId}</p>
                     <p className="text-slate-400">
                       {recommendation.programme || 'Programme not recorded'} - {recommendation.semester}
@@ -293,21 +254,21 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Research Information
                   </span>
                 </div>
                 <div className="bg-[#f8fafc]/50 border border-slate-200/80 rounded-2xl p-5 space-y-4">
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Proposed Research Title
                     </span>
-                    <h4 className="text-[13px] font-extrabold text-brand-navy leading-relaxed italic pr-2">
+                    <h4 className="section-label leading-relaxed italic pr-2">
                       "{recommendation.researchTitle}"
                     </h4>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Research Area
                     </span>
                     <span className="inline-block text-xs font-black text-slate-800 bg-slate-100 border border-slate-200/50 px-2.5 py-1 rounded-lg">
@@ -315,10 +276,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     </span>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                    <span className="card-label text-slate-400 block uppercase tracking-wider">
                       Abstract Snippet
                     </span>
-                    <p className="font-medium leading-relaxed text-[11px] text-justify text-slate-600">
+                    <p className="card-description text-justify">
                       {abstractText}
                     </p>
                   </div>
@@ -327,7 +288,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Recommended Panel Member
                   </span>
                 </div>
@@ -337,23 +298,23 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                       {getInitials(recommendation.recommendedPanel)}
                     </div>
                     <div className="min-w-0 flex-1 text-left">
-                      <h4 className="text-sm font-extrabold text-brand-navy leading-tight">
+                      <h4 className="section-label leading-tight">
                         {recommendation.recommendedPanel}
                       </h4>
                       <div className="grid grid-cols-2 gap-4 mt-3.5 pt-3.5 border-t border-slate-200/55">
                         <div className="space-y-0.5">
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                          <span className="card-label text-slate-400 block uppercase tracking-wider">
                             Staff ID
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-700 block">
+                          <span className="card-value text-slate-700 block">
                             {recommendation.recommendedPanelId || 'Not recorded'}
                           </span>
                         </div>
                         <div className="space-y-0.5">
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                          <span className="card-label text-slate-400 block uppercase tracking-wider">
                             Current Stage
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-700 block">
+                          <span className="card-value text-slate-700 block">
                             {STATUS_LABELS[workflowStatus]}
                           </span>
                         </div>
@@ -366,21 +327,21 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                 <div className="space-y-3.5">
                   <div className="border-b border-slate-100 pb-1.5 select-none">
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                    <span className="section-label text-blue-600 uppercase tracking-widest block">
                       Submission Info
                     </span>
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         ID
                       </span>
-                      <span className="text-xs font-mono font-black text-brand-navy block mt-0.5 select-all">
+                      <span className="card-value font-mono text-brand-navy block mt-0.5 select-all">
                         {recommendation.id}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         Submitted On
                       </span>
                       <span className="text-xs font-bold text-slate-700 block mt-0.5">
@@ -388,7 +349,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                      <span className="card-label text-slate-400 block uppercase tracking-wider">
                         Current Status
                       </span>
                       <span className={`inline-flex mt-1.5 px-2.5 py-1 border rounded text-[9px] font-black uppercase tracking-wider select-none ${getStatusBadgeClass(recommendation.status)}`}>
@@ -397,20 +358,20 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     </div>
                     {recommendation.rejectionReason && (
                       <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="card-label text-slate-400 block uppercase tracking-wider">
                           Rejection Reason
                         </span>
-                        <p className="text-[11px] font-semibold text-rose-600 leading-relaxed mt-1">
+                        <p className="card-description text-rose-600 leading-relaxed mt-1">
                           {recommendation.rejectionReason}
                         </p>
                       </div>
                     )}
                     {recommendation.cancellationReason && (
                       <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">
+                        <span className="card-label text-slate-400 block uppercase tracking-wider">
                           Cancellation Reason
                         </span>
-                        <p className="text-[11px] font-semibold text-slate-600 leading-relaxed mt-1">
+                        <p className="card-description mt-1">
                           {recommendation.cancellationReason}
                         </p>
                       </div>
@@ -420,7 +381,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
                 <div className="space-y-3.5">
                   <div className="border-b border-slate-100 pb-1.5 select-none">
-                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                    <span className="section-label text-blue-600 uppercase tracking-widest block">
                       Progress Timeline
                     </span>
                   </div>
@@ -443,10 +404,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                             {!isLast && <div className={`w-[2px] h-10 -mb-4 mt-1 grow ${lineClass}`} />}
                           </div>
                           <div className="pt-0.5 space-y-0.5 select-none">
-                            <h5 className={`text-[11px] font-extrabold ${item.state === 'pending' ? 'text-slate-400' : 'text-brand-navy'}`}>
+                            <h5 className={`card-value ${item.state === 'pending' ? 'text-slate-400' : 'text-brand-navy'}`}>
                               {item.label}
                             </h5>
-                            <p className={`text-[9.5px] font-bold ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : item.state === 'cancelled' ? 'text-slate-600' : 'text-slate-400'}`}>
+                            <p className={`card-caption ${item.state === 'active' ? 'text-blue-600' : item.state === 'rejected' ? 'text-rose-500' : item.state === 'cancelled' ? 'text-slate-600' : 'text-slate-400'}`}>
                               {item.detail}
                             </p>
                           </div>
@@ -459,12 +420,12 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
 
               <div className="space-y-3 pb-2">
                 <div className="border-b border-slate-100 pb-1.5 select-none">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">
+                  <span className="section-label text-blue-600 uppercase tracking-widest block">
                     Supervisor Justification
                   </span>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative">
-                  <p className="text-slate-600 font-semibold leading-relaxed text-justify text-[11px] italic">
+                  <p className="card-description text-justify italic">
                     "{lecturerNotes}"
                   </p>
                 </div>
@@ -475,10 +436,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
               {canCancel && (
                 <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
                   <div>
-                    <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-900">
+                    <h4 className="section-label uppercase tracking-wider text-amber-900">
                       Cancel Recommendation
                     </h4>
-                    <p className="mt-1 text-[10px] font-semibold leading-relaxed text-amber-800">
+                    <p className="card-description mt-1 leading-relaxed text-amber-800">
                       Cancellation is immediate and is only available before the selected panel member takes action.
                     </p>
                   </div>
@@ -490,10 +451,10 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                     }}
                     rows={3}
                     placeholder="State why this recommendation is being cancelled..."
-                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-amber-400"
+                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-none transition focus:border-amber-400"
                   />
                   {cancellationError && (
-                    <p className="text-[10px] font-bold text-rose-600">{cancellationError}</p>
+                    <p className="card-description text-rose-600">{cancellationError}</p>
                   )}
                   <button
                     type="button"
@@ -505,20 +466,5 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
                   </button>
                 </div>
               )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-100 flex justify-end select-none bg-slate-50/50">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2.5 bg-white border border-[#e2e8f0] hover:bg-slate-50 text-slate-800 font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-3xs"
-              >
-                Close Details
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
+            </section></RecordPage>;
 };

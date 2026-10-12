@@ -1,3 +1,4 @@
+import { useListState } from './ListState';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -26,8 +27,8 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
   onSelectRecord,
   tasksState,
 }) => {
-  const [query, setQuery] = useState('');
-  const [semester, setSemester] = useState('All semesters');
+  const [query, setQuery] = useListState('MarksEntryHistory', 'query', '');
+  const [semester, setSemester] = useListState('MarksEntryHistory', 'semester', 'All semesters');
 
   const semesters = useMemo(
     () => [...new Set(tasksState.map((task) => task.semester))].sort(),
@@ -68,13 +69,13 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search student, matric number, or research title"
-              className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-xs"
+              className="w-full rounded-lg border border-slate-200 py-2.5 pl-10 pr-3 text-xs font-bold"
             />
           </label>
           <select
             value={semester}
             onChange={(event) => setSemester(event.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold"
+            className="rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-bold"
           >
             <option>All semesters</option>
             {semesters.map((value) => <option key={value}>{value}</option>)}
@@ -106,7 +107,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
                 {submitted.map((task) => (
                   <tr key={`${task.id}-${task.studentId}`}>
                     <td className="data-td">
-                      <span className="block font-extrabold text-slate-800">{task.studentName}</span>
+                      <span className="card-value block text-slate-800">{task.studentName}</span>
                       <span className="mt-0.5 block font-mono text-[10px] text-blue-700">{task.studentId}</span>
                     </td>
                     <td className="data-td max-w-[300px]">
@@ -114,7 +115,7 @@ export const MarksEntryHistory: React.FC<MarksEntryHistoryProps> = ({
                     </td>
                     <td className="data-td">{task.semester}</td>
                     <td className="data-td">{task.evaluatorRoleLabel || task.evaluatorRole || 'Evaluator'}</td>
-                    <td className="data-td font-extrabold">{task.totalMark ?? '-'}</td>
+                    <td className="data-td-strong">{task.totalMark ?? '-'}</td>
                     <td className="data-td">
                       <StatusBadge tone="success">{task.submittedDate || 'Submitted'}</StatusBadge>
                     </td>

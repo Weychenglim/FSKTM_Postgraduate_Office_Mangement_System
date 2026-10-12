@@ -20,7 +20,7 @@ export const WorkflowAuditLog: React.FC<WorkflowAuditLogProps> = ({ events = [] 
         onClick={() => setExpanded((value) => !value)}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
       >
-        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-brand-navy">
+        <span className="section-label flex items-center gap-2">
           <History className="h-4 w-4 text-slate-500" />
           Audit History ({events.length})
         </span>
@@ -31,21 +31,21 @@ export const WorkflowAuditLog: React.FC<WorkflowAuditLogProps> = ({ events = [] 
           {events.map((event) => (
             <div key={event.id} className="rounded-xl bg-slate-50 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[11px] font-black text-brand-navy">
+                <span className="card-value">
                   {humanize(event.action)}
                 </span>
-                <span className="text-[9px] font-bold text-slate-400">
+                <span className="card-caption">
                   {new Date(event.createdAt).toLocaleString('en-MY')}
                 </span>
               </div>
-              <p className="mt-1 text-[10px] font-semibold text-slate-600">
+              <p className="card-description mt-1">
                 {event.actorName} · {event.actorRole}
               </p>
-              <p className="mt-1 text-[10px] text-slate-500">
+              <p className="card-description mt-1">
                 {humanize(event.previousStatus)} → {humanize(event.newStatus)}
               </p>
               {event.reason && (
-                <p className="mt-2 rounded-lg border border-slate-200 bg-white p-2 text-[10px] font-semibold text-slate-600">
+                <p className="card-description mt-2 rounded-lg border border-slate-200 bg-white p-2">
                   {event.reason}
                 </p>
               )}

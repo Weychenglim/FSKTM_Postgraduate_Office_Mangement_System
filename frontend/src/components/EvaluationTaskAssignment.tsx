@@ -1,3 +1,5 @@
+import { RecordPage } from './RecordPage';
+import { PortalModal } from './PortalModal';
 import { MarksCompletionWindows } from './MarksCompletionWindows';
 /**
  * @license
@@ -371,8 +373,8 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
             <div className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 shadow-3xs">
               <div className="flex items-center justify-between pb-5 border-b border-slate-100 gap-4 flex-wrap">
                 <div>
-                  <h3 className="text-sm font-black text-brand-navy tracking-tight">Generate Missing Tasks</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                  <h3 className="section-label">Generate Missing Tasks</h3>
+                  <p className="card-description mt-1">
                     Creates only missing supervisor and panel tasks. Existing and submitted marks are preserved.
                   </p>
                 </div>
@@ -387,7 +389,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-5">
-                <label className="block">
+                <label className="form-label block">
                   <span className="form-label block">Evaluation Period</span>
                   <select
                     className="form-control form-control-md"
@@ -407,12 +409,12 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 </label>
 
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                  <span className="card-label block mb-2">
                     Selected Period
                   </span>
-                  <p className="font-black text-brand-navy">{selectedPeriod?.rubricName || 'No rubric selected'}</p>
-                  {selectedPeriod ? <p className="mt-1 text-xs text-slate-600">{formatPeriodTargeting(selectedPeriod)}</p> : null}
-                  <p className="text-slate-500 font-semibold mt-1">
+                  <p className="card-value">{selectedPeriod?.rubricName || 'No rubric selected'}</p>
+                  {selectedPeriod ? <p className="card-description mt-1">{formatPeriodTargeting(selectedPeriod)}</p> : null}
+                  <p className="card-description mt-1">
                     {formatDate(selectedPeriod?.opensAt || null)} → {formatDate(selectedPeriod?.closesAt || null)}
                   </p>
                 </div>
@@ -426,8 +428,8 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                   ['Overdue', totals.overdue],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="rounded-xl border border-slate-200 bg-white p-3">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</span>
-                    <span className="block text-xl font-black text-brand-navy mt-1">{value}</span>
+                    <span className="card-label">{label}</span>
+                    <span className="card-metric block mt-1">{value}</span>
                   </div>
                 ))}
               </div>
@@ -454,7 +456,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-3xs">
-              <h3 className="text-sm font-black text-brand-navy tracking-tight">Readiness Checks</h3>
+              <h3 className="section-label">Readiness Checks</h3>
               <ul className="space-y-4 pt-5">
                 {[
                   ['Evaluation period selected', Boolean(selectedPeriodId)],
@@ -463,7 +465,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                   ['Eligible students available', studentsForPeriod.length > 0],
                 ].map(([label, passed]) => (
                   <li key={String(label)} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-semibold">{label}</span>
+                    <span className="card-description">{label}</span>
                     <span className={`inline-flex items-center gap-1.5 font-extrabold text-[10px] uppercase ${passed ? 'text-blue-600' : 'text-amber-600'}`}>
                       {passed ? 'Passed' : 'Check'}
                       {passed ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -477,13 +479,13 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
           <div id="evaluation-preview-card" className="bg-white rounded-2xl border border-slate-200/80 p-6 md:p-8 text-left shadow-3xs">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-slate-100 mb-5">
               <div>
-                <h3 className="text-lg font-extrabold text-brand-navy tracking-tight">Generated Evaluation Tasks</h3>
-                <p className="text-slate-400 text-xs font-semibold mt-1">
+                <h3 className="section-heading">Generated Evaluation Tasks</h3>
+                <p className="card-description mt-1">
                   Filter official supervisor/panel tasks and backup exception assignments.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <label className="block">
+                <label className="form-label block">
                   <span className="form-label block">Role</span>
                   <select
                     className="form-control form-control-sm min-w-[150px]"
@@ -496,7 +498,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="BACKUP">Backup</option>
                   </select>
                 </label>
-                <label className="block">
+                <label className="form-label block">
                   <span className="form-label block">Status</span>
                   <select
                     className="form-control form-control-sm min-w-[150px]"
@@ -529,9 +531,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 <tbody className="divide-y divide-slate-100 divide-dashed font-sans">
                   {filteredTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center">
+                      <td colSpan={8} className="py-12 text-center text-xs font-semibold">
                         <Filter className="w-6 h-6 text-slate-300 mx-auto mb-3" />
-                        <p className="text-xs font-bold text-slate-400">No evaluation tasks match the selected filters.</p>
+                        <p className="card-description">No evaluation tasks match the selected filters.</p>
                       </td>
                     </tr>
                   ) : filteredTasks.map((task) => (
@@ -580,17 +582,17 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 View All Tasks
               </button>
             </div>
-            <p className="text-[11px] text-slate-550 font-bold leading-relaxed max-w-[360px] text-left lg:text-right">
+            <p className="card-value max-w-[360px] text-left lg:text-right">
               Backup assignments are exception records and do not modify official supervisor or panel appointments.
             </p>
           </div>
 
           <div id="recent-assignment-activity-panel" className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden text-left shadow-3xs">
             <div className="p-6 pb-4 border-b border-slate-100">
-              <h3 className="text-sm font-extrabold text-brand-navy tracking-tight">Recent Assignment Activity</h3>
+              <h3 className="section-label">Recent Assignment Activity</h3>
             </div>
             {activities.length === 0 ? (
-              <div className="p-8 text-xs font-semibold text-slate-400">
+              <div className="card-description p-8">
                 Assignment actions taken in this session will appear here.
               </div>
             ) : (
@@ -621,43 +623,16 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         </>
       )}
 
-      {createPortal(
-        <AnimatePresence>
-          {drawerOpen && (
-            <div className="fixed inset-0 z-50 flex justify-end font-sans text-xs text-left">
-              <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
-              <motion.aside
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-                className="relative w-full max-w-xl h-full bg-white shadow-sm border-l border-slate-200 flex flex-col z-10"
-              >
-                <div className="drawer-header">
-                  <div>
-                    <h3 className="font-black text-brand-navy text-[15px] tracking-tight">Assign Backup Evaluator</h3>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                      Exception-only assignment with audit reason.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDrawerOpen(false)}
-                    className="icon-button w-9 h-9"
-                    aria-label="Close backup evaluator drawer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+      {drawerOpen ? <RecordPage title="Assign Backup Evaluator" subtitle="Exception-only assignment with audit reason" backLabel="Back to Evaluation Task Assignment" onBack={() => setDrawerOpen(false)} pageKey="marks-backup-evaluator" dirty={!!backupForm.studentId || !!backupForm.evaluatorId || !!backupForm.originalTaskId || !!backupForm.reason.trim() || backupForm.confirmed} busy={submittingBackup}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
                 <div className="drawer-body">
                   {formError && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3 font-bold">
+                    <div className="card-value rounded-xl border border-rose-200 bg-rose-50 text-rose-700 p-3">
                       {formError}
                     </div>
                   )}
 
-                  <label className="block">
+                  <label className="form-label block">
                     <span className="form-label block">Evaluation Period</span>
                     <select
                       className="form-control form-control-md"
@@ -676,7 +651,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="form-label block">
                     <span className="form-label block">Student</span>
                     <select
                       className="form-control form-control-md"
@@ -695,13 +670,13 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       ))}
                     </select>
                     {selectedBackupStudent && (
-                      <p className="mt-2 text-[11px] text-slate-500 font-semibold">
+                      <p className="card-description mt-2">
                         {selectedBackupStudent.researchTitle}
                       </p>
                     )}
                   </label>
 
-                  <label className="block">
+                  <label className="form-label block">
                     <span className="form-label block">Backup Lecturer</span>
                     <select
                       className="form-control form-control-md"
@@ -719,13 +694,13 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       ))}
                     </select>
                     {selectedBackupLecturer && (
-                      <p className="mt-2 text-[11px] text-slate-500 font-semibold">
+                      <p className="card-description mt-2">
                         {selectedBackupLecturer.department || 'Department not recorded'} · {selectedBackupLecturer.email}
                       </p>
                     )}
                   </label>
 
-                  <label className="block">
+                  <label className="form-label block">
                     <span className="form-label block">Original Task Covered</span>
                     <select
                       className="form-control form-control-md"
@@ -744,7 +719,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     </select>
                   </label>
 
-                  <label className="block">
+                  <label className="form-label block">
                     <span className="form-label block">Reason</span>
                     <textarea
                       className="form-control form-control-md min-h-[120px]"
@@ -757,7 +732,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     />
                   </label>
 
-                  <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                  <label className="card-description flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
                     <input
                       type="checkbox"
                       className="mt-0.5"
@@ -776,7 +751,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 <div className="drawer-footer">
                   <button
                     type="button"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={requestBack}
                     className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-black uppercase tracking-wider"
                   >
                     Cancel
@@ -790,59 +765,35 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     {submittingBackup ? 'Assigning…' : 'Assign Backup'}
                   </button>
                 </div>
-              </motion.aside>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+              </section>}</RecordPage> : null}
 
-      {createPortal(
-        <AnimatePresence>
-          {selectedTask && (
-            <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="absolute inset-0" onClick={() => setSelectedTask(null)} />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-sm border border-slate-100 text-left relative z-10"
-              >
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                  <h4 className="font-extrabold text-brand-navy text-sm">Evaluation Task Details</h4>
-                  <button
-                    onClick={() => setSelectedTask(null)}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition"
-                  >
-                    &times;
-                  </button>
-                </div>
+      {selectedTask ? <PortalModal isOpen onClose={() => setSelectedTask(null)} labelledBy="evaluation-task-preview-title"><h2 id="evaluation-task-preview-title" className="section-label mb-4">Evaluation task details</h2>
 
                 <div className="space-y-4 text-xs">
                   <div>
-                    <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Student</span>
-                    <span className="font-extrabold text-blue-900 block text-sm">
+                    <span className="card-label block mb-1">Student</span>
+                    <span className="card-value text-blue-900 block">
                       {selectedTask.studentName} ({selectedTask.studentId})
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Research Title</span>
-                    <p className="font-medium text-slate-700 italic leading-relaxed">{selectedTask.researchTitle}</p>
+                    <span className="card-label block mb-1">Research Title</span>
+                    <p className="card-description">{selectedTask.researchTitle}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Assigned Evaluator</span>
-                    <span className="font-extrabold text-brand-navy block">{selectedTask.panelMember}</span>
+                    <span className="card-label block mb-1">Assigned Evaluator</span>
+                    <span className="card-value block">{selectedTask.panelMember}</span>
                     <span className="inline-flex mt-2 px-2.5 py-1 rounded-full bg-slate-50 text-[9px] font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200">
                       {roleLabel(selectedTask.evaluatorRole, selectedTask.evaluatorRoleLabel)}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
                     <div>
-                      <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Semester</span>
-                      <span className="font-bold text-slate-800">{selectedTask.semester}</span>
+                      <span className="card-label block mb-1">Semester</span>
+                      <span className="card-value">{selectedTask.semester}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 font-extrabold uppercase tracking-wide block mb-1">Status</span>
+                      <span className="card-label block mb-1">Status</span>
                       <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold tracking-wide uppercase rounded">
                         {statusLabel(selectedTask.status)}
                       </span>
@@ -857,12 +808,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 >
                   Close
                 </button>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+              </PortalModal> : null}
     </div>
   );
 };

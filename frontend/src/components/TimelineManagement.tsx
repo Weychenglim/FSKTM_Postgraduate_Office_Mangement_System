@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -27,7 +27,7 @@ import {
 import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge } from './PortalPrimitives';
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
@@ -102,6 +102,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   
   // Upload Timeline Drawer Slide-in state
   const [uploadDrawerOpen, setUploadDrawerOpen] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(false);
+  const savingEntryRef = useRef(false);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -235,6 +237,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState(false);
+  const deletingEntryRef = useRef(false);
   const [entryToDelete, setEntryToDelete] = useState<{id: string, name: string} | null>(null);
 
   const handleApplyFilters = () => {
@@ -255,6 +259,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   };
 
   const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
+    if (savingEntryRef.current) return;
+    savingEntryRef.current = true; setSavingEntry(true);
     createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
@@ -264,10 +270,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .catch((e) => {
         triggerToast(e instanceof Error ? e.message : 'Failed to create timeline entry.');
-      });
+      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
   };
 
   const handleEditEntry = (updated: Omit<TimelineEntry, 'status'>) => {
+    if (savingEntryRef.current) return;
+    savingEntryRef.current = true; setSavingEntry(true);
     updateTimelineEntry(updated.id, updated)
       .then((savedEntry) => {
         const normalizedEntry = timelineEntryToLegacy(savedEntry);
@@ -278,7 +286,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .catch((e) => {
         triggerToast(e instanceof Error ? e.message : 'Failed to update timeline entry.');
-      });
+      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
@@ -286,7 +294,8 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   };
 
   const confirmDeleteEntry = () => {
-    if (!entryToDelete) return;
+    if (!entryToDelete || deletingEntryRef.current) return;
+    deletingEntryRef.current = true; setDeletingEntry(true);
     const { id, name } = entryToDelete;
     deleteTimelineEntry(id)
       .then(() => {
@@ -299,6 +308,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .finally(() => {
         setEntryToDelete(null);
+        deletingEntryRef.current = false; setDeletingEntry(false);
       });
   };
 
@@ -366,12 +376,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       />
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-y border-slate-200 bg-white px-4 py-3">
-        <label className="min-w-[260px] text-sm font-semibold text-slate-700">
+        <label className="form-label min-w-[260px]">
           Timeline semester
           <select
             value={selectedSemesterId ?? ''}
             onChange={(event) => setSelectedSemesterId(Number(event.target.value))}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
           >
             {!semesters.length ? <option value="">No Draft or Active semesters</option> : null}
             {semesters.map((semester) => (
@@ -394,17 +404,17 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         
         {/* Card 1: Selected Semester */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
+          <span className="card-label block">
             SELECTED SEMESTER
           </span>
-          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
+          <span className="card-value block mt-3">
             {selectedSemester?.label ?? 'No semester selected'}
           </span>
         </div>
 
         {/* Card 2: Timeline Status with live active indicator */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
+          <span className="card-label block">
             SEMESTER STATUS
           </span>
           <div className="flex items-center gap-2 mt-3.5">
@@ -416,20 +426,20 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
         {/* Card 3: Last Updated tracking */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
+          <span className="card-label block">
             LAST UPDATED
           </span>
-          <span className="text-[17px] font-black text-brand-navy block mt-3 tracking-tight">
+          <span className="card-value block mt-3">
             {!loading && !error && timeline?.available ? formatDisplayDate(timeline.uploadedAt) : '-'}
           </span>
         </div>
 
         {/* Card 4: Total events counting */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 pl-6 text-left shadow-3xs">
-          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-widest block">
+          <span className="card-label block">
             TOTAL EVENTS
           </span>
-          <span className="text-2xl font-black text-brand-navy block mt-2.5 tracking-tight">
+          <span className="card-metric block mt-2.5">
             {loading || error ? '-' : entries.length}
           </span>
         </div>
@@ -443,7 +453,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       <div id="timeline-records-box" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-6 text-left">
         
         <div className="space-y-1 block text-left">
-          <h2 className="text-sm font-black text-brand-navy tracking-tight">
+          <h2 className="section-label">
             Timeline Entries
           </h2>
         </div>
@@ -535,19 +545,19 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-0">
+                  <td colSpan={7} className="p-0 text-xs font-semibold">
                     <LoadingState message="Loading timeline…" />
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="p-0">
+                  <td colSpan={7} className="p-0 text-xs font-semibold">
                     <ErrorState message={error} onRetry={handleRetry} />
                   </td>
                 </tr>
               ) : filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 italic">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 italic text-xs font-semibold">
                     No timeline schedule events found matching your filter scope criteria.
                   </td>
                 </tr>
@@ -608,7 +618,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                         >
                           Edit
                         </button>
-                        <span className="text-slate-300">|</span>
+                        <span className="card-description text-slate-300">|</span>
                         <button
                           onClick={() => handleDeleteEntry(ent.id, ent.event)}
                           className="text-slate-400 hover:text-red-600 transition"
@@ -630,7 +640,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* 3. Recent Updates Track Section */}
       <div id="recent-timeline-updates-card" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4 text-left">
-        <h3 className="text-sm font-black text-brand-navy tracking-tight">
+        <h3 className="section-label">
           Recent Timeline Updates
         </h3>
 
@@ -647,19 +657,19 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="p-0">
+                  <td colSpan={4} className="p-0 text-xs font-semibold">
                     <LoadingState message="Loading audit log..." />
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={4} className="p-0">
+                  <td colSpan={4} className="p-0 text-xs font-semibold">
                     <ErrorState message={error} onRetry={handleRetry} />
                   </td>
                 </tr>
               ) : auditLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-10 text-center text-slate-400 italic">
+                  <td colSpan={4} className="py-10 text-center text-slate-400 italic text-xs font-semibold">
                     No timeline audit records are available yet.
                   </td>
                 </tr>
@@ -670,7 +680,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                     <span className="w-7 h-7 rounded-full border border-slate-200 bg-slate-100 text-[9px] font-black text-slate-600 flex items-center justify-center">
                       {initials(log.actorName)}
                     </span>
-                    <span className="font-bold text-brand-navy">{log.actorName}</span>
+                    <span className="card-value">{log.actorName}</span>
                   </td>
 
                   {/* Operation date log */}
@@ -679,7 +689,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                   </td>
 
                   {/* Operational tag action color mapping */}
-                  <td className="data-td font-extrabold">
+                  <td className="data-td-strong">
                     <span className={actionColor(log.action)}>
                       {actionLabel(log.action)}
                     </span>
@@ -696,7 +706,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         </div>
         {!loading && !error && auditLogs.length > 0 && (
           <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-            <span className="text-slate-450 font-medium">
+            <span className="card-description">
               Showing {auditRange.start} to {auditRange.end} of {auditRange.total} updates
             </span>
             <div className="flex items-center gap-1.5 select-none">
@@ -739,6 +749,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* Add Timeline Slide-in Drawer */}
       <AddTimelineEntryDrawer
+        busy={savingEntry}
         isOpen={addDrawerOpen}
         onClose={() => setAddDrawerOpen(false)}
         onSave={handleAddEntry}
@@ -749,6 +760,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       {/* Edit Timeline Slide-in Drawer */}
       <EditTimelineEntryDrawer
+        busy={savingEntry}
         isOpen={editDrawerOpen}
         onClose={() => {
           setEditDrawerOpen(false);
@@ -771,26 +783,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       />
 
       {/* Delete Confirmation Modal */}
-      {entryToDelete && (
-        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-left animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-6">
-            <div>
-              <h3 className="text-sm font-black text-brand-navy tracking-tight mb-2">Delete Timeline Entry</h3>
-              <p className="text-slate-600 leading-relaxed text-xs">
-                Are you sure you want to permanently remove <span className="font-bold text-slate-800">"{entryToDelete.name}"</span> from the postgraduate master timeline? This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <PortalButton variant="ghost" onClick={() => setEntryToDelete(null)}>
-                Cancel
-              </PortalButton>
-              <PortalButton variant="danger" icon={Trash2} onClick={confirmDeleteEntry}>
-                Delete Entry
-              </PortalButton>
-            </div>
-          </div>
-        </div>
-      )}
+      <PortalConfirmModal isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" isLoading={deletingEntry} onConfirm={confirmDeleteEntry} onCancel={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>
   );

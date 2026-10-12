@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -274,7 +274,7 @@ export const StudentFAQChatbot: React.FC = () => {
             </div>
 
             {/* Dynamic AI disclaimer helper note */}
-            <div className="flex items-center justify-center gap-1.5 text-slate-400 text-[10px] leading-normal select-none text-center">
+            <div className="flex items-center justify-center gap-1.5 card-caption text-slate-400 leading-normal select-none text-center">
               <Info className="w-3.5 h-3.5 text-slate-350 shrink-0" />
               <p>
                 FSKTM Academic Assistant may produce inaccurate information about specific faculty policies. Always verify with official documentation.

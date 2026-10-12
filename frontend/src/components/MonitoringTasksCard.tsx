@@ -80,7 +80,7 @@ export const MonitoringTasksCardView: React.FC<MonitoringTasksCardViewProps> = (
     <div className="flex items-center justify-between gap-3">
       <h2
         id="dashboard-action-centre-title"
-        className="text-sm font-black text-brand-navy tracking-tight"
+        className="section-label"
       >
         {title}
       </h2>
@@ -117,7 +117,7 @@ export const MonitoringTasksCardView: React.FC<MonitoringTasksCardViewProps> = (
                   <Icon className="w-4 h-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="text-xs font-black text-brand-navy block leading-snug">
+                  <span className="card-value block leading-snug">
                     {task.name}
                   </span>
                   <StatusBadge

@@ -1,4 +1,6 @@
-﻿/**
+import { useListState } from './ListState';
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,7 +24,7 @@ import {
   User,
   Calendar,
   Eye,
-  AlertCircle
+  AlertCircle, RefreshCw
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
@@ -40,12 +42,38 @@ import { AppointmentEndControl } from './AppointmentEndControl';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
 import { downloadCsv } from '../utils/csvExport';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
+import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
+import { AppointmentSummaryCard } from './AppointmentPrimitives';
+import { WorkspaceSectionHeader, RequestFilters, WorkspacePagination } from './RequestWorkspacePrimitives';
+import { CapacityReassessments } from './CapacityReassessments';
+import { requestStatusLabel } from '../utils/lecturerRequests';
+
+export function filterOfficeSupervisorRecords(records: SupervisorRecord[], filters: { search: string; programme: string; semester: string; status: string }) {
+  const query = filters.search.trim().toLowerCase();
+  return records.filter(row => (!query || `${row.studentName} ${row.studentId} ${row.supervisor} ${row.programme} ${row.researchTopic ?? ''}`.toLowerCase().includes(query))
+    && (filters.programme === 'All Programmes' || row.programme === filters.programme)
+    && (filters.semester === 'All Semesters' || row.semester === filters.semester)
+    && (filters.status === 'All Records' || row.status === filters.status));
+}
+export function OfficeSupervisorRecordTable({ records, onOpen, onDossier }: { records: SupervisorRecord[]; onOpen: (row: SupervisorRecord) => void; onDossier: (row: SupervisorRecord) => void }) {
+  const columns = ['Student','Programme','Supervisor','Current stage','Waiting at this stage','Updated','Action'];
+  const stage = (row: SupervisorRecord) => row.status === 'Ended' ? 'Ended' : row.workflow?.length ? requestStatusLabel(row.workflow[row.workflow.length - 1].newStatus) : row.status === 'Pending' ? row.waitingOn === 'PROGRAMME_COORDINATOR' || row.waitingOn === 'COORDINATOR' ? 'Awaiting Coordinator approval' : 'Awaiting Supervisor review' : row.status;
+  return <table className="data-table block lg:table" aria-label="Appointment records"><thead className="hidden lg:table-header-group"><tr className="data-thead bg-slate-50">{columns.map(value => <th key={value} scope="col" className="data-th">{value}</th>)}</tr></thead><tbody className="block space-y-3 lg:table-row-group lg:space-y-0">{records.map(row => <tr key={row.applicationId != null ? `application-${row.applicationId}` : supervisorRecordRouteKey(row)} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0">{[
+    <><p>{row.studentName}</p><p className="card-caption mt-1">{row.studentId}</p></>, row.programme, row.supervisor || 'Not assigned', stage(row),
+    row.status !== 'Pending' ? <span aria-label="Not applicable">—</span> : row.waitingDays == null ? 'Not recorded' : `${row.waitingDays} calendar ${row.waitingDays === 1 ? 'day' : 'days'}`, row.updatedDate,
+    <div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" onClick={() => onDossier(row)}>View student record</PortalButton><PortalButton size="sm" onClick={() => onOpen(row)}>{row.status === 'Approved' || row.status === 'Ended' ? 'View supervision' : row.status === 'No Supervisor' ? 'View record' : 'View request'}</PortalButton></div>
+  ].map((cell,index) => <td key={columns[index]} className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 break-words lg:table-cell ${index === 0 || index === 6 ? 'col-span-2' : ''}`}>
+    {index > 0 && index < 6 ? <span className="card-label block lg:hidden">{columns[index]}</span> : null}{cell}</td>)}</tr>)}</tbody></table>;
+}
 
 // SupervisorRecord now lives in src/types.
 
 interface SupervisorAppointmentManagementProps {
-  routeView?: 'list' | 'detail' | 'workload';
+  routeView?: 'list' | 'detail' | 'workload' | 'teams' | 'teamDetail';
   routeRecordId?: string;
+  routeTeamStudentId?: string;
+  onNavigateToTeam?: (studentId: string) => void;
+  onNavigateToTeams?: () => void;
   onNavigateToList?: () => void;
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
@@ -56,7 +84,7 @@ interface SupervisorAppointmentManagementProps {
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
   routeView = 'list',
-  routeRecordId,
+  routeRecordId, routeTeamStudentId, onNavigateToTeam, onNavigateToTeams,
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
@@ -91,22 +119,26 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   }, [loadRecords]);
 
   // Filters State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [programmeFilter, setProgrammeFilter] = useState('All Programmes');
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
+  const [searchQuery, setSearchQuery] = useListState('SupervisorAppointmentManagement', 'searchQuery', '');
+  const [programmeFilter, setProgrammeFilter] = useListState('SupervisorAppointmentManagement', 'programmeFilter', 'All Programmes');
+  const [semesterFilter, setSemesterFilter] = useListState('SupervisorAppointmentManagement', 'semesterFilter', 'All Semesters');
   
   // Tab/status filter state
-  const [activeTab, setActiveTab] = useState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Ended' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('All Records');
+  const [activeTab, setActiveTab] = useListState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Ended' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('SupervisorAppointmentManagement', 'activeTab', 'All Records');
 
   // Applied filter state
-  const [appliedSearch, setAppliedSearch] = useState('');
-  const [appliedProg, setAppliedProg] = useState('All Programmes');
-  const [appliedSem, setAppliedSem] = useState('All Semesters');
-  const [sortOrder, setSortOrder] = useState<'default' | 'longestWaiting'>('default');
+  const [appliedSearch, setAppliedSearch] = useListState('SupervisorAppointmentManagement', 'appliedSearch', '');
+  const [appliedProg, setAppliedProg] = useListState('SupervisorAppointmentManagement', 'appliedProg', 'All Programmes');
+  const [appliedSem, setAppliedSem] = useListState('SupervisorAppointmentManagement', 'appliedSem', 'All Semesters');
+  const [sortOrder, setSortOrder] = useListState<'default' | 'longestWaiting'>('SupervisorAppointmentManagement', 'sortOrder', 'default');
 
   // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [currentPage, setCurrentPage] = useListState('SupervisorAppointmentManagement', 'currentPage', 1);
+  const [itemsPerPage, setItemsPerPage] = useListState('SupervisorAppointmentManagement', 'size', 10);
+  const [teamRefresh, setTeamRefresh] = useState(0);
+  const [teamBusy, setTeamBusy] = useState(false);
+  const [carryBusy, setCarryBusy] = useState(false);
+  const refresh = () => { if (routeView !== 'teams') loadRecords(); setTeamRefresh(value => value + 1); };
 
   const handleApplyFilters = () => {
     setAppliedSearch(searchQuery);
@@ -130,25 +162,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   };
 
   // Process filters
-  const filteredRecords = useMemo(() => {
-    return records.filter(rec => {
-      // Search Box: name, id, supervisor
-      const term = appliedSearch.toLowerCase();
-      const matchSearch = !term || 
-        rec.studentName.toLowerCase().includes(term) ||
-        rec.studentId.toLowerCase().includes(term) ||
-        rec.supervisor.toLowerCase().includes(term) ||
-        rec.programme.toLowerCase().includes(term);
-
-      // Programme
-      const matchProg = appliedProg === 'All Programmes' || rec.programme === appliedProg;
-
-      // Status tab
-      const matchTab = activeTab === 'All Records' || rec.status === activeTab;
-
-      return matchSearch && matchProg && matchTab;
-    });
-  }, [records, appliedSearch, appliedProg, activeTab]);
+  const filteredRecords = useMemo(() => filterOfficeSupervisorRecords(records, { search: appliedSearch, programme: appliedProg, semester: appliedSem, status: activeTab }), [records, appliedSearch, appliedProg, appliedSem, activeTab]);
 
   const orderedFilteredRecords = useMemo(
     () => sortOrder === 'longestWaiting'
@@ -161,9 +175,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const paginatedRecords = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     return orderedFilteredRecords.slice(startIdx, startIdx + itemsPerPage);
-  }, [orderedFilteredRecords, currentPage]);
+  }, [orderedFilteredRecords, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+  useEffect(() => { if (!loading && !error) setCurrentPage(current => Math.min(current, totalPages)); }, [totalPages, loading, error, setCurrentPage]);
   const recordSummary = useMemo(() => getSupervisorRecordSummary(records), [records]);
   const longestWaitingText = recordSummary.longestWaiting
     ? formatSupervisorWaiting(recordSummary.longestWaiting)
@@ -207,43 +222,44 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
   if (routeView === 'detail') {
     if (loading) {
-      return <LoadingState message="Loading supervisor appointment record…" />;
+      return <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><LoadingState message="Loading supervisor appointment record…" /></RecordPage>;
     }
 
     if (error) {
-      return <ErrorState message={error} onRetry={loadRecords} />;
+      return <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>;
     }
 
     if (!selectedRouteRecord) {
       return (
-        <EmptyState
+        <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><EmptyState
           title="Supervisor appointment record not found"
           description="The requested supervisor appointment record does not exist or is no longer available."
-          actionLabel="Back to Supervisor Appointments"
-          onAction={navigateToList}
-        />
+        /></RecordPage>
       );
     }
 
     const r = selectedRouteRecord;
     return (
-      <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
-        <PortalToast message={toastMessage} />
-
-        <PageHeader
-          title="Supervisor Appointment Detail"
+        <RecordPage
+          title="Appointment record"
           subtitle="View student supervision details, appointment status, related records, and supporting documents."
-          backLabel="Back to Supervisor Appointment Management"
-          onBack={() => {
-            navigateToList();
-            showToast("Returned to Supervisor Appointment Management");
-          }}
-          subtitleClassName="leading-relaxed"
+          backLabel="Back to Appointment records"
+          onBack={navigateToList}
           actions={(
             <>
               <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
-                View Dossier
+                View student record
               </PortalButton>
+              <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
+                {r.semester || 'Legacy / Unassigned'}
+              </div>
+            </>
+          )}
+        >
+
+      <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
+        <PortalToast message={toastMessage} />
+
               {r.appointmentLifecycle?.status === 'ACTIVE' && (
                 <AppointmentEndControl
                   label="Supervisor Appointment"
@@ -258,13 +274,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   }}
                 />
               )}
-              <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-                {r.semester || 'Legacy / Unassigned'}
-              </div>
-            </>
-          )}
-        />
-
         {/* Grid Layout of Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-4">
           
@@ -278,7 +287,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   {r.studentName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-brand-navy">{r.studentName}</h3>
+                  <h3 className="section-label">{r.studentName}</h3>
                   <div className="mt-1.5 flex items-center">
                     <StatusBadge tone="success" dot pulse className="text-[9px]">
                       {r.status === 'No Supervisor' ? 'APPROVED' : r.status.toUpperCase()}
@@ -289,7 +298,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
               <div className="border-t border-slate-100 pt-5 space-y-4 font-sans">
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Student ID
                   </span>
                   <span className="font-mono text-xs font-black text-slate-800 block mt-1 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
@@ -298,28 +307,28 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Programme
                   </span>
-                  <span className="text-xs font-bold text-slate-800 block mt-1">
+                  <span className="card-value block mt-1">
                     {r.programme}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Semester
                   </span>
-                  <span className="text-xs font-bold text-brand-navy block mt-1">
+                  <span className="card-value block mt-1">
                     {r.semester || 'Legacy / Unassigned'}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                  <span className="card-label block">
                     Email
                   </span>
-                  <span className="text-xs font-semibold text-brand-navy hover:text-blue-600 block mt-1 break-all select-all">
+                  <span className="card-description hover:text-blue-600 block mt-1 break-all select-all">
                     {r.email || 'Not recorded'}
                   </span>
                 </div>
@@ -330,43 +339,43 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                 <User className="w-4 h-4 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Appointment Info
                 </span>
               </div>
 
               <div className="space-y-3 font-sans text-xs">
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Appointment ID</span>
+                  <span className="card-label">Appointment ID</span>
                   <span className="font-mono font-black text-brand-navy">
                     {r.appointmentId || 'Not assigned'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Supervisor</span>
-                  <span className="font-black text-brand-navy">
+                  <span className="card-label">Supervisor</span>
+                  <span className="card-value">
                     {r.supervisor}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Workload</span>
-                  <span className="font-black text-brand-navy">
+                  <span className="card-label">Workload</span>
+                  <span className="card-value">
                     {r.workloadLimit || 'Not available'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Approved Date</span>
-                  <span className="font-bold text-brand-navy">
+                  <span className="card-label">Approved Date</span>
+                  <span className="card-value">
                     {r.approvedDate || '-'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-1.5">
-                  <span className="font-semibold text-slate-400 uppercase text-[10px]">Released Date</span>
-                  <span className="font-bold text-brand-navy">
+                  <span className="card-label">Released Date</span>
+                  <span className="card-value">
                     {r.releasedDate || '-'}
                   </span>
                 </div>
@@ -377,7 +386,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <BookOpen className="w-4 h-4 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Evaluation Summary
                 </span>
               </div>
@@ -386,14 +395,14 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                 <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center border border-slate-100">
                   <AlertCircle className="w-5 h-5 text-slate-500 opacity-40 animate-pulse" />
                 </div>
-                <h4 className="font-extrabold text-slate-800 text-xs text-center">No evaluation records available</h4>
-                <p className="text-[10px] text-slate-400 font-bold max-w-[210px] leading-relaxed text-center">
+                <h4 className="section-label text-center">No evaluation records available</h4>
+                <p className="card-description max-w-[210px] text-center">
                   Student has not yet reached the evaluation stage of the appointment process.
                 </p>
               </div>
 
               <div className="border-t border-slate-100 pt-4 mt-2 flex justify-between items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider font-sans">Status:</span>
+                <span className="card-label font-sans">Status:</span>
                 <span className="px-2.5 py-1 bg-slate-150 border border-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-wider rounded-lg">
                   NOT STARTED
                 </span>
@@ -409,25 +418,25 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
               <div className="flex items-center gap-2 pb-1">
                 <BookOpen className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Research Information
                 </span>
               </div>
 
               <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-5 space-y-2">
-                <h4 className="text-sm font-extrabold text-brand-navy leading-snug">
+                <h4 className="section-label leading-snug">
                   {r.researchTopic || 'No research title recorded'}
                 </h4>
-                <span className="text-[10.5px] font-black text-slate-500 block tracking-wide">
+                <span className="card-value block">
                   Area: {r.researchArea || 'Not recorded'}
                 </span>
               </div>
 
               <div className="space-y-2 font-sans">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                <span className="card-label block">
                   ABSTRACT
                 </span>
-                <p className="text-slate-600 text-xs font-semibold leading-relaxed">
+                <p className="card-description">
                   {r.abstract || 'No research abstract recorded.'}
                 </p>
               </div>
@@ -437,7 +446,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <FileText className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Status History
                 </span>
               </div>
@@ -447,22 +456,22 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                   {[...r.workflow].reverse().map((event) => (
                     <div key={event.id} className="relative">
                       <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                      <h4 className="font-extrabold text-brand-navy text-xs">
+                      <h4 className="section-label">
                         {event.action.replaceAll('_', ' ')}
                       </h4>
-                      <p className="text-[10px] font-bold text-slate-400 mt-1">
+                      <p className="card-description mt-1">
                         {new Date(event.createdAt).toLocaleString('en-GB')}
                         {' · '}
                         {event.actorName}
                       </p>
                       {event.reason && (
-                        <p className="text-[10px] font-semibold text-rose-600 mt-1">{event.reason}</p>
+                        <p className="card-description text-rose-600 mt-1">{event.reason}</p>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs font-semibold text-slate-400">No workflow history recorded.</p>
+                <p className="card-description">No workflow history recorded.</p>
               )}
             </div>
 
@@ -470,30 +479,30 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                   <Calendar className="w-4.5 h-4.5 text-brand-navy" />
-                  <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                  <span className="card-label">
                     Appointment Lifecycle
                   </span>
                 </div>
                 {r.appointmentLifecycle.endReason && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[10px] font-black uppercase text-slate-500">
+                    <p className="card-label">
                       {r.appointmentLifecycle.endOutcome || 'Ended'}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-700">{r.appointmentLifecycle.endReason}</p>
+                    <p className="card-description mt-1">{r.appointmentLifecycle.endReason}</p>
                   </div>
                 )}
                 {r.appointmentLifecycle.lifecycle?.length ? (
                   <div className="space-y-4 border-l-2 border-slate-150 pl-4">
                     {[...r.appointmentLifecycle.lifecycle].reverse().map((event) => (
                       <div key={event.id}>
-                        <p className="text-xs font-extrabold text-brand-navy">{event.action.replaceAll('_', ' ')}</p>
-                        <p className="mt-1 text-[10px] text-slate-400">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
-                        {event.reason && <p className="mt-1 text-[10px] font-semibold text-slate-600">{event.reason}</p>}
+                        <p className="card-value">{event.action.replaceAll('_', ' ')}</p>
+                        <p className="card-description mt-1">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
+                        {event.reason && <p className="card-description mt-1">{event.reason}</p>}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs font-semibold text-slate-400">No lifecycle events were recorded for this legacy appointment.</p>
+                  <p className="card-description">No lifecycle events were recorded for this legacy appointment.</p>
                 )}
               </div>
             )}
@@ -502,7 +511,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
               <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
                 <Users className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider">
+                <span className="card-label">
                   Related Panel Status
                 </span>
               </div>
@@ -513,17 +522,17 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
                     {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : '--'}
                   </div>
                   <div>
-                    <h5 className="font-extrabold text-slate-850 text-xs">{r.panelMemberName || 'Not assigned'}</h5>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Internal Panel Member</p>
+                    <h5 className="section-label">{r.panelMemberName || 'Not assigned'}</h5>
+                    <p className="card-description mt-0.5">Internal Panel Member</p>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Assigned</span>
-                  <span className="text-xs font-black text-brand-navy block mt-1">{r.panelAssignedDate || '-'}</span>
+                  <span className="card-label block">Assigned</span>
+                  <span className="card-value block mt-1">{r.panelAssignedDate || '-'}</span>
                 </div>
               </div>
 
-              <p className="text-[10px] font-semibold text-slate-400">
+              <p className="card-description">
                 Open Panel Appointments for persisted panel workflow details.
               </p>
             </div>
@@ -535,8 +544,8 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-left shadow-3xs">
           <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <span className="block text-xs font-extrabold uppercase tracking-wider text-brand-navy">Submitted documents</span>
-              <span className="mt-1 block text-[10px] font-bold text-slate-400">Private files attached to this supervisor application.</span>
+              <span className="card-label block">Submitted documents</span>
+              <span className="card-value mt-1 block">Private files attached to this supervisor application.</span>
             </div>
             <StatusBadge tone="neutral">{r.documents?.length || 0} recorded</StatusBadge>
           </div>
@@ -547,589 +556,53 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs mt-6">
           <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
+            <span className="card-label block">
               Confidential Administrative View
             </span>
-            <p className="text-slate-650 text-xs font-semibold leading-relaxed text-slate-500">
+            <p className="card-description text-slate-650">
               This page provides a read-only administrative view of the supervisor appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
             </p>
           </div>
         </div>
 
       </div>
+      </RecordPage>
     );
   }
 
-  return (
-    <div id="supervisor-mgmt-viewport" className="space-y-8 animate-fade-in text-left font-sans">
-      
-      <PortalToast message={toastMessage} />
-
-      <PageHeader
-        title="Supervisor Appointment Management"
-        subtitle="Monitor supervisor appointment records, workload distribution, and records needing attention."
-        subtitleClassName="leading-relaxed max-w-3xl"
-        actions={(
-          <PortalButton variant="secondary" onClick={onNavigateToRequirements}>
-            Document Requirements
-          </PortalButton>
-        )}
-      />
-
-      {/* 4 Vitals Summary Cards matching wireframe exactly */}
-      <SupervisoryTeamManagement role="Office Staff/Admin" />
-      <div id="sup-vitals-row" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Students Without Supervisor */}
-        <div className="bg-white border-l-4 border-l-rose-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-              Students Without Supervisor
-            </span>
-            <span className="text-3xl font-black text-brand-navy block pt-1">
-              {recordSummary.withoutSupervisor}
-            </span>
-            <span className="text-[10px] font-medium text-rose-600 block pt-1.5 flex items-center gap-1">
-              <StatusDot tone="danger" pulse />
-              No approved supervisor record.
-            </span>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500 shrink-0">
-            <UserX className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Pending Records */}
-        <div className="bg-white border-l-4 border-l-blue-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-              Pending Records
-            </span>
-            <span className="text-3xl font-black text-brand-navy block pt-1">
-              {recordSummary.pending}
-            </span>
-            <span className="text-[10px] font-medium text-blue-600 block pt-1.5 flex items-center gap-1">
-              <StatusDot tone="info" />
-              Supervisor records still in workflow.
-            </span>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
-            <FileText className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Approved Supervisors */}
-        <div className="bg-white border-l-4 border-l-emerald-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-              Approved Supervisors
-            </span>
-            <span className="text-3xl font-black text-slate-850 block pt-1">
-              {recordSummary.approved}
-            </span>
-            <span className="text-[10px] font-medium text-emerald-600 block pt-1.5 flex items-center gap-1">
-              <StatusDot tone="success" />
-              Active approved appointments.
-            </span>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Workload Alerts */}
-        <div className="bg-white border-l-4 border-l-amber-500 border border-y-slate-200 border-r-slate-200 rounded-xl p-5 shadow-3xs hover:shadow-2xs transition flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
-              Workload Alerts
-            </span>
-            <span className="text-3xl font-black text-amber-500 block pt-1">
-              {recordSummary.workloadAlerts}
-            </span>
-            <span className="text-[10px] font-medium text-amber-600 block pt-1.5 flex items-center gap-1">
-              <StatusDot tone="warning" pulse />
-              Lecturers near supervision limit.
-            </span>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
-
-      </div>
-
-      {/* Main Core Layout Grid (Divided 8 cols with filters & table, 4 cols with Side widgets) */}
-      <div id="sup-core-grid" className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
-        
-        {/* Left Side: Filter Panels and Records Database Table */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* Search and Filters Block */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-3xs space-y-5 text-xs text-left">
-            <div className="border-b border-slate-100 pb-3">
-              <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[10px]">
-                Search & Filter Supervisor Records
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              
-              {/* Row 1: Search Box */}
-              <div>
-                <label htmlFor="search-input" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Search Records
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input
-                    id="search-input"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by student name, ID, supervisor, or research title"
-                    className="form-control form-control-sm pl-9 pr-4"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Programme and Semester Dropdowns */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                <div>
-                  <label htmlFor="prog-select" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    Programme
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="prog-select"
-                      value={programmeFilter}
-                      onChange={(e) => setProgrammeFilter(e.target.value)}
-                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
-                    >
-                      <option>All Programmes</option>
-                      <option>MSc. Computer Science</option>
-                      <option>MSc. Data Science</option>
-                      <option>MSc. Software Engineering</option>
-                      <option>MSc. Information Technology</option>
-                    </select>
-                    <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="sem-select" className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    Semester
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="sem-select"
-                      value={semesterFilter}
-                      onChange={(e) => setSemesterFilter(e.target.value)}
-                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
-                    >
-                      <option>All Semesters</option>
-                      <option>Semester 1, 2024/2025</option>
-                      <option>Semester 2, 2024/2025</option>
-                    </select>
-                    <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Row 3: Action Button combined with tab selector for smooth UX */}
-              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                
-                <div className="flex flex-wrap gap-1.5">
-                  {(['All Records', 'No Supervisor', 'Pending', 'Approved', 'Ended', 'Rejected', 'Cancelled', 'Workload Alert'] as const).map((tab) => {
-                    const isActive = activeTab === tab;
-                    return (
-                      <button
-                        key={tab}
-                        onClick={() => {
-                          setActiveTab(tab);
-                          setCurrentPage(1);
-                        }}
-                        className={`px-3 py-1.5 text-[10.5px] font-black transition rounded-lg ${
-                          isActive 
-                            ? 'bg-brand-navy text-white' 
-                            : 'bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-650'
-                        }`}
-                      >
-                        {tab}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex gap-2 shrink-0">
-                  <PortalButton
-                    onClick={handleResetFilters}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    Reset
-                  </PortalButton>
-                  <PortalButton
-                    onClick={handleApplyFilters}
-                    variant="primary"
-                    size="sm"
-                  >
-                    Apply Filters
-                  </PortalButton>
-                </div>
-
-              </div>
-
-            </div>
-          </div>
-
-          {/* Supervisor Appointment Records Card Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-3xs text-left">
-            <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <span className="font-extrabold text-brand-navy text-xs uppercase tracking-wider block">
-                  Supervisor Appointment Records
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 block mt-1">
-                  View and monitor supervisor appointment records across students and lecturers.
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  <span>Sort</span>
-                  <select
-                    value={sortOrder}
-                    onChange={(event) => {
-                      setSortOrder(event.target.value as 'default' | 'longestWaiting');
-                      setCurrentPage(1);
-                    }}
-                    className="form-control form-control-sm min-w-36 normal-case"
-                    aria-label="Sort supervisor appointment records"
-                  >
-                    <option value="default">Default order</option>
-                    <option value="longestWaiting">Longest waiting</option>
-                  </select>
-                </label>
-                <button
-                  onClick={handleExportData}
-                  className="inline-flex items-center gap-1.5 text-[10.5px] font-black text-slate-500 hover:text-brand-navy transition uppercase tracking-wider cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Export Data</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[820px] text-xs">
-                <thead>
-                  <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th">Student ID</th>
-                    <th className="data-th">Student Name</th>
-                    <th className="data-th">Programme</th>
-                    <th className="data-th">Supervisor</th>
-                    <th className="data-th text-center">Status</th>
-                    <th className="data-th">Waiting</th>
-                    <th className="data-th">Updated Date</th>
-                    <th className="data-th text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={8} className="p-0">
-                        <LoadingState message="Loading supervisor appointments…" />
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={8} className="p-0">
-                        <ErrorState message={error} onRetry={loadRecords} />
-                      </td>
-                    </tr>
-                  ) : paginatedRecords.length > 0 ? (
-                    paginatedRecords.map((r) => (
-                      <tr key={r.applicationId != null ? `application-${r.applicationId}` : supervisorRecordRouteKey(r)} className="hover:bg-slate-50/50 transition-colors">
-                        
-                        {/* Student ID */}
-                        <td className="data-td font-mono">
-                          {r.studentId}
-                        </td>
-
-                        {/* Student Name */}
-                        <td className="data-td-strong">
-                          {r.studentName}
-                        </td>
-
-                        {/* Programme */}
-                        <td className="data-td">
-                          {r.programme}
-                        </td>
-
-                        {/* Supervisor */}
-                        <td className={`data-td-strong ${
-                          r.supervisor === 'Not Assigned' ? 'text-red-500' : ''
-                        }`}>
-                          {r.supervisor}
-                        </td>
-
-                        {/* Status chip */}
-                        <td className="data-td text-center">
-                          <div className="flex items-center justify-center">
-                            {r.status === 'Approved' ? (
-                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-emerald-100">
-                                Approved
-                              </span>
-                            ) : r.status === 'Pending' ? (
-                              <span className="px-2.5 py-1 bg-blue-50 text-blue-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-blue-100">
-                                Pending
-                              </span>
-                            ) : r.status === 'No Supervisor' ? (
-                              <span className="px-2.5 py-1 bg-red-50 text-red-650 tracking-wide font-black text-[9px] uppercase rounded-full border border-red-100">
-                                No Supervisor
-                              </span>
-                            ) : r.status === 'Workload Alert' ? (
-                              <span className="px-2.5 py-1 bg-amber-50 text-amber-700 tracking-wide font-black text-[9px] uppercase rounded-full border border-amber-100">
-                                Workload Alert
-                              </span>
-                            ) : r.status === 'Cancelled' ? (
-                              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">
-                                Cancelled
-                              </span>
-                            ) : r.status === 'Ended' ? (
-                              <StatusBadge tone="neutral">Ended</StatusBadge>
-                            ) : (
-                              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 tracking-wide font-black text-[9px] uppercase rounded-full border border-slate-200">
-                                Rejected
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="data-td font-semibold text-slate-500">
-                          {formatSupervisorWaiting(r)}
-                        </td>
-
-                        {/* Updated Date */}
-                        <td className="data-td">
-                          {r.updatedDate}
-                        </td>
-
-                        {/* Action - View Button */}
-                        <td className="data-td text-center">
-                          <div className="flex flex-wrap justify-center gap-2">
-                            <button
-                              onClick={() => onNavigateToDossier?.(r.studentId)}
-                              className="px-3 py-1.5 border border-slate-200 bg-white text-blue-700 font-extrabold text-[10px] uppercase rounded-lg"
-                            >
-                              View Dossier
-                            </button>
-                            <button
-                              onClick={() => {
-                                onNavigateToRecord?.(supervisorRecordRouteKey(r));
-                                showToast(`Loaded supervisor details for ${r.studentName}`);
-                              }}
-                              className="px-3 py-1.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition shadow-3xs hover:shadow-2xs cursor-pointer"
-                            >
-                              View
-                            </button>
-                          </div>
-                        </td>
-
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
-                        No supervisor records found matching the applied criteria.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination block */}
-            <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex items-center justify-between font-sans text-xs select-none">
-              <span className="text-slate-450 font-semibold">
-                Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} records
-              </span>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 disabled:opacity-45 hover:bg-slate-50 transition cursor-pointer font-bold"
-                >
-                  Previous
-                </button>
-
-                {Array.from({ length: totalPages }).map((_, inx) => {
-                  const pNum = inx + 1;
-                  return (
-                    <button
-                      key={pNum}
-                      onClick={() => setCurrentPage(pNum)}
-                      className={`w-8 h-8 rounded-lg text-xs font-black transition cursor-pointer ${
-                        currentPage === pNum 
-                          ? 'bg-brand-navy text-white border border-brand-navy' 
-                          : 'bg-white border border-slate-205 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {pNum}
-                    </button>
-                  );
-                })}
-
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 disabled:opacity-45 hover:bg-slate-50 transition cursor-pointer font-bold"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* Right Side: Interactive widgets panel matching layout precisely */}
-        <div id="sup-sidebar-widgets" className="lg:col-span-4 space-y-6">
-          
-          {/* Records Needing Attention */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
-            <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center gap-2">
-              <AlertTriangle className="w-4.5 h-4.5 text-rose-500 shrink-0" />
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
-                Records Needing Attention
-              </span>
-            </div>
-
-            <div className="divide-y divide-slate-100 font-sans">
-              
-              <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
-                    Students without approved supervisor
-                  </h4>
-                  <span className="text-[10px] font-bold text-rose-600">
-                    {recordSummary.withoutSupervisor} records outstanding
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setActiveTab('No Supervisor');
-                    setCurrentPage(1);
-                    showToast("Filtering to 'No Supervisor' records.");
-                  }}
-                  className="text-xs font-extrabold text-blue-600 hover:underline cursor-pointer focus:outline-none"
-                >
-                  Open
-                </button>
-              </div>
-
-              <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
-                    Supervisor records awaiting workflow action
-                  </h4>
-                  <div className="text-[10px] font-bold text-amber-600 space-y-0.5">
-                    <span className="block">{recordSummary.pending} records in queue</span>
-                    <span className="block">Longest waiting: {longestWaitingText}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setActiveTab('Pending');
-                    setCurrentPage(1);
-                    showToast("Filtering to 'Pending' records.");
-                  }}
-                  className="text-xs font-extrabold text-blue-600 hover:underline cursor-pointer focus:outline-none"
-                >
-                  Open
-                </button>
-              </div>
-
-              <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                <div className="space-y-1">
-                  <h4 className="font-extrabold text-brand-navy text-xs">
-                    Lecturers near workload limit
-                  </h4>
-                  <span className="text-[10px] font-bold text-amber-600">
-                    {recordSummary.workloadAlerts} workload alert records
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setActiveTab('Workload Alert');
-                    setCurrentPage(1);
-                    showToast("Filtering to 'Workload Alert' records.");
-                  }}
-                  className="text-xs font-extrabold text-blue-600 hover:underline cursor-pointer focus:outline-none"
-                >
-                  Open
-                </button>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Supervisor Workload Snapshot */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-hidden text-left">
-            <div className="bg-slate-50 px-5 py-4 border-b border-slate-200/60 flex items-center justify-between">
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider block">
-                Supervisor Workload Snapshot
-              </span>
-              <StatusDot tone="success" className="w-2 h-2" />
-            </div>
-
-            <div className="p-5 space-y-4 font-sans text-xs">
-              <p className="font-semibold leading-relaxed text-slate-500">
-                Open workload monitoring for current appointment counts, pending reservations, and configured limits.
-              </p>
-
-              {/* View All Workload router button */}
-              <button
-                onClick={() => {
-                  onNavigateToWorkload?.();
-                  showToast("Opened Supervisor Workload Monitoring");
-                }}
-                className="w-full mt-2 py-2.5 border border-slate-250 hover:bg-slate-50 text-brand-navy font-black uppercase text-[10.5px] rounded-xl tracking-wider transition cursor-pointer text-center"
-              >
-                View All Workload
-              </button>
-
-            </div>
-          </div>
-
-          {/* Quick Tip Panel */}
-          <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left space-y-3 shadow-3xs">
-            <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="font-extrabold text-brand-navy text-[10.5px] uppercase tracking-wider">
-                Quick Tip
-              </span>
-            </div>
-            <p className="text-slate-650 text-xs font-semibold leading-relaxed">
-              Submission document requirements are centrally configured and snapshot when each application is created.
-            </p>
-            <button
-              onClick={onNavigateToRequirements}
-              className="inline-flex items-center gap-1.5 text-xs font-extrabold text-blue-600 hover:text-blue-800 hover:underline mt-1 cursor-pointer"
-            >
-              <span>Manage Document Requirements</span>
-            </button>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
+  if (routeView === 'teamDetail') return <RecordPage title="Supervision details" backLabel="Back to Supervisory teams" onBack={onNavigateToTeams ?? navigateToList}>
+    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} showResearchChanges={false} showRefresh={false} />
+  </RecordPage>;
+  const programmes = [...new Set(records.map(row => row.programme).filter(Boolean))];
+  const semesters = [...new Set(records.map(row => row.semester).filter((value): value is string => !!value))];
+  return <div id="supervisor-mgmt-viewport" className="space-y-6 text-left font-sans pb-12">
+    <PortalToast message={toastMessage} />
+    <PageHeader title="Supervisor Appointments" subtitle="Monitor appointment records, manage supervisory teams and follow research changes." actions={<PortalButton size="sm" icon={RefreshCw} disabled={routeView === 'teams' ? teamBusy : loading || carryBusy} onClick={refresh}>Refresh</PortalButton>} />
+    <SupervisorWorkspaceNavigation role="Office Staff/Admin" />
+    {routeView === 'teams' ? <SupervisoryTeamManagement role="Office Staff/Admin" view="roster" showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setTeamBusy} onNavigateToStudent={onNavigateToTeam} /> : <>
+      {!loading && !error ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AppointmentSummaryCard title="Without supervisor" value={recordSummary.withoutSupervisor} description="Students without an approved supervisor." />
+        <AppointmentSummaryCard title="Pending records" value={recordSummary.pending} description="Appointments awaiting a recorded decision." />
+        <AppointmentSummaryCard title="Approved supervisors" value={recordSummary.approved} description="Active approved appointments." />
+        <AppointmentSummaryCard title="Workload alerts" value={recordSummary.workloadAlerts} description="Lecturers near their supervision limit." />
+      </div> : null}
+      <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Appointment records">
+        <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} onClick={handleExportData}>Export records</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />
+        <RequestFilters search={searchQuery} onSearch={setSearchQuery} searchLabel="Find a record" searchPlaceholder="Student name, matric number, supervisor or research title">
+          <label className="form-label">Programme<select className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</select></label>
+          <label className="form-label">Semester<select className="form-control form-control-sm mt-1" value={semesterFilter} onChange={event => setSemesterFilter(event.target.value)}><option>All Semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</select></label>
+          <label className="form-label">Status<select className="form-control form-control-sm mt-1" value={activeTab} onChange={event => { setActiveTab(event.target.value as typeof activeTab); setCurrentPage(1); }}>{(['All Records','No Supervisor','Pending','Approved','Ended','Rejected','Cancelled','Workload Alert'] as const).map(value => <option key={value}>{value}</option>)}</select></label>
+          <label className="form-label">Sort<select className="form-control form-control-sm mt-1" value={sortOrder} onChange={event => { setSortOrder(event.target.value as typeof sortOrder); setCurrentPage(1); }}><option value="default">Default order</option><option value="longestWaiting">Longest waiting</option></select></label>
+          <div className="flex items-end gap-2"><PortalButton size="sm" onClick={handleResetFilters}>Reset filters</PortalButton><PortalButton size="sm" variant="primary" onClick={handleApplyFilters}>Apply filters</PortalButton></div>
+        </RequestFilters>
+        {loading ? <LoadingState message="Loading appointment records…" /> : error ? <ErrorState message={error} onRetry={loadRecords} /> : <>
+          {paginatedRecords.length ? <OfficeSupervisorRecordTable records={paginatedRecords} onOpen={record => onNavigateToRecord?.(supervisorRecordRouteKey(record))} onDossier={record => onNavigateToDossier?.(record.studentId)} /> : <EmptyState title="No matching records" description="Adjust the filters to see more records." />}
+          <WorkspacePagination page={currentPage} pageCount={totalPages} total={filteredRecords.length} noun="records" pageSize={itemsPerPage} onPage={setCurrentPage} onPageSize={value => { setItemsPerPage(value); setCurrentPage(1); }} />
+        </>}
+      </section>
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Records needing attention"><WorkspaceSectionHeader title="Records needing attention" description={`Longest waiting: ${longestWaitingText}`} /><div className="flex flex-wrap gap-2">{(['No Supervisor','Pending','Workload Alert'] as const).map(value => <PortalButton key={value} size="sm" onClick={() => { setActiveTab(value); setCurrentPage(1); }}>{value === 'No Supervisor' ? 'View students without supervisor' : value === 'Pending' ? 'View pending records' : 'View workload alerts'}</PortalButton>)}</div></section>
+      <CapacityReassessments role="Office Staff/Admin" showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setCarryBusy} onChanged={loadRecords} />
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><WorkspaceSectionHeader title="Appointment guidance" /><p className="card-description">Submission document requirements are configured centrally and recorded when each application is created.</p><PortalButton size="sm" onClick={onNavigateToRequirements}>Manage document requirements</PortalButton></section>
+    </>}
+  </div>;
 };

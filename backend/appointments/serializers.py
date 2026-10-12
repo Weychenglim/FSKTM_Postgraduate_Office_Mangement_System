@@ -1097,6 +1097,16 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
         student = Student.objects.select_for_update().get(
             pk=validated_data["student"].pk
         )
+        # Another request may have passed validation before this Student lock.
+        if student.supervisor_applications.filter(
+            status__in=[
+                SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
+                SupervisorApplication.Status.PENDING_COORDINATOR,
+            ]
+        ).exists():
+            raise serializers.ValidationError(
+                "An active supervisor application already exists."
+            )
         enforce_no_pending_transfer(student.pk)
         enforce_no_supporting_role(student.pk, validated_data["supervisor"].pk)
         lecturer = Lecturer.objects.select_for_update().get(

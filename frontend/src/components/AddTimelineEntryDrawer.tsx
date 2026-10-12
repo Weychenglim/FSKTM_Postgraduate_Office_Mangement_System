@@ -1,4 +1,5 @@
-﻿/**
+import { RecordPage } from './RecordPage';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,6 +30,7 @@ interface AddTimelineEntryDrawerProps {
   onClose: () => void;
   onSave: (newEntry: Omit<TimelineEntry, 'id'>) => void;
   timelineLabel: string;
+  busy?: boolean;
 }
 
 export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
@@ -36,6 +38,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
   onClose,
   onSave,
   timelineLabel,
+  busy = false,
 }) => {
   const [eventName, setEventName] = useState('');
   const [category, setCategory] = useState<TimelineEntry['category']>('Research Project (P1)');
@@ -92,58 +95,10 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div 
-          id="add-timeline-entry-drawer" 
-          className="fixed inset-0 z-50 flex justify-end font-sans text-xs text-left"
-        >
-          {/* Dimmed Background Overlay */}
-          <motion.div
-            id="add-drawer-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.4 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-brand-navy backdrop-blur-sm cursor-pointer"
-            onClick={onClose}
-          />
-
-          {/* Slide-In Custom Side Panel */}
-          <motion.div
-            id="add-drawer-panel"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="drawer-panel"
-          >
-            {/* Header section with closing element */}
-            <div 
-              id="add-drawer-header" 
-              className="drawer-header"
-            >
-              <div className="flex items-center gap-2.5">
-                <Plus className="w-5 h-5 text-indigo-500 stroke-[2.5]" />
-                <h3 className="font-black text-brand-navy text-[15px] tracking-tight">
-                  Add Timeline Entry
-                </h3>
-              </div>
-              
-              <button
-                id="add-drawer-close-button"
-                onClick={onClose}
-                className="icon-button w-9 h-9"
-                aria-label="Close add drawer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Main Form content wrapper with neat spacing limits */}
-            <form 
+  if (!isOpen) return null;
+  return <RecordPage title="Add Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-add" dirty={!!eventName || !!startDate || !!endDate || !!description || category !== 'Research Project (P1)' || targetRole.join() !== 'STUDENT'} busy={busy}>{requestBack => <form
               onSubmit={handleSubmit}
-              className="flex-1 flex flex-col h-full overflow-hidden"
+              className="space-y-5 rounded-2xl border border-slate-200 bg-white"
             >
               <div 
                 id="add-drawer-body" 
@@ -151,11 +106,11 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               >
                 {/* Context Indicator Alert banner */}
                 <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                  <span className="card-label block">
                     Postgraduate Milestone Info
                   </span>
-                  <p className="text-brand-navy font-semibold text-[11px] leading-relaxed">
-                    Create a new milestone for <strong className="font-extrabold text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
+                  <p className="card-description">
+                    Create a new milestone for <strong className="card-value text-indigo-650">{timelineLabel}</strong>. Confirm the start and end dates before saving.
                   </p>
                 </div>
 
@@ -302,7 +257,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
               >
                 <PortalButton
                   type="button"
-                  onClick={onClose}
+                  onClick={requestBack}
                   variant="secondary"
                   size="md"
                 >
@@ -319,11 +274,5 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   Add Entry
                 </PortalButton>
               </div>
-            </form>
-
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+            </form>}</RecordPage>;
 };

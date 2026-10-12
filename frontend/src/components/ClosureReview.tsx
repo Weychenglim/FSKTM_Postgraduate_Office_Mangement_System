@@ -6,11 +6,11 @@ import { ApiError } from '../services/apiClient';
 import { PortalButton } from './PortalPrimitives';
 
 export function ClosureSummary({ preview }: { preview: ClosurePreview }) {
-  return <section aria-label="Closure preview" className="space-y-3 text-sm">
-    <h3 className="font-bold">Unfinished marks review</h3>
-    <p>Closing preserves existing marks. Only separately granted completion windows allow eligible unfinished tasks to continue.</p>
-    <div className="overflow-auto"><table className="w-full text-left"><thead><tr>{['Period','Submitted','Not started','Draft','Paused','Active windows','Unfinished'].map(label=><th className="p-2" key={label}>{label}</th>)}</tr></thead>
-    <tbody>{[...preview.periods, { ...preview.totals, periodId: -1, name: 'Total' }].map(row=><tr key={row.periodId}><th className="p-2">{row.name}</th>{[row.submitted,row.notStarted,row.draft,row.paused,row.activeWindows,row.unfinished].map((count,i)=><td className="p-2" key={i}>{count}</td>)}</tr>)}</tbody></table></div>
+  return <section aria-label="Closure preview" className="space-y-3 text-xs">
+    <h3 className="section-label">Unfinished marks review</h3>
+    <p className="card-description">Closing preserves existing marks. Only separately granted completion windows allow eligible unfinished tasks to continue.</p>
+    <div className="overflow-auto"><table className="data-table"><thead><tr>{['Period','Submitted','Not started','Draft','Paused','Active windows','Unfinished'].map(label=><th className="data-th p-2" key={label}>{label}</th>)}</tr></thead>
+    <tbody>{[...preview.periods, { ...preview.totals, periodId: -1, name: 'Total' }].map(row=><tr key={row.periodId}><th className="data-td-strong p-2">{row.name}</th>{[row.submitted,row.notStarted,row.draft,row.paused,row.activeWindows,row.unfinished].map((count,i)=><td className="data-td p-2" key={i}>{count}</td>)}</tr>)}</tbody></table></div>
   </section>;
 }
 export function ClosureReview({ kind, id, disabled, onConfirm }: { kind: 'semester' | 'handover' | 'period'; id: number; disabled: boolean; onConfirm: (approval: ClosureApproval) => Promise<void> }) {
@@ -36,8 +36,8 @@ export function ClosureReview({ kind, id, disabled, onConfirm }: { kind: 'semest
     finally{setBusy(false);}
   };
   return <div className="my-4 space-y-4 border-y border-slate-200 py-4">
-    {error?<p role="alert" className="text-red-700">{error}</p>:null}
-    {preview?<><ClosureSummary preview={preview}/>{preview.requiresAcknowledgement?<label className="flex gap-2 text-sm"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)} disabled={busy}/>I acknowledge the unfinished tasks and active completion windows shown above.</label>:null}</>:!error?<p>Loading closure preview…</p>:null}
+    {error?<p role="alert" className="card-description text-red-700">{error}</p>:null}
+    {preview?<><ClosureSummary preview={preview}/>{preview.requiresAcknowledgement?<label className="card-description flex gap-2 text-slate-700"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)} disabled={busy}/>I acknowledge the unfinished tasks and active completion windows shown above.</label>:null}</>:!error?<p className="card-description">Loading closure preview…</p>:null}
     <div className="flex gap-2"><PortalButton disabled={busy} onClick={()=>{session.current.invalidate();setPreview(null);setAcknowledged(false);setRevision(v=>v+1);}}>Refresh preview</PortalButton><PortalButton variant="primary" disabled={disabled||busy||!preview||(preview.requiresAcknowledgement&&!acknowledged)} onClick={()=>void confirm()}>Confirm closure / handover</PortalButton></div>
   </div>;
 }

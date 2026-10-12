@@ -1,14 +1,17 @@
-﻿/**
+import { ListState } from './ListState';
+import { PortalModal } from './PortalModal';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Users, HelpCircle } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
+import { RecordPageProvider } from './RecordPage';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -35,6 +38,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   activeModal,
   setActiveModal
 }) => {
+  const listState = useRef(new Map<string, unknown>());
   // Responsive sidebar drawer: open on desktop (lg+), closed on mobile by default
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -74,7 +78,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
         {/* Actionable page frame details scrollable box */}
         <main id="portal-inner-content" className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl w-full mx-auto">
-          {children}
+          <ListState.Provider value={listState.current}><RecordPageProvider>{children}</RecordPageProvider></ListState.Provider>
         </main>
 
         {/* Portal Footer: single global footer, transparent so it blends with the page background */}
@@ -112,20 +116,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       </div>
 
       {/* Interactive Global admin Modal Overlays */}
-      <AnimatePresence>
-        {activeModal && (
-          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            {/* Backdrop Dismiss */}
-            <div className="absolute inset-0" onClick={() => setActiveModal(null)} />
-
-            {/* Modal Body Container */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -15 }}
-              transition={{ duration: 0.25 }}
-              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-sm relative z-10 border border-slate-100 text-left"
-            >
+      <PortalModal isOpen={!!activeModal} onClose={() => setActiveModal(null)} labelledBy="portal-help-title" className="max-w-lg p-6 md:p-8">
               {/* Close Button top right */}
               <PortalButton
                 type="button"
@@ -141,30 +132,30 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2.5 mb-4 text-brand-navy">
                     <Users className="w-6 h-6 text-indigo-500" />
-                    <h3 className="text-xl font-extrabold tracking-tight">FSKTM Office Contacts</h3>
+                    <h3 id="portal-help-title" className="section-heading">FSKTM Office Contacts</h3>
                   </div>
-                  <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  <p className="card-description mb-6">
                     Direct access portals for FSKTM administrative divisions, postgraduate supervision boards, development partners, and technical service counters.
                   </p>
 
                   <div className="space-y-3 mb-6 bg-[#f8fafc] p-4.5 border border-slate-150 rounded-xl text-xs text-slate-700">
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Academic Secretariat Desk</span>
-                      <span className="text-slate-900 font-bold">Block A Level 2, Desk Ext 4902</span>
+                      <span className="card-label text-slate-400">Academic Secretariat Desk</span>
+                      <span className="card-value text-slate-900">Block A Level 2, Desk Ext 4902</span>
                     </div>
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Postgraduate Office Email</span>
-                      <span className="text-blue-600 font-bold hover:underline">postgrad.fsktm@edu.my</span>
+                      <span className="card-label text-slate-400">Postgraduate Office Email</span>
+                      <span className="card-value text-blue-600 hover:underline">postgrad.fsktm@edu.my</span>
                     </div>
 
                     <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="text-slate-400 font-semibold">Database Center System Ops</span>
-                      <span className="text-slate-900 font-bold">{userName}</span>
+                      <span className="card-label text-slate-400">Database Center System Ops</span>
+                      <span className="card-value text-slate-900">{userName}</span>
                     </div>
 
                     <div className="flex justify-between py-1.5">
-                      <span className="text-slate-400 font-semibold">Host Counter Ingress</span>
+                      <span className="card-label text-slate-400">Host Counter Ingress</span>
                       <span className="font-mono text-[10px] text-zinc-500 font-bold">PROD-INGRESS-3000</span>
                     </div>
                   </div>
@@ -180,10 +171,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 </div>
               )}
 
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </PortalModal>
     </div>
   );
 };

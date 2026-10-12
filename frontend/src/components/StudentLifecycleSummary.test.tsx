@@ -14,6 +14,12 @@ assert.match(publicMarkup, /Deferred/);
 assert.match(publicMarkup, /08 Oct 2026.*04:30/);
 assert.match(publicMarkup, /Malaysia, UTC\+08:00/);
 assert.doesNotMatch(publicMarkup, /Private|audit history|Changed by|Reason:/);
+const unchangedMarkup = renderToStaticMarkup(
+  <StudentLifecycleSummary lifecycle={{ status: 'ACTIVE', effectiveAt: null }} internal={false} />,
+);
+assert.match(unchangedMarkup, /Active/);
+assert.doesNotMatch(unchangedMarkup, /Effective:|Status changed on|No lifecycle change recorded/,
+  'A student without a recorded status change must not see a misleading effective-date row');
 const internalMarkup = renderToStaticMarkup(<StudentLifecycleSummary lifecycle={lifecycle} internal />);
 for (const value of ['Private latest reason','Private Office actor','Private earlier reason','Private audit actor','Active to Deferred']) {
   assert.ok(internalMarkup.includes(value), value);

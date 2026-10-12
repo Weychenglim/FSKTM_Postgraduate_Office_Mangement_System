@@ -23,15 +23,15 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, lo
     >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h3 id="semester-master-schedule-header" className="text-sm font-black text-brand-navy">
+          <h3 id="semester-master-schedule-header" className="section-label">
             Semester Master Schedule
           </h3>
-          <p className="text-[11px] font-semibold text-slate-500 mt-1">
+          <p className="card-description mt-1">
             Manage the selected semester timeline by project phase.
           </p>
         </div>
         {!loading && !error && timeline?.available && (
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+          <span className="card-label uppercase tracking-wider text-slate-400">
             {timeline.semester} {timeline.session}
           </span>
         )}
@@ -43,10 +43,10 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, lo
         <ErrorState message={error} onRetry={onRetry} />
       ) : !timeline?.available ? (
         <div className="rounded-2xl border border-dashed border-slate-250 bg-slate-50/60 px-5 py-8 text-center">
-          <p className="text-sm font-black text-brand-navy">
+          <p className="card-value text-brand-navy">
             {timeline?.message || 'No timeline available at now'}
           </p>
-          <p className="text-[11px] font-semibold text-slate-500 mt-1">
+          <p className="card-description mt-1">
             Upload the structured Excel template to create this semester's P1/P2 timeline.
           </p>
         </div>
