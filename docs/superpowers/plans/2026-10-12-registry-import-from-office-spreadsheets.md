@@ -35,7 +35,7 @@ It adds:
 | 2 | Backend: read any layout (sheets, header row, delimiter, English and Malay column names), inspect endpoint, column mapping, intake and semester | L | Done | `f465cfb` |
 | 3 | Frontend: Match Columns step | L | Done | `95c222d` |
 | 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Done | `b4f518d` |
-| 5 | Programme names: map each unrecognised value once, or skip those rows | M | Not started | |
+| 5 | Programme names: map each unrecognised value once, or skip those rows | M | Done | `ed8d0c5` |
 | 6 | Remember column matches for the same file layout | S | Not started | |
 | 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Blocked on P2 | |
 | 8 | Paste rows copied from Excel | M | Not started | |
@@ -174,8 +174,8 @@ All of these are Office-only, so the public API list pinned by `accounts/test_ap
   - `columns`, each with `index`, `header`, `samples` and `suggestedField`;
   - `fields`, each with `key`, `label` and `required`;
   - `mapping` and `ignoredColumns`;
-  - `programmeValues` (Phase 5) and `profileAppliedAt` (Phase 6).
-- `POST /api/registry/students/import/` (multipart `file`, `dryRun`, `options`): as today, plus the options.
+  - `profileAppliedAt` (Phase 6).
+- `POST /api/registry/students/import/` (multipart `file`, `dryRun`, `options`): as today, plus the options. A dry run also returns `programmeValues` and `programmeValueCount` (Phase 5).
 - `GET /api/registry/imports/?limit=`: as today, with the new batch fields.
 - `POST /api/registry/imports/<id>/send-invitations/` (Phase 4).
 - `GET /api/registry/students/import/template/` (Phase 9): the Excel template.
@@ -425,6 +425,15 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - An alias to a programme outside the approved list is refused.
 
 **Done when** a file with three spellings of one programme and some PhD rows imports with one choice per spelling, and the PhD rows are listed as skipped.
+
+**As built (`ed8d0c5`).** These points differ from the tasks above:
+- **The names come with the preview, not the inspect step.** The dry-run response carries `programmeValues` (`key`, `value`, `rows`, `suggestion`, `source`) and `programmeValueCount`, and the card sits on the Check rows step. A file in our own template skips the Match step, and the names depend on the confirmed programme column.
+- **Suggestions are shown with their effect.** The screen fills in each suggestion (`source` "saved" or "similar") and checks the rows again with it. The office sees the choice and can change it before importing. A preview or import without `programmeMap` maps nothing, as before.
+- **Names compare without letter case, punctuation or spaces,** so "M.D.S", "MDS" and "mds" are one name (`value_key` "mds").
+- **The status is "Programme Skipped".** It matches the other statuses' style, and the badge reads "Skipped".
+- **An unchosen name does not block the import.** Its rows stay "Bad Programme" and are left out like other rows that need fixing. The card names every unchosen name.
+- **A mapped row keeps the file's name (`programmeInFile`).** A reviewed file sends that name back after a row is edited, so changing the choice still reaches the row.
+- **A blank programme cell** now reads "programme is required" (Missing Field).
 
 ## Phase 6: Remember Column Matches
 

@@ -1,5 +1,29 @@
 # Project Status
 
+## Registry Import: Programme Names Chosen Once Each, Or Skipped (2026-10-12)
+
+- Phase 5 of the registry import plan (commit `ed8d0c5`).
+- **Programme Names In This File.** The Check rows step lists each programme name in the file that is not an approved programme, with its row count.
+  - The office chooses the programme each name means, or "Skip these rows" (for example PhD). One choice covers every row with that name, and the rows are checked again straight away.
+  - Mapped rows show "In the file: MDS" under the programme. Skipped rows read "Skipped", with "you chose to skip the programme ...".
+  - Names still without a choice are named. Their rows stay to fix and are left out of the import.
+  - It works for our own template too, since the card is on the Check rows step.
+- **Suggestions, never silent.** A name is pre-chosen only from the office's earlier choice ("Chosen on an earlier import") or when it differs from an approved name only in letter case, punctuation, spacing or "(Coursework)" ("The same name, spelt differently"). Each is shown and can be changed. "MDS", Malay names and "(Research)" programmes are never guessed.
+- **Remembered office-wide.** New model `RegistryProgrammeAlias` (migration `accounts.0012_registry_programme_alias`) keeps each choice. It is saved on a real import only and suggested on the next one. Names compare without letter case, punctuation or spaces ("M.D.S" is "MDS").
+- **Skipped rows** get the status "Programme Skipped". They are listed with the skipped rows in the preview, the result panel ("Programme skipped") and the report ("Skipped: you chose to skip this programme"). Recent Imports counts them ("2 skipped by programme"), and they never count as the first copy of a repeated student.
+- **Also changed.** A blank programme cell now reads "programme is required" instead of `"" is not an approved programme`.
+- **Database.** The dev database was migrated after a backup: `db-backups/fsktm_pg_office_before_registry_programme_alias_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 989 tests pass, 11 of them new in `test_registry_programmes.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass. `registryImport.test.ts` gained the programme helpers and source checks. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and passed 23/23. The file used our own template with "Master of Data Science", "MDS", "Sarjana Sains Data" and two "Doctor of Philosophy" rows. It covered:
+    - the card, the similar-name suggestion, and nothing guessed for MDS;
+    - one choice per name, and skipping the PhD rows;
+    - editing a row, then changing the MDS choice, which still reached that row;
+    - the import, with the result and Recent Imports counts;
+    - a second file ("M.D.S", "SARJANA SAINS DATA") opening with every saved choice.
+  - The database matched (MDS students in Cyber Security, the PhD rows not created, four saved choices). The card fits at 768 and 390 px without sideways scrolling. All test data was removed, including the saved choices.
+
 ## Registry Import: Settings For Every Row, And Activation Emails Later (2026-10-12)
 
 - Phase 4 of the registry import plan (commit `b4f518d`).
