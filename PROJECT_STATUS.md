@@ -1,5 +1,29 @@
 # Project Status
 
+## Registry Import: Already-Registered Students Listed (2026-10-12)
+
+- Phase 1 of `docs/superpowers/plans/2026-10-12-registry-import-from-office-spreadsheets.md` (commit `b9dbe75`). The plan makes bulk import accept the office's own Maya extract. Xiang said to build it now and amend it when the office answers the two open questions.
+- **Who is skipped is shown, not just counted.**
+  - Already-registered rows name the registry record they match (Student ID, name, programme, or the role when the email belongs to staff) and how they matched.
+  - The row is flagged when the name, email or Student ID differs, which usually means a wrong ID.
+  - Repeated rows point at the line that is imported instead.
+- **A registered Student ID is reported first.** Missing emails and programme spellings come after it, so a re-uploaded extract does not ask the office to fix existing students.
+- **Preview.**
+  - Ready, already registered, repeated and to-fix counts, with a filter (All, Ready, Skipped, Need fixing).
+  - Each row's explanation sits under the student's name.
+  - The preview now takes the full width.
+  - The note beside Create says who will be skipped, with a View link.
+- **After an import.**
+  - A result panel lists every created, skipped and failed row, plus any activation email that failed. A downloadable report has every row's outcome.
+  - Only failed rows stay in the preview for fixing.
+  - Batch records keep names and the registry match. Recent Imports shows "N already registered", including for batches from before this change.
+- The bulk tab is now "Bulk Import (Excel or CSV)".
+- **Verification.**
+  - 949 backend tests pass with `--parallel 2`, including 9 new ones in `test_registry_import.py`. One of them shows the query count is the same for 5 and 50 rows.
+  - All 94 frontend scripts pass, including the new `registryImport.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - A live browser run used temporary `smoke.import.*` accounts and a `smoke-` file, all removed afterwards. Its file held 2 new rows, 2 already registered (one under a different name), 1 repeated and 1 bad programme. Every check passed: counts, explanations, the warning, the View filter, the result panel, the report download and Recent Imports.
+  - The preview layout was checked at 1440, 768 and 390 px: no sideways page scroll, and Student IDs stay on one line.
+
 ## Activation Links, Clearer Account Emails and Registry Dropdowns (2026-10-12)
 
 - Requested by Xiang after reviewing the student activation email.
