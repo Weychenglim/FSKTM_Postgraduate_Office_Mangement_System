@@ -1,5 +1,28 @@
 # Project Status
 
+## Registry Import: Match Columns Step (2026-10-12)
+
+- Phase 3 of the registry import plan (commit `95c222d`).
+- **New flow.** A file is described first.
+  - Our own template goes straight to checking rows.
+  - Any other layout stops at **Match Columns**: each field (Student ID, Full name, Programme, Email, Phone, Intake, Current semester) gets a dropdown of the file's columns, with a sample value. The chosen column's first values are shown beside it.
+  - The office can change the sheet and the row that holds the column names. The file is then read again, with fresh suggestions.
+  - Columns that are not used are listed as "Not used, and not saved".
+  - A required field without a column, or one column chosen twice, is named and blocks Check Rows. The server checks the same rules.
+- **Progress.** A steps line shows Upload, Match columns, Check rows and Import. "Change column matches" goes back from the checked rows until a row is edited.
+- **Edited rows** are sent back in our own layout, so the server finds the columns by name. An empty preview says where the rows will appear.
+- **Verification.**
+  - All 94 frontend scripts pass. `registryImport.test.ts` gained the matching helpers and source checks for the flow. TypeScript lint, the production build and both production guards pass. No backend file changed since phase 2 (967 tests).
+  - A live browser run used temporary `smoke.import.*` accounts and the Maya-style workbook. It covered:
+    - the Match step and every suggested match;
+    - a missing required column blocking Check Rows;
+    - changing the column-name row and back;
+    - the checked rows, "Change column matches", and the import;
+    - our template skipping the step.
+
+    One check needed a corrected script: upper-case labels and sample values had fooled the first run. The re-check passed 4/4.
+  - The Match step fits at 768 and 390 px without sideways scrolling. All test data was removed.
+
 ## Registry Import: The Office's Own Spreadsheet Layout Is Read (2026-10-12)
 
 - Phase 2 of the registry import plan (commit `f465cfb`).

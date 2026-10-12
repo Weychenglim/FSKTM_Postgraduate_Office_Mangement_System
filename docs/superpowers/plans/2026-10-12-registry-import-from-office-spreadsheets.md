@@ -33,7 +33,7 @@ It adds:
 |---|---|---|---|---|
 | 1 | Already-registered students listed clearly in the preview, the import result and Recent Imports | M | Done | `b9dbe75` |
 | 2 | Backend: read any layout (sheets, header row, delimiter, English and Malay column names), inspect endpoint, column mapping, intake and semester | L | Done | `f465cfb` |
-| 3 | Frontend: Match Columns step | L | Not started | |
+| 3 | Frontend: Match Columns step | L | Done | `95c222d` |
 | 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Not started | |
 | 5 | Programme names: map each unrecognised value once, or skip those rows | M | Not started | |
 | 6 | Remember column matches for the same file layout | S | Not started | |
