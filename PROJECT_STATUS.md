@@ -1,5 +1,26 @@
 # Project Status
 
+## Sign-In, Profile Menu, Settings And Letter Download Fixes (2026-10-12)
+
+- **Remember me** (`3b9a753`). Sign-in has "Remember me on this device", off by default.
+  - Ticked, the refresh cookie lasts 7 days and survives closing the browser.
+  - Unticked, the cookie ends with the browser, and the server ends the session 12 hours after its last use (`JWT_SESSION_REFRESH_HOURS`).
+  - The choice travels in the refresh token, so refreshes and password changes keep it. Before this, every sign-in lasted 7 days, and the checkbox on `main` was not connected to anything.
+  - Checked in a browser by closing and reopening it: unticked returns to sign-in, ticked stays signed in.
+- **Forgot password** verified end to end on a private test server:
+  - the email arrives with its link, and the link sets a new password;
+  - the old password stops working and the new one signs in;
+  - the link works once only, and the reset signs out a device that was already signed in;
+  - an unknown email gets the same answer and no email.
+  No code change was needed.
+- **Notification preference switches** (`3f25c49`). The switch knob now sits in its track, so on and off read correctly. Each switch is named by its row title (also clickable) instead of repeating it. Saving and reloading keeps every choice.
+- **Profile menu** (`a14465f`):
+  - "My Records" is now "My Profile" at `/my-profile`.
+  - The menu's My Profile opens it for students and Settings for staff; it no longer opens the helpdesk dialog.
+  - The menu's Settings item now works, and Settings is no longer in the sidebar.
+- **Letters download as PDF** (`2de34dd`). `GET /api/letters/requests/<id>/pdf/` replaces the Word download. It is built with `reportlab` in the printed layout, and locked against editing while printing and copying text stay allowed. This replaces the Word half of design decision D5. Run `pip install -r requirements.txt` for `reportlab` and `pypdf`.
+- **Verification.** The backend passes 1039 tests and all 112 frontend scripts pass, along with lint and the build. Browser checks for each item passed, and all test data was removed.
+
 ## Registry Import: Excel Template, And The Plan Complete (2026-10-12)
 
 - Phase 9 of the registry import plan (commit `42b6a76`). All nine phases are now built.
