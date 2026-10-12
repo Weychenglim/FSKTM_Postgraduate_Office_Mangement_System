@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Marks Entry & Management domain models (UC24–UC29).
+// Marks Entry & Management domain models (UC24-UC29).
 
 export type MarkStatus = 'Submitted' | 'Draft' | 'Not Started' | 'Overdue' | 'Closed';
 

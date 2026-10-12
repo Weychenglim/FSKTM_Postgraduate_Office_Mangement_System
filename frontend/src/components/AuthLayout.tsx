@@ -17,7 +17,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
       {/* Left Branding Panel */}
       <div 
         id="branding-sidebar" 
-        className="w-full md:w-[45%] lg:w-[48%] bg-[#080f21] p-8 md:p-14 xl:p-16 flex flex-col justify-between border-r border-[#1a2c54]/20 relative overflow-hidden shrink-0"
+        className="w-full md:w-[45%] lg:w-[48%] bg-[#080f21] p-6 md:p-14 xl:p-16 flex flex-col justify-between border-r border-[#1a2c54]/20 relative overflow-hidden shrink-0"
       >
         {/* Abstract background graphics for elevated premium mood */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(30,58,138,0.15),transparent_60%)] pointer-events-none" />
@@ -45,8 +45,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           </div>
         </motion.div>
 
-        {/* Welcome message in the center block */}
-        <div id="welcome-message-block" className="my-16 md:my-auto relative z-10 max-w-lg text-left">
+        {/* Welcome message in the center block (kept short on phones so the form is in view) */}
+        <div id="welcome-message-block" className="mt-6 md:my-auto relative z-10 max-w-lg text-left">
           <motion.div 
             initial={{ opacity: 0, x: -15 }}
             animate={{ opacity: 1, x: 0 }}
@@ -64,7 +64,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             id="welcome-title" 
-            className="text-white text-3xl lg:text-4xl xl:text-[44px] font-extrabold tracking-tight leading-[1.12]"
+            className="text-white text-2xl md:text-3xl lg:text-4xl xl:text-[44px] font-extrabold tracking-tight leading-[1.12]"
           >
             Postgraduate Management System
           </motion.h1>
@@ -74,7 +74,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
             id="welcome-description" 
-            className="text-slate-400 text-sm lg:text-base mt-6 leading-relaxed font-normal"
+            className="hidden md:block text-slate-400 text-sm lg:text-base mt-6 leading-relaxed font-normal"
           >
             A centralized, secure platform engineered for academic administrators and students. 
             Manage records, automate document workflows, and access institutional resources efficiently.
@@ -82,7 +82,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
         </div>
 
         {/* Left Side Column Footer */}
-        <div id="left-footer" className="mt-8 pt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center text-[11px] text-slate-500 font-medium relative z-10 gap-2 text-left">
+        <div id="left-footer" className="mt-8 pt-4 hidden md:flex flex-col sm:flex-row justify-between items-start sm:items-center text-[11px] text-slate-500 font-medium relative z-10 gap-2 text-left">
           <span id="copyright-text">© 2026 FACULTY OF COMPUTER SCIENCE AND INFORMATION TECHNOLOGY (FSKTM)</span>
           <div id="footer-links" className="flex items-center gap-4">
             <a href="#" className="hover:text-indigo-300 transition-colors">Privacy</a>

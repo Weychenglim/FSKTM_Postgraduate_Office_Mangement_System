@@ -5,7 +5,7 @@
 
 import type { CapacityState } from './lecturerCapacity';
 
-// Supervisor & Panel Appointment domain models (UC10–UC23).
+// Supervisor & Panel Appointment domain models (UC10-UC23).
 
 export interface AppointmentCapacityMetadata {
   semesterId?: number | null;
@@ -138,7 +138,7 @@ export interface PanelRecord extends WorkflowAgeingMetadata {
   appointmentLifecycle?: AppointmentLifecycle | null;
 }
 
-// ── Lecturer-facing supervisor appointment views (UC11–UC13) ──
+// Lecturer-facing supervisor appointment views (UC11-UC13)
 // A pending supervisor appointment request shown to a lecturer to review.
 export interface SupervisorRequest extends WorkflowAgeingMetadata {
   applicationId?: number;
@@ -205,7 +205,7 @@ export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
   }>;
 }
 
-// ── Lecturer-facing panel appointment views (UC20–UC23) ──
+// Lecturer-facing panel appointment views (UC20-UC23)
 // A student assigned to a lecturer acting as panel member.
 export interface PanelAssignment extends WorkflowAgeingMetadata {
   appointmentId: number;

@@ -105,7 +105,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   }
 
   const statusLabel = entryStatusLabel(record.entry.status);
-  const totalMark = record.entry.totalMark || '—';
+  const totalMark = record.entry.totalMark || '-';
 
   return (
       <RecordPage
@@ -228,7 +228,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
                         {component.description ? <span className="card-description mt-1 block">{component.description}</span> : null}
                       </td>
                       <td className="data-td-strong text-center">{component.maxMarks}</td>
-                      <td className="data-td-strong text-center text-brand-navy">{component.marksAwarded ?? '—'}</td>
+                      <td className="data-td-strong text-center text-brand-navy">{component.marksAwarded ?? '-'}</td>
                       <td className="data-td">{component.feedback || 'No component feedback'}</td>
                     </tr>
                   ))}

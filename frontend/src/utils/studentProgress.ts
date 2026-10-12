@@ -15,7 +15,7 @@ import {
 export const formatProgressStatus = (
   status: string | null | undefined,
 ): string => {
-  if (!status) return '—';
+  if (!status) return '-';
   return status
     .replaceAll('_', ' ')
     .toLowerCase()

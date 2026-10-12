@@ -23,7 +23,7 @@ for (const guarded of [
 }
 
 assert.match(registry, /summariseRegistry\(students\)/);
-assert.match(registry, /<option value=\{NO_SUPERVISOR\}>/);
+assert.match(registry, /value: NO_SUPERVISOR, label: 'No supervisor yet'/);
 for (const fabricated of [
   '1248 +',
   '982 +',

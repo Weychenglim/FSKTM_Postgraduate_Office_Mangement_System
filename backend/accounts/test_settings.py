@@ -26,7 +26,7 @@ class AccountSettingsTests(TestCase):
         response = self.client.get('/api/auth/settings/')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['preferences']['announcementAlerts'])
-        self.assertEqual(response.data['capabilities'], {'emailNotifications': False, 'deadlineReminders': False, 'weeklySummary': False})
+        self.assertEqual(response.data['capabilities'], {'emailNotifications': True, 'deadlineReminders': True, 'weeklySummary': True})
         self.assertEqual(self.client.patch('/api/auth/settings/', {'phone': '  +60123456789  '}, format='json').status_code, 200)
         self.assertEqual(self.client.patch('/api/auth/settings/', {'preferences': {'announcementAlerts': False}}, format='json').status_code, 200)
         result = self.client.get('/api/auth/settings/').data

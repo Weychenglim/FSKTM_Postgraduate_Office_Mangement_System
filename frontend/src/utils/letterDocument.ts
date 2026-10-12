@@ -4,7 +4,7 @@
  */
 
 /**
- * Letter document generation (UC40–UC42).
+ * Letter document generation (UC40-UC42).
  *
  * Builds a self-contained, A4-styled HTML document for an official letter and
  * opens it in a new window to print or save as PDF. The output is intentionally
@@ -15,8 +15,10 @@
  * The on-screen preview in `StudentLetterGeneration` mirrors this layout so the
  * student sees the same thing they print. When the real template wording arrives
  * from the supervisor, update the template fields in `src/mocks/letters.ts`
- * (and the shared letterhead constants below) — the print output follows.
+ * (and the shared letterhead constants below); the print output follows.
  */
+
+import type { GeneratedLetter } from '../types';
 
 /** Static faculty letterhead details, shared by the preview and the printout. */
 export const LETTERHEAD = {
@@ -72,21 +74,28 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
 
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
+const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
 const STRAY_BRACES_RE = /\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}/g;
+// A tag typed with single braces, e.g. {STUDENT_NAME}, would print literally.
+// Ordinary braces in prose ("{text}") are left alone.
+const SINGLE_TAG_RE = /(?<!\{)\{[A-Z_]+\}(?!\})/g;
 
 /**
  * The same check the server runs before saving (`letters/placeholders.py`):
- * tags that are not supported, and `{{`/`}}` pairs that are not a well-formed
- * `{{NAME}}` tag.
+ * tags that are not supported, tags in triple or single braces, and
+ * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag.
  */
 export function findPlaceholderProblems(content: string): { unknown: string[]; malformed: string[] } {
   const unknown: string[] = [];
-  const malformed: string[] = [];
-  for (const [token, name] of content.matchAll(TOKEN_RE)) {
+  const malformed: string[] = [...(content.match(TRIPLE_RE) ?? [])];
+  const rest = content.replace(TRIPLE_RE, ' ');
+  for (const [token, name] of rest.matchAll(TOKEN_RE)) {
     if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
     else if (!KNOWN_TAGS.has(token)) unknown.push(token);
   }
-  for (const stray of content.replace(TOKEN_RE, '').match(STRAY_BRACES_RE) ?? []) {
+  const leftover = rest.replace(TOKEN_RE, ' ');
+  malformed.push(...(leftover.match(SINGLE_TAG_RE) ?? []));
+  for (const stray of leftover.replace(SINGLE_TAG_RE, ' ').match(STRAY_BRACES_RE) ?? []) {
     malformed.push(stray.trim());
   }
   return { unknown: [...new Set(unknown)], malformed: [...new Set(malformed)] };
@@ -101,7 +110,7 @@ export function findPlaceholderProblems(content: string): { unknown: string[]; m
 const FILL_IN_BLANK = '____________';
 
 /** The values substituted into a template's placeholders for one student. The
- *  registry-backed fields are optional — a blank fill-in line is used when absent. */
+ *  registry-backed fields are optional; a blank fill-in line is used when absent. */
 export interface PlaceholderValues {
   studentName: string;
   matricNumber: string;
@@ -122,9 +131,8 @@ export interface PlaceholderValues {
   expectedCompletion?: string;
 }
 
-/** Replace every `{{TAG}}` in `content` with the matching student value. */
-export function substitutePlaceholders(content: string, values: PlaceholderValues): string {
-  const map: Record<string, string | undefined> = {
+function valuesByTag(values: PlaceholderValues): Record<string, string | undefined> {
+  return {
     '{{STUDENT_NAME}}': values.studentName,
     '{{STUDENT_ID}}': values.matricNumber,
     '{{PROGRAMME_NAME}}': values.programName,
@@ -143,7 +151,11 @@ export function substitutePlaceholders(content: string, values: PlaceholderValue
     '{{MAX_SEMESTER}}': values.maxSemester,
     '{{EXPECTED_COMPLETION}}': values.expectedCompletion,
   };
+}
 
+/** Replace every `{{TAG}}` in `content` with the matching student value. */
+export function substitutePlaceholders(content: string, values: PlaceholderValues): string {
+  const map = valuesByTag(values);
   return content.replace(/\{\{[A-Z_]+\}\}/g, (token) => {
     // Unknown tags are left untouched so authors can see what they mistyped.
     if (!(token in map)) return token;
@@ -153,10 +165,30 @@ export function substitutePlaceholders(content: string, values: PlaceholderValue
   });
 }
 
+// The server fills these when it issues the letter, so they are never missing.
+const ISSUED_WITH_LETTER = new Set(['{{REFERENCE_NUMBER}}', '{{CURRENT_DATE}}']);
+const LABEL_BY_TAG = new Map(LETTER_PLACEHOLDERS.map((p) => [p.tag, p.label]));
+
+/**
+ * Labels of the placeholders `content` uses that this student has no value
+ * for, in order of first use. The server refuses to issue such a letter
+ * (`missingFields`), so the screen can say what is missing up front.
+ */
+export function missingPlaceholderLabels(content: string, values: PlaceholderValues): string[] {
+  const map = valuesByTag(values);
+  const labels: string[] = [];
+  for (const tag of content.match(/\{\{[A-Z_]+\}\}/g) ?? []) {
+    const label = LABEL_BY_TAG.get(tag);
+    if (!label || ISSUED_WITH_LETTER.has(tag) || map[tag]?.trim() || labels.includes(label)) continue;
+    labels.push(label);
+  }
+  return labels;
+}
+
 /**
  * Apply the inline text markup to one line: `**bold**`, `__underline__`,
  * `*italic*`. The text is HTML-escaped first, then only our own safe tags are
- * added — so it's safe to inject with `dangerouslySetInnerHTML` / into the print
+ * added, so it's safe to inject with `dangerouslySetInnerHTML` / into the print
  * window. When `highlightPlaceholders` is on (the staff editor preview), any
  * leftover `{{TAG}}` is wrapped in a highlight chip.
  */
@@ -221,11 +253,19 @@ export function formatLetterDate(date: Date = new Date()): string {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-/** Build a reference number from a template prefix, e.g. "UMF/PG/ENR/2026/4821". */
-export function generateReferenceNumber(prefix?: string): string {
-  const year = new Date().getFullYear();
-  const serial = String(Math.floor(1000 + Math.random() * 9000));
-  return `${(prefix || 'UMF/PG').replace(/\/+$/, '')}/${year}/${serial}`;
+/** What the reference line shows before the server issues the real number. */
+export const PENDING_REFERENCE = 'Assigned when generated';
+
+/** Print data for a letter the server has issued (needs its `content`). */
+export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
+  return {
+    templateName: letter.templateName,
+    refNo: letter.referenceNumber,
+    date: letter.date,
+    bodyParagraphs: letter.content ?? '',
+    studentName: letter.studentName,
+    matricNumber: letter.matricNumber,
+  };
 }
 
 /** Escape text so it is safe to drop into the generated HTML. */
@@ -238,8 +278,8 @@ function esc(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** Build a filesystem-friendly file name (used as the saved-PDF default name). */
-function fileName(data: LetterData): string {
+/** Build a filesystem-friendly file name (the saved PDF and the Word download). */
+export function letterFileName(data: LetterData): string {
   const slug = data.templateName.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
   const id = data.matricNumber.replace(/[^a-z0-9]+/gi, '');
   return `UM_${slug}${id ? `_${id}` : ''}`;
@@ -252,7 +292,7 @@ function fileName(data: LetterData): string {
 export function buildLetterHtml(data: LetterData): string {
   // Same-origin absolute URL so the logo resolves inside the new window.
   const logoUrl = `${window.location.origin}${LETTERHEAD.logoPath}`;
-  const title = fileName(data);
+  const title = letterFileName(data);
 
   // Render the (already-substituted) body through the shared markup formatter,
   // so the printed letter matches the on-screen preview exactly (bold / italic /
@@ -332,7 +372,7 @@ export function buildLetterHtml(data: LetterData): string {
     .signature {
       display: flex; justify-content: space-between; align-items: flex-end;
       border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 56px;
-      /* Keep the whole signature block together — never split it across pages. */
+      /* Keep the whole signature block together; never split it across pages. */
       break-inside: avoid; page-break-inside: avoid;
     }
     .signature .line { width: 150px; border-bottom: 1px solid #94a3b8; height: 22px; margin-bottom: 6px; }
@@ -377,7 +417,7 @@ export function buildLetterHtml(data: LetterData): string {
         <div class="name">${esc(LETTERHEAD.signatoryName)}</div>
         <div class="office">${esc(LETTERHEAD.signatoryOffice)}</div>
       </div>
-      <div class="stamp">E-Signature<br>Encrypted &amp; Verified</div>
+      <div class="stamp">Computer-generated<br>Verify with the PG Office</div>
     </div>
   </div>
 
@@ -386,13 +426,28 @@ export function buildLetterHtml(data: LetterData): string {
 }
 
 /**
+ * Open an empty window for a letter during the click itself, so pop-up
+ * blockers allow it even though the letter arrives from the server a moment
+ * later. Null when the browser blocked it.
+ */
+export function openLetterWindow(): Window | null {
+  return window.open('', '_blank', 'width=900,height=1040');
+}
+
+/**
  * Open the letter in a new window and trigger the print / Save-as-PDF dialog.
  * Returns `false` if the browser blocked the pop-up so the caller can prompt the
  * user to allow pop-ups for this site.
  */
 export function openLetterDocument(data: LetterData): boolean {
-  const win = window.open('', '_blank', 'width=900,height=1040');
+  const win = openLetterWindow();
   if (!win) return false;
+  printLetterInWindow(win, data);
+  return true;
+}
+
+/** Write the letter into `win` (from `openLetterWindow`) and show the print dialog. */
+export function printLetterInWindow(win: Window, data: LetterData): void {
   win.document.open();
   win.document.write(buildLetterHtml(data));
   // Register from the trusted application bundle so the generated document
@@ -407,5 +462,4 @@ export function openLetterDocument(data: LetterData): boolean {
   );
   win.addEventListener('afterprint', () => win.close(), { once: true });
   win.document.close();
-  return true;
 }

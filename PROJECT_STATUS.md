@@ -1,5 +1,405 @@
 # Project Status
 
+## Registry Import: Excel Template, And The Plan Complete (2026-10-12)
+
+- Phase 9 of the registry import plan (commit `42b6a76`). All nine phases are now built.
+- **Excel template.** `GET /api/registry/students/import/template/` (Office only) gives an `.xlsx`:
+  - a Students sheet with the import columns and a frozen header row;
+  - Student ID and Phone formatted as text, so Excel keeps leading zeros;
+  - Programme as a dropdown of the approved programmes, from a hidden Programmes sheet;
+  - a "How to fill in" sheet with one column per row, so it is never read as the student list.
+- "Download Excel Template" is the main button and "CSV Template" the second. The import guidelines now say the office can upload its own spreadsheet as it is or paste rows.
+- **Design decision D8** (for the report): bulk import accepts the office's own spreadsheet, and the template is optional. UC04's precondition about the required template format no longer applies.
+- **Still open:** P1 (a sample of the real Maya extract) and P2 (Student ID or matric number). Phase 7 was built on the P2 assumption.
+- **Verification.** Backend: 1023 tests pass, 4 of them new in `test_registry_template.py`; no migration. Frontend: all 94 scripts, lint, the build and both production guards pass. The live browser run passed 5/5: download through the button, fill in, upload, and import. All test data was removed.
+
+## Registry Import: Paste Rows From A Spreadsheet (2026-10-12)
+
+- Phase 8 of the registry import plan (commit `c49e6aa`).
+- **Paste rows.** The upload card has a "Paste rows" switch. Cells copied from Excel or Google Sheets are sent as `pasted-rows.csv` and go through the same steps as a file. Blank lines are dropped, and the 1,000-row limit is checked before sending.
+- **Column names or not.**
+  - "The first row is column names" is on by default.
+  - Without names, every row is a student. The columns are matched from their values: emails, approved programme names, phone numbers, Student IDs and names.
+  - A field gets a column only when exactly one column fits. Running numbers and MyKad numbers are never taken for Student IDs.
+  - The Match step's "Column names are on" menu has a "No column names" choice for any file (`options.hasHeader`).
+- **Verification.**
+  - Backend: 1019 tests pass, 6 of them new in `test_registry_paste.py`. No migration.
+  - Frontend: all 94 scripts pass, with paste helper tests and source checks. Lint, the build and both production guards pass.
+  - The live browser run passed 10/11. The one miss was a timing race in the script: it read the page while the Match step still showed the same name as a sample. The rows themselves imported, as the next step and the cleanup count showed.
+  - The run covered a paste with known column names going straight to checking rows, and a paste without names matched from its values, then imported. The paste box fits at 390 px. All test data was removed.
+
+## Registry Import: Missing Emails Filled From The Student ID (2026-10-12)
+
+- Phase 7 of the registry import plan (commit `9c7f1cb`). It was built on the plan's P2 assumption: the registry keeps the lifelong Student ID. Recheck it when the office answers P2.
+- **Filled emails.** A blank or missing email becomes the student's SiswaMail address, `<Student ID>@siswa.um.edu.my` in lower case.
+  - The domain is the new setting `REGISTRY_STUDENT_EMAIL_DOMAIN`, listed in `.env.example`.
+  - It is on by default and can be turned off on the Match step, in a new "Student Emails And IDs" card.
+  - The Email column is then not required. Its row reads "Filled", with an example address.
+- **Marked everywhere.**
+  - Each filled email shows on its row ("Email from Student ID: ...") and in a count chip.
+  - The result panel lists "Emails filled from the Student ID", and the import report adds the note to Details.
+  - Recent Imports counts them ("3 emails filled from Student ID").
+  - Filled emails still go through the repeated-row and already-registered checks.
+- **Student ID rule.** "Drop the programme number after "/" in Student IDs" is off by default. It turns `23004955/1` into `23004955` for both the ID and the filled email.
+  - The card counts the IDs in the file that have a programme number.
+  - Changed rows show "In the file: 23004955/1".
+  - Two programme numbers of one student become one student, and the second is listed as repeated.
+- **Edited rows** go back with the file's own Student ID and a blank email, so both choices still apply and stay marked, unless the office typed over them.
+- No migration. Files imported without options behave exactly as before.
+- **Verification.**
+  - Backend: 1013 tests pass, 13 of them new in `test_registry_emails.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass, with new helper tests and source checks. TypeScript lint, the production build and both production guards pass.
+  - The live browser run passed 20/20. For safety, the server ran with `REGISTRY_STUDENT_EMAIL_DOMAIN=example.test` and the activation emails were held, so no message could reach a real SiswaMail address; the log confirmed none was sent. The file was a Maya-style workbook with no email column and two suffixed IDs. The run covered:
+    - the Match card, the example address and the suffix count;
+    - the rows, chips and marks;
+    - an edited row keeping both marks;
+    - the import result, the report and the Recent Imports count.
+  - The database held the corrected IDs and filled emails. The card fits at 768 and 390 px without sideways scrolling. All test data was removed, and the server was restarted with the default domain.
+
+## Registry Import: Column Matches Remembered For The Same Layout (2026-10-12)
+
+- Phase 6 of the registry import plan (commit `c6483bc`).
+- **Remembered matches.** A real import saves the column matches it was made with, against a SHA-256 of the file's normalised column names.
+  - The model is `RegistryImportProfile` (migration `accounts.0013_registry_import_profile`), shared by the whole office.
+  - Only the hash is kept, never the column names, since a mistaken header row could hold a student's details.
+- **The next file with the same columns** opens at Match Columns with the saved matches and "Matched the same way as your import on 12 Oct 2026. Check the matches below before you continue."
+  - "Use Suggested Matches" sets the saved matches aside for that file, also when its sheet or header row is changed.
+  - A changed column list, or saved matches pointing past the file's columns, falls back to the suggestions.
+  - Saved matches always show the Match step, so the office sees them before rows are checked. Our own template is never remembered.
+- **Edited rows still count.** The inspect step returns a signed `layoutToken`, and the import sends it with the confirmed matches (`rememberLayout`). The matches are saved even when edited rows go back as a reviewed file in our own layout. A stale or foreign token saves nothing and never stops the import.
+- **Database.** The dev database was migrated after a backup: `db-backups/fsktm_pg_office_before_registry_import_profile_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 1000 tests pass, 11 of them new in `test_registry_profiles.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass, with new source checks for the saved matches. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and three Maya-style workbooks with the same columns, and passed 14/14. It covered:
+    - the first import with Phone left out;
+    - the second file opening with that choice and the dated note;
+    - "Use Suggested Matches", which stayed set aside after re-reading the header row;
+    - importing after an edited row;
+    - the third file opening with the matches from that edited import.
+  - The stored record held only the hash, sheet, header row and matches. The note fits at 768 and 390 px without sideways scrolling. All test data was removed.
+
+## Registry Import: Programme Names Chosen Once Each, Or Skipped (2026-10-12)
+
+- Phase 5 of the registry import plan (commit `ed8d0c5`).
+- **Programme Names In This File.** The Check rows step lists each programme name in the file that is not an approved programme, with its row count.
+  - The office chooses the programme each name means, or "Skip these rows" (for example PhD). One choice covers every row with that name, and the rows are checked again straight away.
+  - Mapped rows show "In the file: MDS" under the programme. Skipped rows read "Skipped", with "you chose to skip the programme ...".
+  - Names still without a choice are named. Their rows stay to fix and are left out of the import.
+  - It works for our own template too, since the card is on the Check rows step.
+- **Suggestions, never silent.** A name is pre-chosen only from the office's earlier choice ("Chosen on an earlier import") or when it differs from an approved name only in letter case, punctuation, spacing or "(Coursework)" ("The same name, spelt differently"). Each is shown and can be changed. "MDS", Malay names and "(Research)" programmes are never guessed.
+- **Remembered office-wide.** New model `RegistryProgrammeAlias` (migration `accounts.0012_registry_programme_alias`) keeps each choice. It is saved on a real import only and suggested on the next one. Names compare without letter case, punctuation or spaces ("M.D.S" is "MDS").
+- **Skipped rows** get the status "Programme Skipped". They are listed with the skipped rows in the preview, the result panel ("Programme skipped") and the report ("Skipped: you chose to skip this programme"). Recent Imports counts them ("2 skipped by programme"), and they never count as the first copy of a repeated student.
+- **Also changed.** A blank programme cell now reads "programme is required" instead of `"" is not an approved programme`.
+- **Database.** The dev database was migrated after a backup: `db-backups/fsktm_pg_office_before_registry_programme_alias_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 989 tests pass, 11 of them new in `test_registry_programmes.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass. `registryImport.test.ts` gained the programme helpers and source checks. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and passed 23/23. The file used our own template with "Master of Data Science", "MDS", "Sarjana Sains Data" and two "Doctor of Philosophy" rows. It covered:
+    - the card, the similar-name suggestion, and nothing guessed for MDS;
+    - one choice per name, and skipping the PhD rows;
+    - editing a row, then changing the MDS choice, which still reached that row;
+    - the import, with the result and Recent Imports counts;
+    - a second file ("M.D.S", "SARJANA SAINS DATA") opening with every saved choice.
+  - The database matched (MDS students in Cyber Security, the PhD rows not created, four saved choices). The card fits at 768 and 390 px without sideways scrolling. All test data was removed, including the saved choices.
+
+## Registry Import: Settings For Every Row, And Activation Emails Later (2026-10-12)
+
+- Phase 4 of the registry import plan (commit `b4f518d`).
+- **For Every Row.** The Match step has a card for a programme (approved list), an intake and a current semester (suggesting the semesters already in the registry).
+  - Each one fills blank cells, or a column the file does not have. A value in the file is never overwritten.
+  - A programme set for every row stands in for a missing programme column.
+  - A matched column with a setting says what fills its blank cells ("Blank cells: 2026/2027 Semester I"). A missing programme column points to the card.
+- **Activation emails now or later.** "Send now / Send later" sits beside "Create N Ready Accounts" on the Check rows step, because our own template skips the Match step.
+  - "Send later" creates the accounts and emails no one. The result panel says the emails are on hold, with "Send Activation Emails Now". Recent Imports shows "Emails on hold" with "Send now".
+  - Both ask first: "Send activation emails to N students?"
+  - The import report marks held rows "Created, activation email on hold", then "Created" or "Created, activation email not sent" once sent.
+- **New endpoint.** `POST /api/registry/imports/<id>/send-invitations/` (Office only).
+  - It emails only students from that import who are active and have not set a password, over one mail connection.
+  - It returns the counts and each student's outcome with their file line.
+  - A failed email is recorded on the import, as when an import sends straight away, and Recent Imports counts it ("1 email not sent").
+  - A second send within two minutes is refused. It is throttled per import with `REGISTRY_BATCH_INVITE_THROTTLE_RATE` (default 3/hour, in `.env.example`).
+- **Migration `accounts.0011_registry_import_invitations`.** `RegistryImportBatch` gains `created_students` (Student ID and file line), `invitations_held`, `invitations_sent_at` and `settings_used`. It was applied to the dev database after a backup: `db-backups/fsktm_pg_office_before_registry_import_invitations_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 978 tests pass, 11 of them new in `test_registry_batch_settings.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass. `registryImport.test.ts` gained the held-email helpers and source checks. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and a Malay-headed CSV without a programme column. It covered:
+    - the programme set for every row, and an intake that filled only the blank cell (checked in the database);
+    - "Send later" sending no email (checked in the backend log), with the held report and the Recent Imports mark;
+    - "Send now" after confirming, emailing exactly the two imported students and clearing both marks;
+    - sending from Recent Imports, where Cancel sends nothing.
+
+    The first run passed 24/25. The failing check read an upper-case label before Recent Imports had reloaded; the corrected re-check passed 8/8.
+  - The Match step and the import actions fit at 768 and 390 px without sideways scrolling. All test data was removed.
+
+## Registry Import: Match Columns Step (2026-10-12)
+
+- Phase 3 of the registry import plan (commit `95c222d`).
+- **New flow.** A file is described first.
+  - Our own template goes straight to checking rows.
+  - Any other layout stops at **Match Columns**: each field (Student ID, Full name, Programme, Email, Phone, Intake, Current semester) gets a dropdown of the file's columns, with a sample value. The chosen column's first values are shown beside it.
+  - The office can change the sheet and the row that holds the column names. The file is then read again, with fresh suggestions.
+  - Columns that are not used are listed as "Not used, and not saved".
+  - A required field without a column, or one column chosen twice, is named and blocks Check Rows. The server checks the same rules.
+- **Progress.** A steps line shows Upload, Match columns, Check rows and Import. "Change column matches" goes back from the checked rows until a row is edited.
+- **Edited rows** are sent back in our own layout, so the server finds the columns by name. An empty preview says where the rows will appear.
+- **Verification.**
+  - All 94 frontend scripts pass. `registryImport.test.ts` gained the matching helpers and source checks for the flow. TypeScript lint, the production build and both production guards pass. No backend file changed since phase 2 (967 tests).
+  - A live browser run used temporary `smoke.import.*` accounts and the Maya-style workbook. It covered:
+    - the Match step and every suggested match;
+    - a missing required column blocking Check Rows;
+    - changing the column-name row and back;
+    - the checked rows, "Change column matches", and the import;
+    - our template skipping the step.
+
+    One check needed a corrected script: upper-case labels and sample values had fooled the first run. The re-check passed 4/4.
+  - The Match step fits at 768 and 390 px without sideways scrolling. All test data was removed.
+
+## Registry Import: The Office's Own Spreadsheet Layout Is Read (2026-10-12)
+
+- Phase 2 of the registry import plan (commit `f465cfb`).
+- **New inspect step.** `POST /api/registry/students/import/inspect/` (Office only) reports, for an uploaded CSV or XLSX:
+  - the sheets, and the sheet holding the student list;
+  - the row with the column names, skipping title rows above it;
+  - every column with its letter and three sample values;
+  - suggested matches from English and Malay column names, for example No. Matrik, Nama Pelajar, E-mel, No. Tel, Sesi Kemasukan.
+  - It also reports columns that are not used (such as IC numbers or a running number) and whether the file is simply our template.
+- **Options.**
+  - Preview and import take an `options` field (sheet, header row, column mapping).
+  - Bad mappings are refused with plain messages, such as "Column B is chosen for both Student ID and Full name" or "Choose a column for: Email".
+  - Requests without options behave exactly as before.
+- **What is read.**
+  - CSV may use commas, semicolons or tabs.
+  - Intake and current semester can now be imported (`IMPORT_HEADERS` and the CSV template gained both columns).
+  - Columns the office does not match never appear in the returned rows and are not saved.
+- **Pending P1.** The column names come from research and will be extended with the office's real ones. An old `.xls` file gets a "save it as .xlsx" message until the real extract shows whether a reader is needed.
+- **Verification.**
+  - 967 backend tests pass with `--parallel 2`, including 18 new ones in `accounts/test_registry_layouts.py`. They use a Maya-style workbook with a notes sheet, two title rows, Malay names, an IC column, and a running-number column.
+  - All 94 frontend scripts, TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - 12/12 live API checks against `runserver` used a workbook of that shape. They covered sheet choice, the column-name row, the matches, the unused columns, the preview (no IC number returned), the import, and the saved intake. The temporary `smoke.import.*` accounts were removed afterwards.
+
+## Registry Import: Already-Registered Students Listed (2026-10-12)
+
+- Phase 1 of `docs/superpowers/plans/2026-10-12-registry-import-from-office-spreadsheets.md` (commit `b9dbe75`). The plan makes bulk import accept the office's own Maya extract. Xiang said to build it now and amend it when the office answers the two open questions.
+- **Who is skipped is shown, not just counted.**
+  - Already-registered rows name the registry record they match (Student ID, name, programme, or the role when the email belongs to staff) and how they matched.
+  - The row is flagged when the name, email or Student ID differs, which usually means a wrong ID.
+  - Repeated rows point at the line that is imported instead.
+- **A registered Student ID is reported first.** Missing emails and programme spellings come after it, so a re-uploaded extract does not ask the office to fix existing students.
+- **Preview.**
+  - Ready, already registered, repeated and to-fix counts, with a filter (All, Ready, Skipped, Need fixing).
+  - Each row's explanation sits under the student's name.
+  - The preview now takes the full width.
+  - The note beside Create says who will be skipped, with a View link.
+- **After an import.**
+  - A result panel lists every created, skipped and failed row, plus any activation email that failed. A downloadable report has every row's outcome.
+  - Only failed rows stay in the preview for fixing.
+  - Batch records keep names and the registry match. Recent Imports shows "N already registered", including for batches from before this change.
+- The bulk tab is now "Bulk Import (Excel or CSV)".
+- **Verification.**
+  - 949 backend tests pass with `--parallel 2`, including 9 new ones in `test_registry_import.py`. One of them shows the query count is the same for 5 and 50 rows.
+  - All 94 frontend scripts pass, including the new `registryImport.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - A live browser run used temporary `smoke.import.*` accounts and a `smoke-` file, all removed afterwards. Its file held 2 new rows, 2 already registered (one under a different name), 1 repeated and 1 bad programme. Every check passed: counts, explanations, the warning, the View filter, the result panel, the report download and Recent Imports.
+  - The preview layout was checked at 1440, 768 and 390 px: no sideways page scroll, and Student IDs stay on one line.
+
+## Activation Links, Clearer Account Emails and Registry Dropdowns (2026-10-12)
+
+- Requested by Xiang after reviewing the student activation email.
+- **Activation links have no time limit (new design decision D7).**
+  - They use their own signed token (`accounts/tokens.py`). The token works only while the account has never had a password.
+  - It stops working as soon as a password is set, whether through the activation link, a reset link or Settings.
+  - Every activation email already sent stays valid until the student activates; after that, all of them stop working.
+  - Trade-off for the report: an activation email forwarded before use stays usable until the student activates. The office still sees "Not activated" in the Registry, and suspending the account blocks the link.
+- **Reset links are unchanged.** They expire after 30 minutes, work once, and stop working when the password changes in any other way.
+- **The link is checked before the form appears.** `POST /api/auth/password-reset/confirm/` with `dryRun: true` reports whether the link still works and which kind it is, and changes nothing.
+  - This is a dry run of the existing endpoint, so the public API list pinned by `accounts/test_api_security.py` is unchanged.
+  - Checks have their own limit (`AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE`, default 30/hour per address), so opening the page never uses up the attempts to set a password.
+  - Saving a password re-checks the link under a row lock, so two tabs cannot both use one link.
+  - A used, expired or broken link answers 400 with `code: "invalid_link"`.
+- **Emails rewritten** (`accounts/account_emails.py`).
+  - They follow the GOV.UK guidance for service emails: why the email was sent comes first, one idea per sentence, no contractions, and web addresses in full.
+  - Both now tell the person how to sign in: email plus Student ID (matric number), or Staff ID for staff.
+  - The activation email says the link does not expire and works once. The reset email keeps its 30-minute limit.
+  - The reset subject is now "Reset your FSKTM Postgraduate Office password".
+- **Link pages.**
+  - Activation emails open `/activate-account`: "Activate Your Account", then "Account Activated".
+  - Reset emails still open `/reset-password`.
+  - A link that no longer works shows "Link No Longer Valid" before any typing. Activation links then offer Go to Sign In and Forgot Password?; reset links offer Request a New Link.
+- **Registry dropdowns.**
+  - Every native `<select>` in the Student Registry is now `SelectMenu`, a styled list built on the WAI-ARIA select-only combobox pattern (arrow keys, Home/End, type-ahead, Escape).
+  - That covers the four list filters, the registration form's Programme field, and the record's Programme and new-status fields.
+  - Programmes read "Data Science / Master · Coursework" with their colour icon.
+  - The list is portalled, so the record dialog cannot clip it, and it stays on screen at phone width.
+- **Teammate-written docs now out of date** (not edited; Xiang to pass them on).
+  - `ARCHITECTURE_AND_CODING_DESIGN.md` lists the throttle scopes as login, reset request and reset confirmation. There is now also a link-check scope for `dryRun` requests.
+  - `docs/WHOLE_SYSTEM_END_TO_END_TEST_GUIDE.md` still calls the Student Registry backend missing. It has been live at `/api/registry/` since PR #15.
+- **Verification.**
+  - All 940 backend tests pass with `--parallel 2`, including 19 new ones in `accounts/test_password_links.py`. Those include a link used 400 days after it was sent and two tabs submitting one link at the same moment.
+  - All 93 frontend scripts pass, including the new `selectMenu.test.ts`, `RegistryDropdowns.test.ts` and `passwordLinkCopy.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean; there is no migration.
+  - A live run against `runserver` (console email) and Chrome used temporary `smoke.links.*` accounts, removed afterwards.
+    - It covered: register a student; activate from the emailed link; reopen the used link; sign in with the matric number; forgot password; reset; reopen the reset link; then the dropdowns at desktop and phone widths.
+    - Every functional check passed. Chrome logged only the expected 400s for the reopened links (twice each, because React StrictMode repeats effects in development) and the existing 401 from the sign-in page's session check.
+
+## Student My Records and Partly-Done Plan Completion (2026-10-11)
+
+- Phase 9 of the partly-done plan (UC06), commit `39535ce`. **This completes the plan: phases 1 to 9 are done.**
+- **My Records** (`/my-records`, students only; other roles are sent to the dashboard). Students open it from the profile menu, where the item now reads "My Records".
+  - The profile is read-only, with "Change in Settings" for the phone number (D3).
+  - Summary cards count Supervisor & Panel and Marks records (from the teammate's progress dossier, reused read-only), Letters (Phase 6) and Announcements (the student's notification feed). Files reads "Available when File Management is released".
+  - Each category has a table with a "No records found" state. The Letters tab reuses My Letters, including reprint and Word download.
+- **No sidebar entry.** One would mean editing the teammate's `navigation.ts` and `Sidebar.tsx`, and the "ALL modules" rule in `permissions.ts` that would also show it to office staff and coordinators. Add it later if the teammate agrees.
+- **No backend changes** in this phase.
+- **Phase 8 fix** (`a21198c`): at phone widths (360 and 390 px) the bell dropdown ran off the left edge of the screen. On small screens it now spans the width under the header; from tablet width up it stays anchored to the bell. Checked at 360, 390, 768 and 1440 px.
+- **Teammate-written docs that are now out of date.** These were not edited; Xiang to pass them on.
+  - `PROJECT_STATUS.md`, "Known Issues and Notes": the deferred announcement risks (cross-sender modification, draft and attachment visibility, attachment validation) were fixed in `f5777d2` on 2026-08-20. Only the author or Office can edit or delete, drafts and their attachments follow publish status, and attachments are checked for size, extension and magic bytes.
+  - `ARCHITECTURE_AND_CODING_DESIGN.md`, the line saying announcement ownership, draft visibility and attachment authorization are deferred: fixed by the same commit.
+  - `ARCHITECTURE_AND_CODING_DESIGN.md`, the Settings endpoint description: since Phase 8 the PATCH also accepts `emailNotifications`, `deadlineReminders` and `weeklySummary`, and the three capabilities are true.
+- **Design differences from the use-case document** (for the FYP report; kept on purpose, see the plan):
+  - **D1** New accounts get an activation link instead of an emailed temporary password (UC02, UC03, UC04). A password-change requirement set by an administrator is still enforced.
+  - **D2** Login gives the same 401 for a disabled account as for a wrong password, and password reset answers the same way for unregistered emails, so neither reveals which accounts exist (UC01, UC02).
+  - **D3** Students can change their phone number but not their email, because email is the login identifier (UC06).
+  - **D4** Every student status change needs a reason, because the participant lifecycle service requires one (UC05 calls it optional).
+  - **D5** Saved letters keep a filled copy and a reference number issued by the server. The PDF comes from the browser's print dialog using that copy; the Word file is built on the server (UC23).
+  - **D6** There is no background worker. Scheduled work (announcement release, deadline reminders, weekly summary) runs as idempotent management commands scheduled with Windows Task Scheduler or cron, and announcement release also happens on read (UC30, UC33).
+- **Still not started** (the next plan): UC03 Manage User Account (staff and lecturer accounts; the Staff & Lecturers tab is still mock), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24-UC27 File Management, and UC28-UC29 FAQ chatbot.
+- **Verification.**
+  - All 921 backend tests pass with `--parallel 2`. Django checks and the migration-drift check are clean.
+  - All 90 frontend scripts pass, including the new `myRecords.test.ts`. TypeScript lint, the production build and both production guards pass.
+  - 13/13 browser checks passed with temporary `smoke.rec.*` accounts, removed afterwards. They covered the profile menu link, profile fields, counts, the empty state, the letters and announcements tabs, the Settings link, and redirecting office staff.
+
+## Notifications: Bell Dropdown, Email Preferences, Reminders, Weekly Summary (2026-10-11)
+
+- Phase 8 of the partly-done plan (UC33), commit `4403c8c`.
+- **Settings switches (agreed with Xiang before changing the teammate's Settings).** Three switches sit under "Announcement alerts": Email alerts (off by default), Deadline reminders (on) and Weekly summary (off). They are new `User` fields (migration `accounts.0010`). `GET/PATCH /api/auth/settings/` reads and saves them, any subset at a time; an empty or unknown preference is still a 400. The three `capabilities` flags are now true. Nothing else in Settings changed. In the teammate's files, `test_settings.py` now expects the flags to be true, and `settingsApi.savePreferences` accepts a partial set so their existing test still compiles. Wey Cheng should be told.
+- **Email that follows the switches** (`announcements/emails.py`). Announcement copies need Email alerts and Announcement alerts, reminders need Email alerts and Deadline reminders, and the summary needs Weekly summary. Mail goes through `send_mass_mail(fail_silently=True)`. Announcement delivery emails only people getting the notice for the first time, after the delivery commits, so edits and re-syncs never email twice.
+- **Deadline reminders.** `send_deadline_reminders --days N` reminds the target roles of active-timeline entries due within N days (the dashboard's role mapping: STUDENT, LECTURER, OFFICE_STAFF) and evaluators with unsubmitted tasks in published Marks periods closing within N days. It sends one reminder per person per deadline, with a new one only if the deadline moves. People with Deadline reminders off get none. Reminders open the dashboard and Marks Entry.
+- **Weekly summary.** `send_weekly_summary` emails opted-in users their unread notifications from the past seven days and skips anyone with nothing unread. `WeeklySummaryLog` (migration `announcements.0005`) keeps it to one email per person per week; a failed send frees the slot again.
+- **Bell dropdown.** The bell opens the five newest notifications with "Mark all as read", "View all" and a "No new notifications" state. An item is marked read and opens its record. The routing rule now lives in `utils/notificationLinks.ts`, shared with the Notifications page; announcements open in that page's detail view.
+- **Scheduling.** `backend/README.md` lists the three commands with Windows Task Scheduler and cron lines.
+- **Verification.**
+  - 921 backend tests pass with `--parallel 2`, including 10 new ones in `announcements/test_reminders.py` and 3 in `accounts/test_notification_preferences.py`.
+  - All 89 frontend scripts pass, including the new `notificationLinks.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `accounts.0010` and `announcements.0005` after backup `db-backups/fsktm_pg_office_before_notification_preferences_2026-10-11.dump`.
+  - Both commands ran twice against the dev database inside a rolled-back transaction, with mail kept in memory and a temporary timeline, entry and student. The first run sent 7 reminders and 1 summary, the second added nothing, and the database was unchanged afterwards. 18/18 browser checks passed on the dropdown (five newest, record links, announcement detail, mark all read, empty state) and on the new switches (defaults, save, kept after reload), using temporary `smoke.bell.*` accounts that were then removed.
+  - The switches use the teammate's `ToggleSwitch`, whose knob position issue is already reported.
+
+## Announcement Scheduling, Expiry and Registry Targeting (2026-10-11)
+
+- Phase 7 of the partly-done plan (UC30), commit `ee4371d`.
+- **Schedule.** Announcements have optional publish and expiry times (migration `announcements.0004`). Publishing with a future time saves the notice as Scheduled and delivers nothing. An expiry at or before the publish time, or one already past, is refused (UC30 exception 2). "Scheduled" and "Expired" are now real states instead of labels.
+- **Release (D6).** `release_due_announcements()` publishes scheduled notices that are due and expires finished ones. A notice whose whole window passed unreleased expires undelivered. It claims rows with SKIP LOCKED and delivers through the existing `event_key`, so it never delivers twice. It runs at the start of the announcement and notification lists (one cheap query when nothing is due) and as the `release_announcements` command; `backend/README.md` shows how to schedule it.
+- **Expiry keeps history.** Delivered notifications stay, and people who received the notice can still open it and its attachment after it expires. Before this, an expired attachment returned 404 to its own recipients.
+- **Registry targeting.** "All Students" announcements can be narrowed to approved programmes and to intakes recorded in the registry. Only matching students receive them or can read them. Targeting any other audience returns 400, a deliberate simplification of the plan's "audience includes students". New `GET /api/announcements/audience-options/` and `GET /api/announcements/recipient-count/` serve the composer.
+- **Composer.** Publish and expiry fields in Malaysia time (the teammate's `malaysiaDateTime` helpers), programme and intake chips, and a live recipient count. The main button reads Schedule, Reschedule or Save Schedule as the time requires. History shows Scheduled and Expired with their times, the targeting under the audience, and a Scheduled stat card.
+- **Changed tests.** `test_review_fixes.py`: Scheduled now needs a publish time, and the notification feed is one due-check query plus the feed query, still constant in length.
+- **Verification.**
+  - 908 backend tests pass with `--parallel 2`, including 15 new ones in `announcements/test_scheduling.py`.
+  - All 88 frontend scripts pass, including the new `announcementSchedule.test.ts`. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `announcements.0004` after backup `db-backups/fsktm_pg_office_before_announcement_schedule_2026-10-11.dump`.
+  - Live checks ran against `runserver` with temporary `smoke.ann.*` accounts whose intakes no real account has, so nothing reached a real account (checked afterwards: 0 such notifications). 18/18 API checks passed, including a notice released and another expired in real time on the next list call. 13/13 browser checks passed on the composer and history. All temporary data was removed.
+
+## Saved Letter Requests (2026-10-11)
+
+- Phase 6 of the partly-done plan (UC23), commit `170aed3`.
+- **Issued letters are records now.**
+  - Generating a letter fills an Active template on the server from the same details as the preview (`letters/details.py`). It saves the filled wording and the details used (`GeneratedLetter`, migration `letters.0003`) and notifies the student once.
+  - The server issues the reference number as `<prefix>/<year>/<NNNN>`, counted per prefix and year under a row lock (`LetterReferenceCounter`). A refused letter never uses a number. The browser's random `generateReferenceNumber()` is gone.
+  - If the template needs a detail the student's record lacks, generation returns 400 `missingFields` and saves nothing. The screen names the missing fields first and disables the button.
+- **Endpoints** under `/api/letters/requests/`: generate, list (students see their own; the office sees the register with search, date and status filters), detail, Word download (`python-docx`, added to `requirements.txt`), resend notification and revoke. Resend and revoke are office-only.
+- **Beyond the plan.**
+  - The office can revoke a letter issued in error, with a reason. The student keeps it in My Letters, marked revoked with the reason, and can no longer print or download it. The plan listed a Revoked status but no way to set it.
+  - Reprints and Word downloads follow the Active-only rule from 2026-10-10, so a student who is no longer Active gets the same 403 as for generation. Office staff keep full access.
+- **Screens.**
+  - Student Letter Generation has New Letter and My Letters tabs (`/letters/my-letters`). Generate saves the letter, then prints the saved copy with its real reference. My Letters reprints and downloads the Word copy.
+  - Office Letter Generation has Templates and Issued Letters tabs (`/letters/issued`), with search by student, matric or reference, date and status filters, reprint, Word, resend and revoke. Coordinators keep the Templates view only.
+  - A "letter ready" notification opens My Letters.
+- **Verification.**
+  - 893 backend tests pass with `--parallel 2`, including 14 new ones in `letters/test_letter_requests.py` and 2 concurrency tests in `letters/test_letter_reference_concurrency.py`.
+  - All 87 frontend scripts pass, including the new `issuedLetters.test.ts`, which also checks that the Word letterhead matches the printed one. TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `letters.0003` after backup `db-backups/fsktm_pg_office_before_generated_letters_2026-10-11.dump`.
+  - Live checks ran against `runserver` with temporary `smoke.ltr.*` accounts and a temporary template with its own prefix, all removed afterwards. 15/15 API checks and 17/17 browser checks passed, covering generation, My Letters, the Word download, the notification link, missing fields, the office register, resend and revoke. A sample Word file opened cleanly in Microsoft Word.
+
+## Review Fixes: Xiang's Side (2026-10-10)
+
+- A four-part review (backend code, frontend code, live API, browser UI) of `643512a` found bugs and gaps in Xiang's modules. They were fixed in seven commits, `2888fc9`..`0bff836`.
+- **Accounts and sign-in.**
+  - Case-insensitive unique emails and matric numbers.
+  - A per-identifier login throttle.
+  - `last_portal_login` is now recorded separately from `last_login`, so signing in no longer voids a reset link.
+  - Passwords are kept exactly as typed.
+  - Reset-email failures are logged instead of returning a 500.
+  - The legacy `NotificationPreference` table, its endpoint and the `authApi` helpers were removed (migration `accounts.0009`).
+  - Admin user forms validate passwords and lock role and permission fields for non-superusers.
+  - New check `accounts.W001` flags superusers that still hold a portal role.
+- **Registry.**
+  - Coordinator scope.
+  - Matric, staff-number, email and phone validation.
+  - Unknown PATCH fields are rejected.
+  - Invites are sent only when asked.
+  - A programme change is blocked (409) once a research profile exists.
+  - Suspending sign-in revokes refresh sessions.
+  - Safer CSV/XLSX import: encoding, malformed files, size cap, "Invalid Field" rows, and the batch is recorded before emails.
+  - Screen: filtered CSV export, paging, edit details, confirmed Suspend/Reinstate Sign-in, issues shown in the import preview, and a keyboard-usable drop zone.
+- **Announcements and notifications.**
+  - Reading follows the audience.
+  - Delivery is re-synced on every edit (retarget, status, Urgent).
+  - Attachment files are deleted when replaced, removed or deleted.
+  - The feed is capped at 200 items in one query.
+  - Screens: delete confirmation, edit and withdraw a published item, remove an attachment, honest counts, an accessible dialog, and the bell refreshes every minute and on focus.
+- **Letters.**
+  - Students get 404 for non-Active templates.
+  - Single and triple braces are flagged the same way on the server and in the editor.
+  - Editor: confirm before delete, warn on unsaved changes, keep typing made during a save, field-level errors, and new reference-prefix and description inputs.
+  - The preview now matches the printout.
+  - The stamp now reads "Computer-generated / Verify with the PG Office".
+- **Sign-in and session (frontend).**
+  - Logout no longer races a quick re-login.
+  - A superseded 401 no longer ends the new session.
+  - Signing out during the forced password change can't leave the user signed in.
+  - A mid-session `technical_account` 403 signs the user out with the reason.
+  - On portal pages, the startup refresh retries once so two tabs reloading together both stay signed in.
+  - Nested DRF errors and 5xx are shown as readable messages.
+  - Login: no unused "Remember me", no fake manual download, mobile layout, favicon.
+  - Forgot password uses neutral copy and shows the resend result inline.
+  - FAQ chatbot: no double send, no fake attach/download/"logged" claims, and the composer no longer covers the footer.
+- **Not changed (teammate-owned, reported).**
+  - `ToggleSwitch` knob position.
+  - 500s for accounts without a profile in `appointments/views.py`.
+  - Coordinator Marks Entry 403.
+  - Workflow Reports duplicate key.
+  - App-shell dead links.
+  - Settings errors shown only as toasts, and phone format.
+  - `authSession` treats a network blip during refresh as session expiry.
+  - `PortalToast` live region.
+  - Admin login throttling (T04) and the `FRONTEND_URL` production guard.
+- **Verification.**
+  - 873 backend tests pass with `--parallel 2`.
+  - All 84 frontend scripts pass, including the new `sessionRaces.test.ts`.
+  - TypeScript lint, the production build and both production guards pass.
+  - The dev database was migrated to `accounts.0009` after backup `db-backups/fsktm_pg_office_before_review_fixes_2026-10-10.dump`.
+  - Repeat live API and browser runs were started but stopped early on a usage limit, before any checks ran. They are not a verification result. Their temporary accounts and servers were removed.
+
+## Technical Administrator Accounts: Xiang's Side (2026-10-09)
+
+- Agreed with the teammate: one account, one role. Office staff work in the portal; Django admin is for separate Technical Administrator accounts (pending-work register T01-T06).
+- **Account type.** `createsuperuser` now creates a Technical Administrator (`User.TECHNICAL_ADMIN`, migration `accounts.0008`). It is a valid `User.role` value but deliberately not part of `User.Role`, so `User.Role` stays the four portal roles and code or tests that loop over it are unaffected. A superuser cannot be created with a portal role, and `createsuperuser` no longer asks for a role.
+- **Kept out of the portal.**
+  - Login returns 403 `technical_account`. This happens after the password check, so a wrong password still gets the generic 401.
+  - The default authentication class (`PasswordPolicyJWTAuthentication`) refuses their access tokens.
+  - Refresh revokes their session instead of renewing it.
+  - Password reset sends them nothing, and outstanding reset links fail.
+- **Role, not flags.** Registry, Letters, Announcements and the access-link throttle no longer treat superuser status as Office. A portal account that still has the superuser flag acts only as its role. `seed_announcements` no longer falls back to a superuser author.
+- **Announcements.** "All" no longer reaches Technical Administrator accounts.
+- **Django admin.**
+  - Letter templates, announcements and notifications are inspection-only (no add, change or delete). The private announcement attachment shows its file name instead of an unserved media link.
+  - The user forms reject a portal account with superuser status, a Technical Administrator without staff and superuser status, and turning an account that has a portal profile into a Technical Administrator.
+  - Technical Administrator pages show no profile sections.
+- **Not changed (teammate's T02-T05).** Office accounts still need `is_staff` for Marks, participant lifecycle (including Registry status changes), research amendments, capacity reassessment and delegation until those checks move to the Office role. Admin login is not restricted yet, and `seed_users` is unchanged.
+- **Verification.**
+  - 831 backend tests pass with `--parallel 2`, including 20 new ones in `accounts/test_technical_admin.py`.
+  - All 82 frontend scripts, TypeScript lint, the production build and both production guards pass. Django checks and the migration-drift check are clean.
+  - The dev database was migrated to `accounts.0008` after backup `db-backups/fsktm_pg_office_before_technical_admin_2026-10-09.dump`.
+  - A live check used a temporary `createsuperuser` account, deleted afterwards. The portal refused it with 403 `technical_account`. Django admin let it in, and the template, announcement and notification add pages returned 403. The demo Office account still opened the Registry, Letters and Announcements.
 ## Main merge conflict resolution (2026-10-12)
 
 Merged origin/main into codex/portal-consistency-and-toast to resolve GitHub merge conflicts in the FAQ chatbot, Student Registry and letter templates. Main feature changes and branch record navigation/list-state/typography preserved. Integration verification passed: 122 backend regressions; frontend suite expanded to 100 scripts (registry conflict regression fixed and rerun with record-navigation checks); TypeScript, production build, production security guards and staged whitespace checks pass. No unresolved paths remain.
@@ -230,7 +630,7 @@ Implemented Student appointment-result visibility and result-only in-app notific
 
 - User authorized pushing the accumulated changes, creating a PR and merging into `main`. [PR #13](https://github.com/Weychenglim/FSKTM_Postgraduate_Office_Mangement_System/pull/13) merged the 64-file release on 9 October Malaysia time, with commit `fc8265a3b22e15430be6349955f7a240b72c7bfa`. Its reviewed source commit is `2bc5ba9b3ecb17b1a1354acecc4d4087d2447410`, based on `9ee3bd4`; no upstream conflict required resolution. Local `main` was fast-forwarded to the merge and its backend/frontend tree verified identical to the tested source. Existing work is preserved; private environment files, credentials, runtime logs and synthetic databases remain excluded.
 - Fresh verification passes **all 683 backend tests in 604.078 seconds** with two isolated test workers, all **75 frontend test scripts**, TypeScript and production build (6.05 seconds), Django checks, migration-drift, whitespace and documentation source/link checks. Independent integration review found no actionable issues. GitHub reported the PR mergeable with a clean merge state; there were no reported remote status checks. This release record changes documentation only after the application merge.
-- This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01–T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
+- This integration includes completed acceptance fixes and their documentation. Technical-only Django admin access and business/admin permission separation remain pending T01-T06; this PR does not implement that proposed shared change or complete deferred policy/production-host work.
 
 ## Main Sync: Teammate Settings Adopted (2026-10-08)
 
@@ -246,9 +646,9 @@ Implemented Student appointment-result visibility and result-only in-app notific
 - **Verification.** 768 backend tests pass with `--parallel 2`. With `--parallel 4`, the PostgreSQL concurrency tests lost their connections on this machine, matching the teammate's earlier note. Django checks, migration-drift and whitespace checks pass.
 ## Consolidated pending work and decisions (2026-10-08)
 
-- Start with [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md). It preserves the user's technical-only Django admin direction and separates implementation tasks T01–T06, acceptance slices A01–A07, release/deployment work, teammate integration gaps and deferred policy decisions. Creating this document did not implement the access change.
+- Start with [the pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md). It preserves the user's technical-only Django admin direction and separates implementation tasks T01-T06, acceptance slices A01-A07, release/deployment work, teammate integration gaps and deferred policy decisions. Creating this document did not implement the access change.
 - Latest source inspection confirms `is_staff` dependencies beyond Marks: participant lifecycle, research amendments/transfers, capacity reassessment and acting Coordinator delegation. Ordinary core Timeline/academic configuration and many workflow views already use role/scope checks. Permission separation must cover the shared dependencies; do not simply clear Office staff flags or expand their admin permissions.
-- The next proposed implementation slice is T01–T06, before resuming supporting-supervision acceptance. Existing completed reports remain valid within their stated scope; the checklist still contains 406 source bullet clauses, 48 Passed and 358 Awaiting acceptance. Routine Registry/account management remains a separate incomplete integration, so technical account provisioning may still be needed until its owner completes it.
+- The next proposed implementation slice is T01-T06, before resuming supporting-supervision acceptance. Existing completed reports remain valid within their stated scope; the checklist still contains 406 source bullet clauses, 48 Passed and 358 Awaiting acceptance. Routine Registry/account management remains a separate incomplete integration, so technical account provisioning may still be needed until its owner completes it.
 
 ## Fresh local servers and tester guide (2026-10-08)
 
@@ -264,7 +664,7 @@ Implemented Student appointment-result visibility and result-only in-app notific
 - The checklist now contains **406 clauses: 48 Passed, 358 Awaiting acceptance**. Selected Panel history includes Office cancellations before a decision, with a Cancelled filter; timelines preserve prior Panel acceptance when cancellation occurs during Coordinator confirmation. Student Supervisor history also treats Office cancellation as terminal.
 - [Acceptance report](docs/PARTICIPANT_LIFECYCLE_ACCEPTANCE_2026-10-08.md) and E9 checklist keep unexercised supporting-appointment, coordinator responsibility/delegation, audit-outage/concurrent-transition and original-appointment-ended combinations awaiting acceptance. Next development slice is supporting supervision membership/replacement, then amendments/transfers, delegation/carryover and remaining Dashboard/Timeline/report/export/reconciliation branches. Production-host checks and deferred faculty/coordinator identity decisions remain separate. Changes remain uncommitted/unpushed.
 
-## Submitted Marks portal migration completed (2026-10-07–08)
+## Submitted Marks portal migration completed (2026-10-07 to 2026-10-08)
 
 - Authorized Office Staff/Admin can correct submitted scores/comments or reopen for the assigned Lecturer through Marks Entry → View Mark Records → record detail. Existing staff/model-change permissions, required reasons, score bounds, submission locking, transactional audits and open-period reopening rules are preserved. Reviewed-state versions reject stale edits; history displays named before/after values. Mark Entry Django admin is inspection-only, including for superusers.
 - Browser acceptance on 7 October uses a fresh synthetic database: missing reason/negative/no-op/cancel handling; 80→85 correction; newer 86 correction with stale second-tab rejection/reload; reasoned Draft reopening; assigned Lecturer revision/resubmission at 88; closed-period correction 80→82; inspection-only Office and admin views. Independent assertions confirm exactly four audits, expected actors/reasons/scores/comments, preserved closed submission date and new resubmission deadline snapshot, and unchanged unrelated Draft 46. See [portal Marks acceptance](docs/MARKS_PORTAL_ACTIONS_ACCEPTANCE_2026-10-07.md).
@@ -296,7 +696,7 @@ Implemented Student appointment-result visibility and result-only in-app notific
 - All **77 affected Appointments backend tests** pass in **163.028 seconds**. All **68 frontend test scripts**, TypeScript and the production build pass after the fixes; Django checks, migration-drift and whitespace checks pass. Independent read-only review found no critical or important issues. Details are in `docs/APPOINTMENT_REPLACEMENT_ACCEPTANCE_2026-10-07.md`; this is not a fresh full-backend-suite or whole-system acceptance claim.
 - The five-module checklist now includes **395 individual in-scope clauses** and records this completed slice separately from still-unverified compound requirements. Next browser work covers rejection, private-file and capacity/availability failures, followed by advanced Marks and lifecycle branches. Faculty rules/coordinator identity remain deferred; production deployment checks remain separate. Changes remain uncommitted/unpushed. Normal loopback services on 8000/3001 remain available; isolated 8011/3011 services are stopped after verification and their synthetic database/evidence are retained.
 
-## Django admin acceptance and five-module checklist (2026-10-06–07)
+## Django admin acceptance and five-module checklist (2026-10-06 to 2026-10-07)
 
 - Real admin HTTP probes reproduced invalid Marks correction/closed-reopening server errors, unaudited evaluator and period-semester reassignment, draft comment edits, and deletable Marks audits. Further probes reproduced shared semester closure and capacity/availability writes outside the portal audit services.
 - Corrected these admin boundaries while preserving the authorized, reasoned Marks correction/reopening services. Negative and non-finite correction input now rejects with form validation; governed configuration, assignments, drafts and immutable audits are inspection-only. Existing research-profile provisioning and account administration were not changed.

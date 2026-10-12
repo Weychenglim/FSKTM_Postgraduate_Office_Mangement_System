@@ -1,16 +1,14 @@
 """Coverage for the self-service Settings endpoints.
 
-Contact details, password change, and notification preferences previously
-validated in the browser but never persisted; these tests pin the backend
-behaviour, including the isolation rules that keep one account out of another's
-settings.
+Contact details and password change previously validated in the browser but
+never persisted; these tests pin the backend behaviour, including the isolation
+rules that keep one account out of another's settings. Notification preferences
+now live on ``User.announcement_alerts`` behind ``/api/auth/settings/``.
 """
 
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
-
-from .models import NotificationPreference
 
 User = get_user_model()
 
@@ -33,7 +31,7 @@ class SettingsModuleTests(APITestCase):
             role=User.Role.STUDENT,
         )
 
-    # ── Contact details ──────────────────────────────────────────────────────
+    # Contact details
 
     def test_patch_me_updates_own_phone(self):
         self.client.force_authenticate(self.user)
@@ -57,7 +55,7 @@ class SettingsModuleTests(APITestCase):
         response = self.client.patch("/api/auth/me/", {"phone": "012"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    # ── Password change ──────────────────────────────────────────────────────
+    # Password change
 
     def test_change_password_succeeds_with_correct_current(self):
         self.client.force_authenticate(self.user)
@@ -149,58 +147,20 @@ class SettingsModuleTests(APITestCase):
             status.HTTP_401_UNAUTHORIZED,
         )
 
-    # ── Notification preferences ─────────────────────────────────────────────
-
-    def test_preferences_default_on_first_read(self):
+    def test_legacy_preference_endpoint_is_gone(self):
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/auth/me/notification-preferences/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_phone_rejects_spreadsheet_formulas(self):
+        self.client.force_authenticate(self.user)
+        for phone in ('=HYPERLINK("//x.y","!")', '012","Suspended', "call me"):
+            with self.subTest(phone=phone):
+                response = self.client.patch("/api/auth/me/", {"phone": phone}, format="json")
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            response.data,
-            {
-                "emailNotifications": True,
-                "announcementAlerts": True,
-                "deadlineReminders": True,
-                "weeklySummary": False,
-            },
-        )
-
-    def test_preferences_persist(self):
-        self.client.force_authenticate(self.user)
-        self.client.patch(
-            "/api/auth/me/notification-preferences/",
-            {"weeklySummary": True, "emailNotifications": False},
-        )
-        response = self.client.get("/api/auth/me/notification-preferences/")
-        self.assertTrue(response.data["weeklySummary"])
-        self.assertFalse(response.data["emailNotifications"])
-        self.assertTrue(response.data["deadlineReminders"])
-
-    def test_preferences_are_per_user(self):
-        self.client.force_authenticate(self.user)
-        self.client.patch(
-            "/api/auth/me/notification-preferences/", {"weeklySummary": True}
-        )
-        self.client.force_authenticate(self.other)
-        response = self.client.get("/api/auth/me/notification-preferences/")
-        self.assertFalse(response.data["weeklySummary"])
-
-    def test_preferences_reject_non_boolean(self):
-        self.client.force_authenticate(self.user)
-        response = self.client.patch(
-            "/api/auth/me/notification-preferences/", {"weeklySummary": "banana"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_preferences_require_authentication(self):
-        response = self.client.get("/api/auth/me/notification-preferences/")
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_for_user_is_idempotent(self):
-        NotificationPreference.for_user(self.user)
-        NotificationPreference.for_user(self.user)
-        self.assertEqual(
-            NotificationPreference.objects.filter(user=self.user).count(), 1
+            self.client.patch("/api/auth/me/", {"phone": "+60 12-345 6789"}, format="json").status_code,
+            status.HTTP_200_OK,
         )
 
     def test_patch_me_cannot_escalate_privileges(self):

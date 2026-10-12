@@ -1,4 +1,5 @@
-"""Hold accounts flagged with ``must_change_password`` at the password change.
+"""Hold accounts flagged with ``must_change_password`` at the password change,
+and keep Technical Administrator accounts out of the portal API.
 
 Registered as the default DRF authentication class, so it covers every API view
 that does not choose its own authenticators (only refresh and logout do, and
@@ -17,9 +18,19 @@ class PasswordChangeRequired(PermissionDenied):
     default_code = "password_change_required"
 
 
+class TechnicalAccountForbidden(PermissionDenied):
+    default_detail = {
+        "detail": "This is a technical account. Sign in through the admin site instead.",
+        "code": "technical_account",
+    }
+    default_code = "technical_account"
+
+
 class PasswordPolicyJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
         result = super().authenticate(request)
+        if result is not None and result[0].is_technical_admin:
+            raise TechnicalAccountForbidden()
         if result is not None and result[0].must_change_password:
             allowed = {
                 ("GET", reverse("me")),

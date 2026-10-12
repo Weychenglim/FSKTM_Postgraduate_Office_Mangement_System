@@ -1,3 +1,5 @@
+import hashlib
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework.throttling import SimpleRateThrottle
@@ -19,14 +21,57 @@ class LoginRateThrottle(SettingsRateThrottle):
     setting_name = "AUTH_LOGIN_THROTTLE_RATE"
 
 
+class LoginIdentifierRateThrottle(SettingsRateThrottle):
+    """Sign-in attempts per identifier, so rotating client addresses cannot buy
+    unlimited guesses at one account."""
+
+    scope = "auth_login_identifier"
+    setting_name = "AUTH_LOGIN_IDENTIFIER_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        data = request.data
+        identifier = data.get("identifier") if hasattr(data, "get") else None
+        if not isinstance(identifier, str) or not identifier.strip():
+            return None
+        ident = hashlib.sha256(identifier.strip().lower().encode()).hexdigest()
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
 class PasswordResetRateThrottle(SettingsRateThrottle):
     scope = "auth_password_reset"
     setting_name = "AUTH_PASSWORD_RESET_THROTTLE_RATE"
 
 
+def is_password_link_check(request):
+    """A set-password request that only checks its link (``dryRun``)."""
+    data = request.data
+    value = data.get("dryRun") if hasattr(data, "get") else None
+    return str(value).lower() in {"1", "true", "yes"}
+
+
 class PasswordResetConfirmRateThrottle(SettingsRateThrottle):
     scope = "auth_password_reset_confirm"
     setting_name = "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        # Link checks have their own budget below, so opening the page never
+        # uses up the attempts to set the password.
+        if is_password_link_check(request):
+            return None
+        return super().get_cache_key(request, view)
+
+
+class PasswordLinkCheckRateThrottle(SettingsRateThrottle):
+    """``dryRun`` requests: opening an activation or reset link checks it
+    before the form is shown."""
+
+    scope = "auth_password_link_check"
+    setting_name = "AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        if not is_password_link_check(request):
+            return None
+        return super().get_cache_key(request, view)
 
 
 class ChangePasswordRateThrottle(SettingsRateThrottle):
@@ -59,12 +104,25 @@ class AccessLinkRateThrottle(SettingsRateThrottle):
     setting_name = "REGISTRY_ACCESS_LINK_THROTTLE_RATE"
 
     def get_cache_key(self, request, view):
-        user = request.user
         office_role = get_user_model().Role.OFFICE_ADMIN
-        if not (user.is_superuser or getattr(user, "role", None) == office_role):
+        if getattr(request.user, "role", None) != office_role:
             return None
         matric_no = str(view.kwargs.get("matric_no", "")).lower()
         return self.cache_format % {"scope": self.scope, "ident": matric_no}
+
+
+class BatchInvitationRateThrottle(SettingsRateThrottle):
+    """Activation emails for a whole import, counted per import. Only office
+    requests count, as for single access links."""
+
+    scope = "registry_batch_invitations"
+    setting_name = "REGISTRY_BATCH_INVITE_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        office_role = get_user_model().Role.OFFICE_ADMIN
+        if getattr(request.user, "role", None) != office_role:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": view.kwargs.get("batch_id")}
 
 
 class SettingsPasswordRateThrottle(SimpleRateThrottle):

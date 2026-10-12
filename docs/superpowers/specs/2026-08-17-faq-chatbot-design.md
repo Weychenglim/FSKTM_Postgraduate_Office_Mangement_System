@@ -1,4 +1,4 @@
-# FAQ Chatbot — Implementation Options and Design Findings
+# FAQ Chatbot: Implementation Options and Design Findings
 
 Date: 2026-08-17
 Module: FAQ Chatbot (Student-facing) + Academic FAQ Editor (Office Staff)
@@ -17,8 +17,8 @@ implementation approach considered, with the trade-offs of each.
 
 ### 2.1 Frontend
 
-- `frontend/src/components/StudentFAQChatbot.tsx` (373 lines) — student chat UI.
-- `frontend/src/components/AcademicFAQEditor.tsx` (587 lines) — Office Staff editor UI.
+- `frontend/src/components/StudentFAQChatbot.tsx` (373 lines): student chat UI.
+- `frontend/src/components/AcademicFAQEditor.tsx` (587 lines): Office Staff editor UI.
 
 Both are presentation-only. The chatbot "answers" through a hardcoded chain at
 `StudentFAQChatbot.tsx:112-131`:
@@ -42,7 +42,7 @@ models, types, or mocks. The module is built from scratch.
 This is the only one of the ten modules with no backend at all, so there is no
 migration burden and no compatibility constraint.
 
-## 3. Source document — `FAQ.pdf`
+## 3. Source document: `FAQ.pdf`
 
 Uploaded 2026-08-02. Located at the project root (outside the git repository).
 
@@ -59,14 +59,14 @@ Uploaded 2026-08-02. Located at the project root (outside the git repository).
 
 ### 3.1 Categories
 
-Six categorised sections, pages 1–8:
+Six categorised sections, pages 1-8:
 
-1. `STUDENT APPLCATION` *(typo in source — missing "I")* — 28 entries
-2. `ADMISSION & OFFER LETTER` — 26
-3. `COURSE REGISTRATION` — 16
-4. `DURING SEMESTER` — 13
-5. `RP- DISSERTATION - THESIS` *(missing space in source)* — 6
-6. `COMPLETION & GRADUATION` — 4
+1. `STUDENT APPLCATION` *(typo in source: missing "I")*: 28 entries
+2. `ADMISSION & OFFER LETTER`: 26
+3. `COURSE REGISTRATION`: 16
+4. `DURING SEMESTER`: 13
+5. `RP- DISSERTATION - THESIS` *(missing space in source)*: 6
+6. `COMPLETION & GRADUATION`: 4
 
 **Correction:** an earlier draft listed `BAHASA MALAYSIA LANGUAGE REQUIREMENT`
 as a seventh section. It is not one. That upper-case run is a hyperlink label
@@ -78,8 +78,8 @@ Structure is a numbered `NO. | QUESTION | ANSWER` table per section.
 
 ### 3.2 The duplicate "ALL" sheet
 
-Pages 9–14 are a separate sheet headed `ALL` holding 70 rows that largely
-repeat the categorised sections — 46 questions appear on both sheets, 24 are
+Pages 9-14 are a separate sheet headed `ALL` holding 70 rows that largely
+repeat the categorised sections: 46 questions appear on both sheets, 24 are
 unique to `ALL`. The page-1 answer defect is reproduced there too.
 
 **This must be resolved before loading.** Ingesting both sheets would put near
@@ -91,7 +91,7 @@ they carry the category metadata the UI needs), then review the 24 `ALL`-only
 questions individually and merge the worthwhile ones into a category. The
 extractor reports this set under `stats.cross_sheet.only_in_all_sheet`.
 
-### 3.3 Data quality defects — must fix before loading
+### 3.3 Data quality defects: must fix before loading
 
 The extractor flags **48 of 163 rows**. Measured breakdown:
 
@@ -107,7 +107,7 @@ The extractor flags **48 of 163 rows**. Measured breakdown:
 | 1 | Wrapped tail recovered from column 0 |
 
 The flag set was revised on 2026-08-17 after an adversarial test pass. Three
-rules were removed as unreliable — a bare "answer under 15 characters" test
+rules were removed as unreliable: a bare "answer under 15 characters" test
 (13 of 16 hits were correct one-word answers) and "answer duplicated within the
 same sheet" (all 8 hits were legitimate reused boilerplate), plus a
 question-punctuation test (at least 10 of 37 hits were complete topic labels).
@@ -153,19 +153,19 @@ below that proposes those is over-engineering for this dataset size.
 Development and demo machine:
 
 ```
-GPU:  NVIDIA RTX 3050 Ti Laptop — 4 GB VRAM
+GPU:  NVIDIA RTX 3050 Ti Laptop, 4 GB VRAM
 RAM:  7.4 GB total
 CPU:  AMD Ryzen 5 5600H
 Disk: 135 GB free
 ```
 
 RAM is the binding constraint. With PostgreSQL, Django, Vite, VS Code and a
-browser already running, roughly 2–3 GB is realistically free. This rules out
+browser already running, roughly 2-3 GB is realistically free. This rules out
 running a general-purpose chat LLM locally at usable quality (see Option D).
 
 ## 5. Implementation options
 
-### Option A — Keyword matching (current)
+### Option A: Keyword matching (current)
 
 Literal substring matching against a fixed rule chain.
 
@@ -175,9 +175,9 @@ Literal substring matching against a fixed rule chain.
 | Offline | Yes |
 | Hallucination risk | None |
 | Understands paraphrases | **No** |
-| Verdict | **Rejected** — this is the problem being solved |
+| Verdict | **Rejected**: this is the problem being solved |
 
-### Option B — Local embedding search (no LLM)
+### Option B: Local embedding search (no LLM)
 
 An embedding model converts each FAQ question into a vector representing its
 meaning. Incoming questions are converted the same way; the nearest vector wins
@@ -203,9 +203,9 @@ Candidate libraries:
 |---|---|
 | Cost | **Free forever** |
 | Offline | **Yes** |
-| Hallucination risk | **Structurally impossible** — returns stored text |
+| Hallucination risk | **Structurally impossible**: returns stored text |
 | Latency | ~10 ms |
-| Measurable accuracy | **Yes** — top-1 / top-3 against a labelled test set |
+| Measurable accuracy | **Yes**: top-1 / top-3 against a labelled test set |
 | Limitation | Returns FAQ answers verbatim; no conversational rephrasing |
 
 Confidence handling:
@@ -217,7 +217,7 @@ Confidence handling:
 That threshold refusal is what enforces "restricted to the FAQ." It is a
 numeric guarantee, not a behavioural request to a model.
 
-### Option C — Grounded LLM, full FAQ in the prompt
+### Option C: Grounded LLM, full FAQ in the prompt
 
 Send the entire FAQ (~10k tokens) as context with every question, instructing
 the model to answer only from it and to cite the FAQ number used.
@@ -227,17 +227,17 @@ the model to answer only from it and to cite the FAQ number used.
 | Cost | Paid API, or heavy free-tier usage |
 | Offline | No |
 | Hallucination risk | Low but non-zero |
-| Quality | **Highest** — natural, conversational |
-| Free-tier viability | **Poor** — see section 6 |
+| Quality | **Highest**: natural, conversational |
+| Free-tier viability | **Poor**: see section 6 |
 
 Prompt caching cuts repeat cost to roughly 10% of full price on paid tiers.
 
-### Option D — Self-hosted local LLM (Ollama)
+### Option D: Self-hosted local LLM (Ollama)
 
 Run an open-weight model (Llama, Qwen, Mistral) locally.
 
 **Not viable on this hardware.** 4 GB VRAM limits the choice to a ~3B parameter
-model, and small models degrade badly when handling a 10k-token context — they
+model, and small models degrade badly when handling a 10k-token context: they
 lose track and begin inventing answers, which is the exact failure this project
 must avoid. It would also contend for the 7.4 GB of system RAM already shared
 with PostgreSQL, Django and Vite.
@@ -245,11 +245,11 @@ with PostgreSQL, Django and Vite.
 Worth documenting as *considered and rejected with reasons*; that is a
 legitimate report finding, not a gap.
 
-Note: "train our own model from scratch" is out of scope entirely — it requires
+Note: "train our own model from scratch" is out of scope entirely: it requires
 compute and datasets several orders of magnitude beyond an FYP. "Self-hosted"
 in this document always means running a pre-trained open-weight model.
 
-### Option E — Hybrid: local retrieval + LLM phrasing (recommended)
+### Option E: Hybrid: local retrieval + LLM phrasing (recommended)
 
 Combine B and C. Retrieval runs locally and free; the LLM sees only the handful
 of entries retrieval already selected.
@@ -257,10 +257,10 @@ of entries retrieval already selected.
 ```
 Student question
       ↓
-[1] Embedding search — local, free, unlimited
+[1] Embedding search: local, free, unlimited
       ~200 Q&As  →  top 3 relevant        (~500 tokens)
       ↓
-[2] LLM — receives only those 3 + the question   (~700 tokens)
+[2] LLM: receives only those 3 + the question   (~700 tokens)
       "Answer using only these FAQ entries. Cite the number."
       ↓
 Conversational answer + citation
@@ -282,15 +282,15 @@ viva demonstration this property is worth more than answer polish.
 
 ## 6. Free-tier API analysis
 
-Checked 2026-08-17. These limits change frequently — re-verify before relying on
+Checked 2026-08-17. These limits change frequently: re-verify before relying on
 them.
 
 | | Groq | Google Gemini |
 |---|---|---|
 | Credit card required | **No** | No |
-| Requests / minute | **30** | 5–15 (model-dependent) |
-| Requests / day | ~1,000 | 100–1,000 |
-| **Tokens / minute** | **8K–12K** | Higher, fewer RPM |
+| Requests / minute | **30** | 5-15 (model-dependent) |
+| Requests / day | ~1,000 | 100-1,000 |
+| **Tokens / minute** | **8K-12K** | Higher, fewer RPM |
 | Models | Open-weight only (Llama 3.3 70B, gpt-oss-120b) | Gemini 2.5 Flash / Pro |
 
 ### 6.1 Why tokens-per-minute decides the architecture
@@ -377,9 +377,9 @@ Keep the matching step behind one interface so the endpoint contract never
 changes:
 
 ```
-FaqRetriever ─┬─→ EmbeddingRetriever  (free, local, default)
-              ├─→ GroqRetriever       (free tier, conversational)
-              └─→ ClaudeRetriever     (paid, optional)
+FaqRetriever -+-> EmbeddingRetriever  (free, local, default)
+              +-> GroqRetriever       (free tier, conversational)
+              +-> ClaudeRetriever     (paid, optional)
 ```
 
 Selected by an environment flag, mirroring the existing
@@ -405,7 +405,7 @@ backend, never by frontend route visibility.
 ## 10. Why this strengthens the FYP
 
 - **Citations.** Returning the FAQ number behind each answer lets the panel
-  verify every response traces to a real entry — the direct answer to "how do
+  verify every response traces to a real entry: the direct answer to "how do
   you know it isn't hallucinating?"
 - **Measurable evaluation.** A labelled set of ~100 paraphrased questions yields
   reportable top-1 / top-3 accuracy figures. Substantially stronger than "I
@@ -416,7 +416,7 @@ backend, never by frontend route visibility.
   the system should streamline existing workflows rather than replace tools.
 - **Demo reliability.** The offline path cannot be broken by venue wifi.
 - **Documented rejection of Option D.** Considered, measured against hardware,
-  rejected with reasons — a finding in its own right.
+  rejected with reasons: a finding in its own right.
 
 ## 11. Prerequisites and open questions
 

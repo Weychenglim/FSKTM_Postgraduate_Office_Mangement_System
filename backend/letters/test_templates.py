@@ -46,7 +46,7 @@ class LetterTemplateLifecycleTests(APITestCase):
         self.template.refresh_from_db()
         self.assertEqual(self.template.status, LetterTemplate.Status.ARCHIVED)
         self.assertEqual(self.template.content, "Dear {{STUDENT_NAME}} ({{STUDENT_ID}})")
-        self.assertEqual(self._student_sees(), (False, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(self._student_sees(), (False, status.HTTP_404_NOT_FOUND))
 
         self.client.force_authenticate(self.office)
         staff_view = [t["status"] for t in self.client.get("/api/letter-templates/").data]
@@ -55,7 +55,7 @@ class LetterTemplateLifecycleTests(APITestCase):
     def test_restore_returns_an_archived_template_to_draft_or_active(self):
         self._patch({"status": LetterTemplate.Status.ARCHIVED})
         self.assertEqual(self._patch({"status": LetterTemplate.Status.DRAFT}).status_code, 200)
-        self.assertEqual(self._student_sees(), (False, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(self._student_sees(), (False, status.HTTP_404_NOT_FOUND))
         self.assertEqual(self._patch({"status": LetterTemplate.Status.ACTIVE}).status_code, 200)
         self.assertEqual(self._student_sees(), (True, status.HTTP_200_OK))
 

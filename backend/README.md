@@ -36,6 +36,7 @@ python manage.py migrate
 # 4. Seed demo accounts / panel workflow data + create your Django super admin
 python manage.py seed_users
 python manage.py createsuperuser
+#    The superuser is a Technical Administrator: Django admin only, no portal sign-in.
 
 # 5. Run
 python manage.py runserver 8000
@@ -63,6 +64,12 @@ Normal APIs remain bearer-authenticated. Frontend JavaScript keeps the access
 token in memory and cannot read the HttpOnly refresh cookie. Login, refresh, and
 logout use JSON requests; run `python manage.py migrate` after installation so
 SimpleJWT's outstanding-token and blacklist tables are available.
+
+Technical Administrator accounts (created by `createsuperuser`) are for Django
+admin only. Portal login returns 403 with code `technical_account`, existing
+tokens and refresh sessions are refused, and password reset emails are not sent
+to them. Recover their access on the server with
+`python manage.py changepassword <email>`.
 
 ## Panel appointment endpoints (`/api/appointments/panel/`)
 
@@ -119,6 +126,57 @@ reasoned corrections remain permitted after closure. Django admin is inspection-
 Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.
+
+## Issued letter endpoints (`/api/letters/`)
+
+| Method | Path | Actor |
+| ------ | ---- | ----- |
+| POST | `requests/` (`{templateId}`) | Active student |
+| GET | `requests/` | Student (own letters) or Office Staff/Admin (`search`, `from`, `to`, `status`) |
+| GET | `requests/<id>/` | The letter's student or Office Staff/Admin |
+| GET | `requests/<id>/docx/` | The letter's student or Office Staff/Admin |
+| POST | `requests/<id>/resend-notification/` | Office Staff/Admin |
+| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin |
+
+Generating a letter fills an Active template from the student's record, issues
+the next reference number for its prefix and year (`UMF/PG/2026/0001`), saves
+the filled wording and notifies the student. If the template needs a detail the
+record does not have, it returns 400 with `missingFields` and saves nothing.
+The Word copy is built with `python-docx`. Revoked letters keep their number but
+can no longer be downloaded.
+
+## Scheduled commands
+
+There is no background worker. These management commands are safe to run
+repeatedly, so schedule them every few minutes:
+
+| Command | What it does |
+| ------- | ------------ |
+| `release_announcements` | Publishes scheduled announcements that are due and expires finished ones. The announcement and notification list endpoints also do this on every read, so the command only matters when nobody is signed in. |
+| `send_deadline_reminders --days 3` | Reminds people of active-timeline deadlines (by the entry's target roles) and of Marks periods closing within the days given (evaluators with unsubmitted tasks). One reminder per person per deadline. |
+| `send_weekly_summary` | Emails everyone who turned the weekly summary on a list of their unread notifications from the past seven days. One email per person per week. |
+
+Each person's Settings switches decide what they get: no reminders when
+"Deadline reminders" is off, and email copies of announcements and reminders
+only with "Email alerts" on. Run `release_announcements` every 5 minutes,
+`send_deadline_reminders` daily and `send_weekly_summary` weekly.
+
+Windows Task Scheduler:
+
+```powershell
+$py = "C:\path\to\backend\.venv\Scripts\python.exe"; $manage = "C:\path\to\backend\manage.py"
+schtasks /Create /TN "FSKTM release announcements" /SC MINUTE /MO 5 /TR "\"$py\" \"$manage\" release_announcements"
+schtasks /Create /TN "FSKTM deadline reminders" /SC DAILY /ST 08:00 /TR "\"$py\" \"$manage\" send_deadline_reminders --days 3"
+schtasks /Create /TN "FSKTM weekly summary" /SC WEEKLY /D MON /ST 08:00 /TR "\"$py\" \"$manage\" send_weekly_summary"
+```
+
+cron:
+
+```
+*/5 * * * * cd /path/to/backend && .venv/bin/python manage.py release_announcements
+0 8 * * *   cd /path/to/backend && .venv/bin/python manage.py send_deadline_reminders --days 3
+0 8 * * 1   cd /path/to/backend && .venv/bin/python manage.py send_weekly_summary
+```
 
 ## Development demo logins
 

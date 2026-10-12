@@ -5,6 +5,16 @@ from . import views
 
 urlpatterns = [
     path("announcements/", views.announcements_list, name="announcements-list"),
+    path(
+        "announcements/audience-options/",
+        views.audience_options,
+        name="announcement-audience-options",
+    ),
+    path(
+        "announcements/recipient-count/",
+        views.recipient_count,
+        name="announcement-recipient-count",
+    ),
     path("announcements/<int:pk>/", views.announcement_detail, name="announcement-detail"),
     path(
         "announcements/<int:pk>/attachment/",

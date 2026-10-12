@@ -14,12 +14,12 @@ Course registration, enrolment, credit accumulation, course scheduling, and gene
 
 ```text
 .
-├── frontend/   # React 19 + Vite + TypeScript portal UI
-├── backend/    # Django authentication backend
-├── docs/       # Supporting PDFs, setup notes, specs, and plans
-├── PROJECT_REQUIREMENTS.md
-├── ARCHITECTURE_AND_CODING_DESIGN.md
-└── PROJECT_STATUS.md
+|-- frontend/   # React 19 + Vite + TypeScript portal UI
+|-- backend/    # Django authentication backend
+|-- docs/       # Supporting PDFs, setup notes, specs, and plans
+|-- PROJECT_REQUIREMENTS.md
+|-- ARCHITECTURE_AND_CODING_DESIGN.md
+`-- PROJECT_STATUS.md
 ```
 
 The three project governance files stay at the project root so they are easy to find and update during implementation work.

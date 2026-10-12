@@ -11,35 +11,59 @@ import {
   ZoomOut,
   Info,
   FileCheck,
-  ShieldCheck,
 } from 'lucide-react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { LetterTemplate } from '../types';
-import { getStudentLetterTemplates, getMyLetterDetails, StudentLetterDetails } from '../services';
+import { StudentLetterHistory } from './IssuedLetters';
+import { GeneratedLetter, LetterTemplate } from '../types';
+import {
+  ApiError,
+  generateLetter,
+  getMyLetters,
+  getStudentLetterTemplates,
+  getMyLetterDetails,
+  inactiveStudentReason,
+  missingFieldsFrom,
+  StudentLetterDetails,
+} from '../services';
 import {
   LETTERHEAD,
-  LetterData,
+  PENDING_REFERENCE,
   PlaceholderValues,
   formatLetterDate,
-  generateReferenceNumber,
-  openLetterDocument,
+  letterDataFromIssued,
+  missingPlaceholderLabels,
+  openLetterWindow,
+  printLetterInWindow,
   substitutePlaceholders,
   renderLetterBodyHtml,
 } from '../utils/letterDocument';
+
+export type StudentLetterView = 'new' | 'history';
+
+const LETTER_VIEWS: readonly StudentLetterView[] = ['new', 'history'];
 
 interface StudentLetterGenerationProps {
   /** Logged-in student identity, used to prefill the generated letter. */
   studentName?: string;
   studentId?: string;
   programme?: string;
+  /** Which tab is open; driven by the route when the app provides it. */
+  view?: StudentLetterView;
+  onViewChange?: (view: StudentLetterView) => void;
 }
 
 export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({
   studentName: studentNameProp,
   studentId: studentIdProp,
   programme: programmeProp,
+  view,
+  onViewChange,
 }) => {
+  const [localView, setLocalView] = useState<StudentLetterView>('new');
+  const activeView = view ?? localView;
+  const changeView = (next: StudentLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+
   // Templates loaded from the letters API (Active ones only).
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +83,17 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // official document, so a withdrawn student could produce a letter stating
   // they were enrolled.
   const [detailsError, setDetailsError] = useState<string | null>(null);
+
+  // Set when the server refuses letters because the student's status is not Active.
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
+  // Letters already issued to this student ("My Letters").
+  const [letters, setLetters] = useState<GeneratedLetter[]>([]);
+  const [lettersLoading, setLettersLoading] = useState(true);
+  const [lettersError, setLettersError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  // What the server said is missing, for the template it was asked about.
+  const [serverMissing, setServerMissing] = useState<{ templateId: string; labels: string[] } | null>(null);
 
   const studentName = details?.studentName ?? studentNameProp ?? '';
   const matricNumber = details?.matricNumber ?? studentIdProp ?? '';
@@ -80,13 +115,34 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
         setTemplates(data);
         setSelectedTemplate((current) => current ?? data[0] ?? null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load letter templates.'))
+      .catch((e) => {
+        const reason = inactiveStudentReason(e);
+        if (reason) setBlockedReason(reason);
+        else setError(e instanceof Error ? e.message : 'Failed to load letter templates.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  const loadLetters = useCallback(() => {
+    setLettersLoading(true);
+    setLettersError(null);
+    getMyLetters()
+      .then(setLetters)
+      .catch((e) => {
+        const reason = inactiveStudentReason(e);
+        if (reason) setBlockedReason(reason);
+        else setLettersError(e instanceof Error ? e.message : 'Failed to load your letters.');
+      })
+      .finally(() => setLettersLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadLetters();
+  }, [loadLetters]);
 
   // Load the logged-in student's letter details (name, matric, programme +
   // registry fields). A failure here is fatal for generation: an official letter
@@ -101,7 +157,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
         }
       })
       .catch((e) => {
-        if (!cancelled) {
+        if (cancelled) return;
+        const reason = inactiveStudentReason(e);
+        if (reason) {
+          setBlockedReason(reason);
+        } else {
           setDetailsError(
             e instanceof Error
               ? e.message
@@ -114,12 +174,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     };
   }, []);
 
-  // One date for this session; one reference number per selected template.
+  // The preview shows today's date; the server stamps the real date and the
+  // reference number when the letter is issued.
   const letterDate = useMemo(() => formatLetterDate(), []);
-  const referenceNumber = useMemo(
-    () => generateReferenceNumber(selectedTemplate?.referencePrefix),
-    [selectedTemplate?.id, selectedTemplate?.referencePrefix],
-  );
 
   const placeholderValues: PlaceholderValues = {
     studentName,
@@ -127,9 +184,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     programName,
     currentStatus,
     supervisorName,
-    referenceNumber,
+    referenceNumber: PENDING_REFERENCE,
     date: letterDate,
-    // Registry-backed fields — fill from the student's record when available.
+    // Registry-backed fields: fill from the student's record when available.
     passportNumber: details?.passportNumber,
     country: details?.country,
     programmeMode: details?.programmeMode,
@@ -146,57 +203,115 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     ? substitutePlaceholders(selectedTemplate.content, placeholderValues)
     : '';
 
-  const buildLetterData = (): LetterData => ({
-    templateName: selectedTemplate?.name ?? 'Letter',
-    refNo: referenceNumber,
-    date: letterDate,
-    bodyParagraphs: previewBody,
-    studentName,
-    matricNumber,
-  });
+  // Fields this template needs that the student's record lacks. The server's
+  // answer wins once it has been asked about this template.
+  const missingLabels = !selectedTemplate || !details
+    ? []
+    : serverMissing?.templateId === selectedTemplate.id
+      ? serverMissing.labels
+      : missingPlaceholderLabels(selectedTemplate.content, placeholderValues);
 
-  // Opens the real letter in a print window; the browser print dialog handles
-  // both "Save as PDF" (download) and printing to a physical printer.
-  const handleGeneratePDF = () => {
-    if (!selectedTemplate) return;
+  // The server fills, numbers and saves the letter; the print window then
+  // shows that saved copy. The browser print dialog handles both "Save as PDF"
+  // (download) and printing to a physical printer.
+  const handleGenerate = async () => {
+    if (!selectedTemplate || generating) return;
     if (!canGenerate) {
       triggerToast(
         detailsError ?? 'Your student record is still loading. Please try again.',
       );
       return;
     }
-    const opened = openLetterDocument(buildLetterData());
-    triggerToast(
-      opened
-        ? `Opening "${selectedTemplate.name}" — choose "Save as PDF" or a printer in the print dialog.`
-        : 'Please allow pop-ups for this site to generate the letter.',
-    );
+    if (missingLabels.length > 0) return;
+    // Opened during the click so pop-up blockers allow it; filled once issued.
+    const win = openLetterWindow();
+    if (!win) {
+      triggerToast('Please allow pop-ups for this site to generate the letter.');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const letter = await generateLetter(selectedTemplate.id);
+      printLetterInWindow(win, letterDataFromIssued(letter));
+      setLetters((current) => [letter, ...current.filter((row) => row.id !== letter.id)]);
+      triggerToast(
+        `Letter ${letter.referenceNumber} issued. Choose "Save as PDF" or a printer in the print dialog. A copy is kept in My Letters.`,
+      );
+    } catch (e) {
+      win.close();
+      const missing = missingFieldsFrom(e);
+      const reason = inactiveStudentReason(e);
+      if (missing) {
+        setServerMissing({ templateId: selectedTemplate.id, labels: missing });
+      } else if (reason) {
+        setBlockedReason(reason);
+      } else {
+        if (e instanceof ApiError && e.status === 404) {
+          setSelectedTemplate(null);
+          loadTemplates();
+        }
+        triggerToast(e instanceof Error ? e.message : 'Could not generate the letter. Please try again.');
+      }
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleZoomIn = () => setZoomScale((p) => Math.min(120, p + 10));
   const handleZoomOut = () => setZoomScale((p) => Math.max(80, p - 10));
 
+  if (blockedReason) {
+    return (
+      <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
+        <PageHeader
+          title="Letter Generation"
+          subtitle="Official letters for students whose status is Active."
+        />
+        <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
+          <Info className="w-6 h-6 text-amber-500 mx-auto" />
+          <p className="mt-3 text-sm font-black text-slate-800">Letter generation is not available</p>
+          <p className="mt-1.5 text-[12px] font-semibold text-slate-500 leading-relaxed">{blockedReason}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans pb-12">
+    <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
       <PortalToast message={toastMessage} />
 
       <PageHeader
         title="Letter Generation"
-        subtitle="Select an available letter template, preview the generated letter, and download or print your official PDF document."
-        className="border-b border-slate-100 pb-5"
+        subtitle="Pick a letter, check the preview, then generate it. Every letter gets an official reference number and is kept in My Letters."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <SegmentedControl
+        options={LETTER_VIEWS}
+        value={activeView}
+        onChange={changeView}
+        labels={{ new: 'New Letter', history: `My Letters (${letters.length})` }}
+        className="w-fit"
+      />
+
+      {activeView === 'history' && (
+        <StudentLetterHistory
+          letters={letters}
+          loading={lettersLoading}
+          error={lettersError}
+          onRetry={loadLetters}
+          onMessage={triggerToast}
+        />
+      )}
+
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-start ${activeView === 'history' ? 'hidden' : ''}`}>
         {/* LEFT: TEMPLATE LIBRARY */}
         <div id="templates-sidebar-panel" className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs flex flex-col justify-between min-h-[520px]">
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 select-none">
-                <span className="card-label uppercase text-slate-400 tracking-widest">
-                  Letter Templates
-                </span>
-                <span className="bg-slate-100 text-slate-600 font-bold text-[9px] px-2 py-0.5 rounded-full font-mono">
-                  {String(templates.length).padStart(2, '0')} Forms
+              <div className="flex items-center justify-between select-none">
+                <h2 className="section-label">Letter Templates</h2>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {templates.length} template{templates.length === 1 ? '' : 's'}
                 </span>
               </div>
 
@@ -225,12 +340,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       >
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2">
-                            <FileText className={`w-4 h-4 ${isSelected ? 'text-brand-navy stroke-[2.3]' : 'text-slate-400'}`} />
-                            <span className={`card-value leading-tight ${isSelected ? 'text-brand-navy' : 'text-slate-800'}`}>
+                            <FileText className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand-navy stroke-[2.3]' : 'text-slate-400'}`} />
+                            <span className={`text-xs font-black leading-tight ${isSelected ? 'text-brand-navy' : 'text-slate-800'}`}>
                               {tpl.name}
                             </span>
                           </div>
-                          <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                          <span className="px-2 py-0.5 rounded-md text-[8px] font-extrabold uppercase tracking-wider shrink-0 bg-slate-100 text-slate-600 border border-slate-200">
                             {tpl.type}
                           </span>
                         </div>
@@ -247,8 +362,8 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             <div className="pt-6 border-t border-slate-100 space-y-4 select-none">
               <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
                 <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-                <p className="card-description">
-                  Selecting a template updates the preview live. Your details are filled in automatically from your student record — fields left blank are completed by the postgraduate office.
+                <p className="text-[10px] font-semibold text-slate-500 leading-normal">
+                  Selecting a template updates the preview live. Your details are filled in automatically from your student record. If a letter needs a detail your record does not have yet, the postgraduate office has to add it first.
                 </p>
               </div>
             </div>
@@ -257,18 +372,16 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
         {/* RIGHT: PREVIEW PANE */}
         <div id="preview-panel" className="lg:col-span-8 space-y-4">
-          <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl p-6 shadow-3xs text-left flex flex-col justify-between">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left flex flex-col justify-between">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4 select-none">
-              <div className="flex items-center gap-2">
-                <span className="section-label text-brand-navy uppercase tracking-wider">Preview Pane</span>
-              </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+              <h2 className="section-label">Letter Preview</h2>
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-slate-100/80 border border-slate-200 rounded-lg p-1">
                   <button type="button" onClick={handleZoomOut} className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded transition cursor-pointer" title="Zoom Out">
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[10px] font-black font-mono px-2 text-slate-600 shrink-0 min-w-[36px] text-center">{zoomScale}%</span>
+                  <span className="text-[10px] font-extrabold px-2 text-slate-600 shrink-0 min-w-[36px] text-center">{zoomScale}%</span>
                   <button type="button" onClick={handleZoomIn} className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded transition cursor-pointer" title="Zoom In">
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
@@ -312,7 +425,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       <div className="flex justify-between items-baseline mb-6 font-semibold text-slate-600 font-mono text-[9.5px]">
                         <div>
                           <span>Our Ref: </span>
-                          <span className="text-slate-800 select-all font-sans font-extrabold">{referenceNumber}</span>
+                          <span className="text-slate-400 italic font-sans font-bold">{PENDING_REFERENCE}</span>
                         </div>
                         <div>
                           <span>Date: </span>
@@ -343,11 +456,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                       </div>
                       <div className="flex bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 items-center gap-2 select-none shrink-0">
                         <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-indigo-600">
-                          <ShieldCheck className="w-3 h-3 stroke-[3]" />
+                          <Info className="w-3 h-3 stroke-[3]" />
                         </div>
                         <div className="text-left leading-none">
-                          <span className="text-[7.5px] uppercase font-black text-slate-400 block tracking-wider">E-Signature</span>
-                          <span className="text-[8px] font-black text-indigo-600 block mt-0.5 tracking-wide">Encrypted Verified</span>
+                          <span className="text-[7.5px] uppercase font-black text-slate-400 block tracking-wider">Computer-generated</span>
+                          <span className="text-[8px] font-black text-indigo-600 block mt-0.5 tracking-wide">Verify with the PG Office</span>
                         </div>
                       </div>
                     </div>
@@ -358,23 +471,33 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
             {/* Action bar */}
             <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-              {/* The button is disabled when the record cannot load, so the
-                  reason has to be stated here rather than on click. */}
-              <p className="text-[11px] font-semibold text-rose-700 text-left md:pr-4">
-                {detailsError
-                  ? `${detailsError} Letter generation is unavailable until your record loads.`
-                  : ''}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
-                <button
-                  type="button"
-                  onClick={handleGeneratePDF}
-                  disabled={!selectedTemplate || !canGenerate}
-                  className="w-full sm:w-auto px-6 py-3 bg-brand-navy hover:bg-slate-850 text-white font-black text-[10px] tracking-widest uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              {/* The button is disabled when the record cannot load or lacks a
+                  field, so the reason has to be stated here rather than on click. */}
+              {detailsError ? (
+                <p className="text-[11px] font-semibold text-rose-700 text-left md:pr-4">
+                  {`${detailsError} Letter generation is unavailable until your record loads.`}
+                </p>
+              ) : missingLabels.length > 0 ? (
+                <p role="alert" className="text-[11px] font-semibold text-amber-700 text-left md:pr-4 leading-relaxed">
+                  {`Your student record is missing: ${missingLabels.join(', ')}. Please contact the postgraduate office to complete it before generating this letter.`}
+                </p>
+              ) : (
+                <p className="text-[11px] font-semibold text-slate-400 text-left md:pr-4">
+                  The reference number is issued when you generate the letter.
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center shrink-0">
+                <PortalButton
+                  variant="primary"
+                  size="md"
+                  icon={FileCheck}
+                  onClick={() => void handleGenerate()}
+                  isLoading={generating}
+                  disabled={!selectedTemplate || !canGenerate || missingLabels.length > 0}
+                  className="w-full sm:w-auto whitespace-nowrap"
                 >
-                  <FileCheck className="w-3.5 h-3.5 stroke-[2.3]" />
-                  <span>Generate PDF</span>
-                </button>
+                  Generate Letter
+                </PortalButton>
               </div>
             </div>
           </div>

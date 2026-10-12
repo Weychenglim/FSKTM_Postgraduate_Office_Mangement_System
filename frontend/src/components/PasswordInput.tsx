@@ -28,13 +28,9 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
   };
 
   return (
-    <div id={`wrapper-${id}`} className="w-full flex flex-col text-left mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <label 
-          id={`label-${id}`} 
-          htmlFor={id} 
-          className="form-label"
-        >
+    <div id={`wrapper-${id}`} className="w-full flex flex-col text-left mb-5">
+      <div className="flex justify-between items-start">
+        <label id={`label-${id}`} htmlFor={id} className="form-label block">
           {label}
         </label>
         {onForgotPasswordClick && (
@@ -54,11 +50,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         <input
           id={id}
           type={showPassword ? 'text' : 'password'}
-          className={`form-control form-control-md ${
-            error 
-              ? 'border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500' 
-              : 'border-slate-200 focus:border-[#091124] focus:ring-1 focus:ring-[#091124]'
-          } pl-11 pr-11 py-3.5 outline-none transition-all duration-200 font-sans ${className}`}
+          className={`form-control form-control-md ${error ? 'form-control-error' : ''} pl-11 pr-11 ${className}`}
           {...props}
         />
         <button
@@ -66,6 +58,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
           onClick={toggleVisibility}
           className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
           title={showPassword ? "Hide password" : "Show password"}
+          aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>

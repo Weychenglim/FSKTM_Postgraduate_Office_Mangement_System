@@ -548,7 +548,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
                     <p className="card-value text-brand-navy">{entry.title}</p>
                     <p className="card-description mt-1">{entry.detail}</p>
                   </div>
-                  <p className="card-description">{dateText(entry.deadlineStart)} – {dateText(entry.deadlineEnd)}</p>
+                  <p className="card-description">{dateText(entry.deadlineStart)} to {dateText(entry.deadlineEnd)}</p>
                 </div>
               ))}
             </div>

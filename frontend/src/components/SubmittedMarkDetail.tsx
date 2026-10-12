@@ -95,7 +95,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
                     <tr key={component.id}>
                       <td className="data-td-strong">{component.name}</td>
                       <td className="data-td text-center">{component.maxMarks}</td>
-                      <td className="data-td-strong text-center">{component.marksAwarded ?? '—'}</td>
+                      <td className="data-td-strong text-center">{component.marksAwarded ?? '-'}</td>
                       <td className="data-td">{component.feedback || 'No component feedback'}</td>
                     </tr>
                   ))}

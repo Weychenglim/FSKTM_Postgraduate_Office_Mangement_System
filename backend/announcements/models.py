@@ -52,6 +52,14 @@ class Announcement(models.Model):
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE
     )
+    # Empty publish_at means "publish when saved"; a future one keeps the notice
+    # Scheduled until release_due_announcements() delivers it. After expires_at
+    # it becomes Expired, and recipients keep their copies.
+    publish_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    # Registry targeting for student announcements; an empty list means all.
+    target_programmes = models.JSONField(default=list, blank=True)
+    target_intakes = models.JSONField(default=list, blank=True)
     # Optional file recipients can download (PDF, DOCX, etc.).
     attachment = models.FileField(
         upload_to="announcements/%Y/%m/", blank=True, null=True
@@ -99,9 +107,36 @@ class Announcement(models.Model):
             "status": self.status,
             "dateCreated": localtime(self.created_at).strftime("%d %b %Y"),
             "createdBy": self.created_by_name or "Postgraduate Office",
+            "createdById": str(self.created_by_id) if self.created_by_id else None,
             "attachmentName": self.attachment_name,
             "attachmentUrl": attachment_url,
+            "publishAt": localtime(self.publish_at).isoformat() if self.publish_at else None,
+            "expiresAt": localtime(self.expires_at).isoformat() if self.expires_at else None,
+            "targetProgrammes": self.target_programmes,
+            "targetIntakes": self.target_intakes,
         }
+
+
+class WeeklySummaryLog(models.Model):
+    """One weekly summary email per person per week, so a rerun sends nothing new."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="weekly_summaries",
+    )
+    week_start = models.DateField(help_text="The Monday of the week it covers.")
+    notification_count = models.PositiveIntegerField(default=0)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-week_start"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "week_start"], name="one_weekly_summary_per_user_week")
+        ]
+
+    def __str__(self):
+        return f"Summary for {self.user_id} (week of {self.week_start})"
 
 
 class Notification(models.Model):
@@ -172,7 +207,7 @@ class Notification(models.Model):
             "service": self.service,
             "description": student_summary if student_appointment else self.summary or " ".join(self.message.split())[:90],
             "detailedMessage": student_message if student_appointment else self.message,
-            "timeAgo": localtime(self.created_at).strftime("%d %b %Y — %I:%M %p"),
+            "timeAgo": localtime(self.created_at).strftime("%d %b %Y, %I:%M %p"),
             "priority": self.priority,
             "isUnread": not self.is_read,
             "isAnnouncement": self.is_announcement,

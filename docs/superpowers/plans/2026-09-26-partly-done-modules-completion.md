@@ -1,6 +1,8 @@
 # Partly-Done Modules Completion Plan
 
-Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02, UC04, UC05, UC06, UC21, UC23, UC30, UC33), plus one integration bug found after merging `main`. Use cases that are not started at all (UC03, UC22, UC24–UC27, UC28–UC29) are out of scope and get their own plan afterwards.
+**Status: complete (2026-10-11).** All nine phases are done; see the Phase Status table and the dated sections in `PROJECT_STATUS.md`. The not-started use cases are listed under "After This Plan".
+
+Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02, UC04, UC05, UC06, UC21, UC23, UC30, UC33), plus one integration bug found after merging `main`. Use cases that are not started at all (UC03, UC22, UC24-UC27, UC28-UC29) are out of scope and get their own plan afterwards.
 
 ## Phase Status
 
@@ -11,10 +13,10 @@ Scope: finish the use cases in Xiang's modules that are partly built (UC01, UC02
 | 3 | Student import: server-side CSV + XLSX with real import history (UC04) | L | Done | `639afe6` |
 | 4 | Registry search and role-scoped read access (UC05) | M | Done | `9547ca4` |
 | 5 | Letter templates: archive, placeholder registry and validation (UC21) | M | Done | `16fe84c` |
-| 6 | Saved letter requests: reference numbers, history, Word export, notification (UC23) | L | Not started | |
-| 7 | Announcement scheduling, expiry, and registry targeting (UC30) | M | Not started | |
-| 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Not started | |
-| 9 | Student "My Records" page and documentation wrap-up (UC06) | M | Not started | |
+| 6 | Saved letter requests: reference numbers, history, Word export, notification (UC23) | L | Done | `170aed3` |
+| 7 | Announcement scheduling, expiry, and registry targeting (UC30) | M | Done | `ee4371d` |
+| 8 | Notifications: bell dropdown, preference-driven email, deadline reminders, weekly summary (UC33) | L | Done | `4403c8c` |
+| 9 | Student "My Records" page and documentation wrap-up (UC06) | M | Done | `39535ce` |
 
 Phases are ordered by dependency. Phase 6 needs Phase 5; Phase 9 needs Phase 6. Everything else can move if priorities change, but do one phase per session.
 
@@ -34,7 +36,7 @@ If a phase needs a change inside a teammate-owned file, stop and ask before touc
 **Repository.** The git repo is `FSKTM_Postgraduate_Office_Mangement_System/` inside the `Final Year Project` folder. The parent folder is not the repo (the home directory also has a stray empty repo, so always run git inside the project folder). Work on branch `Xiang`.
 
 **Ownership.**
-- Xiang owns: `backend/accounts/` auth, settings and registry code (`views.py`, `serializers.py`, `throttles.py`, `registry_*.py`, `NotificationPreference`), `backend/letters/`, `backend/announcements/`, and the matching frontend screens and services (Registry, Settings, Letters, Announcements, Notifications, login/reset screens).
+- Xiang owns: `backend/accounts/` auth, settings and registry code (`views.py`, `serializers.py`, `throttles.py`, `registry_*.py`), `backend/letters/`, `backend/announcements/`, and the matching frontend screens and services (Registry, Settings, Letters, Announcements, Notifications, login/reset screens).
 - The teammate owns: `backend/appointments/`, `backend/marks/`, `backend/dashboard/`, `backend/academics/`, `backend/accounts/participant_*.py`, `authentication.py`, `session_tokens.py`, `eligibility.py`, `authorization.py`, and their frontend screens and services. Calling their public functions and reading their models is fine; editing their files is not.
 - Shared files (`config/settings.py`, `config/urls.py`, `accounts/models.py`, `App.tsx`, `apiClient.ts`, `permissions.ts`, `routes.ts`): additive changes only, keep their code intact.
 - Settings exception (2026-10-08): the team adopted the teammate's Settings. `settings_view` and `settings_password_view` in `accounts/views.py`, `SettingsView.tsx`, `settingsApi.ts` and `User.announcement_alerts` are theirs, so agree any change with the teammate first.
@@ -45,6 +47,7 @@ If a phase needs a change inside a teammate-owned file, stop and ask before touc
 
 **Backend conventions.**
 - DRF function views with `@api_view` / `@permission_classes`, camelCase JSON keys (see `User.to_public_dict()` and `registry_views.to_record()`), role checks through small helpers like `_require_office_admin`.
+- Portal permissions come from the role only (since 2026-10-09). Never treat `is_superuser` or `is_staff` as Office: superusers are Technical Administrator accounts (`User.TECHNICAL_ADMIN`), which are Django-admin-only and refused by the portal API.
 - Login, refresh and logout reject non-JSON bodies with 415, so tests that call them must use `format="json"`.
 - Sessions: 15-minute access token in memory, 7-day rotating HttpOnly refresh cookie on `/api/auth/`, `CHECK_REVOKE_TOKEN=True` (a password change invalidates every existing token). See `accounts/views.py` and `accounts/session_tokens.py`.
 - New migrations only in Xiang-owned apps. After adding one, `makemigrations --check --dry-run` must report no changes.
@@ -98,7 +101,7 @@ These keep the current behaviour and differ from the use-case document wording. 
 
 ---
 
-## Phase 1 — Registry Status Changes Go Through Participant Lifecycle
+## Phase 1: Registry Status Changes Go Through Participant Lifecycle
 
 **Why.** `PATCH /api/registry/students/<matric>/` sets `student.status` directly when `academicStatus` is sent. The teammate's `transition_student()` in `backend/accounts/participant_lifecycle.py` is the real status transition: it enforces allowed transitions, requires a reason, pauses or retires Marks tasks, ends appointments, cancels pending workflow items, and writes an audit record. Withdrawing a student from the Registry today skips all of that and leaves active appointments and Marks tasks behind.
 
@@ -120,7 +123,7 @@ These keep the current behaviour and differ from the use-case document wording. 
 
 ---
 
-## Phase 2 — Sign-In Safety (UC01, UC02)
+## Phase 2: Sign-In Safety (UC01, UC02)
 
 **Current state.** Session expiry sends the user back to the login screen with no message. `User.must_change_password` exists but nothing checks it. Office staff cannot send a student a new access link.
 
@@ -151,7 +154,7 @@ Frontend script test:
 
 ---
 
-## Phase 3 — Student Import: Server-Side CSV + XLSX With Real History (UC04)
+## Phase 3: Student Import: Server-Side CSV + XLSX With Real History (UC04)
 
 **Current state.** The browser parses CSV only (`frontend/src/utils/csvImport.ts`) and posts one row at a time. XLSX is not accepted. The "Recent Imports" panel in `StudentRegistry.tsx` is hardcoded ("View All" only shows a toast), and the upload box starts pre-filled with a fake file `student_registry_intake_sem1_2025.csv`. The approved programme list lives in `frontend/src/constants/programmes.ts` and is copied by hand as `APPROVED_PROGRAMMES` in `backend/accounts/registry_views.py`, with nothing checking that the two match.
 
@@ -190,7 +193,7 @@ Frontend script test:
 
 ---
 
-## Phase 4 — Registry Search and Role-Scoped Read Access (UC05)
+## Phase 4: Registry Search and Role-Scoped Read Access (UC05)
 
 **Current state.** The frontend filters by programme, semester and academic status (`selectedProgramme`, `selectedSemester`, `selectedAcademicStatus` in `StudentRegistry.tsx`). The API filters only by `search` and `status`. There is no supervisor filter or supervisor column. The API is office-only, but `frontend/src/auth/permissions.ts` gives Programme Coordinators every module, so a coordinator who opens Registry gets an error.
 
@@ -229,7 +232,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 5 — Letter Templates: Archive and Placeholder Validation (UC21)
+## Phase 5: Letter Templates: Archive and Placeholder Validation (UC21)
 
 **Current state.**
 - Templates have `Active` and `Draft` statuses only, and there is no archive.
@@ -263,7 +266,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 6 — Saved Letter Requests (UC23)
+## Phase 6: Saved Letter Requests (UC23)
 
 **Depends on Phase 5.**
 
@@ -312,7 +315,7 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 7 — Announcement Scheduling, Expiry, and Registry Targeting (UC30)
+## Phase 7: Announcement Scheduling, Expiry, and Registry Targeting (UC30)
 
 **Current state.**
 - `Announcement.Status` has `Scheduled` and `Expired`, but the model has no start or expiry date, so nothing ever publishes or expires. They are only labels.
@@ -349,14 +352,15 @@ The screen also still shows invented content:
 
 ---
 
-## Phase 8 — Notifications: Bell Dropdown, Preferences, Reminders, Weekly Summary (UC33)
+## Phase 8: Notifications: Bell Dropdown, Preferences, Reminders, Weekly Summary (UC33)
 
 **Current state.**
 - The bell shows an unread badge and opens the full Notifications page instead of a dropdown.
 - Clicking a notification opens its related record; this already works in `NotificationsAnnouncements.tsx`.
 - The teammate's appointment workflows already create notifications (`backend/appointments/notifications.py`).
 - Nothing creates deadline or Marks reminders.
-- Since the 2026-10-08 merge, Settings is the teammate's version (`GET/PATCH /api/auth/settings/`). It stores only `User.announcement_alerts`, which already stops non-urgent announcement notifications. Email, deadline reminders and weekly summary are reported as unavailable `capabilities`. The older `NotificationPreference` table is no longer used by the frontend.
+- Since the 2026-10-08 merge, Settings is the teammate's version (`GET/PATCH /api/auth/settings/`). It stores only `User.announcement_alerts`, which already stops non-urgent announcement notifications. Email, deadline reminders and weekly summary are reported as unavailable `capabilities`.
+- The older `NotificationPreference` table, its `/api/auth/me/notification-preferences/` endpoint and the matching `authApi` helpers were removed on 2026-10-10 (migration `accounts.0009`).
 
 **Start here.** `frontend/src/components/TopHeader.tsx`, `frontend/src/context/NotificationsContext.tsx`, `frontend/src/components/NotificationsAnnouncements.tsx` (record navigation), `backend/accounts/views.py` (`settings_view`, `_settings_payload`; teammate-written, see Ownership), `backend/announcements/views.py` (`_fan_out`), `backend/dashboard/models.py` (`SemesterTimeline`, `SemesterTimelineEntry.deadline_start/deadline_end/target_roles`, read only), `backend/marks/models.py` (`EvaluationPeriod.closes_at` and evaluation tasks, read only), `backend/README.md`.
 
@@ -367,7 +371,7 @@ The screen also still shows invented content:
    - Move the navigation logic out of `NotificationsAnnouncements.tsx` into a shared helper so both use it.
    - Show "No new notifications" when the list is empty.
 2. **Email that respects preferences.**
-   - First agree with the teammate where the new preferences are stored. Either add fields next to `User.announcement_alerts`, or reuse or remove `NotificationPreference`. Then expose them through `/api/auth/settings/`, turning each `capabilities` flag on only once it works.
+   - First agree with the teammate where the new preferences are stored. The old `NotificationPreference` table is gone, so the default is new fields next to `User.announcement_alerts`. Then expose them through `/api/auth/settings/`, turning each `capabilities` flag on only once it works.
    - Add one helper (in the announcements app) that emails a list of users, but only those whose preferences allow that kind of message. Kinds: announcement (needs `email_notifications` and `announcement_alerts`), deadline (needs `email_notifications` and `deadline_reminders`), summary (needs `weekly_summary`).
    - Use `send_mass_mail` with `fail_silently=True`.
    - Announcement fan-out uses the helper.
@@ -391,7 +395,7 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 
 ---
 
-## Phase 9 — Student "My Records" Page and Documentation Wrap-Up (UC06)
+## Phase 9: Student "My Records" Page and Documentation Wrap-Up (UC06)
 
 **Depends on Phase 6** for letters.
 
@@ -414,7 +418,7 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 2. **Documentation.**
    - Add a dated `PROJECT_STATUS.md` section for this plan's completion.
    - In our own section, note that the announcement risks still listed under the teammate's "Known Issues" (and in `ARCHITECTURE_AND_CODING_DESIGN.md`) were fixed in `f5777d2`. Do not edit the teammate's lines; tell the user so they can ask the teammate.
-   - Add a short "Design differences from the use-case document" list (D1–D6) to `PROJECT_STATUS.md` for the FYP report.
+   - Add a short "Design differences from the use-case document" list (D1-D6) to `PROJECT_STATUS.md` for the FYP report.
    - Mark this plan complete.
 
 **Tests.** Frontend script tests cover the category summary counts and the empty state. No backend changes are expected. If one turns out to be needed, it goes in Xiang's apps with tests.
@@ -425,4 +429,4 @@ Frontend script test: the dropdown helper returns the five newest notifications 
 
 ## After This Plan
 
-Not-started use cases, for the next plan: UC03 Manage User Account (including staff and lecturer accounts, replacing the mock `StaffLecturersRegistry` tab), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24–UC27 File Management (official record-linked documents only, per the panel feedback), UC28–UC29 FAQ chatbot (after the 48 flagged rows in `docs/faq/faq-entries.json` are reviewed).
+Not-started use cases, for the next plan: UC03 Manage User Account (including staff and lecturer accounts, replacing the mock `StaffLecturersRegistry` tab), UC22 appointment confirmation letters (needs an approval hook agreed with the teammate), UC24-UC27 File Management (official record-linked documents only, per the panel feedback), UC28-UC29 FAQ chatbot (after the 48 flagged rows in `docs/faq/faq-entries.json` are reviewed).

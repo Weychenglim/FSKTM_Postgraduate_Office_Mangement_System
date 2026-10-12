@@ -104,6 +104,7 @@ const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./compone
 const StudentFAQChatbot = lazyNamed('StudentFAQChatbot', () => import('./components/StudentFAQChatbot'));
 const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => import('./components/LetterTemplateManagement'));
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
+const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
@@ -155,7 +156,7 @@ export default function App() {
   // On first load, exchange the HttpOnly refresh cookie for an in-memory access
   // token before loading the current user.
   useEffect(() => {
-    if (pathname === APP_ROUTES.resetPassword) {
+    if (pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount) {
       clearAuthToken();
       setIsRestoringSession(false);
       return;
@@ -168,7 +169,7 @@ export default function App() {
         if (!cancelled && user) setCurrentUser(user);
       })
       .catch(() => {
-        // Token is missing/expired/invalid — drop it and show login.
+        // Token is missing/expired/invalid: drop it and show login.
         clearAuthToken();
       })
       .finally(() => {
@@ -183,10 +184,12 @@ export default function App() {
 
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
-  // while every request fails, until they happen to reload.
+  // while every request fails, until they happen to reload. The event can carry
+  // the server's reason (e.g. the account became a technical account).
   useEffect(() => {
-    const handleExpiry = () => {
-      setSessionNotice('Your session has expired. Please sign in again.');
+    const handleExpiry = (event: Event) => {
+      const reason = (event as CustomEvent<{ message?: string } | null>).detail?.message;
+      setSessionNotice(reason || 'Your session has expired. Please sign in again.');
       setCurrentUser(null);
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
@@ -429,7 +432,10 @@ export default function App() {
 
   // While restoring a session from the refresh cookie, hold a neutral loading screen
   // instead of flashing the login page (skip it for the reset-password link flow).
-  if (isRestoringSession && pathname !== APP_ROUTES.resetPassword) {
+  const isPasswordLinkPage =
+    pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount;
+
+  if (isRestoringSession && !isPasswordLinkPage) {
     return (
       <div
         id="session-restore-loading"
@@ -444,13 +450,15 @@ export default function App() {
   }
 
   if (!currentUser) {
-    if (pathname === APP_ROUTES.resetPassword && resetParams) {
+    if (isPasswordLinkPage && resetParams) {
       return (
         <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
           <ResetPasswordPage
             uid={resetParams.uid}
             token={resetParams.token}
+            kind={pathname === APP_ROUTES.activateAccount ? 'activation' : 'reset'}
             onBackToLogin={handleBackToLogin}
+            onRequestNewLink={() => navigate(APP_ROUTES.forgotPassword)}
           />
         </div>
       );
@@ -493,7 +501,7 @@ export default function App() {
           <div className="w-full flex justify-center items-center">
             <ForcedPasswordChange
               userName={currentUser.fullName}
-              onChanged={() => setCurrentUser({ ...currentUser, mustChangePassword: false })}
+              onChanged={() => setCurrentUser((user) => (user ? { ...user, mustChangePassword: false } : user))}
               onLogout={handleLogout}
             />
           </div>
@@ -507,7 +515,7 @@ export default function App() {
     pathname === APP_ROUTES.root
     || pathname === APP_ROUTES.login
     || pathname === APP_ROUTES.forgotPassword
-    || pathname === APP_ROUTES.resetPassword
+    || isPasswordLinkPage
     || !isKnownAppPath(pathname)
   ) {
     return <Navigate to={defaultAuthenticatedRoute} replace />;
@@ -819,7 +827,14 @@ export default function App() {
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              pathname === APP_ROUTES.myRecords && !isStudentWorkspace ? (
+                <Navigate to={APP_ROUTES.dashboard} replace />
+              ) : pathname === APP_ROUTES.myRecords ? (
+                <StudentMyRecords
+                  currentUser={currentUser}
+                  onNavigate={(route, state) => navigate(route, state ? { state } : undefined)}
+                />
+              ) : isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardLecturerCapacityRoute ? (
                 <LecturerCapacityManagement onBack={() => navigate(APP_ROUTES.dashboard)} />
@@ -921,9 +936,15 @@ export default function App() {
                   studentName={currentUser.fullName}
                   studentId={currentUser.studentId}
                   programme={currentUser.department}
+                  view={pathname === APP_ROUTES.lettersMine ? 'history' : 'new'}
+                  onViewChange={(view) => navigate(view === 'history' ? APP_ROUTES.lettersMine : APP_ROUTES.letters)}
                 />
               ) : (
-                <LetterTemplateManagement />
+                <LetterTemplateManagement
+                  canViewIssuedLetters={currentUser.role === 'Office Staff/Admin'}
+                  view={pathname === APP_ROUTES.lettersIssued ? 'issued' : 'templates'}
+                  onViewChange={(view) => navigate(view === 'issued' ? APP_ROUTES.lettersIssued : APP_ROUTES.letters)}
+                />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (
               <AnnouncementManagement />

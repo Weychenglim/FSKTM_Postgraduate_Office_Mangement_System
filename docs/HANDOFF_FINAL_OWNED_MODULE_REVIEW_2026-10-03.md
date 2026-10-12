@@ -1,4 +1,4 @@
-# Final five-module review handoff — 2026-10-03
+# Final five-module review handoff: 2026-10-03
 
 ## Scope and repository state
 

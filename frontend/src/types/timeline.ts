@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Semester timeline models (UC46–UC48).
+// Semester timeline models (UC46-UC48).
 
 export type TimelineCategory =
   | 'Supervisor Appointment'

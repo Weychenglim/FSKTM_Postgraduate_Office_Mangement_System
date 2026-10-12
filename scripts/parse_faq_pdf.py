@@ -64,7 +64,7 @@ def looks_garbled(text: str) -> bool:
     pdfplumber zips overlapping cells together, producing strings like
     "hWahnadtb ioso tkh?e minimum total number of subjects". A single
     lower-to-upper transition inside a word is already abnormal for this
-    document, so one is enough — but "PhD" is legitimate and appears often, and
+    document, so one is enough, but "PhD" is legitimate and appears often, and
     acronyms and URLs must not count towards the vowel-free test.
     """
     if not text:
@@ -182,7 +182,7 @@ def extract_rows(pdf) -> list[dict]:
                         tail = " ".join(part for part in (number_cell, question, answer) if part)
                         if tail:
                             rows[-1]["answer"] = f"{rows[-1]['answer']} {tail}".strip()
-                            flag(rows[-1], "wrapped tail recovered from column 0 — split manually")
+                            flag(rows[-1], "wrapped tail recovered from column 0, split manually")
                     continue
 
                 source_category = current_category or "UNCATEGORISED"
@@ -250,7 +250,7 @@ def apply_flags(entries: list[dict], raw_rows: dict[tuple[int, int], str]) -> No
     # not an exact copy, so equality alone cannot see it. Containment must stay
     # unanchored: row 10's fragment sits in the middle of row 4's answer, so a
     # prefix/suffix test misses it. This costs a couple of false positives on
-    # reused boilerplate, which is the right trade — an unflagged bad answer
+    # reused boilerplate, which is the right trade: an unflagged bad answer
     # reaches the chatbot, whereas a false positive costs a reviewer seconds.
     for entry in entries:
         answer = entry["answer"].casefold().strip()

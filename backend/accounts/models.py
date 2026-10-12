@@ -1,7 +1,8 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 
@@ -27,12 +28,14 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("role", User.Role.OFFICE_ADMIN)
+        extra_fields.setdefault("role", User.TECHNICAL_ADMIN)
         extra_fields.setdefault("full_name", "Administrator")
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
         if extra_fields.get("is_superuser") is not True:
             raise ValueError("Superuser must have is_superuser=True.")
+        if extra_fields.get("role") != User.TECHNICAL_ADMIN:
+            raise ValueError("Superuser must have the Technical Administrator role.")
         return self._create_user(email, password, **extra_fields)
 
 
@@ -46,11 +49,24 @@ class User(AbstractBaseUser, PermissionsMixin):
         LECTURER = "Lecturer", "Lecturer"
         STUDENT = "Student", "Student"
 
+    # Maintenance-only account for the Django admin site. It is kept out of
+    # ``Role`` because it is never a portal role.
+    TECHNICAL_ADMIN = "Technical Administrator"
+
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
-    role = models.CharField(max_length=64, choices=Role.choices, default=Role.STUDENT)
+    role = models.CharField(
+        max_length=64,
+        choices=[*Role.choices, (TECHNICAL_ADMIN, TECHNICAL_ADMIN)],
+        default=Role.STUDENT,
+    )
     phone = models.CharField(max_length=32, blank=True, default="")
     announcement_alerts = models.BooleanField(default=True)
+    # Settings switches for notification email, deadline reminders and the
+    # weekly summary email (announcements/emails.py applies them).
+    email_notifications = models.BooleanField(default=False)
+    deadline_reminders = models.BooleanField(default=True)
+    weekly_summary = models.BooleanField(default=False)
     # Set True when an account is created with a temporary password (FR-04); the
     # login flow can then force a password change on first sign-in.
     must_change_password = models.BooleanField(default=False)
@@ -61,17 +77,32 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text="Designates whether the user can log into the Django admin site.",
     )
     date_joined = models.DateTimeField(default=timezone.now)
+    # Portal (JWT) sign-ins. Kept apart from ``last_login`` because Django's
+    # reset tokens hash ``last_login``; updating it on every sign-in would
+    # silently void reset links issued earlier.
+    last_portal_login = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["full_name", "role"]
+    REQUIRED_FIELDS = ["full_name"]
 
     class Meta:
         ordering = ["full_name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="unique_user_email_ci",
+                violation_error_message="An account with this email already exists.",
+            )
+        ]
 
     def __str__(self):
         return f"{self.full_name} <{self.email}> ({self.role})"
+
+    @property
+    def is_technical_admin(self):
+        return self.role == self.TECHNICAL_ADMIN
 
     def _related_or_none(self, attr):
         """Return the linked profile row for ``attr`` (e.g. 'student'), or None
@@ -131,7 +162,19 @@ class User(AbstractBaseUser, PermissionsMixin):
         }
 
 
-# ── Top-level subtypes (User → Student / OfficeStaff / Lecturer) ─────────────
+def reject_technical_profile(profile):
+    """A Technical Administrator account never holds a portal profile."""
+    try:
+        user = profile.user
+    except ObjectDoesNotExist:
+        return
+    if user is not None and user.role == User.TECHNICAL_ADMIN:
+        raise ValidationError(
+            "A Technical Administrator account cannot have a portal profile."
+        )
+
+
+# Top-level subtypes (User → Student / OfficeStaff / Lecturer)
 
 
 class Student(models.Model):
@@ -162,12 +205,25 @@ class Student(models.Model):
     )
     status_reason = models.TextField(blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("matric_no"),
+                name="unique_student_matric_ci",
+                violation_error_message="This matric number is already registered.",
+            )
+        ]
+
     def __str__(self):
-        return f"{self.matric_no} — {self.user.full_name}"
+        return f"{self.matric_no} ({self.user.full_name})"
+
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
 
 
 class StudentRegistry(models.Model):
-    """Extended registry details for a Student — the data an official letter
+    """Extended registry details for a Student: the data an official letter
     (e.g. the visa / confirmation-of-study letter) needs that the base Student
     profile does not hold (passport, nationality, programme mode, semesters…).
 
@@ -189,7 +245,7 @@ class StudentRegistry(models.Model):
     student = models.OneToOneField(
         Student, on_delete=models.CASCADE, primary_key=True, related_name="registry"
     )
-    # Identity — a local student has an IC; an international student a passport.
+    # Identity: a local student has an IC; an international student a passport.
     ic_number = models.CharField(max_length=32, blank=True, default="")
     passport_number = models.CharField(max_length=32, blank=True, default="")
     nationality = models.CharField(max_length=64, blank=True, default="")  # {{COUNTRY}}
@@ -213,7 +269,7 @@ class StudentRegistry(models.Model):
         verbose_name_plural = "Student registry details"
 
     def __str__(self):
-        return f"Registry — {self.student.matric_no}"
+        return f"Registry: {self.student.matric_no}"
 
     def to_letter_dict(self):
         """The letter-placeholder values for this student (camelCase to match the
@@ -247,7 +303,11 @@ class OfficeStaff(models.Model):
         verbose_name_plural = "Office staff"
 
     def __str__(self):
-        return f"{self.staff_no} — {self.user.full_name}"
+        return f"{self.staff_no} ({self.user.full_name})"
+
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
 
 
 class Lecturer(models.Model):
@@ -283,10 +343,14 @@ class Lecturer(models.Model):
     lifecycle_reason = models.TextField(blank=True)
 
     def __str__(self):
-        return f"{self.staff_no} — {self.user.full_name}"
+        return f"{self.staff_no} ({self.user.full_name})"
+
+    def clean(self):
+        super().clean()
+        reject_technical_profile(self)
 
 
-# ── Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel) ───
+# Lecturer specializations (Lecturer → Coordinator / Supervisor / Panel)
 
 
 class ParticipantLifecycleAudit(models.Model):
@@ -353,7 +417,7 @@ class Coordinator(models.Model):
     appointed_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"Coordinator — {self.lecturer.user.full_name}"
+        return f"Coordinator: {self.lecturer.user.full_name}"
 
 
 class Supervisor(models.Model):
@@ -366,7 +430,7 @@ class Supervisor(models.Model):
     max_supervisees = models.PositiveIntegerField(default=5)
 
     def __str__(self):
-        return f"Supervisor — {self.lecturer.user.full_name}"
+        return f"Supervisor: {self.lecturer.user.full_name}"
 
 
 class Panel(models.Model):
@@ -382,46 +446,7 @@ class Panel(models.Model):
         verbose_name = "Panel member"
 
     def __str__(self):
-        return f"Panel — {self.lecturer.user.full_name}"
-
-
-class NotificationPreference(models.Model):
-    """Per-user delivery preferences shown in the Settings module.
-
-    Created on demand rather than by signal, so existing accounts keep working
-    without a data migration; :meth:`for_user` returns the stored row or the
-    defaults below.
-    """
-
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        primary_key=True,
-        related_name="notification_preference",
-    )
-    email_notifications = models.BooleanField(default=True)
-    announcement_alerts = models.BooleanField(default=True)
-    deadline_reminders = models.BooleanField(default=True)
-    weekly_summary = models.BooleanField(default=False)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    FIELD_MAP = {
-        "emailNotifications": "email_notifications",
-        "announcementAlerts": "announcement_alerts",
-        "deadlineReminders": "deadline_reminders",
-        "weeklySummary": "weekly_summary",
-    }
-
-    @classmethod
-    def for_user(cls, user):
-        preference, _ = cls.objects.get_or_create(user=user)
-        return preference
-
-    def to_public_dict(self):
-        return {key: getattr(self, field) for key, field in self.FIELD_MAP.items()}
-
-    def __str__(self):
-        return f"Notification preferences — {self.user.email}"
+        return f"Panel: {self.lecturer.user.full_name}"
 
 
 class RegistryImportBatch(models.Model):
@@ -442,12 +467,35 @@ class RegistryImportBatch(models.Model):
     failed_count = models.PositiveIntegerField(default=0)
     invitations_failed = models.PositiveIntegerField(default=0)
     problems = models.JSONField(default=list, blank=True)
+    # Each student this import created, as {"id": Student ID, "line": file
+    # line}, so activation emails held back at import time go to exactly
+    # these students later and a failed send can point at its line.
+    # "emailFilled" marks an email filled from the Student ID.
+    created_students = models.JSONField(default=list, blank=True)
+    invitations_held = models.BooleanField(default=False)
+    invitations_sent_at = models.DateTimeField(null=True, blank=True)
+    # The settings for every row and the email choice used for this import.
+    settings_used = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
 
+    @staticmethod
+    def problem_status(problem):
+        """A recorded row's status. Batches from before the status was stored
+        are read from the wording of the reason."""
+        if problem.get("status"):
+            return problem["status"]
+        issue = problem.get("issue", "")
+        if issue in ("this matric number is already registered", "this email already has an account"):
+            return "Already Registered"
+        if issue.startswith(("same student_id as line", "same email as line")):
+            return "Duplicate In File"
+        return ""
+
     def to_public_dict(self):
+        statuses = [self.problem_status(problem) for problem in self.problems or []]
         return {
             "id": self.pk,
             "fileName": self.file_name,
@@ -456,13 +504,65 @@ class RegistryImportBatch(models.Model):
             "created": self.created_count,
             "skipped": self.skipped_count,
             "failed": self.failed_count,
+            "alreadyRegistered": statuses.count("Already Registered"),
+            "duplicateInFile": statuses.count("Duplicate In File"),
+            "programmeSkipped": statuses.count("Programme Skipped"),
+            "emailsFilled": sum(1 for entry in self.created_students or [] if entry.get("emailFilled")),
             "invitationsFailed": self.invitations_failed,
+            "invitationsHeld": self.invitations_held,
+            "invitationsSentAt": self.invitations_sent_at.isoformat() if self.invitations_sent_at else None,
+            "settingsUsed": self.settings_used,
             "problems": self.problems,
             "createdAt": self.created_at.isoformat(),
         }
 
     def __str__(self):
-        return f"{self.file_name} — {self.created_count} created"
+        return f"{self.file_name} ({self.created_count} created)"
+
+
+class RegistryProgrammeAlias(models.Model):
+    """How the office reads a programme name from its own spreadsheets (UC04):
+    an approved programme, or blank to skip those rows. Saved on a real import,
+    suggested on the next one, and shared by the whole office."""
+
+    # The name without letter case, punctuation or spaces.
+    value_key = models.CharField(max_length=255, unique=True)
+    programme = models.CharField(max_length=255, blank=True)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_programme_aliases",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.value_key}: {self.programme or 'skip'}"
+
+
+class RegistryImportProfile(models.Model):
+    """The column matches the office confirmed for one spreadsheet layout
+    (UC04). Saved on a real import, applied to the next file with the same
+    column names, and shared by the whole office."""
+
+    # A SHA-256 of the file's normalised column names, in order. The names
+    # themselves are not kept: a mistaken header row could hold student data.
+    signature = models.CharField(max_length=64, unique=True)
+    mapping = models.JSONField(default=dict)
+    sheet_name = models.CharField(max_length=255, blank=True)
+    header_row = models.PositiveIntegerField(default=1)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_import_profiles",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Import layout {self.signature[:12]}"
 
 
 class CoordinatorDelegationQuerySet(models.QuerySet):

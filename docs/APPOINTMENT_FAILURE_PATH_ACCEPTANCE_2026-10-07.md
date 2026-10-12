@@ -31,7 +31,7 @@ Applications/recommendations 1 are seeded incumbent history. Browser actions cre
 
 Reasons are synthetic test text. Stored rejection reasons exactly match the relevant actor's input. Rejected requests retain their immutable documents/history; later attempts are distinct records.
 
-The Office date inputs retained their initial September value when filled by the browser tool. Native arrow keys demonstrably change the date, but reliable complete date entry was not achieved during this slice. The mistakenly created 7 September window was cancelled with a fixture-correction reason through the authorized Office API; a new 7–20 October window was created through that API. Office browser re-entry confirms the cancelled history, effective window and immutable audits. This establishes the late-availability approval guard, not complete browser date-entry acceptance.
+The Office date inputs retained their initial September value when filled by the browser tool. Native arrow keys demonstrably change the date, but reliable complete date entry was not achieved during this slice. The mistakenly created 7 September window was cancelled with a fixture-correction reason through the authorized Office API; a new 7-20 October window was created through that API. Office browser re-entry confirms the cancelled history, effective window and immutable audits. This establishes the late-availability approval guard, not complete browser date-entry acceptance.
 
 ## Private-file HTTP and privacy checks
 
@@ -58,7 +58,7 @@ Independent authenticated public reads confirm that the unavailable incoming Pan
 
 The final assertion script passes: one unchanged research profile; one active incumbent Supervisor and Panel; four original active tasks/entries with unchanged scores/comments/status/totals; four applications and four recommendations including seeded history; three valid private PDFs with exact size/checksum/bytes; fourteen workflow events. Failed final approvals add no workflow decision event or appointment and no appointment lifecycle, task lifecycle or Marks handover audit.
 
-Capacity audits total fourteen: one plan creation, one copy, six entry updates, two publications, one supersession, two availability creations and one fixture cancellation. The effective window remains 7–20 October. Only the new pending Panel attempt retains one reserved seat; rejected attempts release theirs.
+Capacity audits total fourteen: one plan creation, one copy, six entry updates, two publications, one supersession, two availability creations and one fixture cancellation. The effective window remains 7-20 October. Only the new pending Panel attempt retains one reserved seat; rejected attempts release theirs.
 
 ## Verification and evidence
 

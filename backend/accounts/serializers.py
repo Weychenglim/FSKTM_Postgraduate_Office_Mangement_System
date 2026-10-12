@@ -4,6 +4,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from .validators import validate_phone
+
 User = get_user_model()
 
 
@@ -38,7 +40,15 @@ class StrictBooleanField(serializers.BooleanField):
 
 
 class SettingsPreferencesSerializer(StrictSettingsSerializer):
-    announcementAlerts = StrictBooleanField()
+    announcementAlerts = StrictBooleanField(required=False)
+    emailNotifications = StrictBooleanField(required=False)
+    deadlineReminders = StrictBooleanField(required=False)
+    weeklySummary = StrictBooleanField(required=False)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Send at least one preference.")
+        return attrs
 
 
 class AccountSettingsSerializer(StrictSettingsSerializer):
@@ -63,10 +73,15 @@ class SettingsPasswordSerializer(StrictSettingsSerializer):
         return value
 
 
-class PasswordResetConfirmSerializer(serializers.Serializer):
+class PasswordLinkSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
-    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+
+class PasswordResetConfirmSerializer(PasswordLinkSerializer):
+    new_password = serializers.CharField(
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
+    )
 
     def validate_new_password(self, value):
         try:
@@ -80,7 +95,11 @@ class ContactDetailsSerializer(serializers.Serializer):
     """Self-service contact edits from the Settings module."""
 
     phone = serializers.CharField(
-        max_length=32, allow_blank=True, required=False, trim_whitespace=True
+        max_length=32,
+        allow_blank=True,
+        required=False,
+        trim_whitespace=True,
+        validators=[validate_phone],
     )
 
 
@@ -88,10 +107,10 @@ class ChangePasswordSerializer(serializers.Serializer):
     """Signed-in password change. Requires the current password."""
 
     current_password = serializers.CharField(
-        write_only=True, style={"input_type": "password"}
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
     )
     new_password = serializers.CharField(
-        write_only=True, style={"input_type": "password"}
+        write_only=True, trim_whitespace=False, style={"input_type": "password"}
     )
 
     def validate_current_password(self, value):
@@ -113,10 +132,3 @@ class ChangePasswordSerializer(serializers.Serializer):
                 {"new_password": "Choose a password different from your current one."}
             )
         return attrs
-
-
-class NotificationPreferenceSerializer(serializers.Serializer):
-    emailNotifications = serializers.BooleanField(required=False)
-    announcementAlerts = serializers.BooleanField(required=False)
-    deadlineReminders = serializers.BooleanField(required=False)
-    weeklySummary = serializers.BooleanField(required=False)

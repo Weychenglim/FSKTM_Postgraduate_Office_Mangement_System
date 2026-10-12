@@ -1,6 +1,6 @@
 # FAQ Chatbot Implementation Plan
 
-> **For agentic workers:** Implement task-by-task, in order. Steps use checkbox (`- [ ]`) syntax for tracking. Do not begin Phase 1 until Phase 0 is signed off by a human — every later phase inherits the correctness of that data.
+> **For agentic workers:** Implement task-by-task, in order. Steps use checkbox (`- [ ]`) syntax for tracking. Do not begin Phase 1 until Phase 0 is signed off by a human: every later phase inherits the correctness of that data.
 
 **Goal:** Replace the hardcoded keyword chain in the student FAQ chatbot with semantic retrieval over the official FSKTM FAQ, so a student's paraphrased question finds the right entry, and any question the FAQ does not cover is explicitly refused rather than answered from a model's general knowledge.
 
@@ -14,9 +14,9 @@
 
 ## Scope
 
-In scope: Phases 0–4 (free, local, offline-capable, measurable).
+In scope: Phases 0-4 (free, local, offline-capable, measurable).
 
-Out of scope for this plan: Phase 5 (LLM phrasing) is specified but optional and must not be a dependency of any earlier phase. Option D (self-hosted chat LLM) is rejected on hardware grounds — see design section 5.
+Out of scope for this plan: Phase 5 (LLM phrasing) is specified but optional and must not be a dependency of any earlier phase. Option D (self-hosted chat LLM) is rejected on hardware grounds: see design section 5.
 
 ---
 
@@ -63,7 +63,7 @@ Out of scope for this plan: Phase 5 (LLM phrasing) is specified but optional and
 
 ---
 
-## Phase 0 — Data preparation (human sign-off required)
+## Phase 0: Data preparation (human sign-off required)
 
 ### Task 0.1: Extract the PDF
 
@@ -96,7 +96,7 @@ Set `needs_review: true` with a reason when a row shows any of:
 
 Map `STUDENT APPLCATION` → `STUDENT APPLICATION`. Record the original spelling in a `source_category` field so the mapping is auditable.
 
-### Task 0.2: Human review — BLOCKING
+### Task 0.2: Human review (BLOCKING)
 
 **Files:** Modify `docs/faq/faq-entries.json`
 
@@ -118,7 +118,7 @@ Rows 10 and 11 of `STUDENT APPLICATION` carry answers belonging to row 4:
 
 ---
 
-## Phase 1 — Django `faq` app
+## Phase 1: Django `faq` app
 
 ### Task 1.1: Models and migration
 
@@ -126,7 +126,7 @@ Rows 10 and 11 of `STUDENT APPLICATION` carry answers belonging to row 4:
 
 - [ ] **Step 1: Define the models**
 
-Follow the constraint style already used in `appointments` and `marks` — enforce rules in the database, not only in views.
+Follow the constraint style already used in `appointments` and `marks`: enforce rules in the database, not only in views.
 
 ```python
 class FaqEntry(models.Model):
@@ -176,13 +176,13 @@ def test_load_faq_refuses_unreviewed_dataset(self):
     self.assertEqual(FaqEntry.objects.count(), 0)
 ```
 
-- [ ] **Step 2: Implement the loader** — validate the whole file first, then write inside one `transaction.atomic()`.
+- [ ] **Step 2: Implement the loader**: validate the whole file first, then write inside one `transaction.atomic()`.
 - [ ] **Step 3: Make it idempotent.** Re-running updates existing entries by `(category, source_number)` and never duplicates. Add a test that runs it twice and asserts a stable count.
 - [ ] **Step 4: Deactivate, never delete.** Entries absent from the dataset get `is_active=False`, so `UnansweredQuestion` foreign keys survive.
 
 ---
 
-## Phase 2 — Retrieval
+## Phase 2: Retrieval
 
 ### Task 2.1: Embedding wrapper
 
@@ -193,7 +193,7 @@ def test_load_faq_refuses_unreviewed_dataset(self):
 > `fastembed` downloads its model (~80 MB) on first use and caches it. **First run needs internet; every run after is offline.** Ignore the cache directory and document this in the backend README.
 
 - [ ] **Step 2: Expose one function**, `embed_texts(list[str]) -> list[list[float]]`, with the model name read from settings so it can be swapped without touching call sites.
-- [ ] **Step 3: Load the model lazily and once per process.** Do not load it at import time — that would slow `manage.py` and the test suite.
+- [ ] **Step 3: Load the model lazily and once per process.** Do not load it at import time: that would slow `manage.py` and the test suite.
 
 ### Task 2.2: Embedding index
 
@@ -207,7 +207,7 @@ def test_load_faq_refuses_unreviewed_dataset(self):
 
 **Files:** Create `backend/faq/retrieval.py`, modify `backend/faq/tests.py`
 
-- [ ] **Step 1: Write failing tests** for cosine ranking on a small fixture — a paraphrase must outrank a keyword-overlapping but semantically unrelated entry.
+- [ ] **Step 1: Write failing tests** for cosine ranking on a small fixture: a paraphrase must outrank a keyword-overlapping but semantically unrelated entry.
 - [ ] **Step 2: Implement `search(question, k)`** returning `(entry, score)` pairs, descending.
 - [ ] **Step 3: Implement three confidence bands** with thresholds from settings:
 
@@ -237,26 +237,26 @@ Response: { "answered": true,
 
 - [ ] **Step 3: Log every refusal** to `UnansweredQuestion` with the best score seen.
 - [ ] **Step 4: Rate-limit the endpoint** with a settings-backed DRF scope, reusing the `accounts/throttles.py` pattern.
-- [ ] **Step 5: Never echo the student's text back into the answer field** — it is untrusted input rendered in other users' admin views.
+- [ ] **Step 5: Never echo the student's text back into the answer field**: it is untrusted input rendered in other users' admin views.
 
 ### Task 2.5: Entry CRUD
 
 **Files:** Modify `backend/faq/views.py`, `urls.py`, `tests.py`
 
 - [ ] **Step 1: Write failing permission tests.** Students may `GET` active entries; only Office Staff/Admin may create, update, delete, or read `UnansweredQuestion`. Every other role gets `403`.
-- [ ] **Step 2: Implement the endpoints.** Role checks live in the backend — frontend route visibility is never treated as authorization.
+- [ ] **Step 2: Implement the endpoints.** Role checks live in the backend: frontend route visibility is never treated as authorization.
 - [ ] **Step 3: Invalidate the affected embedding on write** so an edited answer cannot be served against a stale vector.
 
 ---
 
-## Phase 3 — Frontend
+## Phase 3: Frontend
 
 ### Task 3.1: Types and service
 
 **Files:** Create `frontend/src/types/faq.ts`, `services/faqApi.ts`, `mocks/faq.ts`
 
 - [ ] **Step 1: Mirror the API contract** in TypeScript.
-- [ ] **Step 2: Follow the established service pattern** — `VITE_USE_FAQ_BACKEND` defaulting to `true`, mock fallback for reads, as in `timelineApi.ts`.
+- [ ] **Step 2: Follow the established service pattern**: `VITE_USE_FAQ_BACKEND` defaulting to `true`, mock fallback for reads, as in `timelineApi.ts`.
 - [ ] **Step 3: Declare the flag** in `vite-env.d.ts` and `.env.example`.
 
 ### Task 3.2: Confidence helper
@@ -270,11 +270,11 @@ Response: { "answered": true,
 
 **Files:** Modify `frontend/src/components/StudentFAQChatbot.tsx`
 
-- [ ] **Step 1: Delete the `if/else` chain** at lines 112–131 and call `faqApi.askFaq()`.
-- [ ] **Step 2: Render all three states** — a cited answer, a top-3 chooser, and a refusal with the contact route.
+- [ ] **Step 1: Delete the `if/else` chain** at lines 112-131 and call `faqApi.askFaq()`.
+- [ ] **Step 2: Render all three states**: a cited answer, a top-3 chooser, and a refusal with the contact route.
 - [ ] **Step 3: Show the citation** (category + source number) beneath each answer. This is the panel-facing evidence that answers trace to real entries.
 - [ ] **Step 4: Handle loading, network failure, and `429`** using the shared `authErrorMessage` pattern.
-- [ ] **Step 5: Render URLs in answers as clickable links** — many answers are bare URLs. Escape all other content.
+- [ ] **Step 5: Render URLs in answers as clickable links**: many answers are bare URLs. Escape all other content.
 
 ### Task 3.4: Wire the editor
 
@@ -285,18 +285,18 @@ Response: { "answered": true,
 
 > This closes the self-improving loop and is the module's strongest link to the panel's "streamline existing workflows" feedback.
 
-- [ ] **Step 3: Use shared portal primitives** (`PortalButton`, `PageHeader`, `StatusBadge`, `PortalToast`) — no browser-native `confirm()` or `alert()`.
+- [ ] **Step 3: Use shared portal primitives** (`PortalButton`, `PageHeader`, `StatusBadge`, `PortalToast`): no browser-native `confirm()` or `alert()`.
 
 ---
 
-## Phase 4 — Evaluation
+## Phase 4: Evaluation
 
 ### Task 4.1: Build the evaluation set
 
 **Files:** Create `docs/faq/evaluation-set.json`
 
 - [ ] **Step 1: Write ~100 paraphrased questions**, each labelled with the FAQ entry that should win. Cover all 7 categories.
-- [ ] **Step 2: Include ~20 off-topic questions** that must be refused — these measure the refusal path, which is the "restricted to FAQ" claim.
+- [ ] **Step 2: Include ~20 off-topic questions** that must be refused: these measure the refusal path, which is the "restricted to FAQ" claim.
 - [ ] **Step 3: Write them as a student would**, including informal phrasing and typos. Paraphrases lifted from the FAQ's own wording inflate the score and prove nothing.
 
 ### Task 4.2: Measure and calibrate
@@ -306,18 +306,18 @@ Response: { "answered": true,
 - [ ] **Step 1: Report top-1 accuracy, top-3 accuracy, and false-answer rate** on off-topic questions.
 - [ ] **Step 2: Sweep the thresholds** and pick values balancing "answers correctly" against "refuses when it should".
 - [ ] **Step 3: Record the chosen values and their measured numbers** in `PROJECT_STATUS.md`. These are the report's results.
-- [ ] **Step 4: Add a regression floor** — a test that fails if top-3 accuracy drops below the recorded baseline.
+- [ ] **Step 4: Add a regression floor**: a test that fails if top-3 accuracy drops below the recorded baseline.
 
 ---
 
-## Phase 5 — Optional LLM phrasing (not required)
+## Phase 5: Optional LLM phrasing (not required)
 
-Only after Phases 0–4 pass.
+Only after Phases 0-4 pass.
 
 - [ ] **Step 1: Define a `FaqResponder` interface** with `EmbeddingResponder` (default) and one API-backed implementation behind it.
-- [ ] **Step 2: Send only the top 3 entries**, never the whole FAQ — see design section 6.1 for why this is what makes a free tier usable.
+- [ ] **Step 2: Send only the top 3 entries**, never the whole FAQ: see design section 6.1 for why this is what makes a free tier usable.
 - [ ] **Step 3: Fall back to the verbatim answer** on any API error, timeout, or rate limit. The chatbot must never be worse than Phase 4.
-- [ ] **Step 4: Keep the key in `backend/.env`.** Never a `VITE_` variable — those compile into the public bundle.
+- [ ] **Step 4: Keep the key in `backend/.env`.** Never a `VITE_` variable: those compile into the public bundle.
 - [ ] **Step 5: Note in the report** that free tiers may train on submitted data.
 
 ---
@@ -346,9 +346,9 @@ Then browser-smoke the chatbot as Student and the editor as Office Staff/Admin.
 
 Required by repo convention once implementation lands:
 
-- [ ] `PROJECT_REQUIREMENTS.md` — FAQ chatbot behaviour, refusal guarantee, role permissions.
-- [ ] `ARCHITECTURE_AND_CODING_DESIGN.md` — the `faq` app, retrieval design, `VITE_USE_FAQ_BACKEND`.
-- [ ] `PROJECT_STATUS.md` — completed items, measured accuracy, and remaining known issues.
+- [ ] `PROJECT_REQUIREMENTS.md`: FAQ chatbot behaviour, refusal guarantee, role permissions.
+- [ ] `ARCHITECTURE_AND_CODING_DESIGN.md`: the `faq` app, retrieval design, `VITE_USE_FAQ_BACKEND`.
+- [ ] `PROJECT_STATUS.md`: completed items, measured accuracy, and remaining known issues.
 
 ---
 
@@ -361,4 +361,4 @@ Required by repo convention once implementation lands:
 | Threshold too high → refuses everything | Same sweep, both directions |
 | First-run model download needs internet | Document it; pre-download before any demo |
 | 7.4 GB RAM shared with Postgres/Django/Vite | `fastembed` (~50 MB) chosen over `sentence-transformers` (~2.5 GB) |
-| Scope creep into Phase 5 | Phases 0–4 must stand alone and ship first |
+| Scope creep into Phase 5 | Phases 0-4 must stand alone and ship first |

@@ -26,8 +26,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
+import { IssuedLettersRegister } from './IssuedLetters';
 import { LetterPlaceholder, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
   LETTER_PLACEHOLDERS,
@@ -36,13 +37,14 @@ import {
   renderLetterBodyHtml,
 } from '../utils/letterDocument';
 import {
-  ApiError,
+  fieldErrors,
   getLetterPlaceholders,
   getLetterTemplates,
   createLetterTemplate,
   updateLetterTemplate,
   deleteLetterTemplate,
 } from '../services';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
@@ -50,9 +52,41 @@ const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]
     malformed.length ? `Malformed placeholder(s): ${malformed.join(', ')}. Write them as {{NAME}}.` : '',
   ].filter(Boolean).join(' ');
 
+const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General Notifications', 'Financial Clearance'];
+const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
+
+// Editor fields a 400 response can point at; anything else goes to the toast.
+const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content'] as const;
+type EditorField = (typeof EDITOR_FIELDS)[number];
+
+type LeaveTarget = { kind: 'select'; template: LetterTemplate } | { kind: 'create' };
+
+// Distinct placeholder tags used in a template body.
+const countPlaceholdersUsed = (text: string) => new Set(text.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+
 // LetterTemplate now lives in src/types.
 
-export const LetterTemplateManagement: React.FC = () => {
+export type OfficeLetterView = 'templates' | 'issued';
+
+const OFFICE_LETTER_VIEWS: readonly OfficeLetterView[] = ['templates', 'issued'];
+
+interface LetterTemplateManagementProps {
+  /** Office staff also get the register of issued letters. */
+  canViewIssuedLetters?: boolean;
+  /** Which tab is open; driven by the route when the app provides it. */
+  view?: OfficeLetterView;
+  onViewChange?: (view: OfficeLetterView) => void;
+}
+
+export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> = ({
+  canViewIssuedLetters = false,
+  view,
+  onViewChange,
+}) => {
+  const [localView, setLocalView] = useState<OfficeLetterView>('templates');
+  const showIssued = canViewIssuedLetters && (view ?? localView) === 'issued';
+  const changeView = (next: OfficeLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+
   // Toast notifications state
   const [toast, setToast] = useState<string | null>(null);
   const triggerToast = (msg: string) => {
@@ -73,11 +107,18 @@ export const LetterTemplateManagement: React.FC = () => {
   // Editable Form Inputs matching the current selection
   const [editorName, setEditorName] = useState('');
   const [editorType, setEditorType] = useState('');
+  const [editorDescription, setEditorDescription] = useState('');
+  const [editorPrefix, setEditorPrefix] = useState('');
   const [editorContent, setEditorContent] = useState('');
   const [editorStatus, setEditorStatus] = useState<LetterTemplateStatus>('Active');
-  const [contentError, setContentError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<Partial<Record<EditorField, string>>>({});
   const [showArchived, setShowArchived] = useState(false);
   const [placeholders, setPlaceholders] = useState<LetterPlaceholder[] | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<LeaveTarget | null>(null);
+
+  const clearProblem = (field: EditorField) =>
+    setProblems((current) => (current[field] ? { ...current, [field]: undefined } : current));
 
   // Editor textarea ref + the caret position to restore after inserting a tag,
   // so a placeholder lands at the cursor (not the end) and the caret follows it.
@@ -104,18 +145,34 @@ export const LetterTemplateManagement: React.FC = () => {
     getLetterPlaceholders().then(setPlaceholders).catch(() => setPlaceholders(null));
   }, []);
 
-  // Sync editor fields when selected template changes
+  const loadEditor = (template: LetterTemplate) => {
+    setEditorName(template.name);
+    setEditorType(template.type);
+    setEditorDescription(template.description);
+    setEditorPrefix(template.referencePrefix ?? '');
+    setEditorContent(template.content);
+    setEditorStatus(template.status);
+    setProblems({});
+  };
+
+  // Load the editor when a different template is selected. Keyed on the id, so
+  // saving (same template, fresh copy) never wipes what is being typed.
+  const selectedId = selectedTemplate?.id;
   useEffect(() => {
-    if (!selectedTemplate) return;
-    setEditorName(selectedTemplate.name);
-    setEditorType(selectedTemplate.type);
-    setEditorContent(selectedTemplate.content);
-    setEditorStatus(selectedTemplate.status);
-    setContentError(null);
-  }, [selectedTemplate]);
+    if (selectedTemplate) loadEditor(selectedTemplate);
+  }, [selectedId]);
+
+  const isDirty =
+    !!selectedTemplate &&
+    (editorName !== selectedTemplate.name ||
+      editorType !== selectedTemplate.type ||
+      editorDescription !== selectedTemplate.description ||
+      editorPrefix !== (selectedTemplate.referencePrefix ?? '') ||
+      editorContent !== selectedTemplate.content ||
+      editorStatus !== selectedTemplate.status);
 
   // After an inserted tag changes the content, refocus the textarea and move the
-  // caret to just after the tag (no-op for normal typing — ref stays null then).
+  // caret to just after the tag (no-op for normal typing; the ref stays null then).
   useEffect(() => {
     if (pendingCursorRef.current === null) return;
     const cursor = pendingCursorRef.current;
@@ -137,7 +194,7 @@ export const LetterTemplateManagement: React.FC = () => {
     source: p.source,
   }));
 
-  // Quick Insertion Helper — insert the tag at the caret (or over the current
+  // Quick Insertion Helper: insert the tag at the caret (or over the current
   // selection), not at the end. Falls back to appending if the textarea ref is
   // somehow unavailable.
   const handleInsertTag = (tag: string) => {
@@ -158,71 +215,123 @@ export const LetterTemplateManagement: React.FC = () => {
     triggerToast(`Inserted placeholder tag: ${tag}`);
   };
 
-  // Actions — persisted through the letters API.
+  // Actions, persisted through the letters API.
   const handleSaveTemplate = async () => {
     if (!selectedTemplate || saving) return;
     if (!editorName.trim()) {
+      setProblems((current) => ({ ...current, name: 'Please enter a template name.' }));
       triggerToast('Error: Please enter a template name.');
       return;
     }
 
+    const submitted = {
+      name: editorName,
+      type: editorType,
+      description: editorDescription,
+      referencePrefix: editorPrefix,
+      content: editorContent,
+      status: editorStatus,
+    };
     setSaving(true);
     try {
       const updated = await updateLetterTemplate(selectedTemplate.id, {
-        name: editorName.trim(),
-        type: editorType,
-        content: editorContent,
-        status: editorStatus,
+        ...submitted,
+        name: submitted.name.trim(),
+        referencePrefix: submitted.referencePrefix.trim(),
       });
       setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setSelectedTemplate(updated);
+      // Take the saved value of each field, unless it was edited while saving.
+      setEditorName((current) => (current === submitted.name ? updated.name : current));
+      setEditorType((current) => (current === submitted.type ? updated.type : current));
+      setEditorDescription((current) => (current === submitted.description ? updated.description : current));
+      setEditorPrefix((current) => (current === submitted.referencePrefix ? updated.referencePrefix ?? '' : current));
+      setEditorContent((current) => (current === submitted.content ? updated.content : current));
+      setEditorStatus((current) => (current === submitted.status ? updated.status : current));
+      setProblems({});
       triggerToast(`Template "${updated.name}" saved.`);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Save failed.';
-      if (e instanceof ApiError && e.status === 400) setContentError(message);
-      triggerToast(`Save failed: ${message}`);
+      const errors = fieldErrors(e);
+      setProblems(Object.fromEntries(EDITOR_FIELDS.filter((field) => errors[field]).map((field) => [field, errors[field]])));
+      triggerToast(`Save failed: ${e instanceof Error ? e.message : 'please try again.'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteTemplate = async () => {
-    if (!selectedTemplate || saving) return;
+  const createTemplate = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      const deletedId = selectedTemplate.id;
-      await deleteLetterTemplate(deletedId);
-      const remaining = templates.filter((t) => t.id !== deletedId);
-      setTemplates(remaining);
-      setSelectedTemplate(remaining[0] ?? null);
-      triggerToast('Template deleted.');
+      const created = await createLetterTemplate({
+        name: 'New Custom Letter Template',
+        type: 'Academic Certification',
+        status: 'Draft',
+        description: 'Custom letters drafted for secretariat administration.',
+        content: 'To Whom It May Concern,\n\nWrite your template body here using {{STUDENT_NAME}}.',
+      });
+      setTemplates((prev) => [created, ...prev]);
+      setSelectedTemplate(created);
+      triggerToast('Created a new draft template.');
+    } catch (e) {
+      triggerToast(e instanceof Error ? `Create failed: ${e.message}` : 'Create failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Switching away from unsaved edits asks first.
+  const requestSelect = (template: LetterTemplate) => {
+    if (saving || template.id === selectedTemplate?.id) return;
+    if (isDirty) setPendingLeave({ kind: 'select', template });
+    else setSelectedTemplate(template);
+  };
+
+  const requestCreate = () => {
+    if (saving) return;
+    if (isDirty) setPendingLeave({ kind: 'create' });
+    else void createTemplate();
+  };
+
+  const confirmLeave = () => {
+    const target = pendingLeave;
+    setPendingLeave(null);
+    if (target?.kind === 'select') setSelectedTemplate(target.template);
+    else if (target?.kind === 'create') void createTemplate();
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!selectedTemplate || saving) return;
+    const deleted = selectedTemplate;
+    setSaving(true);
+    try {
+      await deleteLetterTemplate(deleted.id);
+      setTemplates((prev) => prev.filter((t) => t.id !== deleted.id));
+      setSelectedTemplate(null);
+      triggerToast(`Deleted "${deleted.name}".`);
     } catch (e) {
       triggerToast(e instanceof Error ? `Delete failed: ${e.message}` : 'Delete failed.');
     } finally {
+      setConfirmingDelete(false);
       setSaving(false);
     }
   };
 
   const handleDiscardChanges = () => {
     if (!selectedTemplate) return;
-    setEditorName(selectedTemplate.name);
-    setEditorType(selectedTemplate.type);
-    setEditorContent(selectedTemplate.content);
-    setEditorStatus(selectedTemplate.status);
-    setContentError(null);
+    loadEditor(selectedTemplate);
     triggerToast('Reverted unsaved changes back to the saved template.');
   };
 
   const handleCheckPlaceholders = () => {
-    const problems = findPlaceholderProblems(editorContent);
-    const message = describePlaceholderProblems(problems);
+    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent));
     if (message) {
-      setContentError(message);
+      setProblems((current) => ({ ...current, content: message }));
       triggerToast(message);
       return;
     }
-    setContentError(null);
-    const used = new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+    clearProblem('content');
+    const used = countPlaceholdersUsed(editorContent);
     triggerToast(`All ${used} placeholder${used === 1 ? '' : 's'} in this template are supported.`);
   };
 
@@ -266,47 +375,59 @@ export const LetterTemplateManagement: React.FC = () => {
     triggerToast(allBulleted ? 'Removed bullet list.' : 'Formatted as a bullet list.');
   };
 
-  // Auto count matches
-  const countPlaceholdersUsed = (text: string) => {
-    const regex = /\{\{[A-Z_]+\}\}/g;
-    const matches = text.match(regex);
-    return matches ? matches.length : 0;
-  };
-
   // Filter computation
+  const query = searchQuery.trim().toLowerCase();
   const archivedCount = templates.filter(t => t.status === 'Archived').length;
   const filteredTemplates = templates.filter(t =>
     (showArchived || t.status !== 'Archived') && (
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.description.toLowerCase().includes(searchQuery.toLowerCase())
+      t.name.toLowerCase().includes(query) ||
+      t.type.toLowerCase().includes(query) ||
+      t.description.toLowerCase().includes(query)
     )
   );
 
+  const typeOptions = editorType && !LETTER_TYPES.includes(editorType) ? [...LETTER_TYPES, editorType] : LETTER_TYPES;
+  const referencePreview = `${(editorPrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
+
   return (
-    <div id="letter-template-management" className="font-sans text-brand-navy text-xs pb-12 animate-fade-in">
+    <div id="letter-template-management" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
 
       <PortalToast message={toast} />
 
       <PageHeader
         title="Letter Generation"
-        subtitle="Create and manage official letter templates for the postgraduate office."
-        className="mb-6"
+        subtitle={
+          showIssued
+            ? 'Every letter issued to students, with its reference number. Reprint, resend the notification or revoke a letter issued in error.'
+            : 'Create and manage official letter templates for the postgraduate office.'
+        }
       />
 
-      {/* Main Grid containing left and right pane cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {canViewIssuedLetters && (
+        <SegmentedControl
+          options={OFFICE_LETTER_VIEWS}
+          value={showIssued ? 'issued' : 'templates'}
+          onChange={changeView}
+          labels={{ templates: 'Templates', issued: 'Issued Letters' }}
+          className="w-fit"
+        />
+      )}
+
+      {showIssued && <IssuedLettersRegister onMessage={triggerToast} />}
+
+      {/* Main Grid containing left and right pane cards. Kept mounted while the
+          register is open so unsaved template edits survive a tab switch. */}
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ${showIssued ? 'hidden' : ''}`}>
         
         {/* LEFT COLUMN: TEMPLATES LIBRARY (lg:col-span-4) */}
         <div id="templates-library-column" className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-2xs">
-            
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 text-left shadow-3xs">
+
             {/* Library Panel Header */}
             <div className="flex items-center justify-between">
-              <h2 className="section-label uppercase tracking-wider">
-                Templates Library
-              </h2>
-              <span className="card-value">
-                {templates.length} Forms
+              <h2 className="section-label">Templates Library</h2>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {templates.length} template{templates.length === 1 ? '' : 's'}
               </span>
             </div>
 
@@ -317,7 +438,7 @@ export const LetterTemplateManagement: React.FC = () => {
               </span>
               <input
                 type="text"
-                placeholder="Filter by type..."
+                placeholder="Search by name or type..."
                 value={searchQuery}
                 aria-label="Filter templates"
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -329,14 +450,14 @@ export const LetterTemplateManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowArchived(!showArchived)}
-                className="text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
               >
                 {showArchived ? 'Hide archived templates' : `Show archived templates (${archivedCount})`}
               </button>
             )}
 
             {/* Template Card Buttons list */}
-            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+            <div className={`space-y-3 max-h-[580px] overflow-y-auto pr-1 ${THIN_SCROLLBAR}`}>
               {loading ? (
                 <LoadingState message="Loading templates…" />
               ) : error ? (
@@ -353,7 +474,8 @@ export const LetterTemplateManagement: React.FC = () => {
                     <button
                       key={tpl.id}
                       type="button"
-                      onClick={() => setSelectedTemplate(tpl)}
+                      onClick={() => requestSelect(tpl)}
+                      aria-current={isSelected ? 'true' : undefined}
                       className={`w-full text-left p-4 rounded-xl border transition-all duration-150 cursor-pointer block ${
                         isSelected 
                           ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-905 shadow-3xs' 
@@ -401,26 +523,7 @@ export const LetterTemplateManagement: React.FC = () => {
             <PortalButton
               type="button"
               disabled={saving}
-              onClick={async () => {
-                if (saving) return;
-                setSaving(true);
-                try {
-                  const created = await createLetterTemplate({
-                    name: 'New Custom Letter Template',
-                    type: 'Academic Certification',
-                    status: 'Draft',
-                    description: 'Custom letters drafted for secretariat administration.',
-                    content: 'To Whom It May Concern,\n\nWrite your template body here using {{STUDENT_NAME}}.',
-                  });
-                  setTemplates((prev) => [created, ...prev]);
-                  setSelectedTemplate(created);
-                  triggerToast('Created a new draft template.');
-                } catch (e) {
-                  triggerToast(e instanceof Error ? `Create failed: ${e.message}` : 'Create failed.');
-                } finally {
-                  setSaving(false);
-                }
-              }}
+              onClick={requestCreate}
               variant="secondary"
               size="md"
               icon={Plus}
@@ -434,363 +537,431 @@ export const LetterTemplateManagement: React.FC = () => {
 
         {/* RIGHT COLUMN: TEMPLATE EDITOR (lg:col-span-8) */}
         <div id="template-editor-column" className="lg:col-span-8 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs text-left">
-            
-            {/* Theme Editor header bar containing main buttons */}
-            <div className="bg-brand-navy px-5 py-4 flex items-center justify-between text-white select-none">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-indigo-300" />
-                <span className="card-label text-white">
-                  Template Editor
-                </span>
-              </div>
-
-              {/* Top editor quick saves */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCheckPlaceholders}
-                  className="px-3.5 py-1.5 bg-[#1e293b] hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer"
-                >
-                  Check Tags
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveTemplate}
-                  className="px-4 py-1.5 bg-white text-brand-navy hover:bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wide transition cursor-pointer flex items-center gap-1"
-                >
-                  <Check className="w-3 h-3 stroke-[3]" />
-                  <span>Save Template</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Core editor forms wrapper container */}
-            <div className="p-6 md:p-8 space-y-6">
-              
-              {/* Row 1: Template Name & Letter Type drop downs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
-                {/* Template Name input */}
-                <div className="space-y-1.5">
-                  <label className="form-label">
-                    Template Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editorName}
-                    onChange={(e) => setEditorName(e.target.value)}
-                    className="form-control form-control-sm"
-                    placeholder="Enter descriptive template title..."
-                  />
-                </div>
-
-                {/* Letter Type custom selection dropdown */}
-                <div className="space-y-1.5">
-                  <label className="form-label">
-                    Letter Type
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={editorType}
-                      onChange={(e) => setEditorType(e.target.value)}
-                      className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
-                    >
-                      <option value="Academic Certification">Academic Certification</option>
-                      <option value="Visa & Immigration">Visa & Letters support</option>
-                      <option value="General Notifications">General Notifications</option>
-                      <option value="Financial Clearance">Financial Clearance</option>
-                    </select>
-                    <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
-                      <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Row 2: Placeholder Tag insertions block */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between select-none">
-                  <label className="form-label">
-                    Placeholder Tags
-                  </label>
-                  <span className="card-label">
-                    Click to insert at cursor position
-                  </span>
-                </div>
-
-                {/* Horizontal tags block list */}
-                <div className="flex flex-wrap gap-2">
-                  {placeholderTags.map((p) => (
-                    <button
-                      key={p.tag}
-                      type="button"
-                      onClick={() => handleInsertTag(p.tag)}
-                      title={p.source || undefined}
-                      className="px-3 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] border border-blue-200 text-blue-700 hover:text-blue-800 text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Simulated RTF Editor Window Area starting with rich toolbar */}
-              <div className="border border-slate-205 rounded-xl overflow-hidden bg-white shadow-3xs">
-                
-                {/* Formatting Tools Panel bar header */}
-                <div className="bg-slate-50 border-b border-slate-205 px-4 py-2 flex items-center justify-between select-none">
-                  <div className="flex items-center gap-1">
-                    
-                    <button
-                      type="button"
-                      onClick={() => wrapSelection('**', 'bold')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Bold (**text**)"
-                    >
-                      <Bold className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => wrapSelection('*', 'italic')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Italic (*text*)"
-                    >
-                      <Italic className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => wrapSelection('__', 'underline')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                      title="Underline (__text__)"
-                    >
-                      <Underline className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Splitter bar line separator */}
-                    <div className="w-px h-4 bg-slate-250 mx-1.5" />
-
-                    <button
-                      type="button"
-                      onClick={toggleBulletList}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Bullet list (- item)"
-                    >
-                      <List className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => triggerToast('The official faculty letterhead is applied automatically to every letter.')}
-                      className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                      title="Faculty letterhead (applied automatically)"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5" />
-                    </button>
-
-                  </div>
-
-                  <div className="card-value">
-                    **bold** · *italic* · __underline__ · - list
-                  </div>
-                </div>
-
-                {/* Edit Area Input Textarea */}
-                <textarea
-                  ref={editorTextareaRef}
-                  rows={8}
-                  value={editorContent}
-                  onChange={(e) => {
-                    setEditorContent(e.target.value);
-                    setContentError(null);
-                  }}
-                  aria-invalid={contentError ? true : undefined}
-                  className="w-full p-4 text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  placeholder="Draft your main letter content using placeholder keys..."
-                />
-
-              </div>
-
-              {contentError && (
-                <p role="alert" className="-mt-4 text-[11px] font-bold text-rose-600">
-                  {contentError}
+          {!selectedTemplate ? (
+            !loading && (
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center shadow-3xs">
+                <FileText className="w-6 h-6 text-slate-300 mx-auto" />
+                <p className="mt-3 text-sm font-black text-slate-700">No template selected</p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                  Choose a template from the library, or create a new one.
                 </p>
-              )}
+              </div>
+            )
+          ) : (
+            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs text-left">
 
-              {/* Dynamic Simulated A4 Document sheet Paper Block exactly as in layout mockup */}
-              <div className="border border-slate-200 rounded-xl bg-slate-100/70 p-4">
-                
-                {/* A4 Paper mockup layout */}
-                <div className="bg-white border border-slate-250/60 rounded p-6 shadow-sm relative min-h-[380px] text-left text-[11px] text-slate-700 leading-relaxed font-sans max-w-2xl mx-auto">
-                  
-                  {/* Faculty official letterhead — the fixed institutional header,
-                      shared with the student preview and the printed letter. */}
-                  <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 select-none">
-                      <img
-                        src={LETTERHEAD.logoPath}
-                        alt="Universiti Malaya"
-                        className="h-12 w-auto object-contain"
-                      />
-                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
-                        {LETTERHEAD.faculty}
-                      </span>
-                    </div>
-                    <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
-                      {LETTERHEAD.addressLines.map((line) => (
-                        <span key={line} className="block">{line}</span>
-                      ))}
-                    </div>
+              {/* Core editor forms wrapper container */}
+              <div className="p-6 md:p-8 space-y-6">
+
+                <div className="flex items-center gap-3 select-none">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-brand-navy" />
                   </div>
-
-                  {/* Reference line details block */}
-                  <div className="text-right space-y-0.5 font-semibold text-slate-600 mb-4">
-                    <div>
-                      Reference:{' '}
-                      <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
-                        {"{{REFERENCE_NUMBER}}"}
-                      </span>
-                    </div>
-                    <div>
-                      Date:{' '}
-                      <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black select-all">
-                        {"{{CURRENT_DATE}}"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Salutation statement line */}
-                  <div className="font-extrabold text-slate-900 mb-4 select-none">
-                    To Whom It May Concern,
-                  </div>
-
-                  {/* Main Formed dynamic document body preview (markup rendered;
-                      placeholders highlighted so the author can see their tags) */}
-                  {editorContent.trim() ? (
-                    <div
-                      className="leading-relaxed"
-                      dangerouslySetInnerHTML={{
-                        __html: renderLetterBodyHtml(editorContent, { highlightPlaceholders: true }),
-                      }}
-                    />
-                  ) : (
-                    <p className="text-slate-400 italic">No message content drafted yet...</p>
-                  )}
-
-                  {/* Signature Dean footer stamp line block */}
-                  <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-1">
-                    <div className="w-24 border-b border-slate-400 h-6 select-none" />
-                    <p className="font-extrabold text-slate-950 block">Dean of Postgraduate Studies</p>
-                    <p className="text-slate-450 uppercase tracking-wide text-[9px] font-black leading-none select-none">
-                      FSKTM Office Executive Secretariat
+                  <div>
+                    <h2 className="section-label">Template Editor</h2>
+                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                      Edit the wording, placeholders and status of the selected template.
                     </p>
                   </div>
-
                 </div>
-
-              </div>
-
-              {/* Bottom statistics dashboard indicators card block inside editor */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+                {/* Row 1: Template Name & Letter Type drop downs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 
-                {/* Mini card: Placeholders used count */}
-                <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left select-none">
-                  <div>
-                    <span className="card-label">
-                      Placeholders Used
-                    </span>
-                    <h4 className="section-heading mt-1">
-                      0{countPlaceholdersUsed(editorContent)}
-                    </h4>
+                  {/* Template Name input */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-name" className="form-label block">
+                      Template Name
+                    </label>
+                    <input
+                      id="letter-template-name"
+                      type="text"
+                      value={editorName}
+                      maxLength={255}
+                      onChange={(e) => {
+                        setEditorName(e.target.value);
+                        clearProblem('name');
+                      }}
+                      aria-invalid={problems.name ? true : undefined}
+                      aria-describedby={problems.name ? 'letter-template-name-error' : undefined}
+                      className="form-control form-control-md"
+                      placeholder="Enter descriptive template title..."
+                    />
+                    {problems.name && (
+                      <p id="letter-template-name-error" role="alert" className="text-[11px] font-bold text-rose-600">
+                        {problems.name}
+                      </p>
+                    )}
                   </div>
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
-                    <Sparkles className="w-4 h-4 animate-spin-slow" />
-                  </div>
-                </div>
 
-                {/* Mini card: Template status control */}
-                <div className="bg-[#f8fafc]/80 border border-slate-200 p-4 rounded-xl flex items-center justify-between text-left">
-                  <div>
-                    <span className="card-label">
-                      Template Status
-                    </span>
-                    
-                    {/* Select box block inside */}
-                    <div className="relative mt-1">
+                  {/* Letter Type custom selection dropdown */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-type" className="form-label block">
+                      Letter Type
+                    </label>
+                    <div className="relative">
                       <select
-                        aria-label="Template Status Option"
-                        value={editorStatus}
-                        onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
-                        className="bg-transparent border-none text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                        id="letter-template-type"
+                        value={editorType}
+                        onChange={(e) => setEditorType(e.target.value)}
+                        className="form-control form-control-md appearance-none pr-9 cursor-pointer"
                       >
-                        <option value="Active">● Active / Live</option>
-                        <option value="Draft">● Draft / Sandbox</option>
-                        <option value="Archived">● Archived / Retired</option>
+                        {typeOptions.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
                       </select>
+                      <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
+                        <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
-                    <CheckCircle className="w-4 h-4" />
+                </div>
+
+                {/* Row 1b: what students see in the template list, and the reference number prefix */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-description" className="form-label block">
+                      Short Description
+                    </label>
+                    <input
+                      id="letter-template-description"
+                      type="text"
+                      value={editorDescription}
+                      maxLength={500}
+                      onChange={(e) => {
+                        setEditorDescription(e.target.value);
+                        clearProblem('description');
+                      }}
+                      aria-invalid={problems.description ? true : undefined}
+                      aria-describedby={problems.description ? 'letter-template-description-error' : undefined}
+                      className="form-control form-control-md"
+                      placeholder="What this letter is for..."
+                    />
+                    {problems.description && (
+                      <p id="letter-template-description-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.description}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-prefix" className="form-label block">
+                      Reference Prefix
+                    </label>
+                    <input
+                      id="letter-template-prefix"
+                      type="text"
+                      value={editorPrefix}
+                      maxLength={64}
+                      onChange={(e) => {
+                        setEditorPrefix(e.target.value);
+                        clearProblem('referencePrefix');
+                      }}
+                      aria-invalid={problems.referencePrefix ? true : undefined}
+                      aria-describedby={problems.referencePrefix ? 'letter-template-prefix-error' : 'letter-template-prefix-hint'}
+                      className="form-control form-control-md"
+                      placeholder={DEFAULT_REFERENCE_PREFIX}
+                    />
+                    {problems.referencePrefix ? (
+                      <p id="letter-template-prefix-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.referencePrefix}</p>
+                    ) : (
+                      <p id="letter-template-prefix-hint" className="text-[10px] font-semibold text-slate-400">
+                        Letters are numbered {referencePreview}; the last digits are issued when a student generates one.
+                      </p>
+                    )}
                   </div>
                 </div>
 
-              </div>
+                {/* Row 2: Placeholder Tag insertions block */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between select-none">
+                    <label className="form-label block">
+                      Placeholder Tags
+                    </label>
+                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wide">
+                      Click to insert at cursor position
+                    </span>
+                  </div>
 
-              {/* Action buttons row block */}
-              <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
-                  <button
-                    type="button"
-                    onClick={handleDiscardChanges}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
-                  >
-                    Discard Changes
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDeleteTemplate}
-                    disabled={saving}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
-                  </button>
+                  {/* Horizontal tags block list */}
+                  <div className="flex flex-wrap gap-2">
+                    {placeholderTags.map((p) => (
+                      <button
+                        key={p.tag}
+                        type="button"
+                        onClick={() => handleInsertTag(p.tag)}
+                        title={p.source || undefined}
+                        className="px-3 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] border border-blue-200 text-blue-700 hover:text-blue-800 text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
-                  <button
-                    type="button"
-                    onClick={handleCheckPlaceholders}
-                    className="w-full md:w-auto px-5 py-2.5 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer text-center"
-                  >
-                    Check Placeholders
-                  </button>
+                {/* Simulated RTF Editor Window Area starting with rich toolbar */}
+                <div className="border border-slate-205 rounded-xl overflow-hidden bg-white shadow-3xs">
+                
+                  {/* Formatting Tools Panel bar header */}
+                  <div className="bg-slate-50 border-b border-slate-205 px-4 py-2 flex items-center justify-between select-none">
+                    <div className="flex items-center gap-1">
+                    
+                      <button
+                        type="button"
+                        onClick={() => wrapSelection('**', 'bold')}
+                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
+                        title="Bold (**text**)"
+                      >
+                        <Bold className="w-3.5 h-3.5" />
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={handleSaveTemplate}
-                    disabled={saving}
-                    className="w-full md:w-auto px-6 py-2.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold tracking-wide uppercase text-[10px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <span>{saving ? 'Saving…' : 'Save Template'}</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => wrapSelection('*', 'italic')}
+                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
+                        title="Italic (*text*)"
+                      >
+                        <Italic className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => wrapSelection('__', 'underline')}
+                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
+                        title="Underline (__text__)"
+                      >
+                        <Underline className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Splitter bar line separator */}
+                      <div className="w-px h-4 bg-slate-250 mx-1.5" />
+
+                      <button
+                        type="button"
+                        onClick={toggleBulletList}
+                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
+                        title="Bullet list (- item)"
+                      >
+                        <List className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerToast('The official faculty letterhead is applied automatically to every letter.')}
+                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
+                        title="Faculty letterhead (applied automatically)"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      </button>
+
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 font-bold">
+                      **bold** · *italic* · __underline__ · - list
+                    </div>
+                  </div>
+
+                  {/* Edit Area Input Textarea */}
+                  <textarea
+                    ref={editorTextareaRef}
+                    rows={8}
+                    value={editorContent}
+                    onChange={(e) => {
+                      setEditorContent(e.target.value);
+                      clearProblem('content');
+                    }}
+                    aria-label="Letter content"
+                    aria-invalid={problems.content ? true : undefined}
+                    aria-describedby={problems.content ? 'letter-template-content-error' : undefined}
+                    className="w-full p-4 text-xs font-semibold text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition"
+                    placeholder="Draft your main letter content using placeholder keys..."
+                  />
+
+                </div>
+
+                {problems.content && (
+                  <p id="letter-template-content-error" role="alert" className="-mt-4 text-[11px] font-bold text-rose-600">
+                    {problems.content}
+                  </p>
+                )}
+
+                {/* Dynamic Simulated A4 Document sheet Paper Block exactly as in layout mockup */}
+                <div className="border border-slate-200 rounded-xl bg-slate-100/70 p-4">
+                
+                  {/* A4 Paper mockup layout */}
+                  <div className="bg-white border border-slate-250/60 rounded p-6 shadow-sm relative min-h-[380px] text-left text-[11px] text-slate-700 leading-relaxed font-sans max-w-2xl mx-auto">
+                  
+                    {/* Faculty official letterhead: the fixed institutional header,
+                        shared with the student preview and the printed letter. */}
+                    <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 select-none">
+                        <img
+                          src={LETTERHEAD.logoPath}
+                          alt="Universiti Malaya"
+                          className="h-12 w-auto object-contain"
+                        />
+                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
+                          {LETTERHEAD.faculty}
+                        </span>
+                      </div>
+                      <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
+                        {LETTERHEAD.addressLines.map((line) => (
+                          <span key={line} className="block">{line}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Reference and date, laid out as on the printed letter */}
+                    <div className="flex justify-between items-baseline gap-4 font-semibold text-slate-600 mb-5">
+                      <div>
+                        Our Ref:{' '}
+                        <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black">
+                          {referencePreview}
+                        </span>
+                      </div>
+                      <div>
+                        Date:{' '}
+                        <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black">
+                          {"{{CURRENT_DATE}}"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Main Formed dynamic document body preview (markup rendered;
+                        placeholders highlighted so the author can see their tags).
+                        The salutation is part of the body, exactly as it prints. */}
+                    {editorContent.trim() ? (
+                      <div
+                        className="leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                          __html: renderLetterBodyHtml(editorContent, { highlightPlaceholders: true }),
+                        }}
+                      />
+                    ) : (
+                      <p className="text-slate-400 italic">No message content drafted yet...</p>
+                    )}
+
+                    <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">
+                      {LETTERHEAD.disclaimer}
+                    </p>
+
+                    {/* Signature Dean footer stamp line block */}
+                    <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-1">
+                      <div className="w-24 border-b border-slate-400 h-6 select-none" />
+                      <p className="font-extrabold text-slate-950 block">{LETTERHEAD.signatoryName}</p>
+                      <p className="text-slate-450 uppercase tracking-wide text-[9px] font-black leading-none select-none">
+                        {LETTERHEAD.signatoryOffice}
+                      </p>
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Bottom statistics dashboard indicators card block inside editor */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                  {/* Mini card: Placeholders used count */}
+                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left select-none">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                        Placeholders Used
+                      </span>
+                      <p className="text-xl font-extrabold text-brand-navy mt-1 leading-none">
+                        {countPlaceholdersUsed(editorContent)}
+                      </p>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
+                      <Sparkles className="w-4 h-4 animate-spin-slow" />
+                    </div>
+                  </div>
+
+                  {/* Mini card: Template status control */}
+                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                        Template Status
+                      </span>
+                    
+                      {/* Select box block inside */}
+                      <div className="relative mt-1">
+                        <select
+                          aria-label="Template Status Option"
+                          value={editorStatus}
+                          onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
+                          className="bg-transparent border-none text-xs font-black text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
+                        >
+                          <option value="Active">● Active / Live</option>
+                          <option value="Draft">● Draft / Sandbox</option>
+                          <option value="Archived">● Archived / Retired</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
+                      <CheckCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Action buttons row block */}
+                <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
+
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <PortalButton variant="secondary" size="md" onClick={handleDiscardChanges} disabled={!isDirty || saving}>
+                      Discard Changes
+                    </PortalButton>
+                    <PortalButton variant="danger" size="md" icon={Trash2} onClick={() => setConfirmingDelete(true)} disabled={saving}>
+                      Delete
+                    </PortalButton>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <PortalButton variant="secondary" size="md" onClick={handleCheckPlaceholders}>
+                      Check Placeholders
+                    </PortalButton>
+                    <PortalButton variant="primary" size="md" icon={Check} onClick={handleSaveTemplate} disabled={saving}>
+                      {saving ? 'Saving…' : 'Save Template'}
+                    </PortalButton>
+                  </div>
+
                 </div>
 
               </div>
 
             </div>
-
-          </div>
+          )}
         </div>
 
       </div>
+
+      <PortalConfirmModal
+        isOpen={confirmingDelete && selectedTemplate !== null}
+        title="Delete this template?"
+        message={
+          selectedTemplate
+            ? `"${selectedTemplate.name}" will be deleted permanently.${
+                selectedTemplate.status === 'Active' ? ' Students will no longer be able to generate this letter.' : ''
+              } To keep the wording but hide it from students, set its status to Archived instead.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        isLoading={saving}
+        onConfirm={() => void handleDeleteTemplate()}
+        onCancel={() => setConfirmingDelete(false)}
+      />
+
+      <PortalConfirmModal
+        isOpen={pendingLeave !== null}
+        title="Discard unsaved changes?"
+        message={`Your changes to "${selectedTemplate?.name ?? 'this template'}" have not been saved.`}
+        confirmLabel="Discard Changes"
+        cancelLabel="Keep Editing"
+        tone="warning"
+        onConfirm={confirmLeave}
+        onCancel={() => setPendingLeave(null)}
+      />
 
     </div>
   );

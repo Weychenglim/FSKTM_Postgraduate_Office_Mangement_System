@@ -3,16 +3,18 @@
 Mounted under ``/api/letter-templates/`` by the project URLconf.
 
 - Any authenticated user can read templates (students fetch ``?status=Active``).
-- Only office staff / coordinators (or Django staff/superusers) can create,
-  update, or delete them.
+- Only office staff / coordinators can create, update, or delete them.
+- Students get 404 for a template that is not Active, so draft ids stay hidden.
+- Students whose own status is not Active get 403 (see ``eligibility.py``).
 """
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .eligibility import inactive_student_refusal
 from .models import LetterTemplate
 from .placeholders import placeholder_catalogue, placeholder_problems
 from .serializers import LetterTemplateSerializer
@@ -22,9 +24,9 @@ STAFF_ROLES = {"Office Staff/Admin", "Programme Coordinator"}
 
 
 def _is_staff(user):
-    # Keyed on the role, not ``is_staff`` — that flag only grants Django admin
-    # access and should not confer template-management rights on its own.
-    return bool(user.is_superuser or getattr(user, "role", None) in STAFF_ROLES)
+    # Keyed on the role, not ``is_staff`` or superuser status. Those flags only
+    # concern Django admin and should not confer template-management rights.
+    return getattr(user, "role", None) in STAFF_ROLES
 
 
 def _require_staff(request):
@@ -79,6 +81,9 @@ def placeholders_list(request):
 def templates_list(request):
     """GET: list templates (optional ?status=Active). POST: create one (staff)."""
     if request.method == "GET":
+        refusal = None if _is_staff(request.user) else inactive_student_refusal(request.user)
+        if refusal:
+            return Response(refusal, status=status.HTTP_403_FORBIDDEN)
         queryset = LetterTemplate.objects.all()
         if not _is_staff(request.user):
             # Unpublished wording is office-internal; students and lecturers
@@ -116,11 +121,16 @@ def templates_detail(request, pk):
     optional, so a PUT behaved identically to a PATCH rather than replacing the
     record, which is misleading for callers.
     """
+    if request.method == "GET" and not _is_staff(request.user):
+        refusal = inactive_student_refusal(request.user)
+        if refusal:
+            return Response(refusal, status=status.HTTP_403_FORBIDDEN)
+
     template = get_object_or_404(LetterTemplate, pk=pk)
 
     if request.method == "GET":
         if not _is_staff(request.user) and template.status != LetterTemplate.Status.ACTIVE:
-            raise PermissionDenied("You cannot view this letter template.")
+            raise NotFound("Letter template not found.")
         return Response(template.to_public_dict())
 
     _require_staff(request)

@@ -5,6 +5,7 @@ export const APP_ROUTES = {
   login: '/login',
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
+  activateAccount: '/activate-account',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
   dashboardSemesters: '/dashboard/semesters',
@@ -27,6 +28,8 @@ export const APP_ROUTES = {
   supervisorResearchProfile: '/supervisor-appointments/research-changes/profile',
   supervisorResearchNew: '/supervisor-appointments/research-changes/new',
   letters: '/letters',
+  lettersMine: '/letters/my-letters',
+  lettersIssued: '/letters/issued',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -41,6 +44,7 @@ export const APP_ROUTES = {
   panelAppointmentAssignments: '/panel-appointments/assignments',
   notifications: '/notifications',
   settings: '/settings',
+  myRecords: '/my-records',
 } as const;
 
 const SIDEBAR_TO_ROUTE: Record<SidebarItemId, string> = {
@@ -149,7 +153,13 @@ export const isKnownAppPath = (pathname: string): boolean => {
     || pathname === APP_ROUTES.login
     || pathname === APP_ROUTES.forgotPassword
     || pathname === APP_ROUTES.resetPassword
+    || pathname === APP_ROUTES.activateAccount
   ) {
+    return true;
+  }
+
+  // The student's own records page sits under the Dashboard sidebar entry.
+  if (pathname === APP_ROUTES.myRecords) {
     return true;
   }
 
@@ -220,6 +230,18 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
 
   if (target.targetModule === 'PANEL_APPOINTMENTS') {
     return APP_ROUTES.panelAppointments;
+  }
+
+  if (target.targetModule === 'LETTERS') {
+    return APP_ROUTES.lettersMine;
+  }
+
+  if (target.targetModule === 'DASHBOARD') {
+    return APP_ROUTES.dashboard;
+  }
+
+  if (target.targetModule === 'MARKS') {
+    return APP_ROUTES.marks;
   }
 
   return APP_ROUTES.notifications;

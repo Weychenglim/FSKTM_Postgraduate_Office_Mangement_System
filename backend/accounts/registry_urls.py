@@ -11,6 +11,16 @@ urlpatterns = [
         name="registry-student-import",
     ),
     path(
+        "students/import/inspect/",
+        registry_views.student_import_inspect_view,
+        name="registry-student-import-inspect",
+    ),
+    path(
+        "students/import/template/",
+        registry_views.student_import_template_view,
+        name="registry-student-import-template",
+    ),
+    path(
         "students/<str:matric_no>/",
         registry_views.student_record_detail_view,
         name="registry-student-detail",
@@ -21,4 +31,9 @@ urlpatterns = [
         name="registry-student-access-link",
     ),
     path("imports/", registry_views.import_batches_view, name="registry-imports"),
+    path(
+        "imports/<int:batch_id>/send-invitations/",
+        registry_views.import_batch_invitations_view,
+        name="registry-import-invitations",
+    ),
 ]

@@ -30,7 +30,9 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
+import { StatCard } from './StatCard';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffRecord } from '../types';
 import { getStaff } from '../services';
@@ -50,53 +52,19 @@ export const RegistryModuleTabs: React.FC<{
   active: RegistryModuleTab;
   onChange: (tab: RegistryModuleTab) => void;
 }> = ({ active, onChange }) => (
-  <div className="flex items-center gap-3 select-none">
-    {([
-      { key: 'students', label: 'Students' },
-      { key: 'staff_lecturers', label: 'Staff & Lecturers' },
-    ] as const).map(({ key, label }) => (
-      <button
-        key={key}
-        type="button"
-        onClick={() => onChange(key)}
-        className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-          active === key
-            ? 'bg-[#121c2e] text-white shadow-xs'
-            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-        }`}
-      >
-        {label}
-      </button>
-    ))}
-  </div>
+  <SegmentedControl
+    options={REGISTRY_TABS}
+    value={active}
+    onChange={onChange}
+    labels={{ students: 'Students', staff_lecturers: 'Staff & Lecturers' }}
+    className="w-fit"
+  />
 );
 
-interface StaffSummaryCardProps {
-  title: string;
-  value: number;
-  subtext?: string;
-  icon: React.ComponentType<any>;
-  colorClass: string;
-}
+const REGISTRY_TABS: readonly RegistryModuleTab[] = ['students', 'staff_lecturers'];
 
-const StaffSummaryCard: React.FC<StaffSummaryCardProps> = ({ title, value, icon: Icon, colorClass }) => {
-  return (
-    <div id={`summary-${title.toLowerCase().replace(/\s+/g, '-')}`} className="bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 flex items-center justify-between relative overflow-hidden shadow-xs hover:shadow-sm transition-all duration-300 group">
-      <div className="text-left space-y-1.5 z-15">
-        <span className="card-label block">
-          {title}
-        </span>
-        <h2 className="text-2xl md:text-3xl font-extrabold text-brand-navy tracking-tight font-sans">
-          {value}
-        </h2>
-      </div>
-
-      <div className={`p-3.5 rounded-2xl border shrink-0 z-15 ${colorClass}`}>
-        <Icon className="w-5.5 h-5.5" />
-      </div>
-    </div>
-  );
-};
+type StaffSubTab = 'Office Staff' | 'Lecturer' | 'Programme Coordinator';
+const STAFF_SUB_TABS: readonly StaffSubTab[] = ['Office Staff', 'Lecturer', 'Programme Coordinator'];
 
 // ==================== REUSABLE COMPONENT PATTERNS ====================
 
@@ -140,7 +108,7 @@ interface AccountTypeSelectorProps {
 
 export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({ selectedType, onChange }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6 select-none font-sans">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none font-sans">
       <button
         type="button"
         onClick={() => onChange('Office Staff')}
@@ -202,9 +170,9 @@ interface FormCardProps {
 
 export const FormCard: React.FC<FormCardProps> = ({ title, subtitle, icon: Icon, iconColorClass = "text-brand-navy", children }) => {
   return (
-    <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-2xs text-left p-6 md:p-8 space-y-6">
-      <div className="flex items-center gap-3.5 pb-4.5 border-b border-slate-100 font-sans">
-        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500">
+    <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs text-left p-6 md:p-8 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
           <Icon className={`w-5 h-5 ${iconColorClass}`} />
         </div>
         <div>
@@ -384,10 +352,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ label, onClick, type
       onClick={onClick}
       variant={variant}
       size="md"
-      icon={IconLeft}
+      icon={IconRight ?? IconLeft}
+      iconPosition={IconRight ? 'right' : 'left'}
     >
       {label}
-      {IconRight && <IconRight className="w-3.5 h-3.5 stroke-[3]" />}
     </PortalButton>
   );
 };
@@ -698,7 +666,7 @@ export const StaffLecturersRegistry: React.FC<{
                   {/* Lecturer role card */}
                   <RoleAssignmentCard
                     title="Lecturer"
-                    description="Base role — can view assigned students, receive official appointment letters, and access the academic calendar."
+                    description="Base role. Can view assigned students, receive official appointment letters, and access the academic calendar."
                     icon={GraduationCap}
                     isChecked={true}
                     isLocked={true}
@@ -786,9 +754,8 @@ export const StaffLecturersRegistry: React.FC<{
               {/* Action Buttons Row */}
               <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3.5 select-none">
                 <ActionButton
-                  label="Cancel and Go Back"
+                  label="Cancel"
                   variant="secondary"
-                  iconLeft={ChevronLeft}
                   onClick={() => {
                     setInnerView('list');
                     setNewAccountFormData({
@@ -821,7 +788,7 @@ export const StaffLecturersRegistry: React.FC<{
         <>
           <PageHeader
             title="Staff and Lecturer Accounts"
-            subtitle="University Postgraduate Secretariat"
+            subtitle="Manage office staff, lecturer and coordinator accounts."
             actions={
               <PortalButton
                 onClick={() => {
@@ -846,84 +813,37 @@ export const StaffLecturersRegistry: React.FC<{
             }
           />
 
-          {/* Module switcher below the heading */}
-          {onRegistryTabChange && (
-            <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
-              <RegistryModuleTabs active={registryTab} onChange={onRegistryTabChange} />
-            </div>
-          )}
+          {onRegistryTabChange && <RegistryModuleTabs active={registryTab} onChange={onRegistryTabChange} />}
 
           {/* SUMMARY STATS GRID */}
-          <div id="staff-summary-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <StaffSummaryCard 
-              title="Total Accounts" 
-              value={totalAccounts} 
-              icon={Users}
-              colorClass="bg-blue-50/50 text-blue-600 border-blue-100"
-            />
-            <StaffSummaryCard 
-              title="Office Staff" 
-              value={officeCount} 
-              icon={Building}
-              colorClass="bg-indigo-50/50 text-indigo-600 border-indigo-100"
-            />
-            <StaffSummaryCard 
-              title="Lecturers" 
-              value={lecturerCount} 
-              icon={Briefcase}
-              colorClass="bg-emerald-50/50 text-[#00a15c] border-[#bef5db]"
-            />
-            <StaffSummaryCard 
-              title="Prog. Coordinators" 
-              value={coordCount} 
-              icon={Shield}
-              colorClass="bg-amber-50/60 text-[#ea580c] border-[#ffedd5]"
-            />
+          <div id="staff-summary-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Total Accounts" value={totalAccounts} icon={Users} tone="blue" />
+            <StatCard label="Office Staff" value={officeCount} icon={Building} tone="purple" />
+            <StatCard label="Lecturers" value={lecturerCount} icon={Briefcase} tone="green" />
+            <StatCard label="Prog. Coordinators" value={coordCount} icon={Shield} tone="amber" />
           </div>
 
           {/* DATATABLE & CONTROLS LIST CARD */}
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-xs text-left">
-        
-        {/* SUB-TABS SELECTOR FRAME (High fidelity tab list style under Staff & Lecturers section) */}
-        <div className="border-b border-slate-100 px-5 pt-4 flex gap-6 select-none bg-slate-50/30">
-          {[
-            { key: 'Office Staff', label: 'Office Staff' },
-            { key: 'Lecturer', label: 'Lecturers' },
-            { key: 'Programme Coordinator', label: 'Prog. Coordinators' }
-          ].map((subtab) => {
-            const isTabActive = activeSubTab === subtab.key;
-            return (
-              <button
-                key={subtab.key}
-                type="button"
-                onClick={() => {
-                  setActiveSubTab(subtab.key as any);
-                  setCurrentPage(1);
-                  setSearchQuery('');
-                  setSelectedDept('All');
-                  setSelectedStatus('All');
-                }}
-                className={`pb-3 transition-all relative cursor-pointer font-black tracking-wide text-xs uppercase flex items-center gap-2 ${
-                  isTabActive 
-                    ? 'text-brand-navy' 
-                    : 'text-slate-400 hover:text-slate-655'
-                }`}
-              >
-                <span>{subtab.label}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black transition-all ${
-                  isTabActive 
-                    ? 'bg-brand-navy text-white' 
-                    : 'bg-slate-150 text-slate-500'
-                }`}>
-                  {getSubTabCount(subtab.key as any)}
-                </span>
-                
-                {isTabActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.75 bg-brand-navy rounded-full animate-fade-in" />
-                )}
-              </button>
-            );
-          })}
+          <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs text-left">
+
+        <div className="px-4 pt-4 bg-slate-50 select-none">
+          <SegmentedControl
+            options={STAFF_SUB_TABS}
+            value={activeSubTab}
+            onChange={(tab) => {
+              setActiveSubTab(tab);
+              setCurrentPage(1);
+              setSearchQuery('');
+              setSelectedDept('All');
+              setSelectedStatus('All');
+            }}
+            labels={{
+              'Office Staff': `Office Staff (${getSubTabCount('Office Staff')})`,
+              Lecturer: `Lecturers (${getSubTabCount('Lecturer')})`,
+              'Programme Coordinator': `Prog. Coordinators (${getSubTabCount('Programme Coordinator')})`,
+            }}
+            className="w-fit max-w-full overflow-x-auto"
+          />
         </div>
 
         {/* INPUTS ROW AND ACTION LINE */}
@@ -985,15 +905,9 @@ export const StaffLecturersRegistry: React.FC<{
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
             </div>
 
-            {/* EXPORT DATA BUTTON */}
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-extrabold text-[11px] uppercase tracking-wider rounded-xl shadow-3xs transition-all cursor-pointer flex items-center gap-2"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-400" />
-              <span>Export CSV</span>
-            </button>
+            <PortalButton variant="secondary" size="md" icon={Download} onClick={handleExportCSV}>
+              Export CSV
+            </PortalButton>
 
           </div>
 
@@ -1314,8 +1228,8 @@ export const StaffLecturersRegistry: React.FC<{
       {/* ==================== VIEW ACCOUNT DETAILS MODAL OVERLAY ==================== */}
       {viewingStaff ? <RecordPage title="Account details" backLabel="Back to Staff & Lecturer Accounts" onBack={() => setViewingStaff(null)} pageKey={`registry-staff:${viewingStaff.id}`} dirty={false}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
-              {/* Profile Body */}
-              <div className="p-6 md:p-8 space-y-5">
+              {/* Profile Body; only this part scrolls */}
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-5 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
                 
                 {/* Profile Top with Initials */}
                 <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">

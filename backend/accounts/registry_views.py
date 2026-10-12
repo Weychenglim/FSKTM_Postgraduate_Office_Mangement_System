@@ -7,33 +7,54 @@ The read shape matches the frontend ``StudentRecord`` type.
 The supervisor shown on a record is read, never written, from the student's
 active primary ``SupervisorAppointment`` in the ``appointments`` app.
 """
+import logging
+from collections import Counter
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.mail import send_mail
-from django.db import IntegrityError, transaction
+from django.core.mail import get_connection, send_mail
+from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Prefetch, Q
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
+from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from appointments.models import CoSupervisorAppointment, SupervisorAppointment
+from appointments.models import (
+    CoSupervisorAppointment,
+    StudentResearchProfile,
+    SupervisorAppointment,
+)
 
-from .authorization import coordinator_programme
-from .models import RegistryImportBatch, Student, StudentRegistry
+from .account_emails import activation_email
+from .authorization import coordinator_scope_q
+from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
 from .programmes import APPROVED_PROGRAMMES
-from .registry_import import ImportFileError, read_import_file, validate_import_rows
-from .throttles import AccessLinkRateThrottle
+from .registry_import import (
+    ImportFileError,
+    ImportOptionsError,
+    inspect_import_file,
+    parse_import_options,
+    read_import_file,
+    validate_import_rows,
+)
+from .registry_profiles import remember_layout
+from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
+from .registry_programmes import programme_values, remember_choices
+from .session_tokens import blacklist_user_refresh_tokens
+from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
+from .tokens import activation_link
+from .validators import matric_problem, validate_phone
 from .views import send_password_reset_email
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 # Mirrors the palette the Registry Management screen already renders.
 AVATAR_PALETTE = [
@@ -47,8 +68,7 @@ AVATAR_PALETTE = [
 
 
 def _require_office_admin(request):
-    user = request.user
-    if user.is_superuser or getattr(user, "role", None) == User.Role.OFFICE_ADMIN:
+    if getattr(request.user, "role", None) == User.Role.OFFICE_ADMIN:
         return
     raise PermissionDenied("Only Office Staff/Admin may manage the student registry.")
 
@@ -72,11 +92,12 @@ def _registry_or_none(student):
 def _registry_scope(user):
     """Students ``user`` may read, or ``None`` when they have no registry access.
 
-    Office Staff/Admin read everything. Programme Coordinators read their
-    managed programme, and Coordinators and Lecturers read the students they
+    Office Staff/Admin read everything. Programme Coordinators read the
+    programmes they currently manage (their own while eligible, plus active
+    delegations), and Coordinators and Lecturers read the students they
     currently supervise or co-supervise.
     """
-    if user.is_superuser or user.role == User.Role.OFFICE_ADMIN:
+    if user.role == User.Role.OFFICE_ADMIN:
         return Student.objects.all()
     if user.role not in (User.Role.COORDINATOR, User.Role.LECTURER):
         return None
@@ -87,9 +108,7 @@ def _registry_scope(user):
         co_supervisor_appointments__supervisor=user,
         co_supervisor_appointments__status=CoSupervisorAppointment.Status.ACTIVE,
     )
-    programme = coordinator_programme(user)
-    if programme:
-        scope |= Q(programme__iexact=programme)
+    scope |= coordinator_scope_q(user)
     return Student.objects.filter(scope).distinct()
 
 
@@ -143,9 +162,11 @@ def to_record(student) -> dict:
         "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
         # Lets the office spot accounts that were registered but never
-        # activated — e.g. because the invitation bounced.
+        # activated, e.g. because the invitation bounced.
         "activated": user.has_usable_password(),
-        "lastLogin": user.last_login.isoformat() if user.last_login else None,
+        "lastLogin": (user.last_portal_login or user.last_login).isoformat()
+        if (user.last_portal_login or user.last_login)
+        else None,
     }
 
 
@@ -154,9 +175,11 @@ class StudentRecordCreateSerializer(serializers.Serializer):
 
     id = serializers.CharField(max_length=64)
     name = serializers.CharField(max_length=255)
-    email = serializers.EmailField()
+    email = serializers.EmailField(max_length=254)
     programme = serializers.ChoiceField(choices=APPROVED_PROGRAMMES, required=False)
-    phone = serializers.CharField(max_length=32, allow_blank=True, required=False)
+    phone = serializers.CharField(
+        max_length=32, allow_blank=True, required=False, validators=[validate_phone]
+    )
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
     academicStatus = serializers.ChoiceField(
@@ -168,6 +191,17 @@ class StudentRecordCreateSerializer(serializers.Serializer):
         matric = value.strip()
         if not matric:
             raise serializers.ValidationError("Matric number is required.")
+        problem = matric_problem(matric)
+        if problem:
+            raise serializers.ValidationError(problem)
+        # Sign-in accepts a matric or a staff number, so one value must not be both.
+        if (
+            OfficeStaff.objects.filter(staff_no__iexact=matric).exists()
+            or Lecturer.objects.filter(staff_no__iexact=matric).exists()
+        ):
+            raise serializers.ValidationError(
+                f"'{matric}' is already used as a staff number."
+            )
         # Case-insensitive: matric_no is unique case-*sensitively* in Postgres,
         # and near-duplicates make the detail route ambiguous.
         if Student.objects.filter(matric_no__iexact=matric).exists():
@@ -203,9 +237,22 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     accountStatus = serializers.ChoiceField(
         choices=["Verified", "Suspended"], required=False
     )
-    phone = serializers.CharField(max_length=32, allow_blank=True, required=False)
+    phone = serializers.CharField(
+        max_length=32, allow_blank=True, required=False, validators=[validate_phone]
+    )
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
+
+    def to_internal_value(self, data):
+        # An ignored key read as "saved" to the office (e.g. a name or email
+        # edit), so anything this form cannot change is refused outright.
+        if hasattr(data, "keys"):
+            unknown = sorted(set(data.keys()) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    {key: ["This field cannot be changed from the registry."] for key in unknown}
+                )
+        return super().to_internal_value(data)
 
 
 @api_view(["GET", "POST"])
@@ -230,6 +277,9 @@ def student_records_view(request):
     academic_status = (request.query_params.get("status") or "").strip()
     if academic_status:
         queryset = queryset.filter(status__iexact=academic_status)
+    programme = (request.query_params.get("programme") or "").strip()
+    if programme:
+        queryset = queryset.filter(programme__iexact=programme)
     supervisor = (request.query_params.get("supervisor") or "").strip()
     if supervisor:
         queryset = queryset.filter(
@@ -243,36 +293,29 @@ def student_records_view(request):
     return Response([to_record(student) for student in queryset])
 
 
-def send_activation_email(user) -> bool:
+def send_activation_email(user, connection=None) -> bool:
     """Email the new student a link to choose their first password.
 
-    Uses the same signed token as password reset, so no credential is ever
-    generated or transmitted. Returns whether the send succeeded — the office
-    needs to know when an address bounced.
+    The link has no time limit and stops working once a password is set (see
+    ``accounts.tokens``), so no credential is ever generated or transmitted.
+    Returns whether the send succeeded; the office needs to know when an
+    address bounced.
     """
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-    link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+    subject, message = activation_email(user, activation_link(user))
     try:
         send_mail(
-            "Activate your FSKTM Postgraduate Office account",
-            (
-                f"Hello {user.full_name},\n\n"
-                "An account has been created for you at the FSKTM Postgraduate "
-                "Office. Choose your password using the link below:\n\n"
-                f"{link}\n\n"
-                "The link expires in 30 minutes. If it expires, use "
-                "\"Forgot password\" on the sign-in page to request a new one.\n\n"
-                "— FSKTM Postgraduate Office"
-            ),
+            subject,
+            message,
             settings.DEFAULT_FROM_EMAIL,
             [user.email],
             fail_silently=False,
+            connection=connection,
         )
         return True
     except Exception:
         # Never fail the registration because mail is down; the office is told
         # in the response and can resend.
+        logger.exception("Activation email to user %s could not be sent.", user.pk)
         return False
 
 
@@ -283,8 +326,8 @@ def _register_student(data):
     student chooses their own through the activation link, so the office never
     handles or transmits a temporary credential.
 
-    Returns ``(student, invitation_sent)``; raises ``IntegrityError`` if the
-    matric number or email was taken after validation.
+    Returns the new ``Student``; raises ``IntegrityError`` if the matric number
+    or email was taken after validation. The caller sends the invitation.
     """
     with transaction.atomic():
         user = User(
@@ -306,9 +349,7 @@ def _register_student(data):
         semester = data.get("semester", "")
         if semester:
             StudentRegistry.objects.create(student=student, current_semester=semester)
-
-    invitation_sent = send_activation_email(user) if data.get("sendInvite", True) else False
-    return student, invitation_sent
+    return student
 
 
 def _create_student(request):
@@ -316,7 +357,7 @@ def _create_student(request):
     serializer.is_valid(raise_exception=True)
 
     try:
-        student, invitation_sent = _register_student(serializer.validated_data)
+        student = _register_student(serializer.validated_data)
     except IntegrityError:
         # The serializer's uniqueness checks leave a small window before the
         # insert; the database is the authority, so report the conflict rather
@@ -326,6 +367,11 @@ def _create_student(request):
             status=status.HTTP_409_CONFLICT,
         )
 
+    invitation_sent = (
+        send_activation_email(student.user)
+        if serializer.validated_data.get("sendInvite", True)
+        else False
+    )
     payload = to_record(student)
     payload["invitationSent"] = invitation_sent
     return Response(payload, status=status.HTTP_201_CREATED)
@@ -339,6 +385,7 @@ def _first_error(errors):
 
 
 def _import_row(row):
+    """Create one Ready row. Returns ``(result, student)``; student is None on failure."""
     serializer = StudentRecordCreateSerializer(
         data={
             "id": row["id"],
@@ -346,19 +393,77 @@ def _import_row(row):
             "email": row["email"],
             "programme": row["programme"],
             "phone": row["phone"],
+            "intakeDate": row.get("intake", ""),
+            "semester": row.get("semester", ""),
         }
     )
     if not serializer.is_valid():
-        return {**row, "result": "failed", "issue": _first_error(serializer.errors)}
+        return {**row, "result": "failed", "issue": _first_error(serializer.errors)}, None
     try:
-        _, invitation_sent = _register_student(serializer.validated_data)
+        student = _register_student(serializer.validated_data)
     except IntegrityError:
         return {
             **row,
             "result": "failed",
             "issue": "this matric number or email was registered during the import",
-        }
-    return {**row, "result": "created", "invitationSent": invitation_sent}
+        }, None
+    except DatabaseError:
+        logger.exception("Import row %s could not be saved.", row.get("line"))
+        return {**row, "result": "failed", "issue": "the record could not be saved"}, None
+    return {**row, "result": "created", "invitationSent": False}, student
+
+
+def _send_activation_emails(users):
+    """Email each user their activation link over one mail connection.
+    Returns ``{user pk: sent}``."""
+    if not users:
+        return {}
+    connection = get_connection()
+    try:
+        connection.open()
+    except Exception:
+        logger.exception("Could not open the mail connection for activation emails.")
+    sent = {}
+    try:
+        for user in users:
+            sent[user.pk] = send_activation_email(user, connection=connection)
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
+    return sent
+
+
+EMAIL_NOT_SENT = "activation email could not be sent"
+
+
+def _created_entry(result, student):
+    """A created student as the import batch keeps them: Student ID, file line,
+    and whether the email was filled from the Student ID."""
+    entry = {"id": student.matric_no, "line": result["line"]}
+    if result.get("emailFilled"):
+        entry["emailFilled"] = True
+    return entry
+
+
+def _batch_entry(row, issue=None):
+    """One row of an import batch's record: every row that was not simply
+    created, plus created rows whose activation email failed."""
+    entry = {
+        "line": row["line"],
+        "id": row["id"],
+        "name": row["name"],
+        "status": row["status"],
+        "result": row["result"],
+        "issue": row["issue"] if issue is None else issue,
+    }
+    if "existing" in row:
+        entry["existingName"] = row["existing"]["name"]
+        entry["differences"] = row["differences"]
+    if "duplicateOf" in row:
+        entry["duplicateOf"] = row["duplicateOf"]
+    return entry
 
 
 @api_view(["POST"])
@@ -367,8 +472,10 @@ def student_import_view(request):
     """Bulk-import students from a CSV or XLSX file (UC04).
 
     ``dryRun`` checks every row and writes nothing. Otherwise each Ready row is
-    created on its own, duplicates are skipped, other problem rows are left
-    out, and the run is recorded as a ``RegistryImportBatch``.
+    created on its own, duplicates and rows of a skipped programme are skipped,
+    other problem rows are left out, and the run is recorded as a
+    ``RegistryImportBatch``. The office's programme choices and column matches
+    are remembered for the next import.
     """
     _require_office_admin(request)
 
@@ -379,59 +486,220 @@ def student_import_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     try:
-        rows = validate_import_rows(read_import_file(uploaded))
+        options = parse_import_options(request.data.get("options"))
+        file_rows = read_import_file(uploaded, options)
+        programme_map = (options or {}).get("programmeMap") or {}
+        rows = validate_import_rows(file_rows, programme_map)
+    except ImportOptionsError as exc:
+        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
     except ImportFileError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+    send_invites = options["sendInvites"] if options else True
     if str(request.data.get("dryRun", "")).lower() in {"1", "true", "yes"}:
-        return Response({"fileName": uploaded.name, "rows": rows})
+        # Programme names that are not approved programmes, for the office to
+        # map once each or skip.
+        values, value_count = programme_values(file_rows)
+        return Response(
+            {
+                "fileName": uploaded.name,
+                "rows": rows,
+                "programmeValues": values,
+                "programmeValueCount": value_count,
+            }
+        )
 
     results = []
+    new_students = []
     for row in rows:
         if row["status"] == "Ready":
-            results.append(_import_row(row))
-        elif row["status"] in {"Duplicate In File", "Already Registered"}:
+            result, student = _import_row(row)
+            results.append(result)
+            if student is not None:
+                new_students.append((result, student))
+        elif row["status"] in {"Duplicate In File", "Already Registered", "Programme Skipped"}:
             results.append({**row, "result": "skipped"})
         else:
             results.append({**row, "result": "failed"})
 
-    created = [r for r in results if r["result"] == "created"]
-    problems = [
-        {"line": r["line"], "id": r["id"], "result": r["result"], "issue": r["issue"]}
-        for r in results
-        if r["result"] != "created"
-    ]
-    problems += [
-        {
-            "line": r["line"],
-            "id": r["id"],
-            "result": "created",
-            "issue": "activation email could not be sent",
-        }
-        for r in created
-        if not r["invitationSent"]
-    ]
+    # Record the batch before any mail goes out, so a slow or interrupted send
+    # never leaves created accounts without an import record.
+    problems = [_batch_entry(r) for r in results if r["result"] != "created"]
     batch = RegistryImportBatch.objects.create(
         file_name=uploaded.name[:255],
         uploaded_by=request.user,
         uploaded_by_name=request.user.full_name,
         total_rows=len(results),
-        created_count=len(created),
+        created_count=len(new_students),
         skipped_count=sum(1 for r in results if r["result"] == "skipped"),
         failed_count=sum(1 for r in results if r["result"] == "failed"),
-        invitations_failed=sum(1 for r in created if not r["invitationSent"]),
         problems=problems,
+        created_students=[_created_entry(result, student) for result, student in new_students],
+        invitations_held=not send_invites and bool(new_students),
+        settings_used={
+            "defaults": (options or {}).get("defaults") or {},
+            "programmeMap": programme_map,
+            "fillEmail": bool((options or {}).get("fillEmail")),
+            "idRule": (options or {}).get("idRule"),
+            "sendInvites": send_invites,
+        },
     )
+    remember_choices(file_rows, programme_map, request.user)
+    remember_layout((options or {}).get("rememberLayout"), request.user)
+
+    if not send_invites:
+        # The office sends them later from Recent Imports.
+        for result, _ in new_students:
+            result["invitationHeld"] = True
+        return Response(
+            {"batch": batch.to_public_dict(), "rows": results},
+            status=status.HTTP_201_CREATED,
+        )
+
+    sent = _send_activation_emails([student.user for _, student in new_students])
+    for result, student in new_students:
+        result["invitationSent"] = sent[student.user.pk]
+
+    unsent = [r for r, _ in new_students if not r["invitationSent"]]
+    if unsent:
+        batch.invitations_failed = len(unsent)
+        batch.problems = problems + [
+            _batch_entry(r, issue=EMAIL_NOT_SENT) for r in unsent
+        ]
+        batch.save(update_fields=["invitations_failed", "problems"])
     return Response(
         {"batch": batch.to_public_dict(), "rows": results},
         status=status.HTTP_201_CREATED,
     )
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def student_import_inspect_view(request):
+    """Describe an uploaded file's layout (sheets, column-name row, columns
+    with sample values, suggested matches) so the office can confirm which
+    column is which before any row is checked (UC04)."""
+    _require_office_admin(request)
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return Response(
+            {"error": "Choose a CSV or XLSX file to import."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        return Response(inspect_import_file(uploaded, parse_import_options(request.data.get("options"))))
+    except ImportOptionsError as exc:
+        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+    except ImportFileError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _invitation_outcome(user, sent):
+    """What a held activation email did for one student of the import."""
+    if not user.is_active:
+        return "suspended"
+    if user.has_usable_password():
+        return "alreadyActivated"
+    return "sent" if sent[user.pk] else "failed"
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_import_template_view(request):
+    """The Excel template for typing a list (UC04). The office's own
+    spreadsheet imports as it is, so the template is optional."""
+    _require_office_admin(request)
+    response = HttpResponse(build_template(), content_type=XLSX_CONTENT_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{TEMPLATE_FILE_NAME}"'
+    return response
+
+
+# A second send of the same import within this time is refused, so a double
+# click or two office staff cannot email every student twice.
+INVITATION_REPEAT_WAIT = timedelta(minutes=2)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([BatchInvitationRateThrottle])
+def import_batch_invitations_view(request, batch_id):
+    """Send the activation emails an import held back, or send them again.
+
+    Only students from that import who are still active and have not set a
+    password are emailed, so it never reaches anyone who has activated.
+    Each student's outcome comes back with its file line, and emails that
+    could not be sent are recorded on the import, as when an import sends
+    them straight away.
+    """
+    _require_office_admin(request)
+    with transaction.atomic():
+        batch = RegistryImportBatch.objects.select_for_update().filter(pk=batch_id).first()
+        if batch is None:
+            return Response({"error": "No such import."}, status=status.HTTP_404_NOT_FOUND)
+        if batch.invitations_sent_at and timezone.now() - batch.invitations_sent_at < INVITATION_REPEAT_WAIT:
+            return Response(
+                {"error": "Activation emails for this import were sent a moment ago. Wait a few minutes before sending them again."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        lines = {entry["id"]: entry["line"] for entry in batch.created_students}
+        students = sorted(
+            Student.objects.select_related("user").filter(matric_no__in=list(lines)),
+            key=lambda student: lines[student.matric_no],
+        )
+        waiting = [
+            student.user
+            for student in students
+            if student.user.is_active and not student.user.has_usable_password()
+        ]
+        sent = _send_activation_emails(waiting)
+        outcomes = [
+            {
+                "id": student.matric_no,
+                "line": lines[student.matric_no],
+                "name": student.user.full_name,
+                "outcome": _invitation_outcome(student.user, sent),
+            }
+            for student in students
+        ]
+        # A student emailed now, or who has activated since, replaces any
+        # earlier failure; suspended students keep theirs.
+        settled = {entry["id"] for entry in outcomes if entry["outcome"] != "suspended"}
+        batch.problems = [
+            problem
+            for problem in batch.problems
+            if not (problem.get("issue") == EMAIL_NOT_SENT and problem.get("id") in settled)
+        ] + [
+            _batch_entry({**entry, "status": "Ready", "result": "created"}, issue=EMAIL_NOT_SENT)
+            for entry in outcomes
+            if entry["outcome"] == "failed"
+        ]
+        batch.invitations_held = False
+        batch.invitations_sent_at = timezone.now()
+        batch.invitations_failed = sum(1 for problem in batch.problems if problem.get("issue") == EMAIL_NOT_SENT)
+        batch.save(
+            update_fields=["invitations_held", "invitations_sent_at", "invitations_failed", "problems"]
+        )
+    counts = Counter(entry["outcome"] for entry in outcomes)
+    return Response(
+        {
+            "sent": counts["sent"],
+            "failed": counts["failed"],
+            "alreadyActivated": counts["alreadyActivated"],
+            "suspended": counts["suspended"],
+            "notFound": len(lines) - len(students),
+            "students": [
+                {"id": entry["id"], "line": entry["line"], "outcome": entry["outcome"]}
+                for entry in outcomes
+            ],
+            "batch": batch.to_public_dict(),
+        }
+    )
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def import_batches_view(request):
-    """Most recent bulk imports, newest first (``?limit=``, 1–50, default 5)."""
+    """Most recent bulk imports, newest first (``?limit=``, 1-50, default 5)."""
     _require_office_admin(request)
     try:
         limit = int(request.query_params.get("limit", 5))
@@ -524,7 +792,20 @@ def student_record_detail_view(request, matric_no):
             student.refresh_from_db()
 
         student_fields = []
-        if "programme" in data:
+        if "programme" in data and data["programme"] != student.programme:
+            # The research profile carries its own programme, and amendments
+            # require the two to match, so transfers go through that workflow.
+            if StudentResearchProfile.objects.filter(student_id=student.user_id).exists():
+                transaction.set_rollback(True)
+                return Response(
+                    {
+                        "error": (
+                            "This student has a research profile. Change the programme "
+                            "with a programme-transfer amendment so both records stay in step."
+                        )
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
             student.programme = data["programme"]
             student_fields.append("programme")
         if "intakeDate" in data:
@@ -548,6 +829,10 @@ def student_record_detail_view(request, matric_no):
             user_fields.append("is_active")
         if user_fields:
             student.user.save(update_fields=user_fields)
+        if data.get("accountStatus") == "Suspended":
+            # Without this, reinstating the account within seven days revived
+            # every refresh session issued before the suspension.
+            blacklist_user_refresh_tokens(student.user)
 
         if "semester" in data:
             registry, _ = StudentRegistry.objects.get_or_create(student=student)

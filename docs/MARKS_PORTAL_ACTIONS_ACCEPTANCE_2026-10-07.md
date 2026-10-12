@@ -1,4 +1,4 @@
-# Submitted Marks portal acceptance — 7 October 2026
+# Submitted Marks portal acceptance: 7 October 2026
 
 Submitted Marks correction/reopening now lives in the existing Office portal at Marks Entry → View Mark Records → record detail. Django admin is inspection-only for Mark Entries and scores, including for superusers. This is a bounded migration within Marks, not a new website or whole-system acceptance claim.
 

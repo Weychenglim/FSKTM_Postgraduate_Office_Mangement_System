@@ -17,7 +17,7 @@ assert.equal(
 );
 assert.equal(routeForStudentProgress(), APP_ROUTES.dashboardProgress);
 assert.equal(formatProgressStatus('FACULTY_PROCESSING'), 'Faculty Processing');
-assert.equal(formatProgressStatus(null), '—');
+assert.equal(formatProgressStatus(null), '-');
 
 assert.equal(
   resolveStudentProgressRecordRoute({

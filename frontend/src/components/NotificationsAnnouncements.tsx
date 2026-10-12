@@ -4,7 +4,7 @@ import { PortalModal } from './PortalModal';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Bell, 
@@ -26,11 +26,17 @@ import {
   BellOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusDot } from './PortalPrimitives';
+
+type FeedTab = 'announcements' | 'notifications';
+const FEED_TABS: readonly FeedTab[] = ['announcements', 'notifications'];
 import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
 import { downloadAnnouncementAttachment } from '../services';
+import { useLocation } from 'react-router';
 import { useNotifications } from '../context/NotificationsContext';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
+import { notificationRecordRoute, type OpenNotificationState } from '../utils/notificationLinks';
 
 // ==================== DEDICATED ATOMIC UI PATTERNS ====================
 
@@ -166,7 +172,7 @@ export const TabEmptyState: React.FC<TabEmptyStateProps> = ({ tab, searching }) 
   const message = searching
     ? 'Try a different search term.'
     : isNotifications
-    ? 'Updates about your supervisor appointment, panel assignment, and confirmation letters will appear here once those modules go live.'
+    ? 'Updates about your supervisor and panel appointments, approvals and other workflow steps will appear here.'
     : 'Published announcements addressed to you will show up here.';
   return (
     <div className="bg-white border border-dashed border-slate-200 rounded-2xl py-16 px-6 flex flex-col items-center text-center select-none">
@@ -261,26 +267,46 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
   const noun = activeTab === 'announcements' ? 'announcements' : 'notifications';
 
+  // The detail dialog closes on Escape and starts with focus on its close button.
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!selectedNotification) return;
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedNotification(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedNotification]);
+
   const openNotification = async (notification: NotificationItem) => {
     if (notification.isUnread) {
       // A retracted announcement's rows are deleted server-side, so an already
       // loaded feed can hold an id that now 404s. Opening it must still work.
       await markRead(notification.id, true).catch(() => undefined);
     }
-    if (
-      !notification.isAnnouncement
-      && notification.targetModule
-      && notification.recordId
-      && onOpenWorkflowRecord
-    ) {
+    if (notificationRecordRoute(notification) && onOpenWorkflowRecord) {
       onOpenWorkflowRecord(notification);
       return;
     }
     setSelectedNotification(notification);
   };
 
+  // The bell dropdown sends announcements here to be read in the detail view.
+  const location = useLocation();
+  const requestedId = (location.state as OpenNotificationState | null)?.openNotificationId;
+  const openedRequest = useRef<string | null>(null);
+  useEffect(() => {
+    if (!requestedId || openedRequest.current === requestedId) return;
+    const requested = items.find((item) => item.id === requestedId);
+    if (!requested) return;
+    openedRequest.current = requestedId;
+    setActiveTab(requested.isAnnouncement ? 'announcements' : 'notifications');
+    setSelectedNotification(requested);
+  }, [requestedId, items]);
+
   return (
-    <div id="notifications-announcements-root" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative min-h-[750px]">
+    <div id="notifications-announcements-root" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
       <PortalToast message={toast} />
 
@@ -289,53 +315,29 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
         subtitle="Broadcast announcements and your personal system notifications."
         backLabel="Back to Dashboard"
         onBack={onBack}
-        className="mb-6 select-none"
         actions={(
-          <button
-            type="button"
-            onClick={handleMarkAllRead}
-            className="px-5 py-2.5 bg-[#001f3f] hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer self-start md:self-auto"
-          >
+          <PortalButton variant="primary" size="md" icon={CheckCircle} onClick={handleMarkAllRead}>
             Mark All as Read
-          </button>
+          </PortalButton>
         )}
       />
 
-      {/* TAB SWITCHER — Announcements (built) vs Notifications (reserved) */}
-      <div className="flex items-center gap-1 mb-6 border-b border-slate-200 select-none">
-        {([
-          { id: 'announcements' as const, label: 'Announcements', count: announcementFeed.length },
-          { id: 'notifications' as const, label: 'Notifications', count: notificationFeed.length },
-        ]).map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => { setActiveTab(tab.id); setSearchQuery(''); }}
-              className={`relative px-4 py-3 text-[11px] md:text-xs font-extrabold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
-                active ? 'text-brand-navy' : 'text-slate-400 hover:text-slate-600'
-              }`}
-              role="tab"
-              aria-selected={active}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
-                active ? 'bg-brand-navy text-white' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {tab.count}
-              </span>
-              {active && <span className="absolute -bottom-px inset-x-0 h-0.5 bg-brand-navy rounded-full" />}
-            </button>
-          );
-        })}
-      </div>
+      <SegmentedControl
+        options={FEED_TABS}
+        value={activeTab}
+        onChange={(tab) => { setActiveTab(tab); setSearchQuery(''); }}
+        labels={{
+          announcements: `Announcements (${announcementFeed.length})`,
+          notifications: `Notifications (${notificationFeed.length})`,
+        }}
+        className="w-fit"
+      />
 
       {/* FILTER SEARCH WRAPPER CARD */}
-      <div>
-        
+      <div className="space-y-4">
+
         {/* Dynamic Search row */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6 select-none">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-3xs select-none">
           <div className="relative flex-1">
             <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
               <Search className="w-4 h-4 text-slate-400" />
@@ -355,7 +357,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
         </div>
 
         {/* LIST FEED PORTLET OF ITEMS */}
-        <div className="space-y-3.5">
+        <div className="space-y-3.5" role="list">
           {loading ? (
             <LoadingState message={`Loading ${noun}…`} />
           ) : error ? (
@@ -365,12 +367,14 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
           ) : filteredNotifications.map((it) => {
             const isHigh = it.priority === 'high';
             const isAnn = it.isAnnouncement;
+            // The row opens the item; the read toggle is a separate button
+            // beside it (a button inside a button is invalid and unreachable
+            // for keyboard and screen-reader users).
             return (
-              <button
+              <div
                 key={it.id}
-                type="button"
-                onClick={() => void openNotification(it)}
-                className={`w-full text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-5 hover:shadow-2xs transition duration-150 flex items-start justify-between gap-4 cursor-pointer relative block ${
+                role="listitem"
+                className={`w-full text-left bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-5 hover:shadow-2xs transition duration-150 flex items-start justify-between gap-4 relative ${
                   it.isUnread ? 'ring-1 ring-blue-500/10 bg-slate-50/20' : ''
                 }`}
               >
@@ -379,7 +383,11 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   isHigh ? 'bg-rose-500' : isAnn ? 'bg-indigo-500' : 'bg-slate-350'
                 }`} />
 
-                <div className="space-y-1 pl-2">
+                <button
+                  type="button"
+                  onClick={() => void openNotification(it)}
+                  className="flex-1 min-w-0 text-left space-y-1 pl-2 cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                >
                   <div className="flex items-center gap-2">
                     {it.isUnread && (
                       <StatusDot tone="info" className="w-2 h-2" />
@@ -396,21 +404,22 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   <p className="card-description line-clamp-2">
                     {it.description}
                   </p>
-                </div>
+                </button>
 
                 {/* Right stamp column */}
                 <div className="card-caption flex items-center gap-4 text-right text-slate-400 shrink-0 select-none">
-                  <span className="hidden sm:inline-block truncate max-w-[120px]">{it.timeAgo.split(' — ')[0]}</span>
+                  <span className="hidden sm:inline-block truncate max-w-[120px]">{it.timeAgo.split(', ')[0]}</span>
                   <button
                     type="button"
                     onClick={(e) => handleToggleReadState(it.id, e)}
                     className="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition cursor-pointer shrink-0"
                     title={it.isUnread ? 'Mark as Read' : 'Mark as Unread'}
+                    aria-label={it.isUnread ? `Mark "${it.title}" as read` : `Mark "${it.title}" as unread`}
                   >
                     {it.isUnread ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4 text-slate-400" />}
                   </button>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -418,32 +427,32 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
 
       {/* ==================== SCREEN COMPONENT: DIALOG WINDOW CONTEXT ==================== */}
       
-      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-preview-title" className="max-w-2xl p-0">
-              
-              {/* Modal Header Panel - Deep Midnight Theme */}
-              <div id="modal-header-panel" className="bg-[#121c2e] px-6 py-4.5 flex items-center justify-between text-white border-b border-white/5 select-none text-left">
-                <div className="flex items-center gap-2.5">
-                  {/* High visual fidelity red bar indicator segment */}
-                  <div className="h-4.5 w-1 bg-red-600 rounded-full shrink-0" />
-                  
-                  <h2 id="notification-preview-title" className="section-label tracking-tight leading-none uppercase text-white truncate max-w-[380px] md:max-w-xl">
+      {selectedNotification ? <PortalModal isOpen onClose={() => setSelectedNotification(null)} labelledBy="notification-dialog-title" className="max-w-2xl p-0">
+
+              <div id="modal-header-panel" className="drawer-header">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {selectedNotification.isAnnouncement
+                    ? <Megaphone className="w-5 h-5 text-indigo-500 shrink-0" />
+                    : <Bell className="w-5 h-5 text-indigo-500 shrink-0" />}
+                  <h2 id="notification-dialog-title" className="font-black text-brand-navy text-[15px] tracking-tight truncate">
                     {selectedNotification.title}
                   </h2>
                 </div>
 
-                {/* Dismiss icon action top right */}
                 <button
+                  ref={closeButtonRef}
                   type="button"
                   onClick={() => setSelectedNotification(null)}
-                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"
-                  title="Close Dialog Window"
+                  className="w-10 h-10 inline-flex items-center justify-center rounded-xl border border-transparent text-slate-600 hover:bg-slate-100 hover:text-brand-navy transition cursor-pointer shrink-0"
+                  title="Close"
+                  aria-label="Close"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Modal Body Scroll container */}
-              <div className="p-6 md:p-8 space-y-5">
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-5 mr-1 ${THIN_SCROLLBAR}`}>
                 
                 {/* Priority, Timestamp and Module Badge Row Segment */}
                 <div className="flex flex-wrap items-center gap-3.5 select-none">
@@ -457,7 +466,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   </div>
 
                   {/* Module Badge */}
-                  <ModuleBadge label={selectedNotification.moduleLabel || 'Supervisor Appointment'} />
+                  <ModuleBadge label={selectedNotification.moduleLabel || 'Notification'} />
                 </div>
 
                 {/* Metadata Grid (FROM, TO, REFERENCE) */}
@@ -483,7 +492,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                   </div>
                 </div>
 
-                {/* Document Attachments Panel — only when the announcement carries a file */}
+                {/* Document Attachments Panel: only when the announcement carries a file */}
                 {selectedNotification.attachmentName && (
                   <div className="space-y-2.5">
                     <span className="card-label uppercase tracking-wider text-slate-400 block">
@@ -505,14 +514,15 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
                         </div>
                       </div>
 
-                      <button
-                        type="button"
+                      <PortalButton
+                        variant="primary"
+                        size="sm"
+                        icon={Download}
                         onClick={() => handleDownloadAttachment(selectedNotification)}
-                        className="w-full sm:w-auto px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                        className="w-full sm:w-auto shrink-0"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download</span>
-                      </button>
+                        Download
+                      </PortalButton>
                     </div>
                   </div>
                 )}
@@ -525,28 +535,11 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
               </div>
 
               {/* Footer CTA dismiss bar action buttons properly layout */}
-              <div className="bg-slate-50/80 px-6 py-4.5 border-t border-slate-200/60 flex items-center justify-end gap-3 select-none">
-                <button
-                  type="button"
-                  onClick={() => setSelectedNotification(null)}
-                  className="px-5 py-2 hover:bg-slate-100 text-slate-550 hover:text-slate-900 font-extrabold uppercase tracking-wide rounded-xl text-[10px] transition cursor-pointer"
-                >
-                  Close Archive
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    const id = selectedNotification.id;
-                    setSelectedNotification(null);
-                    void markRead(id, true).catch(() => undefined);
-                    triggerToast('Logged notification read and archived successfully.');
-                  }}
-                  className="px-5 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase tracking-wider rounded-xl text-[10px] transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <CheckCircle className="w-3.5 h-3.5 text-indigo-300" />
-                  <span>Mark Resolved</span>
-                </button>
+              <div className="drawer-footer select-none">
+                {/* Opening an item already marks it read, so Close is all that is needed. */}
+                <PortalButton variant="secondary" size="md" onClick={() => setSelectedNotification(null)}>
+                  Close
+                </PortalButton>
               </div>
 
             </PortalModal> : null}

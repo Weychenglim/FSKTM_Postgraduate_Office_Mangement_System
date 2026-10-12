@@ -39,7 +39,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   setActiveModal
 }) => {
   const listState = useRef(new Map<string, unknown>());
-  // Responsive sidebar drawer — open on desktop (lg+), closed on mobile by default
+  // Responsive sidebar drawer: open on desktop (lg+), closed on mobile by default
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
@@ -81,7 +81,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           <ListState.Provider value={listState.current}><RecordPageProvider>{children}</RecordPageProvider></ListState.Provider>
         </main>
 
-        {/* Portal Footer — single global footer, transparent so it blends with the page background */}
+        {/* Portal Footer: single global footer, transparent so it blends with the page background */}
         <footer id="portal-footer" className="shrink-0 border-t border-[#e2e8f0] font-sans">
           <div className="max-w-7xl w-full mx-auto px-4 md:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-[10px] font-bold">
             <div className="text-left font-sans text-slate-400">

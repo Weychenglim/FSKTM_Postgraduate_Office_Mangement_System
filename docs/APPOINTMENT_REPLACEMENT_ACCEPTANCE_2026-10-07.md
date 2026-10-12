@@ -51,7 +51,7 @@ From `frontend`, the available Node 22 runtime ran every `rg --files src -g '*.t
 
 ## Evidence and remaining acceptance
 
-Ignored screenshots are retained under `frontend/acceptance-evidence/replacement-2026-10-07/`: 01–08 cancellation/approval/clean tasks; 09 corrected Student Dashboard; 10–11 system cancellation and distinct attempts; 12–14 outgoing submissions/incoming clean tasks; 15 corrected monitoring; 16–17 retired audit details; 18 Office Panel history; 19 outage; 20 appointment Retry recovery. Credentials are stored separately from screenshots.
+Ignored screenshots are retained under `frontend/acceptance-evidence/replacement-2026-10-07/`: 01-08 cancellation/approval/clean tasks; 09 corrected Student Dashboard; 10-11 system cancellation and distinct attempts; 12-14 outgoing submissions/incoming clean tasks; 15 corrected monitoring; 16-17 retired audit details; 18 Office Panel history; 19 outage; 20 appointment Retry recovery. Credentials are stored separately from screenshots.
 
 The [five-module checklist](FIVE_MODULE_ACCEPTANCE_CHECKLIST.md) records this as E5 and keeps compound requirements awaiting acceptance where this slice did not exercise every branch. Next: rejection, capacity/availability and private-file failure branches; then programme/role/backup targeting, historical-semester filtering, completion windows and advanced lifecycle/report/export privacy scenarios. Scheduled-period handover and report/export exclusion are not newly browser-accepted by these open-period checks. Faculty rules and coordinator identity policy remain deferred; actual-host shared-cache/HTTPS/SMTP/backup/rollback checks remain separate.
 

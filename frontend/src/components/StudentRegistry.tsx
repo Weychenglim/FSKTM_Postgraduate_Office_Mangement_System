@@ -37,29 +37,48 @@ import {
   Info,
   RefreshCw,
   HelpCircle,
-  FileDown
+  FileDown,
+  ClipboardPaste
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { RegistryImportResult } from './RegistryImportResult';
+import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
+import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes';
+import { StatCard } from './StatCard';
+import { describeProgramme } from '../utils/programmeLabel';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
+  ImportCommitResponse,
+  ImportDefaults,
+  ImportInspectResponse,
+  ImportMapping,
+  ImportOptions,
+  ImportPreviewResponse,
   ImportPreviewRow,
+  ImportProgrammeValue,
   RegistryImportBatch,
   StudentAcademicStatus,
   StudentAccountStatus,
   StudentRecord,
 } from '../types';
+import type { StudentRecordUpdate } from '../services';
 import {
   ApiError,
   commitStudentImport,
   createStudent,
+  downloadImportTemplate,
   getParticipant,
   getRecentImports,
   getStudents,
+  inspectStudentImport,
   previewStudentImport,
   sendAccessLink,
+  sendBatchInvitations,
   updateStudent,
 } from '../services';
 import {
@@ -73,6 +92,25 @@ const NO_SUPERVISOR = '__none__';
 const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
+import { downloadCsv } from '../utils/csvExport';
+import { pageWindow } from '../utils/pageWindow';
+import {
+  BATCH_PROBLEM_COLUMNS,
+  IMPORT_REPORT_COLUMNS,
+  IMPORT_ROW_FILTERS,
+  STUDENT_ID_RULE,
+  type ImportRowFilter,
+  batchSummary,
+  differenceWarning,
+  filterImportRows,
+  pastedRowsFile,
+  rowExplanation,
+  rowsAfterHeldSend,
+  rowsForReview,
+  skipNotice,
+  summariseImportRows,
+  withSuggestedProgrammes,
+} from '../utils/registryImport';
 
 const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
   student_id: 'Matric number, unique',
@@ -80,40 +118,14 @@ const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
   programme: 'An approved programme',
   email: 'Valid email, unique',
   phone: 'Optional',
+  intake: 'Optional, e.g. 2026/2027 Semester I',
+  current_semester: 'Optional',
 };
 
 // ==================== COMPONENT PATTERNS TYPES ====================
 
-// Reusable Summary Card component
-interface SummaryCardProps {
-  title: string;
-  value: string | number;
-  subtext: string;
-  colorClass: string;
-  icon: React.ComponentType<any>;
-}
-
-export const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, subtext, colorClass, icon: Icon }) => {
-  return (
-    <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 flex items-start justify-between relative overflow-hidden transition-all duration-300 hover:shadow-sm group">
-      <div className="space-y-1.5 text-left select-none">
-        <span className="card-label block">
-          {title}
-        </span>
-        <h2 className="card-metric">
-          {value}
-        </h2>
-        <span className="card-value block">
-          {subtext}
-        </span>
-      </div>
-
-      <div className={`p-2 rounded-xl border shrink-0 ${colorClass}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-    </div>
-  );
-};
+const REGISTER_TABS = ['bulk', 'single'] as const;
+type RegisterTab = (typeof REGISTER_TABS)[number];
 
 // Reusable Status Chip for Academic Status
 interface StatusChipProps {
@@ -137,20 +149,56 @@ interface ProgrammeChipProps {
   label: string;
 }
 
+// Each programme keeps its own colour wherever it appears.
+const PROGRAMME_TONES: Array<[RegExp, string]> = [
+  [/data science/i, 'bg-amber-50 text-amber-600 border-amber-100'],
+  [/cyber/i, 'bg-emerald-50 text-emerald-600 border-emerald-100'],
+  [/artificial intelligence/i, 'bg-violet-50 text-violet-600 border-violet-100'],
+  [/computer science/i, 'bg-blue-50 text-blue-600 border-blue-100'],
+  [/software/i, 'bg-indigo-50 text-indigo-600 border-indigo-100'],
+  [/information systems?/i, 'bg-purple-50 text-purple-600 border-purple-100'],
+];
+
+const programmeTone = (label: string) =>
+  PROGRAMME_TONES.find(([pattern]) => pattern.test(label))?.[1] ?? 'bg-slate-50 text-slate-500 border-slate-200';
+
+const ProgrammeIcon: React.FC<{ label: string; small?: boolean }> = ({ label, small = false }) => (
+  <span
+    className={`${small ? 'w-6 h-6 rounded-md' : 'w-8 h-8 rounded-lg'} border flex items-center justify-center shrink-0 ${programmeTone(label)}`}
+  >
+    <GraduationCap className={small ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+  </span>
+);
+
+// Dropdown entries read "Data Science / Master · Coursework" instead of the
+// upper-case official name, the same way the table shows programmes.
+const programmeOption = (programme: string, note?: string): SelectMenuOption => {
+  const { field, detail } = describeProgramme(programme);
+  return {
+    value: programme,
+    label: field,
+    description: [detail, note].filter(Boolean).join(' · '),
+    leading: <ProgrammeIcon label={programme} small />,
+  };
+};
+
+const statusOption = (status: StudentAcademicStatus): SelectMenuOption<StudentAcademicStatus> => ({
+  value: status,
+  label: status,
+  leading: <StatusDot tone={ACADEMIC_TONE[status]} className="w-2 h-2" />,
+});
+
 export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
-  let displayColor = 'bg-slate-50 text-slate-600 border-slate-200/80';
-  if (label.includes('CS') || label.includes('Science')) {
-    displayColor = 'bg-blue-50/50 text-blue-700 border-blue-150';
-  } else if (label.includes('SE') || label.includes('Software')) {
-    displayColor = 'bg-indigo-50/50 text-indigo-700 border-indigo-150';
-  } else if (label.includes('IS') || label.includes('Systems')) {
-    displayColor = 'bg-purple-50/50 text-purple-700 border-purple-150';
-  }
+  const { field, detail } = describeProgramme(label);
 
   return (
-    <span className={`inline-flex items-center px-3 py-1 text-[10.5px] font-black rounded border cursor-default select-none ${displayColor}`}>
-      {label}
-    </span>
+    <div className="flex items-center gap-2.5 text-left select-none" title={label}>
+      <ProgrammeIcon label={label} />
+      <div className="min-w-0">
+        <p className="text-[12px] font-extrabold text-brand-navy leading-snug">{field}</p>
+        {detail && <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{detail}</p>}
+      </div>
+    </div>
   );
 };
 
@@ -204,7 +252,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
   onOpenParticipantLifecycle,
 }) => {
-  // Master Student Registry State — loaded from studentsApi (mock-backed today).
+  // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +264,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setError(null);
     getStudents()
       .then(setStudents)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load students.'))
+      .catch((e) => {
+        // Drop the previous list so the summary cards and Export never present
+        // stale numbers as current.
+        setStudents([]);
+        setError(e instanceof Error ? e.message : 'Failed to load students.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -241,10 +294,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useListState('StudentRegistry', 'currentPage', 1);
-  const itemsPerPage = 3; 
-
-  // Multi Selector state
-  const [selectedRowIds, setSelectedRowIds] = useState<Record<string, boolean>>({});
+  const itemsPerPage = 10;
 
   // Single Student Registration Manual fields with updated layout fields from mockup
   const [manualFormData, setManualFormData] = useState({
@@ -252,11 +302,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     id: '',
     email: '',
     phone: '',
-    programme: 'Select registered programme',
+    programme: '',
     intakeBatch: '',
-    semester: 'Semester 1',
-    researchTitle: '',
-    supervisor: '',
+    semester: '',
     sendCredentialsImmediately: true
   });
 
@@ -269,10 +317,43 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [showRequiredColumns, setShowRequiredColumns] = useState(false);
 
   // Dynamic CSV preview records
-  // Populated only by the server's check of an uploaded file — never pre-seeded,
+  // Populated only by the server's check of an uploaded file, never pre-seeded,
   // so nothing can be committed that did not come from the office's own file.
   const [csvPreviewRecords, setCsvPreviewRecords] = useState<ImportPreviewRow[]>([]);
   const [csvFatalError, setCsvFatalError] = useState<string | null>(null);
+  const [importFilter, setImportFilter] = useState<ImportRowFilter>('all');
+  // What the last import did, kept on screen so skipped students are seen.
+  const [importResult, setImportResult] = useState<ImportCommitResponse | null>(null);
+  // Upload, then (unless the file is our own template) Match columns, then Check rows.
+  const [importStep, setImportStep] = useState<'upload' | 'match' | 'check'>('upload');
+  const [importLayout, setImportLayout] = useState<ImportInspectResponse | null>(null);
+  const [importMapping, setImportMapping] = useState<ImportMapping | null>(null);
+  const [importSheet, setImportSheet] = useState<string | null>(null);
+  const [importHeaderRow, setImportHeaderRow] = useState<number | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  // Programme, intake and semester for every row, and whether activation
+  // emails go out now or are held to send later.
+  const [importDefaults, setImportDefaults] = useState<ImportDefaults>({});
+  const [sendInvitesNow, setSendInvitesNow] = useState(true);
+  const [heldBatchToSend, setHeldBatchToSend] = useState<RegistryImportBatch | null>(null);
+  const [sendingHeld, setSendingHeld] = useState(false);
+  // Programme names in the file that are not approved programmes, and the
+  // office's choice for each: an approved programme, or skip its rows.
+  const [programmeValues, setProgrammeValues] = useState<ImportProgrammeValue[]>([]);
+  const [programmeValueCount, setProgrammeValueCount] = useState(0);
+  const [programmeChoices, setProgrammeChoices] = useState<Record<string, string>>({});
+  // False once the office sets aside the matches saved from an earlier import.
+  const [keepSavedMatches, setKeepSavedMatches] = useState(true);
+  // A missing email becomes the student's SiswaMail address, and Student IDs
+  // like 23004955/1 can lose their programme number.
+  const [fillEmail, setFillEmail] = useState(true);
+  const [dropIdSuffix, setDropIdSuffix] = useState(false);
+  // Rows can be pasted from a spreadsheet instead of uploaded as a file.
+  const [uploadMode, setUploadMode] = useState<'file' | 'paste'>('file');
+  const [pastedText, setPastedText] = useState('');
+  const [pasteHasHeader, setPasteHasHeader] = useState(true);
+  // False when every row is a student, with no row of column names.
+  const [importHasHeader, setImportHasHeader] = useState(true);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -284,7 +365,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     name: '',
     programme: '',
     email: '',
-    id: ''
+    id: '',
+    phone: ''
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -301,11 +383,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
 
+  const [detailsDraft, setDetailsDraft] = useState({ phone: '', programme: '', intakeDate: '', semester: '' });
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  // Sign-in changes are confirmed first; this holds the pending one.
+  const [accessChange, setAccessChange] = useState<StudentAccountStatus | null>(null);
+
   useEffect(() => {
     setStatusTarget('');
     setStatusReason('');
     setStatusError(null);
     setStatusBlockers([]);
+    setDetailsError(null);
+    setDetailsDraft({
+      phone: viewingStudent?.phone ?? '',
+      programme: viewingStudent?.programme ?? '',
+      intakeDate: viewingStudent?.intakeDate ?? '',
+      semester: viewingStudent?.semester ?? '',
+    });
   }, [viewingStudent?.id]);
 
   const handleStatusChange = async () => {
@@ -339,6 +434,56 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // Only fields that actually changed are sent, so an untouched value (for
+  // example a semester shown from the intake) is never written back.
+  const handleSaveDetails = async () => {
+    if (!viewingStudent) return;
+    const student = viewingStudent;
+    const changes: StudentRecordUpdate = {};
+    if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
+    if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
+    if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
+    if (detailsDraft.semester.trim() !== student.semester) changes.semester = detailsDraft.semester.trim();
+    if (Object.keys(changes).length === 0) {
+      setDetailsError('Nothing has changed yet.');
+      return;
+    }
+    setDetailsSaving(true);
+    setDetailsError(null);
+    try {
+      const updated = await updateStudent(student.id, changes);
+      setViewingStudent(updated);
+      loadStudents();
+      triggerToast(`Saved ${student.name}'s details.`);
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Could not save the details.');
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
+
+  const handleAccessChange = async () => {
+    if (!viewingStudent || !accessChange) return;
+    const student = viewingStudent;
+    const target = accessChange;
+    setSaving(true);
+    try {
+      const updated = await updateStudent(student.id, { accountStatus: target });
+      setViewingStudent(updated);
+      loadStudents();
+      triggerToast(
+        target === 'Suspended'
+          ? `${student.name} can no longer sign in, and their open sessions were ended.`
+          : `${student.name} can sign in again.`,
+      );
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'Could not update this account.');
+    } finally {
+      setSaving(false);
+      setAccessChange(null);
+    }
+  };
+
   const [sendingAccessLink, setSendingAccessLink] = useState(false);
 
   const handleSendAccessLink = async () => {
@@ -360,68 +505,26 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
-  // Checkbox multi utility handlers
-  const handleToggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const isChecked = e.target.checked;
-    const newMapping: Record<string, boolean> = {};
-    if (isChecked) {
-      filteredStudents.forEach(item => {
-        newMapping[item.id] = true;
-      });
-    }
-    setSelectedRowIds(newMapping);
-  };
-
-  const handleToggleRow = (id: string) => {
-    setSelectedRowIds(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  // CSV Exporter Action Handler
+  // Exports exactly what the filters show. Cells go through downloadCsv, which
+  // quotes them and neutralises spreadsheet formulas typed into free-text
+  // fields such as a student's phone number.
   const handleExportCSV = () => {
-    const headers = 'Student ID,Full Name,Programme,Academic Status,Account Status,Semester,Email,Phone,Supervisor\n';
-    const rows = students.map(s => 
-      `"${s.id}","${s.name}","${s.programme}","${s.academicStatus}","${s.accountStatus}","${s.semester}","${s.email}","${s.phone}","${s.supervisor}"`
-    ).join('\n');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `FSKTM_Student_Registry_Export.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-
-    triggerToast('Student registry database successfully exported as CSV!');
-  };
-
-  // Bulk Action: Batch Verify
-  const handleBatchVerify = async () => {
-    const selectedIds = Object.keys(selectedRowIds).filter(key => selectedRowIds[key]);
-    if (selectedIds.length === 0) return;
-
-    setSaving(true);
-    const results = await Promise.allSettled(
-      selectedIds.map(id => updateStudent(id, { accountStatus: 'Verified' })),
-    );
-    setSaving(false);
-
-    const saved = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - saved;
-
-    // Reload rather than patching local state, so the table always shows what
-    // the database actually holds.
-    loadStudents();
-    setSelectedRowIds({});
-
-    if (failed === 0) {
-      triggerToast(`Successfully verified credentials for ${saved} selected student records!`);
-    } else {
-      triggerToast(`Verified ${saved} of ${results.length}. ${failed} could not be saved.`);
-    }
+    downloadCsv('FSKTM_Student_Registry_Export.csv', filteredStudents, [
+      { header: 'Student ID', value: (s) => s.id },
+      { header: 'Full Name', value: (s) => s.name },
+      { header: 'Programme', value: (s) => s.programme },
+      { header: 'Academic Status', value: (s) => s.academicStatus },
+      { header: 'Account Status', value: (s) => s.accountStatus },
+      { header: 'Current Semester', value: (s) => s.semester },
+      { header: 'Intake', value: (s) => s.intakeDate },
+      { header: 'Email', value: (s) => s.email },
+      { header: 'Phone', value: (s) => s.phone },
+      { header: 'Supervisor', value: (s) => s.supervisor },
+      { header: 'Supervisor Staff No', value: (s) => s.supervisorStaffNo },
+      { header: 'Activated', value: (s) => (s.activated === false ? 'No' : 'Yes') },
+      { header: 'Last Sign-in', value: (s) => s.lastLogin ?? '' },
+    ]);
+    triggerToast(`Exported ${filteredStudents.length} student record${filteredStudents.length === 1 ? '' : 's'}.`);
   };
 
   // Single Manual Registration Submit handler with robust validation and normalization
@@ -441,17 +544,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
 
     setSaving(true);
+    let invitationSent: boolean | undefined;
     try {
-      await createStudent({
+      const created = await createStudent({
         id: manualFormData.id,
         name: manualFormData.name,
         email: manualFormData.email,
         programme,
         phone: manualFormData.phone,
-        semester: manualFormData.semester,
+        semester: manualFormData.semester.trim(),
         intakeDate: manualFormData.intakeBatch,
         academicStatus: 'Active',
+        sendInvite: manualFormData.sendCredentialsImmediately,
       });
+      invitationSent = created.invitationSent;
     } catch (err) {
       setSaving(false);
       // Duplicate matric / duplicate email arrive here with the backend's wording.
@@ -462,7 +568,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     loadStudents();
     setCurrentView('list');
-    triggerToast(`Registered new student "${manualFormData.name}" successfully!`);
+    if (!manualFormData.sendCredentialsImmediately) {
+      triggerToast(`Registered "${manualFormData.name}". No activation email was sent; send it from their profile when ready.`);
+    } else if (invitationSent === false) {
+      triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`);
+    } else {
+      triggerToast(`Registered "${manualFormData.name}" and emailed their activation link.`);
+    }
 
     // Reset manualFormData
     setManualFormData({
@@ -470,11 +582,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       id: '',
       email: '',
       phone: '',
-      programme: 'Select registered programme',
+      programme: '',
       intakeBatch: '',
-      semester: 'Semester 1',
-      researchTitle: '',
-      supervisor: '',
+      semester: '',
       sendCredentialsImmediately: true
     });
   };
@@ -533,27 +643,202 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setCsvPreviewRecords([]);
     setCsvFatalError(null);
     setEditingCsvLine(null);
+    setImportFilter('all');
+    setImportStep('upload');
+    setImportLayout(null);
+    setImportMapping(null);
+    setImportSheet(null);
+    setImportHeaderRow(null);
+    setMatchError(null);
+    setImportDefaults({});
+    setSendInvitesNow(true);
+    setProgrammeValues([]);
+    setProgrammeValueCount(0);
+    setProgrammeChoices({});
+    setKeepSavedMatches(true);
+    setFillEmail(true);
+    setDropIdSuffix(false);
+    setImportHasHeader(true);
   };
 
-  // The server checks the file (CSV or XLSX) and returns each row's status;
-  // nothing is created until the reviewer commits.
-  const previewImportFile = async (file: File) => {
+  // The confirmed reading of the uploaded file: which sheet, which row has the
+  // column names, and which column holds each detail.
+  const importOptions = (): ImportOptions => ({
+    sheet: importSheet,
+    headerRow: importHeaderRow,
+    hasHeader: importHasHeader,
+    mapping: importMapping,
+    defaults: importDefaults,
+    programmeMap: programmeChoices,
+    fillEmail,
+    idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
+    sendInvites: sendInvitesNow,
+  });
+
+  // Edited rows are sent back in our own layout, so the server finds the
+  // columns by name.
+  const reviewedOptions = (): ImportOptions => ({
+    defaults: importDefaults,
+    programmeMap: programmeChoices,
+    fillEmail,
+    idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
+    sendInvites: sendInvitesNow,
+  });
+
+  const reviewedFile = (rows: ImportPreviewRow[]) =>
+    new File([rowsToCsv(rowsForReview(rows))], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
+
+  const applyLayout = (layout: ImportInspectResponse) => {
+    setImportLayout(layout);
+    setImportMapping(layout.mapping);
+    setImportSheet(layout.sheet);
+    setImportHeaderRow(layout.headerRow);
+  };
+
+  const showCheckedRows = (response: ImportPreviewResponse) => {
+    setCsvPreviewRecords(response.rows);
+    setProgrammeValues(response.programmeValues ?? []);
+    setProgrammeValueCount(response.programmeValueCount ?? 0);
+  };
+
+  // Suggested programme choices (the office's earlier choice, or the same
+  // name spelt differently) are filled in and the rows checked again with
+  // them, so every choice and its effect are on screen before any import.
+  const previewWithChoices = async (file: File, options: ImportOptions) => {
+    const chosen = options.programmeMap ?? {};
+    const response = await previewStudentImport(file, options);
+    const choices = withSuggestedProgrammes(response.programmeValues ?? [], chosen);
+    setProgrammeChoices(choices);
+    if (Object.keys(choices).length === Object.keys(chosen).length) return response;
+    return previewStudentImport(file, { ...options, programmeMap: choices });
+  };
+
+  // The server checks every row with the confirmed columns; nothing is
+  // created until the reviewer commits.
+  const checkImportRows = async (file: File, options: ImportOptions) => {
+    const response = await previewWithChoices(file, options);
+    showCheckedRows(response);
+    setImportFilter('all');
+    setImportStep('check');
+    const checked = summariseImportRows(response.rows);
+    triggerToast(
+      `Checked ${checked.total} rows: ${checked.ready} ready, ${checked.skipped} will be skipped, ${checked.fix} need fixing.`,
+    );
+  };
+
+  // A new file is described first (sheets, column names, suggested matches).
+  // Our own template goes straight to checking rows; any other layout stops at
+  // Match columns so the office confirms which column is which.
+  const previewImportFile = async (file: File, first?: ImportOptions) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
+    setImportResult(null);
+    setMatchError(null);
     try {
-      const { rows } = await previewStudentImport(file);
-      setCsvPreviewRecords(rows);
+      const layout = await inspectStudentImport(file, first);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
       setRowsEdited(false);
-      const ready = rows.filter(r => r.status === 'Ready').length;
-      triggerToast(`Checked ${rows.length} rows — ${ready} ready, ${rows.length - ready} need attention.`);
+      setCsvPreviewRecords([]);
+      setProgrammeValues([]);
+      setProgrammeValueCount(0);
+      setProgrammeChoices({});
+      setKeepSavedMatches(true);
+      setFillEmail(true);
+      setDropIdSuffix(false);
+      setImportHasHeader(first?.hasHeader ?? true);
+      applyLayout(layout);
+      if (layout.layoutRecognised) {
+        await checkImportRows(file, { sheet: layout.sheet, headerRow: layout.headerRow, mapping: layout.mapping });
+      } else {
+        setImportStep('match');
+        triggerToast(`Found ${layout.rowCount} student rows. Check which column holds each detail.`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'That file could not be read.';
       clearImport();
       setCsvFatalError(message);
       triggerToast(message);
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
+  // Rows pasted from a spreadsheet go through the same steps as a file.
+  const checkPastedRows = () => {
+    let file: File;
+    try {
+      file = pastedRowsFile(pastedText, pasteHasHeader);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The pasted rows could not be read.');
+      return;
+    }
+    void previewImportFile(file, { hasHeader: pasteHasHeader });
+  };
+
+  // Choosing another sheet or column-name row describes the file again, with
+  // fresh suggestions for that layout.
+  const reinspectImport = async (options: ImportOptions) => {
+    if (!sourceFile) return;
+    setIsProcessingCsv(true);
+    setMatchError(null);
+    try {
+      applyLayout(
+        await inspectStudentImport(sourceFile, { useProfile: keepSavedMatches, hasHeader: importHasHeader, ...options }),
+      );
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : 'That part of the file could not be read.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
+  // The matches saved from an earlier import are set aside for this file, and
+  // the column-name suggestions come back.
+  const switchToSuggestedMatches = () => {
+    setKeepSavedMatches(false);
+    void reinspectImport({ sheet: importSheet, headerRow: importHeaderRow, useProfile: false });
+  };
+
+  // The matches confirmed for the file's own layout go with the import, so
+  // the next file with the same columns opens matched the same way. They are
+  // sent even when edited rows go back in our own layout.
+  const layoutToRemember = (): ImportOptions['rememberLayout'] =>
+    importLayout?.layoutToken && importMapping
+      ? { token: importLayout.layoutToken, mapping: importMapping, sheet: importSheet, headerRow: importHeaderRow }
+      : undefined;
+
+  const continueFromMatch = async () => {
+    if (!sourceFile) return;
+    setIsProcessingCsv(true);
+    setMatchError(null);
+    try {
+      await checkImportRows(sourceFile, importOptions());
+      setRowsEdited(false);
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : 'The rows could not be checked.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
+  // One choice covers every row with that programme name; the rows are
+  // checked again straight away.
+  const chooseProgramme = async (key: string, choice: string) => {
+    const choices = { ...programmeChoices };
+    if (choice === NOT_CHOSEN) delete choices[key];
+    else choices[key] = choice;
+    setProgrammeChoices(choices);
+    setIsProcessingCsv(true);
+    try {
+      const response =
+        !rowsEdited && sourceFile
+          ? await previewStudentImport(sourceFile, { ...importOptions(), programmeMap: choices })
+          : await previewStudentImport(reviewedFile(csvPreviewRecords), { ...reviewedOptions(), programmeMap: choices });
+      showCheckedRows(response);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The rows could not be checked again.');
     } finally {
       setIsProcessingCsv(false);
     }
@@ -566,7 +851,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       name: item.name,
       programme: item.programme,
       email: item.email,
-      id: item.id
+      id: item.id,
+      phone: item.phone
     });
   };
 
@@ -576,15 +862,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       return;
     }
 
+    const id = editRowFields.id.trim();
+    const programme = editRowFields.programme.trim();
+    const email = editRowFields.email.trim();
     const edited = csvPreviewRecords.map(rec => (
       rec.line !== editingCsvLine
         ? rec
         : {
             ...rec,
-            id: editRowFields.id.trim(),
+            id,
             name: editRowFields.name.trim(),
-            programme: editRowFields.programme.trim(),
-            email: editRowFields.email.trim(),
+            programme,
+            email,
+            phone: editRowFields.phone.trim(),
+            // What the office's choices filled in keeps following those
+            // choices, unless it was typed over here.
+            idInFile: id === rec.id ? rec.idInFile : undefined,
+            programmeInFile: programme === rec.programme ? rec.programmeInFile : undefined,
+            emailFilled: email === rec.email ? rec.emailFilled : undefined,
           }
     ));
 
@@ -592,9 +887,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     // still-invalid row as Ready.
     setIsProcessingCsv(true);
     try {
-      const reviewed = new File([rowsToCsv(edited)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
-      const { rows } = await previewStudentImport(reviewed);
-      setCsvPreviewRecords(rows);
+      showCheckedRows(await previewWithChoices(reviewedFile(edited), reviewedOptions()));
       setRowsEdited(true);
       setEditingCsvLine(null);
       triggerToast('Row updated and checked again.');
@@ -609,39 +902,35 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // left out. The server records the run for Recent Imports.
   const handleCommitVerifiedCsv = async () => {
     if (csvPreviewRecords.length === 0) return;
-    const file = rowsEdited || !sourceFile
-      ? new File([rowsToCsv(csvPreviewRecords)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' })
+    const editedSet = rowsEdited || !sourceFile;
+    const file = editedSet
+      ? reviewedFile(csvPreviewRecords)
       : sourceFile;
 
     setSaving(true);
     setCsvFatalError(null);
     try {
-      const { batch, rows } = await commitStudentImport(file);
+      const result = await commitStudentImport(file, {
+        ...(editedSet ? reviewedOptions() : importOptions()),
+        rememberLayout: layoutToRemember(),
+      });
+      const { batch, rows } = result;
       loadStudents();
       loadRecentImports(showAllImports ? 50 : 5);
 
-      const emailNote = batch.invitationsFailed > 0
-        ? ` ${batch.invitationsFailed} activation email(s) could not be sent — use Send Activation Link on those students.`
-        : '';
-      const leftOver = rows.filter(r => r.result !== 'created');
-      if (leftOver.length === 0) {
+      // The result panel lists every skipped and failed row. Only the rows that
+      // were not imported stay in the preview, so they can be fixed and sent
+      // again; skipped students need nothing more.
+      setImportResult(result);
+      const notImported = rows.filter(r => r.result === 'failed');
+      if (notImported.length === 0) {
         clearImport();
-        setCurrentView('list');
-        triggerToast(`Created ${batch.created} student accounts.${emailNote}`);
-        return;
+      } else {
+        setCsvPreviewRecords(notImported);
+        setRowsEdited(true);
+        setImportFilter('all');
       }
-
-      // Keep the reviewer here with only the rows that were not created, so
-      // they can be corrected and imported again.
-      setCsvPreviewRecords(leftOver);
-      setRowsEdited(true);
-      setCsvFatalError(
-        [
-          `Created ${batch.created}, skipped ${batch.skipped}, not imported ${batch.failed}.${emailNote}`,
-          ...leftOver.map(r => `line ${r.line} (${r.id || 'no id'}): ${r.issue}`),
-        ].join('\n'),
-      );
-      triggerToast(`Created ${batch.created}. ${leftOver.length} row(s) were not imported — see the list below.`);
+      triggerToast(`Import finished: ${batchSummary(batch)}.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The import could not be completed.';
       setCsvFatalError(message);
@@ -651,20 +940,50 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // Activation emails an import held back go only to students from that
+  // import who are still active and have not set a password.
+  const handleSendHeld = async () => {
+    if (!heldBatchToSend) return;
+    setSendingHeld(true);
+    try {
+      const result = await sendBatchInvitations(heldBatchToSend.id);
+      const notes = [
+        result.failed ? `${result.failed} could not be sent.` : '',
+        result.alreadyActivated ? `${result.alreadyActivated} had already set a password.` : '',
+        result.suspended ? `${result.suspended} have sign-in suspended.` : '',
+      ].filter(Boolean);
+      triggerToast(
+        [`Sent ${result.sent} activation email${result.sent === 1 ? '' : 's'}.`, ...notes].join(' '),
+      );
+      setImportResult((current) =>
+        current && current.batch.id === result.batch.id
+          ? { batch: result.batch, rows: rowsAfterHeldSend(current.rows, result.students) }
+          : current,
+      );
+      loadRecentImports(showAllImports ? 50 : 5);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The activation emails could not be sent.');
+    } finally {
+      setSendingHeld(false);
+      setHeldBatchToSend(null);
+    }
+  };
+
   const downloadImportProblems = (batch: RegistryImportBatch) => {
-    const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-    const csv = [
-      'line,student_id,result,issue',
-      ...batch.problems.map(p => [p.line, p.id, p.result, p.issue].map(quote).join(',')),
-    ].join('\n');
-    const url = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', reviewedFileName(batch.fileName).replace('-reviewed.csv', '-problems.csv'));
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    downloadCsv(
+      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-skipped-and-not-imported.csv'),
+      batch.problems,
+      BATCH_PROBLEM_COLUMNS,
+    );
+  };
+
+  const downloadImportReport = () => {
+    if (!importResult) return;
+    downloadCsv(
+      reviewedFileName(importResult.batch.fileName).replace('-reviewed.csv', '-import-report.csv'),
+      importResult.rows,
+      IMPORT_REPORT_COLUMNS,
+    );
   };
 
   // CSV template generator downloder
@@ -680,6 +999,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     link.click();
     link.parentNode?.removeChild(link);
     triggerToast('Downloaded official student import template.');
+  };
+
+  // The Excel template keeps leading zeros and offers the programmes as a
+  // dropdown, so a typed list has fewer mistakes than a CSV.
+  const downloadExcelTemplate = async () => {
+    try {
+      const url = window.URL.createObjectURL(await downloadImportTemplate());
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'FSKTM_Student_Registry_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      triggerToast('Downloaded the Excel template.');
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The Excel template could not be downloaded.');
+    }
   };
 
   // Filtration logic for main Student Listing
@@ -701,23 +1038,43 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
-  const columnCount = readOnly ? 6 : 7;
+  const columnCount = 6;
 
-  // Paginated students records 
-  const displayedStudents = filteredStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Paginated students records
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
+  const safePage = Math.min(currentPage, totalPages);
+
+  // After a reload or a status change the list can shrink below the page the
+  // office was on; move back to the last real page instead of an empty one.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+  const displayedStudents = filteredStudents.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
 
   // Render variables for Bulk Indicators
-  const readyCsvCount = csvPreviewRecords.filter(r => r.status === 'Ready').length;
-  const warningCsvCount = csvPreviewRecords.filter(r => r.status === 'Missing Email').length;
-  const duplicateCsvCount = csvPreviewRecords.filter(
-    r => r.status === 'Duplicate In File' || r.status === 'Already Registered',
-  ).length;
+  const importSummary = summariseImportRows(csvPreviewRecords);
+  const readyCsvCount = importSummary.ready;
+  const visibleImportRows = filterImportRows(csvPreviewRecords, importFilter);
+  const skipText = skipNotice(importSummary);
+  const filledEmailCount = csvPreviewRecords.filter((row) => row.emailFilled).length;
+  const heldCount = heldBatchToSend?.created ?? 0;
 
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
       <PortalToast message={toastMessage} />
+
+      <PortalConfirmModal
+        isOpen={heldBatchToSend !== null}
+        title={`Send activation emails to ${heldCount} student${heldCount === 1 ? '' : 's'}?`}
+        message={`Only students from ${heldBatchToSend?.fileName ?? 'this import'} who have not set a password yet are emailed.`}
+        confirmLabel="Send Emails"
+        tone="info"
+        icon={Mail}
+        isLoading={sendingHeld}
+        onConfirm={() => void handleSendHeld()}
+        onCancel={() => setHeldBatchToSend(null)}
+      />
 
       {registryModuleTab === 'students' ? (
         <>
@@ -725,11 +1082,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           {/* SCREEN A: PRIMARY REGISTRY STUDENT DIRECTORY LIST VIEW */}
           {/* ========================================================== */}
           {currentView === 'list' && (
-        <div id="student-registry-directory-list">
-          
+        <div id="student-registry-directory-list" className="space-y-8">
           <PageHeader
             title="Student Registry"
-            subtitle={readOnly ? 'Read-only view of the students in your scope' : 'University Postgraduate Secretariat'}
+            subtitle={readOnly ? 'Read-only view of the students in your scope.' : 'Manage student records, registrations and sign-in access.'}
             actions={
               <div className="flex items-center gap-3 select-none">
                 <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
@@ -752,60 +1108,25 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {/* Module switcher below the heading */}
-          {!readOnly && (
-            <div className="border-b border-slate-200 pb-4 mt-5 mb-8">
-              <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />
-            </div>
-          )}
+          {!readOnly && <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
-          <div id="student-summary-cards" className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8 ${readOnly ? 'mt-6' : ''}`}>
-            <SummaryCard
-              title="Total Students"
-              value={summary.total.toLocaleString()}
-              subtext={readOnly ? 'In your scope' : 'In the registry'}
-              colorClass="bg-blue-50/50 text-blue-600 border-blue-100"
-              icon={GraduationCap}
-            />
-            <SummaryCard
-              title="Active"
-              value={summary.active.toLocaleString()}
-              subtext="Currently studying"
-              colorClass="bg-emerald-50/50 text-[#00a15c] border-[#bef5db]"
-              icon={UserCheck}
-            />
-            <SummaryCard
-              title="Deferred"
-              value={summary.deferred.toLocaleString()}
-              subtext="On approved deferment"
-              colorClass="bg-amber-50/60 text-[#ea580c] border-[#ffedd5]"
-              icon={Calendar}
-            />
-            <SummaryCard
-              title="Graduated / Withdrawn"
-              value={summary.exited.toLocaleString()}
-              subtext="No longer studying"
-              colorClass="bg-slate-50 text-slate-500 border-slate-200"
-              icon={UserSquare}
-            />
-            <SummaryCard
-              title="Awaiting Activation"
-              value={summary.awaitingActivation.toLocaleString()}
-              subtext="Password not set yet"
-              colorClass="bg-purple-50/50 text-purple-600 border-purple-100"
-              icon={ShieldAlert}
-            />
+          <div id="student-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <StatCard label="Total Students" value={summary.total.toLocaleString()} caption={readOnly ? 'In your scope' : 'In the registry'} icon={GraduationCap} tone="blue" />
+            <StatCard label="Active" value={summary.active.toLocaleString()} caption="Currently studying" icon={UserCheck} tone="green" />
+            <StatCard label="Deferred" value={summary.deferred.toLocaleString()} caption="On approved deferment" icon={Calendar} tone="amber" />
+            <StatCard label="Graduated / Withdrawn" value={summary.exited.toLocaleString()} caption="No longer studying" icon={UserSquare} tone="slate" />
+            <StatCard label="Awaiting Activation" value={summary.awaitingActivation.toLocaleString()} caption="Password not set yet" icon={ShieldAlert} tone="purple" />
           </div>
 
           {/* ==================== CENTRAL DATATABLE AND FILTERS ==================== */}
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs">
             
             {/* Filtering Box Controls */}
-            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 select-none">
-              
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3 select-none">
+
               {/* Real-time Search Box */}
-              <div className="relative flex-1">
+              <div className="relative w-full">
                 <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                   <Search className="w-4 h-4 text-slate-400" />
                 </span>
@@ -824,82 +1145,71 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* Dynamic Droplist selectors */}
               <div className="flex flex-wrap items-center gap-2">
                 
-                {/* Selector: Programme */}
-                <div className="relative">
-                  <select
-                    value={selectedProgramme}
-                    onChange={(e) => {
-                      setSelectedProgramme(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  >
-                    <option value="All">Programme: All</option>
-                    {PROGRAMME_OPTIONS.map((programme) => (
-                      <option key={programme} value={programme}>{programme}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Programme"
+                  aria-label="Filter by programme"
+                  value={selectedProgramme}
+                  options={[
+                    { value: 'All', label: 'All programmes', triggerLabel: 'All' },
+                    ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                  ]}
+                  onChange={(programme) => {
+                    setSelectedProgramme(programme);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Semester */}
-                <div className="relative">
-                  <select
-                    value={selectedSemester}
-                    onChange={(e) => {
-                      setSelectedSemester(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  >
-                    <option value="All">Semester: All</option>
-                    {semesterOptions.map((semester) => (
-                      <option key={semester} value={semester}>{semester}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Semester"
+                  aria-label="Filter by semester"
+                  value={selectedSemester}
+                  options={[
+                    { value: 'All', label: 'All semesters', triggerLabel: 'All' },
+                    ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
+                  ]}
+                  onChange={(semester) => {
+                    setSelectedSemester(semester);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Status */}
-                <div className="relative">
-                  <select
-                    value={selectedAcademicStatus}
-                    onChange={(e) => {
-                      setSelectedAcademicStatus(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  >
-                    <option value="All">Status: All</option>
-                    {ACADEMIC_STATUSES.map((academicStatus) => (
-                      <option key={academicStatus} value={academicStatus}>{academicStatus}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Status"
+                  aria-label="Filter by academic status"
+                  value={selectedAcademicStatus}
+                  options={[
+                    { value: 'All', label: 'All statuses', triggerLabel: 'All' },
+                    ...ACADEMIC_STATUSES.map(statusOption),
+                  ]}
+                  onChange={(academicStatus) => {
+                    setSelectedAcademicStatus(academicStatus);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Supervisor */}
-                <div className="relative">
-                  <select
-                    value={selectedSupervisor}
-                    onChange={(e) => {
-                      setSelectedSupervisor(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs"
-                  >
-                    <option value="All">Supervisor: All</option>
-                    <option value={NO_SUPERVISOR}>No supervisor yet</option>
-                    {supervisorOptions.map((supervisor) => (
-                      <option key={supervisor} value={supervisor}>{supervisor}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Supervisor"
+                  aria-label="Filter by supervisor"
+                  value={selectedSupervisor}
+                  options={[
+                    { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
+                    { value: NO_SUPERVISOR, label: 'No supervisor yet' },
+                    ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
+                  ]}
+                  onChange={(supervisor) => {
+                    setSelectedSupervisor(supervisor);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Clear Reset button */}
-                <button
-                  type="button"
+                <PortalButton
+                  variant="secondary"
+                  size="md"
+                  icon={SlidersHorizontal}
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedProgramme('All');
@@ -907,62 +1217,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     setSelectedAcademicStatus('All');
                     setSelectedSupervisor('All');
                     setCurrentPage(1);
-                    setSelectedRowIds({});
-                    triggerToast('All filtering properties reset successfully.');
+                    triggerToast('All filters reset.');
                   }}
-                  className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide rounded-xl hover:bg-slate-50 transition shadow-3xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Reset Filters</span>
-                </button>
+                  Reset Filters
+                </PortalButton>
               </div>
             </div>
-
-            {/* Bulk Action verification Bar */}
-            {!readOnly && Object.values(selectedRowIds).some(v => v) && (
-              <div className="bg-indigo-50/70 border-b border-indigo-100 p-3.5 flex items-center justify-between text-left select-none animate-fade-in px-6">
-                <div className="flex items-center gap-2.5 text-slate-900">
-                  <StatusDot tone="info" pulse className="w-2 h-2" />
-                  <span className="font-extrabold text-xs">
-                    {Object.values(selectedRowIds).filter(v => v).length} student records selected
-                  </span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleBatchVerify}
-                    disabled={saving}
-                    className="px-4 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Saving…' : 'Bulk Authorize Verify'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRowIds({})}
-                    className="px-3 py-2 hover:bg-slate-200/50 text-slate-600 rounded-xl text-[10px] font-extrabold uppercase tracking-wide cursor-pointer"
-                  >
-                    Discard Choice
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* DATATABLE LIST VIEW */}
             <div className="overflow-x-auto">
               <table className="data-table">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
-                    {!readOnly && (
-                      <th className="data-th w-12 text-center">
-                        <input
-                          type="checkbox"
-                          onChange={handleToggleAll}
-                          checked={filteredStudents.length > 0 && filteredStudents.every(it => selectedRowIds[it.id])}
-                          className="rounded text-slate-900 focus:ring-slate-900 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                        />
-                      </th>
-                    )}
                     <th className="data-th">
                       Student Candidate
                     </th>
@@ -1004,24 +1271,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </tr>
                   ) : (
                     displayedStudents.map((student) => {
-                      const isChecked = !!selectedRowIds[student.id];
                       return (
-                        <tr
-                          key={student.id}
-                          className={`data-row ${isChecked ? 'bg-brand-navy/[0.01]' : ''}`}
-                        >
-                          {/* Selector column */}
-                          {!readOnly && (
-                            <td className="data-td w-12 text-center">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleRow(student.id)}
-                                className="rounded text-slate-950 focus:ring-slate-955 cursor-pointer w-4 h-4 accent-slate-900 border-slate-300"
-                              />
-                            </td>
-                          )}
-
+                        <tr key={student.id} className="data-row">
                           {/* Student identity details */}
                           <td className="data-td">
                             <div className="flex items-center gap-3 text-left">
@@ -1070,14 +1321,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           {/* Action column */}
                           <td className="data-td text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setViewingStudent(student)}
-                                className="px-3.5 py-1.5 bg-[#f8fafc] border border-slate-200 hover:bg-slate-100 hover:border-slate-300 text-slate-650 font-extrabold text-[10px] uppercase rounded-lg shadow-3xs transition-all flex items-center gap-1 cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-slate-450" />
-                                <span>Inspect</span>
-                              </button>
+                              <PortalButton variant="secondary" size="sm" icon={Eye} onClick={() => setViewingStudent(student)}>
+                                Inspect
+                              </PortalButton>
                             </div>
                           </td>
                         </tr>
@@ -1102,25 +1348,35 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+
                 {/* Pagination previous trigger */}
                 <button
                   type="button"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  aria-label="Previous page"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage(Math.max(safePage - 1, 1))}
                   className="p-2 border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
                 {/* Number labels mapping */}
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => {
-                  const matchesCurrent = currentPage === pNum;
+                {pageWindow(safePage, totalPages).map((pNum, index) => {
+                  if (pNum === null) {
+                    return (
+                      <span key={`gap-${index}`} className="px-1 text-[11px] font-black text-slate-400" aria-hidden="true">
+                        …
+                      </span>
+                    );
+                  }
+                  const matchesCurrent = safePage === pNum;
                   return (
                     <button
                       key={pNum}
                       type="button"
+                      aria-label={`Page ${pNum}`}
+                      aria-current={matchesCurrent ? 'page' : undefined}
                       onClick={() => setCurrentPage(pNum)}
                       className={`w-8.5 h-8.5 text-[11px] font-black rounded-lg transition flex items-center justify-center cursor-pointer ${
                         matchesCurrent
@@ -1136,8 +1392,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 {/* Pagination next trigger */}
                 <button
                   type="button"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  aria-label="Next page"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage(Math.min(safePage + 1, totalPages))}
                   className="p-2 border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -1157,38 +1414,30 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* SCREEN B: REGISTER NEW STUDENTS (CSV IMPORT & MANUAL FORM) */}
       {/* ========================================================== */}
       {currentView === 'register' && !readOnly && (
-        <RecordPage title="Register New Students" backLabel="Back to Student Registry" onBack={() => setCurrentView('list')} pageKey="registry-student-registration" dirty={!!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone || !!manualFormData.intakeBatch || !!manualFormData.researchTitle || !!manualFormData.supervisor || manualFormData.programme !== 'Select registered programme' || manualFormData.semester !== 'Semester 1' || !manualFormData.sendCredentialsImmediately || uploadedFile !== null} busy={isProcessingCsv || saving}>{requestBack => <div id="student-registry-register-view" className="text-left select-none animate-fade-in">
-          
+        <RecordPage
+          title="Register New Students"
+          subtitle="Import students from a CSV or Excel file, or add one student at a time."
+          backLabel="Back to Student Registry"
+          onBack={() => setCurrentView('list')}
+          pageKey="registry-student-registration"
+          dirty={
+            !!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone
+            || !!manualFormData.programme || !!manualFormData.intakeBatch || !!manualFormData.semester
+            || !manualFormData.sendCredentialsImmediately || uploadedFile !== null || pastedText.trim() !== ''
+          }
+          busy={isProcessingCsv || saving}
+        >{requestBack => <div id="student-registry-register-view" className="space-y-8 text-left select-none animate-fade-in">
 
-
-          {/* TAB SEGMENT SELECTION - HIGH FIDELITY MOCKUP STYLE */}
-          <div className="border-b border-slate-200 pb-4 mb-8 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setRegisterActiveTab('bulk')}
-              className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                registerActiveTab === 'bulk' 
-                  ? 'bg-[#121c2e] text-white shadow-xs' 
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              Bulk Import via CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => setRegisterActiveTab('single')}
-              className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                registerActiveTab === 'single' 
-                  ? 'bg-[#121c2e] text-white shadow-xs' 
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              Single Student Entry
-            </button>
-          </div>
+          <SegmentedControl<RegisterTab>
+            options={REGISTER_TABS}
+            value={registerActiveTab}
+            onChange={setRegisterActiveTab}
+            labels={{ bulk: 'Bulk Import (Excel or CSV)', single: 'Single Student Entry' }}
+            className="w-fit"
+          />
 
           {/* CONTENT COLUMNS GRID VIEW */}
-          <div className={registerActiveTab === 'bulk' ? "grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-fade-in" : "max-w-4xl mx-auto w-full animate-fade-in"}>
+          <div className={registerActiveTab === 'bulk' ? "grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-fade-in" : "w-full animate-fade-in"}>
             
             {/* LEFT ACTIONS AREA FRAME */}
             <div className={registerActiveTab === 'bulk' ? "lg:col-span-3 space-y-6" : "w-full space-y-6"}>
@@ -1196,14 +1445,26 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* TAB 1: BULK IMPORT ACTIVE VIEW */}
               {registerActiveTab === 'bulk' && (
                 <div className="space-y-6">
-                  
+
+                  {importResult && (
+                    <RegistryImportResult
+                      result={importResult}
+                      onDownloadReport={downloadImportReport}
+                      onClose={() => setImportResult(null)}
+                      onSendHeld={() => setHeldBatchToSend(importResult.batch)}
+                      sendingHeld={sendingHeld}
+                    />
+                  )}
+
                   {/* CSV FILE UPLOAD CARD */}
-                  <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
+                  <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="section-label">File Upload</h3>
-                        <p className="card-description mt-0.5">
-                          Drag and drop your student registry CSV or XLSX file below.
+                        <h3 className="section-label">{uploadMode === 'paste' ? 'Paste Rows' : 'File Upload'}</h3>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                          {uploadMode === 'paste'
+                            ? 'Paste rows copied from Excel or Google Sheets below.'
+                            : 'Drag and drop your student registry CSV or XLSX file below.'}
                         </p>
                       </div>
                       
@@ -1213,69 +1474,129 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
                     </div>
 
-                    {/* INTERACTIVE DRAG-DROP REGENCY DASHED */}
-                    <div 
-                      onDragEnter={handleDrag}
-                      onDragOver={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDrop={handleDrop}
-                      onClick={triggerFileSelect}
-                      className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group ${
-                        dragActive 
-                          ? 'border-indigo-500 bg-indigo-50/30' 
-                          : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
-                      }`}
-                    >
-                      <input 
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,.xlsx"
-                        className="hidden"
-                        onChange={(e) => {
-                          handleFileChange(e);
-                          e.target.value = '';
-                        }}
+                    {!uploadedFile && !isProcessingCsv && (
+                      <SegmentedControl<'file' | 'paste'>
+                        options={['file', 'paste'] as const}
+                        value={uploadMode}
+                        onChange={setUploadMode}
+                        labels={{ file: 'Upload a file', paste: 'Paste rows' }}
+                        className="w-fit mb-4"
                       />
+                    )}
 
-                      {/* Display files status or drag guidelines */}
-                      {isProcessingCsv ? (
-                        <div className="space-y-2 py-4">
-                          <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-                          <span className="card-value text-indigo-650 block">Checking the file…</span>
-                        </div>
-                      ) : uploadedFile ? (
-                        <div className="space-y-3 py-2">
-                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 relative shadow-sm">
-                            <CheckCircle className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <span className="card-value block select-all">{uploadedFile.name}</span>
-                            <span className="card-description block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              clearImport();
-                              triggerToast('Current file cleared.');
-                            }}
-                            className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
+                    {/* Drag and drop a file, or paste rows copied from a spreadsheet */}
+                    {uploadMode === 'paste' && !uploadedFile && !isProcessingCsv ? (
+                      <div className="space-y-3">
+                        <label className="block text-left">
+                          <span className="form-label">Rows copied from Excel or Google Sheets</span>
+                          <textarea
+                            value={pastedText}
+                            onChange={(e) => setPastedText(e.target.value)}
+                            rows={8}
+                            wrap="off"
+                            spellCheck={false}
+                            placeholder="Select the rows in your spreadsheet, copy them (Ctrl+C), then paste them here (Ctrl+V)."
+                            className={`form-control form-control-md resize-y font-mono text-[11px] font-semibold leading-relaxed ${THIN_SCROLLBAR}`}
+                          />
+                        </label>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="flex items-center gap-2.5 cursor-pointer text-left">
+                            <input
+                              type="checkbox"
+                              checked={pasteHasHeader}
+                              onChange={(e) => setPasteHasHeader(e.target.checked)}
+                              className="w-4 h-4 shrink-0 accent-blue-600 cursor-pointer"
+                            />
+                            <span className="text-xs font-extrabold text-slate-800">The first row is column names</span>
+                          </label>
+                          <PortalButton
+                            variant="primary"
+                            size="sm"
+                            icon={ClipboardPaste}
+                            onClick={checkPastedRows}
+                            disabled={!pastedText.trim()}
+                            className="self-start sm:self-auto"
                           >
-                            Upload Different File
-                          </button>
+                            Check Pasted Rows
+                          </PortalButton>
                         </div>
-                      ) : (
-                        <div className="space-y-3 py-2 select-none">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-450 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition duration-200 flex items-center justify-center mx-auto border border-slate-150">
-                            <UploadCloud className="w-5.5 h-5.5" />
+                        <p className="text-[10px] text-slate-400 font-semibold text-left">
+                          Up to 1,000 students at a time. Nothing is saved until you check the rows and import.
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        onClick={triggerFileSelect}
+                        role={uploadedFile ? undefined : 'button'}
+                        tabIndex={uploadedFile ? undefined : 0}
+                        aria-label={uploadedFile ? undefined : 'Choose a CSV or Excel file to import'}
+                        onKeyDown={(e) => {
+                          if (!uploadedFile && (e.key === 'Enter' || e.key === ' ')) {
+                            e.preventDefault();
+                            triggerFileSelect();
+                          }
+                        }}
+                        className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+                          dragActive
+                            ? 'border-indigo-500 bg-indigo-50/30'
+                            : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv,.xlsx"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleFileChange(e);
+                            e.target.value = '';
+                          }}
+                        />
+
+                        {/* Display files status or drag guidelines */}
+                        {isProcessingCsv ? (
+                          <div className="space-y-2 py-4">
+                            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
+                            <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Checking the file…</span>
                           </div>
-                          <div>
-                            <span className="card-value block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
-                            <span className="card-description block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
+                        ) : uploadedFile ? (
+                          <div className="space-y-3 py-2">
+                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 relative shadow-sm">
+                              <CheckCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <span className="text-[12px] font-black text-slate-800 block select-all">{uploadedFile.name}</span>
+                              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearImport();
+                                triggerToast('Current file cleared.');
+                              }}
+                              className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
+                            >
+                              {uploadMode === 'paste' ? 'Paste Different Rows' : 'Upload Different File'}
+                            </button>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <div className="space-y-3 py-2 select-none">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-450 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition duration-200 flex items-center justify-center mx-auto border border-slate-150">
+                              <UploadCloud className="w-5.5 h-5.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-800 block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
+                              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* DOWNLOAD ROW & COLUMN DETAILS */}
                     <div className="border-t border-slate-100 mt-5 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
@@ -1314,242 +1635,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </AnimatePresence>
                       </div>
 
-                      {/* Download Template button */}
-                      <button
-                        type="button"
-                        onClick={downloadCsvTemplate}
-                        className="px-4 py-2 bg-[#f8fafc] border border-slate-200 hover:bg-slate-100 text-slate-700 font-extrabold text-[10.5px] uppercase tracking-wide rounded-xl shadow-3xs transition flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-center"
-                      >
-                        <Download className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Download CSV Template</span>
-                      </button>
-                    </div>
-
-                  </div>
-
-                  {/* IMPORT PREVIEW & VALIDATION SYSTEM LIST CONTAINER */}
-                  <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs">
-                    
-                    {/* Upper title and verification counters */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
-                      <div>
-                        <h3 className="section-label">Import Preview & Validation</h3>
-                        <p className="card-description mt-0.5">
-                          Verification outcome mapping for staged candidate accounts row matrices.
-                        </p>
+                      <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                        <PortalButton variant="primary" size="sm" icon={FileSpreadsheet} onClick={() => void downloadExcelTemplate()}>
+                          Download Excel Template
+                        </PortalButton>
+                        <PortalButton variant="secondary" size="sm" icon={Download} onClick={downloadCsvTemplate}>
+                          CSV Template
+                        </PortalButton>
                       </div>
-
-                      {/* VALIDATION OUTPUT PILLS */}
-                      <div className="flex items-center gap-1.5">
-                        
-                        {/* Ready indicator */}
-                        <div className="px-2.5 py-1 bg-emerald-50 text-[#00a15c] border border-[#bef5db] font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>{readyCsvCount} Ready</span>
-                        </div>
-
-                        {/* Warning Indicator */}
-                        <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
-                          warningCsvCount > 0 
-                            ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' 
-                            : 'bg-slate-50 text-slate-400 border-slate-150'
-                        }`}>
-                          <AlertTriangle className="w-3 h-3" />
-                          <span className="card-description">{warningCsvCount} Warning</span>
-                        </div>
-
-                        {/* Duplicate indicator */}
-                        <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
-                          duplicateCsvCount > 0 
-                            ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                            : 'bg-slate-50 text-slate-400 border-slate-150'
-                        }`}>
-                          <AlertCircle className="w-3 h-3" />
-                          <span className="card-description">{duplicateCsvCount} Duplicate</span>
-                        </div>
-
-                      </div>
-
-                      {/* Parse failures and per-row commit failures */}
-                      {csvFatalError && (
-                        <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
-                          <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
-                            Import problems
-                          </p>
-                          <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
-                            {csvFatalError}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* PREVIEW DATATABLE MAP */}
-                    <div className="border border-slate-150 rounded-xl overflow-hidden mt-2">
-                      <table className="data-table">
-                        <thead>
-                          <tr className="data-thead bg-slate-50 select-none">
-                            <th className="data-th">Student ID</th>
-                            <th className="data-th">Candidate Name</th>
-                            <th className="data-th">Programme Mapped</th>
-                            <th className="data-th text-center">Validation Status</th>
-                            <th className="data-th text-center">Edit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-150 text-xs">
-                          {csvPreviewRecords.map((item) => {
-                            const isBeingEdited = editingCsvLine === item.line;
-
-                            if (isBeingEdited) {
-                              return (
-                                <tr key={item.line} className="bg-amber-50/60 font-medium">
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.id}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, id: e.target.value })}
-                                      className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.name}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, name: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                                    />
-                                  </td>
-                                  <td className="data-td">
-                                    <input 
-                                      type="text" 
-                                      value={editRowFields.programme}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, programme: e.target.value })}
-                                      className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                                    />
-                                  </td>
-                                  <td className="data-td text-center">
-                                    <input 
-                                      type="text" 
-                                      placeholder="Email field (Empty = Warning)"
-                                      value={editRowFields.email}
-                                      onChange={(e) => setEditRowFields({ ...editRowFields, email: e.target.value })}
-                                      className="w-32 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
-                                    />
-                                  </td>
-                                  <td className="data-td text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={handleSaveEditedRow}
-                                        disabled={isProcessingCsv}
-                                        className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50"
-                                        title="Confirm Changes"
-                                      >
-                                        <Check className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingCsvLine(null)}
-                                        className="p-1 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded text-[10px] uppercase font-bold cursor-pointer"
-                                        title="Discard Changes"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            }
-
-                            return (
-                              <tr key={item.line} className="hover:bg-slate-50/50 transition">
-                                <td className="data-td-strong font-mono text-slate-600">{item.id}</td>
-                                <td className="data-td-strong text-slate-850">{item.name}</td>
-                                <td className="data-td-strong text-slate-500">{item.programme}</td>
-                                
-                                {/* Status Outcome render badge */}
-                                <td className="data-td text-center">
-                                  {item.status === 'Ready' && (
-                                    <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
-                                      <Check className="w-3 h-3 stroke-[2.5]" />
-                                      <span>Ready</span>
-                                    </span>
-                                  )}
-                                  {item.status === 'Missing Email' && (
-                                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
-                                      <AlertTriangle className="w-3 h-3 animate-bounce" />
-                                      <span>Missing Email</span>
-                                    </span>
-                                  )}
-                                  {item.status !== 'Ready' && item.status !== 'Missing Email' && (
-                                    <span
-                                      title={item.issue}
-                                      className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none"
-                                    >
-                                      <AlertCircle className="w-3 h-3" />
-                                      <span>{item.status}</span>
-                                    </span>
-                                  )}
-                                </td>
-
-                                {/* Actions pencil trigger */}
-                                <td className="data-td text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEditingRow(item)}
-                                    className="p-1 px-1.5 hover:bg-slate-100 rounded border border-transparent hover:border-slate-205 text-slate-450 hover:text-slate-900 transition-all cursor-pointer"
-                                    title="Edit Row"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* BOTTON FORM ACTION CONTROLS */}
-                    <div className="flex items-center justify-between mt-6 select-none">
-                      
-                      {/* Cancel on left */}
-                      <button
-                        type="button"
-                        onClick={requestBack}
-                        className="text-slate-500 hover:text-slate-800 font-extrabold uppercase text-[10.5px] tracking-wider transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-
-                      {/* Primary actions on right */}
-                      <div className="flex items-center gap-3">
-                        
-                        {/* Rows with problems are corrected individually via the
-                            Edit action on each row. Auto-filling an email or a
-                            matric number would attach a real account to the
-                            wrong person. */}
-
-                        {csvPreviewRecords.length > readyCsvCount && (
-                          <span className="text-[10px] font-semibold text-slate-500 max-w-[220px] text-right">
-                            Rows that are not Ready are left out and listed after the import.
-                          </span>
-                        )}
-
-                        {/* Commit validated records to database */}
-                        <button
-                          type="button"
-                          onClick={handleCommitVerifiedCsv}
-                          disabled={saving || isProcessingCsv || readyCsvCount === 0}
-                          className="px-5 py-3 bg-brand-navy hover:bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <UserCheck className="w-4 h-4 text-indigo-300" />
-                          <span>
-                            {saving ? 'Creating accounts…' : `Create ${readyCsvCount} Ready Account${readyCsvCount === 1 ? '' : 's'}`}
-                          </span>
-                        </button>
-
-                      </div>
-
                     </div>
 
                   </div>
@@ -1559,33 +1652,33 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
-                <div id="single-candidate-register-container" className="bg-white border border-[#e2e8f0] rounded-2xl p-6 md:p-8 shadow-3xs">
-                  
-                  {/* Form card header with UserPlus Icon */}
-                  <div className="flex items-center gap-3 border-b border-slate-100 pb-5 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-700">
-                      <UserPlus className="w-5 h-5 text-indigo-600" />
+                <div id="single-candidate-register-container" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-3xs space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                      <UserPlus className="w-5 h-5 text-brand-navy" />
                     </div>
-                    <h2 className="section-label animate-fade-in">
-                      New Student Registration
-                    </h2>
+                    <div>
+                      <h2 className="section-label">New Student Registration</h2>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                        Enter the student's personal and academic details.
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Manual submission entry fields */}
-                  <form onSubmit={handleRegisterManualSubmit} className="space-y-8">
+                  <form onSubmit={handleRegisterManualSubmit} className="space-y-6">
                     
                     {/* PERSONAL INFORMATION SECTION */}
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
-                        <UserSquare className="w-4.5 h-4.5 text-slate-400" />
-                        <span className="card-label">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">
                           Personal Information
                         </span>
+                        <div className="flex-1 h-[1px] bg-slate-100" />
                       </div>
 
                       {/* Full Name */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="full-name" className="form-label mb-2">
+                        <label htmlFor="full-name" className="form-label block">
                           Full Name
                         </label>
                         <input
@@ -1595,7 +1688,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="Enter student's legal full name"
                           value={manualFormData.name}
                           onChange={(e) => setManualFormData({ ...manualFormData, name: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                          className="form-control form-control-md"
                         />
                       </div>
 
@@ -1603,7 +1696,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {/* Student ID */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="student-id" className="form-label mb-2">
+                          <label htmlFor="student-id" className="form-label block">
                             Student ID (Matric No.)
                           </label>
                           <input
@@ -1613,13 +1706,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             placeholder="e.g. WAA21001"
                             value={manualFormData.id}
                             onChange={(e) => setManualFormData({ ...manualFormData, id: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 text-xs rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-mono font-bold"
+                            className="form-control form-control-md"
                           />
                         </div>
 
                         {/* Official Email */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="official-email" className="form-label mb-2">
+                          <label htmlFor="official-email" className="form-label block">
                             Official Email
                           </label>
                           <input
@@ -1629,14 +1722,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             placeholder="student@siswa.um.edu.my"
                             value={manualFormData.email}
                             onChange={(e) => setManualFormData({ ...manualFormData, email: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                            className="form-control form-control-md"
                           />
                         </div>
                       </div>
 
                       {/* Phone Number */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="phone-number" className="form-label mb-2">
+                        <label htmlFor="phone-number" className="form-label block">
                           Phone Number
                         </label>
                         <input
@@ -1645,48 +1738,39 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           placeholder="+60 1X-XXXXXXX"
                           value={manualFormData.phone}
                           onChange={(e) => setManualFormData({ ...manualFormData, phone: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                          className="form-control form-control-md"
                         />
                       </div>
                     </div>
 
                     {/* ACADEMIC INFORMATION SECTION */}
-                    <div className="space-y-6 pt-4">
-                      <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
-                        <GraduationCap className="w-5 h-5 text-slate-400" />
-                        <span className="card-label">
+                    <div className="space-y-4 pt-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">
                           Academic Information
                         </span>
+                        <div className="flex-1 h-[1px] bg-slate-100" />
                       </div>
 
                       {/* Programme Select */}
                       <div className="flex flex-col text-left">
-                        <label htmlFor="programme-selection" className="form-label mb-2">
+                        <label htmlFor="programme-selection" className="form-label block">
                           Programme
                         </label>
-                        <div className="relative">
-                          <select
-                            id="programme-selection"
-                            value={manualFormData.programme}
-                            onChange={(e) => setManualFormData({ ...manualFormData, programme: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-800 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition cursor-pointer appearance-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                          >
-                            <option value="Select registered programme" disabled>Select registered programme</option>
-                            {PROGRAMME_OPTIONS.map((programme) => (
-                              <option key={programme} value={programme}>{programme}</option>
-                            ))}
-                          </select>
-                          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-405">
-                            <ChevronDown className="w-4 h-4" />
-                          </div>
-                        </div>
+                        <SelectMenu
+                          id="programme-selection"
+                          value={manualFormData.programme}
+                          options={PROGRAMME_OPTIONS.map((programme) => programmeOption(programme))}
+                          onChange={(programme) => setManualFormData({ ...manualFormData, programme })}
+                          placeholder="Select registered programme"
+                        />
                       </div>
 
                       {/* Intake Batch & Current Semester */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {/* Intake Batch */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="intake-batch" className="form-label mb-2">
+                          <label htmlFor="intake-batch" className="form-label block">
                             Intake Batch
                           </label>
                           <input
@@ -1695,71 +1779,45 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             placeholder="e.g. 2023/2024"
                             value={manualFormData.intakeBatch}
                             onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-450 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                            className="form-control form-control-md"
                           />
                         </div>
 
                         {/* Current Semester */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="current-semester" className="form-label mb-2">
+                          <label htmlFor="current-semester" className="form-label block">
                             Current Semester
                           </label>
-                          <div className="relative">
-                            <select
-                              id="current-semester"
-                              value={manualFormData.semester}
-                              onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                              className="w-full bg-[#f8fafc] text-slate-800 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy pl-4 pr-10 py-3.5 outline-none transition cursor-pointer appearance-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                            >
-                              <option value="Semester 1">Semester 1</option>
-                              <option value="Semester 2">Semester 2</option>
-                              <option value="Semester 3">Semester 3</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-405">
-                              <ChevronDown className="w-4 h-4" />
-                            </div>
-                          </div>
+                          <input
+                            id="current-semester"
+                            type="text"
+                            list="registry-semester-options"
+                            placeholder="e.g. Semester I, 2026/2027 Session"
+                            value={manualFormData.semester}
+                            onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
+                            className="form-control form-control-md"
+                          />
+                          <datalist id="registry-semester-options">
+                            {semesterOptions.map((semester) => (
+                              <option key={semester} value={semester} />
+                            ))}
+                          </datalist>
                         </div>
                       </div>
 
-                      {/* Research Title (Optional) */}
-                      <div className="flex flex-col text-left">
-                        <label htmlFor="research-title" className="form-label mb-2">
-                          Research Title (Optional)
-                        </label>
-                        <input
-                          id="research-title"
-                          type="text"
-                          placeholder="Tentative research title..."
-                          value={manualFormData.researchTitle}
-                          onChange={(e) => setManualFormData({ ...manualFormData, researchTitle: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-slate-900 placeholder-slate-455 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                        />
-                      </div>
-
-                      {/* Assigned Supervisor (Optional) */}
-                      <div className="flex flex-col text-left">
-                        <label htmlFor="assigned-supervisor" className="form-label mb-2">
-                          Assigned Supervisor (Optional)
-                        </label>
-                        <input
-                          id="assigned-supervisor"
-                          type="text"
-                          placeholder="Search and assign supervisor"
-                          value={manualFormData.supervisor}
-                          onChange={(e) => setManualFormData({ ...manualFormData, supervisor: e.target.value })}
-                          className="w-full bg-[#f8fafc] text-brand-navy placeholder-slate-455 rounded-xl border border-slate-205 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy px-4 py-3.5 outline-none transition font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                        />
-                      </div>
+                      <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
+                        Research title and supervisor are recorded later, through the supervisor
+                        application and appointment workflow.
+                      </p>
                     </div>
 
                     {/* ACCOUNT SETTINGS SECTION */}
-                    <div className="space-y-6 pt-4">
-                      <div className="flex items-center gap-2 text-slate-500 pb-2 border-b border-slate-150">
-                        <Mail className="w-4.5 h-4.5 text-slate-400" />
-                        <span className="card-label">
+                    <div className="space-y-4 pt-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">
                           Account Settings
                         </span>
+                        <div className="flex-1 h-[1px] bg-slate-100" />
                       </div>
 
                       {/* Info Box */}
@@ -1771,61 +1829,41 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </p>
                       </div>
 
-                      {/* Send credentials toggle switch */}
-                      <div className="border border-slate-200 rounded-2xl p-5 flex items-center justify-between bg-white shadow-3xs">
-                        <div className="text-left space-y-1 pr-4">
-                          <h4 className="section-label">
-                            Send activation link immediately
-                          </h4>
-                          <p className="card-description">
-                            Email the student a link to set their password. Leave off to register
-                            the account now and invite them later.
-                          </p>
-                        </div>
-
-                        {/* Slide Switch */}
-                        <button
+                      {/* Send activation link now or later */}
+                      <label
+                        htmlFor="send-credentials-toggle"
+                        className="border border-slate-200 rounded-2xl p-5 flex items-start gap-4 bg-white shadow-3xs cursor-pointer"
+                      >
+                        <input
                           id="send-credentials-toggle"
-                          type="button"
-                          onClick={() => setManualFormData({
+                          type="checkbox"
+                          checked={manualFormData.sendCredentialsImmediately}
+                          onChange={(e) => setManualFormData({
                             ...manualFormData,
-                            sendCredentialsImmediately: !manualFormData.sendCredentialsImmediately
+                            sendCredentialsImmediately: e.target.checked
                           })}
-                          className={`w-11 h-6 shrink-0 rounded-full transition-colors relative duration-200 ease-in-out focus:outline-none ${
-                            manualFormData.sendCredentialsImmediately ? 'bg-blue-600' : 'bg-slate-350'
-                          }`}
-                        >
-                          <span
-                            className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 shadow-sm ${
-                              manualFormData.sendCredentialsImmediately ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                            }`}
-                          />
-                        </button>
-                      </div>
+                          className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
+                        />
+                        <span className="text-left space-y-1">
+                          <span className="block text-xs font-extrabold text-slate-900">
+                            Send activation link immediately
+                          </span>
+                          <span className="block text-[11px] text-slate-500 font-medium leading-normal">
+                            Email the student a link to set their password. Untick to register
+                            the account now and send the link later from their profile.
+                          </span>
+                        </span>
+                      </label>
                     </div>
 
                     {/* BOTTOM ACTIONS BAR */}
-                    <div className="border-t border-slate-200 pt-6 flex items-center justify-end gap-3.5 select-none animate-fade-in">
-                      {/* Cancel Setup btn */}
-                      <button
-                        type="button"
-                        onClick={requestBack}
-                        className="px-5 py-3 text-slate-550 hover:text-brand-navy font-extrabold uppercase text-xs tracking-wider transition-colors cursor-pointer rounded-xl hover:bg-slate-50 font-sans"
-                      >
+                    <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3 select-none">
+                      <PortalButton variant="secondary" size="md" onClick={requestBack}>
                         Cancel
-                      </button>
-
-                      {/* Register Submit btn */}
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="px-6 py-3.5 bg-brand-navy hover:bg-slate-850 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2 font-sans disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <UserPlus className="w-4.5 h-4.5 text-indigo-300" />
-                        <span>
-                          {saving ? 'Registering…' : 'Register Student and Create Account'}
-                        </span>
-                      </button>
+                      </PortalButton>
+                      <PortalButton type="submit" variant="primary" size="md" icon={UserPlus} disabled={saving}>
+                        {saving ? 'Registering…' : 'Register Student'}
+                      </PortalButton>
                     </div>
 
                   </form>
@@ -1840,23 +1878,21 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               <div className="lg:col-span-2 space-y-6">
               
               {/* CARD 1: IMPORT GUIDELINES LIST */}
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-2 mb-4 select-none pb-3 border-b border-slate-100">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
-                    <Info className="w-4.5 h-4.5" />
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+                <div className="flex items-center gap-3 mb-4 select-none">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+                    <Info className="w-5 h-5" />
                   </div>
-                  <h3 className="section-label">
-                    Import Guidelines
-                  </h3>
+                  <h3 className="section-label">Import Guidelines</h3>
                 </div>
 
                 <div className="space-y-4 text-xs">
                   {[
-                    <>Keep the header row <strong className="text-slate-800 font-bold">{CSV_HEADERS.join(', ')}</strong>. The template has the exact layout.</>,
-                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; letter case does not matter.</>,
+                    <>Upload the office&apos;s <strong className="text-slate-800 font-bold">own spreadsheet as it is</strong>: you confirm which column holds each detail. For a typed list, use the Excel template.</>,
+                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; any other name is chosen once, or its rows skipped.</>,
                     <>Matric numbers and emails must be <strong className="text-slate-800 font-bold">unique</strong> in the file and not already registered. Duplicates are skipped and listed.</>,
-                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password.</>,
-                    <>CSV or XLSX, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
+                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password, now or later.</>,
+                    <>CSV, XLSX or rows pasted from a spreadsheet, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
                   ].map((guideline, index) => (
                     <div key={index} className="flex gap-3">
                       <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
@@ -1867,16 +1903,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
 
               {/* CARD 2: CURRENT SEMESTER OVERVIEW CLOCK */}
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-2 mb-4 select-none pb-2 border-b border-slate-100 justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-pink-50 text-pink-600 border border-pink-100">
-                      <Layers className="w-4.5 h-4.5" />
-                    </div>
-                    <h3 className="section-label">
-                      Registry Snapshot
-                    </h3>
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+                <div className="flex items-center gap-3 mb-4 select-none">
+                  <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shrink-0">
+                    <Layers className="w-5 h-5" />
                   </div>
+                  <h3 className="section-label">Registry Snapshot</h3>
                 </div>
 
                 {/* Sub bento items */}
@@ -1906,20 +1938,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
 
               {/* CARD 3: RECENT IMPORTS METADATA HISTORIES */}
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 select-none">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                      <FileText className="w-4.5 h-4.5" />
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+                <div className="flex items-center justify-between gap-3 mb-4 select-none">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5" />
                     </div>
-                    <h3 className="section-label">
-                      Recent Imports
-                    </h3>
+                    <h3 className="section-label">Recent Imports</h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowAllImports(!showAllImports)}
-                    className="text-blue-600 hover:text-blue-800 text-[10.5px] font-black uppercase tracking-wider"
+                    className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
                   >
                     {showAllImports ? 'Show Recent' : 'View All'}
                   </button>
@@ -1946,10 +1976,24 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             {batch.fileName}
                           </span>
                           <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
-                            {new Date(batch.createdAt).toLocaleDateString()} • {batch.created} created, {batch.skipped} skipped, {batch.failed} not imported
+                            {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
                           </span>
                           {batch.uploadedBy && (
                             <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
+                          )}
+                          {batch.invitationsHeld && (
+                            <span className="mt-1 inline-flex items-center gap-1.5">
+                              <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                Emails on hold
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setHeldBatchToSend(batch)}
+                                className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
+                              >
+                                Send now
+                              </button>
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1959,7 +2003,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           type="button"
                           onClick={() => downloadImportProblems(batch)}
                           className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
-                          title="Download the rows that need attention"
+                          title="Download the rows that were skipped or not imported"
+                          aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
@@ -1970,6 +2015,426 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
 
             </div>
+            )}
+
+            {/* The preview gets the full width: it is where the office works. */}
+            {registerActiveTab === 'bulk' && (
+              <div className="lg:col-span-5">
+                {importStep === 'match' && importLayout && importMapping ? (
+                  <RegistryImportMatch
+                    layout={importLayout}
+                    mapping={importMapping}
+                    error={matchError}
+                    busy={isProcessingCsv}
+                    onMappingChange={setImportMapping}
+                    defaults={importDefaults}
+                    semesterSuggestions={semesterOptions}
+                    onDefaultsChange={setImportDefaults}
+                    onSheetChange={(sheet) => void reinspectImport({ sheet })}
+                    onHeaderRowChange={(row) => {
+                      setImportHasHeader(row !== null);
+                      void reinspectImport({ sheet: importSheet, headerRow: row, hasHeader: row !== null });
+                    }}
+                    onUseSuggestions={switchToSuggestedMatches}
+                    fillEmail={fillEmail}
+                    onFillEmailChange={setFillEmail}
+                    dropIdSuffix={dropIdSuffix}
+                    onDropIdSuffixChange={setDropIdSuffix}
+                    onContinue={() => void continueFromMatch()}
+                    onCancel={() => {
+                      clearImport();
+                      triggerToast('Current file cleared.');
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* IMPORT PREVIEW & VALIDATION SYSTEM LIST CONTAINER */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
+
+                      {/* Upper title and verification counters */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
+                        <div>
+                          <h3 className="section-label">Import Preview & Validation</h3>
+                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                            Check each row before the accounts are created.
+                          </p>
+                          {uploadedFile && (
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                              <ImportSteps current={importStep === 'check' ? 2 : 0} />
+                              {importStep === 'check' && importLayout && !rowsEdited && (
+                                <button
+                                  type="button"
+                                  onClick={() => setImportStep('match')}
+                                  className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer"
+                                >
+                                  Change column matches
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* VALIDATION OUTPUT PILLS */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+
+                          {/* Ready indicator */}
+                          <div className="px-2.5 py-1 bg-emerald-50 text-[#00a15c] border border-[#bef5db] font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>{readyCsvCount} Ready</span>
+                          </div>
+
+                          {/* Already in the registry: skipped, and listed so the office sees who */}
+                          <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
+                            importSummary.alreadyRegistered > 0
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-150'
+                          }`}>
+                            <UserCheck className="w-3 h-3" />
+                            <span>{importSummary.alreadyRegistered} Already Registered</span>
+                          </div>
+
+                          {importSummary.repeated > 0 && (
+                            <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-slate-100 text-slate-600 border-slate-200">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>{importSummary.repeated} Repeated</span>
+                            </div>
+                          )}
+
+                          {filledEmailCount > 0 && (
+                            <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-indigo-50 text-indigo-700 border-indigo-200">
+                              <Mail className="w-3 h-3" />
+                              <span>{filledEmailCount} Email{filledEmailCount === 1 ? '' : 's'} Filled</span>
+                            </div>
+                          )}
+
+                          {importSummary.programmeSkipped > 0 && (
+                            <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-slate-100 text-slate-600 border-slate-200">
+                              <GraduationCap className="w-3 h-3" />
+                              <span>{importSummary.programmeSkipped} Programme Skipped</span>
+                            </div>
+                          )}
+
+                          {/* Rows that need correcting before they can be imported */}
+                          <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
+                            importSummary.fix > 0
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-150'
+                          }`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{importSummary.fix} To Fix</span>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {programmeValues.length > 0 && (
+                        <RegistryImportProgrammes
+                          values={programmeValues}
+                          total={programmeValueCount}
+                          choices={programmeChoices}
+                          busy={isProcessingCsv || saving}
+                          onChoose={(key, choice) => void chooseProgramme(key, choice)}
+                        />
+                      )}
+
+                      {csvPreviewRecords.length > 0 && (
+                        <SegmentedControl<ImportRowFilter>
+                          options={IMPORT_ROW_FILTERS}
+                          value={importFilter}
+                          onChange={setImportFilter}
+                          labels={{
+                            all: `All (${importSummary.total})`,
+                            ready: `Ready (${importSummary.ready})`,
+                            skipped: `Skipped (${importSummary.skipped})`,
+                            fix: `Need Fixing (${importSummary.fix})`,
+                          }}
+                          className="w-fit max-w-full overflow-x-auto mb-3"
+                        />
+                      )}
+
+                      {/* Parse failures and per-row commit failures */}
+                      {csvFatalError && (
+                        <div role="alert" className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-rose-700 mb-1">
+                            Import problems
+                          </p>
+                          <pre className="whitespace-pre-wrap break-words text-[11px] font-semibold text-rose-800">
+                            {csvFatalError}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* PREVIEW DATATABLE MAP */}
+                      <div className={`border border-slate-150 rounded-xl overflow-x-auto mt-2 ${THIN_SCROLLBAR}`}>
+                        <table className="data-table">
+                          <thead>
+                            <tr className="data-thead bg-slate-50 select-none">
+                              <th className="data-th">Student ID</th>
+                              <th className="data-th">Student</th>
+                              <th className="data-th">Programme</th>
+                              <th className="data-th text-center">Validation Status</th>
+                              <th className="data-th text-center">Edit</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-xs">
+                            {csvPreviewRecords.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-slate-400 font-extrabold">
+                                  {isProcessingCsv ? 'Checking the file…' : 'Upload a file to see its rows here.'}
+                                </td>
+                              </tr>
+                            )}
+                            {csvPreviewRecords.length > 0 && visibleImportRows.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-slate-400 font-extrabold">
+                                  No rows in this group.
+                                </td>
+                              </tr>
+                            )}
+                            {visibleImportRows.map((item) => {
+                              const isBeingEdited = editingCsvLine === item.line;
+
+                              if (isBeingEdited) {
+                                return (
+                                  <tr key={item.line} className="bg-amber-50/60 font-medium">
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.id}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, id: e.target.value })}
+                                        className="w-20 bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-mono font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.name}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, name: e.target.value })}
+                                        className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <input
+                                        type="text"
+                                        value={editRowFields.programme}
+                                        onChange={(e) => setEditRowFields({ ...editRowFields, programme: e.target.value })}
+                                        className="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-[11px] font-bold outline-none text-slate-800"
+                                      />
+                                    </td>
+                                    <td className="data-td">
+                                      <div className="flex flex-col gap-1.5">
+                                        <input
+                                          type="text"
+                                          aria-label="Email"
+                                          placeholder="Email"
+                                          value={editRowFields.email}
+                                          onChange={(e) => setEditRowFields({ ...editRowFields, email: e.target.value })}
+                                          className="w-40 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
+                                        />
+                                        <input
+                                          type="text"
+                                          aria-label="Phone"
+                                          placeholder="Phone (optional)"
+                                          value={editRowFields.phone}
+                                          onChange={(e) => setEditRowFields({ ...editRowFields, phone: e.target.value })}
+                                          className="w-40 bg-white border border-slate-300 rounded px-1.5 py-1 text-[10.5px] outline-none text-slate-800"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="data-td text-center">
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={handleSaveEditedRow}
+                                          disabled={isProcessingCsv}
+                                          className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] uppercase font-bold cursor-pointer disabled:opacity-50"
+                                          title="Confirm Changes"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingCsvLine(null)}
+                                          className="p-1 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded text-[10px] uppercase font-bold cursor-pointer"
+                                          title="Discard Changes"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              return (
+                                <tr key={item.line} className="hover:bg-slate-50/50 transition">
+                                  <td className="data-td font-bold font-mono text-slate-600 whitespace-nowrap">
+                                    {item.id}
+                                    {item.idInFile && (
+                                      <span className="block font-sans text-[10px] font-bold text-indigo-600">In the file: {item.idInFile}</span>
+                                    )}
+                                  </td>
+                                  <td className="data-td min-w-[12rem]">
+                                    <span className="block font-extrabold text-slate-850">{item.name}</span>
+                                    {rowExplanation(item) && (
+                                      <span className="block mt-0.5 max-w-[22rem] text-[10.5px] font-semibold text-slate-500">
+                                        {rowExplanation(item)}
+                                      </span>
+                                    )}
+                                    {differenceWarning(item) && (
+                                      <span className="mt-1 flex max-w-[22rem] items-start gap-1 text-[10.5px] font-bold text-amber-700">
+                                        <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+                                        <span>{differenceWarning(item)}</span>
+                                      </span>
+                                    )}
+                                    {item.emailFilled && (
+                                      <span className="block mt-0.5 max-w-[22rem] truncate text-[10.5px] font-bold text-indigo-600" title={item.email}>
+                                        Email from Student ID: {item.email}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="data-td text-left" title={item.programme}>
+                                    <span className="block text-[11px] font-bold text-slate-600">{describeProgramme(item.programme).field}</span>
+                                    {describeProgramme(item.programme).detail && (
+                                      <span className="block text-[10px] font-semibold text-slate-400 whitespace-nowrap">
+                                        {describeProgramme(item.programme).detail}
+                                      </span>
+                                    )}
+                                    {item.programmeInFile && (
+                                      <span className="block max-w-[14rem] truncate text-[10px] font-bold text-indigo-600">
+                                        In the file: {item.programmeInFile}
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Status Outcome render badge */}
+                                  <td className="data-td text-center">
+                                    {item.status === 'Ready' && (
+                                      <span className="inline-flex items-center gap-1 text-[#00a15c] bg-[#e6fbf2] border border-[#bef5db] text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <Check className="w-3 h-3 stroke-[2.5]" />
+                                        <span>Ready</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Missing Email' && (
+                                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertTriangle className="w-3 h-3 animate-bounce" />
+                                        <span>Missing Email</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Already Registered' && (
+                                      <span className="inline-flex items-center gap-1 text-sky-700 bg-sky-50 border border-sky-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none whitespace-nowrap">
+                                        <UserCheck className="w-3 h-3" />
+                                        <span>Already Registered</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Duplicate In File' && (
+                                      <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertCircle className="w-3 h-3" />
+                                        <span>Repeated</span>
+                                      </span>
+                                    )}
+                                    {item.status === 'Programme Skipped' && (
+                                      <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none whitespace-nowrap">
+                                        <GraduationCap className="w-3 h-3" />
+                                        <span>Skipped</span>
+                                      </span>
+                                    )}
+                                    {!['Ready', 'Missing Email', 'Already Registered', 'Duplicate In File', 'Programme Skipped'].includes(item.status) && (
+                                      <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
+                                        <AlertCircle className="w-3 h-3" />
+                                        <span>{item.status}</span>
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Actions pencil trigger */}
+                                  <td className="data-td text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditingRow(item)}
+                                      className="p-1 px-1.5 hover:bg-slate-100 rounded border border-transparent hover:border-slate-205 text-slate-450 hover:text-slate-900 transition-all cursor-pointer"
+                                      title="Edit Row"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* BOTTON FORM ACTION CONTROLS */}
+                      <div className="flex flex-col-reverse gap-4 mt-6 select-none md:flex-row md:items-center md:justify-between">
+
+                        <PortalButton variant="secondary" size="md" onClick={requestBack} className="self-start md:self-auto">
+                          Cancel
+                        </PortalButton>
+
+                        {/* Primary actions on right */}
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+
+                          {/* Rows with problems are corrected individually via the
+                              Edit action on each row. Auto-filling an email or a
+                              matric number would attach a real account to the
+                              wrong person. */}
+
+                          {(skipText || importSummary.fix > 0) && (
+                            <div className="text-[10px] font-semibold text-slate-500 max-w-[260px] text-right space-y-0.5">
+                              {skipText && (
+                                <p>
+                                  {skipText}{' '}
+                                  <button
+                                    type="button"
+                                    onClick={() => setImportFilter('skipped')}
+                                    className="font-black text-blue-600 hover:underline cursor-pointer"
+                                  >
+                                    View
+                                  </button>
+                                </p>
+                              )}
+                              {importSummary.fix > 0 && (
+                                <p>
+                                  {importSummary.fix === 1 ? '1 row needs' : `${importSummary.fix} rows need`} fixing and will be left out.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <div role="group" aria-labelledby="registry-import-email-choice" className="flex flex-col items-end gap-1">
+                            <span id="registry-import-email-choice" className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
+                              Activation emails
+                            </span>
+                            <SegmentedControl<'now' | 'later'>
+                              options={['now', 'later'] as const}
+                              value={sendInvitesNow ? 'now' : 'later'}
+                              onChange={(choice) => setSendInvitesNow(choice === 'now')}
+                              labels={{ now: 'Send now', later: 'Send later' }}
+                            />
+                            {!sendInvitesNow && (
+                              <span className="text-[10px] font-semibold text-slate-500">Send them from Recent Imports when ready.</span>
+                            )}
+                          </div>
+
+                          <PortalButton
+                            variant="primary"
+                            size="md"
+                            icon={UserCheck}
+                            onClick={handleCommitVerifiedCsv}
+                            disabled={saving || isProcessingCsv || readyCsvCount === 0}
+                          >
+                            {saving ? 'Creating accounts…' : `Create ${readyCsvCount} Ready Account${readyCsvCount === 1 ? '' : 's'}`}
+                          </PortalButton>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
           </div>
@@ -1987,10 +2452,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student details" backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={false} busy={statusSaving || saving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
+      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={false} busy={statusSaving || saving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
-              {/* Core student details body */}
-              <div className="p-6 md:p-8 space-y-6">
+              {/* Core student details body; only this part scrolls */}
+              <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
                 
                 {/* Header Profile element with initials */}
                 <div className="flex items-center gap-4 py-3 border-b border-slate-100">
@@ -2033,6 +2498,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </span>
                   </div>
 
+                  <div>
+                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                      Intake
+                    </span>
+                    <span className="text-slate-800 font-bold block pt-0.5">{viewingStudent.intakeDate || '-'}</span>
+                  </div>
+
                   {/* Academic supervisorassigned */}
                   <div>
                     <span className="card-label block mb-1">
@@ -2062,10 +2534,93 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <span className="card-label block mb-1">
                       Direct Mobile Contact
                     </span>
-                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone}</span>
+                    <span className="text-slate-700 font-mono font-bold select-all block pt-0.5">{viewingStudent.phone || '-'}</span>
                   </div>
 
                 </div>
+
+                {!readOnly && (
+                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
+                  <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
+                    Edit Details
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1 form-label">
+                      Phone
+                      <input
+                        type="tel"
+                        value={detailsDraft.phone}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, phone: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={32}
+                        placeholder="e.g. 012-3456789"
+                        className="form-control form-control-sm normal-case tracking-normal"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 form-label">
+                      Programme
+                      <SelectMenu
+                        size="sm"
+                        value={detailsDraft.programme}
+                        options={[
+                          // A record can still hold a programme from before the approved list.
+                          ...((PROGRAMME_OPTIONS as readonly string[]).includes(detailsDraft.programme)
+                            ? []
+                            : [programmeOption(detailsDraft.programme, detailsDraft.programme ? 'Not on the approved list' : undefined)]),
+                          ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                        ]}
+                        onChange={(programme) => setDetailsDraft({ ...detailsDraft, programme })}
+                        disabled={detailsSaving}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 form-label">
+                      Intake
+                      <input
+                        type="text"
+                        value={detailsDraft.intakeDate}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, intakeDate: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={32}
+                        placeholder="e.g. 2026/2027 Semester I"
+                        className="form-control form-control-sm normal-case tracking-normal"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 form-label">
+                      Current Semester
+                      <input
+                        type="text"
+                        list="registry-semester-options-edit"
+                        value={detailsDraft.semester}
+                        onChange={(e) => setDetailsDraft({ ...detailsDraft, semester: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={64}
+                        placeholder="e.g. Semester I, 2026/2027 Session"
+                        className="form-control form-control-sm normal-case tracking-normal"
+                      />
+                      <datalist id="registry-semester-options-edit">
+                        {semesterOptions.map((semester) => (
+                          <option key={semester} value={semester} />
+                        ))}
+                      </datalist>
+                    </label>
+                  </div>
+                  {detailsError && (
+                    <p role="alert" className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold">
+                      {detailsError}
+                    </p>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveDetails}
+                      disabled={detailsSaving}
+                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {detailsSaving ? 'Saving…' : 'Save Details'}
+                    </button>
+                  </div>
+                </div>
+                )}
 
                 {!readOnly && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
@@ -2078,17 +2633,15 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </p>
                   ) : (
                     <>
-                      <select
+                      <SelectMenu<StudentAcademicStatus>
+                        size="sm"
+                        aria-label="New academic status"
+                        placeholder="Select new status"
                         value={statusTarget}
-                        onChange={(e) => setStatusTarget(e.target.value as StudentAcademicStatus | '')}
+                        options={studentStatusOptions(viewingStudent.academicStatus).map(statusOption)}
+                        onChange={setStatusTarget}
                         disabled={statusSaving}
-                        className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-blue-400"
-                      >
-                        <option value="">Select new status</option>
-                        {studentStatusOptions(viewingStudent.academicStatus).map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
+                      />
                       <textarea
                         value={statusReason}
                         onChange={(e) => setStatusReason(e.target.value)}
@@ -2096,7 +2649,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         rows={2}
                         maxLength={1000}
                         placeholder="Reason for the change (required)"
-                        className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg resize-none focus:outline-none focus:border-blue-400"
+                        className="form-control form-control-sm resize-none"
                       />
                       {statusError && (
                         <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold space-y-1.5">
@@ -2146,7 +2699,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
                       <span className="text-slate-700 font-bold">
                         {viewingStudent.activated === false
-                          ? 'Not activated — the student has not set a password yet'
+                          ? 'Not activated: the student has not set a password yet'
                           : 'Activated'}
                       </span>
                     </div>
@@ -2158,7 +2711,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         {viewingStudent.accountStatus === 'Verified' ? '✓' : '!'}
                       </div>
                       <span className="text-slate-700 font-bold">
-                        {viewingStudent.accountStatus === 'Verified' ? 'Sign-in allowed' : 'Suspended — sign-in blocked'}
+                        {viewingStudent.accountStatus === 'Verified' ? 'Sign-in allowed' : 'Suspended: sign-in blocked'}
                       </span>
                     </div>
 
@@ -2173,61 +2726,72 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
               </div>
 
-              {/* footer buttons modal */}
-              <div className="bg-slate-50/80 px-6 py-4.5 border-t border-slate-200/60 flex items-center justify-between text-xs select-none">
-                <span className="card-value">
-                  Credentials status: <strong className="card-value">{viewingStudent.accountStatus}</strong>
-                </span>
-
-                <div className="flex gap-2">
+              {/* footer buttons modal (sign-in state is shown in the Account box above) */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-wrap items-center justify-end gap-2 shrink-0 select-none">
+                <div className="flex flex-wrap justify-end gap-2">
 
                   {!readOnly && viewingStudent.accountStatus === 'Verified' && (
-                    <button
-                      type="button"
+                    <PortalButton
+                      variant="secondary"
+                      size="sm"
+                      icon={Mail}
                       disabled={sendingAccessLink}
                       onClick={handleSendAccessLink}
-                      className="px-4 py-2 bg-white border border-slate-200 text-slate-700 uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
+                      className="whitespace-nowrap"
                     >
                       {sendingAccessLink
                         ? 'Sending…'
                         : viewingStudent.activated === false
                           ? 'Send Activation Link'
                           : 'Send Reset Link'}
-                    </button>
+                    </PortalButton>
                   )}
 
-                  {/* Reinstate a suspended account */}
-                  {!readOnly && viewingStudent.accountStatus === 'Suspended' && (
-                    <button
-                      type="button"
+                  {/* Suspend or reinstate sign-in, always confirmed first */}
+                  {!readOnly && viewingStudent.accountStatus === 'Verified' && (
+                    <PortalButton
+                      variant="danger"
+                      size="sm"
                       disabled={saving}
-                      onClick={async () => {
-                        const student = viewingStudent;
-                        setSaving(true);
-                        try {
-                          await updateStudent(student.id, { accountStatus: 'Verified' });
-                        } catch (err) {
-                          setSaving(false);
-                          triggerToast(
-                            err instanceof Error ? err.message : 'Could not update this account.',
-                          );
-                          return;
-                        }
-                        setSaving(false);
-                        loadStudents();
-                        setViewingStudent(null);
-                        triggerToast(`Student credentials for ${student.name} verified successfully.`);
-                      }}
-                      className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+                      onClick={() => setAccessChange('Suspended')}
+                      className="whitespace-nowrap"
                     >
-                      {saving ? 'Saving…' : 'Authorize Verify'}
-                    </button>
+                      Suspend Sign-in
+                    </PortalButton>
+                  )}
+                  {!readOnly && viewingStudent.accountStatus === 'Suspended' && (
+                    <PortalButton
+                      variant="primary"
+                      size="sm"
+                      disabled={saving}
+                      onClick={() => setAccessChange('Verified')}
+                      className="whitespace-nowrap"
+                    >
+                      Reinstate Sign-in
+                    </PortalButton>
                   )}
 
-
+                  <PortalButton variant="secondary" size="sm" onClick={requestBack} className="whitespace-nowrap">
+                    Back
+                  </PortalButton>
 
                 </div>
               </div>
+
+              <PortalConfirmModal
+                isOpen={accessChange !== null}
+                title={accessChange === 'Suspended' ? 'Suspend sign-in?' : 'Reinstate sign-in?'}
+                message={
+                  accessChange === 'Suspended'
+                    ? `${viewingStudent.name} will be signed out everywhere and cannot sign in until reinstated.`
+                    : `${viewingStudent.name} will be able to sign in again.`
+                }
+                confirmLabel={accessChange === 'Suspended' ? 'Suspend' : 'Reinstate'}
+                tone={accessChange === 'Suspended' ? 'danger' : 'info'}
+                isLoading={saving}
+                onConfirm={handleAccessChange}
+                onCancel={() => setAccessChange(null)}
+              />
 
             </section>}</RecordPage> : null}
 

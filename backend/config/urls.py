@@ -20,5 +20,6 @@ urlpatterns = [
     path("api/dashboard/", include("dashboard.urls")),
     path("api/marks/", include("marks.urls")),
     path("api/letter-templates/", include("letters.urls")),
+    path("api/letters/", include("letters.request_urls")),
     path("api/", include("announcements.urls")),
 ]
