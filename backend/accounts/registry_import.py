@@ -40,7 +40,7 @@ from .registry_columns import (
     suggest_mapping,
 )
 from .registry_profiles import layout_token, saved_mapping
-from .registry_programmes import parse_programme_map, programme_key
+from .registry_programmes import parse_programme_map, programme_key, similar_programme
 from .validators import matric_problem, phone_problem
 
 IMPORT_HEADERS = ["student_id", "full_name", "programme", "email", "phone", "intake", "current_semester"]
@@ -66,6 +66,15 @@ MAX_BLANK_RUN = 200
 HEADER_SCAN_ROWS = 15
 CSV_DELIMITERS = (",", ";", "\t")
 SAMPLE_COUNT = 3
+# Rows without column names are matched from their values: a field gets a
+# column when four in five of its first values look right, and only one
+# column does.
+VALUE_SAMPLE_ROWS = 50
+VALUE_MATCH_SHARE = 0.8
+VALUE_FIELDS = ("email", "programme", "phone", "student_id", "full_name")
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# A MyKad number (990101-14-5678) is never a Student ID.
+_MYKAD_SHAPE = re.compile(r"^\d{6}-?\d{2}-?\d{4}$")
 # Settings the office can give for every row: option name -> field it fills.
 DEFAULT_FIELDS = {"programme": "programme", "intake": "intake", "semester": "current_semester"}
 # Keep the part of a Student ID before "/": 23004955/1 becomes 23004955.
@@ -261,6 +270,67 @@ def _header_index(lines, header_row):
     )
 
 
+def _header(lines, options):
+    """``(index, row number, cells)`` of the column-name row. Without column
+    names (``hasHeader`` false) every row is a student: ``(-1, None, [])``."""
+    if not options.get("hasHeader", True):
+        return -1, None, []
+    index = _header_index(lines, options.get("headerRow"))
+    return index, lines[index][0], lines[index][1]
+
+
+def _looks_like(field, value):
+    """Whether one value has the shape of the field, for rows without names."""
+    if field == "email":
+        return bool(_EMAIL_SHAPE.match(value))
+    if field == "programme":
+        return bool(normalise_programme(value) or similar_programme(value))
+    if field == "phone":
+        digits = sum(character.isdigit() for character in value)
+        return phone_problem(value) is None and 9 <= digits <= 15 and value.lstrip("+(").startswith(("0", "6"))
+    if field == "student_id":
+        # Five characters at least, so a running number (Bil) is not one.
+        return (
+            5 <= len(value) <= MAX_MATRIC_LENGTH
+            and matric_problem(value) is None
+            and not _MYKAD_SHAPE.match(value)
+        )
+    if field == "full_name":
+        letters = sum(character.isalpha() for character in value)
+        return " " in value.strip() and not any(character.isdigit() for character in value) and letters >= 0.8 * len(
+            value.replace(" ", "")
+        )
+    return False
+
+
+def suggest_from_values(rows):
+    """``{field: column index or None}`` for rows without column names, from
+    what the values look like. A field that fits more than one column stays
+    unmatched, as it does for column names, so nothing is guessed."""
+    width = _width([], rows)
+    values = {
+        index: [cells[index] for _, cells in rows[:VALUE_SAMPLE_ROWS] if index < len(cells) and cells[index]]
+        for index in range(width)
+    }
+    mapping, taken = {key: None for key in FIELD_KEYS}, set()
+    for field in VALUE_FIELDS:
+        fits = [
+            index
+            for index, column in values.items()
+            if index not in taken
+            and column
+            and sum(1 for value in column if _looks_like(field, value)) >= VALUE_MATCH_SHARE * len(column)
+        ]
+        if len(fits) == 1:
+            mapping[field] = fits[0]
+            taken.add(fits[0])
+    return mapping
+
+
+def _field_at(mapping, index):
+    return next((key for key, column in mapping.items() if column == index), None)
+
+
 def _width(header, rows):
     """How many columns hold anything, in the header or any data row."""
     def used(cells):
@@ -360,10 +430,10 @@ def read_import_file(uploaded_file, options=None):
         header_index = 0
     else:
         _, _, lines = load_import_lines(uploaded_file, options.get("sheet"))
-        header_index = _header_index(lines, options.get("headerRow"))
-        header = lines[header_index][1]
-        mapping = options.get("mapping") or suggest_mapping(header)
-        check_mapping(mapping, _width(header, lines[header_index + 1:]), required_fields(options))
+        header_index, _, header = _header(lines, options)
+        rows = lines[header_index + 1:]
+        mapping = options.get("mapping") or (suggest_mapping(header) if header else suggest_from_values(rows))
+        check_mapping(mapping, _width(header, rows), required_fields(options))
 
     return [
         (
@@ -387,15 +457,16 @@ def inspect_import_file(uploaded_file, options=None):
     whole rows.
     """
     options = options or {}
+    has_header = options.get("hasHeader", True)
     sheets, chosen, lines = load_import_lines(uploaded_file, options.get("sheet"))
-    header_index = _header_index(lines, options.get("headerRow"))
-    header_line, header = lines[header_index]
+    header_index, header_line, header = _header(lines, options)
     rows = _student_rows(lines, header_index)
     width = _width(header, rows)
-    suggested = suggest_mapping(header)
+    suggested = suggest_mapping(header) if has_header else suggest_from_values(rows)
     # The office's own matches for this layout, from an earlier import, unless
-    # it has set them aside for this file.
-    saved, saved_at = saved_mapping(header, width) if options.get("useProfile", True) else (None, None)
+    # it has set them aside for this file. Rows without names have no layout.
+    remembered = has_header and options.get("useProfile", True)
+    saved, saved_at = saved_mapping(header, width) if remembered else (None, None)
     mapping = saved or suggested
     id_column = mapping.get("student_id")
     columns = []
@@ -413,7 +484,7 @@ def inspect_import_file(uploaded_file, options=None):
                 "letter": column_letter(index),
                 "header": name,
                 "samples": samples,
-                "suggestedField": field_for_header(name),
+                "suggestedField": field_for_header(name) if has_header else _field_at(suggested, index),
             }
         )
     matched = {index for index in mapping.values() if index is not None}
@@ -426,6 +497,7 @@ def inspect_import_file(uploaded_file, options=None):
         "fileName": uploaded_file.name,
         "sheets": sheets,
         "sheet": chosen,
+        "hasHeader": has_header,
         "headerRow": header_line,
         "headerRowOptions": [
             {"row": line, "preview": " | ".join(cell for cell in cells if cell)[:80]}
@@ -443,11 +515,12 @@ def inspect_import_file(uploaded_file, options=None):
         "studentIdsWithSuffix": sum(
             1 for _, cells in rows if id_column is not None and id_column < len(cells) and "/" in cells[id_column]
         ),
-        "layoutToken": layout_token(header),
+        "layoutToken": layout_token(header) if has_header else None,
         # Our own template: names in the first row, every column known, nothing
         # left over. The office can go straight to checking rows. Saved matches
         # are always shown, so the office sees them before rows are checked.
         "layoutRecognised": saved is None
+        and has_header
         and header_index == 0
         and not ignored
         and all(suggested[key] is not None for key in required_fields(options)),
@@ -487,6 +560,9 @@ def parse_import_options(raw):
     id_rule = data.get("idRule")
     if id_rule not in (None, STUDENT_ID_RULE):
         errors["idRule"] = ["Choose how to read the Student IDs."]
+    has_header = data.get("hasHeader", True)
+    if not isinstance(has_header, bool):
+        errors["hasHeader"] = ["Choose whether the first row holds the column names."]
     use_profile = data.get("useProfile", True)
     if not isinstance(use_profile, bool):
         errors["useProfile"] = ["Choose whether to use the saved column matches."]
@@ -496,6 +572,7 @@ def parse_import_options(raw):
     return {
         "sheet": sheet,
         "headerRow": header_row,
+        "hasHeader": has_header,
         "mapping": {key: mapping.get(key) for key in FIELD_KEYS} if mapping is not None else None,
         "defaults": defaults,
         "programmeMap": programme_map,

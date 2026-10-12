@@ -81,6 +81,29 @@ export const withSuggestedProgrammes = (
 export const unchosenProgrammes = (values: ImportProgrammeValue[], choices: Record<string, string>): string[] =>
   values.filter((value) => !choices[value.key]).map((value) => value.value);
 
+// ---------------- Rows pasted from a spreadsheet ----------------
+
+export const MAX_PASTED_ROWS = 1000;
+
+/**
+ * Cells copied from Excel or Google Sheets arrive as tab-separated text.
+ * Blank lines are dropped, and the row limit is checked before anything is sent.
+ */
+export const pastedRowsText = (text: string, hasHeader: boolean): string => {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim() !== '');
+  const students = lines.length - (hasHeader ? 1 : 0);
+  if (lines.length === 0) throw new Error('Paste the rows first.');
+  if (students < 1) throw new Error('Paste at least one student row under the column names.');
+  if (students > MAX_PASTED_ROWS) {
+    throw new Error(`Paste at most ${MAX_PASTED_ROWS.toLocaleString('en-MY')} student rows at a time, then paste the rest.`);
+  }
+  return lines.join('\n');
+};
+
+/** Pasted rows as a file, so they go through the same steps as an upload. */
+export const pastedRowsFile = (text: string, hasHeader: boolean): File =>
+  new File([pastedRowsText(text, hasHeader)], 'pasted-rows.csv', { type: 'text/csv' });
+
 // ---------------- Emails and Student IDs ----------------
 
 /** The Student ID rule: keep the part before "/" (accounts/registry_import.py). */

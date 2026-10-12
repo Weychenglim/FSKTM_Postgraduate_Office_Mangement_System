@@ -187,7 +187,9 @@ export interface ImportInspectResponse {
   fileName: string;
   sheets: string[];
   sheet: string | null;
-  headerRow: number;
+  /** False when every row is a student, with no row of column names. */
+  hasHeader?: boolean;
+  headerRow: number | null;
   headerRowOptions: { row: number; preview: string }[];
   columns: ImportColumn[];
   fields: ImportField[];
@@ -216,6 +218,8 @@ export interface ImportDefaults {
 export interface ImportOptions {
   sheet?: string | null;
   headerRow?: number | null;
+  /** False: the rows have no column names, so matches come from the values. */
+  hasHeader?: boolean;
   mapping?: ImportMapping | null;
   defaults?: ImportDefaults;
   /** The office's choice for each programme name: an approved programme or the skip value. */

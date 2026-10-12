@@ -45,6 +45,7 @@ export const ImportSteps: React.FC<{ current: number }> = ({ current }) => (
 
 const NOT_IN_FILE = '';
 const FROM_FILE = '';
+const NO_COLUMN_NAMES = 'none';
 
 // Settings for every row fill these fields when a cell is blank.
 const DEFAULTED_FIELD: Partial<Record<ImportFieldKey, keyof ImportDefaults>> = {
@@ -64,7 +65,8 @@ interface RegistryImportMatchProps {
   onMappingChange: (mapping: ImportMapping) => void;
   onDefaultsChange: (defaults: ImportDefaults) => void;
   onSheetChange: (sheet: string) => void;
-  onHeaderRowChange: (row: number) => void;
+  /** null: the rows have no column names. */
+  onHeaderRowChange: (row: number | null) => void;
   /** Sets aside the matches saved from an earlier import, for the column-name suggestions. */
   onUseSuggestions: () => void;
   /** Fill a missing email with the student's SiswaMail address. */
@@ -203,13 +205,16 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
           <SelectMenu
             size="sm"
             aria-label="Row with the column names"
-            value={String(layout.headerRow)}
-            options={layout.headerRowOptions.map((option) => ({
-              value: String(option.row),
-              label: `Row ${option.row}`,
-              description: option.preview,
-            }))}
-            onChange={(row) => onHeaderRowChange(Number(row))}
+            value={layout.hasHeader === false ? NO_COLUMN_NAMES : String(layout.headerRow)}
+            options={[
+              ...layout.headerRowOptions.map((option) => ({
+                value: String(option.row),
+                label: `Row ${option.row}`,
+                description: option.preview,
+              })),
+              { value: NO_COLUMN_NAMES, label: 'No column names', description: 'Every row is a student' },
+            ]}
+            onChange={(row) => onHeaderRowChange(row === NO_COLUMN_NAMES ? null : Number(row))}
             disabled={busy}
           />
         </div>

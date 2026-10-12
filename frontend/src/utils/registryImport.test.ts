@@ -12,7 +12,10 @@ import {
   differenceWarning,
   filterImportRows,
   importOutcome,
+  MAX_PASTED_ROWS,
   mappingProblems,
+  pastedRowsFile,
+  pastedRowsText,
   unusedColumns,
   registryMatchText,
   repeatedText,
@@ -290,9 +293,27 @@ assert.equal(
   '3 created · 2 emails filled from Student ID',
 );
 
+// rows pasted from a spreadsheet
+assert.equal(
+  pastedRowsText('No. Matrik\tNama\r\nWQD1\tAli\r\n\t\t\r\n\r\nWQD2\tSiti\r\n', true),
+  'No. Matrik\tNama\nWQD1\tAli\nWQD2\tSiti',
+  'line endings are evened out and blank rows dropped',
+);
+assert.throws(() => pastedRowsText('  \n ', true), /Paste the rows first/);
+assert.throws(() => pastedRowsText('No. Matrik\tNama', true), /at least one student row/);
+assert.equal(pastedRowsText('WQD1\tAli', false), 'WQD1\tAli', 'without column names one row is enough');
+const fullPaste = Array.from({ length: MAX_PASTED_ROWS }, (_, n) => `WQD${n}\tName`).join('\n');
+assert.equal(
+  pastedRowsText(`Names\n${fullPaste}`, true).split('\n').length,
+  MAX_PASTED_ROWS + 1,
+  'the row of column names does not count towards the limit',
+);
+assert.throws(() => pastedRowsText(`${fullPaste}\nWQD9999\tOne More`, false), /at most 1,000 student rows/);
+assert.equal(pastedRowsFile('WQD1\tAli', false).name, 'pasted-rows.csv');
+
 // the screen uses all of this
 const registry = readFileSync(resolve('src/components/StudentRegistry.tsx'), 'utf8');
-assert.match(registry, /inspectStudentImport\(file\)/, 'a new file is described before its rows are checked');
+assert.match(registry, /inspectStudentImport\(file, first\)/, 'a new file is described before its rows are checked');
 assert.match(registry, /if \(layout\.layoutRecognised\)/, 'our own template skips the Match step');
 assert.match(registry, /<RegistryImportMatch\b/, 'other layouts stop at Match columns');
 assert.match(registry, /previewWithChoices\(reviewedFile\(edited\), reviewedOptions\(\)\)/, 'edited rows are sent back in our own layout');
@@ -319,5 +340,9 @@ assert.match(registry, /programmeMap: programmeChoices/);
 assert.match(registry, /fillEmail,\s*idRule: dropIdSuffix \? STUDENT_ID_RULE : null,/, 'both options go with every check and import');
 assert.match(registry, /emailFilled: email === rec\.email \? rec\.emailFilled : undefined/, 'a typed email is no longer marked as filled');
 assert.doesNotMatch(registry, /Bulk Import via CSV/);
+assert.match(registry, /<SegmentedControl<'file' \| 'paste'>/, 'rows can be pasted instead of uploaded');
+assert.match(registry, /previewImportFile\(file, \{ hasHeader: pasteHasHeader \}\)/, 'pasted rows go through the same steps');
+assert.match(registry, /hasHeader: importHasHeader/, 'rows without column names stay that way');
+assert.match(matchStep, /label: 'No column names'/);
 
 console.log('Registry import listing tests passed.');

@@ -35,7 +35,8 @@ import {
   Info,
   RefreshCw,
   HelpCircle,
-  FileDown
+  FileDown,
+  ClipboardPaste
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -99,6 +100,7 @@ import {
   batchSummary,
   differenceWarning,
   filterImportRows,
+  pastedRowsFile,
   rowExplanation,
   rowsAfterHeldSend,
   rowsForReview,
@@ -343,6 +345,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // like 23004955/1 can lose their programme number.
   const [fillEmail, setFillEmail] = useState(true);
   const [dropIdSuffix, setDropIdSuffix] = useState(false);
+  // Rows can be pasted from a spreadsheet instead of uploaded as a file.
+  const [uploadMode, setUploadMode] = useState<'file' | 'paste'>('file');
+  const [pastedText, setPastedText] = useState('');
+  const [pasteHasHeader, setPasteHasHeader] = useState(true);
+  // False when every row is a student, with no row of column names.
+  const [importHasHeader, setImportHasHeader] = useState(true);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -647,6 +655,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setKeepSavedMatches(true);
     setFillEmail(true);
     setDropIdSuffix(false);
+    setImportHasHeader(true);
   };
 
   // The confirmed reading of the uploaded file: which sheet, which row has the
@@ -654,6 +663,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const importOptions = (): ImportOptions => ({
     sheet: importSheet,
     headerRow: importHeaderRow,
+    hasHeader: importHasHeader,
     mapping: importMapping,
     defaults: importDefaults,
     programmeMap: programmeChoices,
@@ -716,14 +726,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // A new file is described first (sheets, column names, suggested matches).
   // Our own template goes straight to checking rows; any other layout stops at
   // Match columns so the office confirms which column is which.
-  const previewImportFile = async (file: File) => {
+  const previewImportFile = async (file: File, first?: ImportOptions) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
     setImportResult(null);
     setMatchError(null);
     try {
-      const layout = await inspectStudentImport(file);
+      const layout = await inspectStudentImport(file, first);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
       setRowsEdited(false);
@@ -734,6 +744,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       setKeepSavedMatches(true);
       setFillEmail(true);
       setDropIdSuffix(false);
+      setImportHasHeader(first?.hasHeader ?? true);
       applyLayout(layout);
       if (layout.layoutRecognised) {
         await checkImportRows(file, { sheet: layout.sheet, headerRow: layout.headerRow, mapping: layout.mapping });
@@ -751,6 +762,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // Rows pasted from a spreadsheet go through the same steps as a file.
+  const checkPastedRows = () => {
+    let file: File;
+    try {
+      file = pastedRowsFile(pastedText, pasteHasHeader);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The pasted rows could not be read.');
+      return;
+    }
+    void previewImportFile(file, { hasHeader: pasteHasHeader });
+  };
+
   // Choosing another sheet or column-name row describes the file again, with
   // fresh suggestions for that layout.
   const reinspectImport = async (options: ImportOptions) => {
@@ -758,7 +781,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setIsProcessingCsv(true);
     setMatchError(null);
     try {
-      applyLayout(await inspectStudentImport(sourceFile, { useProfile: keepSavedMatches, ...options }));
+      applyLayout(
+        await inspectStudentImport(sourceFile, { useProfile: keepSavedMatches, hasHeader: importHasHeader, ...options }),
+      );
     } catch (err) {
       setMatchError(err instanceof Error ? err.message : 'That part of the file could not be read.');
     } finally {
@@ -1408,9 +1433,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs">
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
-                        <h3 className="section-label">File Upload</h3>
+                        <h3 className="section-label">{uploadMode === 'paste' ? 'Paste Rows' : 'File Upload'}</h3>
                         <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                          Drag and drop your student registry CSV or XLSX file below.
+                          {uploadMode === 'paste'
+                            ? 'Paste rows copied from Excel or Google Sheets below.'
+                            : 'Drag and drop your student registry CSV or XLSX file below.'}
                         </p>
                       </div>
                       
@@ -1420,78 +1447,129 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       </div>
                     </div>
 
-                    {/* INTERACTIVE DRAG-DROP REGENCY DASHED */}
-                    <div 
-                      onDragEnter={handleDrag}
-                      onDragOver={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDrop={handleDrop}
-                      onClick={triggerFileSelect}
-                      role={uploadedFile ? undefined : 'button'}
-                      tabIndex={uploadedFile ? undefined : 0}
-                      aria-label={uploadedFile ? undefined : 'Choose a CSV or Excel file to import'}
-                      onKeyDown={(e) => {
-                        if (!uploadedFile && (e.key === 'Enter' || e.key === ' ')) {
-                          e.preventDefault();
-                          triggerFileSelect();
-                        }
-                      }}
-                      className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
-                        dragActive 
-                          ? 'border-indigo-500 bg-indigo-50/30' 
-                          : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
-                      }`}
-                    >
-                      <input 
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,.xlsx"
-                        className="hidden"
-                        onChange={(e) => {
-                          handleFileChange(e);
-                          e.target.value = '';
-                        }}
+                    {!uploadedFile && !isProcessingCsv && (
+                      <SegmentedControl<'file' | 'paste'>
+                        options={['file', 'paste'] as const}
+                        value={uploadMode}
+                        onChange={setUploadMode}
+                        labels={{ file: 'Upload a file', paste: 'Paste rows' }}
+                        className="w-fit mb-4"
                       />
+                    )}
 
-                      {/* Display files status or drag guidelines */}
-                      {isProcessingCsv ? (
-                        <div className="space-y-2 py-4">
-                          <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-                          <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Checking the file…</span>
-                        </div>
-                      ) : uploadedFile ? (
-                        <div className="space-y-3 py-2">
-                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 relative shadow-sm">
-                            <CheckCircle className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <span className="text-[12px] font-black text-slate-800 block select-all">{uploadedFile.name}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              clearImport();
-                              triggerToast('Current file cleared.');
-                            }}
-                            className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
+                    {/* Drag and drop a file, or paste rows copied from a spreadsheet */}
+                    {uploadMode === 'paste' && !uploadedFile && !isProcessingCsv ? (
+                      <div className="space-y-3">
+                        <label className="block text-left">
+                          <span className="form-label">Rows copied from Excel or Google Sheets</span>
+                          <textarea
+                            value={pastedText}
+                            onChange={(e) => setPastedText(e.target.value)}
+                            rows={8}
+                            wrap="off"
+                            spellCheck={false}
+                            placeholder="Select the rows in your spreadsheet, copy them (Ctrl+C), then paste them here (Ctrl+V)."
+                            className={`form-control form-control-md resize-y font-mono text-[11px] font-semibold leading-relaxed ${THIN_SCROLLBAR}`}
+                          />
+                        </label>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="flex items-center gap-2.5 cursor-pointer text-left">
+                            <input
+                              type="checkbox"
+                              checked={pasteHasHeader}
+                              onChange={(e) => setPasteHasHeader(e.target.checked)}
+                              className="w-4 h-4 shrink-0 accent-blue-600 cursor-pointer"
+                            />
+                            <span className="text-xs font-extrabold text-slate-800">The first row is column names</span>
+                          </label>
+                          <PortalButton
+                            variant="primary"
+                            size="sm"
+                            icon={ClipboardPaste}
+                            onClick={checkPastedRows}
+                            disabled={!pastedText.trim()}
+                            className="self-start sm:self-auto"
                           >
-                            Upload Different File
-                          </button>
+                            Check Pasted Rows
+                          </PortalButton>
                         </div>
-                      ) : (
-                        <div className="space-y-3 py-2 select-none">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-450 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition duration-200 flex items-center justify-center mx-auto border border-slate-150">
-                            <UploadCloud className="w-5.5 h-5.5" />
+                        <p className="text-[10px] text-slate-400 font-semibold text-left">
+                          Up to 1,000 students at a time. Nothing is saved until you check the rows and import.
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        onDragEnter={handleDrag}
+                        onDragOver={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDrop={handleDrop}
+                        onClick={triggerFileSelect}
+                        role={uploadedFile ? undefined : 'button'}
+                        tabIndex={uploadedFile ? undefined : 0}
+                        aria-label={uploadedFile ? undefined : 'Choose a CSV or Excel file to import'}
+                        onKeyDown={(e) => {
+                          if (!uploadedFile && (e.key === 'Enter' || e.key === ' ')) {
+                            e.preventDefault();
+                            triggerFileSelect();
+                          }
+                        }}
+                        className={`border-2 border-dashed rounded-2xl p-8 py-9 transition-all text-center cursor-pointer flex flex-col items-center justify-center relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+                          dragActive
+                            ? 'border-indigo-500 bg-indigo-50/30'
+                            : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv,.xlsx"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleFileChange(e);
+                            e.target.value = '';
+                          }}
+                        />
+
+                        {/* Display files status or drag guidelines */}
+                        {isProcessingCsv ? (
+                          <div className="space-y-2 py-4">
+                            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
+                            <span className="text-[11px] font-black tracking-wide text-indigo-650 block">Checking the file…</span>
                           </div>
-                          <div>
-                            <span className="text-xs font-black text-slate-800 block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
-                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
+                        ) : uploadedFile ? (
+                          <div className="space-y-3 py-2">
+                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 relative shadow-sm">
+                              <CheckCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <span className="text-[12px] font-black text-slate-800 block select-all">{uploadedFile.name}</span>
+                              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{uploadedFile.size} • {csvPreviewRecords.length} rows</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearImport();
+                                triggerToast('Current file cleared.');
+                              }}
+                              className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
+                            >
+                              {uploadMode === 'paste' ? 'Paste Different Rows' : 'Upload Different File'}
+                            </button>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <div className="space-y-3 py-2 select-none">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-450 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition duration-200 flex items-center justify-center mx-auto border border-slate-150">
+                              <UploadCloud className="w-5.5 h-5.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-800 block group-hover:text-indigo-600 transition">Click to upload or drag and drop</span>
+                              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">CSV or XLSX, up to 2 MB and 1,000 students</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* DOWNLOAD ROW & COLUMN DETAILS */}
                     <div className="border-t border-slate-100 mt-5 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
@@ -1921,7 +1999,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     semesterSuggestions={semesterOptions}
                     onDefaultsChange={setImportDefaults}
                     onSheetChange={(sheet) => void reinspectImport({ sheet })}
-                    onHeaderRowChange={(row) => void reinspectImport({ sheet: importSheet, headerRow: row })}
+                    onHeaderRowChange={(row) => {
+                      setImportHasHeader(row !== null);
+                      void reinspectImport({ sheet: importSheet, headerRow: row, hasHeader: row !== null });
+                    }}
                     onUseSuggestions={switchToSuggestedMatches}
                     fillEmail={fillEmail}
                     onFillEmailChange={setFillEmail}
