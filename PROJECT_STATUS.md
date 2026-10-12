@@ -1,5 +1,33 @@
 # Project Status
 
+## Registry Import: Missing Emails Filled From The Student ID (2026-10-12)
+
+- Phase 7 of the registry import plan (commit `9c7f1cb`). It was built on the plan's P2 assumption: the registry keeps the lifelong Student ID. Recheck it when the office answers P2.
+- **Filled emails.** A blank or missing email becomes the student's SiswaMail address, `<Student ID>@siswa.um.edu.my` in lower case.
+  - The domain is the new setting `REGISTRY_STUDENT_EMAIL_DOMAIN`, listed in `.env.example`.
+  - It is on by default and can be turned off on the Match step, in a new "Student Emails And IDs" card.
+  - The Email column is then not required. Its row reads "Filled", with an example address.
+- **Marked everywhere.**
+  - Each filled email shows on its row ("Email from Student ID: ...") and in a count chip.
+  - The result panel lists "Emails filled from the Student ID", and the import report adds the note to Details.
+  - Recent Imports counts them ("3 emails filled from Student ID").
+  - Filled emails still go through the repeated-row and already-registered checks.
+- **Student ID rule.** "Drop the programme number after "/" in Student IDs" is off by default. It turns `23004955/1` into `23004955` for both the ID and the filled email.
+  - The card counts the IDs in the file that have a programme number.
+  - Changed rows show "In the file: 23004955/1".
+  - Two programme numbers of one student become one student, and the second is listed as repeated.
+- **Edited rows** go back with the file's own Student ID and a blank email, so both choices still apply and stay marked, unless the office typed over them.
+- No migration. Files imported without options behave exactly as before.
+- **Verification.**
+  - Backend: 1013 tests pass, 13 of them new in `test_registry_emails.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass, with new helper tests and source checks. TypeScript lint, the production build and both production guards pass.
+  - The live browser run passed 20/20. For safety, the server ran with `REGISTRY_STUDENT_EMAIL_DOMAIN=example.test` and the activation emails were held, so no message could reach a real SiswaMail address; the log confirmed none was sent. The file was a Maya-style workbook with no email column and two suffixed IDs. The run covered:
+    - the Match card, the example address and the suffix count;
+    - the rows, chips and marks;
+    - an edited row keeping both marks;
+    - the import result, the report and the Recent Imports count.
+  - The database held the corrected IDs and filled emails. The card fits at 768 and 390 px without sideways scrolling. All test data was removed, and the server was restarted with the default domain.
+
 ## Registry Import: Column Matches Remembered For The Same Layout (2026-10-12)
 
 - Phase 6 of the registry import plan (commit `c6483bc`).

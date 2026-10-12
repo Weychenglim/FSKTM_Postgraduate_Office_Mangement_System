@@ -37,7 +37,7 @@ It adds:
 | 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Done | `b4f518d` |
 | 5 | Programme names: map each unrecognised value once, or skip those rows | M | Done | `ed8d0c5` |
 | 6 | Remember column matches for the same file layout | S | Done | `c6483bc` |
-| 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Blocked on P2 | |
+| 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Done, on the P2 assumption | `9c7f1cb` |
 | 8 | Paste rows copied from Excel | M | Not started | |
 | 9 | Excel template with a programme dropdown, and wrap-up | M | Not started | |
 
@@ -65,7 +65,7 @@ Phase dependencies:
 
 Working assumptions until the office answers (Xiang, 2026-10-12: build now, amend later):
 - P1: start with the researched column names; refuse `.xls` with "save it as .xlsx" rather than adding a reader.
-- P2: the registry keeps the Student ID; Phase 7 offers to drop a `/1` style suffix.
+- P2: the registry keeps the Student ID; Phase 7 offers to drop a `/1` style suffix. Phase 7 was built on this (`9c7f1cb`); recheck it when the office answers.
 
 Already answered by Xiang (2026-10-12):
 - all students use SiswaMail;
@@ -463,7 +463,7 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - **The button reads "Use Suggested Matches",** not "Change", since every match can already be changed in its own dropdown. It sends `useProfile: false`, and the matches stay set aside while that file is read again.
 - **Saved matches always show the Match step,** even for a layout that would otherwise go straight to checking rows. Our own template is never remembered.
 
-## Phase 7: Fill Missing Emails From The Student ID (Blocked On P2)
+## Phase 7: Fill Missing Emails From The Student ID (Built On The P2 Assumption)
 
 **Why.** All students use SiswaMail (Xiang, 2026-10-12), and the SiswaMail username is the Student ID. Extracts may not include emails.
 
@@ -488,6 +488,15 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - The suffix rule applies only when chosen.
 
 **Done when** an extract without an email column previews with every email filled and marked, and imports.
+
+**As built (`9c7f1cb`).**
+- **Where the choices are.** Both sit on the Match step, in a "Student Emails And IDs" card. Filling is ticked by default; the Student ID rule is not, and the card counts the IDs with a programme number (`studentIdsWithSuffix` from inspect).
+- **The Email row.** Without a column it reads "Filled", with an example address ("From the Student ID, e.g. 23004955@siswa.um.edu.my").
+- **The marks.** Rows carry `emailFilled` and `idInFile`. Each import keeps `emailFilled` on its `created_students` entries, and the batch reports `emailsFilled`. The import report adds both notes to Details.
+- **Edited rows** go back with the file's own Student ID and a blank email, so both choices still apply and stay marked, unless the office typed over them.
+- **When P2 is answered:**
+  - If the registry should keep the matric number with its suffix instead, swap the rule's direction and check the filled email still uses the lifelong Student ID.
+  - If the extract always has emails, filling simply never fires.
 
 ## Phase 8: Paste Rows From Excel
 
