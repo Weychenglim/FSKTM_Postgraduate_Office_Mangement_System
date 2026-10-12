@@ -62,6 +62,10 @@ export interface ImportPreviewRow {
   programme: string;
   /** The programme name in the file, when the office's choice mapped it to an approved programme. */
   programmeInFile?: string;
+  /** The email was blank or missing and was filled from the Student ID. */
+  emailFilled?: boolean;
+  /** The Student ID in the file, when the Student ID rule changed it. */
+  idInFile?: string;
   email: string;
   phone: string;
   intake?: string;
@@ -102,10 +106,17 @@ export interface RegistryImportBatch {
   alreadyRegistered?: number;
   duplicateInFile?: number;
   programmeSkipped?: number;
+  emailsFilled?: number;
   invitationsFailed: number;
   invitationsHeld?: boolean;
   invitationsSentAt?: string | null;
-  settingsUsed?: { defaults?: ImportDefaults; programmeMap?: Record<string, string>; sendInvites?: boolean };
+  settingsUsed?: {
+    defaults?: ImportDefaults;
+    programmeMap?: Record<string, string>;
+    fillEmail?: boolean;
+    idRule?: string | null;
+    sendInvites?: boolean;
+  };
   problems: RegistryImportProblem[];
   createdAt: string;
 }
@@ -187,6 +198,10 @@ export interface ImportInspectResponse {
   profileAppliedAt?: string | null;
   /** Names this layout, so an import can save its matches; null for our own template. */
   layoutToken?: string | null;
+  /** The SiswaMail domain a missing email is filled with. */
+  emailDomain?: string;
+  /** How many Student IDs carry a programme number, such as 23004955/1. */
+  studentIdsWithSuffix?: number;
   layoutRecognised: boolean;
 }
 
@@ -205,6 +220,10 @@ export interface ImportOptions {
   defaults?: ImportDefaults;
   /** The office's choice for each programme name: an approved programme or the skip value. */
   programmeMap?: Record<string, string>;
+  /** Fill a missing email as Student ID@SiswaMail domain; the server's default is on. */
+  fillEmail?: boolean;
+  /** 'studentId' keeps the part of a Student ID before "/". */
+  idRule?: 'studentId' | null;
   /** False holds the activation emails, to send later from Recent Imports. */
   sendInvites?: boolean;
   /** False sets aside the saved column matches for this file. */

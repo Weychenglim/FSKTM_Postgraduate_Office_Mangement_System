@@ -4,10 +4,12 @@ The file may be our template or the office's own extract: column names, order,
 extra columns, title rows above the column names and several sheets are all
 handled, and the office confirms which column is which (``options``).
 
-Rows are never auto-corrected. A missing email or an unrecognised programme is
-reported so a person fixes it; inventing a value would attach a real account to
-the wrong mailbox. A programme name the office maps once (``programmeMap``)
-applies to every row with that name.
+Rows are never silently corrected. A missing email or an unrecognised
+programme is reported so a person fixes it; inventing a value would attach a
+real account to the wrong mailbox. What the office chooses applies to every
+row it covers, and each row it changes is marked: a programme name mapped once
+(``programmeMap``), a missing email filled as the student's SiswaMail address
+(``fillEmail``), and a programme number dropped from Student IDs (``idRule``).
 """
 
 import csv
@@ -66,6 +68,8 @@ CSV_DELIMITERS = (",", ";", "\t")
 SAMPLE_COUNT = 3
 # Settings the office can give for every row: option name -> field it fills.
 DEFAULT_FIELDS = {"programme": "programme", "intake": "intake", "semester": "current_semester"}
+# Keep the part of a Student ID before "/": 23004955/1 becomes 23004955.
+STUDENT_ID_RULE = "studentId"
 UTF8_MULTIBYTE = re.compile(rb"[\xc2-\xf4][\x80-\xbf]+")
 
 
@@ -83,6 +87,11 @@ class ImportOptionsError(ValueError):
 
 def max_import_bytes():
     return getattr(settings, "REGISTRY_IMPORT_MAX_BYTES", DEFAULT_MAX_IMPORT_BYTES)
+
+
+def student_email_domain():
+    """The SiswaMail domain a missing student email is filled with."""
+    return str(getattr(settings, "REGISTRY_STUDENT_EMAIL_DOMAIN", "") or "").strip().lstrip("@").lower()
 
 
 def _text(value):
@@ -295,10 +304,30 @@ def check_mapping(mapping, width, required):
 
 
 def required_fields(options):
-    """Fields that need a column. A programme set for every row needs none."""
-    defaults = (options or {}).get("defaults") or {}
+    """Fields that need a column. A programme set for every row needs none,
+    and neither does the email while missing emails are filled from the
+    Student ID (the default)."""
+    options = options or {}
+    defaults = options.get("defaults") or {}
     covered = {"programme"} if defaults.get("programme") else set()
+    if options.get("fillEmail", True) and student_email_domain():
+        covered.add("email")
     return [key for key, _, required in FIELDS if required and key not in covered]
+
+
+def _complete_cells(cells, options):
+    """Apply what the office chose: settings for every row, then the Student
+    ID rule, then the email from the Student ID, in that order, so a filled
+    email uses the corrected ID."""
+    _apply_defaults(cells, options.get("defaults") or {})
+    if options.get("idRule") == STUDENT_ID_RULE and "/" in cells["student_id"]:
+        cells["student_id_in_file"] = cells["student_id"]
+        cells["student_id"] = cells["student_id"].split("/", 1)[0].strip()
+    domain = student_email_domain()
+    if options.get("fillEmail") and domain and cells["student_id"] and not cells["email"]:
+        cells["email"] = f"{cells['student_id'].lower()}@{domain}"
+        cells["email_filled"] = True
+    return cells
 
 
 def _apply_defaults(cells, defaults):
@@ -336,16 +365,15 @@ def read_import_file(uploaded_file, options=None):
         mapping = options.get("mapping") or suggest_mapping(header)
         check_mapping(mapping, _width(header, lines[header_index + 1:]), required_fields(options))
 
-    defaults = (options or {}).get("defaults") or {}
     return [
         (
             line,
-            _apply_defaults(
+            _complete_cells(
                 {
                     field: cells[mapping[field]] if mapping.get(field) is not None and mapping[field] < len(cells) else ""
                     for field in IMPORT_HEADERS
                 },
-                defaults,
+                options or {},
             ),
         )
         for line, cells in _student_rows(lines, header_index)
@@ -369,6 +397,7 @@ def inspect_import_file(uploaded_file, options=None):
     # it has set them aside for this file.
     saved, saved_at = saved_mapping(header, width) if options.get("useProfile", True) else (None, None)
     mapping = saved or suggested
+    id_column = mapping.get("student_id")
     columns = []
     for index in range(width):
         name = header[index] if index < len(header) else ""
@@ -408,6 +437,12 @@ def inspect_import_file(uploaded_file, options=None):
         "ignoredColumns": ignored,
         "rowCount": len(rows),
         "profileAppliedAt": saved_at.isoformat() if saved_at else None,
+        "emailDomain": student_email_domain(),
+        # Student IDs with a programme number (23004955/1), so the office
+        # can choose the Student ID rule.
+        "studentIdsWithSuffix": sum(
+            1 for _, cells in rows if id_column is not None and id_column < len(cells) and "/" in cells[id_column]
+        ),
         "layoutToken": layout_token(header),
         # Our own template: names in the first row, every column known, nothing
         # left over. The office can go straight to checking rows. Saved matches
@@ -446,6 +481,12 @@ def parse_import_options(raw):
     send_invites = data.get("sendInvites", True)
     if not isinstance(send_invites, bool):
         errors["sendInvites"] = ["Choose whether to send the activation emails now."]
+    fill_email = data.get("fillEmail", True)
+    if not isinstance(fill_email, bool):
+        errors["fillEmail"] = ["Choose whether to fill missing emails from the Student ID."]
+    id_rule = data.get("idRule")
+    if id_rule not in (None, STUDENT_ID_RULE):
+        errors["idRule"] = ["Choose how to read the Student IDs."]
     use_profile = data.get("useProfile", True)
     if not isinstance(use_profile, bool):
         errors["useProfile"] = ["Choose whether to use the saved column matches."]
@@ -459,6 +500,8 @@ def parse_import_options(raw):
         "defaults": defaults,
         "programmeMap": programme_map,
         "sendInvites": send_invites,
+        "fillEmail": fill_email,
+        "idRule": id_rule,
         "useProfile": use_profile,
         "rememberLayout": remember,
     }
@@ -709,6 +752,10 @@ def validate_import_rows(rows, programme_map=None):
             # Mapped by the office's choice; the name in the file is kept so
             # the choice can still be changed after a row is edited.
             row["programmeInFile"] = cells["programme"]
+        if cells.get("email_filled"):
+            row["emailFilled"] = True
+        if cells.get("student_id_in_file"):
+            row["idInFile"] = cells["student_id_in_file"]
         if duplicate_of is not None:
             row["duplicateOf"] = duplicate_of
         if existing_user is not None:

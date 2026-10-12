@@ -103,6 +103,8 @@ class SettingsForEveryRowTests(BatchSettingsBase):
             {
                 "defaults": {"intake": "2026/2027 Semester I", "semester": "Semester I 2026/2027"},
                 "programmeMap": {},
+                "fillEmail": True,
+                "idRule": None,
                 "sendInvites": True,
             },
         )
@@ -133,7 +135,10 @@ class HeldInvitationTests(BatchSettingsBase):
         batch = response.data["batch"]
         self.assertTrue(batch["invitationsHeld"])
         self.assertIsNone(batch["invitationsSentAt"])
-        self.assertEqual(batch["settingsUsed"], {"defaults": {}, "programmeMap": {}, "sendInvites": False})
+        self.assertEqual(
+            batch["settingsUsed"],
+            {"defaults": {}, "programmeMap": {}, "fillEmail": True, "idRule": None, "sendInvites": False},
+        )
         self.assertEqual(response.data["rows"][0]["invitationHeld"], True)
         self.assertEqual(RegistryImportBatch.objects.get().created_students, [{"id": "WQD280501", "line": 2}])
 

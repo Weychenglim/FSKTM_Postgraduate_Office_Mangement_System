@@ -237,6 +237,11 @@ REGISTRY_ACCESS_LINK_THROTTLE_RATE = os.getenv(
 REGISTRY_BATCH_INVITE_THROTTLE_RATE = os.getenv(
     "REGISTRY_BATCH_INVITE_THROTTLE_RATE", "3/hour"
 )
+# A bulk import fills a missing student email as <Student ID>@<this domain>:
+# every student has SiswaMail, and its username is the Student ID.
+REGISTRY_STUDENT_EMAIL_DOMAIN = os.getenv(
+    "REGISTRY_STUDENT_EMAIL_DOMAIN", "siswa.um.edu.my"
+)
 
 # Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {

@@ -81,12 +81,33 @@ export const withSuggestedProgrammes = (
 export const unchosenProgrammes = (values: ImportProgrammeValue[], choices: Record<string, string>): string[] =>
   values.filter((value) => !choices[value.key]).map((value) => value.value);
 
+// ---------------- Emails and Student IDs ----------------
+
+/** The Student ID rule: keep the part before "/" (accounts/registry_import.py). */
+export const STUDENT_ID_RULE = 'studentId';
+
+/** What the office's choices changed on a row: shown on the row, in the result and in the report. */
+export const derivedNotes = (row: Pick<ImportPreviewRow, 'email' | 'emailFilled' | 'idInFile'>): string[] => [
+  ...(row.idInFile ? [`Student ID in the file: ${row.idInFile}.`] : []),
+  ...(row.emailFilled ? [`Email filled from the Student ID: ${row.email}.`] : []),
+];
+
 /**
- * Rows for a reviewed file. A programme mapped by the office's choice goes
- * back as the name in the file, so changing that choice still reaches it.
+ * Rows for a reviewed file. What the office's choices changed goes back as it
+ * was in the file (the programme name, a blank email, the Student ID with its
+ * programme number), so the choices still apply and the rows stay marked.
  */
-export const rowsForReview = <T extends Pick<ImportPreviewRow, 'programme' | 'programmeInFile'>>(rows: T[]): T[] =>
-  rows.map((row) => (row.programmeInFile ? { ...row, programme: row.programmeInFile } : row));
+export const rowsForReview = <
+  T extends Pick<ImportPreviewRow, 'id' | 'email' | 'programme' | 'programmeInFile' | 'emailFilled' | 'idInFile'>,
+>(
+  rows: T[],
+): T[] =>
+  rows.map((row) => ({
+    ...row,
+    id: row.idInFile ?? row.id,
+    email: row.emailFilled ? '' : row.email,
+    programme: row.programmeInFile ?? row.programme,
+  }));
 
 export type ImportRowGroup = 'ready' | 'skipped' | 'fix';
 export type ImportRowFilter = 'all' | ImportRowGroup;
@@ -232,7 +253,7 @@ export const IMPORT_REPORT_COLUMNS: CsvColumn<ImportPreviewRow>[] = [
   { header: 'Outcome', value: importOutcome },
   {
     header: 'Details',
-    value: (row) => [rowExplanation(row), differenceWarning(row)].filter(Boolean).join(' '),
+    value: (row) => [rowExplanation(row), differenceWarning(row), ...derivedNotes(row)].filter(Boolean).join(' '),
   },
 ];
 
@@ -255,6 +276,7 @@ export const batchSummary = (batch: RegistryImportBatch): string => {
   if (repeated) parts.push(`${repeated} repeated`);
   if (batch.programmeSkipped) parts.push(`${batch.programmeSkipped} skipped by programme`);
   if (batch.failed) parts.push(`${batch.failed} not imported`);
+  if (batch.emailsFilled) parts.push(`${plural(batch.emailsFilled, 'email')} filled from Student ID`);
   if (batch.invitationsFailed) parts.push(`${plural(batch.invitationsFailed, 'email')} not sent`);
   return parts.join(' · ');
 };

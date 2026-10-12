@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { AlertTriangle, ArrowRight, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, AtSign, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
@@ -67,6 +67,12 @@ interface RegistryImportMatchProps {
   onHeaderRowChange: (row: number) => void;
   /** Sets aside the matches saved from an earlier import, for the column-name suggestions. */
   onUseSuggestions: () => void;
+  /** Fill a missing email with the student's SiswaMail address. */
+  fillEmail: boolean;
+  onFillEmailChange: (fill: boolean) => void;
+  /** Keep the part of a Student ID before "/". */
+  dropIdSuffix: boolean;
+  onDropIdSuffixChange: (drop: boolean) => void;
   onContinue: () => void;
   onCancel: () => void;
 }
@@ -88,10 +94,20 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   onSheetChange,
   onHeaderRowChange,
   onUseSuggestions,
+  fillEmail,
+  onFillEmailChange,
+  dropIdSuffix,
+  onDropIdSuffixChange,
   onContinue,
   onCancel,
 }) => {
-  const problems = mappingProblems(mapping, layout.fields, defaults.programme ? ['programme'] : []);
+  const emailDomain = fillEmail ? layout.emailDomain ?? '' : '';
+  // Required fields a choice below fills, so they need no column.
+  const covered: ImportFieldKey[] = [
+    ...(defaults.programme ? (['programme'] as const) : []),
+    ...(emailDomain ? (['email'] as const) : []),
+  ];
+  const problems = mappingProblems(mapping, layout.fields, covered);
   const unused = unusedColumns(layout.columns, mapping);
   const columnOptions: SelectMenuOption[] = [
     { value: NOT_IN_FILE, label: 'Not in this file' },
@@ -110,6 +126,12 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
     if (!value) return '';
     return key === 'programme' ? describeProgramme(value).field : value;
   };
+  const idColumn = layout.columns.find((column) => column.index === mapping.student_id);
+  const idSample = (idColumn?.samples[0] ?? '').trim().toLowerCase();
+  const emailExample = emailDomain
+    ? `${(dropIdSuffix ? idSample.split('/')[0] : idSample) || 'studentid'}@${emailDomain}`
+    : '';
+  const suffixes = layout.studentIdsWithSuffix ?? 0;
   const programmeOptions: SelectMenuOption[] = [
     { value: FROM_FILE, label: "Use the file's programme column" },
     ...PROGRAMME_OPTIONS.map((programme) => ({
@@ -197,6 +219,7 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
         {layout.fields.map((field) => {
           const index = mapping[field.key];
           const column = index === null ? undefined : layout.columns.find((candidate) => candidate.index === index);
+          const filled = !column && covered.includes(field.key);
           return (
             <div
               key={field.key}
@@ -206,10 +229,10 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
                 {field.label}
                 <span
                   className={`ml-2 text-[9.5px] font-black uppercase tracking-wide ${
-                    field.required ? 'text-rose-600' : 'text-slate-400'
+                    filled ? 'text-indigo-600' : field.required ? 'text-rose-600' : 'text-slate-400'
                   }`}
                 >
-                  {field.required ? 'Required' : 'Optional'}
+                  {filled ? 'Filled' : field.required ? 'Required' : 'Optional'}
                 </span>
               </p>
               <SelectMenu
@@ -228,14 +251,19 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
                       : 'This column is empty.'
                     : everyRow(field.key)
                       ? `Every row: ${everyRow(field.key)}`
-                      : field.required
-                        ? DEFAULTED_FIELD[field.key]
-                          ? 'Choose its column, or set it for every row below.'
-                          : 'Choose the column that holds this.'
-                        : 'Left blank for every student.'}
+                      : field.key === 'email' && emailExample
+                        ? `From the Student ID, e.g. ${emailExample}`
+                        : field.required
+                          ? DEFAULTED_FIELD[field.key]
+                            ? 'Choose its column, or set it for every row below.'
+                            : 'Choose the column that holds this.'
+                          : 'Left blank for every student.'}
                 </p>
                 {column && everyRow(field.key) && (
                   <p className="text-[10.5px] font-bold text-indigo-600 truncate">Blank cells: {everyRow(field.key)}</p>
+                )}
+                {column && field.key === 'email' && emailExample && (
+                  <p className="text-[10.5px] font-bold text-indigo-600 truncate">Blank cells: from the Student ID</p>
                 )}
               </div>
             </div>
@@ -296,6 +324,49 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
             </datalist>
           </label>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <AtSign className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+          <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-500">Student Emails And IDs</h4>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={fillEmail}
+            onChange={(event) => onFillEmailChange(event.target.checked)}
+            disabled={busy || !layout.emailDomain}
+            className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-xs font-extrabold text-slate-900">
+              Fill a missing email with the student&apos;s SiswaMail address
+            </span>
+            <span className="block text-[11px] text-slate-500 font-medium leading-normal">
+              Student ID@{layout.emailDomain}. Each filled email is marked on its row, so you can check it before importing.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={dropIdSuffix}
+            onChange={(event) => onDropIdSuffixChange(event.target.checked)}
+            disabled={busy}
+            className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-xs font-extrabold text-slate-900">
+              Drop the programme number after &quot;/&quot; in Student IDs
+            </span>
+            <span className="block text-[11px] text-slate-500 font-medium leading-normal">
+              23004955/1 becomes 23004955, the Student ID that SiswaMail uses.
+              {suffixes > 0 &&
+                ` ${suffixes} Student ID${suffixes === 1 ? '' : 's'} in this file ${suffixes === 1 ? 'has' : 'have'} one.`}
+            </span>
+          </span>
+        </label>
       </div>
 
       {unused.length > 0 && (

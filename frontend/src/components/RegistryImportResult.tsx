@@ -7,7 +7,7 @@ import React from 'react';
 import { AlertTriangle, CheckCircle, Download, MailWarning, Send, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
-import { differenceWarning, rowExplanation } from '../utils/registryImport';
+import { derivedNotes, differenceWarning, rowExplanation } from '../utils/registryImport';
 import type { ImportCommitResponse, ImportPreviewRow } from '../types';
 
 interface RegistryImportResultProps {
@@ -37,6 +37,11 @@ const ResultList: React.FC<{ title: string; note?: string; rows: ImportPreviewRo
               <span className="ml-2 text-[10px] font-semibold text-slate-400">line {row.line}</span>
             </p>
             {explanation && <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{explanation}</p>}
+            {derivedNotes(row).map((note) => (
+              <p key={note} className="text-[11px] font-bold text-indigo-600 mt-0.5 break-all">
+                {note}
+              </p>
+            ))}
             {warning && (
               <p className="text-[11px] font-bold text-amber-700 mt-0.5 flex items-start gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
@@ -66,6 +71,7 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
   const emailNotSent = rows.filter(
     (row) => row.result === 'created' && row.invitationSent === false && !row.invitationHeld,
   );
+  const filled = rows.filter((row) => row.result === 'created' && row.emailFilled);
   const held = batch.invitationsHeld ? rows.filter((row) => row.result === 'created' && row.invitationHeld) : [];
   const counts = [
     { label: 'Created', value: batch.created, tone: 'text-emerald-700' },
@@ -73,6 +79,7 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
     { label: 'Repeated in file', value: repeated.length, tone: 'text-slate-600' },
     { label: 'Programme skipped', value: programmeSkipped.length, tone: 'text-slate-600' },
     { label: 'Not imported', value: notImported.length, tone: 'text-rose-700' },
+    { label: 'Emails filled', value: filled.length, tone: 'text-indigo-700' },
     { label: 'Emails not sent', value: emailNotSent.length, tone: 'text-amber-700' },
   ].filter((count, index) => index === 0 || count.value > 0);
 
@@ -140,6 +147,13 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
           title="Not imported"
           note="These rows are still listed below, so you can fix them and import again."
           rows={notImported}
+        />
+      )}
+      {filled.length > 0 && (
+        <ResultList
+          title="Emails filled from the Student ID"
+          note="These students' activation emails go to their SiswaMail address, filled from the Student ID."
+          rows={filled}
         />
       )}
       {emailNotSent.length > 0 && (

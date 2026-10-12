@@ -470,6 +470,7 @@ class RegistryImportBatch(models.Model):
     # Each student this import created, as {"id": Student ID, "line": file
     # line}, so activation emails held back at import time go to exactly
     # these students later and a failed send can point at its line.
+    # "emailFilled" marks an email filled from the Student ID.
     created_students = models.JSONField(default=list, blank=True)
     invitations_held = models.BooleanField(default=False)
     invitations_sent_at = models.DateTimeField(null=True, blank=True)
@@ -506,6 +507,7 @@ class RegistryImportBatch(models.Model):
             "alreadyRegistered": statuses.count("Already Registered"),
             "duplicateInFile": statuses.count("Duplicate In File"),
             "programmeSkipped": statuses.count("Programme Skipped"),
+            "emailsFilled": sum(1 for entry in self.created_students or [] if entry.get("emailFilled")),
             "invitationsFailed": self.invitations_failed,
             "invitationsHeld": self.invitations_held,
             "invitationsSentAt": self.invitations_sent_at.isoformat() if self.invitations_sent_at else None,

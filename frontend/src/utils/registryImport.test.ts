@@ -8,6 +8,7 @@ import {
   IMPORT_REPORT_COLUMNS,
   batchSummary,
   columnLabel,
+  derivedNotes,
   differenceWarning,
   filterImportRows,
   importOutcome,
@@ -258,6 +259,37 @@ assert.equal(
   '3 created · 4 already registered · 1 repeated · 6 skipped by programme · 1 not imported',
 );
 
+// emails filled from the Student ID, and the Student ID rule
+const filledRow = row({
+  line: 8,
+  id: '23004955',
+  idInFile: '23004955/1',
+  email: '23004955@siswa.um.edu.my',
+  emailFilled: true,
+});
+assert.deepEqual(derivedNotes(filledRow), [
+  'Student ID in the file: 23004955/1.',
+  'Email filled from the Student ID: 23004955@siswa.um.edu.my.',
+]);
+assert.deepEqual(derivedNotes(row({})), []);
+const [reviewedFilled] = rowsForReview([filledRow]);
+assert.deepEqual(
+  [reviewedFilled.id, reviewedFilled.email],
+  ['23004955/1', ''],
+  'a reviewed file sends back what the file had, so the choices apply again',
+);
+assert.equal(rowsForReview([row({})])[0].email, 'aisyah@example.test');
+assert.deepEqual(mappingProblems({ ...mapping, email: null }, fields, ['email']), []);
+assert.ok(
+  buildCsv([{ ...filledRow, result: 'created' as const }], IMPORT_REPORT_COLUMNS).includes(
+    'Email filled from the Student ID: 23004955@siswa.um.edu.my.',
+  ),
+);
+assert.equal(
+  batchSummary({ ...batch, failed: 0, alreadyRegistered: 0, duplicateInFile: 0, emailsFilled: 2 }),
+  '3 created · 2 emails filled from Student ID',
+);
+
 // the screen uses all of this
 const registry = readFileSync(resolve('src/components/StudentRegistry.tsx'), 'utf8');
 assert.match(registry, /inspectStudentImport\(file\)/, 'a new file is described before its rows are checked');
@@ -284,6 +316,8 @@ assert.match(registry, /<RegistryImportProgrammes\b/, 'programme names are chose
 assert.match(registry, /const response = await previewWithChoices\(file, options\)/, 'suggested choices are shown with their effect');
 assert.match(registry, /rowsToCsv\(rowsForReview\(rows\)\)/, 'a reviewed file keeps the names the office mapped');
 assert.match(registry, /programmeMap: programmeChoices/);
+assert.match(registry, /fillEmail,\s*idRule: dropIdSuffix \? STUDENT_ID_RULE : null,/, 'both options go with every check and import');
+assert.match(registry, /emailFilled: email === rec\.email \? rec\.emailFilled : undefined/, 'a typed email is no longer marked as filled');
 assert.doesNotMatch(registry, /Bulk Import via CSV/);
 
 console.log('Registry import listing tests passed.');

@@ -436,6 +436,15 @@ def _send_activation_emails(users):
 EMAIL_NOT_SENT = "activation email could not be sent"
 
 
+def _created_entry(result, student):
+    """A created student as the import batch keeps them: Student ID, file line,
+    and whether the email was filled from the Student ID."""
+    entry = {"id": student.matric_no, "line": result["line"]}
+    if result.get("emailFilled"):
+        entry["emailFilled"] = True
+    return entry
+
+
 def _batch_entry(row, issue=None):
     """One row of an import batch's record: every row that was not simply
     created, plus created rows whose activation email failed."""
@@ -523,11 +532,13 @@ def student_import_view(request):
         skipped_count=sum(1 for r in results if r["result"] == "skipped"),
         failed_count=sum(1 for r in results if r["result"] == "failed"),
         problems=problems,
-        created_students=[{"id": student.matric_no, "line": result["line"]} for result, student in new_students],
+        created_students=[_created_entry(result, student) for result, student in new_students],
         invitations_held=not send_invites and bool(new_students),
         settings_used={
             "defaults": (options or {}).get("defaults") or {},
             "programmeMap": programme_map,
+            "fillEmail": bool((options or {}).get("fillEmail")),
+            "idRule": (options or {}).get("idRule"),
             "sendInvites": send_invites,
         },
     )
