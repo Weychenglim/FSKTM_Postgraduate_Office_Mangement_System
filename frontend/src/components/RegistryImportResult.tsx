@@ -61,6 +61,7 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
   const { batch, rows } = result;
   const registered = rows.filter((row) => row.result === 'skipped' && row.status === 'Already Registered');
   const repeated = rows.filter((row) => row.result === 'skipped' && row.status === 'Duplicate In File');
+  const programmeSkipped = rows.filter((row) => row.result === 'skipped' && row.status === 'Programme Skipped');
   const notImported = rows.filter((row) => row.result === 'failed');
   const emailNotSent = rows.filter(
     (row) => row.result === 'created' && row.invitationSent === false && !row.invitationHeld,
@@ -70,6 +71,7 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
     { label: 'Created', value: batch.created, tone: 'text-emerald-700' },
     { label: 'Already registered', value: registered.length, tone: 'text-sky-700' },
     { label: 'Repeated in file', value: repeated.length, tone: 'text-slate-600' },
+    { label: 'Programme skipped', value: programmeSkipped.length, tone: 'text-slate-600' },
     { label: 'Not imported', value: notImported.length, tone: 'text-rose-700' },
     { label: 'Emails not sent', value: emailNotSent.length, tone: 'text-amber-700' },
   ].filter((count, index) => index === 0 || count.value > 0);
@@ -126,6 +128,13 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
         />
       )}
       {repeated.length > 0 && <ResultList title="Repeated in this file, so skipped" rows={repeated} />}
+      {programmeSkipped.length > 0 && (
+        <ResultList
+          title="Programme skipped"
+          note="You chose to skip these programmes, so these rows were not imported."
+          rows={programmeSkipped}
+        />
+      )}
       {notImported.length > 0 && (
         <ResultList
           title="Not imported"

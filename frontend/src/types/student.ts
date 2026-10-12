@@ -39,7 +39,8 @@ export type ImportRowStatus =
   | 'Bad Programme'
   | 'Invalid Field'
   | 'Duplicate In File'
-  | 'Already Registered';
+  | 'Already Registered'
+  | 'Programme Skipped';
 
 /** The registry account an already-registered import row matched. */
 export interface ImportExistingRecord {
@@ -59,6 +60,8 @@ export interface ImportPreviewRow {
   id: string;
   name: string;
   programme: string;
+  /** The programme name in the file, when the office's choice mapped it to an approved programme. */
+  programmeInFile?: string;
   email: string;
   phone: string;
   intake?: string;
@@ -98,10 +101,11 @@ export interface RegistryImportBatch {
   failed: number;
   alreadyRegistered?: number;
   duplicateInFile?: number;
+  programmeSkipped?: number;
   invitationsFailed: number;
   invitationsHeld?: boolean;
   invitationsSentAt?: string | null;
-  settingsUsed?: { defaults?: ImportDefaults; sendInvites?: boolean };
+  settingsUsed?: { defaults?: ImportDefaults; programmeMap?: Record<string, string>; sendInvites?: boolean };
   problems: RegistryImportProblem[];
   createdAt: string;
 }
@@ -123,6 +127,21 @@ export interface BatchInvitationResult {
 export interface ImportPreviewResponse {
   fileName: string;
   rows: ImportPreviewRow[];
+  /** Programme names that are not approved programmes, for the office to map once each or skip. */
+  programmeValues?: ImportProgrammeValue[];
+  /** How many distinct names there are; only the first 100 are listed. */
+  programmeValueCount?: number;
+}
+
+/** A programme name in the file that is not an approved programme. */
+export interface ImportProgrammeValue {
+  key: string;
+  value: string;
+  rows: number;
+  /** An approved programme, the skip value, or null when there is nothing to suggest. */
+  suggestion: string | null;
+  /** saved: the office chose it on an earlier import. similar: the same name spelt differently. */
+  source: 'saved' | 'similar' | null;
 }
 
 /** The import fields a file's columns can be matched to (accounts/registry_columns.py). */
@@ -180,6 +199,8 @@ export interface ImportOptions {
   headerRow?: number | null;
   mapping?: ImportMapping | null;
   defaults?: ImportDefaults;
+  /** The office's choice for each programme name: an approved programme or the skip value. */
+  programmeMap?: Record<string, string>;
   /** False holds the activation emails, to send later from Recent Imports. */
   sendInvites?: boolean;
 }

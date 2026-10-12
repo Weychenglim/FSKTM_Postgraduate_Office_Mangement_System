@@ -13,6 +13,7 @@ import type {
   ImportField,
   ImportMapping,
   ImportPreviewRow,
+  ImportProgrammeValue,
   RegistryImportBatch,
   RegistryImportProblem,
 } from '../types';
@@ -59,6 +60,34 @@ export const unusedColumns = (columns: ImportColumn[], mapping: Partial<ImportMa
     .map(columnLabel);
 };
 
+// ---------------- Programme names in the file ----------------
+
+/** The choice that skips every row with a programme name (accounts/registry_programmes.py). */
+export const SKIP_PROGRAMME = '__skip__';
+
+/** The office's choices, plus the suggestion for each name not chosen yet. */
+export const withSuggestedProgrammes = (
+  values: ImportProgrammeValue[],
+  choices: Record<string, string>,
+): Record<string, string> => {
+  const next = { ...choices };
+  for (const value of values) {
+    if (!(value.key in next) && value.suggestion) next[value.key] = value.suggestion;
+  }
+  return next;
+};
+
+/** Names the office has not chosen a programme for yet; their rows are left out. */
+export const unchosenProgrammes = (values: ImportProgrammeValue[], choices: Record<string, string>): string[] =>
+  values.filter((value) => !choices[value.key]).map((value) => value.value);
+
+/**
+ * Rows for a reviewed file. A programme mapped by the office's choice goes
+ * back as the name in the file, so changing that choice still reaches it.
+ */
+export const rowsForReview = <T extends Pick<ImportPreviewRow, 'programme' | 'programmeInFile'>>(rows: T[]): T[] =>
+  rows.map((row) => (row.programmeInFile ? { ...row, programme: row.programmeInFile } : row));
+
 export type ImportRowGroup = 'ready' | 'skipped' | 'fix';
 export type ImportRowFilter = 'all' | ImportRowGroup;
 
@@ -66,7 +95,9 @@ export const IMPORT_ROW_FILTERS = ['all', 'ready', 'skipped', 'fix'] as const;
 
 export const importRowGroup = (row: Pick<ImportPreviewRow, 'status'>): ImportRowGroup => {
   if (row.status === 'Ready') return 'ready';
-  if (row.status === 'Already Registered' || row.status === 'Duplicate In File') return 'skipped';
+  if (row.status === 'Already Registered' || row.status === 'Duplicate In File' || row.status === 'Programme Skipped') {
+    return 'skipped';
+  }
   return 'fix';
 };
 
@@ -75,6 +106,7 @@ export interface ImportSummary {
   ready: number;
   alreadyRegistered: number;
   repeated: number;
+  programmeSkipped: number;
   skipped: number;
   fix: number;
 }
@@ -82,14 +114,17 @@ export interface ImportSummary {
 export const summariseImportRows = (rows: Pick<ImportPreviewRow, 'status'>[]): ImportSummary => {
   const alreadyRegistered = rows.filter((row) => row.status === 'Already Registered').length;
   const repeated = rows.filter((row) => row.status === 'Duplicate In File').length;
+  const programmeSkipped = rows.filter((row) => row.status === 'Programme Skipped').length;
   const ready = rows.filter((row) => row.status === 'Ready').length;
+  const skipped = alreadyRegistered + repeated + programmeSkipped;
   return {
     total: rows.length,
     ready,
     alreadyRegistered,
     repeated,
-    skipped: alreadyRegistered + repeated,
-    fix: rows.length - ready - alreadyRegistered - repeated,
+    programmeSkipped,
+    skipped,
+    fix: rows.length - ready - skipped,
   };
 };
 
@@ -100,12 +135,17 @@ export const filterImportRows = <T extends Pick<ImportPreviewRow, 'status'>>(
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
+/** "a, b and c" */
+const listText = (parts: string[]): string =>
+  parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join('');
+
 /** "4 already-registered students and 1 repeated row will be skipped." */
 export const skipNotice = (summary: ImportSummary): string => {
   const parts = [];
   if (summary.alreadyRegistered) parts.push(plural(summary.alreadyRegistered, 'already-registered student'));
   if (summary.repeated) parts.push(plural(summary.repeated, 'repeated row'));
-  return parts.length ? `${parts.join(' and ')} will be skipped.` : '';
+  if (summary.programmeSkipped) parts.push(`${plural(summary.programmeSkipped, 'row')} of a skipped programme`);
+  return parts.length ? `${listText(parts)} will be skipped.` : '';
 };
 
 /** Who an already-registered row matched in the registry. */
@@ -157,6 +197,7 @@ export const importOutcome = (row: ImportPreviewRow): string => {
   }
   if (row.status === 'Already Registered') return 'Skipped: already registered';
   if (row.status === 'Duplicate In File') return 'Skipped: repeated in this file';
+  if (row.status === 'Programme Skipped') return 'Skipped: you chose to skip this programme';
   return 'Not imported';
 };
 
@@ -212,6 +253,7 @@ export const batchSummary = (batch: RegistryImportBatch): string => {
   const registered = batch.alreadyRegistered ?? Math.max(batch.skipped - repeated, 0);
   if (registered) parts.push(`${registered} already registered`);
   if (repeated) parts.push(`${repeated} repeated`);
+  if (batch.programmeSkipped) parts.push(`${batch.programmeSkipped} skipped by programme`);
   if (batch.failed) parts.push(`${batch.failed} not imported`);
   if (batch.invitationsFailed) parts.push(`${plural(batch.invitationsFailed, 'email')} not sent`);
   return parts.join(' · ');

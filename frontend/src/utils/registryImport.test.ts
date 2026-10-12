@@ -17,8 +17,12 @@ import {
   repeatedText,
   rowExplanation,
   rowsAfterHeldSend,
+  rowsForReview,
+  SKIP_PROGRAMME,
   skipNotice,
   summariseImportRows,
+  unchosenProgrammes,
+  withSuggestedProgrammes,
 } from './registryImport';
 import { buildCsv } from './csvExport';
 
@@ -59,6 +63,7 @@ assert.deepEqual(summariseImportRows(rows), {
   ready: 1,
   alreadyRegistered: 1,
   repeated: 1,
+  programmeSkipped: 0,
   skipped: 2,
   fix: 1,
 });
@@ -215,12 +220,50 @@ assert.deepEqual(unusedColumns(columns, mapping), ['Bil', 'Column D']);
 assert.equal(columnLabel(columns[3]), 'Column D');
 assert.equal(columnLabel(columns[1]), 'No. Matrik');
 
+// programme names in the file: one choice per name, or skip its rows
+const programmeValues = [
+  { key: 'masterofdatascience', value: 'Master of Data Science', rows: 2, suggestion: 'MASTER OF DATA SCIENCE (COURSEWORK)', source: 'similar' as const },
+  { key: 'mds', value: 'MDS', rows: 1, suggestion: null, source: null },
+  { key: 'phd', value: 'PhD', rows: 3, suggestion: SKIP_PROGRAMME, source: 'saved' as const },
+];
+assert.deepEqual(withSuggestedProgrammes(programmeValues, {}), {
+  masterofdatascience: 'MASTER OF DATA SCIENCE (COURSEWORK)',
+  phd: SKIP_PROGRAMME,
+});
+assert.deepEqual(
+  withSuggestedProgrammes(programmeValues, { masterofdatascience: 'MASTER OF CYBER SECURITY (COURSEWORK)' }),
+  { masterofdatascience: 'MASTER OF CYBER SECURITY (COURSEWORK)', phd: SKIP_PROGRAMME },
+  "the office's own choice is never replaced by a suggestion",
+);
+assert.deepEqual(unchosenProgrammes(programmeValues, withSuggestedProgrammes(programmeValues, {})), ['MDS']);
+const mapped = row({ line: 6, programme: 'MASTER OF DATA SCIENCE (COURSEWORK)', programmeInFile: 'MDS' });
+assert.deepEqual(rowsForReview([mapped, row({})]).map((r) => r.programme), ['MDS', 'MASTER OF DATA SCIENCE (COURSEWORK)']);
+const skippedProgramme = row({ line: 7, programme: 'PhD', status: 'Programme Skipped', issue: 'you chose to skip the programme "PhD"' });
+const withSkipped = summariseImportRows([...rows, skippedProgramme]);
+assert.equal(withSkipped.programmeSkipped, 1);
+assert.equal(withSkipped.skipped, 3);
+assert.equal(withSkipped.fix, 1, 'a skipped programme is not a row to fix');
+assert.equal(
+  skipNotice(withSkipped),
+  '1 already-registered student, 1 repeated row and 1 row of a skipped programme will be skipped.',
+);
+assert.deepEqual(filterImportRows([...rows, skippedProgramme], 'skipped').map((r) => r.line), [3, 4, 7]);
+assert.equal(rowExplanation(skippedProgramme), 'you chose to skip the programme "PhD"');
+assert.equal(
+  importOutcome({ ...skippedProgramme, result: 'skipped' }),
+  'Skipped: you chose to skip this programme',
+);
+assert.equal(
+  batchSummary({ ...batch, programmeSkipped: 6 }),
+  '3 created · 4 already registered · 1 repeated · 6 skipped by programme · 1 not imported',
+);
+
 // the screen uses all of this
 const registry = readFileSync(resolve('src/components/StudentRegistry.tsx'), 'utf8');
 assert.match(registry, /inspectStudentImport\(file\)/, 'a new file is described before its rows are checked');
 assert.match(registry, /if \(layout\.layoutRecognised\)/, 'our own template skips the Match step');
 assert.match(registry, /<RegistryImportMatch\b/, 'other layouts stop at Match columns');
-assert.match(registry, /previewStudentImport\(reviewed, reviewedOptions\(\)\)/, 'edited rows are sent back in our own layout');
+assert.match(registry, /previewWithChoices\(reviewedFile\(edited\), reviewedOptions\(\)\)/, 'edited rows are sent back in our own layout');
 assert.match(registry, /commitStudentImport\(file, editedSet \? reviewedOptions\(\) : importOptions\(\)\)/);
 assert.match(registry, /Change column matches/);
 assert.match(registry, /<RegistryImportResult\b/, 'the import result must be shown, not only a toast');
@@ -230,6 +273,10 @@ assert.match(registry, /sendInvites: sendInvitesNow/, 'the office chooses to sen
 assert.match(registry, /sendBatchInvitations\(heldBatchToSend\.id\)/, 'held emails are sent from the screen');
 assert.match(registry, /rowsAfterHeldSend\(current\.rows, result\.students\)/, 'the report shows each held email');
 assert.match(registry, /\{batch\.invitationsHeld && \(/, 'Recent Imports marks an import whose emails are on hold');
+assert.match(registry, /<RegistryImportProgrammes\b/, 'programme names are chosen on the Check rows step');
+assert.match(registry, /const response = await previewWithChoices\(file, options\)/, 'suggested choices are shown with their effect');
+assert.match(registry, /rowsToCsv\(rowsForReview\(rows\)\)/, 'a reviewed file keeps the names the office mapped');
+assert.match(registry, /programmeMap: programmeChoices/);
 assert.doesNotMatch(registry, /Bulk Import via CSV/);
 
 console.log('Registry import listing tests passed.');

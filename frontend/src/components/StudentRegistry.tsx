@@ -43,6 +43,7 @@ import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedCon
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
 import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
+import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes';
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
@@ -54,7 +55,9 @@ import {
   ImportInspectResponse,
   ImportMapping,
   ImportOptions,
+  ImportPreviewResponse,
   ImportPreviewRow,
+  ImportProgrammeValue,
   RegistryImportBatch,
   StudentAcademicStatus,
   StudentAccountStatus,
@@ -97,8 +100,10 @@ import {
   filterImportRows,
   rowExplanation,
   rowsAfterHeldSend,
+  rowsForReview,
   skipNotice,
   summariseImportRows,
+  withSuggestedProgrammes,
 } from '../utils/registryImport';
 
 const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
@@ -326,6 +331,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [sendInvitesNow, setSendInvitesNow] = useState(true);
   const [heldBatchToSend, setHeldBatchToSend] = useState<RegistryImportBatch | null>(null);
   const [sendingHeld, setSendingHeld] = useState(false);
+  // Programme names in the file that are not approved programmes, and the
+  // office's choice for each: an approved programme, or skip its rows.
+  const [programmeValues, setProgrammeValues] = useState<ImportProgrammeValue[]>([]);
+  const [programmeValueCount, setProgrammeValueCount] = useState(0);
+  const [programmeChoices, setProgrammeChoices] = useState<Record<string, string>>({});
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -624,6 +634,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setMatchError(null);
     setImportDefaults({});
     setSendInvitesNow(true);
+    setProgrammeValues([]);
+    setProgrammeValueCount(0);
+    setProgrammeChoices({});
   };
 
   // The confirmed reading of the uploaded file: which sheet, which row has the
@@ -633,12 +646,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     headerRow: importHeaderRow,
     mapping: importMapping,
     defaults: importDefaults,
+    programmeMap: programmeChoices,
     sendInvites: sendInvitesNow,
   });
 
   // Edited rows are sent back in our own layout, so the server finds the
   // columns by name.
-  const reviewedOptions = (): ImportOptions => ({ defaults: importDefaults, sendInvites: sendInvitesNow });
+  const reviewedOptions = (): ImportOptions => ({
+    defaults: importDefaults,
+    programmeMap: programmeChoices,
+    sendInvites: sendInvitesNow,
+  });
+
+  const reviewedFile = (rows: ImportPreviewRow[]) =>
+    new File([rowsToCsv(rowsForReview(rows))], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
 
   const applyLayout = (layout: ImportInspectResponse) => {
     setImportLayout(layout);
@@ -647,14 +668,32 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setImportHeaderRow(layout.headerRow);
   };
 
+  const showCheckedRows = (response: ImportPreviewResponse) => {
+    setCsvPreviewRecords(response.rows);
+    setProgrammeValues(response.programmeValues ?? []);
+    setProgrammeValueCount(response.programmeValueCount ?? 0);
+  };
+
+  // Suggested programme choices (the office's earlier choice, or the same
+  // name spelt differently) are filled in and the rows checked again with
+  // them, so every choice and its effect are on screen before any import.
+  const previewWithChoices = async (file: File, options: ImportOptions) => {
+    const chosen = options.programmeMap ?? {};
+    const response = await previewStudentImport(file, options);
+    const choices = withSuggestedProgrammes(response.programmeValues ?? [], chosen);
+    setProgrammeChoices(choices);
+    if (Object.keys(choices).length === Object.keys(chosen).length) return response;
+    return previewStudentImport(file, { ...options, programmeMap: choices });
+  };
+
   // The server checks every row with the confirmed columns; nothing is
   // created until the reviewer commits.
   const checkImportRows = async (file: File, options: ImportOptions) => {
-    const { rows } = await previewStudentImport(file, options);
-    setCsvPreviewRecords(rows);
+    const response = await previewWithChoices(file, options);
+    showCheckedRows(response);
     setImportFilter('all');
     setImportStep('check');
-    const checked = summariseImportRows(rows);
+    const checked = summariseImportRows(response.rows);
     triggerToast(
       `Checked ${checked.total} rows: ${checked.ready} ready, ${checked.skipped} will be skipped, ${checked.fix} need fixing.`,
     );
@@ -675,6 +714,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       setSourceFile(file);
       setRowsEdited(false);
       setCsvPreviewRecords([]);
+      setProgrammeValues([]);
+      setProgrammeValueCount(0);
+      setProgrammeChoices({});
       applyLayout(layout);
       if (layout.layoutRecognised) {
         await checkImportRows(file, { sheet: layout.sheet, headerRow: layout.headerRow, mapping: layout.mapping });
@@ -721,6 +763,27 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     }
   };
 
+  // One choice covers every row with that programme name; the rows are
+  // checked again straight away.
+  const chooseProgramme = async (key: string, choice: string) => {
+    const choices = { ...programmeChoices };
+    if (choice === NOT_CHOSEN) delete choices[key];
+    else choices[key] = choice;
+    setProgrammeChoices(choices);
+    setIsProcessingCsv(true);
+    try {
+      const response =
+        !rowsEdited && sourceFile
+          ? await previewStudentImport(sourceFile, { ...importOptions(), programmeMap: choices })
+          : await previewStudentImport(reviewedFile(csvPreviewRecords), { ...reviewedOptions(), programmeMap: choices });
+      showCheckedRows(response);
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'The rows could not be checked again.');
+    } finally {
+      setIsProcessingCsv(false);
+    }
+  };
+
   // Multi edit save handler inside CSV validation table
   const handleStartEditingRow = (item: ImportPreviewRow) => {
     setEditingCsvLine(item.line);
@@ -739,6 +802,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       return;
     }
 
+    const programme = editRowFields.programme.trim();
     const edited = csvPreviewRecords.map(rec => (
       rec.line !== editingCsvLine
         ? rec
@@ -746,7 +810,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             ...rec,
             id: editRowFields.id.trim(),
             name: editRowFields.name.trim(),
-            programme: editRowFields.programme.trim(),
+            programme,
+            // A programme left as the office's choice keeps following it.
+            programmeInFile: programme === rec.programme ? rec.programmeInFile : undefined,
             email: editRowFields.email.trim(),
             phone: editRowFields.phone.trim(),
           }
@@ -756,9 +822,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     // still-invalid row as Ready.
     setIsProcessingCsv(true);
     try {
-      const reviewed = new File([rowsToCsv(edited)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' });
-      const { rows } = await previewStudentImport(reviewed, reviewedOptions());
-      setCsvPreviewRecords(rows);
+      showCheckedRows(await previewWithChoices(reviewedFile(edited), reviewedOptions()));
       setRowsEdited(true);
       setEditingCsvLine(null);
       triggerToast('Row updated and checked again.');
@@ -775,7 +839,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (csvPreviewRecords.length === 0) return;
     const editedSet = rowsEdited || !sourceFile;
     const file = editedSet
-      ? new File([rowsToCsv(csvPreviewRecords)], reviewedFileName(uploadedFile?.name), { type: 'text/csv' })
+      ? reviewedFile(csvPreviewRecords)
       : sourceFile;
 
     setSaving(true);
@@ -1877,6 +1941,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             </div>
                           )}
 
+                          {importSummary.programmeSkipped > 0 && (
+                            <div className="px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border bg-slate-100 text-slate-600 border-slate-200">
+                              <GraduationCap className="w-3 h-3" />
+                              <span>{importSummary.programmeSkipped} Programme Skipped</span>
+                            </div>
+                          )}
+
                           {/* Rows that need correcting before they can be imported */}
                           <div className={`px-2.5 py-1 font-black text-[10px] uppercase rounded-full tracking-wide flex items-center gap-1 select-none border transition ${
                             importSummary.fix > 0
@@ -1889,6 +1960,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                         </div>
                       </div>
+
+                      {programmeValues.length > 0 && (
+                        <RegistryImportProgrammes
+                          values={programmeValues}
+                          total={programmeValueCount}
+                          choices={programmeChoices}
+                          busy={isProcessingCsv || saving}
+                          onChoose={(key, choice) => void chooseProgramme(key, choice)}
+                        />
+                      )}
 
                       {csvPreviewRecords.length > 0 && (
                         <SegmentedControl<ImportRowFilter>
@@ -2043,6 +2124,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                         {describeProgramme(item.programme).detail}
                                       </span>
                                     )}
+                                    {item.programmeInFile && (
+                                      <span className="block max-w-[14rem] truncate text-[10px] font-bold text-indigo-600">
+                                        In the file: {item.programmeInFile}
+                                      </span>
+                                    )}
                                   </td>
 
                                   {/* Status Outcome render badge */}
@@ -2071,7 +2157,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                         <span>Repeated</span>
                                       </span>
                                     )}
-                                    {!['Ready', 'Missing Email', 'Already Registered', 'Duplicate In File'].includes(item.status) && (
+                                    {item.status === 'Programme Skipped' && (
+                                      <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none whitespace-nowrap">
+                                        <GraduationCap className="w-3 h-3" />
+                                        <span>Skipped</span>
+                                      </span>
+                                    )}
+                                    {!['Ready', 'Missing Email', 'Already Registered', 'Duplicate In File', 'Programme Skipped'].includes(item.status) && (
                                       <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-250 text-[9.5px] font-black rounded-full px-2.5 py-0.5 tracking-wide uppercase select-none">
                                         <AlertCircle className="w-3 h-3" />
                                         <span>{item.status}</span>

@@ -43,6 +43,7 @@ from .registry_import import (
     read_import_file,
     validate_import_rows,
 )
+from .registry_programmes import programme_values, remember_choices
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
 from .tokens import activation_link
@@ -459,8 +460,10 @@ def student_import_view(request):
     """Bulk-import students from a CSV or XLSX file (UC04).
 
     ``dryRun`` checks every row and writes nothing. Otherwise each Ready row is
-    created on its own, duplicates are skipped, other problem rows are left
-    out, and the run is recorded as a ``RegistryImportBatch``.
+    created on its own, duplicates and rows of a skipped programme are skipped,
+    other problem rows are left out, and the run is recorded as a
+    ``RegistryImportBatch``. The office's programme choices are remembered for
+    the next import.
     """
     _require_office_admin(request)
 
@@ -472,7 +475,9 @@ def student_import_view(request):
         )
     try:
         options = parse_import_options(request.data.get("options"))
-        rows = validate_import_rows(read_import_file(uploaded, options))
+        file_rows = read_import_file(uploaded, options)
+        programme_map = (options or {}).get("programmeMap") or {}
+        rows = validate_import_rows(file_rows, programme_map)
     except ImportOptionsError as exc:
         return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
     except ImportFileError as exc:
@@ -480,7 +485,17 @@ def student_import_view(request):
 
     send_invites = options["sendInvites"] if options else True
     if str(request.data.get("dryRun", "")).lower() in {"1", "true", "yes"}:
-        return Response({"fileName": uploaded.name, "rows": rows})
+        # Programme names that are not approved programmes, for the office to
+        # map once each or skip.
+        values, value_count = programme_values(file_rows)
+        return Response(
+            {
+                "fileName": uploaded.name,
+                "rows": rows,
+                "programmeValues": values,
+                "programmeValueCount": value_count,
+            }
+        )
 
     results = []
     new_students = []
@@ -490,7 +505,7 @@ def student_import_view(request):
             results.append(result)
             if student is not None:
                 new_students.append((result, student))
-        elif row["status"] in {"Duplicate In File", "Already Registered"}:
+        elif row["status"] in {"Duplicate In File", "Already Registered", "Programme Skipped"}:
             results.append({**row, "result": "skipped"})
         else:
             results.append({**row, "result": "failed"})
@@ -509,8 +524,13 @@ def student_import_view(request):
         problems=problems,
         created_students=[{"id": student.matric_no, "line": result["line"]} for result, student in new_students],
         invitations_held=not send_invites and bool(new_students),
-        settings_used={"defaults": (options or {}).get("defaults") or {}, "sendInvites": send_invites},
+        settings_used={
+            "defaults": (options or {}).get("defaults") or {},
+            "programmeMap": programme_map,
+            "sendInvites": send_invites,
+        },
     )
+    remember_choices(file_rows, programme_map, request.user)
 
     if not send_invites:
         # The office sends them later from Recent Imports.

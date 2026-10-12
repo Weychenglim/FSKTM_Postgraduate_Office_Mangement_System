@@ -6,7 +6,8 @@ handled, and the office confirms which column is which (``options``).
 
 Rows are never auto-corrected. A missing email or an unrecognised programme is
 reported so a person fixes it; inventing a value would attach a real account to
-the wrong mailbox.
+the wrong mailbox. A programme name the office maps once (``programmeMap``)
+applies to every row with that name.
 """
 
 import csv
@@ -36,6 +37,7 @@ from .registry_columns import (
     header_score,
     suggest_mapping,
 )
+from .registry_programmes import parse_programme_map, programme_key
 from .validators import matric_problem, phone_problem
 
 IMPORT_HEADERS = ["student_id", "full_name", "programme", "email", "phone", "intake", "current_semester"]
@@ -438,6 +440,7 @@ def parse_import_options(raw):
         ):
             errors["mapping"] = ["Each match must be a column number."]
     defaults = _parse_defaults(data.get("defaults"), errors)
+    programme_map = parse_programme_map(data.get("programmeMap"), errors)
     send_invites = data.get("sendInvites", True)
     if not isinstance(send_invites, bool):
         errors["sendInvites"] = ["Choose whether to send the activation emails now."]
@@ -448,6 +451,7 @@ def parse_import_options(raw):
         "headerRow": header_row,
         "mapping": {key: mapping.get(key) for key in FIELD_KEYS} if mapping is not None else None,
         "defaults": defaults,
+        "programmeMap": programme_map,
         "sendInvites": send_invites,
     }
 
@@ -534,10 +538,25 @@ def _differences(cells, existing, matched_by):
     return [field for field, in_file, on_record in checks if in_file and not _same_text(in_file, on_record)]
 
 
-def validate_import_rows(rows):
-    """Check each row against the same rules as single registration."""
+def validate_import_rows(rows, programme_map=None):
+    """Check each row against the same rules as single registration.
+
+    ``programme_map`` holds the office's choices for programme names that are
+    not approved programmes: {name key: approved programme, or "" to skip}.
+    Skipped rows are not checked further and never count as the first copy of
+    a repeated Student ID or email.
+    """
+    programme_map = programme_map or {}
+    skipped = {
+        line
+        for line, cells in rows
+        if not normalise_programme(cells["programme"])
+        and programme_map.get(programme_key(cells["programme"])) == ""
+    }
     first_id, first_email = {}, {}
     for line, cells in rows:
+        if line in skipped:
+            continue
         if cells["student_id"]:
             first_id.setdefault(cells["student_id"].lower(), line)
         if cells["email"]:
@@ -570,7 +589,8 @@ def validate_import_rows(rows):
     checked = []
     for line, cells in rows:
         matric, name, email = cells["student_id"], cells["full_name"], cells["email"]
-        programme = normalise_programme(cells["programme"])
+        approved = normalise_programme(cells["programme"])
+        programme = approved or programme_map.get(programme_key(cells["programme"])) or None
         status, issue = "Ready", ""
         existing_user = matched_by = duplicate_of = None
 
@@ -582,8 +602,13 @@ def validate_import_rows(rows):
         # A student who is already registered is skipped whatever else the row
         # says, so that is reported before problems the office would otherwise
         # be asked to fix for nothing (an extract re-uploaded for late
-        # registrations lists everyone again).
-        if not matric or not name:
+        # registrations lists everyone again). A programme the office chose to
+        # skip comes first of all: those rows are not wanted, whatever else
+        # they say.
+        if line in skipped:
+            status = "Programme Skipped"
+            issue = f'you chose to skip the programme "{cells["programme"]}"'
+        elif not matric or not name:
             status = "Missing Field"
             issue = "student_id is required" if not matric else "full_name is required"
         elif field_problem:
@@ -614,6 +639,9 @@ def validate_import_rows(rows):
             status = "Already Registered"
             issue = "this email already has an account"
             existing_user, matched_by = registered_emails[email.lower()], "email"
+        elif not cells["programme"]:
+            status = "Missing Field"
+            issue = "programme is required"
         elif not programme:
             status = "Bad Programme"
             issue = f'"{cells["programme"]}" is not an approved programme'
@@ -630,6 +658,10 @@ def validate_import_rows(rows):
             "status": status,
             "issue": issue,
         }
+        if programme and not approved:
+            # Mapped by the office's choice; the name in the file is kept so
+            # the choice can still be changed after a row is edited.
+            row["programmeInFile"] = cells["programme"]
         if duplicate_of is not None:
             row["duplicateOf"] = duplicate_of
         if existing_user is not None:

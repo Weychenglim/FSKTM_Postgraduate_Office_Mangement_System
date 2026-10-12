@@ -505,6 +505,7 @@ class RegistryImportBatch(models.Model):
             "failed": self.failed_count,
             "alreadyRegistered": statuses.count("Already Registered"),
             "duplicateInFile": statuses.count("Duplicate In File"),
+            "programmeSkipped": statuses.count("Programme Skipped"),
             "invitationsFailed": self.invitations_failed,
             "invitationsHeld": self.invitations_held,
             "invitationsSentAt": self.invitations_sent_at.isoformat() if self.invitations_sent_at else None,
@@ -515,6 +516,27 @@ class RegistryImportBatch(models.Model):
 
     def __str__(self):
         return f"{self.file_name} ({self.created_count} created)"
+
+
+class RegistryProgrammeAlias(models.Model):
+    """How the office reads a programme name from its own spreadsheets (UC04):
+    an approved programme, or blank to skip those rows. Saved on a real import,
+    suggested on the next one, and shared by the whole office."""
+
+    # The name without letter case, punctuation or spaces.
+    value_key = models.CharField(max_length=255, unique=True)
+    programme = models.CharField(max_length=255, blank=True)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_programme_aliases",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.value_key}: {self.programme or 'skip'}"
 
 
 class CoordinatorDelegationQuerySet(models.QuerySet):
