@@ -42,9 +42,36 @@ class PasswordResetRateThrottle(SettingsRateThrottle):
     setting_name = "AUTH_PASSWORD_RESET_THROTTLE_RATE"
 
 
+def is_password_link_check(request):
+    """A set-password request that only checks its link (``dryRun``)."""
+    data = request.data
+    value = data.get("dryRun") if hasattr(data, "get") else None
+    return str(value).lower() in {"1", "true", "yes"}
+
+
 class PasswordResetConfirmRateThrottle(SettingsRateThrottle):
     scope = "auth_password_reset_confirm"
     setting_name = "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        # Link checks have their own budget below, so opening the page never
+        # uses up the attempts to set the password.
+        if is_password_link_check(request):
+            return None
+        return super().get_cache_key(request, view)
+
+
+class PasswordLinkCheckRateThrottle(SettingsRateThrottle):
+    """``dryRun`` requests: opening an activation or reset link checks it
+    before the form is shown."""
+
+    scope = "auth_password_link_check"
+    setting_name = "AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        if not is_password_link_check(request):
+            return None
+        return super().get_cache_key(request, view)
 
 
 class ChangePasswordRateThrottle(SettingsRateThrottle):

@@ -73,9 +73,12 @@ class SettingsPasswordSerializer(StrictSettingsSerializer):
         return value
 
 
-class PasswordResetConfirmSerializer(serializers.Serializer):
+class PasswordLinkSerializer(serializers.Serializer):
     uid = serializers.CharField()
     token = serializers.CharField()
+
+
+class PasswordResetConfirmSerializer(PasswordLinkSerializer):
     new_password = serializers.CharField(
         write_only=True, trim_whitespace=False, style={"input_type": "password"}
     )

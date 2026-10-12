@@ -13,7 +13,9 @@
 
 import { APP_ROUTES } from '../constants/routes';
 import { DemoUser } from '../types';
+import type { PasswordLinkKind } from '../utils/passwordLinkCopy';
 import {
+  ApiError,
   clearAuthToken,
   delay,
   getAuthSessionVersion,
@@ -32,6 +34,7 @@ const PUBLIC_PATHS: readonly string[] = [
   APP_ROUTES.login,
   APP_ROUTES.forgotPassword,
   APP_ROUTES.resetPassword,
+  APP_ROUTES.activateAccount,
 ];
 
 /** A reload on a portal page (not the sign-in pages) means a session was likely open. */
@@ -76,7 +79,27 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }, { retryAuth: false });
 }
 
-/** Complete a reset using the uid + token from the email link. */
+/**
+ * Check an activation or reset link before showing its form. Resolves with the
+ * kind of link; a link that can no longer be used rejects (see
+ * `isInvalidPasswordLink`).
+ */
+export async function checkPasswordLink(uid: string, token: string): Promise<PasswordLinkKind> {
+  const res = await request<{ kind: PasswordLinkKind }>('/auth/password-reset/confirm/', {
+    method: 'POST',
+    body: JSON.stringify({ uid, token, dryRun: true }),
+  }, { retryAuth: false });
+  return res.kind;
+}
+
+/** True when the backend says an activation or reset link has expired or was already used. */
+export function isInvalidPasswordLink(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 400) return false;
+  const body = err.body;
+  return typeof body === 'object' && body !== null && (body as { code?: unknown }).code === 'invalid_link';
+}
+
+/** Set a password using the uid + token from an activation or reset email link. */
 export async function confirmPasswordReset(
   uid: string,
   token: string,

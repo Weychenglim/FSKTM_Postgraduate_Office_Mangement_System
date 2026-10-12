@@ -220,6 +220,10 @@ AUTH_PASSWORD_RESET_THROTTLE_RATE = os.getenv(
 AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE = os.getenv(
     "AUTH_PASSWORD_RESET_CONFIRM_THROTTLE_RATE", "10/hour"
 )
+# Opening an activation or reset link checks it before the form is shown.
+AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE = os.getenv(
+    "AUTH_PASSWORD_LINK_CHECK_THROTTLE_RATE", "30/hour"
+)
 # Signed-in password change. Separate scope from reset-confirm, and keyed on the
 # account rather than the IP, so shared networks cannot exhaust each other.
 AUTH_CHANGE_PASSWORD_THROTTLE_RATE = os.getenv(
@@ -278,4 +282,5 @@ DEFAULT_FROM_EMAIL = os.getenv(
 )
 
 # Password-reset links expire after 30 minutes (matches the frontend copy).
+# Activation links have no time limit (accounts.tokens).
 PASSWORD_RESET_TIMEOUT = 60 * 30

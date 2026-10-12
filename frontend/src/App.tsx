@@ -152,7 +152,7 @@ export default function App() {
   // On first load, exchange the HttpOnly refresh cookie for an in-memory access
   // token before loading the current user.
   useEffect(() => {
-    if (pathname === APP_ROUTES.resetPassword) {
+    if (pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount) {
       clearAuthToken();
       setIsRestoringSession(false);
       return;
@@ -386,7 +386,10 @@ export default function App() {
 
   // While restoring a session from the refresh cookie, hold a neutral loading screen
   // instead of flashing the login page (skip it for the reset-password link flow).
-  if (isRestoringSession && pathname !== APP_ROUTES.resetPassword) {
+  const isPasswordLinkPage =
+    pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount;
+
+  if (isRestoringSession && !isPasswordLinkPage) {
     return (
       <div
         id="session-restore-loading"
@@ -401,13 +404,15 @@ export default function App() {
   }
 
   if (!currentUser) {
-    if (pathname === APP_ROUTES.resetPassword && resetParams) {
+    if (isPasswordLinkPage && resetParams) {
       return (
         <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
           <ResetPasswordPage
             uid={resetParams.uid}
             token={resetParams.token}
+            kind={pathname === APP_ROUTES.activateAccount ? 'activation' : 'reset'}
             onBackToLogin={handleBackToLogin}
+            onRequestNewLink={() => navigate(APP_ROUTES.forgotPassword)}
           />
         </div>
       );
@@ -464,7 +469,7 @@ export default function App() {
     pathname === APP_ROUTES.root
     || pathname === APP_ROUTES.login
     || pathname === APP_ROUTES.forgotPassword
-    || pathname === APP_ROUTES.resetPassword
+    || isPasswordLinkPage
     || !isKnownAppPath(pathname)
   ) {
     return <Navigate to={defaultAuthenticatedRoute} replace />;

@@ -11,13 +11,10 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import get_connection, send_mail
 from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Prefetch, Q
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
@@ -30,6 +27,7 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
+from .account_emails import activation_email
 from .authorization import coordinator_scope_q
 from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
@@ -37,6 +35,7 @@ from .programmes import APPROVED_PROGRAMMES
 from .registry_import import ImportFileError, read_import_file, validate_import_rows
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle
+from .tokens import activation_link
 from .validators import matric_problem, validate_phone
 from .views import send_password_reset_email
 
@@ -283,25 +282,16 @@ def student_records_view(request):
 def send_activation_email(user, connection=None) -> bool:
     """Email the new student a link to choose their first password.
 
-    Uses the same signed token as password reset, so no credential is ever
-    generated or transmitted. Returns whether the send succeeded; the office
-    needs to know when an address bounced.
+    The link has no time limit and stops working once a password is set (see
+    ``accounts.tokens``), so no credential is ever generated or transmitted.
+    Returns whether the send succeeded; the office needs to know when an
+    address bounced.
     """
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-    link = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+    subject, message = activation_email(user, activation_link(user))
     try:
         send_mail(
-            "Activate your FSKTM Postgraduate Office account",
-            (
-                f"Hello {user.full_name},\n\n"
-                "An account has been created for you at the FSKTM Postgraduate "
-                "Office. Choose your password using the link below:\n\n"
-                f"{link}\n\n"
-                "The link expires in 30 minutes. If it expires, use "
-                "\"Forgot password\" on the sign-in page to request a new one.\n\n"
-                "Regards,\nFSKTM Postgraduate Office"
-            ),
+            subject,
+            message,
             settings.DEFAULT_FROM_EMAIL,
             [user.email],
             fail_silently=False,

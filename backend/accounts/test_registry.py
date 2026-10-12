@@ -553,7 +553,7 @@ class RegistryAccessLinkTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"kind": "reset", "sent": True})
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].subject, "Reset your FSKTM PG Office password")
+        self.assertEqual(mail.outbox[0].subject, "Reset your FSKTM Postgraduate Office password")
 
     def test_suspended_account_is_refused(self):
         self.active_student.user.is_active = False

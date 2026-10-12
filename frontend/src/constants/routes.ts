@@ -5,6 +5,7 @@ export const APP_ROUTES = {
   login: '/login',
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
+  activateAccount: '/activate-account',
   dashboard: '/dashboard',
   dashboardTimeline: '/dashboard/timeline',
   dashboardSemesters: '/dashboard/semesters',
@@ -142,6 +143,7 @@ export const isKnownAppPath = (pathname: string): boolean => {
     || pathname === APP_ROUTES.login
     || pathname === APP_ROUTES.forgotPassword
     || pathname === APP_ROUTES.resetPassword
+    || pathname === APP_ROUTES.activateAccount
   ) {
     return true;
   }
