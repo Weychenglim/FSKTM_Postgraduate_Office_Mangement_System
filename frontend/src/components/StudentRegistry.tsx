@@ -40,6 +40,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
@@ -123,15 +124,41 @@ const PROGRAMME_TONES: Array<[RegExp, string]> = [
   [/information systems?/i, 'bg-purple-50 text-purple-600 border-purple-100'],
 ];
 
+const programmeTone = (label: string) =>
+  PROGRAMME_TONES.find(([pattern]) => pattern.test(label))?.[1] ?? 'bg-slate-50 text-slate-500 border-slate-200';
+
+const ProgrammeIcon: React.FC<{ label: string; small?: boolean }> = ({ label, small = false }) => (
+  <span
+    className={`${small ? 'w-6 h-6 rounded-md' : 'w-8 h-8 rounded-lg'} border flex items-center justify-center shrink-0 ${programmeTone(label)}`}
+  >
+    <GraduationCap className={small ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+  </span>
+);
+
+// Dropdown entries read "Data Science / Master · Coursework" instead of the
+// upper-case official name, the same way the table shows programmes.
+const programmeOption = (programme: string, note?: string): SelectMenuOption => {
+  const { field, detail } = describeProgramme(programme);
+  return {
+    value: programme,
+    label: field,
+    description: [detail, note].filter(Boolean).join(' · '),
+    leading: <ProgrammeIcon label={programme} small />,
+  };
+};
+
+const statusOption = (status: StudentAcademicStatus): SelectMenuOption<StudentAcademicStatus> => ({
+  value: status,
+  label: status,
+  leading: <StatusDot tone={ACADEMIC_TONE[status]} className="w-2 h-2" />,
+});
+
 export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
   const { field, detail } = describeProgramme(label);
-  const tone = PROGRAMME_TONES.find(([pattern]) => pattern.test(label))?.[1] ?? 'bg-slate-50 text-slate-500 border-slate-200';
 
   return (
     <div className="flex items-center gap-2.5 text-left select-none" title={label}>
-      <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${tone}`}>
-        <GraduationCap className="w-4 h-4" />
-      </div>
+      <ProgrammeIcon label={label} />
       <div className="min-w-0">
         <p className="text-[12px] font-extrabold text-brand-navy leading-snug">{field}</p>
         {detail && <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{detail}</p>}
@@ -240,7 +267,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     id: '',
     email: '',
     phone: '',
-    programme: 'Select registered programme',
+    programme: '',
     intakeBatch: '',
     semester: '',
     sendCredentialsImmediately: true
@@ -487,7 +514,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       id: '',
       email: '',
       phone: '',
-      programme: 'Select registered programme',
+      programme: '',
       intakeBatch: '',
       semester: '',
       sendCredentialsImmediately: true
@@ -809,78 +836,66 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* Dynamic Droplist selectors */}
               <div className="flex flex-wrap items-center gap-2">
                 
-                {/* Selector: Programme */}
-                <div className="relative max-w-full">
-                  <select
-                    value={selectedProgramme}
-                    onChange={(e) => {
-                      setSelectedProgramme(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
-                  >
-                    <option value="All">Programme: All</option>
-                    {PROGRAMME_OPTIONS.map((programme) => (
-                      <option key={programme} value={programme}>{programme}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Programme"
+                  aria-label="Filter by programme"
+                  value={selectedProgramme}
+                  options={[
+                    { value: 'All', label: 'All programmes', triggerLabel: 'All' },
+                    ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                  ]}
+                  onChange={(programme) => {
+                    setSelectedProgramme(programme);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Semester */}
-                <div className="relative max-w-full">
-                  <select
-                    value={selectedSemester}
-                    onChange={(e) => {
-                      setSelectedSemester(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
-                  >
-                    <option value="All">Semester: All</option>
-                    {semesterOptions.map((semester) => (
-                      <option key={semester} value={semester}>{semester}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Semester"
+                  aria-label="Filter by semester"
+                  value={selectedSemester}
+                  options={[
+                    { value: 'All', label: 'All semesters', triggerLabel: 'All' },
+                    ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
+                  ]}
+                  onChange={(semester) => {
+                    setSelectedSemester(semester);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Status */}
-                <div className="relative max-w-full">
-                  <select
-                    value={selectedAcademicStatus}
-                    onChange={(e) => {
-                      setSelectedAcademicStatus(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
-                  >
-                    <option value="All">Status: All</option>
-                    {ACADEMIC_STATUSES.map((academicStatus) => (
-                      <option key={academicStatus} value={academicStatus}>{academicStatus}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Status"
+                  aria-label="Filter by academic status"
+                  value={selectedAcademicStatus}
+                  options={[
+                    { value: 'All', label: 'All statuses', triggerLabel: 'All' },
+                    ...ACADEMIC_STATUSES.map(statusOption),
+                  ]}
+                  onChange={(academicStatus) => {
+                    setSelectedAcademicStatus(academicStatus);
+                    setCurrentPage(1);
+                  }}
+                />
 
-                {/* Selector: Supervisor */}
-                <div className="relative max-w-full">
-                  <select
-                    value={selectedSupervisor}
-                    onChange={(e) => {
-                      setSelectedSupervisor(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-extrabold text-[11px] uppercase tracking-wide pl-4 pr-10 py-2.5 rounded-xl cursor-pointer hover:bg-slate-50 outline-none transition shadow-3xs max-w-full truncate"
-                  >
-                    <option value="All">Supervisor: All</option>
-                    <option value={NO_SUPERVISOR}>No supervisor yet</option>
-                    {supervisorOptions.map((supervisor) => (
-                      <option key={supervisor} value={supervisor}>{supervisor}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
-                </div>
+                <SelectMenu
+                  variant="filter"
+                  prefix="Supervisor"
+                  aria-label="Filter by supervisor"
+                  value={selectedSupervisor}
+                  options={[
+                    { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
+                    { value: NO_SUPERVISOR, label: 'No supervisor yet' },
+                    ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
+                  ]}
+                  onChange={(supervisor) => {
+                    setSelectedSupervisor(supervisor);
+                    setCurrentPage(1);
+                  }}
+                />
 
                 <PortalButton
                   variant="secondary"
@@ -1591,22 +1606,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         <label htmlFor="programme-selection" className="form-label block">
                           Programme
                         </label>
-                        <div className="relative">
-                          <select
-                            id="programme-selection"
-                            value={manualFormData.programme}
-                            onChange={(e) => setManualFormData({ ...manualFormData, programme: e.target.value })}
-                            className="form-control form-control-md appearance-none pr-10 cursor-pointer"
-                          >
-                            <option value="Select registered programme" disabled>Select registered programme</option>
-                            {PROGRAMME_OPTIONS.map((programme) => (
-                              <option key={programme} value={programme}>{programme}</option>
-                            ))}
-                          </select>
-                          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-405">
-                            <ChevronDown className="w-4 h-4" />
-                          </div>
-                        </div>
+                        <SelectMenu
+                          id="programme-selection"
+                          value={manualFormData.programme}
+                          options={PROGRAMME_OPTIONS.map((programme) => programmeOption(programme))}
+                          onChange={(programme) => setManualFormData({ ...manualFormData, programme })}
+                          placeholder="Select registered programme"
+                        />
                       </div>
 
                       {/* Intake Batch & Current Semester */}
@@ -1996,19 +2002,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </label>
                     <label className="flex flex-col gap-1 form-label">
                       Programme
-                      <select
+                      <SelectMenu
+                        size="sm"
                         value={detailsDraft.programme}
-                        onChange={(e) => setDetailsDraft({ ...detailsDraft, programme: e.target.value })}
+                        options={[
+                          // A record can still hold a programme from before the approved list.
+                          ...((PROGRAMME_OPTIONS as readonly string[]).includes(detailsDraft.programme)
+                            ? []
+                            : [programmeOption(detailsDraft.programme, detailsDraft.programme ? 'Not on the approved list' : undefined)]),
+                          ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                        ]}
+                        onChange={(programme) => setDetailsDraft({ ...detailsDraft, programme })}
                         disabled={detailsSaving}
-                        className="form-control form-control-sm max-w-full truncate normal-case tracking-normal"
-                      >
-                        {!(PROGRAMME_OPTIONS as readonly string[]).includes(detailsDraft.programme) && (
-                          <option value={detailsDraft.programme}>{detailsDraft.programme || 'Not set'}</option>
-                        )}
-                        {PROGRAMME_OPTIONS.map((programme) => (
-                          <option key={programme} value={programme}>{programme}</option>
-                        ))}
-                      </select>
+                      />
                     </label>
                     <label className="flex flex-col gap-1 form-label">
                       Intake
@@ -2070,17 +2076,15 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </p>
                   ) : (
                     <>
-                      <select
+                      <SelectMenu<StudentAcademicStatus>
+                        size="sm"
+                        aria-label="New academic status"
+                        placeholder="Select new status"
                         value={statusTarget}
-                        onChange={(e) => setStatusTarget(e.target.value as StudentAcademicStatus | '')}
+                        options={studentStatusOptions(viewingStudent.academicStatus).map(statusOption)}
+                        onChange={setStatusTarget}
                         disabled={statusSaving}
-                        className="form-control form-control-sm"
-                      >
-                        <option value="">Select new status</option>
-                        {studentStatusOptions(viewingStudent.academicStatus).map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
+                      />
                       <textarea
                         value={statusReason}
                         onChange={(e) => setStatusReason(e.target.value)}
