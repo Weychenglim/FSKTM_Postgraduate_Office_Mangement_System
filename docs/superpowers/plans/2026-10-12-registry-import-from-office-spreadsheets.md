@@ -36,7 +36,7 @@ It adds:
 | 3 | Frontend: Match Columns step | L | Done | `95c222d` |
 | 4 | Settings for all rows (programme, intake, semester) and sending activation emails later | M | Done | `b4f518d` |
 | 5 | Programme names: map each unrecognised value once, or skip those rows | M | Done | `ed8d0c5` |
-| 6 | Remember column matches for the same file layout | S | Not started | |
+| 6 | Remember column matches for the same file layout | S | Done | `c6483bc` |
 | 7 | Fill missing emails from the Student ID (SiswaMail); Student ID suffix rule | S | Blocked on P2 | |
 | 8 | Paste rows copied from Excel | M | Not started | |
 | 9 | Excel template with a programme dropdown, and wrap-up | M | Not started | |
@@ -158,7 +158,7 @@ This plan adds:
 
 - **I1** The server reads, matches and checks everything, as in Phase 3 of the 2026-09-26 plan. The browser only shows and edits.
 - **I2** There is no server-side import session. Each step (inspect, preview, import) sends the file again (2 MB limit) with the chosen options. This is how preview and import already work.
-- **I3** Import options travel as one JSON form field, `options`: `sheet`, `headerRow`, `hasHeader`, `mapping`, `defaults`, `programmeMap`, `fillEmail`, `idRule`, `sendInvites`. Without `options` the importer behaves exactly as it does today.
+- **I3** Import options travel as one JSON form field, `options`: `sheet`, `headerRow`, `hasHeader`, `mapping`, `defaults`, `programmeMap`, `fillEmail`, `idRule`, `sendInvites`, `useProfile`, `rememberLayout`. Without `options` the importer behaves exactly as it does today.
 - **I4** Settings for all rows fill blank cells and unmatched columns only. They never overwrite a value that is in the file.
 - **I5** Already-registered rows are matched by Student ID or email, ignoring letter case (today's rule). They are listed with the registry record they match and flagged when the name or email differs.
 - **I6** Programme aliases and column profiles are shared by the whole office, not kept per person.
@@ -174,7 +174,7 @@ All of these are Office-only, so the public API list pinned by `accounts/test_ap
   - `columns`, each with `index`, `header`, `samples` and `suggestedField`;
   - `fields`, each with `key`, `label` and `required`;
   - `mapping` and `ignoredColumns`;
-  - `profileAppliedAt` (Phase 6).
+  - `profileAppliedAt` and `layoutToken` (Phase 6).
 - `POST /api/registry/students/import/` (multipart `file`, `dryRun`, `options`): as today, plus the options. A dry run also returns `programmeValues` and `programmeValueCount` (Phase 5).
 - `GET /api/registry/imports/?limit=`: as today, with the new batch fields.
 - `POST /api/registry/imports/<id>/send-invitations/` (Phase 4).
@@ -456,6 +456,12 @@ Never match "id", "no", "ic", "kp" or "passport" to the Student ID. Those column
 - A stale profile pointing past the last column is ignored.
 
 **Done when** a second import of a file with the same columns opens with the saved matches and the note.
+
+**As built (`c6483bc`).** These points differ from the tasks above:
+- **`signature` is a SHA-256 of the normalised column names,** not the names themselves. A mistaken header row could hold a student's details, and the hash also keeps the unique key short.
+- **The import sends the matches to save.** The inspect step returns a signed `layoutToken`. The import sends `rememberLayout` (`token`, `mapping`, `sheet`, `headerRow`), so the matches are saved even when edited rows go back as a reviewed file in our own layout. A stale or foreign token saves nothing and never stops the import.
+- **The button reads "Use Suggested Matches",** not "Change", since every match can already be changed in its own dropdown. It sends `useProfile: false`, and the matches stay set aside while that file is read again.
+- **Saved matches always show the Match step,** even for a layout that would otherwise go straight to checking rows. Our own template is never remembered.
 
 ## Phase 7: Fill Missing Emails From The Student ID (Blocked On P2)
 

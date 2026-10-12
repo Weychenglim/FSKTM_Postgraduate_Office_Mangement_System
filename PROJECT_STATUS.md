@@ -1,5 +1,28 @@
 # Project Status
 
+## Registry Import: Column Matches Remembered For The Same Layout (2026-10-12)
+
+- Phase 6 of the registry import plan (commit `c6483bc`).
+- **Remembered matches.** A real import saves the column matches it was made with, against a SHA-256 of the file's normalised column names.
+  - The model is `RegistryImportProfile` (migration `accounts.0013_registry_import_profile`), shared by the whole office.
+  - Only the hash is kept, never the column names, since a mistaken header row could hold a student's details.
+- **The next file with the same columns** opens at Match Columns with the saved matches and "Matched the same way as your import on 12 Oct 2026. Check the matches below before you continue."
+  - "Use Suggested Matches" sets the saved matches aside for that file, also when its sheet or header row is changed.
+  - A changed column list, or saved matches pointing past the file's columns, falls back to the suggestions.
+  - Saved matches always show the Match step, so the office sees them before rows are checked. Our own template is never remembered.
+- **Edited rows still count.** The inspect step returns a signed `layoutToken`, and the import sends it with the confirmed matches (`rememberLayout`). The matches are saved even when edited rows go back as a reviewed file in our own layout. A stale or foreign token saves nothing and never stops the import.
+- **Database.** The dev database was migrated after a backup: `db-backups/fsktm_pg_office_before_registry_import_profile_2026-10-12.dump`.
+- **Verification.**
+  - Backend: 1000 tests pass, 11 of them new in `test_registry_profiles.py`. `makemigrations --check` finds no changes.
+  - Frontend: all 94 scripts pass, with new source checks for the saved matches. TypeScript lint, the production build and both production guards pass.
+  - A live browser run used temporary `smoke.import.*` accounts and three Maya-style workbooks with the same columns, and passed 14/14. It covered:
+    - the first import with Phone left out;
+    - the second file opening with that choice and the dated note;
+    - "Use Suggested Matches", which stayed set aside after re-reading the header row;
+    - importing after an edited row;
+    - the third file opening with the matches from that edited import.
+  - The stored record held only the hash, sheet, header row and matches. The note fits at 768 and 390 px without sideways scrolling. All test data was removed.
+
 ## Registry Import: Programme Names Chosen Once Each, Or Skipped (2026-10-12)
 
 - Phase 5 of the registry import plan (commit `ed8d0c5`).
