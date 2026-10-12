@@ -4,10 +4,11 @@
  */
 
 import React from 'react';
-import { AlertTriangle, ArrowRight, Check, Columns3, Info, Rows3 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
+import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { describeProgramme } from '../utils/programmeLabel';
 import { columnLabel, mappingProblems, unusedColumns } from '../utils/registryImport';
 import type { ImportDefaults, ImportFieldKey, ImportInspectResponse, ImportMapping } from '../types';
@@ -64,6 +65,8 @@ interface RegistryImportMatchProps {
   onDefaultsChange: (defaults: ImportDefaults) => void;
   onSheetChange: (sheet: string) => void;
   onHeaderRowChange: (row: number) => void;
+  /** Sets aside the matches saved from an earlier import, for the column-name suggestions. */
+  onUseSuggestions: () => void;
   onContinue: () => void;
   onCancel: () => void;
 }
@@ -84,6 +87,7 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   onDefaultsChange,
   onSheetChange,
   onHeaderRowChange,
+  onUseSuggestions,
   onContinue,
   onCancel,
 }) => {
@@ -135,6 +139,21 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
         </div>
         <ImportSteps current={1} />
       </div>
+
+      {layout.profileAppliedAt && (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-[11.5px] font-bold text-emerald-800">
+            <History className="w-4 h-4 mt-px shrink-0" />
+            <span>
+              Matched the same way as your import on {formatMalaysiaDate(layout.profileAppliedAt)}. Check the matches
+              below before you continue.
+            </span>
+          </p>
+          <PortalButton variant="secondary" size="sm" onClick={onUseSuggestions} disabled={busy} className="shrink-0">
+            Use Suggested Matches
+          </PortalButton>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-slate-150 bg-slate-50/60 px-4 py-3">

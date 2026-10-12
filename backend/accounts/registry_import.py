@@ -37,6 +37,7 @@ from .registry_columns import (
     header_score,
     suggest_mapping,
 )
+from .registry_profiles import layout_token, saved_mapping
 from .registry_programmes import parse_programme_map, programme_key
 from .validators import matric_problem, phone_problem
 
@@ -362,9 +363,14 @@ def inspect_import_file(uploaded_file, options=None):
     header_index = _header_index(lines, options.get("headerRow"))
     header_line, header = lines[header_index]
     rows = _student_rows(lines, header_index)
+    width = _width(header, rows)
     suggested = suggest_mapping(header)
+    # The office's own matches for this layout, from an earlier import, unless
+    # it has set them aside for this file.
+    saved, saved_at = saved_mapping(header, width) if options.get("useProfile", True) else (None, None)
+    mapping = saved or suggested
     columns = []
-    for index in range(_width(header, rows)):
+    for index in range(width):
         name = header[index] if index < len(header) else ""
         samples = []
         for _, cells in rows:
@@ -381,7 +387,7 @@ def inspect_import_file(uploaded_file, options=None):
                 "suggestedField": field_for_header(name),
             }
         )
-    matched = {index for index in suggested.values() if index is not None}
+    matched = {index for index in mapping.values() if index is not None}
     ignored = [
         column["header"] or f"Column {column['letter']}"
         for column in columns
@@ -398,12 +404,16 @@ def inspect_import_file(uploaded_file, options=None):
         ],
         "columns": columns,
         "fields": [{"key": key, "label": label, "required": required} for key, label, required in FIELDS],
-        "mapping": suggested,
+        "mapping": mapping,
         "ignoredColumns": ignored,
         "rowCount": len(rows),
+        "profileAppliedAt": saved_at.isoformat() if saved_at else None,
+        "layoutToken": layout_token(header),
         # Our own template: names in the first row, every column known, nothing
-        # left over. The office can go straight to checking rows.
-        "layoutRecognised": header_index == 0
+        # left over. The office can go straight to checking rows. Saved matches
+        # are always shown, so the office sees them before rows are checked.
+        "layoutRecognised": saved is None
+        and header_index == 0
         and not ignored
         and all(suggested[key] is not None for key in required_fields(options)),
     }
@@ -428,22 +438,18 @@ def parse_import_options(raw):
     if header_row is not None and (isinstance(header_row, bool) or not isinstance(header_row, int) or header_row < 1):
         errors["headerRow"] = ["Choose the row that holds the column names."]
     mapping = data.get("mapping")
-    if mapping is not None:
-        if not isinstance(mapping, dict):
-            errors["mapping"] = ["The column matches could not be read."]
-        elif any(key not in FIELD_KEYS for key in mapping):
-            unknown = ", ".join(sorted(key for key in mapping if key not in FIELD_KEYS))
-            errors["mapping"] = [f"Unknown field: {unknown}."]
-        elif any(
-            value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0)
-            for value in mapping.values()
-        ):
-            errors["mapping"] = ["Each match must be a column number."]
+    problem = _mapping_problem(mapping) if mapping is not None else None
+    if problem:
+        errors["mapping"] = [problem]
     defaults = _parse_defaults(data.get("defaults"), errors)
     programme_map = parse_programme_map(data.get("programmeMap"), errors)
     send_invites = data.get("sendInvites", True)
     if not isinstance(send_invites, bool):
         errors["sendInvites"] = ["Choose whether to send the activation emails now."]
+    use_profile = data.get("useProfile", True)
+    if not isinstance(use_profile, bool):
+        errors["useProfile"] = ["Choose whether to use the saved column matches."]
+    remember = _parse_remember_layout(data.get("rememberLayout"), errors)
     if errors:
         raise ImportOptionsError(errors)
     return {
@@ -453,6 +459,47 @@ def parse_import_options(raw):
         "defaults": defaults,
         "programmeMap": programme_map,
         "sendInvites": send_invites,
+        "useProfile": use_profile,
+        "rememberLayout": remember,
+    }
+
+
+def _mapping_problem(mapping):
+    if not isinstance(mapping, dict):
+        return "The column matches could not be read."
+    unknown = sorted(key for key in mapping if key not in FIELD_KEYS)
+    if unknown:
+        return f"Unknown field: {', '.join(unknown)}."
+    if any(
+        value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0)
+        for value in mapping.values()
+    ):
+        return "Each match must be a column number."
+    return None
+
+
+def _parse_remember_layout(raw, errors):
+    """``options.rememberLayout``: the confirmed matches to save for the file's
+    own layout, sent with the import (also when edited rows come back in our
+    own layout). ``token`` names the layout and comes from the inspect step."""
+    if raw is None:
+        return None
+    sheet = raw.get("sheet") if isinstance(raw, dict) else None
+    header_row = raw.get("headerRow") if isinstance(raw, dict) else None
+    if (
+        not isinstance(raw, dict)
+        or not isinstance(raw.get("token"), str)
+        or _mapping_problem(raw.get("mapping"))
+        or (sheet is not None and not isinstance(sheet, str))
+        or (header_row is not None and (isinstance(header_row, bool) or not isinstance(header_row, int) or header_row < 1))
+    ):
+        errors["rememberLayout"] = ["The column matches to remember could not be read."]
+        return None
+    return {
+        "token": raw["token"],
+        "mapping": {key: raw["mapping"].get(key) for key in FIELD_KEYS},
+        "sheet": (sheet or "")[:255],
+        "headerRow": header_row or 1,
     }
 
 

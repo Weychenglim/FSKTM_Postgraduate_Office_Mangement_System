@@ -264,7 +264,14 @@ assert.match(registry, /inspectStudentImport\(file\)/, 'a new file is described 
 assert.match(registry, /if \(layout\.layoutRecognised\)/, 'our own template skips the Match step');
 assert.match(registry, /<RegistryImportMatch\b/, 'other layouts stop at Match columns');
 assert.match(registry, /previewWithChoices\(reviewedFile\(edited\), reviewedOptions\(\)\)/, 'edited rows are sent back in our own layout');
-assert.match(registry, /commitStudentImport\(file, editedSet \? reviewedOptions\(\) : importOptions\(\)\)/);
+assert.match(
+  registry,
+  /commitStudentImport\(file, \{\s*\.\.\.\(editedSet \? reviewedOptions\(\) : importOptions\(\)\),\s*rememberLayout: layoutToRemember\(\),\s*\}\)/,
+  'the confirmed matches go with every import, edited or not',
+);
+assert.match(registry, /useProfile: keepSavedMatches/, 'saved matches stay set aside once the office says so');
+const matchStep = readFileSync(resolve('src/components/RegistryImportMatch.tsx'), 'utf8');
+assert.match(matchStep, /Matched the same way as your import on \{formatMalaysiaDate\(layout\.profileAppliedAt\)\}/);
 assert.match(registry, /Change column matches/);
 assert.match(registry, /<RegistryImportResult\b/, 'the import result must be shown, not only a toast');
 assert.match(registry, /setImportFilter\('skipped'\)/, 'the skip notice must open the skipped rows');

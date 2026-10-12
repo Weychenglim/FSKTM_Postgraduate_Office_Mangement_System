@@ -336,6 +336,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [programmeValues, setProgrammeValues] = useState<ImportProgrammeValue[]>([]);
   const [programmeValueCount, setProgrammeValueCount] = useState(0);
   const [programmeChoices, setProgrammeChoices] = useState<Record<string, string>>({});
+  // False once the office sets aside the matches saved from an earlier import.
+  const [keepSavedMatches, setKeepSavedMatches] = useState(true);
 
   const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
   const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
@@ -637,6 +639,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setProgrammeValues([]);
     setProgrammeValueCount(0);
     setProgrammeChoices({});
+    setKeepSavedMatches(true);
   };
 
   // The confirmed reading of the uploaded file: which sheet, which row has the
@@ -717,6 +720,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       setProgrammeValues([]);
       setProgrammeValueCount(0);
       setProgrammeChoices({});
+      setKeepSavedMatches(true);
       applyLayout(layout);
       if (layout.layoutRecognised) {
         await checkImportRows(file, { sheet: layout.sheet, headerRow: layout.headerRow, mapping: layout.mapping });
@@ -741,13 +745,28 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setIsProcessingCsv(true);
     setMatchError(null);
     try {
-      applyLayout(await inspectStudentImport(sourceFile, options));
+      applyLayout(await inspectStudentImport(sourceFile, { useProfile: keepSavedMatches, ...options }));
     } catch (err) {
       setMatchError(err instanceof Error ? err.message : 'That part of the file could not be read.');
     } finally {
       setIsProcessingCsv(false);
     }
   };
+
+  // The matches saved from an earlier import are set aside for this file, and
+  // the column-name suggestions come back.
+  const switchToSuggestedMatches = () => {
+    setKeepSavedMatches(false);
+    void reinspectImport({ sheet: importSheet, headerRow: importHeaderRow, useProfile: false });
+  };
+
+  // The matches confirmed for the file's own layout go with the import, so
+  // the next file with the same columns opens matched the same way. They are
+  // sent even when edited rows go back in our own layout.
+  const layoutToRemember = (): ImportOptions['rememberLayout'] =>
+    importLayout?.layoutToken && importMapping
+      ? { token: importLayout.layoutToken, mapping: importMapping, sheet: importSheet, headerRow: importHeaderRow }
+      : undefined;
 
   const continueFromMatch = async () => {
     if (!sourceFile) return;
@@ -845,7 +864,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setSaving(true);
     setCsvFatalError(null);
     try {
-      const result = await commitStudentImport(file, editedSet ? reviewedOptions() : importOptions());
+      const result = await commitStudentImport(file, {
+        ...(editedSet ? reviewedOptions() : importOptions()),
+        rememberLayout: layoutToRemember(),
+      });
       const { batch, rows } = result;
       loadStudents();
       loadRecentImports(showAllImports ? 50 : 5);
@@ -1881,6 +1903,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     onDefaultsChange={setImportDefaults}
                     onSheetChange={(sheet) => void reinspectImport({ sheet })}
                     onHeaderRowChange={(row) => void reinspectImport({ sheet: importSheet, headerRow: row })}
+                    onUseSuggestions={switchToSuggestedMatches}
                     onContinue={() => void continueFromMatch()}
                     onCancel={() => {
                       clearImport();

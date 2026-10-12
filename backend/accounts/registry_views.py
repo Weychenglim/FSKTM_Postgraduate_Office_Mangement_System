@@ -43,6 +43,7 @@ from .registry_import import (
     read_import_file,
     validate_import_rows,
 )
+from .registry_profiles import remember_layout
 from .registry_programmes import programme_values, remember_choices
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
@@ -462,8 +463,8 @@ def student_import_view(request):
     ``dryRun`` checks every row and writes nothing. Otherwise each Ready row is
     created on its own, duplicates and rows of a skipped programme are skipped,
     other problem rows are left out, and the run is recorded as a
-    ``RegistryImportBatch``. The office's programme choices are remembered for
-    the next import.
+    ``RegistryImportBatch``. The office's programme choices and column matches
+    are remembered for the next import.
     """
     _require_office_admin(request)
 
@@ -531,6 +532,7 @@ def student_import_view(request):
         },
     )
     remember_choices(file_rows, programme_map, request.user)
+    remember_layout((options or {}).get("rememberLayout"), request.user)
 
     if not send_invites:
         # The office sends them later from Recent Imports.

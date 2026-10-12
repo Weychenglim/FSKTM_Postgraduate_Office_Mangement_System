@@ -183,6 +183,10 @@ export interface ImportInspectResponse {
   mapping: ImportMapping;
   ignoredColumns: string[];
   rowCount: number;
+  /** When the office's saved matches for this layout were made; null when none were used. */
+  profileAppliedAt?: string | null;
+  /** Names this layout, so an import can save its matches; null for our own template. */
+  layoutToken?: string | null;
   layoutRecognised: boolean;
 }
 
@@ -203,6 +207,17 @@ export interface ImportOptions {
   programmeMap?: Record<string, string>;
   /** False holds the activation emails, to send later from Recent Imports. */
   sendInvites?: boolean;
+  /** False sets aside the saved column matches for this file. */
+  useProfile?: boolean;
+  /** The confirmed matches to save for the file's own layout, sent with the import. */
+  rememberLayout?: ImportLayoutToRemember;
+}
+
+export interface ImportLayoutToRemember {
+  token: string;
+  mapping: ImportMapping;
+  sheet: string | null;
+  headerRow: number | null;
 }
 
 export interface ImportCommitResponse {

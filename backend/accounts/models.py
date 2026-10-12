@@ -539,6 +539,30 @@ class RegistryProgrammeAlias(models.Model):
         return f"{self.value_key}: {self.programme or 'skip'}"
 
 
+class RegistryImportProfile(models.Model):
+    """The column matches the office confirmed for one spreadsheet layout
+    (UC04). Saved on a real import, applied to the next file with the same
+    column names, and shared by the whole office."""
+
+    # A SHA-256 of the file's normalised column names, in order. The names
+    # themselves are not kept: a mistaken header row could hold student data.
+    signature = models.CharField(max_length=64, unique=True)
+    mapping = models.JSONField(default=dict)
+    sheet_name = models.CharField(max_length=255, blank=True)
+    header_row = models.PositiveIntegerField(default=1)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registry_import_profiles",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Import layout {self.signature[:12]}"
+
+
 class CoordinatorDelegationQuerySet(models.QuerySet):
     def bulk_create(self, objs, batch_size=None, ignore_conflicts=False,
                     update_conflicts=False, update_fields=None, unique_fields=None):
