@@ -14,14 +14,8 @@ import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
 import { GeneratedLetter, GeneratedLetterStatus } from '../types';
 import { downloadLetterPdf, getIssuedLetter, getIssuedLetters } from '../services';
-import {
-  LETTERHEAD,
-  letterDataFromIssued,
-  openLetterWindow,
-  printLetterInWindow,
-  renderLetterBodyHtml,
-} from '../utils/letterDocument';
-import { THIN_SCROLLBAR } from '../utils/scrollbar';
+import { letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { LetterPages } from './LetterPages';
 
 type OutputAction = 'print' | 'pdf';
 
@@ -171,8 +165,8 @@ export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
 const IssuedLetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
   const titleId = useModalTitle();
   return (
-    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-3xl p-0">
-      <div className="drawer-header">
+    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0">
+      <div className="drawer-header sticky top-0 z-10">
         <div className="min-w-0">
           <h2 id={titleId} className="section-label truncate">{letter.templateName}</h2>
           <p className="mt-0.5 text-[11px] font-semibold text-slate-500 truncate">
@@ -195,50 +189,21 @@ const IssuedLetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void 
         </div>
       </div>
 
-      <div className={`max-h-[70dvh] overflow-y-auto bg-slate-100/70 p-4 sm:p-6 space-y-4 ${THIN_SCROLLBAR}`}>
+      <div className="bg-slate-100/70 p-4 sm:p-6 space-y-4">
         {letter.status === 'Revoked' && (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-semibold text-rose-700">
             This letter was revoked{letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.
           </p>
         )}
-
-        <article className="bg-white border border-slate-200 rounded shadow-sm p-6 sm:p-10 text-left text-[12px] text-slate-700 leading-relaxed font-sans mx-auto max-w-2xl">
-          <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-12 w-auto object-contain" />
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
-                {LETTERHEAD.faculty}
-              </span>
-            </div>
-            <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px]">
-              {LETTERHEAD.addressLines.map((line) => (
-                <span key={line} className="block">{line}</span>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap justify-between items-baseline gap-x-4 gap-y-1 text-slate-600 mb-5">
-            <div>Our Ref: <span className="font-mono font-bold text-slate-800">{letter.referenceNumber}</span></div>
-            <div>Date: <span className="font-bold text-slate-800">{letter.date}</span></div>
-          </div>
-
-          {letter.content?.trim() ? (
-            <div className="leading-relaxed" dangerouslySetInnerHTML={{ __html: renderLetterBodyHtml(letter.content) }} />
-          ) : (
-            <p className="text-slate-400 italic">This letter has no text.</p>
-          )}
-
-          <p className="text-slate-500 font-semibold text-[10px] leading-relaxed mt-5">{LETTERHEAD.disclaimer}</p>
-
-          <div className="mt-8 pt-6 border-t border-slate-100 space-y-1">
-            <div className="w-24 border-b border-slate-400 h-6" />
-            <p className="font-extrabold text-slate-950">{LETTERHEAD.signatoryName}</p>
-            <p className="text-slate-400 uppercase tracking-wide text-[9px] font-black leading-none">{LETTERHEAD.signatoryOffice}</p>
-          </div>
-        </article>
+        <LetterPages
+          reference={letter.referenceNumber}
+          referenceText={letter.referenceNumber}
+          date={letter.date}
+          bodyHtml={renderLetterBodyHtml(letter.content ?? '')}
+        />
       </div>
 
-      <div className="drawer-footer">
+      <div className="drawer-footer sticky bottom-0 z-10">
         <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
       </div>
     </PortalModal>

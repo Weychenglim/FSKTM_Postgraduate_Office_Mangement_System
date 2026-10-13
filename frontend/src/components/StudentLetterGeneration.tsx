@@ -15,6 +15,7 @@ import {
 import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterHistory } from './IssuedLetters';
+import { LetterPages } from './LetterPages';
 import { GeneratedLetter, LetterTemplate } from '../types';
 import {
   ApiError,
@@ -27,7 +28,6 @@ import {
   StudentLetterDetails,
 } from '../services';
 import {
-  LETTERHEAD,
   PENDING_REFERENCE,
   PlaceholderValues,
   formatLetterDate,
@@ -393,80 +393,21 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
               </div>
             </div>
 
-            {/* A4 document */}
-            <div className="bg-slate-100/60 border border-slate-200 rounded-2xl my-5 p-6 md:p-8 overflow-x-auto">
-              <div
-                style={{ transform: `scale(${zoomScale / 100})`, transformOrigin: 'top center' }}
-                className="bg-white border border-slate-300 rounded p-8 md:p-11 shadow-sm font-sans mx-auto max-w-[580px] min-h-[720px] text-left text-[11px] text-slate-700 leading-relaxed relative flex flex-col justify-between transition-transform duration-100"
-              >
-                {!selectedTemplate ? (
-                  <div className="flex-1 flex items-center justify-center text-slate-400 font-bold text-xs">
-                    Select a template to preview your letter.
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      {/* Letterhead */}
-                      <div className="border-b-2 border-double border-slate-800 pb-4 mb-6 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 select-none">
-                          <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-10 w-auto object-contain" />
-                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[120px]">
-                            {LETTERHEAD.faculty}
-                          </span>
-                        </div>
-                        <div className="text-right text-[8px] font-sans font-bold text-slate-400 leading-relaxed max-w-[210px] select-none">
-                          {LETTERHEAD.addressLines.map((line) => (
-                            <span key={line} className="block">{line}</span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Ref + Date */}
-                      <div className="flex justify-between items-baseline mb-6 font-semibold text-slate-600 font-mono text-[9.5px]">
-                        <div>
-                          <span>Our Ref: </span>
-                          <span className="text-slate-400 italic font-sans font-bold">{PENDING_REFERENCE}</span>
-                        </div>
-                        <div>
-                          <span>Date: </span>
-                          <span className="text-slate-800 select-all font-sans font-bold">{letterDate}</span>
-                        </div>
-                      </div>
-
-                      {/* Body (placeholders substituted + markup rendered) */}
-                      <div
-                        className="text-slate-850 font-medium leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: renderLetterBodyHtml(previewBody) }}
-                      />
-
-                      {/* Disclaimer */}
-                      <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">
-                        {LETTERHEAD.disclaimer}
-                      </p>
-                    </div>
-
-                    {/* Signature */}
-                    <div className="border-t border-slate-100 pt-5 mt-8 flex justify-between items-end">
-                      <div className="space-y-1 flex-1 text-left">
-                        <div className="w-20 border-b border-slate-350 h-5 select-none" />
-                        <p className="font-extrabold text-slate-900 leading-tight">{LETTERHEAD.signatoryName}</p>
-                        <p className="text-slate-400 uppercase tracking-widest text-[8px] font-black font-sans mt-0.5 block leading-none select-none">
-                          {LETTERHEAD.signatoryOffice}
-                        </p>
-                      </div>
-                      <div className="flex bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 items-center gap-2 select-none shrink-0">
-                        <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-indigo-600">
-                          <Info className="w-3 h-3 stroke-[3]" />
-                        </div>
-                        <div className="text-left leading-none">
-                          <span className="text-[7.5px] uppercase font-black text-slate-400 block tracking-wider">Computer-generated</span>
-                          <span className="text-[8px] font-black text-indigo-600 block mt-0.5 tracking-wide">Verify with the PG Office</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+            {/* A4 pages, as the letter will print */}
+            <div className="bg-slate-100/60 border border-slate-200 rounded-2xl my-5 p-4 md:p-6">
+              {!selectedTemplate ? (
+                <div className="min-h-[360px] flex items-center justify-center text-slate-400 font-bold text-xs">
+                  Select a template to preview your letter.
+                </div>
+              ) : (
+                <LetterPages
+                  reference={<span className="text-slate-400 italic font-sans">{PENDING_REFERENCE}</span>}
+                  referenceText={PENDING_REFERENCE}
+                  date={letterDate}
+                  bodyHtml={renderLetterBodyHtml(previewBody)}
+                  zoom={zoomScale / 100}
+                />
+              )}
             </div>
 
             {/* Action bar */}
