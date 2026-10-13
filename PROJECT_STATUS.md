@@ -13,6 +13,11 @@
   - It pulled a published announcement out of recipients' feeds, but emails already sent stayed, and publishing it again emailed everyone a second time.
   - Editing a published or scheduled announcement now offers only its save button (Save & Keep Published, Reschedule, Save Schedule or Publish Now). New announcements and drafts can still be saved as drafts.
   - To take an announcement down, Remove it. The backend still accepts a status change back to Draft; only the buttons are gone.
+- **Expires At removed** at Xiang's request. Recipients kept expired announcements in their feed anyway, so the end time only relabelled the office's own list.
+  - The composer has Publish At only. Saving, or publishing a draft from the composer's draft list, sends no end time and clears any end time set before.
+  - The list has three tiles (Live, Scheduled, Drafts) and no Expired filter. An announcement that had already expired still lists under All with its Expired badge and Remove only.
+  - `scheduleProblem` (the client-side expiry check) is gone. The backend is unchanged and still supports `expiresAt` for older rows.
+  - Checked in a browser (42 of 42 checks): the field and tile are gone, and saving cleared a stored end time in the database while the announcement stayed live.
 - **Verification.** Lint, the build and all 112 frontend scripts pass. A browser check on a private server passed 32 of 32 checks at 390, 768, 1280 and 1440 wide:
   - the tiles, filters, search, empty state and pager;
   - a real edit and save, and Remove;
