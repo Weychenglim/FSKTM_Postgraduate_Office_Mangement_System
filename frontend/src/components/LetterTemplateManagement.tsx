@@ -29,7 +29,9 @@ import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedCon
 import { LoadingState, ErrorState } from './StateViews';
 import { SelectMenu } from './SelectMenu';
 import { IssuedLettersRegister } from './IssuedLetters';
-import { LetterPlaceholder, LetterTemplate, LetterTemplateStatus } from '../types';
+import { OfficeFieldsEditor } from './OfficeFieldsEditor';
+import { OfficeLetterRequests } from './OfficeLetterRequests';
+import { LetterCustomField, LetterPlaceholder, LetterRequestCounts, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
   LETTER_PLACEHOLDERS,
   LETTERHEAD,
@@ -43,6 +45,7 @@ import {
   createLetterTemplate,
   updateLetterTemplate,
   deleteLetterTemplate,
+  getLetterRequestCounts,
 } from '../services';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
@@ -56,7 +59,7 @@ const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General N
 const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
 
 // Editor fields a 400 response can point at; anything else goes to the toast.
-const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content'] as const;
+const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content', 'customFields'] as const;
 type EditorField = (typeof EDITOR_FIELDS)[number];
 
 type LeaveTarget = { kind: 'select'; template: LetterTemplate } | { kind: 'create' };
@@ -66,26 +69,53 @@ const countPlaceholdersUsed = (text: string) => new Set(text.match(/\{\{[A-Z_]+\
 
 // LetterTemplate now lives in src/types.
 
-export type OfficeLetterView = 'templates' | 'issued';
+export type OfficeLetterView = 'templates' | 'requests' | 'issued';
 
-const OFFICE_LETTER_VIEWS: readonly OfficeLetterView[] = ['templates', 'issued'];
+const OFFICE_LETTER_VIEWS: readonly OfficeLetterView[] = ['templates', 'requests', 'issued'];
+
+const PAGE_SUBTITLE: Record<OfficeLetterView, string> = {
+  templates: 'Create and manage official letter templates for the postgraduate office.',
+  requests: 'Letters students have asked for. Fill in what the portal does not hold, then approve or reject each one.',
+  issued: 'Every letter issued to students, with its reference number. Open any letter to view it exactly as it was issued.',
+};
 
 interface LetterTemplateManagementProps {
-  /** Office staff also get the register of issued letters. */
+  /** Office staff also get the letter requests and the register of issued letters. */
   canViewIssuedLetters?: boolean;
   /** Which tab is open; driven by the route when the app provides it. */
   view?: OfficeLetterView;
   onViewChange?: (view: OfficeLetterView) => void;
+  /** The request open for review on the Requests tab, from the route. */
+  requestId?: string | null;
+  onOpenRequest?: (id: string) => void;
+  onCloseRequest?: () => void;
 }
 
 export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> = ({
   canViewIssuedLetters = false,
   view,
   onViewChange,
+  requestId,
+  onOpenRequest,
+  onCloseRequest,
 }) => {
   const [localView, setLocalView] = useState<OfficeLetterView>('templates');
-  const showIssued = canViewIssuedLetters && (view ?? localView) === 'issued';
+  const [localRequestId, setLocalRequestId] = useState<string | null>(null);
+  const activeView: OfficeLetterView = canViewIssuedLetters ? view ?? localView : 'templates';
+  const showIssued = activeView === 'issued';
+  const showRequests = activeView === 'requests';
   const changeView = (next: OfficeLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
+  const openRequestId = onOpenRequest ? requestId ?? null : localRequestId;
+
+  // How many requests wait for a decision, for the tab label.
+  const [requestCounts, setRequestCounts] = useState<LetterRequestCounts | null>(null);
+  const loadRequestCounts = useCallback(() => {
+    if (!canViewIssuedLetters) return;
+    getLetterRequestCounts().then(setRequestCounts).catch(() => setRequestCounts(null));
+  }, [canViewIssuedLetters]);
+  useEffect(() => {
+    loadRequestCounts();
+  }, [loadRequestCounts]);
 
   // Toast notifications state
   const [toast, setToast] = useState<string | null>(null);
@@ -111,6 +141,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [editorPrefix, setEditorPrefix] = useState('');
   const [editorContent, setEditorContent] = useState('');
   const [editorStatus, setEditorStatus] = useState<LetterTemplateStatus>('Active');
+  const [editorFields, setEditorFields] = useState<LetterCustomField[]>([]);
   const [problems, setProblems] = useState<Partial<Record<EditorField, string>>>({});
   const [showArchived, setShowArchived] = useState(false);
   const [placeholders, setPlaceholders] = useState<LetterPlaceholder[] | null>(null);
@@ -150,7 +181,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     setEditorType(template.type);
     setEditorDescription(template.description);
     setEditorPrefix(template.referencePrefix ?? '');
-    setEditorContent(template.content);
+    setEditorContent(template.content ?? '');
+    setEditorFields(template.customFields ?? []);
     setEditorStatus(template.status);
     setProblems({});
   };
@@ -168,7 +200,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       editorType !== selectedTemplate.type ||
       editorDescription !== selectedTemplate.description ||
       editorPrefix !== (selectedTemplate.referencePrefix ?? '') ||
-      editorContent !== selectedTemplate.content ||
+      editorContent !== (selectedTemplate.content ?? '') ||
+      JSON.stringify(editorFields) !== JSON.stringify(selectedTemplate.customFields ?? []) ||
       editorStatus !== selectedTemplate.status);
 
   // After an inserted tag changes the content, refocus the textarea and move the
@@ -230,6 +263,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       description: editorDescription,
       referencePrefix: editorPrefix,
       content: editorContent,
+      customFields: editorFields,
       status: editorStatus,
     };
     setSaving(true);
@@ -246,7 +280,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       setEditorType((current) => (current === submitted.type ? updated.type : current));
       setEditorDescription((current) => (current === submitted.description ? updated.description : current));
       setEditorPrefix((current) => (current === submitted.referencePrefix ? updated.referencePrefix ?? '' : current));
-      setEditorContent((current) => (current === submitted.content ? updated.content : current));
+      setEditorContent((current) => (current === submitted.content ? updated.content ?? '' : current));
+      setEditorFields((current) => (current === submitted.customFields ? updated.customFields ?? [] : current));
       setEditorStatus((current) => (current === submitted.status ? updated.status : current));
       setProblems({});
       triggerToast(`Template "${updated.name}" saved.`);
@@ -324,7 +359,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   };
 
   const handleCheckPlaceholders = () => {
-    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent));
+    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent, editorFields.map((f) => f.name)));
     if (message) {
       setProblems((current) => ({ ...current, content: message }));
       triggerToast(message);
@@ -394,22 +429,37 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
       <PortalToast message={toast} />
 
-      <PageHeader
-        title="Letter Generation"
-        subtitle={
-          showIssued
-            ? 'Every letter issued to students, with its reference number. Open any letter to view it exactly as it was issued.'
-            : 'Create and manage official letter templates for the postgraduate office.'
-        }
-      />
+      {!(showRequests && openRequestId) && (
+        <>
+          <PageHeader title="Letter Generation" subtitle={PAGE_SUBTITLE[activeView]} />
 
-      {canViewIssuedLetters && (
-        <SegmentedControl
-          options={OFFICE_LETTER_VIEWS}
-          value={showIssued ? 'issued' : 'templates'}
-          onChange={changeView}
-          labels={{ templates: 'Templates', issued: 'Issued Letters' }}
-          className="w-fit"
+          {canViewIssuedLetters && (
+            <SegmentedControl
+              options={OFFICE_LETTER_VIEWS}
+              value={activeView}
+              onChange={(next) => {
+                if (next === 'requests') loadRequestCounts();
+                changeView(next);
+              }}
+              labels={{
+                templates: 'Templates',
+                requests: requestCounts?.Pending ? `Requests (${requestCounts.Pending})` : 'Requests',
+                issued: 'Issued Letters',
+              }}
+              className="w-fit"
+            />
+          )}
+        </>
+      )}
+
+      {showRequests && (
+        <OfficeLetterRequests
+          requestId={openRequestId}
+          onOpenRequest={(id) => (onOpenRequest ? onOpenRequest(id) : setLocalRequestId(id))}
+          onCloseRequest={() => (onCloseRequest ? onCloseRequest() : setLocalRequestId(null))}
+          counts={requestCounts}
+          onCountsStale={loadRequestCounts}
+          onMessage={triggerToast}
         />
       )}
 
@@ -417,7 +467,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
       {/* Main Grid containing left and right pane cards. Kept mounted while the
           register is open so unsaved template edits survive a tab switch. */}
-      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ${showIssued ? 'hidden' : ''}`}>
+      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ${activeView !== 'templates' ? 'hidden' : ''}`}>
         
         {/* LEFT COLUMN: TEMPLATES LIBRARY (lg:col-span-4) */}
         <div id="templates-library-column" className="lg:col-span-4 space-y-4">
@@ -656,7 +706,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       <p id="letter-template-prefix-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.referencePrefix}</p>
                     ) : (
                       <p id="letter-template-prefix-hint" className="text-[10px] font-semibold text-slate-400">
-                        Letters are numbered {referencePreview}; the last digits are issued when a student generates one.
+                        Letters are numbered {referencePreview}; the last digits are issued when the office approves a request.
                       </p>
                     )}
                   </div>
@@ -688,6 +738,19 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     ))}
                   </div>
                 </div>
+
+                {/* Row 2b: values the office types in when it approves a request */}
+                <OfficeFieldsEditor
+                  fields={editorFields}
+                  onChange={(fields) => {
+                    setEditorFields(fields);
+                    clearProblem('customFields');
+                  }}
+                  onInsert={handleInsertTag}
+                  isUsed={(tag) => editorContent.includes(tag)}
+                  problem={problems.customFields}
+                  onMessage={triggerToast}
+                />
 
                 {/* Simulated RTF Editor Window Area starting with rich toolbar */}
                 <div className="border border-slate-205 rounded-xl overflow-hidden bg-white shadow-3xs">
@@ -824,7 +887,10 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       <div
                         className="leading-relaxed"
                         dangerouslySetInnerHTML={{
-                          __html: renderLetterBodyHtml(editorContent, { highlightPlaceholders: true }),
+                          __html: renderLetterBodyHtml(editorContent, {
+                            highlightPlaceholders: true,
+                            officeFields: editorFields.map((f) => f.name),
+                          }),
                         }}
                       />
                     ) : (

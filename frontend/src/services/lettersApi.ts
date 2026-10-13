@@ -8,7 +8,14 @@
 // unreachable *and* mocks are enabled, so the UI still renders offline; writes
 // always go to the backend (they require an authenticated staff user).
 
-import { GeneratedLetter, IssuedLetterFilters, LetterPlaceholder, LetterTemplate } from '../types';
+import {
+  GeneratedLetter,
+  LetterCustomField,
+  LetterPlaceholder,
+  LetterRequestCounts,
+  LetterRequestFilters,
+  LetterTemplate,
+} from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
 import { letterDataFromIssued, letterFileName } from '../utils/letterDocument';
 import { ApiError, USE_MOCKS, isTransportFailure, mockResponse, request, requestBlob } from './apiClient';
@@ -32,31 +39,7 @@ export interface LetterTemplateInput {
   description: string;
   content: string;
   referencePrefix?: string;
-}
-
-/** The logged-in student's details used to fill a letter's placeholders.
- *  Combines the base student profile with the StudentRegistry extras. */
-export interface StudentLetterDetails {
-  studentName: string;
-  matricNumber: string;
-  programName: string;
-  currentStatus: string;
-  supervisorName: string;
-  passportNumber: string;
-  country: string;
-  programmeMode: string;
-  fieldOfResearch: string;
-  modeOfStudy: string;
-  initialSemester: string;
-  currentSemester: string;
-  maxSemester: string;
-  expectedCompletion: string;
-}
-
-/** Fetch the logged-in student's letter details (live; requires auth, like
- *  `/auth/me/`). Used by the student Letter Generation screen. */
-export async function getMyLetterDetails(): Promise<StudentLetterDetails> {
-  return request<StudentLetterDetails>('/auth/me/letter-details/');
+  customFields?: LetterCustomField[];
 }
 
 /** All templates, used by the office-staff template manager. */
@@ -70,7 +53,7 @@ export async function getLetterTemplates(): Promise<LetterTemplate[]> {
   }
 }
 
-/** Only `Active` templates: what students may generate letters from. */
+/** Only `Active` templates, without their wording: what students may request. */
 export async function getStudentLetterTemplates(): Promise<LetterTemplate[]> {
   try {
     return await request<LetterTemplate[]>('/letter-templates/?status=Active');
@@ -110,32 +93,50 @@ export async function getLetterPlaceholders(): Promise<LetterPlaceholder[]> {
   return request<LetterPlaceholder[]>('/letter-templates/placeholders/');
 }
 
-// Issued letters (UC23). Always live: an issued letter is an official record,
-// so there is no mock fallback.
+// Letter requests and issued letters (UC23). Always live: a letter is an
+// official record, so there is no mock fallback.
 
-/** The record fields the server says a letter still needs, else null. */
-export function missingFieldsFrom(err: unknown): string[] | null {
-  if (!(err instanceof ApiError) || err.status !== 400) return null;
+/** Code the server sends when the student already has this letter pending. */
+export const LETTER_REQUEST_PENDING = 'letter_request_pending';
+
+/** True when the server refused a request because the same letter is already pending. */
+export function isAlreadyRequested(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 409) return false;
   const body = err.body;
-  const fields = body && typeof body === 'object' ? (body as { missingFields?: unknown }).missingFields : undefined;
-  return Array.isArray(fields) && fields.every((field) => typeof field === 'string') ? fields : null;
+  return Boolean(body && typeof body === 'object' && (body as { code?: unknown }).code === LETTER_REQUEST_PENDING);
 }
 
-/** Issue a letter from an Active template; the server fills it and numbers it. */
-export async function generateLetter(templateId: string): Promise<GeneratedLetter> {
+/** Per-field problems from a refused approval, keyed by placeholder name, else null. */
+export function approvalFieldErrors(err: unknown): Record<string, string> | null {
+  if (!(err instanceof ApiError) || err.status !== 400) return null;
+  const body = err.body;
+  const errors = body && typeof body === 'object' ? (body as { fieldErrors?: unknown }).fieldErrors : undefined;
+  if (!errors || typeof errors !== 'object' || Array.isArray(errors)) return null;
+  return Object.fromEntries(
+    Object.entries(errors as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
+}
+
+/** Student: ask the office for a letter from an Active template. */
+export async function requestLetter(templateId: string, note = ''): Promise<GeneratedLetter> {
   return request<GeneratedLetter>('/letters/requests/', {
     method: 'POST',
-    body: JSON.stringify({ templateId }),
+    body: JSON.stringify({ templateId, note }),
   });
 }
 
-/** Letters issued to the signed-in student, newest first. */
-export async function getMyLetters(): Promise<GeneratedLetter[]> {
+/** Student: their own requests and letters, newest first. */
+export async function getMyLetterRequests(): Promise<GeneratedLetter[]> {
   return request<GeneratedLetter[]>('/letters/requests/');
 }
 
-/** The office register of issued letters. */
-export async function getIssuedLetters(filters: IssuedLetterFilters = {}): Promise<GeneratedLetter[]> {
+/** Student: take back a request the office has not decided yet. */
+export async function withdrawLetterRequest(id: string): Promise<GeneratedLetter> {
+  return request<GeneratedLetter>(`/letters/requests/${id}/withdraw/`, { method: 'POST' });
+}
+
+/** Office: every request, narrowed by status, search and issue date. */
+export async function getLetterRequests(filters: LetterRequestFilters = {}): Promise<GeneratedLetter[]> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value && value.trim()) params.set(key, value.trim());
@@ -144,9 +145,33 @@ export async function getIssuedLetters(filters: IssuedLetterFilters = {}): Promi
   return request<GeneratedLetter[]>(`/letters/requests/${query ? `?${query}` : ''}`);
 }
 
-/** One issued letter with its filled wording, for printing. */
-export async function getIssuedLetter(id: string): Promise<GeneratedLetter> {
+/** Office: how many requests are in each status. */
+export async function getLetterRequestCounts(): Promise<LetterRequestCounts> {
+  return request<LetterRequestCounts>('/letters/requests/counts/');
+}
+
+/**
+ * One request. Issued letters come with their wording; office staff also get
+ * what they need to review a pending one.
+ */
+export async function getLetterRequest(id: string): Promise<GeneratedLetter> {
   return request<GeneratedLetter>(`/letters/requests/${id}/`);
+}
+
+/** Office: issue the letter, with the values typed in by placeholder name. */
+export async function approveLetterRequest(id: string, values: Record<string, string>): Promise<GeneratedLetter> {
+  return request<GeneratedLetter>(`/letters/requests/${id}/approve/`, {
+    method: 'POST',
+    body: JSON.stringify({ values }),
+  });
+}
+
+/** Office: turn a request down; the reason is shown to the student. */
+export async function rejectLetterRequest(id: string, reason: string): Promise<GeneratedLetter> {
+  return request<GeneratedLetter>(`/letters/requests/${id}/reject/`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
 }
 
 /** Download the PDF of an issued letter, locked against editing. */
@@ -160,20 +185,4 @@ export async function downloadLetterPdf(letter: GeneratedLetter): Promise<void> 
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-/** Office: send the student the "letter ready" notification again. */
-export async function resendLetterNotification(id: string): Promise<string> {
-  const result = await request<{ detail: string }>(`/letters/requests/${id}/resend-notification/`, {
-    method: 'POST',
-  });
-  return result.detail;
-}
-
-/** Office: revoke a letter issued in error. The reason is shown to the student. */
-export async function revokeLetter(id: string, reason: string): Promise<GeneratedLetter> {
-  return request<GeneratedLetter>(`/letters/requests/${id}/revoke/`, {
-    method: 'POST',
-    body: JSON.stringify({ reason }),
-  });
 }

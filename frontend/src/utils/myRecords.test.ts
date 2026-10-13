@@ -49,7 +49,13 @@ const notifications = [
   { id: 'b', isAnnouncement: false },
   { id: 'c', isAnnouncement: true },
 ] as NotificationItem[];
-const letters = [{ id: 'l1' }, { id: 'l2' }] as GeneratedLetter[];
+// Only approved letters count; requests still pending or rejected do not.
+const letters = [
+  { id: 'l1', status: 'Issued' },
+  { id: 'l2', status: 'Issued' },
+  { id: 'l3', status: 'Pending' },
+  { id: 'l4', status: 'Rejected' },
+] as GeneratedLetter[];
 assert.deepEqual(announcementItems(notifications).map((n) => n.id), ['a', 'c']);
 assert.deepEqual(recordCounts({ dossier, letters, notifications }), { appointments: 3, marks: 1, letters: 2, announcements: 2 });
 

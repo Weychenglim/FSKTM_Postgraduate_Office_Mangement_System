@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Letter generation domain models (UC40-UC42).
+// Letter generation domain models (UC21, UC23).
 
 export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
 
@@ -15,11 +15,20 @@ export interface LetterPlaceholder {
   source: string;
 }
 
+/** A value the office types in when it approves a request, e.g. attendance. */
+export interface LetterCustomField {
+  /** The tag's name: `{{ATTENDANCE}}` has the name `ATTENDANCE`. */
+  name: string;
+  label: string;
+  hint: string;
+}
+
 /**
  * A single official letter template. Staff author and manage these (name,
- * status, `content` with `{{PLACEHOLDER}}` tags); students generate a letter
- * from the `Active` ones by substituting their own details into the
- * placeholders. Shape matches the Django `LetterTemplate.to_public_dict`.
+ * status, `content` with `{{PLACEHOLDER}}` tags, and their own office-filled
+ * fields); students only see an Active template's name and description, and
+ * request a letter from it. Shape matches the Django
+ * `LetterTemplate.to_public_dict`.
  */
 export interface LetterTemplate {
   id: string;
@@ -29,40 +38,90 @@ export interface LetterTemplate {
   lastModified: string;
   modifiedBy: string;
   description: string;
-  content: string;
-  /** Prefix used to build the student's reference number, e.g. "UMF/PG". */
+  /** The wording; only staff get it. */
+  content?: string;
+  /** Office-filled fields; only staff get them. */
+  customFields?: LetterCustomField[];
+  /** Prefix used to build the reference number, e.g. "UMF/PG". */
   referencePrefix?: string;
 }
 
-export type GeneratedLetterStatus = 'Issued' | 'Revoked';
+/**
+ * Pending: waiting for the office. Issued: approved, with its reference number.
+ * Rejected: turned down with a reason. Withdrawn: taken back by the student.
+ * Revoked: issued, then withdrawn by the office.
+ */
+export type GeneratedLetterStatus = 'Pending' | 'Issued' | 'Rejected' | 'Withdrawn' | 'Revoked';
+
+export const LETTER_REQUEST_STATUSES: readonly GeneratedLetterStatus[] = [
+  'Pending',
+  'Issued',
+  'Rejected',
+  'Withdrawn',
+  'Revoked',
+];
+
+/** One value a pending letter needs, as the office sees it when reviewing. */
+export interface LetterRequestField {
+  name: string;
+  label: string;
+  hint: string;
+  /** From the student's record, or typed in by the office. */
+  source: 'record' | 'office';
+  /** The record's value (blank when the record has none). */
+  value: string;
+  /** The office must type it in before approving. */
+  needed: boolean;
+}
 
 /**
- * A letter issued to a student, from `/api/letters/requests/`. Shape matches
- * the Django `GeneratedLetter.to_public_dict`. `content` (the filled wording)
- * only comes with a single letter, and students never get it once revoked.
+ * A letter request and, once approved, the letter as issued, from
+ * `/api/letters/requests/`. Shape matches the Django
+ * `GeneratedLetter.to_public_dict`. `content` (the filled wording) only comes
+ * with a single issued letter; the review fields only reach office staff.
  */
 export interface GeneratedLetter {
   id: string;
+  /** Blank until the office approves. */
   referenceNumber: string;
   templateId: string | null;
   templateName: string;
   letterType: string;
   status: GeneratedLetterStatus;
-  /** Issue date as printed on the letter, e.g. "11 October 2026". */
+  /** Issue date as printed on the letter, e.g. "11 October 2026"; blank until approved. */
   date: string;
-  issuedAt: string;
+  requestedAt: string;
+  issuedAt: string | null;
   studentName: string;
   matricNumber: string;
   programName: string;
+  /** The student's note to the office. */
+  note: string;
+  decidedAt: string | null;
+  decidedBy: string;
+  rejectReason: string;
+  withdrawnAt: string | null;
   revokedAt: string | null;
   revokeReason: string;
   content?: string;
+  /** Office only: what the office typed in when approving. */
+  officeValues?: Record<string, string>;
+  /** Office only, while pending: the template's current wording and needs. */
+  templateContent?: string;
+  templateStatus?: LetterTemplateStatus | null;
+  referencePrefix?: string;
+  fields?: LetterRequestField[];
+  /** Office only, while pending: why it cannot be approved, if anything. */
+  problem?: string | null;
 }
 
-/** Office register filters; dates are YYYY-MM-DD. */
-export interface IssuedLetterFilters {
+/** Office list filters; dates are YYYY-MM-DD and bound the issue date. */
+export interface LetterRequestFilters {
   search?: string;
   from?: string;
   to?: string;
-  status?: GeneratedLetterStatus | '';
+  /** One status, or several separated by commas. */
+  status?: string;
 }
+
+export type LetterRequestCounts = Record<GeneratedLetterStatus, number>;

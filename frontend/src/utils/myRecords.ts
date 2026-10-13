@@ -89,7 +89,8 @@ export function recordCounts(input: {
   return {
     appointments: appointmentRows(input.dossier).length,
     marks: marksRows(input.dossier).length,
-    letters: input.letters.length,
+    // Requests still waiting, or turned down, are not letters yet.
+    letters: input.letters.filter((letter) => letter.status === 'Issued').length,
     announcements: announcementItems(input.notifications).length,
   };
 }

@@ -26,10 +26,13 @@ assert.deepEqual(paginateBlocks([], 1000, 900), [[]]);
 assert.deepEqual(splitLetterBlocks(''), []);
 assert.deepEqual(splitLetterBlocks('<p>a</p><p>b</p>'), ['<p>a</p><p>b</p>']);
 
-// both the office View and the student preview use the A4 pages
-const office = readFileSync(resolve('src/components/IssuedLetters.tsx'), 'utf8');
+// issued letters (office and student View) and the office review use the A4 pages;
+// the student's request screen shows no letter at all
+const issued = readFileSync(resolve('src/components/IssuedLetters.tsx'), 'utf8');
+const review = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
 const student = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
-assert.match(office, /<LetterPages\b/);
-assert.match(student, /<LetterPages\b/);
+assert.match(issued, /<LetterPages\b/);
+assert.match(review, /<LetterPages\b/);
+assert.doesNotMatch(student, /<LetterPages\b/);
 
 console.log('Letter page tests passed.');

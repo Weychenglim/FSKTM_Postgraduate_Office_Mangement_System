@@ -127,25 +127,41 @@ Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.
 
-## Issued letter endpoints (`/api/letters/`)
+## Letter request endpoints (`/api/letters/`)
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| POST | `requests/` (`{templateId}`) | Active student |
-| GET | `requests/` | Student (own letters) or Office Staff/Admin (`search`, `from`, `to`, `status`) |
-| GET | `requests/<id>/` | The letter's student or Office Staff/Admin |
-| GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin |
-| POST | `requests/<id>/resend-notification/` | Office Staff/Admin |
-| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin |
+| POST | `requests/` (`{templateId, note?}`) | Active student |
+| GET | `requests/` | Student (own requests) or Office Staff/Admin (`search`, `status` (one or several, comma separated), `from`, `to` on the issue date) |
+| GET | `requests/counts/` | Office Staff/Admin |
+| GET | `requests/<id>/` | The request's student or Office Staff/Admin |
+| POST | `requests/<id>/withdraw/` | The request's student, while Pending |
+| POST | `requests/<id>/approve/` (`{values: {NAME: text}}`) | Office Staff/Admin, while Pending |
+| POST | `requests/<id>/reject/` (`{reason}`) | Office Staff/Admin, while Pending |
+| GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin, once Issued |
+| POST | `requests/<id>/resend-notification/` | Office Staff/Admin, once Issued |
+| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin, once Issued |
 
-Generating a letter fills an Active template from the student's record, issues
-the next reference number for its prefix and year (`UMF/PG/2026/0001`), saves
-the filled wording and notifies the student. If the template needs a detail the
-record does not have, it returns 400 with `missingFields` and saves nothing.
-The download is a PDF built with `reportlab`, locked against editing (printing
-and copying text stay allowed), so a letter cannot simply be changed; its
-reference number lets anyone verify it with the office. Revoked letters keep
-their number but can no longer be downloaded.
+**Requesting.**
+- A student asks for a letter from an Active template, with an optional note.
+- The request is `Pending`: it has no wording, reference number or date yet. Students never get a template's wording, so a letter cannot be copied before it is approved.
+- One request per letter per student can be pending at a time (409 `letter_request_pending`).
+- Office staff are notified in the app.
+
+**Reviewing.**
+- The office's `GET requests/<id>/` adds the template's current wording and `fields`: each placeholder value the letter needs, from the student's record or `needed` from the office.
+- Office-filled fields (a template's `customFields`, such as attendance worked out in another system) are always typed in, as are record fields the student's record leaves blank.
+- Values are at most 300 characters on one line.
+
+**Deciding.**
+- Approving fills the wording, issues the next reference number for the template's prefix and year (`UMF/PG/2026/0001`) and saves the letter.
+- Rejecting needs a reason, which the student sees.
+- Either way the student is notified in the app, and by email when "Email alerts" is on.
+- A student can withdraw a pending request.
+- A template with pending requests cannot be deleted.
+- Approval is refused once the student is no longer Active.
+
+**The PDF.** The download is a PDF built with `reportlab`, locked against editing (printing and copying text stay allowed), so a letter cannot simply be changed. Its reference number lets anyone verify it with the office. Revoked letters keep their number but can no longer be downloaded.
 
 ## Scheduled commands
 

@@ -3,27 +3,70 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Issued letters (UC23): the student's "My Letters" list and the office
-// register. Both reprint from the saved letter, so a copy always carries the
-// original reference number and date.
+// Letter requests and issued letters (UC23): the student's "My Requests" list
+// and the office register of issued letters. Both show a letter from its saved
+// copy, so it always carries the original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, FileDown, Printer, Search, X } from 'lucide-react';
-import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
+import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
-import { GeneratedLetter, GeneratedLetterStatus } from '../types';
-import { downloadLetterPdf, getIssuedLetter, getIssuedLetters } from '../services';
-import { letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
 import { LetterPages } from './LetterPages';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { GeneratedLetter, GeneratedLetterStatus } from '../types';
+import { downloadLetterPdf, getLetterRequest, getLetterRequests, withdrawLetterRequest } from '../services';
+import { letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 
-type OutputAction = 'print' | 'pdf';
+type OutputAction = 'view' | 'print' | 'pdf';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
-/** Print and PDF download for saved letters, with a per-row busy flag. */
+/** "Issued" reads as "Approved" to people; the API keeps its own word. */
+export const LETTER_STATUS_LABEL: Record<GeneratedLetterStatus, string> = {
+  Pending: 'Pending',
+  Issued: 'Approved',
+  Rejected: 'Rejected',
+  Withdrawn: 'Withdrawn',
+  Revoked: 'Revoked',
+};
+
+const STATUS_TONE: Record<GeneratedLetterStatus, BadgeTone> = {
+  Pending: 'warning',
+  Issued: 'success',
+  Rejected: 'danger',
+  Withdrawn: 'neutral',
+  Revoked: 'danger',
+};
+
+export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({ status }) => (
+  <StatusBadge tone={STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
+    {LETTER_STATUS_LABEL[status] ?? status}
+  </StatusBadge>
+);
+
+export const shortDate = (value: string | null | undefined) => (value ? formatMalaysiaDate(value) : '');
+
+/** View, print and PDF for issued letters, with a per-row busy flag. */
 function useLetterOutput(onMessage: (message: string) => void) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
+
+  // Lists carry no wording, so the full letter is fetched first.
+  const withWording = async (letter: GeneratedLetter) =>
+    letter.content === undefined ? getLetterRequest(letter.id) : letter;
+
+  const viewLetter = async (letter: GeneratedLetter) => {
+    setBusy(`${letter.id}:view`);
+    try {
+      setViewing(await withWording(letter));
+    } catch (err) {
+      onMessage(errorText(err, 'Could not open this letter.'));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const printLetter = async (letter: GeneratedLetter) => {
     // Opened during the click so pop-up blockers allow it; filled once loaded.
@@ -34,8 +77,7 @@ function useLetterOutput(onMessage: (message: string) => void) {
     }
     setBusy(`${letter.id}:print`);
     try {
-      const full = letter.content === undefined ? await getIssuedLetter(letter.id) : letter;
-      printLetterInWindow(win, letterDataFromIssued(full));
+      printLetterInWindow(win, letterDataFromIssued(await withWording(letter)));
     } catch (err) {
       win.close();
       onMessage(errorText(err, 'Could not open this letter.'));
@@ -56,113 +98,12 @@ function useLetterOutput(onMessage: (message: string) => void) {
   };
 
   const isBusy = (letter: GeneratedLetter, action: OutputAction) => busy === `${letter.id}:${action}`;
-  return { printLetter, downloadPdf, isBusy };
+  const closeView = () => setViewing(null);
+  return { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView };
 }
 
-const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({ status }) => (
-  <StatusBadge tone={status === 'Issued' ? 'success' : 'danger'} className="px-2 py-0.5 text-[9px] rounded-md">
-    {status}
-  </StatusBadge>
-);
-
-const RevokedNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) =>
-  letter.status === 'Revoked' && letter.revokeReason ? (
-    <p className="mt-1 text-[10px] font-semibold text-rose-600 leading-snug max-w-[220px]">
-      Reason: {letter.revokeReason}
-    </p>
-  ) : null;
-
-const TableMessage: React.FC<{ colSpan: number; children: React.ReactNode }> = ({ colSpan, children }) => (
-  <tr>
-    <td colSpan={colSpan} className="px-5 py-12 text-center text-slate-400 font-semibold">
-      {children}
-    </td>
-  </tr>
-);
-
-interface StudentLetterHistoryProps {
-  letters: GeneratedLetter[];
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
-  onMessage: (message: string) => void;
-}
-
-/** The signed-in student's own letters, with reprint and PDF download. */
-export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
-  letters,
-  loading,
-  error,
-  onRetry,
-  onMessage,
-}) => {
-  const { printLetter, downloadPdf, isBusy } = useLetterOutput(onMessage);
-
-  return (
-    <div id="student-letter-history" className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-        <h2 className="section-label">My Letters</h2>
-        <span className="text-[11px] font-semibold text-slate-400">
-          {letters.length} letter{letters.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="data-table text-xs">
-          <thead>
-            <tr className="data-thead bg-[#f8fafc]">
-              <th className="data-th">Reference</th>
-              <th className="data-th">Letter</th>
-              <th className="data-th">Issued</th>
-              <th className="data-th">Status</th>
-              <th className="data-th text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr><td colSpan={5} className="p-0"><LoadingState message="Loading your letters…" /></td></tr>
-            ) : error ? (
-              <tr><td colSpan={5} className="p-0"><ErrorState message={error} onRetry={onRetry} /></td></tr>
-            ) : letters.length === 0 ? (
-              <TableMessage colSpan={5}>
-                You have not generated any letters yet. Letters you generate are kept here so you can print them again.
-              </TableMessage>
-            ) : (
-              letters.map((letter) => (
-                <tr key={letter.id} className="hover:bg-slate-50/50 transition">
-                  <td className="data-td-strong font-mono whitespace-nowrap">{letter.referenceNumber}</td>
-                  <td className="data-td">
-                    <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                    <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
-                  </td>
-                  <td className="data-td whitespace-nowrap">{letter.date}</td>
-                  <td className="data-td">
-                    <LetterStatusBadge status={letter.status} />
-                    <RevokedNote letter={letter} />
-                  </td>
-                  <td className="data-td text-right">
-                    {letter.status === 'Issued' && (
-                      <div className="inline-flex gap-2">
-                        <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
-                          Print
-                        </PortalButton>
-                        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
-                          PDF
-                        </PortalButton>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-/** The letter as it was issued, on an A4 sheet like the printed copy. Read only. */
-const IssuedLetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
+/** The letter as it was issued, on A4 pages like the printed copy. Read only. */
+export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
   const titleId = useModalTitle();
   return (
     <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0">
@@ -210,6 +151,198 @@ const IssuedLetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void 
   );
 };
 
+const TableMessage: React.FC<{ colSpan: number; children: React.ReactNode }> = ({ colSpan, children }) => (
+  <tr>
+    <td colSpan={colSpan} className="px-5 py-12 text-center text-slate-400 font-semibold">
+      {children}
+    </td>
+  </tr>
+);
+
+/** The line under a request's status: where it stands, or why. */
+const StatusNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) => {
+  const note =
+    letter.status === 'Pending'
+      ? { text: 'Waiting for the office', tone: 'text-slate-400' }
+      : letter.status === 'Issued'
+        ? { text: `Approved ${shortDate(letter.decidedAt)}`, tone: 'text-slate-400' }
+        : letter.status === 'Withdrawn'
+          ? { text: `Withdrawn ${shortDate(letter.withdrawnAt)}`, tone: 'text-slate-400' }
+          : letter.status === 'Rejected'
+            ? { text: `Reason: ${letter.rejectReason}`, tone: 'text-rose-600' }
+            : { text: `Reason: ${letter.revokeReason}`, tone: 'text-rose-600' };
+  return <p className={`mt-1 text-[10.5px] font-semibold leading-snug max-w-[260px] ${note.tone}`}>{note.text}</p>;
+};
+
+interface StudentLetterRequestsProps {
+  letters: GeneratedLetter[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onMessage: (message: string) => void;
+  /** A request changed, e.g. withdrawn. */
+  onLetterChange?: (letter: GeneratedLetter) => void;
+  /** Ask for the same letter again after a rejection. */
+  onRequestAgain?: (letter: GeneratedLetter) => void;
+}
+
+/** The signed-in student's letter requests: their status, and the letter once approved. */
+export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
+  letters,
+  loading,
+  error,
+  onRetry,
+  onMessage,
+  onLetterChange,
+  onRequestAgain,
+}) => {
+  const { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView } = useLetterOutput(onMessage);
+  const [withdrawing, setWithdrawing] = useState<GeneratedLetter | null>(null);
+  const [withdrawSaving, setWithdrawSaving] = useState(false);
+
+  const confirmWithdraw = async () => {
+    if (!withdrawing) return;
+    setWithdrawSaving(true);
+    try {
+      const updated = await withdrawLetterRequest(withdrawing.id);
+      onLetterChange?.(updated);
+      onMessage(`Your request for a ${updated.templateName} was withdrawn.`);
+      setWithdrawing(null);
+    } catch (err) {
+      onMessage(errorText(err, 'Could not withdraw the request.'));
+    } finally {
+      setWithdrawSaving(false);
+    }
+  };
+
+  // What the student can do with a request at its stage.
+  const actionsFor = (letter: GeneratedLetter): React.ReactNode =>
+    letter.status === 'Pending' ? (
+      <PortalButton variant="ghost" size="sm" icon={Undo2} onClick={() => setWithdrawing(letter)}>
+        Withdraw
+      </PortalButton>
+    ) : letter.status === 'Issued' ? (
+      <>
+        <PortalButton variant="secondary" size="sm" icon={Eye} isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>
+          View
+        </PortalButton>
+        <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
+          Print
+        </PortalButton>
+        <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
+          PDF
+        </PortalButton>
+      </>
+    ) : letter.status === 'Rejected' && onRequestAgain ? (
+      <PortalButton variant="secondary" size="sm" icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
+        Request again
+      </PortalButton>
+    ) : null;
+
+  return (
+    <div id="student-letter-history" className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
+      <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
+        <h2 className="section-label">My Requests</h2>
+        <span className="text-[11px] font-semibold text-slate-400">
+          {letters.length} request{letters.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      {loading ? (
+        <LoadingState message="Loading your requests…" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={onRetry} />
+      ) : letters.length === 0 ? (
+        <p className="px-5 py-12 text-center text-slate-400 font-semibold">
+          You have not requested any letters yet. Once the office approves a request, you can view, print or download the letter here.
+        </p>
+      ) : (
+        <>
+          {/* Phones: one card per request, with its buttons in view. */}
+          <ul className="md:hidden divide-y divide-slate-100 border-t border-slate-100">
+            {letters.map((letter) => (
+              <li key={letter.id} className="px-5 py-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="block font-bold text-slate-800 text-[12.5px]">{letter.templateName}</span>
+                    <span className="block text-[10.5px] text-slate-400">
+                      {letter.letterType} · Requested {shortDate(letter.requestedAt)}
+                    </span>
+                  </div>
+                  <LetterStatusBadge status={letter.status} />
+                </div>
+                <StatusNote letter={letter} />
+                {letter.referenceNumber && (
+                  <p className="font-mono text-[11px] font-semibold text-slate-700">{letter.referenceNumber}</p>
+                )}
+                {actionsFor(letter) && <div className="flex flex-wrap gap-2 pt-1">{actionsFor(letter)}</div>}
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="data-table text-xs">
+              <thead>
+                <tr className="data-thead bg-[#f8fafc]">
+                  <th className="data-th">Letter</th>
+                  <th className="data-th">Requested</th>
+                  <th className="data-th">Status</th>
+                  <th className="data-th">Reference</th>
+                  <th className="data-th text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {letters.map((letter) => (
+                  <tr key={letter.id} className="hover:bg-slate-50/50 transition align-top">
+                    <td className="data-td">
+                      <span className="block font-bold text-slate-800">{letter.templateName}</span>
+                      <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
+                    </td>
+                    <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
+                    <td className="data-td">
+                      <LetterStatusBadge status={letter.status} />
+                      <StatusNote letter={letter} />
+                    </td>
+                    <td className="data-td font-mono whitespace-nowrap text-slate-700">{letter.referenceNumber || '-'}</td>
+                    <td className="data-td text-right">
+                      <div className="inline-flex flex-wrap justify-end gap-2">{actionsFor(letter)}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {viewing && <LetterView letter={viewing} onClose={closeView} />}
+
+      <PortalConfirmModal
+        isOpen={withdrawing !== null}
+        title="Withdraw this request?"
+        message={
+          withdrawing
+            ? `The office will not process your request for a ${withdrawing.templateName}. You can request it again later.`
+            : ''
+        }
+        confirmLabel="Withdraw"
+        cancelLabel="Keep request"
+        tone="warning"
+        isLoading={withdrawSaving}
+        onConfirm={() => void confirmWithdraw()}
+        onCancel={() => setWithdrawing(null)}
+      />
+    </div>
+  );
+};
+
+type RegisterStatus = 'Issued,Revoked' | 'Issued' | 'Revoked';
+
+const REGISTER_STATUS_OPTIONS: SelectMenuOption<RegisterStatus>[] = [
+  { value: 'Issued,Revoked', label: 'All issued letters', triggerLabel: 'All' },
+  { value: 'Issued', label: 'Approved' },
+  { value: 'Revoked', label: 'Revoked' },
+];
+
 interface IssuedLettersRegisterProps {
   onMessage: (message: string) => void;
 }
@@ -222,16 +355,15 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [statusFilter, setStatusFilter] = useState<GeneratedLetterStatus | ''>('');
-  const [opening, setOpening] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
+  const [statusFilter, setStatusFilter] = useState<RegisterStatus>('Issued,Revoked');
   const latestLoad = useRef(0);
+  const { viewLetter, isBusy, viewing, closeView } = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
     const loadId = ++latestLoad.current;
     setLoading(true);
     setError(null);
-    getIssuedLetters({ search, from, to, status: statusFilter })
+    getLetterRequests({ search, from, to, status: statusFilter })
       .then((rows) => {
         if (loadId === latestLoad.current) setLetters(rows);
       })
@@ -248,19 +380,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     return () => clearTimeout(timer);
   }, [load]);
 
-  // The register rows carry no letter text, so the full letter is fetched first.
-  const viewLetter = async (letter: GeneratedLetter) => {
-    setOpening(letter.id);
-    try {
-      setViewing(letter.content === undefined ? await getIssuedLetter(letter.id) : letter);
-    } catch (err) {
-      onMessage(errorText(err, 'Could not open this letter.'));
-    } finally {
-      setOpening(null);
-    }
-  };
-
-  const filtersActive = Boolean(search || from || to || statusFilter);
+  const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked');
 
   return (
     <div id="issued-letters-register" className="space-y-6">
@@ -275,7 +395,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Student name, matric number or reference"
+              placeholder="Student name, matric number, letter or reference"
               className="form-control form-control-sm pl-9"
             />
           </span>
@@ -288,24 +408,22 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
           <span className="form-label block">Issued to</span>
           <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="form-control form-control-sm" />
         </label>
-        <label className="md:col-span-2 block">
+        <div className="md:col-span-2 block">
           <span className="form-label block">Status</span>
-          <select
+          <SelectMenu<RegisterStatus>
+            size="sm"
+            aria-label="Status"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as GeneratedLetterStatus | '')}
-            className="form-control form-control-sm"
-          >
-            <option value="">All</option>
-            <option value="Issued">Issued</option>
-            <option value="Revoked">Revoked</option>
-          </select>
-        </label>
+            options={REGISTER_STATUS_OPTIONS}
+            onChange={setStatusFilter}
+          />
+        </div>
         <div className="md:col-span-1">
           <PortalButton
             variant="ghost"
             size="md"
             disabled={!filtersActive}
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter(''); }}
+            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); }}
             className="w-full"
           >
             Reset
@@ -353,17 +471,24 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
                       <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
                     </td>
-                    <td className="data-td whitespace-nowrap">{letter.date}</td>
+                    <td className="data-td whitespace-nowrap">
+                      {letter.date}
+                      {letter.decidedBy && <span className="block text-[10px] text-slate-400">by {letter.decidedBy}</span>}
+                    </td>
                     <td className="data-td">
                       <LetterStatusBadge status={letter.status} />
-                      <RevokedNote letter={letter} />
+                      {letter.status === 'Revoked' && letter.revokeReason && (
+                        <p className="mt-1 text-[10px] font-semibold text-rose-600 leading-snug max-w-[220px]">
+                          Reason: {letter.revokeReason}
+                        </p>
+                      )}
                     </td>
                     <td className="data-td text-right">
                       <PortalButton
                         variant="secondary"
                         size="sm"
                         icon={Eye}
-                        isLoading={opening === letter.id}
+                        isLoading={isBusy(letter, 'view')}
                         aria-label={`View ${letter.referenceNumber}`}
                         onClick={() => void viewLetter(letter)}
                       >
@@ -378,7 +503,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
         </div>
       </div>
 
-      {viewing && <IssuedLetterView letter={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <LetterView letter={viewing} onClose={closeView} />}
     </div>
   );
 };

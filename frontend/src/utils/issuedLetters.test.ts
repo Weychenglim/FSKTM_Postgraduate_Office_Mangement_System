@@ -3,40 +3,30 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { GeneratedLetter } from '../types';
 import { ApiError } from '../services/apiClient';
-import { getIssuedLetters, missingFieldsFrom } from '../services/lettersApi';
+import {
+  approvalFieldErrors,
+  getLetterRequests,
+  isAlreadyRequested,
+  requestLetter,
+} from '../services/lettersApi';
 import { SIDEBAR_ITEMS } from '../constants/navigation';
-import { APP_ROUTES, isKnownAppPath, routeForNotificationTarget, sidebarItemForPath } from '../constants/routes';
+import {
+  APP_ROUTES,
+  isKnownAppPath,
+  routeForLetterRequest,
+  routeForNotificationTarget,
+  sidebarItemForPath,
+} from '../constants/routes';
 import {
   LETTERHEAD,
   PENDING_REFERENCE,
   letterDataFromIssued,
   letterFileName,
-  missingPlaceholderLabels,
   openLetterWindow,
   printLetterInWindow,
-  type PlaceholderValues,
 } from './letterDocument';
 
-// missing record fields are named in order of first use, once each
-const values: PlaceholderValues = {
-  studentName: 'Ali bin Abu',
-  matricNumber: 'S2101234',
-  programName: 'Master of Computer Science',
-  currentStatus: 'Active',
-  referenceNumber: '',
-  date: '',
-  passportNumber: '  ',
-};
-assert.deepEqual(
-  missingPlaceholderLabels(
-    'To {{STUDENT_NAME}} ({{COUNTRY}}), passport {{PASSPORT_NUMBER}}, again {{COUNTRY}}. Ref {{REFERENCE_NUMBER}} {{CURRENT_DATE}} {{UNKNOWN_TAG}}',
-    values,
-  ),
-  ['Country', 'Passport No.'],
-);
-assert.deepEqual(missingPlaceholderLabels('Dear {{STUDENT_NAME}} of {{PROGRAMME_NAME}}', values), []);
-
-// a saved letter prints with the server's reference number and date
+// an issued letter prints with the server's reference number and date
 const issued: GeneratedLetter = {
   id: '7',
   referenceNumber: 'UMF/PG/ENR/2026/0007',
@@ -45,10 +35,16 @@ const issued: GeneratedLetter = {
   letterType: 'Academic Certification',
   status: 'Issued',
   date: '11 October 2026',
+  requestedAt: '2026-10-10T09:00:00+08:00',
   issuedAt: '2026-10-11T10:30:00+08:00',
   studentName: 'Ali bin Abu',
   matricNumber: 'S2101234',
   programName: 'Master of Computer Science',
+  note: '',
+  decidedAt: '2026-10-11T10:30:00+08:00',
+  decidedBy: 'Office Staff',
+  rejectReason: '',
+  withdrawnAt: null,
   revokedAt: null,
   revokeReason: '',
   content: 'This is to confirm that **Ali bin Abu** is registered.',
@@ -63,23 +59,27 @@ assert.deepEqual(letterDataFromIssued(issued), {
 });
 assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_Study_S2101234');
 
-// the reference number now comes only from the server
+// students request letters; they never fill or preview one themselves
 const documentSource = readFileSync(resolve('src/utils/letterDocument.ts'), 'utf8');
 const studentScreen = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
 assert.doesNotMatch(documentSource, /generateReferenceNumber|Math\.random/);
-assert.doesNotMatch(studentScreen, /generateReferenceNumber/);
-assert.match(studentScreen, /generateLetter\(selectedTemplate\.id\)/);
-assert.match(studentScreen, /PENDING_REFERENCE/);
-assert.equal(PENDING_REFERENCE, 'Assigned when generated');
+assert.match(studentScreen, /requestLetter\(selected\.id, note\.trim\(\)\)/);
+assert.doesNotMatch(studentScreen, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
+assert.equal(PENDING_REFERENCE, 'Assigned on approval');
 
-// the server's missing-field list is read from a 400 only
+// a refused approval names the values that need attention
 assert.deepEqual(
-  missingFieldsFrom(new ApiError('Missing', 400, { detail: 'Missing', missingFields: ['Passport No.', 'Country'] })),
-  ['Passport No.', 'Country'],
+  approvalFieldErrors(new ApiError('Fill in', 400, { detail: 'Fill in', fieldErrors: { ATTENDANCE: 'Fill this in before approving.' } })),
+  { ATTENDANCE: 'Fill this in before approving.' },
 );
-assert.equal(missingFieldsFrom(new ApiError('Bad', 400, { templateId: 'Choose a letter template.' })), null);
-assert.equal(missingFieldsFrom(new ApiError('Forbidden', 403, { missingFields: ['Country'] })), null);
-assert.equal(missingFieldsFrom(new Error('offline')), null);
+assert.equal(approvalFieldErrors(new ApiError('Bad', 400, { reason: 'Give the reason.' })), null);
+assert.equal(approvalFieldErrors(new ApiError('Conflict', 409, { fieldErrors: { A: 'x' } })), null);
+assert.equal(approvalFieldErrors(new Error('offline')), null);
+
+// a second request for a pending letter is recognised
+assert.equal(isAlreadyRequested(new ApiError('Already', 409, { code: 'letter_request_pending' })), true);
+assert.equal(isAlreadyRequested(new ApiError('Other', 409, { detail: 'x' })), false);
+assert.equal(isAlreadyRequested(new ApiError('Forbidden', 403, { code: 'letter_request_pending' })), false);
 
 // the print window is opened first and filled when the letter arrives
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -115,33 +115,50 @@ try {
   else Reflect.deleteProperty(globalThis, 'window');
 }
 
-// the office register sends only the filters that are set
+// the office list sends only the filters that are set; a request carries its note
 const originalFetch = globalThis.fetch;
-const requested: string[] = [];
-globalThis.fetch = (async (input: RequestInfo | URL) => {
-  requested.push(String(input));
-  return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+const requested: { url: string; body?: string }[] = [];
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  requested.push({ url: String(input), body: typeof init?.body === 'string' ? init.body : undefined });
+  return new Response(init?.method === 'POST' ? '{}' : '[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
 }) as typeof fetch;
 try {
-  await getIssuedLetters({ search: ' S2101234 ', from: '2026-01-01', to: '', status: '' });
-  await getIssuedLetters();
+  await getLetterRequests({ search: ' S2101234 ', from: '2026-01-01', to: '', status: 'Issued,Revoked' });
+  await getLetterRequests();
+  await requestLetter('3', 'For my embassy appointment');
 } finally {
   globalThis.fetch = originalFetch;
 }
-assert.deepEqual(requested, [
-  '/api/letters/requests/?search=S2101234&from=2026-01-01',
-  '/api/letters/requests/',
-]);
+assert.deepEqual(
+  requested.map((r) => r.url),
+  [
+    '/api/letters/requests/?search=S2101234&from=2026-01-01&status=Issued%2CRevoked',
+    '/api/letters/requests/',
+    '/api/letters/requests/',
+  ],
+);
+assert.deepEqual(JSON.parse(requested[2].body ?? '{}'), { templateId: '3', note: 'For my embassy appointment' });
 
-// letter notifications open My Letters, and both letter tabs are real routes
+// students' letter notifications open My Requests; a new request opens for the office
 assert.equal(
   routeForNotificationTarget({ targetModule: 'LETTERS', recordType: 'GENERATED_LETTER', recordId: '7' }),
   APP_ROUTES.lettersMine,
 );
-for (const path of [APP_ROUTES.lettersMine, APP_ROUTES.lettersIssued]) {
+assert.equal(
+  routeForNotificationTarget({ targetModule: 'LETTERS', recordType: 'LETTER_REQUEST', recordId: '12' }),
+  routeForLetterRequest('12'),
+);
+assert.equal(routeForLetterRequest('12'), '/letters/requests/12');
+for (const path of [APP_ROUTES.lettersMine, APP_ROUTES.lettersIssued, APP_ROUTES.lettersRequests, routeForLetterRequest('12')]) {
   assert.equal(isKnownAppPath(path), true, path);
   assert.equal(sidebarItemForPath(path), SIDEBAR_ITEMS.LETTER_GENERATION, path);
 }
+
+// the office approves on its own review page, with the values it typed in
+const office = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
+assert.match(office, /approveLetterRequest\(request\.id, typed\)/);
+assert.match(office, /rejectLetterRequest\(request\.id, text\)/);
+assert.match(office, /<RecordPage\b/, 'the review is a record page, not an overlay');
 
 // the PDF copy carries the same letterhead as the printed letter
 const pdfSource = readFileSync(resolve('../backend/letters/pdf_export.py'), 'utf8');

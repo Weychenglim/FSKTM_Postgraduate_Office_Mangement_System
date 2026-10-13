@@ -30,6 +30,7 @@ export const APP_ROUTES = {
   letters: '/letters',
   lettersMine: '/letters/my-letters',
   lettersIssued: '/letters/issued',
+  lettersRequests: '/letters/requests',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -121,6 +122,9 @@ export const routeForSupervisorSupervisee = (studentId: string): string =>
 
 export const routeForSupervisorResearchRequest = (requestId: string): string =>
   `${APP_ROUTES.supervisorResearchChanges}/${encodeURIComponent(requestId)}`;
+
+export const routeForLetterRequest = (requestId: string): string =>
+  `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
 
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
@@ -233,6 +237,10 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
   }
 
   if (target.targetModule === 'LETTERS') {
+    // A new request opens for the office to review; decisions open the student's list.
+    if (target.recordType === 'LETTER_REQUEST' && target.recordId) {
+      return routeForLetterRequest(target.recordId);
+    }
     return APP_ROUTES.lettersMine;
   }
 

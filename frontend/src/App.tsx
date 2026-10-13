@@ -30,6 +30,7 @@ import {
   APP_ROUTES,
   isKnownAppPath,
   routeForDashboardTimeline,
+  routeForLetterRequest,
   routeForMarkRecord,
   routeForNotificationTarget,
   routeForPanelAssignment,
@@ -217,6 +218,7 @@ export default function App() {
   const isStudentWorkspace = currentUser?.role === 'Student';
   const activeSidebarItem = sidebarItemForPath(pathname);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
+  const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
@@ -942,8 +944,19 @@ export default function App() {
               ) : (
                 <LetterTemplateManagement
                   canViewIssuedLetters={currentUser.role === 'Office Staff/Admin'}
-                  view={pathname === APP_ROUTES.lettersIssued ? 'issued' : 'templates'}
-                  onViewChange={(view) => navigate(view === 'issued' ? APP_ROUTES.lettersIssued : APP_ROUTES.letters)}
+                  view={
+                    pathname === APP_ROUTES.lettersIssued
+                      ? 'issued'
+                      : pathname === APP_ROUTES.lettersRequests || letterRequestMatch
+                        ? 'requests'
+                        : 'templates'
+                  }
+                  onViewChange={(view) => navigate(
+                    view === 'issued' ? APP_ROUTES.lettersIssued : view === 'requests' ? APP_ROUTES.lettersRequests : APP_ROUTES.letters,
+                  )}
+                  requestId={letterRequestMatch?.params.requestId ?? null}
+                  onOpenRequest={(id) => navigate(routeForLetterRequest(id))}
+                  onCloseRequest={() => navigate(APP_ROUTES.lettersRequests)}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (

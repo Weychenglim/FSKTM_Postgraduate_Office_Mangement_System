@@ -12,9 +12,9 @@ import { ClipboardCheck, FolderMinus, MailOpen, Megaphone, Users } from 'lucide-
 import { PageHeader, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
-import { StudentLetterHistory } from './IssuedLetters';
+import { StudentLetterRequests } from './IssuedLetters';
 import { DemoUser, GeneratedLetter, StudentProgressDossier } from '../types';
-import { getMyLetters, getStudentProgressDossier, inactiveStudentReason } from '../services';
+import { getMyLetterRequests, getStudentProgressDossier, inactiveStudentReason } from '../services';
 import { useNotifications } from '../context/NotificationsContext';
 import { APP_ROUTES } from '../constants/routes';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
@@ -89,7 +89,7 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
   const loadLetters = useCallback(() => {
     setLettersLoading(true);
     setLettersError(null);
-    getMyLetters()
+    getMyLetterRequests()
       .then(setLetters)
       .catch((err) => setLettersError(inactiveStudentReason(err) ?? (err instanceof Error ? err.message : 'Failed to load your letters.')))
       .finally(() => setLettersLoading(false));
@@ -163,12 +163,13 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
       />
 
       {tab === 'letters' ? (
-        <StudentLetterHistory
+        <StudentLetterRequests
           letters={letters}
           loading={lettersLoading}
           error={lettersError}
           onRetry={loadLetters}
           onMessage={showToast}
+          onLetterChange={(changed) => setLetters((rows) => rows.map((row) => (row.id === changed.id ? changed : row)))}
         />
       ) : (
         <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
