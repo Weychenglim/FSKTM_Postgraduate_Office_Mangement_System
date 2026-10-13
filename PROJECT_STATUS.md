@@ -8,10 +8,15 @@
   - A search box plus Status, Audience and Priority filters, with Clear.
   - Each row shows a priority edge as in the recipients' feed, status and priority badges, a two-line preview, and the audience, timing, author and attachment.
 - **Drafts** now appear in the list as well as under the composer.
-- **Actions.** Edit, Move to drafts and Remove use the same handlers as before. Remove still asks for confirmation, and Expired rows still offer Remove only.
-- **Verification.** Lint, the build and all 112 frontend scripts pass. A browser check on a private server passed 29 of 29 checks at 390, 768, 1280 and 1440 wide:
+- **Actions.** Edit and Remove use the same handlers as before. Remove still asks for confirmation, and Expired rows still offer Remove only.
+- **Move to drafts removed** at Xiang's request, from the list and from the edit page.
+  - It pulled a published announcement out of recipients' feeds, but emails already sent stayed, and publishing it again emailed everyone a second time.
+  - Editing a published or scheduled announcement now offers only its save button (Save & Keep Published, Reschedule, Save Schedule or Publish Now). New announcements and drafts can still be saved as drafts.
+  - To take an announcement down, Remove it. The backend still accepts a status change back to Draft; only the buttons are gone.
+- **Verification.** Lint, the build and all 112 frontend scripts pass. A browser check on a private server passed 32 of 32 checks at 390, 768, 1280 and 1440 wide:
   - the tiles, filters, search, empty state and pager;
-  - a real edit and save, Move to drafts, and Remove.
+  - a real edit and save, and Remove;
+  - no Move to drafts anywhere, while drafts and new announcements keep their draft buttons.
   The test announcements were aimed at a made-up intake so nobody received them, and they were deleted afterwards.
 
 ## Sign-In, Profile Menu, Settings And Letter Download Fixes (2026-10-12)
