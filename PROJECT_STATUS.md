@@ -1,5 +1,19 @@
 # Project Status
 
+## Announcements List Redesign (2026-10-13)
+
+- **Frontend only** (`00e115c`). The backend, the API calls and the composer are unchanged.
+- **Layout.** It follows common web patterns (Stripe-style count tiles, a Mailchimp-style status filter, a Canvas-style search and newest-first list) built from the portal's own cards, badges, filter menus and pager.
+  - Live, Scheduled, Drafts and Expired tiles show counts, and pressing one filters the list.
+  - A search box plus Status, Audience and Priority filters, with Clear.
+  - Each row shows a priority edge as in the recipients' feed, status and priority badges, a two-line preview, and the audience, timing, author and attachment.
+- **Drafts** now appear in the list as well as under the composer.
+- **Actions.** Edit, Move to drafts and Remove use the same handlers as before. Remove still asks for confirmation, and Expired rows still offer Remove only.
+- **Verification.** Lint, the build and all 112 frontend scripts pass. A browser check on a private server passed 29 of 29 checks at 390, 768, 1280 and 1440 wide:
+  - the tiles, filters, search, empty state and pager;
+  - a real edit and save, Move to drafts, and Remove.
+  The test announcements were aimed at a made-up intake so nobody received them, and they were deleted afterwards.
+
 ## Sign-In, Profile Menu, Settings And Letter Download Fixes (2026-10-12)
 
 - **Remember me** (`3b9a753`). Sign-in has "Remember me on this device", off by default.
