@@ -1,5 +1,39 @@
 # Project Status
 
+## Letters: Requests Approved By The Office (2026-10-13)
+
+Following the supervisor meeting (plan: `docs/superpowers/plans/2026-10-13-letter-requests-with-office-approval.md`).
+
+- **Students request, the office decides.**
+  - Students no longer get letters straight away, and never see a letter's wording before approval (the template API hides it from them).
+  - A student chooses a letter by name and description, adds an optional note, and sends a request.
+  - The office reviews it on its own page (`/letters/requests/<id>`, also opened from the bell). It fills in what the portal does not hold, checks a live A4 preview, then approves (which issues the reference number and date) or rejects with a reason.
+  - The student is notified in the app, and by email when "Email alerts" is on.
+  - Once approved, the student can view, print or download the letter.
+  - After a rejection the student sees the reason and can request again. A pending request can be withdrawn.
+- **Office-filled fields.**
+  - Templates can define fields such as `{{ATTENDANCE}}` ("Attendance (%)"), added in the template editor's Office-Filled Fields panel.
+  - The office types them in when approving.
+  - Any record field the student's record leaves blank (for example a passport number) is also typed in at approval, for that letter only.
+- **Rules.**
+  - One pending request per letter per student, enforced by a database constraint.
+  - Approval is refused once the student is no longer Active.
+  - A template with pending requests cannot be deleted (archive it instead).
+  - Only issued letters can be downloaded, resent or revoked.
+- **Migration** `letters.0004` (dev DB migrated after the backup `db-backups/before-letter-requests-2026-10-13.dump`). Existing letters keep their status, number and wording.
+- **Commits:** `a879c21` (data and templates), `ebf3dc1` (backend workflow), `facafed` (screens). The backend README describes the endpoints.
+- **Verification.**
+  - The backend passes 1057 tests.
+  - All 113 frontend scripts pass, along with lint and the build.
+  - The end-to-end browser check passed 26 of 26 on private servers:
+    1. the office builds a template with an Attendance field;
+    2. a student requests it;
+    3. the office opens it from the bell, fills in the missing passport and the attendance, and approves;
+    4. the student views it on A4 pages and downloads the PDF;
+    5. a second request is rejected with a reason, requested again, then withdrawn.
+  - Phone layouts were checked, and no console errors occurred.
+  - All smoke data was removed, including the request notifications sent to other office accounts.
+
 ## Registry Import: Paste Rows Removed (2026-10-13)
 
 - At Xiang's request the Bulk Import card is back to file upload only, as it was before `c49e6aa`: one File Upload card with the drag-and-drop box and the template buttons. The Upload/Paste toggle, the paste box and `pastedRowsFile` are gone, and the guideline reads "CSV or XLSX".

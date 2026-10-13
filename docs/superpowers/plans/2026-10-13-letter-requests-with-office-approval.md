@@ -2,6 +2,20 @@
 
 Date: 2026-10-13. Owner: Xiang (Letter Generation, UC21 and UC23).
 
+## Status
+
+All phases done on 2026-10-13, on `Xiang` and not pushed.
+
+| Phase | Commit |
+|---|---|
+| 1. Backend data and templates | `a879c21` |
+| 2. Backend request workflow | `ebf3dc1` |
+| 3 to 5. Frontend: types, API, template editor, office review, student screens | `facafed` |
+| 6. Docs and the end-to-end browser check | this file and `PROJECT_STATUS.md` |
+
+Phases 3, 4 and 5 shipped as one commit: removing the old instant-generation
+API touched all three screens at once.
+
 ## Why
 
 At the 2026-10-13 meeting the supervisor asked for these changes:
@@ -33,7 +47,8 @@ At the 2026-10-13 meeting the supervisor asked for these changes:
   - The counter and its row lock stay as they are.
 - **D4. Values come from the student's record at approval time.**
   - If the office fixes the registry before approving, the letter uses the fixed value.
-  - Template wording is also taken at approval time, so a typo fixed in the template is used. If the template was deleted since the request, the wording saved with the request is used.
+  - Template wording is also taken at approval time, so a typo fixed in the template is used.
+  - Changed during the build: a template with pending requests cannot be deleted (archiving is still allowed, and approval still works). This replaced keeping a copy of the wording with each request, because a deleted template would also lose its reference prefix.
 - **D5. Office-filled fields are defined per template.**
   - Each template has a list of fields, e.g. `{{ATTENDANCE}}` labelled "Attendance (%)".
   - Field names use capital letters and underscores, like the built-in placeholders, and may not reuse a built-in name. A template has at most 20 such fields.
@@ -70,12 +85,13 @@ At the 2026-10-13 meeting the supervisor asked for these changes:
 - `issued_on`: nullable.
 - `status`: adds `Pending`, `Rejected` and `Withdrawn`. Default `Pending`.
 - New fields:
-  - `template_content`: the wording when requested, used only if the template is deleted;
   - `student_note`: up to 500 characters;
   - `office_values`: JSON of the values the office typed;
   - `decided_by` (user, SET_NULL) and `decided_at`;
   - `reject_reason`: up to 500 characters;
   - `withdrawn_at`.
+
+- A database constraint allows only one Pending request per student and template.
 
 Existing rows keep `Issued` or `Revoked`, with their reference, content and date.
 
