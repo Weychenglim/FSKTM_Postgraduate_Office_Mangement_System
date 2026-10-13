@@ -1804,10 +1804,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
             {/* RIGHT CONTEXTUAL INFO CARDS (40% WIDTH, ONLY FOR BULK TAB) */}
             {registerActiveTab === 'bulk' && (
-              <div className="lg:col-span-2 space-y-6">
-              
-              {/* CARD 1: IMPORT GUIDELINES LIST */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+              <div className="lg:col-span-2 lg:self-stretch flex flex-col">
+
+              {/* CARD 1: IMPORT GUIDELINES LIST, as tall as the upload card */}
+              <div className="flex-1 bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
                 <div className="flex items-center gap-3 mb-4 select-none">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
                     <Info className="w-5 h-5" />
@@ -1826,118 +1826,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div key={index} className="flex gap-3">
                       <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
                       <p className="text-slate-650 font-medium leading-relaxed">{guideline}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CARD 2: CURRENT SEMESTER OVERVIEW CLOCK */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-3 mb-4 select-none">
-                  <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shrink-0">
-                    <Layers className="w-5 h-5" />
-                  </div>
-                  <h3 className="section-label">Registry Snapshot</h3>
-                </div>
-
-                {/* Sub bento items */}
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  
-                  {/* Item 1: Total count */}
-                  <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                    <span className="card-label block">Total Registered</span>
-                    <h3 className="card-metric text-blue-700 mt-1">{students.length.toLocaleString()}</h3>
-                    <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
-                      <GraduationCap className="w-8 h-8" />
-                    </div>
-                  </div>
-
-                  {/* Item 2: Pending count */}
-                  <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                    <span className="card-label block">Awaiting Activation</span>
-                    <h3 className="card-metric text-amber-700 mt-1">
-                      {students.filter(s => s.activated === false).length.toLocaleString()}
-                    </h3>
-                    <div className="absolute right-3 bottom-2 text-amber-600/15">
-                      <ShieldAlert className="w-8 h-8" />
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* CARD 3: RECENT IMPORTS METADATA HISTORIES */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center justify-between gap-3 mb-4 select-none">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <h3 className="section-label">Recent Imports</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAllImports(!showAllImports)}
-                    className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
-                  >
-                    {showAllImports ? 'Show Recent' : 'View All'}
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {recentImportsError && (
-                    <p className="text-[10.5px] font-semibold text-rose-600">{recentImportsError}</p>
-                  )}
-                  {!recentImportsError && recentImports.length === 0 && (
-                    <p className="text-[10.5px] font-semibold text-slate-400">No imports yet.</p>
-                  )}
-                  {recentImports.map((batch) => (
-                    <div
-                      key={batch.id}
-                      className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                          <FileSpreadsheet className="w-4.5 h-4.5" />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-brand-navy text-[11px] block truncate select-all" title={batch.fileName}>
-                            {batch.fileName}
-                          </span>
-                          <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
-                            {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
-                          </span>
-                          {batch.uploadedBy && (
-                            <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
-                          )}
-                          {batch.invitationsHeld && (
-                            <span className="mt-1 inline-flex items-center gap-1.5">
-                              <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                                Emails on hold
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setHeldBatchToSend(batch)}
-                                className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
-                              >
-                                Send now
-                              </button>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {batch.problems.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => downloadImportProblems(batch)}
-                          className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
-                          title="Download the rows that were skipped or not imported"
-                          aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -2363,6 +2251,122 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {registerActiveTab === 'bulk' && (
+              <div className="lg:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                {/* CARD 2: CURRENT SEMESTER OVERVIEW CLOCK */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+                  <div className="flex items-center gap-3 mb-4 select-none">
+                    <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shrink-0">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <h3 className="section-label">Registry Snapshot</h3>
+                  </div>
+
+                  {/* Sub bento items */}
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                  
+                    {/* Item 1: Total count */}
+                    <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
+                      <span className="card-label block">Total Registered</span>
+                      <h3 className="card-metric text-blue-700 mt-1">{students.length.toLocaleString()}</h3>
+                      <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
+                        <GraduationCap className="w-8 h-8" />
+                      </div>
+                    </div>
+
+                    {/* Item 2: Pending count */}
+                    <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
+                      <span className="card-label block">Awaiting Activation</span>
+                      <h3 className="card-metric text-amber-700 mt-1">
+                        {students.filter(s => s.activated === false).length.toLocaleString()}
+                      </h3>
+                      <div className="absolute right-3 bottom-2 text-amber-600/15">
+                        <ShieldAlert className="w-8 h-8" />
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* CARD 3: RECENT IMPORTS METADATA HISTORIES */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
+                  <div className="flex items-center justify-between gap-3 mb-4 select-none">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <h3 className="section-label">Recent Imports</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllImports(!showAllImports)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
+                    >
+                      {showAllImports ? 'Show Recent' : 'View All'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {recentImportsError && (
+                      <p className="text-[10.5px] font-semibold text-rose-600">{recentImportsError}</p>
+                    )}
+                    {!recentImportsError && recentImports.length === 0 && (
+                      <p className="text-[10.5px] font-semibold text-slate-400">No imports yet.</p>
+                    )}
+                    {recentImports.map((batch) => (
+                      <div
+                        key={batch.id}
+                        className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <FileSpreadsheet className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-brand-navy text-[11px] block truncate select-all" title={batch.fileName}>
+                              {batch.fileName}
+                            </span>
+                            <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
+                              {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
+                            </span>
+                            {batch.uploadedBy && (
+                              <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
+                            )}
+                            {batch.invitationsHeld && (
+                              <span className="mt-1 inline-flex items-center gap-1.5">
+                                <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                  Emails on hold
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setHeldBatchToSend(batch)}
+                                  className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
+                                >
+                                  Send now
+                                </button>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {batch.problems.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => downloadImportProblems(batch)}
+                            className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
+                            title="Download the rows that were skipped or not imported"
+                            aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
