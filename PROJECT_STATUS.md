@@ -1,5 +1,14 @@
 # Project Status
 
+## Registry Import: Paste Rows Removed (2026-10-13)
+
+- At Xiang's request the Bulk Import card is back to file upload only, as it was before `c49e6aa`: one File Upload card with the drag-and-drop box and the template buttons. The Upload/Paste toggle, the paste box and `pastedRowsFile` are gone, and the guideline reads "CSV or XLSX".
+- Kept from `c49e6aa`: an uploaded file with no column-name row still works ("No column names" on the Match step, columns matched from their values). The backend is unchanged.
+- Two sample files for trying the import live outside the repo in `Final Year Project/test-data/registry-import/`. Both hold 5 made-up students with `@example.com` emails, so nobody can receive their activation emails.
+  - "Sample 1 - Excel template" is filled in the system's template and goes straight to the row check.
+  - "Sample 2 - Office extract style" has title rows, Malay column names, extra columns, Student IDs ending in `/1` and programmes spelt several ways ("MDS", "Sarjana Keselamatan Siber"). It goes through Match columns and the programme choices.
+- Lint, the build and all 112 frontend scripts pass. A browser check passed 7 of 7: the card, and both sample files previewing (nothing imported).
+
 ## Announcements List Redesign (2026-10-13)
 
 - **Frontend only** (`00e115c`). The backend, the API calls and the composer are unchanged.
