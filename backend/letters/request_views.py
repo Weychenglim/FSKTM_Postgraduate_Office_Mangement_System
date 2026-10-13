@@ -191,6 +191,8 @@ def _generate(request):
             content=fill_placeholders(template.content, values),
             student_data=values,
             issued_on=issued_on,
+            status=GeneratedLetter.Status.ISSUED,
+            decided_at=timezone.now(),
             requested_by=request.user,
         )
         _notify_ready(letter, f"letters:letter-ready:{letter.pk}")

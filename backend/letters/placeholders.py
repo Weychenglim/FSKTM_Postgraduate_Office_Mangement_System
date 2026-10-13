@@ -1,7 +1,12 @@
 """The placeholders a letter template may use, and where each value comes from.
 
-Mirrored by ``LETTER_PLACEHOLDERS`` in frontend/src/utils/letterDocument.ts; a
-frontend test fails if the two lists differ.
+Built-in placeholders are filled from the student's record. A template may also
+define its own fields that the office types in when it approves a request (for
+example attendance, worked out in another system). Each template's fields are
+stored on it as ``custom_fields``.
+
+``PLACEHOLDERS`` is mirrored by ``LETTER_PLACEHOLDERS`` in
+frontend/src/utils/letterDocument.ts; a frontend test fails if the two differ.
 """
 
 import re
@@ -12,8 +17,8 @@ PLACEHOLDERS = {
     "PROGRAMME_NAME": ("Programme", "The student's programme"),
     "CURRENT_STATUS": ("Current Status", "The student's academic status"),
     "SUPERVISOR_NAME": ("Supervisor", "The student's current primary supervisor"),
-    "REFERENCE_NUMBER": ("Reference No.", "Issued when the letter is generated"),
-    "CURRENT_DATE": ("Date", "The date the letter is generated"),
+    "REFERENCE_NUMBER": ("Reference No.", "Issued when the letter is approved"),
+    "CURRENT_DATE": ("Date", "The date the letter is approved"),
     "PASSPORT_NUMBER": ("Passport No.", "Registry passport number, or IC for local students"),
     "COUNTRY": ("Country", "Registry nationality"),
     "PROGRAMME_MODE": ("Programme Mode", "Registry programme mode"),
@@ -56,6 +61,14 @@ STRAY_BRACES_RE = re.compile(r"\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}")
 # Ordinary braces in prose ("{text}") are left alone.
 SINGLE_TAG_RE = re.compile(r"(?<!\{)\{[A-Z_]+\}(?!\})")
 
+# Office-filled fields: names like the built-in ones, a readable label, and an
+# optional hint shown to the office when it fills the value in.
+FIELD_NAME_RE = re.compile(r"[A-Z][A-Z_]{1,39}")
+MAX_FIELDS = 20
+MAX_LABEL_LENGTH = 80
+MAX_HINT_LENGTH = 200
+MAX_VALUE_LENGTH = 300
+
 
 def placeholder_catalogue():
     return [
@@ -64,9 +77,56 @@ def placeholder_catalogue():
     ]
 
 
-def placeholder_problems(content):
-    """Return ``(unknown, malformed)`` tags found in ``content``, each de-duplicated."""
+def clean_custom_fields(raw):
+    """``(fields, error)`` for a template's office-filled fields.
+
+    Names are upper-cased; each needs a label, and may not repeat or reuse a
+    built-in placeholder's name.
+    """
+    if raw is None or raw == "":
+        return [], None
+    if not isinstance(raw, list):
+        return None, "Office-filled fields must be a list."
+    if len(raw) > MAX_FIELDS:
+        return None, f"A template can have at most {MAX_FIELDS} office-filled fields."
+    fields, seen = [], set()
+    for item in raw:
+        if not isinstance(item, dict):
+            return None, "Each office-filled field needs a name and a label."
+        name = str(item.get("name") or "").strip().upper()
+        label = str(item.get("label") or "").strip()
+        hint = str(item.get("hint") or "").strip()
+        if not FIELD_NAME_RE.fullmatch(name):
+            return None, (
+                f"Field name {name or '(blank)'} must be 2 to 40 capital letters or underscores, "
+                "for example ATTENDANCE."
+            )
+        if name in PLACEHOLDERS:
+            return None, f"{{{{{name}}}}} is already a built-in placeholder; choose another name."
+        if name in seen:
+            return None, f"The field {{{{{name}}}}} is listed twice."
+        if not label:
+            return None, f"Give the field {{{{{name}}}}} a label."
+        if len(label) > MAX_LABEL_LENGTH:
+            return None, f"Keep the label of {{{{{name}}}}} under {MAX_LABEL_LENGTH} characters."
+        if len(hint) > MAX_HINT_LENGTH:
+            return None, f"Keep the hint of {{{{{name}}}}} under {MAX_HINT_LENGTH} characters."
+        seen.add(name)
+        fields.append({"name": name, "label": label, "hint": hint})
+    return fields, None
+
+
+def field_names(custom_fields):
+    return {field["name"] for field in custom_fields or []}
+
+
+def placeholder_problems(content, custom_fields=()):
+    """Return ``(unknown, malformed)`` tags found in ``content``, each de-duplicated.
+
+    The template's own office-filled fields count as known tags.
+    """
     content = content or ""
+    known = set(PLACEHOLDERS) | field_names(custom_fields)
     unknown, malformed = [], []
     malformed += TRIPLE_RE.findall(content)
     rest = TRIPLE_RE.sub(" ", content)
@@ -74,7 +134,7 @@ def placeholder_problems(content):
         token, name = match.group(0), match.group(1)
         if not NAME_RE.fullmatch(name):
             malformed.append(token)
-        elif name not in PLACEHOLDERS:
+        elif name not in known:
             unknown.append(token)
     rest = TOKEN_RE.sub(" ", rest)
     malformed += SINGLE_TAG_RE.findall(rest)
@@ -86,21 +146,68 @@ def _value(values, name):
     return str(values.get(VALUE_KEYS[name]) or "").strip()
 
 
+def used_names(content):
+    """The placeholder names ``content`` uses, in the order they first appear."""
+    return list(dict.fromkeys(match.group(1) for match in TOKEN_RE.finditer(content or "")))
+
+
 def missing_labels(content, values):
-    """Labels of the placeholders ``content`` uses that ``values`` leaves blank."""
-    used = [
-        match.group(1)
-        for match in TOKEN_RE.finditer(content or "")
-        if match.group(1) in PLACEHOLDERS and match.group(1) not in ISSUED_WITH_LETTER
-    ]
-    return [PLACEHOLDERS[name][0] for name in dict.fromkeys(used) if not _value(values, name)]
+    """Labels of the built-in placeholders ``content`` uses that ``values`` leaves blank."""
+    used = [name for name in used_names(content) if name in PLACEHOLDERS and name not in ISSUED_WITH_LETTER]
+    return [PLACEHOLDERS[name][0] for name in used if not _value(values, name)]
 
 
-def fill_placeholders(content, values):
-    """Replace every supported ``{{TAG}}`` in ``content`` with its value."""
+def letter_fields(content, values, custom_fields=()):
+    """Every value a letter needs, in the order its tags first appear.
+
+    Record fields that have a value are shown as they are. A record field the
+    student's record leaves blank, and every office-filled field, is ``needed``:
+    the office types it in before approving.
+    """
+    own = {field["name"]: field for field in custom_fields or []}
+    fields = []
+    for name in used_names(content):
+        if name in ISSUED_WITH_LETTER:
+            continue
+        if name in PLACEHOLDERS:
+            label, source = PLACEHOLDERS[name]
+            value = _value(values, name)
+            fields.append(
+                {"name": name, "label": label, "hint": source, "source": "record", "value": value, "needed": not value}
+            )
+        elif name in own:
+            field = own[name]
+            fields.append(
+                {"name": name, "label": field["label"], "hint": field.get("hint", ""), "source": "office", "value": "", "needed": True}
+            )
+    return fields
+
+
+def value_problem(value):
+    """Why a typed value cannot go on a letter, or None."""
+    if not value:
+        return "Fill this in before approving."
+    if "\n" in value or "\r" in value:
+        return "Keep it on one line."
+    if len(value) > MAX_VALUE_LENGTH:
+        return f"Keep it under {MAX_VALUE_LENGTH} characters."
+    return None
+
+
+def fill_placeholders(content, values, typed=None):
+    """Replace every ``{{TAG}}`` in ``content``.
+
+    Built-in placeholders come from ``values`` (keyed like ``letter_details``);
+    ``typed`` holds what the office entered, by placeholder name, and wins.
+    """
+    typed = typed or {}
 
     def replace(match):
         name = match.group(1)
-        return _value(values, name) if name in PLACEHOLDERS else match.group(0)
+        if name in typed:
+            return str(typed[name])
+        if name in PLACEHOLDERS:
+            return _value(values, name)
+        return match.group(0)
 
     return TOKEN_RE.sub(replace, content or "")
