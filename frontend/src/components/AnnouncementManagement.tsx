@@ -24,7 +24,6 @@ import {
   SearchX,
   Send,
   Trash2,
-  Undo2,
   UserRound,
   Users,
   X,
@@ -411,8 +410,6 @@ export const AnnouncementManagement: React.FC = () => {
             ? `Changes saved. ${reach} recipient${reach === 1 ? '' : 's'} see the updated announcement.`
             : `Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
         );
-      } else if (wasPublished) {
-        showToast('Moved back to drafts. Recipients no longer see it.');
       } else {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
       }
@@ -570,28 +567,6 @@ export const AnnouncementManagement: React.FC = () => {
     } finally {
       setDeleting(false);
       setPendingDelete(null);
-    }
-  };
-
-  // Pull a published announcement back to drafts; recipients' copies are withdrawn.
-  const handleWithdraw = async (item: AnnouncementItem) => {
-    try {
-      await updateAnnouncement(item.id, {
-        title: item.title,
-        content: item.content ?? item.summary ?? '',
-        target: item.target,
-        priority: item.priority,
-        status: 'Draft',
-        attachment: null,
-      });
-      showToast(
-        item.status === 'Scheduled'
-          ? `"${item.title}" moved back to drafts. It will not be published.`
-          : `"${item.title}" moved back to drafts. Recipients no longer see it.`,
-      );
-      loadAnnouncements();
-    } catch (err) {
-      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to withdraw announcement.'}`);
     }
   };
 
@@ -920,15 +895,17 @@ export const AnnouncementManagement: React.FC = () => {
                     }`}
               </p>
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                <PortalButton
-                  type="button"
-                  onClick={handleSaveDraft}
-                  variant="secondary"
-                  size="md"
-                  disabled={submitting}
-                >
-                  {editingId ? (editingStatus === 'Draft' ? 'Update Draft' : 'Move to Drafts') : 'Save Draft'}
-                </PortalButton>
+                {(!editingId || editingStatus === 'Draft') && (
+                  <PortalButton
+                    type="button"
+                    onClick={handleSaveDraft}
+                    variant="secondary"
+                    size="md"
+                    disabled={submitting}
+                  >
+                    {editingId ? 'Update Draft' : 'Save Draft'}
+                  </PortalButton>
+                )}
 
                 <PortalButton
                   type="button"
@@ -1195,7 +1172,7 @@ export const AnnouncementManagement: React.FC = () => {
                 return (
                   <li
                     key={item.id}
-                    className="relative pl-6 pr-5 py-4 flex flex-col xl:flex-row xl:items-start gap-3 xl:gap-6 hover:bg-slate-50/60 transition-colors"
+                    className="relative pl-6 pr-5 py-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-6 hover:bg-slate-50/60 transition-colors"
                   >
                     <span
                       aria-hidden="true"
@@ -1251,7 +1228,7 @@ export const AnnouncementManagement: React.FC = () => {
                     </div>
 
                     {item.canManage !== false ? (
-                      <div className="flex items-center gap-2 shrink-0 xl:w-[17rem] xl:justify-end">
+                      <div className="flex items-center gap-2 shrink-0 md:w-32 md:justify-end">
                         {item.status !== 'Expired' && (
                           <PortalButton
                             size="sm"
@@ -1260,17 +1237,6 @@ export const AnnouncementManagement: React.FC = () => {
                             onClick={() => handleEditDraft(item)}
                           >
                             Edit
-                          </PortalButton>
-                        )}
-                        {(item.status === 'Active' || item.status === 'Scheduled') && (
-                          <PortalButton
-                            variant="ghost"
-                            size="sm"
-                            icon={Undo2}
-                            aria-label={`Move "${name}" to drafts`}
-                            onClick={() => handleWithdraw(item)}
-                          >
-                            Move to drafts
                           </PortalButton>
                         )}
                         <button
@@ -1284,7 +1250,7 @@ export const AnnouncementManagement: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      <span className="card-caption inline-flex items-center gap-1.5 text-slate-400 shrink-0 xl:w-[17rem] xl:justify-end xl:pt-2">
+                      <span className="card-caption inline-flex items-center gap-1.5 text-slate-400 shrink-0 md:w-32 md:justify-end md:pt-2">
                         <Lock aria-hidden="true" className="w-3.5 h-3.5" />
                         View only
                       </span>
