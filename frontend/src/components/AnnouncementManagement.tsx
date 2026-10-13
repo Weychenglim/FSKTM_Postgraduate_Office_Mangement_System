@@ -6,7 +6,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AlertTriangle,
-  Archive,
   Calendar,
   CalendarClock,
   ChevronLeft,
@@ -43,7 +42,7 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '../services';
-import { formatScheduleMoment, isScheduledFor, scheduleProblem, scheduleTime } from '../utils/announcementSchedule';
+import { formatScheduleMoment, isScheduledFor, scheduleTime } from '../utils/announcementSchedule';
 import { toMalaysiaDateTimeLocalValue } from '../utils/malaysiaDateTime';
 import { describeProgramme } from '../utils/programmeLabel';
 import { pageWindow } from '../utils/pageWindow';
@@ -109,7 +108,7 @@ const targetingSummary = (item: AnnouncementItem) =>
   [...(item.targetProgrammes ?? []).map(programmeName), ...(item.targetIntakes ?? [])].join(', ');
 
 // List filters; 'any' turns a filter off.
-type StatusFilter = AnnouncementItem['status'] | 'any';
+type StatusFilter = Exclude<AnnouncementItem['status'], 'Expired'> | 'any';
 type AudienceFilter = AnnouncementItem['target'] | 'any';
 type PriorityFilter = AnnouncementItem['priority'] | 'any';
 
@@ -141,12 +140,11 @@ const LIST_HEADING: Record<StatusFilter, string> = {
   Active: 'Live announcements',
   Scheduled: 'Scheduled announcements',
   Draft: 'Drafts',
-  Expired: 'Expired announcements',
 };
 
 const STATUS_FILTER_OPTIONS: SelectMenuOption<StatusFilter>[] = [
   { value: 'any', label: 'All statuses', triggerLabel: 'All' },
-  ...(['Active', 'Scheduled', 'Draft', 'Expired'] as const).map((status) => ({
+  ...(['Active', 'Scheduled', 'Draft'] as const).map((status) => ({
     value: status,
     label: STATUS_LOOK[status].label,
     leading: <StatusDot tone={STATUS_LOOK[status].tone} className="w-2 h-2" />,
@@ -177,15 +175,11 @@ const audienceLine = (item: AnnouncementItem) => {
   return `${item.target === 'All Students' ? 'Students' : AUDIENCE_LABEL[item.target] ?? item.target}: ${narrowed}`;
 };
 
-// When it went out (or goes out) and when it ends, following its schedule.
+// When it went out, or goes out for a scheduled one.
 const timingLine = (item: AnnouncementItem) => {
-  const ends = formatScheduleMoment(item.expiresAt);
   if (item.status === 'Draft') return `Created ${item.dateCreated}`;
-  if (item.status === 'Scheduled') {
-    return `Publishes ${formatScheduleMoment(item.publishAt) || 'at its set time'}${ends ? `, ends ${ends}` : ''}`;
-  }
-  const published = formatScheduleMoment(item.publishAt) || item.dateCreated;
-  return `Published ${published}${ends ? `, ${item.status === 'Expired' ? 'ended' : 'ends'} ${ends}` : ''}`;
+  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt) || 'at its set time'}`;
+  return `Published ${formatScheduleMoment(item.publishAt) || item.dateCreated}`;
 };
 
 // A summary count that also filters the list; pressing it again shows everything.
@@ -202,25 +196,25 @@ const StatusTile: React.FC<{
     type="button"
     aria-pressed={selected}
     onClick={onClick}
-    className={`relative w-full bg-white border rounded-2xl p-5 text-left shadow-3xs select-none transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 ${
+    className={`relative w-full bg-white border rounded-2xl p-4 sm:p-5 text-left shadow-3xs select-none transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 ${
       selected ? 'bg-slate-50 border-brand-navy ring-1 ring-brand-navy' : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
     }`}
   >
-    <span className={`absolute top-5 right-5 w-10 h-10 rounded-xl border flex items-center justify-center ${iconClass}`}>
+    <span className={`absolute top-5 right-5 w-10 h-10 rounded-xl border hidden sm:flex items-center justify-center ${iconClass}`}>
       <Icon aria-hidden="true" className="w-5 h-5" />
     </span>
-    <span className={`block pr-12 text-[10px] font-extrabold uppercase tracking-wider ${selected ? 'text-brand-navy' : 'text-slate-400'}`}>
+    <span className={`block sm:pr-12 text-[10px] font-extrabold uppercase tracking-wider ${selected ? 'text-brand-navy' : 'text-slate-400'}`}>
       {label}
     </span>
     <span className="block mt-2 text-2xl font-extrabold text-brand-navy tracking-tight leading-none tabular-nums">{count}</span>
-    <span className="block mt-2 pr-1 text-[11px] font-semibold text-slate-400 truncate">{caption}</span>
+    <span className="hidden sm:block mt-2 pr-1 text-[11px] font-semibold text-slate-400 truncate">{caption}</span>
   </button>
 );
 
-// Headline, audience, priority, content, publish and expiry times,
-// programmes, intakes and the attachment removal, in that order.
+// Headline, audience, priority, content, publish time, programmes, intakes
+// and the attachment removal, in that order.
 const formSnapshot = (values: unknown[]) => JSON.stringify(values);
-const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', '', [], [], false]);
+const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', [], [], false]);
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -272,10 +266,9 @@ export const AnnouncementManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   // A published announcement stays published when saved; a draft stays a draft.
   const [editingStatus, setEditingStatus] = useState<AnnouncementItem['status']>('Draft');
-  // Schedule (datetime-local, Malaysia time; empty = publish when saved / never
-  // expire) and registry targeting for student announcements.
+  // Publish time (datetime-local, Malaysia time; empty = publish when saved)
+  // and registry targeting for student announcements.
   const [publishAtInput, setPublishAtInput] = useState('');
-  const [expiresAtInput, setExpiresAtInput] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [targetProgrammes, setTargetProgrammes] = useState<string[]>([]);
   const [targetIntakes, setTargetIntakes] = useState<string[]>([]);
@@ -359,18 +352,10 @@ export const AnnouncementManagement: React.FC = () => {
   // Publishing (status Active) makes the backend fan it out to the target audience.
   const submitAnnouncement = async (status: 'Active' | 'Draft') => {
     let publishAt: string | null;
-    let expiresAt: string | null;
     try {
       publishAt = scheduleTime(publishAtInput);
-      expiresAt = scheduleTime(expiresAtInput);
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : 'Enter a valid Malaysia date and time.');
-      return;
-    }
-    const problem = status === 'Active' ? scheduleProblem(publishAtInput, expiresAtInput) : null;
-    if (problem) {
-      setScheduleError(problem);
-      showToast(`Error: ${problem}`);
       return;
     }
     setScheduleError(null);
@@ -388,7 +373,8 @@ export const AnnouncementManagement: React.FC = () => {
         attachment: attachedFile,
         removeAttachment: removeExistingAttachment,
         publishAt,
-        expiresAt,
+        // Announcements no longer expire; saving clears an end time set before.
+        expiresAt: null,
         targetProgrammes: forStudents ? targetProgrammes : [],
         targetIntakes: forStudents ? targetIntakes : [],
       };
@@ -418,7 +404,7 @@ export const AnnouncementManagement: React.FC = () => {
       loadAnnouncements();
     } catch (err) {
       const fields = fieldErrors(err);
-      setScheduleError(fields.publishAt ?? fields.expiresAt ?? null);
+      setScheduleError(fields.publishAt ?? null);
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
     } finally {
       submittingRef.current = false;
@@ -436,7 +422,6 @@ export const AnnouncementManagement: React.FC = () => {
     setTargetAudience(audienceFromTarget(draft.target));
     setPriorityLevel(draft.priority);
     setPublishAtInput(toMalaysiaDateTimeLocalValue(draft.publishAt));
-    setExpiresAtInput(toMalaysiaDateTimeLocalValue(draft.expiresAt));
     setTargetProgrammes(draft.targetProgrammes ?? []);
     setTargetIntakes(draft.targetIntakes ?? []);
     setScheduleError(null);
@@ -449,7 +434,6 @@ export const AnnouncementManagement: React.FC = () => {
       draft.priority,
       draft.content ?? draft.summary ?? '',
       toMalaysiaDateTimeLocalValue(draft.publishAt),
-      toMalaysiaDateTimeLocalValue(draft.expiresAt),
       draft.targetProgrammes ?? [],
       draft.targetIntakes ?? [],
       false,
@@ -475,6 +459,7 @@ export const AnnouncementManagement: React.FC = () => {
         priority: draft.priority,
         status: 'Active',
         attachment: null,
+        expiresAt: null,
       });
       const reach = saved.deliveredTo ?? 0;
       showToast(
@@ -527,7 +512,6 @@ export const AnnouncementManagement: React.FC = () => {
     setEditingId(null);
     setEditingStatus('Draft');
     setPublishAtInput('');
-    setExpiresAtInput('');
     setScheduleError(null);
     setTargetProgrammes([]);
     setTargetIntakes([]);
@@ -545,7 +529,6 @@ export const AnnouncementManagement: React.FC = () => {
       priorityLevel,
       contentBody,
       publishAtInput,
-      expiresAtInput,
       targetProgrammes,
       targetIntakes,
       removeExistingAttachment,
@@ -593,7 +576,6 @@ export const AnnouncementManagement: React.FC = () => {
   ).length;
   const scheduledCount = countOf('Scheduled');
   const draftCount = drafts.length;
-  const expiredCount = countOf('Expired');
 
   const term = searchQuery.trim().toLowerCase();
   const filteredAnnouncements = historyItems.filter(item =>
@@ -612,7 +594,7 @@ export const AnnouncementManagement: React.FC = () => {
   const filtersOn =
     term !== '' || statusFilter !== 'any' || audienceFilter !== 'any' || priorityFilter !== 'any';
 
-  const toggleStatus = (status: AnnouncementItem['status']) => {
+  const toggleStatus = (status: Exclude<StatusFilter, 'any'>) => {
     setStatusFilter(current => (current === status ? 'any' : status));
     setCurrentPage(1);
   };
@@ -860,24 +842,9 @@ export const AnnouncementManagement: React.FC = () => {
                   type="datetime-local"
                   value={publishAtInput}
                   onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
-                  className="form-control form-control-md"
-                />
-                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="announcement-expires-at" className="form-label block">
-                  Expires At (optional)
-                </label>
-                <input
-                  id="announcement-expires-at"
-                  type="datetime-local"
-                  value={expiresAtInput}
-                  onChange={(e) => { setExpiresAtInput(e.target.value); setScheduleError(null); }}
                   className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
                 />
-                <p className="text-[10px] text-slate-400 font-semibold">
-                  After this it leaves the active list. People who received it keep it.
-                </p>
+                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
               </div>
               {scheduleError && (
                 <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
@@ -1031,7 +998,7 @@ export const AnnouncementManagement: React.FC = () => {
           )}
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
           <StatusTile
             label="Live"
             count={activeCount}
@@ -1058,15 +1025,6 @@ export const AnnouncementManagement: React.FC = () => {
             iconClass="bg-amber-50 text-amber-600 border-amber-100"
             selected={statusFilter === 'Draft'}
             onClick={() => toggleStatus('Draft')}
-          />
-          <StatusTile
-            label="Expired"
-            count={expiredCount}
-            caption="Past their end time"
-            icon={Archive}
-            iconClass="bg-slate-50 text-slate-500 border-slate-200"
-            selected={statusFilter === 'Expired'}
-            onClick={() => toggleStatus('Expired')}
           />
         </div>
 
