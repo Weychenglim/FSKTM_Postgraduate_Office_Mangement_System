@@ -98,19 +98,19 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
   const contentClass = 'font-sans text-[14px] leading-[1.6] text-slate-700 text-left';
 
   return (
-    <div ref={frame} className="relative w-full overflow-x-auto">
-      {/* Hidden copy used only to measure each block at full size. */}
-      <div
-        ref={measurer}
-        aria-hidden="true"
-        className={`${contentClass} absolute -left-[10000px] top-0 invisible`}
-        style={{ width: A4_CONTENT_WIDTH }}
-      >
-        {blocks.map((block, index) => (
-          <div key={index} className="flow-root">{block}</div>
-        ))}
+    <div className="w-full">
+      {/* Hidden copy used only to measure each block at full size. Its
+          zero-height box keeps it from ever adding a scrollbar. */}
+      <div aria-hidden="true" className="h-0 overflow-hidden invisible">
+        <div ref={measurer} className={contentClass} style={{ width: A4_CONTENT_WIDTH }}>
+          {blocks.map((block, index) => (
+            <div key={index} className="flow-root">{block}</div>
+          ))}
+        </div>
       </div>
 
+      {/* Scrolls sideways only when zoomed in past the available width. */}
+      <div ref={frame} className="w-full overflow-x-auto overflow-y-hidden">
       <div className="flex flex-col items-center gap-4" style={{ minWidth: A4_PAGE.width * scale }}>
         {pageGroups.map((group, pageIndex) => (
           <section
@@ -147,6 +147,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
             </div>
           </section>
         ))}
+      </div>
       </div>
     </div>
   );
