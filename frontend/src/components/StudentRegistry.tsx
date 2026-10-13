@@ -90,7 +90,7 @@ import {
 const NO_SUPERVISOR = '__none__';
 const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
-import { CSV_HEADERS, CSV_TEMPLATE, reviewedFileName, rowsToCsv } from '../utils/csvImport';
+import { CSV_HEADERS, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 import { downloadCsv } from '../utils/csvExport';
 import { pageWindow } from '../utils/pageWindow';
 import {
@@ -110,14 +110,14 @@ import {
   withSuggestedProgrammes,
 } from '../utils/registryImport';
 
-const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], string> = {
-  student_id: 'Matric number, unique',
-  full_name: "Student's full name",
-  programme: 'An approved programme',
-  email: 'Valid email, unique',
-  phone: 'Optional',
-  intake: 'Optional, e.g. 2026/2027 Semester I',
-  current_semester: 'Optional',
+const IMPORT_COLUMN_RULES: Record<typeof CSV_HEADERS[number], { rule: string; required: boolean }> = {
+  student_id: { rule: 'Student ID (matric number), unique', required: true },
+  full_name: { rule: "Student's full name", required: true },
+  programme: { rule: 'One of the approved programmes', required: true },
+  email: { rule: "Unique. Left blank, the student's SiswaMail address is used", required: false },
+  phone: { rule: 'Contact number', required: false },
+  intake: { rule: 'e.g. 2026/2027 Semester I', required: false },
+  current_semester: { rule: 'e.g. Semester I, 2026/2027 Session', required: false },
 };
 
 // ==================== COMPONENT PATTERNS TYPES ====================
@@ -968,21 +968,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     );
   };
 
-  // CSV template generator downloder
-  const downloadCsvTemplate = () => {
-    // Generated from the parser's own header list, so the template the office
-    // downloads is always the format the importer accepts.
-    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'FSKTM_Student_Registry_Template.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-    triggerToast('Downloaded official student import template.');
-  };
-
   // The Excel template keeps leading zeros and offers the programmes as a
   // dropdown, so a typed list has fewer mistakes than a CSV.
   const downloadExcelTemplate = async () => {
@@ -1527,51 +1512,80 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       )}
                     </div>
 
-                    {/* DOWNLOAD ROW & COLUMN DETAILS */}
-                    <div className="border-t border-slate-100 mt-5 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
-                      
-                      {/* Collapse required column specifications */}
-                      <div className="text-left">
+                    {/* TEMPLATE DOWNLOAD & COLUMN GUIDE */}
+                    <div className="border-t border-slate-100 mt-5 pt-4 select-none">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <button
                           type="button"
+                          aria-expanded={showRequiredColumns}
+                          aria-controls="import-column-guide"
                           onClick={() => setShowRequiredColumns(!showRequiredColumns)}
-                          className="text-slate-500 hover:text-slate-800 text-[10.5px] font-black flex items-center gap-1 cursor-pointer transition uppercase tracking-wide"
+                          className="self-start sm:self-center text-slate-500 hover:text-slate-800 text-[10.5px] font-black flex items-center gap-1 cursor-pointer transition uppercase tracking-wide"
                         >
                           <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${showRequiredColumns ? 'rotate-180' : ''}`} />
                           <span>Required Columns</span>
                         </button>
 
-                        <AnimatePresence>
-                          {showRequiredColumns && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-2.5 bg-[#f8fafc] border border-slate-150 rounded-xl p-3 text-[10.5px] text-slate-600 space-y-1 max-w-sm"
-                            >
-                              <div className="font-bold flex justify-between uppercase text-[9px] text-slate-400 pb-1 border-b border-slate-200/50">
-                                <span>Column</span>
-                                <span>Rule</span>
-                              </div>
-                              {CSV_HEADERS.map((header) => (
-                                <div key={header} className="flex justify-between font-semibold">
-                                  <code className="font-mono text-indigo-600 text-[9.5px]">{header}</code>
-                                  <span>{IMPORT_COLUMN_RULES[header]}</span>
-                                </div>
-                              ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 self-start sm:self-center">
-                        <PortalButton variant="primary" size="sm" icon={FileSpreadsheet} onClick={() => void downloadExcelTemplate()}>
+                        <PortalButton
+                          variant="primary"
+                          size="sm"
+                          icon={FileSpreadsheet}
+                          onClick={() => void downloadExcelTemplate()}
+                          className="self-start sm:self-center"
+                        >
                           Download Excel Template
                         </PortalButton>
-                        <PortalButton variant="secondary" size="sm" icon={Download} onClick={downloadCsvTemplate}>
-                          CSV Template
-                        </PortalButton>
                       </div>
+
+                      <AnimatePresence initial={false}>
+                        {showRequiredColumns && (
+                          <motion.div
+                            id="import-column-guide"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-3 border border-slate-200/80 rounded-xl overflow-hidden">
+                              <table className="w-full text-left text-[11px]">
+                                <thead className="bg-slate-50 text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">
+                                  <tr>
+                                    <th className="px-3 py-2 font-extrabold">Column</th>
+                                    <th className="hidden sm:table-cell px-3 py-2 font-extrabold">Needed</th>
+                                    <th className="px-3 py-2 font-extrabold">What to enter</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {CSV_HEADERS.map((header) => (
+                                    <tr key={header} className="align-top">
+                                      <td className="px-3 py-2 whitespace-nowrap">
+                                        <code className="font-mono text-[10.5px] font-semibold text-indigo-600">{header}</code>
+                                        {/* Phones show the tag under the name instead of in its own column. */}
+                                        <span className={`sm:hidden block mt-0.5 text-[9.5px] font-extrabold uppercase tracking-wide ${
+                                          IMPORT_COLUMN_RULES[header].required ? 'text-brand-navy' : 'text-slate-400'
+                                        }`}>
+                                          {IMPORT_COLUMN_RULES[header].required ? 'Required' : 'Optional'}
+                                        </span>
+                                      </td>
+                                      <td className="hidden sm:table-cell px-3 py-2 whitespace-nowrap">
+                                        {IMPORT_COLUMN_RULES[header].required ? (
+                                          <StatusBadge tone="brand" className="px-2 py-0.5 text-[9px]">Required</StatusBadge>
+                                        ) : (
+                                          <StatusBadge tone="neutral" className="px-2 py-0.5 text-[9px]">Optional</StatusBadge>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 font-semibold text-slate-600 leading-snug">{IMPORT_COLUMN_RULES[header].rule}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <p className="mt-2 text-[10px] font-semibold text-slate-400">
+                              Your own spreadsheet can use other column names; you match them in the next step.
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                   </div>
