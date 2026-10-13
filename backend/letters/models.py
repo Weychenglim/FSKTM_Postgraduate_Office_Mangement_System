@@ -6,11 +6,13 @@ ever see an Active template's name and description, never its wording.
 
 A student asks for a letter by creating a ``GeneratedLetter`` request. The
 office approves it, filling in what the student's record cannot, and the
-server then fills the wording, issues the reference number and saves the
-letter; or the office rejects it with a reason. Either way the student is told.
+server then fills the template's current wording, issues the reference number
+and saves the letter; or the office rejects it with a reason. Either way the
+student is told. A template with pending requests cannot be deleted.
 """
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.timezone import localtime
 
 
@@ -126,10 +128,6 @@ class GeneratedLetter(models.Model):
     )
     template_name = models.CharField(max_length=255)
     letter_type = models.CharField(max_length=128, blank=True, default="")
-    # The template's wording and fields when requested, used only if the
-    # template is deleted before the office decides.
-    template_content = models.TextField(blank=True, default="")
-    template_fields = models.JSONField(default=list, blank=True)
     # Set on approval. Several pending requests may hold no number at once.
     reference_number = models.CharField(max_length=96, unique=True, null=True, blank=True)
     content = models.TextField(
@@ -175,6 +173,15 @@ class GeneratedLetter(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["status", "-created_at"])]
+        constraints = [
+            # One request at a time per letter: a second click, or a second
+            # tab, cannot queue the same letter twice.
+            models.UniqueConstraint(
+                fields=["student", "template"],
+                condition=Q(status="Pending"),
+                name="one_pending_request_per_letter",
+            )
+        ]
 
     def __str__(self):
         return f"{self.reference_number or f'Request {self.pk}'} ({self.template_name})"

@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .eligibility import inactive_student_refusal
-from .models import LetterTemplate
+from .models import GeneratedLetter, LetterTemplate
 from .placeholders import placeholder_catalogue, placeholder_problems
 from .serializers import LetterTemplateSerializer
 
@@ -145,6 +145,17 @@ def templates_detail(request, pk):
     _require_staff(request)
 
     if request.method == "DELETE":
+        # Approval fills the template's wording, so it must outlive its requests.
+        waiting = template.generated_letters.filter(status=GeneratedLetter.Status.PENDING).count()
+        if waiting:
+            return Response(
+                {
+                    "detail": f"{waiting} request{'s' if waiting != 1 else ''} for this letter "
+                    f"{'are' if waiting != 1 else 'is'} waiting for a decision. Approve or reject "
+                    "them first, or archive the template instead."
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         template.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
