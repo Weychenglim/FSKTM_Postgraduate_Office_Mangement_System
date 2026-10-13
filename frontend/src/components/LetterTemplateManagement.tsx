@@ -22,12 +22,12 @@ import {
   User,
   SlidersHorizontal,
   RefreshCcw,
-  Sparkles,
-  ChevronDown
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
+import { SelectMenu } from './SelectMenu';
 import { IssuedLettersRegister } from './IssuedLetters';
 import { LetterPlaceholder, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
@@ -599,21 +599,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     <label htmlFor="letter-template-type" className="form-label block">
                       Letter Type
                     </label>
-                    <div className="relative">
-                      <select
-                        id="letter-template-type"
-                        value={editorType}
-                        onChange={(e) => setEditorType(e.target.value)}
-                        className="form-control form-control-md appearance-none pr-9 cursor-pointer"
-                      >
-                        {typeOptions.map((type) => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
-                        <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                      </div>
-                    </div>
+                    <SelectMenu
+                      id="letter-template-type"
+                      value={editorType}
+                      options={typeOptions.map((type) => ({ value: type, label: type }))}
+                      onChange={setEditorType}
+                    />
                   </div>
 
                 </div>
