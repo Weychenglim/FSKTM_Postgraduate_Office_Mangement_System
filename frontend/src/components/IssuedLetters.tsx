@@ -8,19 +8,20 @@
 // original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Ban, FileDown, Printer, Search, Send } from 'lucide-react';
-import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
+import { Eye, FileDown, Printer, Search, X } from 'lucide-react';
+import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
 import { GeneratedLetter, GeneratedLetterStatus } from '../types';
+import { downloadLetterPdf, getIssuedLetter, getIssuedLetters } from '../services';
 import {
-  downloadLetterPdf,
-  fieldErrors,
-  getIssuedLetter,
-  getIssuedLetters,
-  resendLetterNotification,
-  revokeLetter,
-} from '../services';
-import { letterDataFromIssued, openLetterWindow, printLetterInWindow } from '../utils/letterDocument';
+  LETTERHEAD,
+  letterDataFromIssued,
+  openLetterWindow,
+  printLetterInWindow,
+  renderLetterBodyHtml,
+} from '../utils/letterDocument';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 type OutputAction = 'print' | 'pdf';
 
@@ -166,11 +167,89 @@ export const StudentLetterHistory: React.FC<StudentLetterHistoryProps> = ({
   );
 };
 
+/** The letter as it was issued, on an A4 sheet like the printed copy. Read only. */
+const IssuedLetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
+  const titleId = useModalTitle();
+  return (
+    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-3xl p-0">
+      <div className="drawer-header">
+        <div className="min-w-0">
+          <h2 id={titleId} className="section-label truncate">{letter.templateName}</h2>
+          <p className="mt-0.5 text-[11px] font-semibold text-slate-500 truncate">
+            <span className="font-mono">{letter.referenceNumber}</span>
+            {' · '}
+            {letter.studentName || 'Unknown student'}
+            {letter.matricNumber ? ` (${letter.matricNumber})` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <LetterStatusBadge status={letter.status} />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-brand-navy transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className={`max-h-[70dvh] overflow-y-auto bg-slate-100/70 p-4 sm:p-6 space-y-4 ${THIN_SCROLLBAR}`}>
+        {letter.status === 'Revoked' && (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-semibold text-rose-700">
+            This letter was revoked{letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.
+          </p>
+        )}
+
+        <article className="bg-white border border-slate-200 rounded shadow-sm p-6 sm:p-10 text-left text-[12px] text-slate-700 leading-relaxed font-sans mx-auto max-w-2xl">
+          <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-12 w-auto object-contain" />
+              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
+                {LETTERHEAD.faculty}
+              </span>
+            </div>
+            <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px]">
+              {LETTERHEAD.addressLines.map((line) => (
+                <span key={line} className="block">{line}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap justify-between items-baseline gap-x-4 gap-y-1 text-slate-600 mb-5">
+            <div>Our Ref: <span className="font-mono font-bold text-slate-800">{letter.referenceNumber}</span></div>
+            <div>Date: <span className="font-bold text-slate-800">{letter.date}</span></div>
+          </div>
+
+          {letter.content?.trim() ? (
+            <div className="leading-relaxed" dangerouslySetInnerHTML={{ __html: renderLetterBodyHtml(letter.content) }} />
+          ) : (
+            <p className="text-slate-400 italic">This letter has no text.</p>
+          )}
+
+          <p className="text-slate-500 font-semibold text-[10px] leading-relaxed mt-5">{LETTERHEAD.disclaimer}</p>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 space-y-1">
+            <div className="w-24 border-b border-slate-400 h-6" />
+            <p className="font-extrabold text-slate-950">{LETTERHEAD.signatoryName}</p>
+            <p className="text-slate-400 uppercase tracking-wide text-[9px] font-black leading-none">{LETTERHEAD.signatoryOffice}</p>
+          </div>
+        </article>
+      </div>
+
+      <div className="drawer-footer">
+        <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
+      </div>
+    </PortalModal>
+  );
+};
+
 interface IssuedLettersRegisterProps {
   onMessage: (message: string) => void;
 }
 
-/** Office register of every issued letter: search, reprint, resend, revoke. */
+/** Office register of every issued letter: search, filter and view each one. */
 export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ onMessage }) => {
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,13 +258,9 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<GeneratedLetterStatus | ''>('');
-  const [resending, setResending] = useState<string | null>(null);
-  const [revoking, setRevoking] = useState<GeneratedLetter | null>(null);
-  const [revokeReason, setRevokeReason] = useState('');
-  const [revokeError, setRevokeError] = useState<string | null>(null);
-  const [revokeSaving, setRevokeSaving] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
   const latestLoad = useRef(0);
-  const { printLetter, downloadPdf, isBusy } = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
     const loadId = ++latestLoad.current;
@@ -208,39 +283,15 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     return () => clearTimeout(timer);
   }, [load]);
 
-  const handleResend = async (letter: GeneratedLetter) => {
-    setResending(letter.id);
+  // The register rows carry no letter text, so the full letter is fetched first.
+  const viewLetter = async (letter: GeneratedLetter) => {
+    setOpening(letter.id);
     try {
-      onMessage(await resendLetterNotification(letter.id));
+      setViewing(letter.content === undefined ? await getIssuedLetter(letter.id) : letter);
     } catch (err) {
-      onMessage(errorText(err, 'Could not resend the notification.'));
+      onMessage(errorText(err, 'Could not open this letter.'));
     } finally {
-      setResending(null);
-    }
-  };
-
-  const openRevoke = (letter: GeneratedLetter) => {
-    setRevoking(letter);
-    setRevokeReason('');
-    setRevokeError(null);
-  };
-
-  const confirmRevoke = async () => {
-    if (!revoking) return;
-    if (!revokeReason.trim()) {
-      setRevokeError('Give a reason for revoking this letter. The student will see it.');
-      return;
-    }
-    setRevokeSaving(true);
-    try {
-      const updated = await revokeLetter(revoking.id, revokeReason.trim());
-      setLetters((current) => current.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
-      onMessage(`Letter ${updated.referenceNumber} was revoked. The student has been notified.`);
-      setRevoking(null);
-    } catch (err) {
-      setRevokeError(fieldErrors(err).reason ?? errorText(err, 'Could not revoke this letter.'));
-    } finally {
-      setRevokeSaving(false);
+      setOpening(null);
     }
   };
 
@@ -343,22 +394,16 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                       <RevokedNote letter={letter} />
                     </td>
                     <td className="data-td text-right">
-                      {letter.status === 'Issued' && (
-                        <div className="inline-flex flex-wrap justify-end gap-2">
-                          <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>
-                            Print
-                          </PortalButton>
-                          <PortalButton variant="secondary" size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>
-                            PDF
-                          </PortalButton>
-                          <PortalButton variant="soft" size="sm" icon={Send} isLoading={resending === letter.id} onClick={() => void handleResend(letter)}>
-                            Resend
-                          </PortalButton>
-                          <PortalButton variant="danger" size="sm" icon={Ban} onClick={() => openRevoke(letter)}>
-                            Revoke
-                          </PortalButton>
-                        </div>
-                      )}
+                      <PortalButton
+                        variant="secondary"
+                        size="sm"
+                        icon={Eye}
+                        isLoading={opening === letter.id}
+                        aria-label={`View ${letter.referenceNumber}`}
+                        onClick={() => void viewLetter(letter)}
+                      >
+                        View
+                      </PortalButton>
                     </td>
                   </tr>
                 ))
@@ -368,34 +413,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
         </div>
       </div>
 
-      <PortalConfirmModal
-        isOpen={revoking !== null}
-        title="Revoke this letter?"
-        message={
-          <div className="space-y-3 text-left">
-            <p>
-              {revoking ? `${revoking.referenceNumber} for ${revoking.studentName || 'this student'} will no longer be valid. ` : ''}
-              The student keeps it in My Letters, marked revoked, and cannot print or download it again.
-            </p>
-            <label className="block">
-              <span className="form-label block">Reason (shown to the student)</span>
-              <textarea
-                value={revokeReason}
-                onChange={(e) => { setRevokeReason(e.target.value); setRevokeError(null); }}
-                maxLength={500}
-                rows={3}
-                className={`form-control form-control-sm resize-none ${revokeError ? 'form-control-error' : ''}`}
-              />
-            </label>
-            {revokeError && <p className="text-[11px] font-semibold text-rose-600">{revokeError}</p>}
-          </div>
-        }
-        confirmLabel="Revoke Letter"
-        tone="danger"
-        isLoading={revokeSaving}
-        onConfirm={() => void confirmRevoke()}
-        onCancel={() => setRevoking(null)}
-      />
+      {viewing && <IssuedLetterView letter={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
 };

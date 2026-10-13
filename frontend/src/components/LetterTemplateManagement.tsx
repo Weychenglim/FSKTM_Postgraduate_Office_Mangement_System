@@ -398,7 +398,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
         title="Letter Generation"
         subtitle={
           showIssued
-            ? 'Every letter issued to students, with its reference number. Reprint, resend the notification or revoke a letter issued in error.'
+            ? 'Every letter issued to students, with its reference number. Open any letter to view it exactly as it was issued.'
             : 'Create and manage official letter templates for the postgraduate office.'
         }
       />
