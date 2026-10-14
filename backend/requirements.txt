@@ -6,6 +6,9 @@ django-cors-headers>=4.6,<5
 python-dotenv>=1.0,<2
 openpyxl>=3.1,<4
 reportlab>=4.2,<5
+# File Management: PDF checks and previews, and image re-encoding.
+pypdfium2>=5.13,<6
+Pillow>=12.3,<13
 # Reads the letter PDFs back in the tests.
 pypdf>=6,<7
 # Security floor for Django's SQL parser dependency.

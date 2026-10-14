@@ -117,6 +117,7 @@ INSTALLED_APPS = [
     "marks",
     "letters",
     "announcements",
+    "documents",
 ]
 
 MIDDLEWARE = [
@@ -209,6 +210,10 @@ CACHES = {
 ANNOUNCEMENT_MAX_ATTACHMENT_BYTES = env_int(
     "ANNOUNCEMENT_MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
 )
+# File Management uploads. Raising this also means raising the reverse
+# proxy's request body limit.
+DOCUMENT_MAX_UPLOAD_BYTES = env_int("DOCUMENT_MAX_UPLOAD_BYTES", 10 * 1024 * 1024)
+DOCUMENT_UPLOAD_THROTTLE_RATE = os.getenv("DOCUMENT_UPLOAD_THROTTLE_RATE", "100/hour")
 
 AUTH_LOGIN_THROTTLE_RATE = os.getenv("AUTH_LOGIN_THROTTLE_RATE", "10/minute")
 AUTH_LOGIN_IDENTIFIER_THROTTLE_RATE = os.getenv(

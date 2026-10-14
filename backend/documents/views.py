@@ -1,0 +1,574 @@
+"""File Management API (UC24 to UC27)."""
+from datetime import date
+
+from django.db.models import Count, Q
+from django.http import FileResponse
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from academics.models import AcademicSemester
+from academics.services import current_effective_semester
+from accounts.authorization import programme_coordinators
+from accounts.models import Student, User
+from accounts.programmes import APPROVED_PROGRAMMES, normalise_programme
+from accounts.throttles import SettingsRateThrottle
+from letters.models import GeneratedLetter
+
+from .access import (
+    Scope,
+    is_staff_member,
+    panel_student_ids,
+    supervisors_of,
+    taggable_students,
+    visible_documents,
+)
+from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
+from .serializers import detail_dict, document_dict, with_details
+from .services import TagProblem, clean_tags, create_document, delete_document, record_event
+from .validation import UploadRejected, check_upload, max_upload_bytes, title_from_name
+
+INACTIVE_STUDENT_CODE = "documents_need_active_status"
+NOT_AVAILABLE = "This file isn't available to you."
+MAX_STUDENTS = 50
+MAX_TITLE = 200
+MAX_DESCRIPTION = 1000
+MAX_SEARCH = 100
+TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+class DocumentUploadThrottle(SettingsRateThrottle):
+    scope = "documents_upload"
+    setting_name = "DOCUMENT_UPLOAD_THROTTLE_RATE"
+
+    def get_cache_key(self, request, view):
+        if request.method != "POST" or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": request.user.pk}
+
+
+def _scope_or_refuse(request):
+    user = request.user
+    scope = Scope.for_user(user)
+    if scope.office or is_staff_member(user) or (user.is_active and user.role == User.Role.STUDENT):
+        return scope, None
+    return scope, Response(
+        {"detail": "File Management is not available for this account.", "code": "documents_role"},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _flag(value, default=False):
+    if value is None or value == "":
+        return default
+    return str(value).strip().lower() in TRUE_VALUES
+
+
+def _list(data, key):
+    values = data.getlist(key) if hasattr(data, "getlist") else data.get(key) or []
+    if isinstance(values, str):
+        values = [values]
+    items = []
+    for value in values:
+        items.extend(part.strip() for part in str(value).split(",") if part.strip())
+    return items
+
+
+def _bounded_int(raw, default, low, high):
+    if raw in (None, ""):
+        return default, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None, "must be a whole number"
+    if value < low or value > high:
+        return None, f"must be between {low} and {high}"
+    return value, None
+
+
+def _date(raw):
+    try:
+        return date.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def options_view(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    user = request.user
+    student_view = user.role == User.Role.STUDENT
+    types = [
+        doc_type
+        for doc_type in DocumentType.objects.filter(is_active=True)
+        if not student_view or (doc_type.for_students and "STUDENT" in (doc_type.uploaders or []))
+    ]
+    current = current_effective_semester()
+    payload = {
+        "types": [doc_type.to_public_dict() for doc_type in types],
+        "groups": [{"value": value, "label": label} for value, label in DocumentType.Group.choices],
+        "currentSemester": {"id": current.pk, "label": current.label} if current else None,
+        "maxBytes": max_upload_bytes(),
+        "isOffice": scope.office,
+        "canUploadStaffFiles": scope.office or is_staff_member(user),
+    }
+    if not student_view:
+        payload["semesters"] = [
+            {"id": semester.pk, "label": semester.label}
+            for semester in AcademicSemester.objects.exclude(
+                lifecycle_status=AcademicSemester.Lifecycle.ARCHIVED
+            ).order_by("-starts_on")
+        ]
+        payload["programmes"] = list(APPROVED_PROGRAMMES)
+        payload["audiences"] = [{"value": value, "label": label} for value, label in Document.Audience.choices]
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_search_view(request):
+    """Students the caller may tag on a file, with who a file about them reaches."""
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    if not (scope.office or is_staff_member(request.user)):
+        return Response({"detail": "Only staff can tag students.", "code": "documents_role"}, status=status.HTTP_403_FORBIDDEN)
+    text = (request.query_params.get("search") or "").strip()[:MAX_SEARCH]
+    students = taggable_students(request.user, scope)
+    if text:
+        students = students.filter(Q(user__full_name__icontains=text) | Q(matric_no__icontains=text))
+    students = list(students.order_by("user__full_name")[:20])
+    ids = {student.user_id for student in students}
+    me = request.user.pk
+    supervisor_pairs = supervisors_of(ids)
+    panel_pairs = panel_student_ids(student_ids=ids)
+    names = dict(User.objects.filter(
+        pk__in={lecturer for _, lecturer in supervisor_pairs + panel_pairs}
+    ).values_list("pk", "full_name"))
+    supervisors, panels = {}, {}
+    for student_id, lecturer in supervisor_pairs:
+        if lecturer != me:
+            supervisors.setdefault(student_id, []).append(names[lecturer])
+    for student_id, member in panel_pairs:
+        if member != me:
+            panels.setdefault(student_id, []).append(names[member])
+    coordinators = {
+        programme: [user.full_name for user in programme_coordinators(programme) if user.pk != me]
+        for programme in {student.programme for student in students if student.programme}
+    }
+    return Response([
+        {
+            "matric": student.matric_no,
+            "name": student.user.full_name,
+            "programme": student.programme,
+            "status": student.status,
+            "relation": scope.relation_label(student),
+            "roles": sorted(scope.relationships(student)),
+            "supervisors": supervisors.get(student.user_id, []),
+            "panel": panels.get(student.user_id, []),
+            "coordinators": coordinators.get(student.programme, []),
+        }
+        for student in students
+    ])
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_header_view(request, matric):
+    """The header above one student's files: who they are and who looks after them."""
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    student = None
+    if scope.office or is_staff_member(request.user):
+        student = taggable_students(request.user, scope).filter(matric_no__iexact=matric.strip()).first()
+    if student is None:
+        return Response({"detail": "This student isn't available to you."}, status=status.HTTP_404_NOT_FOUND)
+    ids = {student.user_id}
+    names = dict(User.objects.filter(
+        pk__in={lecturer for _, lecturer in supervisors_of(ids)} | {member for _, member in panel_student_ids(student_ids=ids)}
+    ).values_list("pk", "full_name"))
+    letters = None
+    if scope.office:
+        letters = GeneratedLetter.objects.filter(student=student, status=GeneratedLetter.Status.ISSUED).count()
+    return Response({
+        "matric": student.matric_no,
+        "name": student.user.full_name,
+        "programme": student.programme,
+        "status": student.status,
+        "supervisors": [names[lecturer] for _, lecturer in supervisors_of(ids)],
+        "panel": [names[member] for _, member in panel_student_ids(student_ids=ids)],
+        "letters": letters,
+    })
+
+
+def _filtered(request, scope):
+    params = request.query_params
+    documents = visible_documents(request.user, scope)
+    errors = {}
+    if scope.office:
+        documents = documents.filter(archived_at__isnull=not _flag(params.get("archived")))
+    view = params.get("view") or "all"
+    if view == "check":
+        documents = documents.filter(check_status=Document.CheckStatus.WAITING)
+    elif view == "staff":
+        documents = documents.filter(is_staff_file=True)
+    elif view == "mine":
+        documents = documents.filter(uploaded_by=request.user)
+    elif view != "all":
+        errors["view"] = ["Use all, check, staff or mine."]
+    text = (params.get("q") or "").strip()[:MAX_SEARCH]
+    if text:
+        tag_text = text.lstrip("#").strip() or text
+        documents = documents.filter(
+            Q(reference__icontains=text)
+            | Q(title__icontains=text)
+            | Q(description__icontains=text)
+            | Q(doc_type__label__icontains=text)
+            | Q(current_version__original_name__icontains=text)
+            | Q(uploaded_by__full_name__icontains=text)
+            | Q(pk__in=DocumentStudent.objects.filter(
+                Q(student__user__full_name__icontains=text) | Q(student__matric_no__icontains=text)
+            ).values("document_id"))
+            | Q(pk__in=DocumentTag.objects.filter(tag__key__icontains=tag_text.casefold()).values("document_id"))
+        )
+    if params.get("type"):
+        documents = documents.filter(doc_type__code=params["type"])
+    if params.get("group"):
+        documents = documents.filter(doc_type__group=params["group"])
+    semester = params.get("semester")
+    if semester == "none":
+        documents = documents.filter(semester__isnull=True)
+    elif semester:
+        value, problem = _bounded_int(semester, None, 1, 10**9)
+        if problem:
+            errors["semester"] = [f"Semester {problem}."]
+        else:
+            documents = documents.filter(semester_id=value)
+    if params.get("student"):
+        documents = documents.filter(
+            pk__in=DocumentStudent.objects.filter(student__matric_no__iexact=params["student"].strip()).values("document_id")
+        )
+    if params.get("programme") and not request.user.role == User.Role.STUDENT:
+        programme = params["programme"].strip()
+        documents = documents.filter(
+            pk__in=DocumentStudent.objects.filter(student__programme__trim__iexact=programme).values("document_id")
+        )
+    uploader = params.get("uploader")
+    if uploader == "me":
+        documents = documents.filter(uploaded_by=request.user)
+    elif uploader == "students":
+        documents = documents.filter(uploader_role=User.Role.STUDENT)
+    elif uploader == "staff":
+        documents = documents.exclude(uploader_role=User.Role.STUDENT)
+    elif uploader:
+        errors["uploader"] = ["Use me, students or staff."]
+    if params.get("status"):
+        if params["status"] not in Document.CheckStatus.values:
+            errors["status"] = ["Unknown status."]
+        else:
+            documents = documents.filter(check_status=params["status"])
+    if params.get("kind"):
+        documents = documents.filter(current_version__kind=params["kind"].upper())
+    if params.get("tag"):
+        documents = documents.filter(
+            pk__in=DocumentTag.objects.filter(tag__key=params["tag"].strip().lstrip("#").casefold()).values("document_id")
+        )
+    for key, lookup in (("from", "created_at__date__gte"), ("to", "created_at__date__lte")):
+        if params.get(key):
+            day = _date(params[key])
+            if day is None:
+                errors[key] = ["Use the date format YYYY-MM-DD."]
+            else:
+                documents = documents.filter(**{lookup: day})
+    ordering = {
+        "-createdAt": ("-created_at", "-pk"),
+        "createdAt": ("created_at", "pk"),
+        "title": ("title", "pk"),
+    }.get(params.get("ordering") or "-createdAt")
+    if ordering is None:
+        errors["ordering"] = ["Use -createdAt, createdAt or title."]
+    else:
+        documents = documents.order_by(*ordering)
+    return documents, errors
+
+
+def _upload(request, scope):
+    user = request.user
+    data = request.data
+    errors = {}
+    doc_type = DocumentType.objects.filter(code=str(data.get("type") or ""), is_active=True).first()
+    if doc_type is None:
+        return Response({"type": ["Choose what this file is."]}, status=status.HTTP_400_BAD_REQUEST)
+
+    student_upload = user.role == User.Role.STUDENT
+    staff_file = False
+    if student_upload:
+        student = user._related_or_none("student")
+        if student is None:
+            return Response({"detail": "Your student record is missing. Contact the PG office.", "code": "documents_role"}, status=status.HTTP_403_FORBIDDEN)
+        if student.status != Student.Status.ACTIVE:
+            return Response(
+                {
+                    "detail": f"You can upload files while your status is Active. Your status is {student.status}; contact the PG office if you need to send a document.",
+                    "code": INACTIVE_STUDENT_CODE,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not doc_type.for_students or "STUDENT" not in (doc_type.uploaders or []):
+            return Response({"type": ["Students cannot upload this type."]}, status=status.HTTP_400_BAD_REQUEST)
+        students = [student]
+    else:
+        matrics = list(dict.fromkeys(_list(data, "students")))
+        students = []
+        if not matrics:
+            if doc_type.for_staff:
+                staff_file = True
+            else:
+                errors["students"] = ["Add at least one student, or upload it as a staff file."]
+        elif not doc_type.for_students:
+            errors["students"] = [f"{doc_type.label} is for staff files, which are not about a student."]
+        elif len(matrics) > MAX_STUDENTS:
+            errors["students"] = [f"A file can be about at most {MAX_STUDENTS} students."]
+        else:
+            found = {s.matric_no.casefold(): s for s in taggable_students(user, scope).filter(
+                Q(*[Q(matric_no__iexact=m) for m in matrics], _connector=Q.OR)
+            )}
+            missing = [m for m in matrics if m.casefold() not in found]
+            if missing:
+                errors["students"] = [f"You cannot add these students: {', '.join(missing)}."]
+            else:
+                students = [found[m.casefold()] for m in matrics]
+                if not scope.office:
+                    allowed = set(doc_type.uploaders or [])
+                    refused = [s.matric_no for s in students if not (scope.relationships(s) & allowed)]
+                    if refused:
+                        errors["students"] = [f"You cannot upload a {doc_type.label} for: {', '.join(refused)}."]
+        if staff_file and not scope.office:
+            allowed = set(doc_type.uploaders or [])
+            if not ({"LECTURER"} if user.role == User.Role.LECTURER else {"COORDINATOR", "LECTURER"}) & allowed:
+                errors["type"] = ["You cannot upload this type as a staff file."]
+
+    audience, programmes = "", []
+    if student_upload:
+        share = {
+            "supervisors": doc_type.share_supervisors,
+            "panel": doc_type.share_panel,
+            "coordinator": doc_type.share_coordinator,
+        }
+    elif staff_file:
+        share = {"supervisors": False, "panel": False, "coordinator": False}
+        audience = str(data.get("audience") or Document.Audience.ACADEMIC)
+        if audience not in Document.Audience.values:
+            errors["audience"] = ["Choose who can see this staff file."]
+        for value in _list(data, "programmes"):
+            programme = normalise_programme(value)
+            if programme is None:
+                errors["programmes"] = [f"Unknown programme: {value}."]
+            elif programme not in programmes:
+                programmes.append(programme)
+    else:
+        share = {
+            "supervisors": _flag(data.get("shareSupervisors"), doc_type.share_supervisors),
+            "panel": _flag(data.get("sharePanel"), doc_type.share_panel),
+            "coordinator": _flag(data.get("shareCoordinator"), doc_type.share_coordinator),
+        }
+
+    semester = current_effective_semester()
+    raw_semester = str(data.get("semester") or "").strip()
+    if not student_upload and raw_semester:
+        if raw_semester == "none":
+            semester = None
+        else:
+            semester = AcademicSemester.objects.filter(pk=raw_semester if raw_semester.isdigit() else 0).first()
+            if semester is None:
+                errors["semester"] = ["Choose a semester from the list."]
+
+    description = str(data.get("description") or "").strip()
+    if len(description) > MAX_DESCRIPTION:
+        errors["description"] = [f"Keep the note to {MAX_DESCRIPTION} characters."]
+    try:
+        tags = clean_tags(_list(data, "tags"))
+    except TagProblem as problem:
+        errors["tags"] = [str(problem)]
+        tags = []
+
+    try:
+        checked = check_upload(request.FILES.get("file"), doc_type=doc_type, staff=not student_upload)
+    except UploadRejected as problem:
+        errors["file"] = [str(problem)]
+        checked = None
+    title = str(data.get("title") or "").strip() or (title_from_name(checked.original_name) if checked else "")
+    if len(title) > MAX_TITLE:
+        errors["title"] = [f"Keep the title to {MAX_TITLE} characters."]
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if student_upload and doc_type.one_per_student:
+        existing = Document.objects.filter(doc_type=doc_type, uploaded_by=user, archived_at__isnull=True).first()
+        if existing:
+            return Response(
+                {
+                    "detail": f"You already have a {doc_type.label}. Upload this as a new version of it instead.",
+                    "code": "already_have_one",
+                    "existingDocumentId": existing.pk,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+    if not _flag(data.get("acknowledgeWarnings")):
+        wanted = sorted(student.pk for student in students)
+        for twin in Document.objects.filter(
+            uploaded_by=user, archived_at__isnull=True, current_version__sha256=checked.sha256
+        ).prefetch_related("student_links"):
+            if sorted(link.student_id for link in twin.student_links.all()) == wanted:
+                return Response(
+                    {
+                        "detail": "You already uploaded this exact file.",
+                        "warnings": [f"The same file is already in {twin.reference}: {twin.title}."],
+                        "requiresAcknowledgement": True,
+                        "existingDocumentId": twin.pk,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+    needs_check = doc_type.needs_check and not scope.office
+    document = create_document(
+        actor=user,
+        uploader_role=user.role,
+        doc_type=doc_type,
+        checked=checked,
+        title=title,
+        description=description,
+        semester=semester,
+        students=students,
+        tags=tags,
+        is_staff_file=staff_file,
+        share=share,
+        follows_type=student_upload,
+        audience=audience,
+        programmes=programmes,
+        check_status=Document.CheckStatus.WAITING if needs_check else Document.CheckStatus.NONE,
+    )
+    document = with_details(Document.objects.filter(pk=document.pk)).get()
+    return Response(detail_dict(document, user, scope), status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DocumentUploadThrottle])
+def documents_view(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    if request.method == "POST":
+        return _upload(request, scope)
+    documents, errors = _filtered(request, scope)
+    limit, limit_problem = _bounded_int(request.query_params.get("limit"), 25, 1, 100)
+    offset, offset_problem = _bounded_int(request.query_params.get("offset"), 0, 0, 1_000_000)
+    if limit_problem:
+        errors["limit"] = [f"Limit {limit_problem}."]
+    if offset_problem:
+        errors["offset"] = [f"Offset {offset_problem}."]
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    count = documents.count()
+    page = with_details(documents)[offset: offset + limit]
+    return Response({
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "results": [document_dict(document, request.user, scope) for document in page],
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def summary_view(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    visible = visible_documents(request.user, scope)
+    current = visible.filter(archived_at__isnull=True)
+    payload = {
+        "all": current.count(),
+        "staffFiles": current.filter(is_staff_file=True).count(),
+        "mine": current.filter(uploaded_by=request.user).count(),
+    }
+    if scope.office:
+        payload["toCheck"] = current.filter(check_status=Document.CheckStatus.WAITING).count()
+        payload["returned"] = current.filter(check_status=Document.CheckStatus.RETURNED).count()
+        payload["archived"] = visible.filter(archived_at__isnull=False).count()
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tags_view(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    text = (request.query_params.get("search") or "").strip().lstrip("#").casefold()[:30]
+    tags = Tag.objects.filter(
+        document_links__document__in=visible_documents(request.user, scope).values("pk")
+    )
+    if text:
+        tags = tags.filter(key__icontains=text)
+    tags = tags.annotate(uses=Count("document_links", distinct=True)).order_by("-uses", "name")[:10]
+    return Response([{"name": tag.name, "uses": tag.uses} for tag in tags])
+
+
+def _visible_or_none(request, scope, pk):
+    return with_details(visible_documents(request.user, scope).filter(pk=pk)).first()
+
+
+@api_view(["GET", "DELETE"])
+@permission_classes([IsAuthenticated])
+def document_view(request, pk):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        if document.uploaded_by_id != request.user.pk:
+            return Response(
+                {"detail": "Only the person who uploaded a file can delete it.", "code": "documents_not_uploader"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        delete_document(document, request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(detail_dict(document, request.user, scope))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def download_view(request, pk):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    version = document.current_version
+    number = request.query_params.get("version")
+    if number:
+        version = document.versions.filter(number=number if str(number).isdigit() else 0).first()
+    if version is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        handle = version.file.open("rb")
+    except (FileNotFoundError, OSError, ValueError):
+        return Response(
+            {"detail": "File not found. Please tell the PG office.", "code": "file_missing"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    record_event(document, DocumentEvent.Action.DOWNLOADED, request.user, version_number=version.number)
+    response = FileResponse(handle, as_attachment=True, filename=version.original_name, content_type=version.content_type)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
