@@ -49,7 +49,7 @@ export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({
 export const shortDate = (value: string | null | undefined) => (value ? formatMalaysiaDate(value) : '');
 
 /** View, print and PDF for issued letters, with a per-row busy flag. */
-function useLetterOutput(onMessage: (message: string) => void) {
+export function useLetterOutput(onMessage: (message: string) => void) {
   const [busy, setBusy] = useState<string | null>(null);
   const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
 

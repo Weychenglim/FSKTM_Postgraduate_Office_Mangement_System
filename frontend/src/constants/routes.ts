@@ -17,6 +17,8 @@ export const APP_ROUTES = {
   registry: '/registry',
   faq: '/faq',
   files: '/files',
+  filesUpload: '/files/upload',
+  filesDocuments: '/files/documents',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',
@@ -122,6 +124,9 @@ export const routeForSupervisorSupervisee = (studentId: string): string =>
 
 export const routeForSupervisorResearchRequest = (requestId: string): string =>
   `${APP_ROUTES.supervisorResearchChanges}/${encodeURIComponent(requestId)}`;
+
+export const routeForDocument = (documentId: number | string): string =>
+  `${APP_ROUTES.filesDocuments}/${encodeURIComponent(String(documentId))}`;
 
 export const routeForLetterRequest = (requestId: string): string =>
   `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
@@ -242,6 +247,13 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
       return routeForLetterRequest(target.recordId);
     }
     return APP_ROUTES.lettersMine;
+  }
+
+  if (target.targetModule === 'FILES') {
+    if (target.recordType === 'STUDENT_DOCUMENT' && target.recordId) {
+      return routeForDocument(target.recordId);
+    }
+    return APP_ROUTES.files;
   }
 
   if (target.targetModule === 'DASHBOARD') {

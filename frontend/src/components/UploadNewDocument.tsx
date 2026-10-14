@@ -1,698 +1,428 @@
-import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
-import { 
-  Upload, 
-  X,
-  CheckCircle, 
-  FileText, 
-  FileSpreadsheet, 
-  FileCode, 
-  Plus,
-  HelpCircle,
-  Clock,
-  ShieldCheck,
-  Building
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PortalButton, PortalToast, ProgressBar, RemovableTag, StatusBadge } from './PortalPrimitives';
-import { ToggleSwitch } from './ToggleSwitch';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, ChevronDown, ChevronUp, Upload } from 'lucide-react';
+import type { DocumentDetail, DocumentKind, DocumentOptions, DocumentSharing, StaffAudience, TaggableStudent } from '../types';
+import { getDocumentOptions, searchTaggableStudents, uploadConflict, uploadDocument } from '../services/filesApi';
+import { ApiError, fieldErrors } from '../services/apiClient';
+import { formatFileSize } from '../utils/documentDisplay';
+import { defaultSharing, namesOrNone, sharingNames, staffTypeChoices, studentAudienceSentence } from '../utils/documentSharing';
+import { acceptAttribute, acceptedKinds, fileProblem, kindForName, kindsSentence, titleFromFileName } from '../utils/documentUpload';
+import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
+import { RecordPage } from './RecordPage';
+import { SelectMenu, SelectMenuOption } from './SelectMenu';
+import { ErrorState, LoadingState } from './StateViews';
+import { KindBadge, StudentPicker, TagInput } from './DocumentParts';
 
-// Define Props for parent-level control
 interface UploadNewDocumentProps {
   onBack: () => void;
-  onUploadSuccess: (newFile: {
-    name: string;
-    studentId: string;
-    category: 'Coursework' | 'Research' | 'Administrative' | 'Evaluation';
-    semester: string;
-    tags: string[];
-    description: string;
-    fileType: 'pdf' | 'docx' | 'xlsx' | 'pptx';
-  }) => void;
+  onUploadSuccess: (document: DocumentDetail) => void;
+  isStudent?: boolean;
+  role?: string;
+  initialStudent?: string;
+  onOpenExisting?: (documentId: number) => void;
 }
 
-interface RecentUpload {
-  id: string;
-  name: string;
-  timeAgo: string;
-  tag: string;
-  type: 'pdf' | 'docx' | 'xlsx';
-}
+const AUDIENCES: Array<{ value: StaffAudience; label: string; hint: string }> = [
+  { value: 'ACADEMIC', label: 'All lecturers and coordinators', hint: 'Everyone on the academic staff' },
+  { value: 'COORDINATORS', label: 'Programme coordinators only', hint: 'Acting coordinators included' },
+  { value: 'OFFICE', label: 'PG office only', hint: 'Only the office and you' },
+];
 
-type AccessRole = 'officeStaff' | 'coordinator' | 'lecturer' | 'student';
-type AccessField = 'view' | 'download' | 'archive';
+const Section: React.FC<{ title?: string; htmlFor?: string; children: React.ReactNode }> = ({ title, htmlFor, children }) => (
+  <div className="space-y-3 px-5 py-5 sm:px-6">
+    {title && (htmlFor ? <label htmlFor={htmlFor} className="block text-[15px] font-extrabold text-brand-navy">{title}</label> : <h2 className="text-[15px] font-extrabold text-brand-navy">{title}</h2>)}
+    {children}
+  </div>
+);
 
-export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({ 
-  onBack, 
-  onUploadSuccess 
+const FieldError: React.FC<{ message?: string }> = ({ message }) =>
+  message ? <p className="text-[13px] font-semibold text-rose-700">{message}</p> : null;
+
+const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
+
+export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
+  onBack,
+  onUploadSuccess,
+  isStudent = false,
+  role = '',
+  initialStudent = '',
+  onOpenExisting,
 }) => {
-  // 1. Form States
-  const [studentId, setStudentId] = useState('');
-  const [category, setCategory] = useState<'Coursework' | 'Research' | 'Administrative' | 'Evaluation'>('Coursework');
-  const [selectedModule, setSelectedModule] = useState('Select Module...');
-  const [semester, setSemester] = useState('Semester 1 2024/2025');
-  const [notes, setNotes] = useState('');
-  
-  // Tag management State (Initialized with screenshot pre-populated chips)
-  const [tags, setTags] = useState<string[]>(['Thesis Draft', 'Panel Review', 'Semester 1 2024']);
-  const [tagInput, setTagInput] = useState('');
+  const [options, setOptions] = useState<DocumentOptions | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [typeCode, setTypeCode] = useState('');
+  const [students, setStudents] = useState<TaggableStudent[]>([]);
+  const [staffFile, setStaffFile] = useState(false);
+  const [share, setShare] = useState<DocumentSharing>({ supervisors: false, panel: false, coordinator: false });
+  const [audience, setAudience] = useState<StaffAudience>('ACADEMIC');
+  const [programme, setProgramme] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [title, setTitle] = useState('');
+  const [titleEdited, setTitleEdited] = useState(false);
+  const [semester, setSemester] = useState('');
+  const [description, setDescription] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [banner, setBanner] = useState<string | null>(null);
+  const [existing, setExisting] = useState<{ detail: string; id?: number } | null>(null);
+  const [duplicate, setDuplicate] = useState<string[] | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const done = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  // 2. Access Control Table Toggle States (matching the screenshot layout)
-  const [access, setAccess] = useState({
-    officeStaff: { view: true, download: true, archive: true },
-    coordinator: { view: true, download: true, archive: false },
-    lecturer: { view: true, download: false, archive: false },
-    student: { view: false, download: false, archive: false }
-  });
+  useEffect(() => {
+    let cancelled = false;
+    setLoadError(null);
+    getDocumentOptions()
+      .then(found => {
+        if (cancelled) return;
+        setOptions(found);
+        setSemester(found.currentSemester ? String(found.currentSemester.id) : 'none');
+      })
+      .catch(err => !cancelled && setLoadError(errorText(err, 'Could not load the upload form.')));
+    return () => {
+      cancelled = true;
+    };
+  }, [reload]);
 
-  // 3. Upload File Simulations state
-  const [uploadedFile, setUploadedFile] = useState<{
-    name: string;
-    size: string;
-    progress: number;
-    fileType: 'pdf' | 'docx' | 'xlsx';
-  } | null>({
-    name: 'Chapter_1_Literature_Review_Final.pdf',
-    size: '4.2 MB',
-    progress: 65,  // Pre-filled 65% as shown in screenshot
-    fileType: 'pdf'
-  });
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isStudent || !initialStudent) return;
+    let cancelled = false;
+    searchTaggableStudents(initialStudent)
+      .then(found => {
+        const match = found.find(student => student.matric.toLowerCase() === initialStudent.toLowerCase());
+        if (!cancelled && match) setStudents(current => (current.length ? current : [match]));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [initialStudent, isStudent]);
 
-  // Recent Uploads matching screenshot exactly
-  const [recentUploads] = useState<RecentUpload[]>([
-    { id: '1', name: 'S2_2023_Examiner_Report.docx', timeAgo: '2 mins ago', tag: 'S172944', type: 'docx' },
-    { id: '2', name: 'Official_Transcript_Req_Signed.pdf', timeAgo: '1 hr ago', tag: 'Administrative', type: 'pdf' },
-    { id: '3', name: 'Cohort_2024_Grades_Draft.xlsx', timeAgo: '3 hrs ago', tag: 'WQD7001', type: 'xlsx' },
-    { id: '4', name: 'Medical_Certificate_Leave.pdf', timeAgo: 'Yesterday', tag: 'S165022', type: 'pdf' }
-  ]);
+  const types = useMemo(() => {
+    if (!options) return [];
+    if (isStudent) return options.types;
+    return staffTypeChoices(options.types, { isOffice: options.isOffice, role, staffFile, students });
+  }, [options, isStudent, role, staffFile, students]);
+  const type = types.find(item => item.code === typeCode) ?? null;
 
-  // Helper toaster triggers
-  const initial = useRef(JSON.stringify({ studentId, category, selectedModule, semester, notes, tags, access, uploadedFile }));
-  const dirty = !!tagInput || JSON.stringify({ studentId, category, selectedModule, semester, notes, tags, access, uploadedFile }) !== initial.current;
-  const [toast, setToast] = useState<string | null>(null);
-  const triggerToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  useEffect(() => {
+    if (typeCode && !types.some(item => item.code === typeCode)) setTypeCode('');
+  }, [types, typeCode]);
+
+  const chooseType = (code: string) => {
+    setTypeCode(code);
+    setShare(defaultSharing(types.find(item => item.code === code)));
+    setErrors(current => ({ ...current, type: '', file: '' }));
+    setExisting(null);
   };
 
-  // Toggles Access state handler safely
-  const togglePermission = (role: AccessRole, field: AccessField) => {
-    setAccess(prev => ({
-      ...prev,
-      [role]: {
-        ...prev[role],
-        [field]: !prev[role][field]
-      }
-    }));
+  const chooseFile = (chosen: File | null) => {
+    setFile(chosen);
+    setExisting(null);
+    setErrors(current => ({ ...current, file: '' }));
+    if (chosen && !titleEdited) setTitle(titleFromFileName(chosen.name));
   };
 
-  const renderPermissionSwitch = (role: AccessRole, field: AccessField) => (
-    <ToggleSwitch
-      id={`upload-access-${role}-${field}`}
-      checked={access[role][field]}
-      onChange={() => togglePermission(role, field)}
-      className="justify-center py-0"
-    />
-  );
+  const staff = !isStudent;
+  const maxBytes = options?.maxBytes ?? 10 * 1024 * 1024;
+  const clientProblem = file ? fileProblem(file, type, staff, maxBytes) : null;
+  const names = sharingNames(students);
+  const dirty = Boolean(file || typeCode || students.length || tags.length || description.trim() || titleEdited);
 
-  // Tag list operators
-  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const val = tagInput.trim().replace(/,/g, '');
-      if (val) {
-        if (tags.includes(val)) {
-          triggerToast(`Tag "${val}" is already included.`);
-        } else {
-          setTags(prev => [...prev, val]);
-          setTagInput('');
-        }
-      }
-    }
-  };
-
-  const handleRemoveTag = (tagText: string) => {
-    setTags(prev => prev.filter(t => t !== tagText));
-  };
-
-  // Drag and drop simulations handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      let type: 'pdf' | 'docx' | 'xlsx' = 'pdf';
-      if (ext === 'docx') type = 'docx';
-      if (ext === 'xlsx' || ext === 'xls') type = 'xlsx';
-
-      setUploadedFile({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        progress: 100,
-        fileType: type
+  const submit = async (acknowledgeWarnings = false) => {
+    const found: Record<string, string> = {};
+    const problem = fileProblem(file, type, staff, maxBytes);
+    if (problem) found.file = problem;
+    if (!type) found.type = 'Choose what this file is.';
+    if (staff && !staffFile && !students.length) found.students = 'Add at least one student, or upload it as a staff file.';
+    setErrors(found);
+    setBanner(null);
+    if (Object.keys(found).length || !file || !type) return;
+    setSubmitting(true);
+    try {
+      const document = await uploadDocument({
+        file,
+        type: type.code,
+        title,
+        description,
+        semester: isStudent ? '' : semester,
+        students: staffFile || isStudent ? [] : students.map(student => student.matric),
+        tags,
+        share: staff && !staffFile ? share : undefined,
+        audience: staffFile ? audience : undefined,
+        programmes: staffFile && programme ? [programme] : [],
+        acknowledgeWarnings,
       });
-      triggerToast(`Successfully selected file "${file.name}" for upload.`);
+      done.current = true;
+      onUploadSuccess(document);
+    } catch (err) {
+      const conflict = uploadConflict(err);
+      if (conflict?.code === 'already_have_one') {
+        setExisting({ detail: conflict.detail, id: conflict.existingDocumentId });
+      } else if (conflict) {
+        setDuplicate(conflict.warnings.length ? conflict.warnings : [conflict.detail]);
+      } else if (err instanceof ApiError && err.status === 400) {
+        setErrors(fieldErrors(err));
+      } else {
+        setBanner(errorText(err, 'Could not upload the file. Please try again.'));
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleBrowseClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      let type: 'pdf' | 'docx' | 'xlsx' = 'pdf';
-      if (ext === 'docx') type = 'docx';
-      if (ext === 'xlsx' || ext === 'xls') type = 'xlsx';
-
-      setUploadedFile({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        progress: 100,
-        fileType: type
-      });
-      triggerToast(`Ready to upload: "${file.name}"`);
-    }
-  };
-
-  // Submit flow
-  const handleConfirmUpload = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadedFile) {
-      triggerToast('Error: Please drag or select a document to upload first.');
-      return;
-    }
-
-    // Submit payload matching requirements
-    onUploadSuccess({
-      name: uploadedFile.name,
-      studentId: studentId.trim() || 'Admin',
-      category: category,
-      semester: semester,
-      tags: tags,
-      description: notes || 'Faculty master document uploaded to PG Central archive.',
-      fileType: uploadedFile.fileType === 'docx' ? 'docx' : uploadedFile.fileType === 'xlsx' ? 'xlsx' : 'pdf'
-    });
-  };
-
-  // Return file icon helpers
-  const getFileIcon = (type: 'pdf' | 'docx' | 'xlsx') => {
-    switch (type) {
-      case 'docx':
-        return (
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
-            <FileCode className="w-4 h-4" />
-          </div>
-        );
-      case 'xlsx':
-        return (
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          </div>
-        );
-      default:
-        return (
-          <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500">
-            <FileText className="w-4 h-4" />
-          </div>
-        );
-    }
-  };
+  const typeOptions: SelectMenuOption<string>[] = types.map(item => ({
+    value: item.code,
+    label: item.label,
+    description: item.description || item.groupLabel,
+    triggerLabel: item.label,
+  }));
+  const kinds = acceptedKinds(type, staff);
+  const fallbackKinds: DocumentKind[] = staff ? ['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'] : ['PDF', 'DOCX', 'IMAGE'];
 
   return (
-      <RecordPage
-        title="Upload New Document"
-        subtitle="Add files to the central repository with metadata and tags."
-        backLabel="Back to File Repository"
-        onBack={onBack}
-        pageKey="file-upload-document" dirty={dirty}
-      >{requestBack => (
-
-    <div id="upload-document-workspace" className="font-sans text-brand-navy text-xs pb-12">
-
-      <PortalToast message={toast} />
-
-      {/* Responsive Grid layout for side column info */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* LEFT COLUMN: Main metadata details form (col-span-7 or 8) */}
-        <div className="lg:col-span-7 space-y-6">
-          
-          <form onSubmit={handleConfirmUpload} className="bg-white border border-slate-200/80 rounded-2xl shadow-xs p-6 md:p-8 space-y-6 text-left">
-            <div>
-              <h2 className="section-label pb-4 border-b border-slate-100">
-                Document Details
-              </h2>
+    <RecordPage
+      title="Upload a file"
+      subtitle={isStudent ? 'Send a document to the PG office.' : 'Add an official document about your students, or a file for staff.'}
+      backLabel={isStudent ? 'Back to File Submission' : 'Back to Files'}
+      onBack={onBack}
+      dirty={dirty}
+      busy={submitting}
+      navigationComplete={done}
+    >
+      {loadError ? (
+        <ErrorState message={loadError} onRetry={() => setReload(value => value + 1)} />
+      ) : !options ? (
+        <LoadingState message="Loading the upload form..." />
+      ) : (
+        <form
+          className="app-card mx-auto max-w-2xl divide-y divide-slate-100"
+          noValidate
+          onSubmit={event => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          {banner && (
+            <div role="alert" className="flex items-start gap-3 bg-rose-50 px-6 py-4 text-[14px] font-semibold text-rose-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {banner}
             </div>
+          )}
 
-            {/* SECTION 1: FILE INFORMATION FIELDS */}
-            <div className="space-y-4">
-              <span className="card-label block">
-                File Information
-              </span>
-
-              {/* Grid 2 rows */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Student ID */}
-                <div className="space-y-1.5 text-left">
-                  <label className="form-label">
-                    Student ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Leave blank if not linked to a specific student"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full bg-white border border-slate-205 text-slate-700 px-3.5 py-2.5 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Category drop selection */}
-                <div className="space-y-1.5 text-left">
-                  <label className="form-label">
-                    Category
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as any)}
-                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                    >
-                      <option value="Administrative">Academic Submission</option>
-                      <option value="Coursework">Coursework</option>
-                      <option value="Research">Research Draft</option>
-                      <option value="Administrative">Administrative</option>
-                      <option value="Evaluation">Evaluation</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="card-value">▼</span>
-                    </div>
+          <Section>
+            <input
+              ref={fileInput}
+              id="document-file"
+              type="file"
+              className="sr-only"
+              accept={acceptAttribute(kinds.length ? kinds : fallbackKinds)}
+              onChange={event => chooseFile(event.target.files?.[0] ?? null)}
+            />
+            {file ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <KindBadge kind={kindForName(file.name)} />
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-bold text-brand-navy">{file.name}</p>
+                    <p className="text-[12px] text-slate-500">{formatFileSize(file.size)}</p>
                   </div>
                 </div>
-
-                {/* Module selection Dropdown */}
-                <div className="space-y-1.5 text-left">
-                  <label className="form-label">
-                    Module
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedModule}
-                      onChange={(e) => setSelectedModule(e.target.value)}
-                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                    >
-                      <option value="Select Module...">Select Module...</option>
-                      <option value="WIE2003 Research Methodology">WIE2003 Research Methodology</option>
-                      <option value="WQD7001 Thesis Preparation">WQD7001 Thesis Preparation</option>
-                      <option value="WIC3002 Advanced Software Engineering">WIC3002 Advanced Software Engineering</option>
-                      <option value="WIE7002 Postgraduate Dissertation">WIE7002 Postgraduate Dissertation</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="card-value">▼</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Semester selection */}
-                <div className="space-y-1.5 text-left">
-                  <label className="form-label">
-                    Semester
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={semester}
-                      onChange={(e) => setSemester(e.target.value)}
-                      className="w-full bg-white border border-slate-205 text-slate-750 px-3.5 py-2.5 rounded-xl outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all appearance-none cursor-pointer font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                    >
-                      <option value="Semester 1 2024/2025">Semester 1 2024/2025</option>
-                      <option value="Semester 2 2024/2025">Semester 2 2024/2025</option>
-                      <option value="Semester 1 2023/24">Semester 1 2023/24</option>
-                      <option value="Semester 2 2023/24">Semester 2 2023/24</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                      <span className="card-value">▼</span>
-                    </div>
-                  </div>
-                </div>
-
+                <PortalButton size="sm" type="button" onClick={() => fileInput.current?.click()}>Change file</PortalButton>
               </div>
-            </div>
-
-            {/* SECTION 2: TAG INDIVIDUAL PILLS */}
-            <div className="space-y-1.5 text-left">
-              <div className="flex items-baseline justify-between">
-                <label className="form-label">
-                  Tags
-                </label>
-                <span className="card-description">Press enter to register tag</span>
-              </div>
-              <p className="card-description mb-3">
-                Press enter to add new tags. Used for rapid searching.
-              </p>
-
-              {/* Box Containing list of chips + relative tag input */}
-              <div className="bg-[#f8fafc]/60 border border-slate-200 rounded-xl p-3 flex flex-wrap gap-2 items-center focus-within:ring-1 focus-within:ring-slate-900 focus-within:border-slate-900 transition-all">
-                {tags.map(tag => (
-                  <RemovableTag
-                    key={tag} 
-                    onRemove={() => handleRemoveTag(tag)}
-                    removeLabel={`Remove ${tag}`}
-                  >
-                    {tag}
-                  </RemovableTag>
-                ))}
-                
-                <input
-                  type="text"
-                  placeholder="Add a tag..."
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagInputKeyDown}
-                  className="flex-1 bg-transparent border-none text-slate-700 placeholder:text-slate-400 outline-none px-1 py-1 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                />
-              </div>
-            </div>
-
-            {/* SECTION 3: ADDITIONAL DISSERTATION NOTES */}
-            <div className="space-y-1.5 text-left">
-              <label className="form-label">
-                Additional Notes
-              </label>
-              <textarea
-                rows={4}
-                placeholder="Enter any context, remarks, or specific instructions related to this document..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-white border border-slate-205 text-slate-700 px-3.5 py-3 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all resize-none font-sans not-italic normal-case tracking-normal text-xs font-bold"
-              />
-            </div>
-
-            {/* SECTION 4: ACCESS CONTROL GRID SWITCH TABLE */}
-            <div className="space-y-3.5 text-left pt-2">
-              <span className="card-label block">
-                Access Control
-              </span>
-              
-              <div className="border border-slate-150 rounded-xl overflow-hidden">
-                <table className="data-table text-[11px]">
-                  <thead>
-                    <tr className="data-thead bg-[#f8fafc]">
-                      <th className="data-th">Role</th>
-                      <th className="data-th text-center">View</th>
-                      <th className="data-th text-center">Download</th>
-                      <th className="data-th text-center">Archive</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Office Staff Row */}
-                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="data-td-strong">Office Staff</td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('officeStaff', 'view')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('officeStaff', 'download')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('officeStaff', 'archive')}
-                      </td>
-                    </tr>
-
-                    {/* Coordinator Row */}
-                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="data-td-strong">Coordinator</td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('coordinator', 'view')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('coordinator', 'download')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('coordinator', 'archive')}
-                      </td>
-                    </tr>
-
-                    {/* Lecturer Row */}
-                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition">
-                      <td className="data-td-strong">Lecturer</td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('lecturer', 'view')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('lecturer', 'download')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('lecturer', 'archive')}
-                      </td>
-                    </tr>
-
-                    {/* Student Row */}
-                    <tr className="hover:bg-slate-50/55 transition">
-                      <td className="data-td-strong">Student</td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('student', 'view')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('student', 'download')}
-                      </td>
-                      <td className="data-td text-center">
-                        {renderPermissionSwitch('student', 'archive')}
-                      </td>
-                    </tr>
-
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* SEPARATOR BUTTON ACTIONS ROW */}
-            <div className="flex md:items-center justify-between gap-4 pt-6 border-t border-slate-100 flex-col md:flex-row">
-              <PortalButton
-                type="button"
-                onClick={requestBack}
-                variant="secondary"
-                size="lg"
-                fullWidth
-                className="md:w-auto"
+            ) : (
+              <div
+                onDragOver={event => {
+                  event.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={event => {
+                  event.preventDefault();
+                  setDragging(false);
+                  chooseFile(event.dataTransfer.files?.[0] ?? null);
+                }}
+                className={`flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-8 text-center transition ${dragging ? 'border-brand-navy bg-indigo-50' : 'border-slate-300 bg-slate-50'}`}
               >
-                Cancel and Go Back
-              </PortalButton>
-
-              <PortalButton
-                type="submit"
-                variant="primary"
-                size="lg"
-                icon={Upload}
-                fullWidth
-                className="md:w-auto"
-              >
-                Confirm and Upload
-              </PortalButton>
-            </div>
-
-          </form>
-
-        </div>
-
-        {/* RIGHT COLUMN: Upload Dropzone & Guidelines cards sidebar panel (col-span-4 or 5) */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          {/* 1. File upload Drag and drop dropzone card container */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-5 space-y-4">
-            
-            {/* Dashed Drop Container area box */}
-            <div 
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={handleBrowseClick}
-              className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-4 cursor-pointer transition-all ${
-                isDragging 
-                  ? 'border-blue-500 bg-blue-50/50 scale-[0.99]' 
-                  : 'border-slate-200 hover:border-slate-400 bg-[#f8fafc]/30'
-              }`}
-            >
-              <input 
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
-                className="hidden"
-              />
-
-              {/* Upload Cloud SVG Icon bundle layout */}
-              <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-brand-navy transition-colors">
-                <Upload className="w-5 h-5 text-slate-650" />
-              </div>
-
-              <div className="space-y-1 select-none">
-                <p className="card-value">
-                  Drop your file here
-                </p>
-                <p className="card-value text-blue-600 hover:underline cursor-pointer">
-                  Or click to browse
+                <Upload className="h-7 w-7 text-slate-400" aria-hidden="true" />
+                <p className="text-[14px] font-bold text-brand-navy">Drag your file here</p>
+                <PortalButton size="sm" type="button" onClick={() => fileInput.current?.click()}>Browse</PortalButton>
+                <p className="text-[12px] text-slate-500">
+                  {type ? `${kindsSentence(kinds)}, up to ${formatFileSize(maxBytes)}` : `PDF, Word or a photo${staff ? ', Excel or PowerPoint' : ''}, up to ${formatFileSize(maxBytes)}`}
                 </p>
               </div>
+            )}
+            <FieldError message={errors.file || clientProblem || undefined} />
+          </Section>
 
-              <div className="text-[10px] text-slate-400 font-semibold space-y-1">
-                <p className="card-description">Supported formats: PDF, DOCX, XLSX, PNG, JPG</p>
-                <p className="card-description">Max size: 25MB</p>
+          <Section title="What is it?">
+            <SelectMenu<string>
+              aria-label="What is it?"
+              value={typeCode}
+              options={typeOptions}
+              placeholder={types.length ? 'Choose one' : 'No types you can upload here'}
+              onChange={chooseType}
+              disabled={!types.length}
+            />
+            <FieldError message={errors.type} />
+            {isStudent && type && (
+              <div className="space-y-1.5 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-700">
+                <p>{studentAudienceSentence(type)}</p>
+                {type.needsCheck && <p>The office checks this file and tells you when it is accepted, or what to fix.</p>}
               </div>
-            </div>
+            )}
+            {existing && (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
+                <span>{existing.detail}</span>
+                {existing.id && onOpenExisting && <PortalButton size="sm" type="button" onClick={() => onOpenExisting(existing.id!)}>Open it</PortalButton>}
+              </div>
+            )}
+          </Section>
 
-            {/* Simulated Active Upload in-progress percentage card progress indicators */}
-            <AnimatePresence>
-              {uploadedFile && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                  className="bg-[#f0f4f9]/80 border border-slate-205 p-4 rounded-xl flex items-center justify-between text-left"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0 mr-3">
-                    {getFileIcon(uploadedFile.fileType)}
-                    <div className="flex-1 min-w-0 space-y-1 text-left">
-                      <p className="card-value truncate" title={uploadedFile.name}>
-                        {uploadedFile.name}
-                      </p>
-                      <p className="card-description">
-                        {uploadedFile.size} • {uploadedFile.progress}%
-                      </p>
-                      {/* Interactive percentage progress bar indicator lines */}
-                      <ProgressBar value={uploadedFile.progress} tone="info" trackClassName="h-1 mt-1" />
-                    </div>
-                  </div>
-
-                  <PortalButton
-                    type="button"
-                    onClick={() => { setUploadedFile(null); triggerToast('Removed file queue.'); }}
-                    variant="ghost"
-                    size="icon"
-                    icon={X}
-                    className="w-8 h-8 rounded-lg text-slate-400"
-                    aria-label="Remove queued file"
+          {staff && (
+            staffFile ? (
+              <Section title="Who can see it?">
+                <p className="text-[13px] text-slate-600">A staff file is not about any student. Students never see it; to send a file to students, use an announcement.</p>
+                <fieldset className="space-y-1">
+                  <legend className="sr-only">Who can see it</legend>
+                  {AUDIENCES.map(item => (
+                    <label key={item.value} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-2.5">
+                      <input type="radio" name="audience" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={audience === item.value} onChange={() => setAudience(item.value)} />
+                      <span>
+                        <span className="block text-[14px] font-bold text-slate-800">{item.label}</span>
+                        <span className="block text-[12px] text-slate-500">{item.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                {audience !== 'OFFICE' && (
+                  <SelectMenu<string>
+                    aria-label="Programme"
+                    variant="filter"
+                    prefix="Programme"
+                    value={programme}
+                    options={[{ value: '', label: 'All programmes', triggerLabel: 'All' }, ...(options.programmes ?? []).map(item => ({ value: item, label: item }))]}
+                    onChange={setProgramme}
                   />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                )}
+                <button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setStaffFile(false)}>
+                  It is about a student after all
+                </button>
+              </Section>
+            ) : (
+              <>
+                <Section title="Which students is it about?" htmlFor="document-students">
+                  <StudentPicker inputId="document-students" picked={students} onChange={setStudents} />
+                  <FieldError message={errors.students} />
+                  <button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setStaffFile(true)}>
+                    Not about a student? Upload it as a staff file
+                  </button>
+                </Section>
+                <Section title="Share with">
+                  {([
+                    ['supervisors', 'Supervisors', namesOrNone(names.supervisors, students.length ? 'No other supervisors' : 'The supervisors of the students you add')],
+                    ['panel', 'Panel member', namesOrNone(names.panel, students.length ? 'No panel member yet' : 'The panel member of the students you add')],
+                    ['coordinator', 'Programme coordinator', namesOrNone(names.coordinators, students.length ? 'None' : 'The coordinator of each student’s programme')],
+                  ] as const).map(([key, label, people]) => (
+                    <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-5 w-5 accent-brand-navy"
+                        checked={share[key]}
+                        onChange={() => setShare(current => ({ ...current, [key]: !current[key] }))}
+                      />
+                      <span>
+                        <span className="block text-[14px] font-bold text-slate-800">{label}</span>
+                        <span className="block text-[13px] text-slate-500">{people}</span>
+                      </span>
+                    </label>
+                  ))}
+                  <p className="text-[12px] text-slate-500">The PG office always sees uploads. Students never see staff uploads.</p>
+                </Section>
+              </>
+            )
+          )}
 
-          </div>
+          {isStudent && (
+            <Section title="Title" htmlFor="document-title">
+              <input id="document-title" className="form-control form-control-md text-[14px]" value={title} maxLength={200} placeholder="Filled in from the file name" onChange={event => {
+                setTitle(event.target.value);
+                setTitleEdited(true);
+              }} />
+              <FieldError message={errors.title} />
+            </Section>
+          )}
 
-          {/* 2. UPLOAD GUIDELINES SPEC RULES CARD LIST (matching screenshot bullet check indicators) */}
-          <div className="bg-white border border-slate-200/95 rounded-2xl shadow-2xs p-5 space-y-4">
-            <span className="card-label block text-left">
-              Upload Guidelines
-            </span>
+          <Section title="Tags (optional)" htmlFor="document-tags">
+            <TagInput inputId="document-tags" tags={tags} onChange={setTags} />
+            <FieldError message={errors.tags} />
+          </Section>
 
-            <div className="space-y-3">
-              <div className="flex items-start gap-2.5 text-left text-slate-650">
-                <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="card-description">
-                  Link documents to a Student ID for automatic filing into their registry profile.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2.5 text-left text-slate-650">
-                <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="card-description">
-                  Use descriptive tags to ensure the document appears in advanced repository searches.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2.5 text-left text-slate-650">
-                <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="card-description">
-                  Maximum file size is strictly 25MB per upload.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2.5 text-left text-slate-650">
-                <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="card-description">
-                  By default, files are not archived. Toggle &apos;Archive&apos; in access control for legacy docs.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2.5 text-left text-slate-650">
-                <CheckCircle className="w-4 h-4 text-slate-800 shrink-0 mt-0.5" />
-                <span className="card-description">
-                  All uploads are recorded in the institutional audit log with your user stamp.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. RECENT UPLOADS CARD WITH ACTION VALUE */}
-          <div className="bg-white border border-slate-200/95 rounded-2xl shadow-2xs p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="card-label block">
-                Recent Uploads
-              </span>
-              <PortalButton
-                type="button" 
-                onClick={requestBack}
-                variant="ghost"
-                size="sm"
-                className="px-2 py-1 text-blue-600 hover:text-blue-700"
-              >
-                View All
-              </PortalButton>
-            </div>
-
-            {/* List with 4 lines matching recent mockups */}
-            <div className="space-y-3 select-none">
-              {recentUploads.map(doc => (
-                <div 
-                  key={doc.id}
-                  className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition duration-150"
-                >
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(doc.type)}
-                    <div className="text-left space-y-0.5">
-                      <p className="card-value truncate max-w-[170px]" title={doc.name}>
-                        {doc.name}
-                      </p>
-                      <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1.5">
-                        <span className="card-description">{doc.timeAgo}</span>
-                        <span className="card-description">•</span>
-                        <StatusBadge tone="brand" className="px-1.5 py-0.5 text-[8px] scale-95 origin-left">
-                          {doc.tag}
-                        </StatusBadge>
-                      </p>
+          <Section>
+            <button type="button" aria-expanded={moreOpen} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setMoreOpen(open => !open)}>
+              {moreOpen ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+              {moreOpen ? 'Fewer options' : staff ? 'More options: title, semester, note' : 'Add a note for the office'}
+            </button>
+            {moreOpen && (
+              <div className="space-y-4">
+                {staff && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label htmlFor="document-title" className="block text-[13px] font-bold text-slate-700">Title</label>
+                      <input id="document-title" className="form-control form-control-md text-[14px]" value={title} maxLength={200} placeholder="Filled in from the file name" onChange={event => {
+                        setTitle(event.target.value);
+                        setTitleEdited(true);
+                      }} />
+                      <FieldError message={errors.title} />
                     </div>
-                  </div>
+                    <div className="space-y-1.5">
+                      <span className="block text-[13px] font-bold text-slate-700">Semester</span>
+                      <SelectMenu<string>
+                        aria-label="Semester"
+                        value={semester}
+                        options={[...(options.semesters ?? []).map(item => ({ value: String(item.id), label: item.label })), { value: 'none', label: 'Not linked to a semester' }]}
+                        onChange={setSemester}
+                      />
+                      <FieldError message={errors.semester} />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-1.5">
+                  <label htmlFor="document-note" className="block text-[13px] font-bold text-slate-700">{staff ? 'Note' : 'Note for the office'}</label>
+                  <textarea id="document-note" className="form-control min-h-24 px-3.5 py-3 text-[14px]" maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} placeholder="Anything people should know about this file" />
+                  <FieldError message={errors.description} />
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+          </Section>
 
+          <div className="flex flex-wrap justify-end gap-3 px-5 py-4 sm:px-6">
+            <PortalButton type="button" onClick={onBack} disabled={submitting}>Cancel</PortalButton>
+            <PortalButton type="submit" variant="primary" icon={Upload} isLoading={submitting}>Upload</PortalButton>
           </div>
-
-        </div>
-
-      </div>
-
-    </div>
-    )}</RecordPage>
+        </form>
+      )}
+      <PortalConfirmModal
+        isOpen={duplicate !== null}
+        title="Upload this file again?"
+        message={<div className="space-y-2">{(duplicate ?? []).map(line => <p key={line}>{line}</p>)}<p>Upload it anyway?</p></div>}
+        confirmLabel="Upload anyway"
+        cancelLabel="Cancel"
+        isLoading={submitting}
+        onConfirm={() => {
+          setDuplicate(null);
+          void submit(true);
+        }}
+        onCancel={() => setDuplicate(null)}
+      />
+    </RecordPage>
   );
 };

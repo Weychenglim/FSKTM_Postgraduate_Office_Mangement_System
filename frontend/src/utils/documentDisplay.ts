@@ -1,0 +1,52 @@
+import type { DocumentCheckStatus, DocumentKind, DocumentStudentRef } from '../types';
+import { formatMalaysiaDate } from './malaysiaDateTime';
+
+export const KIND_SHORT: Record<DocumentKind, string> = {
+  PDF: 'PDF',
+  DOCX: 'DOC',
+  IMAGE: 'IMG',
+  XLSX: 'XLS',
+  PPTX: 'PPT',
+};
+
+export const KIND_CLASSES: Record<DocumentKind, string> = {
+  PDF: 'bg-rose-100 text-rose-700',
+  DOCX: 'bg-blue-100 text-blue-700',
+  IMAGE: 'bg-violet-100 text-violet-700',
+  XLSX: 'bg-emerald-100 text-emerald-700',
+  PPTX: 'bg-orange-100 text-orange-700',
+};
+
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes.toFixed(1).replace(/\.0$/, '')} MB`;
+}
+
+/** The chip shown only when someone needs to act or has just acted. */
+export function checkChip(status: DocumentCheckStatus): { label: string; className: string } | null {
+  if (status === 'WAITING') return { label: 'Waiting for office', className: 'bg-amber-100 text-amber-800' };
+  if (status === 'RETURNED') return { label: 'Returned', className: 'bg-rose-100 text-rose-700' };
+  if (status === 'ACCEPTED') return { label: 'Accepted', className: 'bg-emerald-100 text-emerald-700' };
+  return null;
+}
+
+/** "Ali Hassan" / "Ali Hassan and 2 more", with the IDs or remaining names underneath. */
+export function studentsLine(students: DocumentStudentRef[]): { main: string; sub: string } {
+  if (!students.length) return { main: 'Staff file', sub: '' };
+  const [first, ...rest] = students;
+  if (!rest.length) return { main: first.name, sub: first.matric };
+  return { main: `${first.name} and ${rest.length} more`, sub: rest.map(student => student.name).join(', ') };
+}
+
+export function typeAndTags(typeLabel: string, tags: string[]): string {
+  return [typeLabel, tags.map(tag => `#${tag}`).join('  ')].filter(Boolean).join('   ');
+}
+
+export function uploadedLine(name: string, isMe: boolean): string {
+  return isMe ? 'Uploaded by you' : `Uploaded by ${name}`;
+}
+
+export const shortDocumentDate = (value: string | null | undefined): string => (value ? formatMalaysiaDate(value) : '');

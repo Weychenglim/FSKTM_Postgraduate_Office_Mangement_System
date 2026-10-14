@@ -30,6 +30,7 @@ import {
   APP_ROUTES,
   isKnownAppPath,
   routeForDashboardTimeline,
+  routeForDocument,
   routeForLetterRequest,
   routeForMarkRecord,
   routeForNotificationTarget,
@@ -99,6 +100,8 @@ const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', (
 const LecturerCapacityManagement = lazyNamed('LecturerCapacityManagement', () => import('./components/LecturerCapacityManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
+const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
+const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
 const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
@@ -219,6 +222,7 @@ export default function App() {
   const activeSidebarItem = sidebarItemForPath(pathname);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
+  const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
@@ -921,7 +925,23 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
-              isStudentWorkspace ? (
+              pathname === APP_ROUTES.filesUpload ? (
+                <UploadNewDocument
+                  isStudent={isStudentWorkspace}
+                  role={currentUser.role}
+                  initialStudent={new URLSearchParams(location.search).get('student') ?? ''}
+                  onBack={() => navigate(APP_ROUTES.files)}
+                  onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
+                  onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
+                />
+              ) : documentMatch ? (
+                <DocumentPage
+                  key={documentMatch.params.documentId}
+                  documentId={documentMatch.params.documentId ?? ''}
+                  isStudent={isStudentWorkspace}
+                  onBack={() => navigate(APP_ROUTES.files)}
+                />
+              ) : isStudentWorkspace ? (
                 <StudentFileSubmission />
               ) : (
                 <FileRepository />
