@@ -18,6 +18,7 @@ import type {
   TagSuggestion,
 } from '../types';
 import { documentQuery } from '../utils/documentFilters';
+import { blobToDataUrl, zipFileName } from '../utils/documentPreview';
 import { ApiError, request, requestBlob, requestMultipart } from './apiClient';
 
 const BASE = '/documents';
@@ -99,4 +100,40 @@ export function uploadConflict(err: unknown): { detail: string; code?: string; w
   if (!(err instanceof ApiError) || err.status !== 409 || !err.body || typeof err.body !== 'object') return null;
   const body = err.body as { detail?: string; code?: string; warnings?: string[]; existingDocumentId?: number };
   return { detail: body.detail ?? err.message, code: body.code, warnings: body.warnings ?? [], existingDocumentId: body.existingDocumentId };
+}
+
+export interface DocumentPreviewInfo {
+  kind: string;
+  version: number;
+  available: boolean;
+  pageCount: number;
+  text: string;
+  truncated: boolean;
+  reason: string;
+}
+
+export function getDocumentPreview(id: number, version?: number): Promise<DocumentPreviewInfo> {
+  return request<DocumentPreviewInfo>(`${BASE}/${id}/preview/${version ? `?version=${version}` : ''}`);
+}
+
+/** One preview page as a data: URL, the only image source the security policy allows besides the portal itself. */
+export async function getPreviewPage(id: number, page: number, version?: number): Promise<string> {
+  const blob = await requestBlob(`${BASE}/${id}/preview/pages/${page}/${version ? `?version=${version}` : ''}`);
+  return blobToDataUrl(blob);
+}
+
+export async function downloadDocumentsZip(ids: number[]): Promise<void> {
+  const blob = await requestBlob(`${BASE}/download-zip/`, {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const url = URL.createObjectURL(blob);
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.download = zipFileName(new Date());
+  window.document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

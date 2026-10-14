@@ -1,8 +1,11 @@
 """File Management API (UC24 to UC27)."""
+import tempfile
+import zipfile
 from datetime import date
 
 from django.db.models import Count, Q
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
@@ -25,6 +28,7 @@ from .access import (
     visible_documents,
 )
 from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
+from .previews import PreviewMissing, docx_text, image_png, pdf_page_png
 from .serializers import detail_dict, document_dict, with_details
 from .services import TagProblem, clean_tags, create_document, delete_document, record_event
 from .validation import UploadRejected, check_upload, max_upload_bytes, title_from_name
@@ -569,6 +573,148 @@ def download_view(request, pk):
         )
     record_event(document, DocumentEvent.Action.DOWNLOADED, request.user, version_number=version.number)
     response = FileResponse(handle, as_attachment=True, filename=version.original_name, content_type=version.content_type)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+PREVIEW_KINDS = {"PDF", "IMAGE", "DOCX"}
+MAX_ZIP_FILES = 50
+MAX_ZIP_BYTES = 100 * 1024 * 1024
+FILE_MISSING = {"detail": "File not found. Please tell the PG office.", "code": "file_missing"}
+
+
+def _version_of(request, document):
+    number = request.query_params.get("version")
+    if not number:
+        return document.current_version
+    return document.versions.filter(number=number if str(number).isdigit() else 0).first()
+
+
+def _read(version):
+    try:
+        with version.file.open("rb") as handle:
+            return handle.read()
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def preview_view(request, pk):
+    """What the preview can show: page pictures (PDF, images), text (Word) or nothing."""
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    version = _version_of(request, document) if document else None
+    if version is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    payload = {
+        "kind": version.kind,
+        "version": version.number,
+        "available": version.kind in PREVIEW_KINDS,
+        "pageCount": 0,
+        "text": "",
+        "truncated": False,
+        "reason": "",
+    }
+    if version.kind == "PDF":
+        payload["pageCount"] = version.page_count or 0
+    elif version.kind == "IMAGE":
+        payload["pageCount"] = 1
+    elif version.kind == "DOCX":
+        content = _read(version)
+        if content is None:
+            return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
+        payload["text"], payload["truncated"] = docx_text(content)
+    else:
+        payload["reason"] = "Preview isn't available for this file type. Download it to open."
+    record_event(document, DocumentEvent.Action.PREVIEWED, request.user, version_number=version.number)
+    response = Response(payload)
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def preview_page_view(request, pk, number):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    version = _version_of(request, document) if document else None
+    if version is None or version.kind not in ("PDF", "IMAGE"):
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    content = _read(version)
+    if content is None:
+        return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
+    try:
+        if version.kind == "PDF":
+            picture = pdf_page_png(content, number)
+        elif number == 1:
+            picture = image_png(content)
+        else:
+            raise PreviewMissing()
+    except PreviewMissing:
+        return Response({"detail": "That page does not exist."}, status=status.HTTP_404_NOT_FOUND)
+    response = HttpResponse(picture, content_type="image/png")
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _zip_name(document, version, used):
+    first = next(iter(link.student.matric_no for link in document.student_links.all()), "STAFF")
+    name = f"{first}/{document.doc_type.code}/{document.reference} {version.original_name}"
+    base, counter = name, 2
+    while name in used:
+        stem, dot, extension = base.rpartition(".")
+        name = f"{stem} ({counter}).{extension}" if dot else f"{base} ({counter})"
+        counter += 1
+    used.add(name)
+    return name
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def download_zip_view(request):
+    """Several files as one ZIP. All or nothing: a file the caller may not see
+    fails the whole request without saying which."""
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    raw = request.data.get("ids") if hasattr(request.data, "get") else None
+    if not isinstance(raw, list) or not raw or len(raw) > MAX_ZIP_FILES:
+        return Response({"ids": [f"Choose 1 to {MAX_ZIP_FILES} files."]}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        ids = list(dict.fromkeys(int(value) for value in raw))
+    except (TypeError, ValueError):
+        return Response({"ids": ["Choose files from the list."]}, status=status.HTTP_400_BAD_REQUEST)
+    documents = list(with_details(visible_documents(request.user, scope).filter(pk__in=ids)))
+    if len(documents) != len(ids) or any(document.current_version is None for document in documents):
+        return Response({"detail": "Some selected files are not available."}, status=status.HTTP_404_NOT_FOUND)
+    if sum(document.current_version.size for document in documents) > MAX_ZIP_BYTES:
+        return Response({"ids": ["These files add up to more than 100 MB. Choose fewer files."]}, status=status.HTTP_400_BAD_REQUEST)
+    spool = tempfile.SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+    used = set()
+    with zipfile.ZipFile(spool, "w", zipfile.ZIP_DEFLATED) as archive:
+        for document in sorted(documents, key=lambda item: ids.index(item.pk)):
+            content = _read(document.current_version)
+            if content is None:
+                spool.close()
+                return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
+            archive.writestr(_zip_name(document, document.current_version, used), content)
+    for document in documents:
+        record_event(
+            document, DocumentEvent.Action.DOWNLOADED, request.user,
+            version_number=document.current_version.number, details={"bulk": True},
+        )
+    spool.seek(0)
+    response = FileResponse(
+        spool, as_attachment=True, filename=f"documents-{timezone.localtime():%Y%m%d-%H%M}.zip",
+        content_type="application/zip",
+    )
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     return response

@@ -9,11 +9,12 @@ import { CheckCircle2, Download } from 'lucide-react';
 import type { DocumentDetail } from '../types';
 import { deleteDocument, downloadDocument, getDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
-import { formatFileSize, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { shortDocumentDate, studentsLine } from '../utils/documentDisplay';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
-import { KindBadge, OverflowMenu, type MenuAction } from './DocumentParts';
+import { OverflowMenu, type MenuAction } from './DocumentParts';
+import { DocumentPreview } from './DocumentPreview';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -131,16 +132,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           )}
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <section aria-label="The file" className="app-card flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-              <KindBadge kind={document.file?.kind} size="lg" />
-              <div>
-                <p className="break-all text-[15px] font-bold text-brand-navy">{document.file?.name ?? 'No file'}</p>
-                <p className="mt-1 text-[13px] text-slate-500">
-                  {[document.file ? formatFileSize(document.file.size) : '', document.file?.pageCount ? `${document.file.pageCount} ${document.file.pageCount === 1 ? 'page' : 'pages'}` : '']
-                    .filter(Boolean).join(' · ')}
-                </p>
-              </div>
-            </section>
+            <DocumentPreview document={document} />
 
             <div className="space-y-5">
               <section aria-label="Details" className="app-card space-y-4 p-5">

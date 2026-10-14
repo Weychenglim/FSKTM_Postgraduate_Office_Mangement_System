@@ -7,10 +7,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import type { DocumentFilters, DocumentOptions, DocumentSummary, PortalDocument, StudentFileHeader } from '../types';
-import { downloadDocument, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
+import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
 import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
+import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { SelectMenu, SelectMenuOption } from './SelectMenu';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
@@ -40,6 +41,9 @@ export const FileRepository: React.FC = () => {
   );
   const [student, setStudent] = useState<StudentFileHeader | null>(null);
   const [reload, setReload] = useState(0);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [zipping, setZipping] = useState(false);
 
   const update = useCallback((changes: Partial<DocumentFilters>) => {
     setParams(filtersToParams({ ...filters, ...changes }), { replace: true });
@@ -109,6 +113,29 @@ export const FileRepository: React.FC = () => {
       setToast({ message: errorText(err, 'Could not load more files.'), tone: 'danger' });
     } finally {
       setLoadingMore(false);
+    }
+  };
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected([]);
+  };
+
+  const toggle = (id: number) => {
+    const next = toggleSelection(selected, id);
+    setSelected(next.selected);
+    if (next.full) setToast({ message: `You can download up to ${MAX_ZIP_FILES} files at a time.`, tone: 'danger' });
+  };
+
+  const downloadZip = async () => {
+    setZipping(true);
+    try {
+      await downloadDocumentsZip(selected);
+      stopSelecting();
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not download these files.'), tone: 'danger' });
+    } finally {
+      setZipping(false);
     }
   };
 
@@ -219,6 +246,17 @@ export const FileRepository: React.FC = () => {
           <PortalButton size="sm" icon={SlidersHorizontal} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}>
             More filters{moreFilterCount(filters) ? ` (${moreFilterCount(filters)})` : ''}
           </PortalButton>
+          <span className="ml-auto flex items-center gap-2">
+            {selecting ? (
+              <>
+                <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
+                <PortalButton size="sm" variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
+                <PortalButton size="sm" onClick={stopSelecting}>Cancel</PortalButton>
+              </>
+            ) : rows.length > 0 && (
+              <PortalButton size="sm" onClick={() => setSelecting(true)}>Select</PortalButton>
+            )}
+          </span>
           {activeFilters && (
             <button type="button" className="px-2 text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => {
               setSearch('');
@@ -276,7 +314,18 @@ export const FileRepository: React.FC = () => {
                 return (
                   <li key={document.id} className="border-t border-slate-100 px-4 py-4 first:border-t-0 hover:bg-slate-50/70 md:px-5">
                     <div className={`flex items-start gap-3 md:grid md:items-center md:gap-4 ${filters.student ? 'md:grid-cols-[auto_minmax(0,4fr)_minmax(0,1.6fr)_13rem]' : 'md:grid-cols-[auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.6fr)_13rem]'}`}>
-                      <KindBadge kind={document.file?.kind} />
+                      <span className="flex shrink-0 items-center gap-3">
+                        {selecting && (
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-brand-navy"
+                            aria-label={`Select ${document.title}`}
+                            checked={selected.includes(document.id)}
+                            onChange={() => toggle(document.id)}
+                          />
+                        )}
+                        <KindBadge kind={document.file?.kind} />
+                      </span>
                       <div className="min-w-0 flex-1">
                         <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">
                           {document.title}
