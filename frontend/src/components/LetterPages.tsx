@@ -20,7 +20,15 @@ interface LetterPagesProps {
   bodyHtml: string;
   /** 1 fits the page to the width available; above 1 zooms in. */
   zoom?: number;
+  /** The closing lines; the faculty defaults when left out. */
+  closing?: { disclaimer: string; signatoryName: string; signatoryOffice: string };
 }
+
+const DEFAULT_CLOSING = {
+  disclaimer: LETTERHEAD.disclaimer,
+  signatoryName: LETTERHEAD.signatoryName,
+  signatoryOffice: LETTERHEAD.signatoryOffice,
+};
 
 const Letterhead: React.FC = () => (
   <div className="border-b-2 border-double border-slate-800 pb-4 mb-7 flex items-center justify-between gap-6">
@@ -38,11 +46,11 @@ const Letterhead: React.FC = () => (
   </div>
 );
 
-const Signature: React.FC = () => (
+const Signature: React.FC<{ name: string; office: string }> = ({ name, office }) => (
   <div className="pt-12">
     <div className="w-40 border-b border-slate-400 h-6" />
-    <p className="mt-2 font-extrabold text-[14px] text-slate-900">{LETTERHEAD.signatoryName}</p>
-    <p className="text-slate-400 uppercase tracking-wide text-[10px] font-black leading-none mt-1">{LETTERHEAD.signatoryOffice}</p>
+    <p className="mt-2 font-extrabold text-[14px] text-slate-900">{name}</p>
+    <p className="text-slate-400 uppercase tracking-wide text-[10px] font-black leading-none mt-1">{office}</p>
     <p className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-600">
       <Info aria-hidden="true" className="w-3 h-3" />
       Computer-generated. Verify with the PG Office.
@@ -50,7 +58,7 @@ const Signature: React.FC = () => (
   </div>
 );
 
-export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceText, date, bodyHtml, zoom = 1 }) => {
+export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceText, date, bodyHtml, zoom = 1, closing = DEFAULT_CLOSING }) => {
   const frame = useRef<HTMLDivElement>(null);
   const measurer = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(A4_PAGE.width);
@@ -64,8 +72,8 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
       <div>Date: <span className="font-bold text-slate-800">{date}</span></div>
     </div>,
     ...bodyBlocks.map((html, index) => <div key={`body-${index}`} dangerouslySetInnerHTML={{ __html: html }} />),
-    <p key="disclaimer" className="text-slate-500 font-semibold text-[11.5px] leading-relaxed mt-2">{LETTERHEAD.disclaimer}</p>,
-    <Signature key="signature" />,
+    <p key="disclaimer" className="text-slate-500 font-semibold text-[11.5px] leading-relaxed mt-2">{closing.disclaimer}</p>,
+    <Signature key="signature" name={closing.signatoryName} office={closing.signatoryOffice} />,
   ];
 
   // Heights come from an unscaled, hidden copy of the content.
@@ -81,7 +89,7 @@ export const LetterPages: React.FC<LetterPagesProps> = ({ reference, referenceTe
     let active = true;
     document.fonts?.ready.then(() => { if (active) measure(); });
     return () => { active = false; };
-  }, [measure, bodyHtml, referenceText, date]);
+  }, [measure, bodyHtml, referenceText, date, closing.disclaimer, closing.signatoryName, closing.signatoryOffice]);
 
   useLayoutEffect(() => {
     const element = frame.current;

@@ -24,7 +24,8 @@ import {
   getLetterRequests,
   rejectLetterRequest,
 } from '../services';
-import { PENDING_REFERENCE, fillLetterTags, formatLetterDate, renderLetterBodyHtml } from '../utils/letterDocument';
+import { PENDING_REFERENCE, fillLetterTags, formatLetterDate, isAppointmentLetter, letterClosing, renderLetterBodyHtml } from '../utils/letterDocument';
+import { letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 
 type QueueFilter = GeneratedLetterStatus | 'All';
 
@@ -201,7 +202,7 @@ const LetterRequestQueue: React.FC<{
                     </td>
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{row.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{row.letterType}</span>
+                      <span className="block text-[10px] text-slate-400">{letterOrigin(row)}</span>
                       {row.note && (
                         <span className="mt-1 inline-flex items-start gap-1 text-[10.5px] font-semibold text-slate-500 max-w-[280px]">
                           <MessageSquareText aria-hidden="true" className="w-3 h-3 mt-0.5 shrink-0 text-slate-400" />
@@ -350,7 +351,11 @@ const LetterRequestReview: React.FC<{
       const issued = await approveLetterRequest(request.id, typed);
       decided.current = true;
       setConfirmApprove(false);
-      onMessage(`Approved. ${issued.referenceNumber} was issued to ${issued.studentName}, who has been notified.`);
+      onMessage(
+        isAppointmentLetter(issued.purpose)
+          ? `Issued ${issued.referenceNumber}. Everyone on the letter has been notified.`
+          : `Approved. ${issued.referenceNumber} was issued to ${issued.studentName}, who has been notified.`,
+      );
       onDecided();
     } catch (err) {
       setConfirmApprove(false);
@@ -394,9 +399,13 @@ const LetterRequestReview: React.FC<{
     }
   };
 
+  const automatic = isAppointmentLetter(request?.purpose);
+  const sentTo = recipientsLine(request?.recipients);
   const title = request ? `Review: ${request.templateName}` : 'Review Letter Request';
   const subtitle = request
-    ? `${request.studentName || 'Unknown student'} (${request.matricNumber}) asked for this on ${shortDate(request.requestedAt)}.`
+    ? automatic
+      ? `Made automatically for ${request.studentName || 'Unknown student'} (${request.matricNumber}) on ${shortDate(request.requestedAt)}, when the appointment was approved.`
+      : `${request.studentName || 'Unknown student'} (${request.matricNumber}) asked for this on ${shortDate(request.requestedAt)}.`
     : undefined;
 
   return (
@@ -444,24 +453,32 @@ const LetterRequestReview: React.FC<{
                 <dd className="font-semibold text-slate-700">{request.programName || '-'}</dd>
                 <dt className="font-semibold text-slate-400">Letter</dt>
                 <dd className="font-semibold text-slate-700">{request.templateName} <span className="text-slate-400">({request.letterType})</span></dd>
-                <dt className="font-semibold text-slate-400">Requested</dt>
+                <dt className="font-semibold text-slate-400">{automatic ? 'Made' : 'Requested'}</dt>
                 <dd className="font-semibold text-slate-700">{shortDate(request.requestedAt)}</dd>
+                {sentTo && (
+                  <>
+                    <dt className="font-semibold text-slate-400">Goes to</dt>
+                    <dd className="font-semibold text-slate-700">{sentTo}</dd>
+                  </>
+                )}
               </dl>
               {request.templateStatus && request.templateStatus !== 'Active' && (
                 <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
                   This template is now {request.templateStatus}. Approving still uses its current wording.
                 </p>
               )}
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">Note from the student</p>
-                {request.note ? (
-                  <blockquote className="rounded-xl border-l-4 border-indigo-300 bg-indigo-50/50 px-4 py-3 text-[12px] font-semibold text-slate-700 whitespace-pre-line">
-                    {request.note}
-                  </blockquote>
-                ) : (
-                  <p className="text-[12px] font-semibold text-slate-400">No note.</p>
-                )}
-              </div>
+              {!automatic && (
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">Note from the student</p>
+                  {request.note ? (
+                    <blockquote className="rounded-xl border-l-4 border-indigo-300 bg-indigo-50/50 px-4 py-3 text-[12px] font-semibold text-slate-700 whitespace-pre-line">
+                      {request.note}
+                    </blockquote>
+                  ) : (
+                    <p className="text-[12px] font-semibold text-slate-400">No note.</p>
+                  )}
+                </div>
+              )}
             </section>
 
             <section aria-labelledby="request-values-heading" className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
@@ -469,8 +486,8 @@ const LetterRequestReview: React.FC<{
                 <h2 id="request-values-heading" className="section-label">Values in This Letter</h2>
                 <p className="card-description mt-1">
                   {needed.length === 0
-                    ? 'Everything comes from the student record. Check the preview, then approve.'
-                    : `Type in the ${needed.length} value${needed.length === 1 ? '' : 's'} the portal does not hold. Record values come from the student registry.`}
+                    ? `Everything comes from the ${automatic ? 'appointment and the ' : ''}student record. Check the preview, then approve.`
+                    : `Type in the ${needed.length} value${needed.length === 1 ? '' : 's'} the portal does not hold. Record values come from the ${automatic ? 'appointment and the ' : ''}student registry.`}
                 </p>
               </div>
 
@@ -489,11 +506,13 @@ const LetterRequestReview: React.FC<{
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                <PortalButton variant="danger" icon={XCircle} disabled={busy} onClick={() => { setReasonError(null); setRejecting(true); }}>
-                  Reject
-                </PortalButton>
+                {!automatic && (
+                  <PortalButton variant="danger" icon={XCircle} disabled={busy} onClick={() => { setReasonError(null); setRejecting(true); }}>
+                    Reject
+                  </PortalButton>
+                )}
                 <PortalButton variant="primary" icon={Send} disabled={busy || Boolean(request.problem)} onClick={startApprove}>
-                  Approve and issue
+                  {automatic ? 'Issue letter' : 'Approve and issue'}
                 </PortalButton>
               </div>
               {missingCount > 0 && !request.problem && (
@@ -517,6 +536,7 @@ const LetterRequestReview: React.FC<{
                 referenceText={PENDING_REFERENCE}
                 date={today}
                 bodyHtml={previewHtml}
+                closing={letterClosing(request)}
               />
             </div>
           </section>
@@ -525,13 +545,15 @@ const LetterRequestReview: React.FC<{
 
       <PortalConfirmModal
         isOpen={confirmApprove}
-        title="Approve and issue this letter?"
+        title={automatic ? 'Issue this letter?' : 'Approve and issue this letter?'}
         message={
           request
-            ? `${request.templateName} for ${request.studentName} gets the next reference number and today's date. The student is notified and can print it straight away.`
+            ? automatic
+              ? `${request.templateName} for ${request.studentName} gets the next reference number and today's date. ${sentTo ? `It goes to ${sentTo}, who are notified.` : 'Everyone on it is notified.'}`
+              : `${request.templateName} for ${request.studentName} gets the next reference number and today's date. The student is notified and can print it straight away.`
             : ''
         }
-        confirmLabel="Approve and issue"
+        confirmLabel={automatic ? 'Issue letter' : 'Approve and issue'}
         tone="info"
         icon={CheckCircle2}
         isLoading={approving}

@@ -56,6 +56,9 @@ assert.deepEqual(letterDataFromIssued(issued), {
   bodyParagraphs: 'This is to confirm that **Ali bin Abu** is registered.',
   studentName: 'Ali bin Abu',
   matricNumber: 'S2101234',
+  disclaimer: LETTERHEAD.disclaimer,
+  signatoryName: LETTERHEAD.signatoryName,
+  signatoryOffice: LETTERHEAD.signatoryOffice,
 });
 assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_Study_S2101234');
 

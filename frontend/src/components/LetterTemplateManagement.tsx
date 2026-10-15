@@ -31,11 +31,14 @@ import { SelectMenu } from './SelectMenu';
 import { IssuedLettersRegister } from './IssuedLetters';
 import { OfficeFieldsEditor } from './OfficeFieldsEditor';
 import { OfficeLetterRequests } from './OfficeLetterRequests';
-import { LetterCustomField, LetterPlaceholder, LetterRequestCounts, LetterTemplate, LetterTemplateStatus } from '../types';
+import { LetterCustomField, LetterPlaceholder, LetterPurpose, LetterRequestCounts, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
-  LETTER_PLACEHOLDERS,
   LETTERHEAD,
   findPlaceholderProblems,
+  isAppointmentLetter,
+  letterClosing,
+  placeholderPurposeHint,
+  placeholdersFor,
   renderLetterBodyHtml,
 } from '../utils/letterDocument';
 import {
@@ -52,14 +55,42 @@ import { THIN_SCROLLBAR } from '../utils/scrollbar';
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
     unknown.length ? `Unknown placeholder(s): ${unknown.join(', ')}.` : '',
+    ...unknown.map(placeholderPurposeHint),
     malformed.length ? `Malformed placeholder(s): ${malformed.join(', ')}. Write them as {{NAME}}.` : '',
   ].filter(Boolean).join(' ');
 
 const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General Notifications', 'Financial Clearance'];
 const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
 
+const PURPOSE_OPTIONS: ReadonlyArray<{ value: LetterPurpose; label: string; description: string }> = [
+  { value: 'REQUEST', label: 'Student requests', description: 'Students ask for it in Request a Letter. The office approves each one.' },
+  {
+    value: 'SUPERVISOR_APPOINTMENT',
+    label: 'Supervisor appointment letter',
+    description: 'Sent by itself when a coordinator approves a supervisor appointment.',
+  },
+  {
+    value: 'PANEL_APPOINTMENT',
+    label: 'Panel appointment letter',
+    description: 'Sent by itself when a coordinator approves a panel appointment.',
+  },
+];
+
+const PURPOSE_NOTE: Partial<Record<LetterPurpose, string>> = {
+  SUPERVISOR_APPOINTMENT:
+    'Goes to the student and the supervisor, with a notice to each. Students cannot request it, and only one template can be active for it.',
+  PANEL_APPOINTMENT:
+    'Goes to the student and the panel member, with the supervisor in copy and a notice to each. Students cannot request it, and only one template can be active for it.',
+};
+
+const PURPOSE_SHORT: Record<LetterPurpose, string> = {
+  REQUEST: '',
+  SUPERVISOR_APPOINTMENT: 'Sent automatically: supervisor appointments',
+  PANEL_APPOINTMENT: 'Sent automatically: panel appointments',
+};
+
 // Editor fields a 400 response can point at; anything else goes to the toast.
-const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content', 'customFields'] as const;
+const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content', 'customFields', 'purpose', 'signatoryName', 'signatoryTitle'] as const;
 type EditorField = (typeof EDITOR_FIELDS)[number];
 
 type LeaveTarget = { kind: 'select'; template: LetterTemplate } | { kind: 'create' };
@@ -141,6 +172,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [editorPrefix, setEditorPrefix] = useState('');
   const [editorContent, setEditorContent] = useState('');
   const [editorStatus, setEditorStatus] = useState<LetterTemplateStatus>('Active');
+  const [editorPurpose, setEditorPurpose] = useState<LetterPurpose>('REQUEST');
+  const [editorSignatoryName, setEditorSignatoryName] = useState('');
+  const [editorSignatoryTitle, setEditorSignatoryTitle] = useState('');
   const [editorFields, setEditorFields] = useState<LetterCustomField[]>([]);
   const [problems, setProblems] = useState<Partial<Record<EditorField, string>>>({});
   const [showArchived, setShowArchived] = useState(false);
@@ -184,6 +218,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     setEditorContent(template.content ?? '');
     setEditorFields(template.customFields ?? []);
     setEditorStatus(template.status);
+    setEditorPurpose(template.purpose ?? 'REQUEST');
+    setEditorSignatoryName(template.signatoryName ?? '');
+    setEditorSignatoryTitle(template.signatoryTitle ?? '');
     setProblems({});
   };
 
@@ -202,7 +239,10 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       editorPrefix !== (selectedTemplate.referencePrefix ?? '') ||
       editorContent !== (selectedTemplate.content ?? '') ||
       JSON.stringify(editorFields) !== JSON.stringify(selectedTemplate.customFields ?? []) ||
-      editorStatus !== selectedTemplate.status);
+      editorStatus !== selectedTemplate.status ||
+      editorPurpose !== (selectedTemplate.purpose ?? 'REQUEST') ||
+      editorSignatoryName !== (selectedTemplate.signatoryName ?? '') ||
+      editorSignatoryTitle !== (selectedTemplate.signatoryTitle ?? ''));
 
   // After an inserted tag changes the content, refocus the textarea and move the
   // caret to just after the tag (no-op for normal typing; the ref stays null then).
@@ -219,13 +259,22 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
   // Available placeholder tags come from the server's registry, the same list
   // it validates against; the local copy covers the moment before it loads.
+  // Appointment tags show only for the kind of letter that can use them.
   const placeholderTags = (
-    placeholders ?? LETTER_PLACEHOLDERS.map((p) => ({ ...p, source: '' }))
+    placeholders?.filter((p) => !p.purposes || p.purposes.includes(editorPurpose)) ??
+    placeholdersFor(editorPurpose).map((p) => ({ ...p, source: '' }))
   ).map((p) => ({
     label: `+ ${p.label}`,
     tag: p.tag,
     source: p.source,
+    appointment: Boolean(placeholderPurposeHint(p.tag)),
   }));
+  const tagGroups = [
+    { title: 'Student record', tags: placeholderTags.filter((p) => !p.appointment) },
+    { title: 'Appointment', tags: placeholderTags.filter((p) => p.appointment) },
+  ].filter((group) => group.tags.length > 0);
+  const closing = letterClosing({ purpose: editorPurpose, signatoryName: editorSignatoryName, signatoryTitle: editorSignatoryTitle });
+  const automatic = isAppointmentLetter(editorPurpose);
 
   // Quick Insertion Helper: insert the tag at the caret (or over the current
   // selection), not at the end. Falls back to appending if the textarea ref is
@@ -265,6 +314,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       content: editorContent,
       customFields: editorFields,
       status: editorStatus,
+      purpose: editorPurpose,
+      signatoryName: editorSignatoryName,
+      signatoryTitle: editorSignatoryTitle,
     };
     setSaving(true);
     try {
@@ -272,6 +324,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
         ...submitted,
         name: submitted.name.trim(),
         referencePrefix: submitted.referencePrefix.trim(),
+        signatoryName: submitted.signatoryName.trim(),
+        signatoryTitle: submitted.signatoryTitle.trim(),
       });
       setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setSelectedTemplate(updated);
@@ -283,6 +337,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       setEditorContent((current) => (current === submitted.content ? updated.content ?? '' : current));
       setEditorFields((current) => (current === submitted.customFields ? updated.customFields ?? [] : current));
       setEditorStatus((current) => (current === submitted.status ? updated.status : current));
+      setEditorPurpose((current) => (current === submitted.purpose ? updated.purpose ?? 'REQUEST' : current));
+      setEditorSignatoryName((current) => (current === submitted.signatoryName ? updated.signatoryName ?? '' : current));
+      setEditorSignatoryTitle((current) => (current === submitted.signatoryTitle ? updated.signatoryTitle ?? '' : current));
       setProblems({});
       triggerToast(`Template "${updated.name}" saved.`);
     } catch (e) {
@@ -359,7 +416,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   };
 
   const handleCheckPlaceholders = () => {
-    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent, editorFields.map((f) => f.name)));
+    const message = describePlaceholderProblems(findPlaceholderProblems(editorContent, editorFields.map((f) => f.name), editorPurpose));
     if (message) {
       setProblems((current) => ({ ...current, content: message }));
       triggerToast(message);
@@ -463,7 +520,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
         />
       )}
 
-      {showIssued && <IssuedLettersRegister onMessage={triggerToast} />}
+      {showIssued && <IssuedLettersRegister onMessage={triggerToast} onOpenTemplates={() => changeView('templates')} />}
 
       {/* Main Grid containing left and right pane cards. Kept mounted while the
           register is open so unsaved template edits survive a tab switch. */}
@@ -545,6 +602,10 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           {tpl.status}
                         </StatusBadge>
                       </div>
+
+                      {tpl.purpose && PURPOSE_SHORT[tpl.purpose] && (
+                        <p className="mt-1 text-[10px] font-bold text-indigo-700">{PURPOSE_SHORT[tpl.purpose]}</p>
+                      )}
 
                       {/* Description blurb */}
                       <p className="text-[10px] text-slate-450 font-medium leading-relaxed mt-1.5 line-clamp-2">
@@ -659,6 +720,48 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
                 </div>
 
+                {/* What the template is for: student requests, or a letter sent by itself on approval */}
+                <fieldset className="space-y-2">
+                  <legend className="form-label block mb-1.5">Used For</legend>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {PURPOSE_OPTIONS.map((option) => {
+                      const chosen = editorPurpose === option.value;
+                      return (
+                        <label
+                          key={option.value}
+                          className={`flex gap-2.5 items-start rounded-xl border p-3 cursor-pointer transition ${
+                            chosen ? 'border-brand-navy bg-slate-50 ring-1 ring-brand-navy' : 'border-slate-200 hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="letter-template-purpose"
+                            value={option.value}
+                            checked={chosen}
+                            onChange={() => {
+                              setEditorPurpose(option.value);
+                              clearProblem('purpose');
+                            }}
+                            className="mt-0.5 accent-[#0c1424]"
+                          />
+                          <span className="space-y-0.5">
+                            <span className="block text-[12px] font-extrabold text-slate-800">{option.label}</span>
+                            <span className="block text-[10.5px] font-semibold text-slate-500 leading-snug">{option.description}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {PURPOSE_NOTE[editorPurpose] && (
+                    <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-semibold text-blue-900">
+                      {PURPOSE_NOTE[editorPurpose]}
+                    </p>
+                  )}
+                  {problems.purpose && (
+                    <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.purpose}</p>
+                  )}
+                </fieldset>
+
                 {/* Row 1b: what students see in the template list, and the reference number prefix */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
@@ -706,8 +809,55 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       <p id="letter-template-prefix-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.referencePrefix}</p>
                     ) : (
                       <p id="letter-template-prefix-hint" className="text-[10px] font-semibold text-slate-400">
-                        Letters are numbered {referencePreview}; the last digits are issued when the office approves a request.
+                        Letters are numbered {referencePreview}; the last digits are issued
+                        {automatic ? ' when the letter is issued.' : ' when the office approves a request.'}
                       </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Who signs the letter; blank keeps the faculty default */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-signatory-name" className="form-label block">
+                      Signed By (Name)
+                    </label>
+                    <input
+                      id="letter-template-signatory-name"
+                      type="text"
+                      value={editorSignatoryName}
+                      maxLength={120}
+                      onChange={(e) => {
+                        setEditorSignatoryName(e.target.value);
+                        clearProblem('signatoryName');
+                      }}
+                      aria-invalid={problems.signatoryName ? true : undefined}
+                      className="form-control form-control-md"
+                      placeholder={LETTERHEAD.signatoryName}
+                    />
+                    {problems.signatoryName && (
+                      <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.signatoryName}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="letter-template-signatory-title" className="form-label block">
+                      Signed By (Title)
+                    </label>
+                    <input
+                      id="letter-template-signatory-title"
+                      type="text"
+                      value={editorSignatoryTitle}
+                      maxLength={120}
+                      onChange={(e) => {
+                        setEditorSignatoryTitle(e.target.value);
+                        clearProblem('signatoryTitle');
+                      }}
+                      aria-invalid={problems.signatoryTitle ? true : undefined}
+                      className="form-control form-control-md"
+                      placeholder={LETTERHEAD.signatoryOffice}
+                    />
+                    {problems.signatoryTitle && (
+                      <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.signatoryTitle}</p>
                     )}
                   </div>
                 </div>
@@ -723,20 +873,31 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     </span>
                   </div>
 
-                  {/* Horizontal tags block list */}
-                  <div className="flex flex-wrap gap-2">
-                    {placeholderTags.map((p) => (
-                      <button
-                        key={p.tag}
-                        type="button"
-                        onClick={() => handleInsertTag(p.tag)}
-                        title={p.source || undefined}
-                        className="px-3 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] border border-blue-200 text-blue-700 hover:text-blue-800 text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs"
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Horizontal tags block list, grouped by where the value comes from */}
+                  {tagGroups.map((group) => (
+                    <div key={group.title} className="space-y-1.5">
+                      {tagGroups.length > 1 && (
+                        <p className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500">{group.title}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {group.tags.map((p) => (
+                          <button
+                            key={p.tag}
+                            type="button"
+                            onClick={() => handleInsertTag(p.tag)}
+                            title={p.source || undefined}
+                            className={`px-3 py-1.5 border text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs ${
+                              p.appointment
+                                ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-800'
+                                : 'bg-[#eff6ff] hover:bg-[#dbeafe] border-blue-200 text-blue-700 hover:text-blue-800'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Row 2b: values the office types in when it approves a request */}
@@ -898,15 +1059,15 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     )}
 
                     <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">
-                      {LETTERHEAD.disclaimer}
+                      {closing.disclaimer}
                     </p>
 
-                    {/* Signature Dean footer stamp line block */}
+                    {/* Signature footer stamp line block */}
                     <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-1">
                       <div className="w-24 border-b border-slate-400 h-6 select-none" />
-                      <p className="font-extrabold text-slate-950 block">{LETTERHEAD.signatoryName}</p>
+                      <p className="font-extrabold text-slate-950 block">{closing.signatoryName}</p>
                       <p className="text-slate-450 uppercase tracking-wide text-[9px] font-black leading-none select-none">
-                        {LETTERHEAD.signatoryOffice}
+                        {closing.signatoryOffice}
                       </p>
                     </div>
 
@@ -998,8 +1159,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
         message={
           selectedTemplate
             ? `"${selectedTemplate.name}" will be deleted permanently.${
-                selectedTemplate.status === 'Active' ? ' Students will no longer be able to generate this letter.' : ''
-              } To keep the wording but hide it from students, set its status to Archived instead.`
+                selectedTemplate.status !== 'Active'
+                  ? ''
+                  : isAppointmentLetter(selectedTemplate.purpose)
+                    ? ' No more of these appointment letters are made until another template is active.'
+                    : ' Students will no longer be able to generate this letter.'
+              } To keep the wording but stop using it, set its status to Archived instead.`
             : ''
         }
         confirmLabel="Delete"

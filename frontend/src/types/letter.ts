@@ -7,12 +7,21 @@
 
 export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
 
+/**
+ * What a template is used for. Students request REQUEST letters; the two
+ * appointment letters are made by themselves when a coordinator approves an
+ * appointment (UC22).
+ */
+export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT';
+
 /** One placeholder a template may use, from `GET /api/letter-templates/placeholders/`. */
 export interface LetterPlaceholder {
   tag: string;
   name: string;
   label: string;
   source: string;
+  /** The kinds of letter it works in. */
+  purposes?: LetterPurpose[];
 }
 
 /** A value the office types in when it approves a request, e.g. attendance. */
@@ -44,6 +53,38 @@ export interface LetterTemplate {
   customFields?: LetterCustomField[];
   /** Prefix used to build the reference number, e.g. "UMF/PG". */
   referencePrefix?: string;
+  purpose?: LetterPurpose;
+  /** Printed under the signature line; blank keeps the faculty default. */
+  signatoryName?: string;
+  signatoryTitle?: string;
+}
+
+/** Someone an appointment letter was sent to, besides the office. */
+export interface LetterRecipient {
+  name: string;
+  relation: 'Student' | 'Supervisor' | 'Panel member';
+}
+
+/** An active appointment with no letter yet, and why it cannot be made now (or null). */
+export interface MissingAppointmentLetter {
+  kind: 'supervisor' | 'panel';
+  appointmentId: string;
+  studentName: string;
+  matricNumber: string;
+  lecturerName: string;
+  appointedOn: string;
+  problem: string | null;
+}
+
+export interface MadeAppointmentLetters {
+  made: number;
+  results: Array<{
+    kind: 'supervisor' | 'panel';
+    appointmentId: string;
+    letterId: string | null;
+    status: GeneratedLetterStatus | null;
+    problem: string | null;
+  }>;
 }
 
 /**
@@ -87,6 +128,14 @@ export interface GeneratedLetter {
   templateId: string | null;
   templateName: string;
   letterType: string;
+  /** REQUEST for a student's request; an appointment letter otherwise. */
+  purpose?: LetterPurpose;
+  /** The letter that replaced this one, when the office reissued it. */
+  replacedById?: string | null;
+  signatoryName?: string;
+  signatoryTitle?: string;
+  /** Appointment letters: who it was sent to. */
+  recipients?: LetterRecipient[];
   status: GeneratedLetterStatus;
   /** Issue date as printed on the letter, e.g. "11 October 2026"; blank until approved. */
   date: string;
@@ -122,6 +171,8 @@ export interface LetterRequestFilters {
   to?: string;
   /** One status, or several separated by commas. */
   status?: string;
+  /** Letters students asked for, or appointment letters made automatically. */
+  madeBy?: '' | 'request' | 'automatic';
 }
 
 export type LetterRequestCounts = Record<GeneratedLetterStatus, number>;

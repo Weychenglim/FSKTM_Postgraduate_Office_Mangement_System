@@ -354,6 +354,9 @@ def _review(letter):
         "templateContent": content,
         "templateStatus": template.status if template else None,
         "referencePrefix": template.reference_prefix if template else "",
+        # Who will sign it: the letter takes the template's signatory when issued.
+        "signatoryName": template.signatory_name if template else "",
+        "signatoryTitle": template.signatory_title if template else "",
         "fields": letter_fields(content, values, custom),
         "problem": problem,
     }
@@ -373,8 +376,6 @@ def letter_detail(request, pk):
     data = letter.to_public_dict(include_content=show_content)
     if letter.is_automatic:
         data["recipients"] = recipient_rows(letter)
-        data["signatoryName"] = letter.signatory_name
-        data["signatoryTitle"] = letter.signatory_title
     if office:
         data["officeValues"] = letter.office_values or {}
         if letter.status == Status.PENDING:

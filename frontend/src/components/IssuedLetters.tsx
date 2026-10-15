@@ -14,9 +14,11 @@ import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
-import { GeneratedLetter, GeneratedLetterStatus } from '../types';
-import { downloadLetterPdf, getLetterRequest, getLetterRequests, withdrawLetterRequest } from '../services';
-import { letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { MissingAppointmentLetters } from './MissingAppointmentLetters';
+import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
+import { downloadLetterPdf, getLetterRequest, getLetterRequests, reissueAppointmentLetter, withdrawLetterRequest } from '../services';
+import { letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 
 type OutputAction = 'view' | 'print' | 'pdf';
@@ -102,9 +104,15 @@ export function useLetterOutput(onMessage: (message: string) => void) {
   return { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView };
 }
 
-/** The letter as it was issued, on A4 pages like the printed copy. Read only. */
-export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void }> = ({ letter, onClose }) => {
+/** The letter as it was issued, on A4 pages like the printed copy. Read only,
+ *  except for any `actions` the caller adds to the footer. */
+export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void; actions?: React.ReactNode }> = ({
+  letter,
+  onClose,
+  actions,
+}) => {
   const titleId = useModalTitle();
+  const sentTo = recipientsLine(letter.recipients);
   return (
     <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0">
       <div className="drawer-header sticky top-0 z-10">
@@ -136,15 +144,22 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
             This letter was revoked{letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.
           </p>
         )}
+        {sentTo && (
+          <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11.5px] font-semibold text-slate-600">
+            Sent to {sentTo}.
+          </p>
+        )}
         <LetterPages
           reference={letter.referenceNumber}
           referenceText={letter.referenceNumber}
           date={letter.date}
           bodyHtml={renderLetterBodyHtml(letter.content ?? '')}
+          closing={letterClosing(letter)}
         />
       </div>
 
       <div className="drawer-footer sticky bottom-0 z-10">
+        {actions}
         <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
       </div>
     </PortalModal>
@@ -343,12 +358,22 @@ const REGISTER_STATUS_OPTIONS: SelectMenuOption<RegisterStatus>[] = [
   { value: 'Revoked', label: 'Revoked' },
 ];
 
+type MadeBy = NonNullable<LetterRequestFilters['madeBy']>;
+
+const MADE_BY_OPTIONS: SelectMenuOption<MadeBy>[] = [
+  { value: '', label: 'All letters', triggerLabel: 'All' },
+  { value: 'request', label: 'Student requests' },
+  { value: 'automatic', label: 'Sent automatically' },
+];
+
 interface IssuedLettersRegisterProps {
   onMessage: (message: string) => void;
+  /** Opens the Templates tab, to set up a missing appointment template. */
+  onOpenTemplates?: () => void;
 }
 
 /** Office register of every issued letter: search, filter and view each one. */
-export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ onMessage }) => {
+export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ onMessage, onOpenTemplates }) => {
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -356,6 +381,9 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<RegisterStatus>('Issued,Revoked');
+  const [madeBy, setMadeBy] = useState<MadeBy>('');
+  const [reissuing, setReissuing] = useState<GeneratedLetter | null>(null);
+  const [reissueSaving, setReissueSaving] = useState(false);
   const latestLoad = useRef(0);
   const { viewLetter, isBusy, viewing, closeView } = useLetterOutput(onMessage);
 
@@ -363,7 +391,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     const loadId = ++latestLoad.current;
     setLoading(true);
     setError(null);
-    getLetterRequests({ search, from, to, status: statusFilter })
+    getLetterRequests({ search, from, to, status: statusFilter, madeBy })
       .then((rows) => {
         if (loadId === latestLoad.current) setLetters(rows);
       })
@@ -373,19 +401,38 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
       .finally(() => {
         if (loadId === latestLoad.current) setLoading(false);
       });
-  }, [search, from, to, statusFilter]);
+  }, [search, from, to, statusFilter, madeBy]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [load]);
 
-  const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked');
+  const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked' || madeBy);
+
+  const reissue = async () => {
+    if (!reissuing) return;
+    setReissueSaving(true);
+    try {
+      const fresh = await reissueAppointmentLetter(reissuing.id);
+      onMessage(`Reissued as ${fresh.referenceNumber}. ${reissuing.referenceNumber} is revoked as replaced, and everyone on the letter has been told.`);
+      setReissuing(null);
+      closeView();
+      load();
+    } catch (err) {
+      setReissuing(null);
+      onMessage(errorText(err, 'Could not reissue this letter.'));
+    } finally {
+      setReissueSaving(false);
+    }
+  };
 
   return (
     <div id="issued-letters-register" className="space-y-6">
+      <MissingAppointmentLetters onMessage={onMessage} onMade={load} onOpenTemplates={onOpenTemplates} />
+
       <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-        <label className="md:col-span-5 block">
+        <label className="md:col-span-3 block">
           <span className="form-label block">Search</span>
           <span className="relative block">
             <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
@@ -418,12 +465,22 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
             onChange={setStatusFilter}
           />
         </div>
+        <div className="md:col-span-2 block">
+          <span className="form-label block">Made by</span>
+          <SelectMenu<MadeBy>
+            size="sm"
+            aria-label="Made by"
+            value={madeBy}
+            options={MADE_BY_OPTIONS}
+            onChange={setMadeBy}
+          />
+        </div>
         <div className="md:col-span-1">
           <PortalButton
             variant="ghost"
             size="md"
             disabled={!filtersActive}
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); }}
+            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); setMadeBy(''); }}
             className="w-full"
           >
             Reset
@@ -469,7 +526,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                     </td>
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
+                      <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
                     </td>
                     <td className="data-td whitespace-nowrap">
                       {letter.date}
@@ -503,7 +560,34 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
         </div>
       </div>
 
-      {viewing && <LetterView letter={viewing} onClose={closeView} />}
+      {viewing && (
+        <LetterView
+          letter={viewing}
+          onClose={closeView}
+          actions={
+            canReissue(viewing) ? (
+              <PortalButton variant="secondary" icon={RotateCcw} onClick={() => setReissuing(viewing)}>
+                Reissue with current details
+              </PortalButton>
+            ) : undefined
+          }
+        />
+      )}
+
+      <PortalConfirmModal
+        isOpen={reissuing !== null}
+        title="Reissue this letter?"
+        message={
+          reissuing
+            ? `A new ${reissuing.templateName} is issued with the current details and a new reference number. ${reissuing.referenceNumber} is revoked as replaced, and everyone on the letter is told.`
+            : ''
+        }
+        confirmLabel="Reissue letter"
+        tone="warning"
+        isLoading={reissueSaving}
+        onConfirm={() => void reissue()}
+        onCancel={() => setReissuing(null)}
+      />
     </div>
   );
 };

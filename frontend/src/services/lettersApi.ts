@@ -12,9 +12,12 @@ import {
   GeneratedLetter,
   LetterCustomField,
   LetterPlaceholder,
+  LetterPurpose,
   LetterRequestCounts,
   LetterRequestFilters,
   LetterTemplate,
+  MadeAppointmentLetters,
+  MissingAppointmentLetter,
 } from '../types';
 import { MOCK_LETTER_TEMPLATES } from '../mocks/letters';
 import { letterDataFromIssued, letterFileName } from '../utils/letterDocument';
@@ -40,6 +43,9 @@ export interface LetterTemplateInput {
   content: string;
   referencePrefix?: string;
   customFields?: LetterCustomField[];
+  purpose?: LetterPurpose;
+  signatoryName?: string;
+  signatoryTitle?: string;
 }
 
 /** All templates, used by the office-staff template manager. */
@@ -172,6 +178,32 @@ export async function rejectLetterRequest(id: string, reason: string): Promise<G
     method: 'POST',
     body: JSON.stringify({ reason }),
   });
+}
+
+// Appointment letters (UC22): made by themselves when an appointment is approved.
+
+/** Office: active appointments that have no letter yet, and why. */
+export async function getMissingAppointmentLetters(): Promise<MissingAppointmentLetter[]> {
+  return request<MissingAppointmentLetter[]>('/letters/appointment-letters/missing/');
+}
+
+/** Office: make the letters for every appointment that has none and can have one. */
+export async function makeMissingAppointmentLetters(): Promise<MadeAppointmentLetters> {
+  return request<MadeAppointmentLetters>('/letters/appointment-letters/create/', {
+    method: 'POST',
+    body: JSON.stringify({ all: true }),
+  });
+}
+
+/** Office: issue an appointment letter again with the current details. */
+export async function reissueAppointmentLetter(id: string): Promise<GeneratedLetter> {
+  return request<GeneratedLetter>(`/letters/requests/${id}/reissue/`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+/** The appointment letters sent to the signed-in lecturer, optionally for one student. */
+export async function getReceivedLetters(studentMatric = ''): Promise<GeneratedLetter[]> {
+  const query = studentMatric.trim() ? `?student=${encodeURIComponent(studentMatric.trim())}` : '';
+  return request<GeneratedLetter[]>(`/letters/appointment-letters/received/${query}`);
 }
 
 /** Download the PDF of an issued letter, locked against editing. */

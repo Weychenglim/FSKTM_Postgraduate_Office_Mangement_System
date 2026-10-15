@@ -17,7 +17,7 @@
  * are shared by both, and by the PDF copy on the server.
  */
 
-import type { GeneratedLetter } from '../types';
+import type { GeneratedLetter, LetterPurpose } from '../types';
 
 /** Static faculty letterhead details, shared by the preview and the printout. */
 export const LETTERHEAD = {
@@ -50,6 +50,10 @@ export interface LetterData {
   /** Used only to name the saved PDF file. */
   studentName: string;
   matricNumber: string;
+  /** The closing lines; the faculty defaults when left out. */
+  disclaimer?: string;
+  signatoryName?: string;
+  signatoryOffice?: string;
 }
 
 /** The placeholder tags a template author can use, with friendly labels. */
@@ -74,9 +78,16 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
-export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT';
-
 const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'];
+
+/** What each kind of template is called where its tags are explained. */
+const PURPOSE_PLURAL: Record<LetterPurpose, string> = {
+  REQUEST: 'student request letters',
+  SUPERVISOR_APPOINTMENT: 'supervisor appointment letters',
+  PANEL_APPOINTMENT: 'panel appointment letters',
+};
+
+export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => purpose === 'SUPERVISOR_APPOINTMENT' || purpose === 'PANEL_APPOINTMENT';
 
 /** Extra tags for appointment letters, filled from the approved appointment. */
 export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string; purposes: ReadonlyArray<LetterPurpose> }> = [
@@ -95,6 +106,19 @@ export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: strin
 ];
 
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
+const ALL_TAGS = new Set([...KNOWN_TAGS, ...APPOINTMENT_PLACEHOLDERS.map((p) => p.tag)]);
+const TAG_PURPOSES = new Map(APPOINTMENT_PLACEHOLDERS.map((p) => [p.tag, p.purposes]));
+
+/** The tags a template used for `purpose` may use, besides its own fields. */
+export function placeholdersFor(purpose: LetterPurpose = 'REQUEST') {
+  return [...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS.filter((p) => p.purposes.includes(purpose))];
+}
+
+/** For a tag only some letter kinds may use, which ones; else null. Same wording as the server. */
+export function placeholderPurposeHint(tag: string): string | null {
+  const purposes = TAG_PURPOSES.get(tag);
+  return purposes ? `${tag} works only in ${purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ')}.` : null;
+}
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
 const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
 const STRAY_BRACES_RE = /\{\{[^{}\n]{0,40}|[^{}\n]{0,40}\}\}/g;
@@ -106,19 +130,22 @@ const SINGLE_TAG_RE = /(?<!\{)\{[A-Z_]+\}(?!\})/g;
  * The same check the server runs before saving (`letters/placeholders.py`):
  * tags that are not supported, tags in triple or single braces, and
  * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag. The template's own
- * office-filled fields (`customNames`) count as supported.
+ * office-filled fields (`customNames`) count as supported, and so do the
+ * appointment tags its `purpose` allows.
  */
 export function findPlaceholderProblems(
   content: string,
   customNames: readonly string[] = [],
+  purpose: LetterPurpose = 'REQUEST',
 ): { unknown: string[]; malformed: string[] } {
   const own = new Set(customNames.map((name) => `{{${name}}}`));
+  const allowed = new Set(placeholdersFor(purpose).map((p) => p.tag));
   const unknown: string[] = [];
   const malformed: string[] = [...(content.match(TRIPLE_RE) ?? [])];
   const rest = content.replace(TRIPLE_RE, ' ');
   for (const [token, name] of rest.matchAll(TOKEN_RE)) {
     if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
-    else if (!KNOWN_TAGS.has(token) && !own.has(token)) unknown.push(token);
+    else if (!allowed.has(token) && !own.has(token)) unknown.push(token);
   }
   const leftover = rest.replace(TOKEN_RE, ' ');
   malformed.push(...(leftover.match(SINGLE_TAG_RE) ?? []));
@@ -150,7 +177,7 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTa
   s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>'); // italic (single asterisk)
   if (highlightPlaceholders) {
     s = s.replace(/\{\{[A-Z_]+\}\}/g, (tag) => {
-      const look = KNOWN_TAGS.has(tag) ? TAG_STYLES.builtIn : officeTags.has(tag) ? TAG_STYLES.office : TAG_STYLES.unknown;
+      const look = ALL_TAGS.has(tag) ? TAG_STYLES.builtIn : officeTags.has(tag) ? TAG_STYLES.office : TAG_STYLES.unknown;
       return (
         `<span${look.title ? ` title="${look.title}"` : ''} style="background:${look.background};` +
         `color:${look.color};font-family:ui-monospace,monospace;` +
@@ -255,6 +282,15 @@ export function formatLetterDate(date: Date = new Date()): string {
 /** What the reference line shows before the office approves a request. */
 export const PENDING_REFERENCE = 'Assigned on approval';
 
+/** The closing lines of a letter: the template's own signatory, else the faculty default. */
+export function letterClosing(letter: Pick<GeneratedLetter, 'purpose' | 'signatoryName' | 'signatoryTitle'>) {
+  return {
+    disclaimer: isAppointmentLetter(letter.purpose) ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
+    signatoryName: letter.signatoryName?.trim() || LETTERHEAD.signatoryName,
+    signatoryOffice: letter.signatoryTitle?.trim() || LETTERHEAD.signatoryOffice,
+  };
+}
+
 /** Print data for a letter the server has issued (needs its `content`). */
 export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
   return {
@@ -264,6 +300,7 @@ export function letterDataFromIssued(letter: GeneratedLetter): LetterData {
     bodyParagraphs: letter.content ?? '',
     studentName: letter.studentName,
     matricNumber: letter.matricNumber,
+    ...letterClosing(letter),
   };
 }
 
@@ -408,13 +445,13 @@ export function buildLetterHtml(data: LetterData): string {
 
     ${bodyHtml}
 
-    <p class="disclaimer">${esc(LETTERHEAD.disclaimer)}</p>
+    <p class="disclaimer">${esc(data.disclaimer ?? LETTERHEAD.disclaimer)}</p>
 
     <div class="signature">
       <div>
         <div class="line"></div>
-        <div class="name">${esc(LETTERHEAD.signatoryName)}</div>
-        <div class="office">${esc(LETTERHEAD.signatoryOffice)}</div>
+        <div class="name">${esc(data.signatoryName ?? LETTERHEAD.signatoryName)}</div>
+        <div class="office">${esc(data.signatoryOffice ?? LETTERHEAD.signatoryOffice)}</div>
       </div>
       <div class="stamp">Computer-generated<br>Verify with the PG Office</div>
     </div>

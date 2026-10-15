@@ -300,6 +300,7 @@ class AppointmentLetterTests(AppointmentLetterFixtures):
         self.make_template(
             content=SUPERVISOR_CONTENT + "\nAttendance: {{ATTENDANCE}}",
             custom_fields=[{"name": "ATTENDANCE", "label": "Attendance (%)", "hint": ""}],
+            signatory_name="Prof Signer",
         )
         self.appoint_supervisor(self.ali, self.supervisor)
 
@@ -319,6 +320,7 @@ class AppointmentLetterTests(AppointmentLetterFixtures):
         self.as_user(self.office)
         review = self.client.get(f"{REQUESTS}{letter.pk}/").data
         self.assertIsNone(review["problem"])
+        self.assertEqual(review["signatoryName"], "Prof Signer", "the preview shows who will sign it")
         self.assertEqual([field["name"] for field in review["fields"] if field["needed"]], ["ATTENDANCE"])
         with self.captureOnCommitCallbacks(execute=True):
             approved = self.client.post(f"{REQUESTS}{letter.pk}/approve/", {"values": {"ATTENDANCE": "92%"}}, format="json")
@@ -568,6 +570,22 @@ class AppointmentTemplateTests(AppointmentLetterFixtures):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["signatoryName"], "Prof Signer")
         self.assertEqual(response.data["signatoryTitle"], "Deputy Dean")
+
+    def test_request_letters_keep_the_signatory_they_were_issued_with(self):
+        template = LetterTemplate.objects.create(
+            name="Confirmation", status=LetterTemplate.Status.ACTIVE, content="Dear {{STUDENT_NAME}}",
+            signatory_name="Prof Signer", signatory_title="Deputy Dean",
+        )
+        self.as_user(self.ali.user)
+        asked = self.client.post(REQUESTS, {"templateId": template.pk}, format="json")
+        self.as_user(self.office)
+        self.client.post(f"{REQUESTS}{asked.data['id']}/approve/", {"values": {}}, format="json")
+        LetterTemplate.objects.filter(pk=template.pk).update(signatory_name="Someone Else")
+        self.as_user(self.ali.user)
+        letter = self.client.get(f"{REQUESTS}{asked.data['id']}/").data
+        self.assertEqual((letter["signatoryName"], letter["signatoryTitle"]), ("Prof Signer", "Deputy Dean"))
+        self.assertEqual(letter["purpose"], "REQUEST")
+        self.assertNotIn("recipients", letter)
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])

@@ -1,0 +1,116 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { GeneratedLetter, MissingAppointmentLetter } from '../types';
+import { canReissue, letterOrigin, missingLettersSummary, recipientsLine } from './appointmentLetters';
+import {
+  LETTERHEAD,
+  findPlaceholderProblems,
+  letterClosing,
+  letterDataFromIssued,
+  placeholderPurposeHint,
+  placeholdersFor,
+} from './letterDocument';
+
+const missing = (problem: string | null, id = '1'): MissingAppointmentLetter => ({
+  kind: 'supervisor',
+  appointmentId: id,
+  studentName: 'Ali Hassan',
+  matricNumber: 'S1',
+  lecturerName: 'Dr Supervisor',
+  appointedOn: '15 October 2026',
+  problem,
+});
+
+// the banner appears only when appointments have no letter, and says what can be done
+assert.equal(missingLettersSummary([]), null);
+assert.deepEqual(missingLettersSummary([missing(null), missing(null, '2')]), {
+  title: '2 approved appointments have no letter yet',
+  detail: 'The templates are ready. Create the letters to send them to the students and lecturers.',
+  ready: 2,
+  blocked: 0,
+});
+const noTemplate = 'There is no active panel appointment letter template.';
+assert.deepEqual(missingLettersSummary([missing(noTemplate)]), {
+  title: '1 approved appointment has no letter yet',
+  detail: noTemplate,
+  ready: 0,
+  blocked: 1,
+});
+assert.equal(
+  missingLettersSummary([missing(null), missing(noTemplate, '2'), missing(noTemplate, '3')])?.detail,
+  `1 can be made now. 2 cannot yet: ${noTemplate}`,
+);
+
+// appointment letters say how they were made and who they went to
+assert.equal(letterOrigin({ purpose: 'SUPERVISOR_APPOINTMENT', letterType: 'Academic Certification' }), 'Sent automatically on supervisor approval');
+assert.equal(letterOrigin({ purpose: 'PANEL_APPOINTMENT', letterType: 'Academic Certification' }), 'Sent automatically on panel approval');
+assert.equal(letterOrigin({ purpose: 'REQUEST', letterType: 'Visa & Immigration' }), 'Visa & Immigration');
+assert.equal(letterOrigin({ letterType: 'Visa & Immigration' }), 'Visa & Immigration');
+assert.equal(
+  recipientsLine([{ name: 'Ali Hassan', relation: 'Student' }, { name: 'Dr Panel', relation: 'Panel member' }]),
+  'Ali Hassan (student), Dr Panel (panel member)',
+);
+assert.equal(recipientsLine(undefined), '');
+assert.equal(canReissue({ purpose: 'PANEL_APPOINTMENT', status: 'Issued' }), true);
+assert.equal(canReissue({ purpose: 'PANEL_APPOINTMENT', status: 'Revoked' }), false);
+assert.equal(canReissue({ purpose: 'REQUEST', status: 'Issued' }), false);
+
+// appointment tags only count as known in the letters that can use them
+assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}'), { unknown: ['{{PANEL_NAME}}'], malformed: [] });
+assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}', [], 'SUPERVISOR_APPOINTMENT'), { unknown: ['{{PANEL_NAME}}'], malformed: [] });
+assert.deepEqual(findPlaceholderProblems('Panel {{PANEL_NAME}}, {{RESEARCH_TITLE}}', [], 'PANEL_APPOINTMENT'), { unknown: [], malformed: [] });
+assert.equal(placeholderPurposeHint('{{PANEL_NAME}}'), '{{PANEL_NAME}} works only in panel appointment letters.');
+assert.equal(
+  placeholderPurposeHint('{{RESEARCH_TITLE}}'),
+  '{{RESEARCH_TITLE}} works only in supervisor appointment letters and panel appointment letters.',
+);
+assert.equal(placeholderPurposeHint('{{STUDENT_NAME}}'), null);
+const supervisorTags = placeholdersFor('SUPERVISOR_APPOINTMENT').map((p) => p.tag);
+assert.ok(supervisorTags.includes('{{SUPERVISOR_ACCEPTED_DATE}}'));
+assert.ok(supervisorTags.includes('{{STUDENT_NAME}}'));
+assert.ok(!supervisorTags.includes('{{PANEL_NAME}}'));
+assert.ok(!placeholdersFor().some((p) => p.tag === '{{RESEARCH_TITLE}}'));
+
+// the server's hint wording is the same
+const views = readFileSync(resolve('../backend/letters/placeholders.py'), 'utf8');
+assert.match(views, /return f"\{tag\} works only in \{' and '\.join\(PURPOSE_LABELS\[purpose\] for purpose in purposes\)\}\."/);
+
+// each letter closes with its own signatory, and appointment letters with the office wording
+assert.deepEqual(letterClosing({ purpose: 'REQUEST' }), {
+  disclaimer: LETTERHEAD.disclaimer,
+  signatoryName: LETTERHEAD.signatoryName,
+  signatoryOffice: LETTERHEAD.signatoryOffice,
+});
+assert.deepEqual(letterClosing({ purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: ' Prof Signer ', signatoryTitle: 'Deputy Dean' }), {
+  disclaimer: LETTERHEAD.appointmentDisclaimer,
+  signatoryName: 'Prof Signer',
+  signatoryOffice: 'Deputy Dean',
+});
+const issued = {
+  id: '9', referenceNumber: 'UMF/PG/SV/2026/0001', templateId: '1', templateName: 'Supervisor appointment letter',
+  letterType: 'Academic Certification', purpose: 'SUPERVISOR_APPOINTMENT', signatoryName: 'Prof Signer', signatoryTitle: '',
+  status: 'Issued', date: '15 October 2026', requestedAt: '', issuedAt: null, studentName: 'Ali Hassan', matricNumber: 'S1',
+  programName: '', note: '', decidedAt: null, decidedBy: '', rejectReason: '', withdrawnAt: null, revokedAt: null,
+  revokeReason: '', content: 'Dear Ali',
+} satisfies GeneratedLetter;
+const printData = letterDataFromIssued(issued);
+assert.equal(printData.signatoryName, 'Prof Signer');
+assert.equal(printData.signatoryOffice, LETTERHEAD.signatoryOffice);
+assert.equal(printData.disclaimer, LETTERHEAD.appointmentDisclaimer);
+
+// the office screens offer the new choices
+const editor = readFileSync(resolve('src/components/LetterTemplateManagement.tsx'), 'utf8');
+assert.match(editor, /name="letter-template-purpose"/);
+assert.match(editor, /Used For/);
+assert.match(editor, /findPlaceholderProblems\(editorContent, editorFields\.map\(\(f\) => f\.name\), editorPurpose\)/);
+assert.match(editor, /signatoryName: submitted\.signatoryName\.trim\(\)/);
+const register = readFileSync(resolve('src/components/IssuedLetters.tsx'), 'utf8');
+assert.match(register, /<MissingAppointmentLetters /);
+assert.match(register, /Reissue with current details/);
+assert.match(register, /madeBy \}\)/);
+assert.match(register, /closing=\{letterClosing\(letter\)\}/);
+const review = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
+assert.match(review, /\{!automatic && \(\s*<PortalButton variant="danger"/, 'appointment letters are issued, not rejected');
+
+console.log('Appointment letter tests passed.');

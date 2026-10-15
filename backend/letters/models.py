@@ -275,6 +275,8 @@ class GeneratedLetter(models.Model):
             "letterType": self.letter_type,
             "purpose": self.purpose,
             "replacedById": str(self.replaced_by_id) if self.replaced_by_id else None,
+            "signatoryName": self.signatory_name,
+            "signatoryTitle": self.signatory_title,
             "status": self.status,
             "date": _day(self.issued_on),
             "requestedAt": _moment(self.created_at),
