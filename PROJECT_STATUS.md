@@ -1,5 +1,46 @@
 # Project Status
 
+## FAQ Chatbot, Phase C3: The Chat Screen (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `55d961d`. The FAQ Chatbot page now answers from the office's FAQ instead of fixed replies.
+
+- **Start:**
+  - "Hi! I answer questions using the PG Office FAQ. I can't see your own records...";
+  - the six topics as chips. A topic lists its questions;
+  - four common questions above the question box until the first question.
+- **Replies:**
+  - **A clear match:**
+    - the office's answer, with "Matched: ..." when the student asked in other words;
+    - working links and the optional portal button;
+    - the source line ("From the PG Office FAQ · topic");
+    - up to three related questions;
+    - "Did this help? Yes / No".
+  - **A possible match:** "Which one did you mean?" with up to three choices, plus **None of these**.
+  - **No match, "No" and "None of these":** the office's contact text, and "Your question has been passed to the office, without your name, so they can add an answer."
+  - **Errors** show Try again. Too many questions in a minute shows "Please wait a moment".
+- **Who sees it:** students, and now **programme coordinators**, who ask rather than edit (`App.tsx`, one condition). The office keeps the editor screen, which C4 rebuilds.
+- **Safe answers** (`utils/faqText.ts`, `FaqText.tsx`):
+  - **bold**, bullets and `[text](address)` links, plus web and email addresses written out;
+  - only web, email and portal addresses are ever linked; anything else stays text;
+  - no raw HTML is rendered;
+  - outside links open in a new tab with `noopener noreferrer`.
+- **Layout:** the question box stays pinned and lifts above the page footer as before. The conversation is a polite live region for screen readers.
+- **Removed:** the fixed keyword replies, the fake typing delay and the "AI Assistant" labels.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts, the real model): 29 of 29 pass.
+- **Start and answers:** topics and common questions; a topic's question answered; a typed paraphrase answered with "Matched:"; Yes thanked.
+- **Links and No:** a web address answer linking safely; No showing the contact.
+- **Choices and no match:** choices, picking one, and None of these; an off-topic question getting No match.
+- **Errors:** a failed request retried.
+- **Layout:** the footer links stay usable; the chat fits at 1440, 1024, 768 and 390 pixels, also opened straight on a phone.
+- **Roles:** a coordinator gets answers.
+- No unexpected console errors.
+- The run's 9 saved questions and both smoke accounts were removed afterwards.
+
+**Verification:**
+- Frontend: all 147 test scripts pass, including the new `utils/faqText.test.ts`. It covers links, script links refused, raw HTML, bullets and "Matched:", the portal buttons matching the backend, and coordinators getting the chatbot. TypeScript, the build and both production security checks pass.
+- Backend: no change in this phase.
+
 ## FAQ Chatbot, Phase C2: Search And Replies (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `62603fe`.
