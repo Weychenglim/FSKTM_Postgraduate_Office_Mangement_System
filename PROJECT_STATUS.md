@@ -1,5 +1,38 @@
 # Project Status
 
+## Staff Accounts, Phase S2: The Rules (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `2eeb89a`. The backend for staff accounts is complete; the screens come in S3.
+
+- **Duties** (`POST /api/registry/staff/<id>/duties/`):
+  - only lecturer accounts have them;
+  - a duty is added only while the lecturer is active and can sign in;
+  - a duty is removed only when nothing open needs it, and the refusal lists that work:
+    - Supervisor: active supervision or co-supervision, and supervisor requests or co-supervisor nominations still waiting;
+    - Panel: active panel appointments and nominations still waiting.
+- **Capacity line.** The account page reads Lecturer capacity through Wey Cheng's resolver, read-only.
+  - A new duty shows "not configured" until the office adds a limit there.
+  - A limit left behind for a removed duty is flagged.
+- **Coordinator programme** (`programme/`):
+  - can move to a programme no other active coordinator manages, or to none;
+  - `check` counts the approvals waiting in the old and new programme first: supervisor requests, co-supervisor nominations, panel nominations and amendments.
+- **Sign-in off and on** (`sign-in/`). Turning it off:
+  - needs a reason and ends every session;
+  - is refused for your own account and for the last office account;
+  - is refused while `lecturer_blockers` (Wey Cheng's, read-only) shows open work, which is listed, and points to Participant lifecycle.
+
+  Turning it back on is refused for a retired lecturer, and for a coordinator whose programme someone else now manages.
+- **Delete.**
+  - Only for an account that has never signed in and that no record points to.
+  - The check goes through every table linked to the account or its lecturer profile, hidden links included (letters), apart from its own profile, duties, notices and history.
+  - Otherwise the reasons come back and the office turns sign-in off instead.
+- **The account page** now carries `capacity`, `activeWork` and `deletion`, so S3 can explain each action before it is tried.
+
+**Verification:**
+- Backend: 1,341 of 1,342 pass. The one failure is Wey Cheng's known `appointments.test_capacity_reassessment_migration`. The 32 new tests cover each blocker for duties and sign-in off, your own account, the last office account, sessions ending, delete refused for linked records (including a letter and a capacity entry), the programme clash, the approvals check, two quick conflicting changes, and office-only access.
+- `check` and `makemigrations --check` are clean.
+- No new migration. No frontend change in this phase.
+
 ## Staff Accounts, Phase S1: Backend (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `8efcbec`. The office can now add and look after staff accounts through the API; the screens come in S3.
