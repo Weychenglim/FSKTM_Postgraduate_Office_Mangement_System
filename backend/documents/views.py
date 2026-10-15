@@ -26,6 +26,7 @@ from .access import (
     panel_student_ids,
     people_reached,
     permissions,
+    programme_key,
     supervisors_of,
     taggable_students,
     visible_documents,
@@ -43,6 +44,22 @@ from .office_settings import (
     types_with_counts,
 )
 from .previews import PreviewMissing, docx_text, image_png, pdf_page_png
+from .required import (
+    DONE,
+    MISSING,
+    RANK,
+    RETURNED,
+    STILL_TO_HAND_IN,
+    WAITING,
+    AlreadyReminded,
+    NobodyToRemind,
+    mine,
+    programme_filter,
+    progress,
+    reminded_today,
+    remind,
+    required_types,
+)
 from .serializers import detail_dict, document_dict, with_details
 from .services import (
     TagProblem,
@@ -146,6 +163,7 @@ def options_view(request):
         "maxBytes": max_upload_bytes(),
         "isOffice": scope.office,
         "canUploadStaffFiles": scope.office or is_staff_member(user),
+        "canSeeRequired": scope.office or bool(scope.coordinated),
     }
     if not student_view:
         payload["semesters"] = [
@@ -226,6 +244,9 @@ def student_header_view(request, matric):
     letters = None
     if scope.office:
         letters = GeneratedLetter.objects.filter(student=student, status=GeneratedLetter.Status.ISSUED).count()
+    required = None
+    if scope.office or programme_key(student.programme) in scope.coordinated:
+        required = [{"label": doc_type.label, "state": state} for doc_type, state, _ in mine(student)]
     return Response({
         "matric": student.matric_no,
         "name": student.user.full_name,
@@ -234,6 +255,7 @@ def student_header_view(request, matric):
         "supervisors": [names[lecturer] for _, lecturer in supervisors_of(ids)],
         "panel": [names[member] for _, member in panel_student_ids(student_ids=ids)],
         "letters": letters,
+        "required": required,
     })
 
 
@@ -890,6 +912,7 @@ TYPE_FLAGS = (
     ("share_coordinator", "shareCoordinator"),
     ("needs_check", "needsCheck"),
     ("one_per_student", "onePerStudent"),
+    ("required", "required"),
     ("is_active", "isActive"),
 )
 
@@ -940,8 +963,31 @@ def _type_values(data, doc_type=None):
             values[field] = _flag(data.get(key))
         elif doc_type is None:
             values[field] = field == "is_active"
+    if "requiredDueNote" in data:
+        due = " ".join(str(data.get("requiredDueNote") or "").split())
+        if len(due) > 120:
+            errors["requiredDueNote"] = ["Keep the due note to 120 characters."]
+        values["required_due_note"] = due
+    elif doc_type is None:
+        values["required_due_note"] = ""
+    if "requiredProgrammes" in data:
+        raw = data.get("requiredProgrammes")
+        programmes = []
+        for value in raw if isinstance(raw, list) else []:
+            programme = normalise_programme(str(value))
+            if programme is None:
+                errors["requiredProgrammes"] = [f"Unknown programme: {value}."]
+            elif programme not in programmes:
+                programmes.append(programme)
+        values["required_programmes"] = programmes
+    elif doc_type is None:
+        values["required_programmes"] = []
     if kind == DocumentType.Kind.STAFF:
-        values.update(share_supervisors=False, share_panel=False, share_coordinator=False, one_per_student=False)
+        values.update(share_supervisors=False, share_panel=False, share_coordinator=False, one_per_student=False, required=False)
+    uploaders = values.get("uploaders", doc_type.uploaders if doc_type else [])
+    required = values.get("required", doc_type.required if doc_type else False)
+    if required and "STUDENT" not in (uploaders or []) and "uploaders" not in errors:
+        errors["required"] = ["Students must be able to upload a document they have to hand in."]
     return values, errors
 
 
@@ -962,6 +1008,7 @@ def types_view(request):
         "types": [type_settings_dict(doc_type) for doc_type in types_with_counts()],
         "groups": [{"value": value, "label": label} for value, label in DocumentType.Group.choices],
         "kindUploaders": {kind.value: list(uploaders) for kind, uploaders in KIND_UPLOADERS.items()},
+        "programmes": list(APPROVED_PROGRAMMES),
     })
 
 
@@ -1162,3 +1209,122 @@ def history_view(request):
         "offset": offset,
         "results": [as_dict(row) for row in rows.order_by("-created_at", "-pk")[offset: offset + limit]],
     })
+
+
+def _required_students(scope):
+    """The students whose required documents this person may follow."""
+    if scope.office:
+        return Student.objects.all(), None
+    if scope.coordinated:
+        return Student.objects.filter(programme_filter(scope.coordinated)), None
+    return None, Response(
+        {"detail": "Only the PG office and programme coordinators follow required documents.", "code": "documents_required_role"},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def required_view(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    students, refused = _required_students(scope)
+    if refused:
+        return refused
+    items = []
+    for doc_type in required_types():
+        rows, counts = progress(doc_type, students)
+        last = doc_type.reminders.first()
+        items.append({
+            "id": doc_type.pk,
+            "code": doc_type.code,
+            "label": doc_type.label,
+            "dueNote": doc_type.required_due_note,
+            "programmes": list(doc_type.required_programmes or []),
+            "students": len(rows),
+            "done": counts[DONE],
+            "waiting": counts[WAITING],
+            "returned": counts[RETURNED],
+            "missing": counts[MISSING],
+            "lastReminder": {"at": last.sent_at.isoformat(), "by": last.sent_by_name, "students": last.students} if last else None,
+            "remindedToday": reminded_today(doc_type) is not None,
+        })
+    return Response({"types": items, "canRemind": scope.office})
+
+
+REQUIRED_FILTERS = {"todo": STILL_TO_HAND_IN, "waiting": (WAITING,), "done": (DONE,)}
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def required_students_view(request, pk):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    students, refused = _required_students(scope)
+    if refused:
+        return refused
+    doc_type = required_types().filter(pk=pk).first()
+    if doc_type is None:
+        return Response({"detail": "This type is not required."}, status=status.HTTP_404_NOT_FOUND)
+    show = request.query_params.get("show") or ""
+    if show and show not in REQUIRED_FILTERS:
+        return Response({"show": ["Use todo, waiting or done."]}, status=status.HTTP_400_BAD_REQUEST)
+    rows, _ = progress(doc_type, students)
+    if show:
+        rows = [row for row in rows if row[1] in REQUIRED_FILTERS[show]]
+    documents = [document_id for _, _, document_id in rows if document_id]
+    visible = set(visible_documents(request.user, scope).filter(pk__in=documents).values_list("pk", flat=True))
+    rows.sort(key=lambda row: (RANK[row[1]], row[0].user.full_name.casefold()))
+    return Response([
+        {
+            "matric": student.matric_no,
+            "name": student.user.full_name,
+            "programme": student.programme,
+            "state": state,
+            "documentId": document_id if document_id in visible else None,
+        }
+        for student, state, document_id in rows
+    ])
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def required_remind_view(request, pk):
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    doc_type = required_types().filter(pk=pk).first()
+    if doc_type is None:
+        return Response({"detail": "This type is not required."}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        sent = remind(doc_type, actor=request.user, students=Student.objects.all())
+    except AlreadyReminded:
+        return Response(
+            {"detail": "Students were already reminded about this today. You can remind them again tomorrow.", "code": "reminded_today"},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except NobodyToRemind:
+        return Response({"detail": "Every student has handed it in or is waiting for a check.", "code": "nobody_to_remind"}, status=status.HTTP_409_CONFLICT)
+    return Response({"sent": sent})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def required_mine_view(request):
+    """A student's own required documents, for their to-do list."""
+    user = request.user
+    if user.role != User.Role.STUDENT:
+        return Response({"detail": "Only students have required documents.", "code": "documents_role"}, status=status.HTTP_403_FORBIDDEN)
+    student = user._related_or_none("student")
+    return Response([
+        {
+            "code": doc_type.code,
+            "label": doc_type.label,
+            "dueNote": doc_type.required_due_note,
+            "state": state,
+            "documentId": document_id,
+        }
+        for doc_type, state, document_id in (mine(student) if student else [])
+    ])

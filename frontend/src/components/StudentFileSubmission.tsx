@@ -6,8 +6,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Plus } from 'lucide-react';
-import type { GeneratedLetter, PortalDocument } from '../types';
-import { deleteDocument, downloadDocument, getDocuments } from '../services/filesApi';
+import type { GeneratedLetter, MyRequiredDocument, PortalDocument } from '../types';
+import { deleteDocument, downloadDocument, getDocuments, getMyRequiredDocuments } from '../services/filesApi';
 import { getMyLetterRequests } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { shortDocumentDate } from '../utils/documentDisplay';
@@ -23,6 +23,7 @@ export const StudentFileSubmission: React.FC = () => {
   const location = useLocation();
   const [files, setFiles] = useState<PortalDocument[]>([]);
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
+  const [required, setRequired] = useState<MyRequiredDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lettersError, setLettersError] = useState(false);
@@ -50,6 +51,9 @@ export const StudentFileSubmission: React.FC = () => {
         setLettersError(false);
       })
       .catch(() => !cancelled && setLettersError(true));
+    getMyRequiredDocuments()
+      .then(found => !cancelled && setRequired(found))
+      .catch(() => !cancelled && setRequired([]));
     return () => {
       cancelled = true;
     };
@@ -80,6 +84,7 @@ export const StudentFileSubmission: React.FC = () => {
   };
 
   const returned = files.filter(file => file.checkStatus === 'RETURNED');
+  const toHandIn = required.filter(item => item.state === 'MISSING');
   const from = `${location.pathname}${location.search}`;
 
   return (
@@ -90,9 +95,18 @@ export const StudentFileSubmission: React.FC = () => {
         actions={<PortalButton variant="primary" icon={Plus} onClick={() => navigate(APP_ROUTES.filesUpload)}>Upload a file</PortalButton>}
       />
 
-      {returned.length > 0 && (
+      {(returned.length > 0 || toHandIn.length > 0) && (
         <section aria-labelledby="todo-title" className="app-card px-5 pb-2 pt-5">
           <h2 id="todo-title" className="section-label pb-3">To do</h2>
+          {toHandIn.map(item => (
+            <div key={item.code} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
+              <div className="min-w-0">
+                <p className="text-[14px] font-bold text-slate-800">Hand in your {item.label}</p>
+                <p className="text-[13px] text-slate-600">{item.dueNote || 'Every student must hand this in.'}</p>
+              </div>
+              <PortalButton size="sm" variant="primary" onClick={() => navigate(`${APP_ROUTES.filesUpload}?type=${encodeURIComponent(item.code)}`)}>Upload</PortalButton>
+            </div>
+          ))}
           {returned.map(file => (
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
               <div className="min-w-0">

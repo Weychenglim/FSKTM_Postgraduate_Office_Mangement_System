@@ -25,6 +25,9 @@ export const NEW_TYPE: DocumentTypeInput = {
   shareCoordinator: false,
   needsCheck: false,
   onePerStudent: false,
+  required: false,
+  requiredDueNote: '',
+  requiredProgrammes: [],
   isActive: true,
 };
 
@@ -43,6 +46,9 @@ export function draftFromType(type: DocumentTypeSetting): DocumentTypeInput {
     shareCoordinator: type.shareCoordinator,
     needsCheck: type.needsCheck,
     onePerStudent: type.onePerStudent,
+    required: type.required,
+    requiredDueNote: type.requiredDueNote,
+    requiredProgrammes: [...type.requiredProgrammes],
     isActive: type.isActive,
   };
 }
@@ -76,6 +82,7 @@ export function typeSummary(type: DocumentTypeInput): string {
     parts.push(seen.length ? `seen by ${seen.join(', ')}` : 'office only');
   }
   if (type.needsCheck) parts.push('office checks');
+  if (type.required) parts.push('every student hands it in');
   return parts.join(' · ');
 }
 
@@ -115,6 +122,8 @@ export function typeProblem(draft: DocumentTypeInput, types: DocumentTypeSetting
   if (label.length > 120) return 'Keep the name to 120 characters.';
   const twin = types.find(type => type.id !== id && type.label.toLocaleLowerCase() === label.toLocaleLowerCase());
   if (twin) return `There is already a type called ${twin.label}.`;
+  if (draft.required && !draft.uploaders.includes('STUDENT')) return 'Students must be able to upload a document they have to hand in.';
+  if (draft.requiredDueNote.trim().length > 120) return 'Keep the due note to 120 characters.';
   return null;
 }
 

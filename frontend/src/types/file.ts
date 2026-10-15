@@ -25,6 +25,9 @@ export interface DocumentTypeOption {
   shareCoordinator: boolean;
   needsCheck: boolean;
   onePerStudent: boolean;
+  required: boolean;
+  requiredDueNote: string;
+  requiredProgrammes: string[];
   isActive: boolean;
 }
 
@@ -35,6 +38,7 @@ export interface DocumentOptions {
   maxBytes: number;
   isOffice: boolean;
   canUploadStaffFiles: boolean;
+  canSeeRequired: boolean;
   semesters?: Array<{ id: number; label: string }>;
   programmes?: string[];
   audiences?: Array<{ value: StaffAudience; label: string }>;
@@ -145,6 +149,7 @@ export interface StudentFileHeader {
   supervisors: string[];
   panel: string[];
   letters: number | null;
+  required?: Array<{ label: string; state: RequiredState }> | null;
 }
 
 export interface TagSuggestion {
@@ -152,7 +157,7 @@ export interface TagSuggestion {
   uses: number;
 }
 
-export type DocumentView = 'all' | 'check' | 'staff' | 'mine';
+export type DocumentView = 'all' | 'check' | 'staff' | 'mine' | 'required';
 
 export interface DocumentFilters {
   view: DocumentView;
@@ -195,6 +200,7 @@ export interface DocumentTypeSettings {
   types: DocumentTypeSetting[];
   groups: Array<{ value: string; label: string }>;
   kindUploaders: Record<DocumentTypeKind, DocumentUploaderRole[]>;
+  programmes: string[];
 }
 
 export interface DocumentTypeInput {
@@ -208,6 +214,9 @@ export interface DocumentTypeInput {
   shareCoordinator: boolean;
   needsCheck: boolean;
   onePerStudent: boolean;
+  required: boolean;
+  requiredDueNote: string;
+  requiredProgrammes: string[];
   isActive: boolean;
 }
 
@@ -263,4 +272,43 @@ export interface HistoryPage {
   limit: number;
   offset: number;
   results: HistoryEntry[];
+}
+
+export type RequiredState = 'DONE' | 'WAITING' | 'RETURNED' | 'MISSING';
+export type RequiredShow = 'todo' | 'waiting' | 'done';
+
+export interface RequiredTypeProgress {
+  id: number;
+  code: string;
+  label: string;
+  dueNote: string;
+  programmes: string[];
+  students: number;
+  done: number;
+  waiting: number;
+  returned: number;
+  missing: number;
+  lastReminder: { at: string; by: string; students: number } | null;
+  remindedToday: boolean;
+}
+
+export interface RequiredOverview {
+  types: RequiredTypeProgress[];
+  canRemind: boolean;
+}
+
+export interface RequiredStudent {
+  matric: string;
+  name: string;
+  programme: string;
+  state: RequiredState;
+  documentId: number | null;
+}
+
+export interface MyRequiredDocument {
+  code: string;
+  label: string;
+  dueNote: string;
+  state: RequiredState;
+  documentId: number | null;
 }

@@ -1,4 +1,4 @@
-import type { DocumentCheckStatus, DocumentKind, DocumentStudentRef } from '../types';
+import type { DocumentCheckStatus, DocumentKind, DocumentStudentRef, RequiredState } from '../types';
 import { formatMalaysiaDate } from './malaysiaDateTime';
 
 export const KIND_SHORT: Record<DocumentKind, string> = {
@@ -66,3 +66,24 @@ export const historyTime = (value: string): string => {
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? HISTORY_TIME.format(parsed) : '';
 };
+
+export const REQUIRED_STATES: Record<RequiredState, { label: string; className: string }> = {
+  DONE: { label: 'Handed in', className: 'bg-emerald-50 text-emerald-800' },
+  WAITING: { label: 'Waiting for office', className: 'bg-amber-50 text-amber-800' },
+  RETURNED: { label: 'Returned', className: 'bg-rose-50 text-rose-700' },
+  MISSING: { label: 'Not handed in', className: 'bg-slate-100 text-slate-700' },
+};
+
+type RequiredCounts = { students: number; done: number; waiting: number; returned: number; missing: number };
+
+export const stillToHandIn = (counts: RequiredCounts): number => counts.missing + counts.returned;
+
+/** "12 of 40 handed in · 3 waiting for a check · 25 still to hand in" */
+export function requiredProgressLine(counts: RequiredCounts): string {
+  if (!counts.students) return 'No Active student has to hand it in yet.';
+  return [
+    `${counts.done} of ${counts.students} handed in`,
+    counts.waiting ? `${counts.waiting} waiting for a check` : '',
+    `${stillToHandIn(counts)} still to hand in`,
+  ].filter(Boolean).join(' · ');
+}

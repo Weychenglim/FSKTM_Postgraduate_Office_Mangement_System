@@ -32,6 +32,9 @@ FIELD_WORDS = {
     "share_coordinator": "who can see it",
     "needs_check": "office checks",
     "one_per_student": "one file per student",
+    "required": "whether every student must hand it in",
+    "required_due_note": "the due note",
+    "required_programmes": "the programmes that must hand it in",
     "is_active": "whether it can be chosen",
 }
 SHARE_WORDS = {"supervisors": "supervisors", "panel": "panel member", "coordinator": "programme coordinator"}

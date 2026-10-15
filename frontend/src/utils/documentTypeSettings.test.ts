@@ -27,6 +27,9 @@ const thesis: DocumentTypeSetting = {
   shareCoordinator: false,
   needsCheck: true,
   onePerStudent: true,
+  required: false,
+  requiredDueNote: '',
+  requiredProgrammes: [],
   isActive: true,
   files: 4,
   studentUploads: 3,
@@ -55,6 +58,8 @@ assert.equal(typeProblem({ ...NEW_TYPE, label: '  ' }, [thesis], null), 'Give th
 assert.equal(typeProblem({ ...NEW_TYPE, label: 'THESIS' }, [thesis], null), 'There is already a type called Thesis.');
 assert.equal(typeProblem({ ...NEW_TYPE, label: 'thesis' }, [thesis], 3), null, 'A type may keep its own name');
 assert.equal(typeProblem({ ...NEW_TYPE, label: 'x'.repeat(121) }, [], null), 'Keep the name to 120 characters.');
+assert.equal(typeProblem({ ...NEW_TYPE, label: 'Rubric', required: true, uploaders: ['SUPERVISOR'] }, [], null), 'Students must be able to upload a document they have to hand in.');
+assert.equal(typeSummary({ ...draftFromType(thesis), required: true, needsCheck: false }), 'Students upload · seen by supervisors, panel · every student hands it in');
 
 assert.deepEqual(keepUploaders(['STUDENT', 'COORDINATOR'], ['LECTURER', 'COORDINATOR']), ['COORDINATOR']);
 assert.deepEqual(toggled(['PANEL'], 'STUDENT', ['STUDENT', 'SUPERVISOR', 'PANEL']), ['STUDENT', 'PANEL'], 'Kept in list order');

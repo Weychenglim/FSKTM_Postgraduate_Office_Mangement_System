@@ -254,6 +254,9 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
     if (target.recordType === 'STUDENT_DOCUMENT' && target.recordId) {
       return routeForDocument(target.recordId);
     }
+    if (target.recordType === 'REQUIRED_DOCUMENT' && target.recordId) {
+      return `${APP_ROUTES.filesUpload}?type=${encodeURIComponent(String(target.recordId))}`;
+    }
     return APP_ROUTES.files;
   }
 

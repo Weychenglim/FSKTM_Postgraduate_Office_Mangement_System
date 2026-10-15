@@ -185,7 +185,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <h2 id="type-editor-title" className="sr-only">{isNew ? 'New type' : `Edit ${current?.label ?? 'type'}`}</h2>
         <label htmlFor="type-name" className="block text-[15px] font-extrabold text-brand-navy">Name</label>
         <input id="type-name" className="form-control form-control-md text-[14px]" maxLength={120} value={draft.label} placeholder="For example: AI Use Declaration" onChange={event => change({ label: event.target.value })} />
-        {(errors.label || (draft.label.trim() && problem)) && <p className="text-[13px] font-semibold text-rose-700">{errors.label || problem}</p>}
+        {errors.label && <p className="text-[13px] font-semibold text-rose-700">{errors.label}</p>}
         {!isNew && <p className="text-[12px] text-slate-500">For {draft.kind === 'STAFF' ? 'staff files' : draft.kind === 'BOTH' ? 'files about students, or staff files' : 'files about students'}.</p>}
       </div>
 
@@ -239,6 +239,34 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <SwitchRow id="type-check" title="The office checks it" hint={'Uploads wait in "To check" until you accept or return them.'} checked={draft.needsCheck} onChange={needsCheck => change({ needsCheck })} />
       </Section>
 
+      {!staffKind && (
+        <Section>
+          <SwitchRow id="type-required" title="Every student must hand it in" hint="It shows on each student's to do list and in Required documents." checked={draft.required} onChange={required => change({ required })} />
+          {draft.required && (
+            <div className="space-y-4 pt-2">
+              <label className="block space-y-1.5">
+                <span className="text-[13px] font-bold text-slate-700">Due note (optional)</span>
+                <input className="form-control form-control-md text-[14px]" maxLength={120} value={draft.requiredDueNote} placeholder="For example: Due before Week 6" onChange={event => change({ requiredDueNote: event.target.value })} />
+              </label>
+              <div className="space-y-2">
+                <p id="type-required-programmes" className="text-[13px] font-bold text-slate-700">Which programmes?</p>
+                <div role="group" aria-labelledby="type-required-programmes" className="flex flex-wrap gap-2">
+                  {(settings?.programmes ?? []).map(programme => (
+                    <Pill key={programme} checked={draft.requiredProgrammes.includes(programme)} onChange={() => change({ requiredProgrammes: toggled(draft.requiredProgrammes, programme, settings?.programmes ?? []) })}>
+                      {programme}
+                    </Pill>
+                  ))}
+                </div>
+                <p className="text-[12px] text-slate-500">Leave them all unticked for every programme. Only Active students have to hand it in.</p>
+              </div>
+            </div>
+          )}
+          {(errors.required || errors.requiredProgrammes || errors.requiredDueNote) && (
+            <p className="text-[13px] font-semibold text-rose-700">{errors.required || errors.requiredProgrammes || errors.requiredDueNote}</p>
+          )}
+        </Section>
+      )}
+
       <details className="group border-t border-slate-100">
         <summary className="cursor-pointer list-none px-5 py-4 text-[14px] font-bold text-blue-700 hover:text-blue-900 sm:px-6">
           <span className="inline-flex items-center gap-1.5">
@@ -273,7 +301,8 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {notices.map(notice => <p key={notice}>{notice}</p>)}
         </div>
       )}
-      <div className="flex justify-end gap-3 border-t border-slate-100 px-5 py-4 sm:px-6">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 px-5 py-4 sm:px-6">
+        {problem && draft.label.trim() && <p role="alert" className="mr-auto text-[13px] font-semibold text-rose-700">{problem}</p>}
         {dirty && <PortalButton disabled={saving} onClick={() => discard(!isNew)}>{isNew ? 'Cancel' : 'Undo changes'}</PortalButton>}
         <PortalButton variant="primary" isLoading={saving} disabled={!dirty || Boolean(problem)} onClick={() => void save()}>{isNew ? 'Add type' : 'Save'}</PortalButton>
       </div>

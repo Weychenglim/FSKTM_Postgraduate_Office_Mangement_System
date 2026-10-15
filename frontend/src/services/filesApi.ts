@@ -20,6 +20,10 @@ import type {
   HistoryPage,
   HistoryShow,
   ManagedTag,
+  MyRequiredDocument,
+  RequiredOverview,
+  RequiredShow,
+  RequiredStudent,
   PortalDocument,
   StudentFileHeader,
   TaggableStudent,
@@ -221,4 +225,20 @@ export function getDocumentHistory(show: HistoryShow, q: string, offset = 0, lim
   const query = new URLSearchParams({ show, offset: String(offset), limit: String(limit) });
   if (q.trim()) query.set('q', q.trim());
   return request<HistoryPage>(`${BASE}/history/?${query}`);
+}
+
+export function getRequiredOverview(): Promise<RequiredOverview> {
+  return request<RequiredOverview>(`${BASE}/required/`);
+}
+
+export function getRequiredStudents(typeId: number, show: RequiredShow): Promise<RequiredStudent[]> {
+  return request<RequiredStudent[]>(`${BASE}/required/${typeId}/students/?show=${show}`);
+}
+
+export function remindRequired(typeId: number): Promise<{ sent: number }> {
+  return request<{ sent: number }>(`${BASE}/required/${typeId}/remind/`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function getMyRequiredDocuments(): Promise<MyRequiredDocument[]> {
+  return request<MyRequiredDocument[]>(`${BASE}/required/mine/`);
 }

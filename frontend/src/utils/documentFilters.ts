@@ -15,7 +15,7 @@ export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   archived: '',
 };
 
-const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine'];
+const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required'];
 const UPLOADERS = ['me', 'students', 'staff'] as const;
 const STATUSES: DocumentCheckStatus[] = ['NONE', 'WAITING', 'ACCEPTED', 'RETURNED'];
 const KINDS: DocumentKind[] = ['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'];

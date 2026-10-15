@@ -23,6 +23,7 @@ interface UploadNewDocumentProps {
   isStudent?: boolean;
   role?: string;
   initialStudent?: string;
+  initialType?: string;
   onOpenExisting?: (documentId: number) => void;
 }
 
@@ -44,6 +45,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
   isStudent = false,
   role = '',
   initialStudent = '',
+  initialType = '',
   onOpenExisting,
 }) => {
   const [options, setOptions] = useState<DocumentOptions | null>(null);
@@ -117,6 +119,13 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
     setErrors(current => ({ ...current, type: '', file: '' }));
     setExisting(null);
   };
+
+  const presetType = useRef(false);
+  useEffect(() => {
+    if (presetType.current || !initialType || !types.length) return;
+    presetType.current = true;
+    if (types.some(item => item.code === initialType)) chooseType(initialType);
+  }, [types, initialType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chooseFile = (chosen: File | null) => {
     setFile(chosen);

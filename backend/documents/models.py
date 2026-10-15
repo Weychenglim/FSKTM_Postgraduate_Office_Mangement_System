@@ -42,6 +42,10 @@ class DocumentType(models.Model):
     share_coordinator = models.BooleanField(default=False)
     needs_check = models.BooleanField(default=False)
     one_per_student = models.BooleanField(default=False)
+    # Every Active student must hand it in; an empty list means every programme.
+    required = models.BooleanField(default=False)
+    required_due_note = models.CharField(max_length=120, blank=True)
+    required_programmes = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -86,6 +90,9 @@ class DocumentType(models.Model):
             "shareCoordinator": self.share_coordinator,
             "needsCheck": self.needs_check,
             "onePerStudent": self.one_per_student,
+            "required": self.required,
+            "requiredDueNote": self.required_due_note,
+            "requiredProgrammes": list(self.required_programmes or []),
             "isActive": self.is_active,
         }
 
@@ -350,6 +357,25 @@ class SettingsChange(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Settings history cannot be deleted.")
+
+
+class RequiredReminder(models.Model):
+    """One press of Remind for a required type. At most one a day per type."""
+
+    doc_type = models.ForeignKey(DocumentType, on_delete=models.CASCADE, related_name="reminders")
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="document_reminders",
+        null=True,
+        blank=True,
+    )
+    sent_by_name = models.CharField(max_length=255, blank=True)
+    students = models.PositiveIntegerField(default=0)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-sent_at", "-pk"]
 
 
 ACTIVE_DOCUMENT = Q(archived_at__isnull=True)

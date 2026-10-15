@@ -43,6 +43,7 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
         self.assertFalse(rows["other"]["isActive"])
         self.assertEqual((rows["thesis"]["files"], rows["thesis"]["studentUploads"]), (1, 1))
         self.assertEqual(response.data["kindUploaders"]["STAFF"], ["LECTURER", "COORDINATOR"])
+        self.assertEqual(len(response.data["programmes"]), 3)
         for user in (self.supervisor, self.coordinator, self.ali.user):
             self.client.force_authenticate(user)
             self.assertEqual(self.client.get("/api/documents/types/").status_code, 403)

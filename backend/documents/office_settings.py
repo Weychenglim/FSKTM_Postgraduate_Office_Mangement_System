@@ -20,6 +20,9 @@ EDITABLE = (
     *SHARE_FIELDS,
     "needs_check",
     "one_per_student",
+    "required",
+    "required_due_note",
+    "required_programmes",
     "is_active",
 )
 

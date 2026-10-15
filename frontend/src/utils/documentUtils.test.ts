@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
-import { checkChip, formatFileSize, historyTime, studentsLine, typeAndTags, uploadedLine } from './documentDisplay';
+import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
+import { checkChip, formatFileSize, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, typeAndTags, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
 import { defaultSharing, sharingNames, staffTypeChoices, studentAudienceSentence } from './documentSharing';
 import { addTags, cleanTag } from './documentTags';
@@ -9,7 +10,8 @@ import { acceptAttribute, acceptedKinds, fileProblem, kindForName, kindsSentence
 const type = (overrides: Partial<DocumentTypeOption>): DocumentTypeOption => ({
   code: 'thesis', label: 'Thesis', description: '', group: 'RESEARCH_PROJECT', groupLabel: 'Research Project',
   kind: 'STUDENT', uploaders: ['STUDENT'], allowedKinds: ['PDF', 'DOCX'], shareSupervisors: true, sharePanel: true,
-  shareCoordinator: true, needsCheck: false, onePerStudent: true, isActive: true, ...overrides,
+  shareCoordinator: true, needsCheck: false, onePerStudent: true, required: false, requiredDueNote: '', requiredProgrammes: [],
+  isActive: true, ...overrides,
 });
 const student = (overrides: Partial<TaggableStudent>): TaggableStudent => ({
   matric: 'S1', name: 'Ali Hassan', programme: 'DS', status: 'Active', relation: 'Your supervisee', roles: ['SUPERVISOR'],
@@ -49,6 +51,17 @@ assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }), 1);
 assert.equal(filtersToParams({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }).toString(), 'archived=1');
 assert.equal(historyTime('2026-10-14T02:05:00Z'), '14 Oct 2026, 10:05', 'History times are in Malaysia time');
 assert.equal(historyTime('not a date'), '');
+const counts = { students: 40, done: 12, waiting: 3, returned: 2, missing: 23 };
+assert.equal(requiredProgressLine(counts), '12 of 40 handed in · 3 waiting for a check · 25 still to hand in');
+assert.equal(stillToHandIn(counts), 25, 'A returned file still has to be handed in');
+assert.equal(requiredProgressLine({ ...counts, waiting: 0 }), '12 of 40 handed in · 25 still to hand in');
+assert.equal(requiredProgressLine({ students: 0, done: 0, waiting: 0, returned: 0, missing: 0 }), 'No Active student has to hand it in yet.');
+assert.equal(REQUIRED_STATES.MISSING.label, 'Not handed in');
+assert.equal(
+  routeForNotificationTarget({ targetModule: 'FILES', recordType: 'REQUIRED_DOCUMENT', recordId: 'supervisor-appointment-form' }),
+  `${APP_ROUTES.filesUpload}?type=supervisor-appointment-form`,
+  'A reminder opens the upload screen with the type chosen',
+);
 
 // Upload checks mirror the server
 assert.equal(kindForName('Report.PDF'), 'PDF');
