@@ -1,8 +1,8 @@
 # Project Status
 
-## File Management: Phases 1 To 7 (2026-10-14 to 2026-10-15)
+## File Management: All 8 Phases (2026-10-14 to 2026-10-15)
 
-Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phase 8 is next.
+Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Not built yet: supervisor application files in a student's view (waiting for Wey Cheng's agreement) and the optional links from a file to an appointment or letter.
 
 - **Uploads (Phase 1, `379892c`).**
   - Students upload their own forms, thesis, letters and so on. The office, lecturers, panel members and coordinators upload files about their students, or staff files about no student.
@@ -34,6 +34,11 @@ Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plan
   - The office presses Remind at most once a day per type: a notice in the app, and an email for students with "Deadline reminders" on.
   - A student's header in Files shows their required documents.
   - Migration `documents.0004`, after the backup `db-backups/fsktm_pg_office_before_required_documents_2026-10-15.dump`.
+- **Wrap-up (Phase 8, `c09e257`).**
+  - My Profile lists the files a student uploaded (type, status, date) instead of "Available when File Management is released".
+  - A student's record in the Registry has a "View files" link to that student's files.
+  - Notices open the right place: a file notice opens the file, a reminder opens the upload screen with the type chosen.
+  - The backend README describes the File Management endpoints, access rules, upload checks and `check_document_storage`.
 - **Migrations** `documents.0001` to `documents.0003`. The dev DB was migrated after the backups `db-backups/fsktm_pg_office_before_documents_2026-10-14.dump` and `db-backups/fsktm_pg_office_before_document_settings_2026-10-14.dump`.
 - **Verification.**
   - The backend passes 1142 tests.
@@ -44,7 +49,8 @@ Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plan
     - checking and versions: 12 of 12;
     - file settings, sharing and tags, including a phone: 20 of 20;
     - archive, restore and history, including a phone: 11 of 11;
-    - required documents, including a phone: 15 of 15. Remind was answered inside the browser, because the dev database has demo students in every programme; sending is covered by the backend tests.
+    - required documents, including a phone: 15 of 15. Remind was answered inside the browser, because the dev database has demo students in every programme; sending is covered by the backend tests;
+    - My Profile files and the Registry link: 4 of 4.
   - All smoke accounts, files, notices, tags and types were removed afterwards.
 
 ## Letters: Requests Approved By The Office (2026-10-13)

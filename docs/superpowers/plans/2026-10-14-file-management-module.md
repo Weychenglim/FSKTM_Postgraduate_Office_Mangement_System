@@ -2,7 +2,7 @@
 
 Date: 2026-10-14. Owner: Xiang (File Management).
 
-**Status: approved on 2026-10-14. Phases 1 to 7 are built and committed; Phase 8 is next.**
+**Status: approved on 2026-10-14. All 8 phases are built and committed (2026-10-15). Two Phase 8 items are not built: supervisor application files (waiting for Wey Cheng's agreement) and the optional record links (section 4.11).**
 
 This plan replaces `2026-10-11-file-management-module.md`, which was written before the supervisor's 2026-10-14 direction:
 - staff can upload and share files too;
@@ -398,7 +398,7 @@ Carried over from the 2026-10-11 research.
 | 5 | Document types screen, changing a file's sharing, tag tidying | Done | `4a8df87` |
 | 6 | Archive and restore, the office history (including deletions), the storage check | Done | `5bc3095` |
 | 7 | Required documents: the tab, the to-do items, Remind | Done | `429a5c9` |
-| 8 | Wrap-up: My Records, a Registry link, notification links, supervisor application files (if agreed), optional links, docs, final checks | Not started | |
+| 8 | Wrap-up: My Records, a Registry link, notification links, supervisor application files (if agreed), optional links, docs, final checks | Done, except supervisor application files (waiting for Wey Cheng) and the optional record links | `c09e257` |
 
 **Running a phase:**
 1. **Before Phase 1,** run `git fetch` and check `origin/main` for teammate commits. On 2026-10-14 there was nothing new.
