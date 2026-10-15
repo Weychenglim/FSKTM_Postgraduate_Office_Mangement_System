@@ -5,17 +5,17 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Check, CheckCircle2, Download, Upload } from 'lucide-react';
+import { Archive, Check, CheckCircle2, Download, Upload } from 'lucide-react';
 import type { DocumentDetail } from '../types';
-import { checkDocument, deleteDocument, downloadDocument, getDocument } from '../services/filesApi';
+import { checkDocument, deleteDocument, downloadDocument, getDocument, restoreDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
-import { shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
-import { EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
+import { ArchiveDialog, EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -42,7 +42,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
-  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | 'sharing' | null>(null);
+  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | 'sharing' | 'archive' | null>(null);
   const [askedForVersion, setAskedForVersion] = useState(false);
   const uploadedReference = typeof location.state?.uploadedReference === 'string' ? location.state.uploadedReference : '';
   const from = typeof location.state?.from === 'string' ? location.state.from : '';
@@ -90,6 +90,19 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     }
   };
 
+  const restore = async () => {
+    if (!document) return;
+    setBusy('restore');
+    try {
+      finished(await restoreDocument(document.id), 'Restored. Everyone it is shared with can see it again.');
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not restore this file.'), tone: 'danger' });
+      setReload(value => value + 1);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const download = async (version?: number) => {
     if (!document) return;
     setBusy(`download:${version ?? 'current'}`);
@@ -120,6 +133,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     ...(document?.permissions.canUploadVersion ? [{ label: 'Upload a new version', onSelect: () => setDialog('version') }] : []),
     ...(document?.permissions.canEdit ? [{ label: 'Edit details', onSelect: () => setDialog('edit') }] : []),
     ...(document?.permissions.canChangeSharing ? [{ label: 'Change who can see it', onSelect: () => setDialog('sharing') }] : []),
+    ...(document?.permissions.canArchive ? [{ label: 'Archive', onSelect: () => setDialog('archive') }] : []),
     ...(document?.permissions.canDelete ? [{ label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
   const who = document ? studentsLine(document.students) : null;
@@ -152,7 +166,22 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
               Uploaded. The reference is {uploadedReference}.
             </div>
           )}
-          {document.checkStatus === 'RETURNED' && (
+          {document.archived && (
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-300 bg-slate-100 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <Archive className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" aria-hidden="true" />
+                <div>
+                  <p className="text-[15px] font-extrabold text-slate-800">Archived{document.archivedBy ? ` by ${document.archivedBy}` : ''}{document.archivedAt ? `, ${shortDocumentDate(document.archivedAt)}` : ''}</p>
+                  {document.archiveReason && <p className="mt-1 text-[14px] text-slate-700">"{document.archiveReason}"</p>}
+                  <p className="mt-1 text-[13px] text-slate-600">Only the PG office can see it.</p>
+                </div>
+              </div>
+              {document.permissions.canRestore && (
+                <PortalButton variant="primary" isLoading={busy === 'restore'} onClick={() => void restore()}>Restore</PortalButton>
+              )}
+            </div>
+          )}
+          {!document.archived && document.checkStatus === 'RETURNED' && (
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
               <div>
                 <p className="text-[15px] font-extrabold text-rose-800">Returned by the PG office</p>
@@ -163,7 +192,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
               )}
             </div>
           )}
-          {document.checkStatus === 'WAITING' && (
+          {!document.archived && document.checkStatus === 'WAITING' && (
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
               <div>
                 <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the PG office to check it'}</p>
@@ -179,7 +208,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
               )}
             </div>
           )}
-          {document.checkStatus === 'ACCEPTED' && (
+          {!document.archived && document.checkStatus === 'ACCEPTED' && (
             <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-[14px] font-semibold text-emerald-900">
               <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
               Accepted by the PG office{document.checkedBy ? ` (${document.checkedBy}, ${shortDocumentDate(document.checkedAt)})` : ''}.
@@ -245,6 +274,21 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                   </ul>
                 </section>
               )}
+
+              {document.history && document.history.length > 0 && (
+                <section aria-label="History" className="app-card space-y-3 p-5">
+                  <h2 className="section-label">History</h2>
+                  <ol className="space-y-3">
+                    {document.history.map(entry => (
+                      <li key={entry.id} className="text-[13px]">
+                        <p className="font-semibold text-slate-800">{entry.actionLabel}{entry.detail ? <span className="font-normal text-slate-600">: {entry.detail}</span> : null}</p>
+                        {entry.reason && <p className="text-slate-700">"{entry.reason}"</p>}
+                        <p className="text-[12px] text-slate-500">{entry.actor}, {historyTime(entry.at)}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
             </div>
           </div>
         </div>
@@ -266,6 +310,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           <EditDetailsDialog document={document} isOpen={dialog === 'edit'} onClose={() => setDialog(null)} onDone={finished} />
           <ReturnDialog document={document} isOpen={dialog === 'return'} onClose={() => setDialog(null)} onDone={finished} />
           <SharingDialog document={document} isOpen={dialog === 'sharing'} onClose={() => setDialog(null)} onDone={finished} />
+          <ArchiveDialog document={document} isOpen={dialog === 'archive'} onClose={() => setDialog(null)} onDone={finished} />
         </>
       )}
       <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />

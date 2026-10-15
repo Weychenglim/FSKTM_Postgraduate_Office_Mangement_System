@@ -50,3 +50,19 @@ export function uploadedLine(name: string, isMe: boolean): string {
 }
 
 export const shortDocumentDate = (value: string | null | undefined): string => (value ? formatMalaysiaDate(value) : '');
+
+const HISTORY_TIME = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kuala_Lumpur',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/** "14 Oct 2026, 10:05" in Malaysia time. */
+export const historyTime = (value: string): string => {
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? HISTORY_TIME.format(parsed) : '';
+};

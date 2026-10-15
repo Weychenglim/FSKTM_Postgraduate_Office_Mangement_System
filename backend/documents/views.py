@@ -30,6 +30,7 @@ from .access import (
     taggable_students,
     visible_documents,
 )
+from .history import SHOWS, history_rows
 from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
 from .office_settings import (
     KIND_UPLOADERS,
@@ -46,12 +47,14 @@ from .serializers import detail_dict, document_dict, with_details
 from .services import (
     TagProblem,
     add_version,
+    archive_document,
     change_sharing,
     check_document,
     clean_tags,
     create_document,
     delete_document,
     record_event,
+    restore_document,
     sharing_of,
     update_details,
 )
@@ -1097,3 +1100,65 @@ def tag_merge_view(request, pk):
         return Response({"into": ["Choose another tag to merge into."]}, status=status.HTTP_400_BAD_REQUEST)
     merge_tag(tag, into, actor=request.user)
     return Response(_tag_dict(into))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def archive_view(request, pk):
+    """The office archives a file instead of deleting it (UC27)."""
+    scope, refused = _office_only(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if document.archived_at:
+        return Response({"detail": "This file is already archived.", "code": "already_archived"}, status=status.HTTP_409_CONFLICT)
+    reason = " ".join(str(request.data.get("reason") or "").split())
+    if not reason:
+        return Response({"reason": ["Say why it is archived."]}, status=status.HTTP_400_BAD_REQUEST)
+    if len(reason) > 500:
+        return Response({"reason": ["Keep the reason to 500 characters."]}, status=status.HTTP_400_BAD_REQUEST)
+    archive_document(document, actor=request.user, reason=reason)
+    document = _visible_or_none(request, scope, document.pk)
+    return Response(detail_dict(document, request.user, scope))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def restore_view(request, pk):
+    scope, refused = _office_only(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if not document.archived_at:
+        return Response({"detail": "This file is not archived.", "code": "not_archived"}, status=status.HTTP_409_CONFLICT)
+    restore_document(document, actor=request.user)
+    document = _visible_or_none(request, scope, document.pk)
+    return Response(detail_dict(document, request.user, scope))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def history_view(request):
+    """Everything that happened to files, deleted ones included, and to the settings."""
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    params = request.query_params
+    show = params.get("show") or "all"
+    if show not in SHOWS:
+        return Response({"show": [f"Use one of: {', '.join(SHOWS)}."]}, status=status.HTTP_400_BAD_REQUEST)
+    limit, limit_problem = _bounded_int(params.get("limit"), 30, 1, 100)
+    offset, offset_problem = _bounded_int(params.get("offset"), 0, 0, 1_000_000)
+    if limit_problem or offset_problem:
+        return Response({"limit": ["Use a limit from 1 to 100 and an offset of 0 or more."]}, status=status.HTTP_400_BAD_REQUEST)
+    rows, as_dict = history_rows(show, (params.get("q") or "").strip()[:MAX_SEARCH])
+    return Response({
+        "count": rows.count(),
+        "limit": limit,
+        "offset": offset,
+        "results": [as_dict(row) for row in rows.order_by("-created_at", "-pk")[offset: offset + limit]],
+    })

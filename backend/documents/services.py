@@ -381,3 +381,27 @@ def change_sharing(document, *, actor, sharing):
             message=f"{actor.full_name} shared {document.title}{about}.",
         ))
     return document
+
+
+def archive_document(document, *, actor, reason):
+    """The office takes a file out of use without deleting it (UC27)."""
+    with transaction.atomic():
+        document = Document.objects.select_for_update(of=("self",)).get(pk=document.pk)
+        document.archived_at = timezone.now()
+        document.archived_by = actor
+        document.archive_reason = reason
+        document.save(update_fields=["archived_at", "archived_by", "archive_reason", "updated_at"])
+        record_event(document, DocumentEvent.Action.ARCHIVED, actor, reason=reason)
+    return document
+
+
+def restore_document(document, *, actor):
+    with transaction.atomic():
+        document = Document.objects.select_for_update(of=("self",)).get(pk=document.pk)
+        reason = document.archive_reason
+        document.archived_at = None
+        document.archived_by = None
+        document.archive_reason = ""
+        document.save(update_fields=["archived_at", "archived_by", "archive_reason", "updated_at"])
+        record_event(document, DocumentEvent.Action.RESTORED, actor, details={"archiveReason": reason})
+    return document

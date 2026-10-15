@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { isStaffFileSharing, type DocumentDetail, type DocumentSharing, type DocumentSharingOptions, type StaffAudience } from '../types';
-import { addDocumentVersion, checkDocument, getDocumentSharing, updateDocument, updateDocumentSharing } from '../services/filesApi';
+import { addDocumentVersion, archiveDocument, checkDocument, getDocumentSharing, updateDocument, updateDocumentSharing } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { formatFileSize } from '../utils/documentDisplay';
 import { acceptAttribute, kindForName } from '../utils/documentUpload';
@@ -363,6 +363,67 @@ export const SharingDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
           )}
         </>
       )}
+      {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
+    </DialogShell>
+  );
+};
+
+const ARCHIVE_REASONS = ['Uploaded by mistake.', 'Replaced by a newer file.', 'No longer needed.'];
+
+/** The office takes a file out of use. It is kept, and can be restored. */
+export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose, onDone }) => {
+  const titleId = useModalTitle();
+  const [reason, setReason] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setReason('');
+      setProblem(null);
+    }
+  }, [isOpen]);
+
+  const send = async () => {
+    if (!reason.trim()) {
+      setProblem('Say why it is archived.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await archiveDocument(document.id, reason.trim());
+      onDone(updated, 'Archived. Only the PG office can see it now.');
+    } catch (err) {
+      setProblem(fieldErrors(err).reason || errorText(err, 'Could not archive this file.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DialogShell
+      title={`Archive "${document.title}"?`}
+      titleId={titleId}
+      isOpen={isOpen}
+      busy={busy}
+      onClose={onClose}
+      footer={<>
+        <PortalButton onClick={onClose} disabled={busy}>Cancel</PortalButton>
+        <PortalButton variant="danger" isLoading={busy} disabled={!reason.trim()} onClick={() => void send()}>Archive</PortalButton>
+      </>}
+    >
+      <p className="text-[13px] text-slate-600">The file is kept, but only the PG office can see it. You can restore it at any time.</p>
+      <label className="block space-y-1.5">
+        <span className="sr-only">Reason</span>
+        <textarea className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Why is it archived?" />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {ARCHIVE_REASONS.map(text => (
+          <button key={text} type="button" className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setReason(text)}>
+            {text.replace(/\.$/, '')}
+          </button>
+        ))}
+      </div>
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
     </DialogShell>
   );

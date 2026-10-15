@@ -21,6 +21,10 @@ const PAGE_SIZE = 25;
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
+const ArchivedChip: React.FC = () => (
+  <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700">Archived</span>
+);
+
 export const FileRepository: React.FC = () => {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => filtersFromParams(params), [params]);
@@ -288,6 +292,16 @@ export const FileRepository: React.FC = () => {
               options={[{ value: '', label: 'Any kind', triggerLabel: 'Any' }, { value: 'PDF', label: 'PDF' }, { value: 'DOCX', label: 'Word' }, { value: 'IMAGE', label: 'Photo or scan' }, { value: 'XLSX', label: 'Excel' }, { value: 'PPTX', label: 'PowerPoint' }]}
               onChange={value => update({ kind: value })}
             />
+            {isOffice && (
+              <SelectMenu<DocumentFilters['archived']>
+                variant="filter" size="sm" prefix="Show" aria-label="Show" value={filters.archived}
+                options={[
+                  { value: '', label: 'Current files', triggerLabel: 'Current files' },
+                  { value: '1', label: `Archived files${summary?.archived ? ` (${summary.archived})` : ''}`, triggerLabel: 'Archived files' },
+                ]}
+                onChange={value => update({ archived: value })}
+              />
+            )}
             <label className="text-[12px] font-bold text-slate-600">
               From
               <input type="date" value={filters.from} onChange={event => update({ from: event.target.value })} className="form-control form-control-sm mt-1 block" />
@@ -337,7 +351,7 @@ export const FileRepository: React.FC = () => {
                         </Link>
                         <p className="truncate text-[12px] text-slate-500">{typeAndTags(document.type.label, document.tags)}</p>
                         <p className="mt-1 truncate text-[12px] text-slate-600 md:hidden">{filters.student ? '' : `${who.main} · `}{shortDocumentDate(document.uploadedAt)}</p>
-                        <div className="mt-1.5 md:hidden"><CheckChip status={document.checkStatus} hideAccepted /></div>
+                        <div className="mt-1.5 md:hidden">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</div>
                       </div>
                       <div className={filters.student ? 'hidden' : 'hidden min-w-0 md:block'}>
                         {first && !filters.student ? (
@@ -354,7 +368,7 @@ export const FileRepository: React.FC = () => {
                         <p className="truncate text-[12px] text-slate-500">{uploadedLine(document.uploadedBy.name, document.uploadedBy.isMe)}</p>
                       </div>
                       <div className="flex shrink-0 items-center justify-end gap-2">
-                        <span className="hidden md:inline-flex"><CheckChip status={document.checkStatus} hideAccepted /></span>
+                        <span className="hidden md:inline-flex">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</span>
                         {filters.view === 'check' && !filters.student && (
                           <PortalButton size="sm" variant="primary" onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Review</PortalButton>
                         )}

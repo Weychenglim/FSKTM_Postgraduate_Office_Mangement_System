@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
-import { checkChip, formatFileSize, studentsLine, typeAndTags, uploadedLine } from './documentDisplay';
+import { checkChip, formatFileSize, historyTime, studentsLine, typeAndTags, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
 import { defaultSharing, sharingNames, staffTypeChoices, studentAudienceSentence } from './documentSharing';
 import { addTags, cleanTag } from './documentTags';
@@ -43,6 +43,12 @@ assert.equal(filtersFromParams(new URLSearchParams('view=everything')).view, 'al
 assert.equal(filtersToParams({ ...EMPTY_DOCUMENT_FILTERS, q: ' ali ', type: 'thesis' }).toString(), 'q=ali&type=thesis');
 assert.equal(filtersToParams(EMPTY_DOCUMENT_FILTERS).toString(), '', 'Defaults leave a clean address');
 assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, uploader: 'me', kind: 'PDF', type: 'thesis' }), 2);
+assert.equal(filtersFromParams(new URLSearchParams('archived=1')).archived, '1', 'The office can ask for archived files');
+assert.equal(filtersFromParams(new URLSearchParams('archived=yes')).archived, '');
+assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }), 1);
+assert.equal(filtersToParams({ ...EMPTY_DOCUMENT_FILTERS, archived: '1' }).toString(), 'archived=1');
+assert.equal(historyTime('2026-10-14T02:05:00Z'), '14 Oct 2026, 10:05', 'History times are in Malaysia time');
+assert.equal(historyTime('not a date'), '');
 
 // Upload checks mirror the server
 assert.equal(kindForName('Report.PDF'), 'PDF');

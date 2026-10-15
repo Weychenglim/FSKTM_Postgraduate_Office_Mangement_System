@@ -4,6 +4,7 @@ from django.db.models import Prefetch
 from accounts.models import User
 
 from .access import people_reached, permissions
+from .history import file_history
 from .models import Document, DocumentStudent, DocumentTag
 
 ROLE_LABELS = {
@@ -16,7 +17,7 @@ ROLE_LABELS = {
 
 def with_details(queryset):
     return queryset.select_related(
-        "doc_type", "semester", "uploaded_by", "current_version", "checked_by"
+        "doc_type", "semester", "uploaded_by", "current_version", "checked_by", "archived_by"
     ).prefetch_related(
         Prefetch("student_links", queryset=DocumentStudent.objects.select_related("student__user")),
         Prefetch("tag_links", queryset=DocumentTag.objects.select_related("tag")),
@@ -78,6 +79,8 @@ def document_dict(document, user, scope):
         "file": version_dict(document.current_version),
         "archived": document.archived_at is not None,
         "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
+        "archivedBy": document.archived_by.full_name if document.archived_by else "",
+        "archiveReason": document.archive_reason,
         "permissions": permissions(user, document, scope),
     }
 
@@ -100,4 +103,6 @@ def detail_dict(document, user, scope):
     students = [link.student for link in document.student_links.all()]
     payload["sharedWith"] = shared_with(document, students)
     payload["versions"] = [version_dict(version) for version in document.versions.order_by("-number")]
+    if scope.office:
+        payload["history"] = file_history(document)
     return payload

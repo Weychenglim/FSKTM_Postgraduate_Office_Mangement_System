@@ -98,12 +98,15 @@ export interface PortalDocument {
   file: DocumentFileInfo | null;
   archived: boolean;
   archivedAt: string | null;
+  archivedBy: string;
+  archiveReason: string;
   permissions: DocumentPermissions;
 }
 
 export interface DocumentDetail extends PortalDocument {
   sharedWith: Array<{ name: string; role: string }>;
   versions: DocumentFileInfo[];
+  history?: HistoryEntry[];
 }
 
 export interface DocumentPage {
@@ -163,6 +166,7 @@ export interface DocumentFilters {
   from: string;
   to: string;
   tag: string;
+  archived: '' | '1';
 }
 
 export interface DocumentUploadInput {
@@ -238,3 +242,25 @@ export type DocumentSharingOptions = StudentFileSharingOptions | StaffFileSharin
 export const isStaffFileSharing = (options: DocumentSharingOptions): options is StaffFileSharingOptions => options.isStaffFile === true;
 
 export type DocumentSharingChange = DocumentSharing | { audience: StaffAudience; programmes: string[] };
+
+export type HistoryShow = 'all' | 'uploads' | 'changes' | 'checks' | 'archive' | 'deleted' | 'opened' | 'settings';
+
+export interface HistoryEntry {
+  id: string;
+  action: string;
+  actionLabel: string;
+  reference: string;
+  title: string;
+  documentId: number | null;
+  actor: string;
+  reason: string;
+  detail: string;
+  at: string;
+}
+
+export interface HistoryPage {
+  count: number;
+  limit: number;
+  offset: number;
+  results: HistoryEntry[];
+}

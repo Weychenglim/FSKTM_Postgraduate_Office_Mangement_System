@@ -17,6 +17,8 @@ import type {
   DocumentTypeSetting,
   DocumentTypeSettings,
   DocumentUploadInput,
+  HistoryPage,
+  HistoryShow,
   ManagedTag,
   PortalDocument,
   StudentFileHeader,
@@ -205,4 +207,18 @@ export function tagClash(error: unknown): { id: number; name: string } | null {
   if (!(error instanceof ApiError) || error.status !== 409) return null;
   const body = error.body as { code?: string; existingId?: number; existingName?: string } | undefined;
   return body?.code === 'tag_exists' && typeof body.existingId === 'number' ? { id: body.existingId, name: body.existingName ?? '' } : null;
+}
+
+export function archiveDocument(id: number, reason: string): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`${BASE}/${id}/archive/`, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+export function restoreDocument(id: number): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`${BASE}/${id}/restore/`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function getDocumentHistory(show: HistoryShow, q: string, offset = 0, limit = 30): Promise<HistoryPage> {
+  const query = new URLSearchParams({ show, offset: String(offset), limit: String(limit) });
+  if (q.trim()) query.set('q', q.trim());
+  return request<HistoryPage>(`${BASE}/history/?${query}`);
 }

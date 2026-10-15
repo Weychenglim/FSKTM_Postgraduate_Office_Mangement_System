@@ -12,6 +12,7 @@ export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   from: '',
   to: '',
   tag: '',
+  archived: '',
 };
 
 const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine'];
@@ -41,6 +42,7 @@ export function filtersFromParams(params: URLSearchParams): DocumentFilters {
     from: date('from'),
     to: date('to'),
     tag: params.get('tag') ?? '',
+    archived: pick(params.get('archived'), ['1'] as const),
   };
 }
 
@@ -58,5 +60,5 @@ export const documentQuery = filtersToParams;
 
 /** How many of the filters under "More filters" are in use. */
 export function moreFilterCount(filters: DocumentFilters): number {
-  return [filters.uploader, filters.status, filters.kind, filters.from, filters.to, filters.tag].filter(Boolean).length;
+  return [filters.uploader, filters.status, filters.kind, filters.from, filters.to, filters.tag, filters.archived].filter(Boolean).length;
 }
