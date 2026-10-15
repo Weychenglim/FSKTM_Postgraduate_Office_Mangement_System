@@ -5,18 +5,21 @@
 
 // Student "My Profile" (UC06): the profile plus every record linked to it.
 // Supervisor, Panel and Marks come from the progress dossier, letters from
-// the issued-letter register, announcements from the notification feed.
+// the issued-letter register, announcements from the notification feed, files
+// from File Management.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, FolderMinus, MailOpen, Megaphone, Users } from 'lucide-react';
+import { ClipboardCheck, FolderOpen, MailOpen, Megaphone, Users } from 'lucide-react';
 import { PageHeader, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterRequests } from './IssuedLetters';
-import { DemoUser, GeneratedLetter, StudentProgressDossier } from '../types';
+import { CheckChip } from './DocumentParts';
+import { DemoUser, GeneratedLetter, PortalDocument, StudentProgressDossier } from '../types';
 import { getMyLetterRequests, getStudentProgressDossier, inactiveStudentReason } from '../services';
+import { getDocuments } from '../services/filesApi';
 import { useNotifications } from '../context/NotificationsContext';
-import { APP_ROUTES } from '../constants/routes';
+import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import type { OpenNotificationState } from '../utils/notificationLinks';
 import {
@@ -71,6 +74,9 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
   const [lettersLoading, setLettersLoading] = useState(true);
   const [lettersError, setLettersError] = useState<string | null>(null);
+  const [files, setFiles] = useState<PortalDocument[]>([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const [filesError, setFilesError] = useState<string | null>(null);
 
   const loadDossier = useCallback(() => {
     if (!currentUser.studentId) {
@@ -95,10 +101,20 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
       .finally(() => setLettersLoading(false));
   }, []);
 
+  const loadFiles = useCallback(() => {
+    setFilesLoading(true);
+    setFilesError(null);
+    getDocuments({ view: 'all' }, 0, 100)
+      .then((page) => setFiles(page.results))
+      .catch((err) => setFilesError(err instanceof Error ? err.message : 'Failed to load your files.'))
+      .finally(() => setFilesLoading(false));
+  }, []);
+
   useEffect(() => {
     loadDossier();
     loadLetters();
-  }, [loadDossier, loadLetters]);
+    loadFiles();
+  }, [loadDossier, loadLetters, loadFiles]);
 
   const counts = recordCounts({ dossier, letters, notifications });
   const appointments = appointmentRows(dossier);
@@ -151,7 +167,7 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
         <StatCard label="Marks" value={counts.marks} caption="Evaluation tasks" icon={ClipboardCheck} tone="green" />
         <StatCard label="Letters" value={counts.letters} caption="Issued to you" icon={MailOpen} tone="purple" />
         <StatCard label="Announcements" value={counts.announcements} caption="Received" icon={Megaphone} tone="amber" />
-        <StatCard label="Files" value="-" caption="Available when File Management is released" icon={FolderMinus} tone="slate" />
+        <StatCard label="Files" value={filesLoading || filesError ? '-' : files.length} caption="Uploaded by you" icon={FolderOpen} tone="slate" />
       </div>
 
       <SegmentedControl<RecordCategory>
@@ -175,11 +191,44 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
         <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
           <div className="overflow-x-auto">
             {tab === 'files' ? (
-              <table className="data-table text-xs">
-                <tbody>
-                  <NoRecords colSpan={1} text="Available when File Management is released." />
-                </tbody>
-              </table>
+              filesLoading ? (
+                <LoadingState message="Loading your files…" />
+              ) : filesError ? (
+                <ErrorState message={filesError} onRetry={loadFiles} />
+              ) : (
+                <table className="data-table text-xs">
+                  <thead>
+                    <tr className="data-thead bg-[#f8fafc]">
+                      <th className="data-th">File</th>
+                      <th className="data-th">Type</th>
+                      <th className="data-th">Status</th>
+                      <th className="data-th">Uploaded</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {files.length === 0 ? (
+                      <NoRecords colSpan={4} text="You have not uploaded any files yet." />
+                    ) : (
+                      files.map((file) => (
+                        <tr key={file.id} className="hover:bg-slate-50/50 transition">
+                          <td className="data-td">
+                            <button
+                              type="button"
+                              onClick={() => onNavigate(routeForDocument(file.id))}
+                              className="font-bold text-slate-800 hover:text-blue-700 text-left cursor-pointer"
+                            >
+                              {file.title}
+                            </button>
+                          </td>
+                          <td className="data-td">{file.type.label}</td>
+                          <td className="data-td">{file.checkStatus === 'NONE' ? 'Uploaded' : <CheckChip status={file.checkStatus} />}</td>
+                          <td className="data-td whitespace-nowrap">{shownDate(file.uploadedAt)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )
             ) : tab === 'announcements' ? (
               <table className="data-table text-xs">
                 <thead>

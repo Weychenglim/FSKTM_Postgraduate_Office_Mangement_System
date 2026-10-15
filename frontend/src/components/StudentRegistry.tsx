@@ -49,6 +49,8 @@ import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
+import { Link } from 'react-router';
+import { APP_ROUTES } from '../constants/routes';
 import { LoadingState, ErrorState } from './StateViews';
 import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
 import {
@@ -2413,6 +2415,9 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <h3 className="section-label">{viewingStudent.name}</h3>
                     <p className="text-[10.5px] text-slate-500 font-mono mt-0.5">{viewingStudent.id}</p>
                   </div>
+                  <Link to={`${APP_ROUTES.files}?student=${encodeURIComponent(viewingStudent.id)}`} className="back-link ml-auto">
+                    View files
+                  </Link>
                 </div>
 
                 {/* Information Attributes Grid */}

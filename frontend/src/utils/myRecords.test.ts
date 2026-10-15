@@ -77,8 +77,9 @@ assert.match(header, /<span>My Profile<\/span>/);
 assert.match(header, /setDropdownOpen\(false\); navigate\(APP_ROUTES\.settings\);/, 'Settings in the profile menu opens Settings');
 assert.ok(!SIDEBAR_MENU_ORDER.includes(SIDEBAR_ITEMS.SETTINGS), 'Settings is in the profile menu, not the sidebar');
 const page = readFileSync(resolve('src/components/StudentMyRecords.tsx'), 'utf8');
-for (const text of ['No records found.', 'Available when File Management is released', 'Change in Settings', 'getStudentProgressDossier(currentUser.studentId)']) {
+for (const text of ['No records found.', 'Uploaded by you', "getDocuments({ view: 'all' }", 'routeForDocument(file.id)', 'Change in Settings', 'getStudentProgressDossier(currentUser.studentId)']) {
   assert.ok(page.includes(text), `My Profile is missing ${text}`);
 }
+assert.ok(!page.includes('Available when File Management is released'), 'Files in My Profile show the student\'s real uploads');
 
 console.log('My Profile tests passed.');
