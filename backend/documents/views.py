@@ -1,4 +1,5 @@
 """File Management API (UC24 to UC27)."""
+import copy
 import tempfile
 import zipfile
 from datetime import date
@@ -23,21 +24,35 @@ from .access import (
     Scope,
     is_staff_member,
     panel_student_ids,
+    people_reached,
+    permissions,
     supervisors_of,
     taggable_students,
     visible_documents,
 )
 from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
+from .office_settings import (
+    KIND_UPLOADERS,
+    add_type,
+    change_type,
+    merge_tag,
+    remove_tag,
+    rename_tag,
+    type_settings_dict,
+    types_with_counts,
+)
 from .previews import PreviewMissing, docx_text, image_png, pdf_page_png
 from .serializers import detail_dict, document_dict, with_details
 from .services import (
     TagProblem,
     add_version,
+    change_sharing,
     check_document,
     clean_tags,
     create_document,
     delete_document,
     record_event,
+    sharing_of,
     update_details,
 )
 from .validation import UploadRejected, check_upload, max_upload_bytes, title_from_name
@@ -525,6 +540,13 @@ def tags_view(request):
     if refused:
         return refused
     text = (request.query_params.get("search") or "").strip().lstrip("#").casefold()[:30]
+    if _flag(request.query_params.get("manage")):
+        if not scope.office:
+            return Response({"detail": "Only the PG office manages tags.", "code": "documents_office_only"}, status=status.HTTP_403_FORBIDDEN)
+        every = Tag.objects.annotate(uses=Count("document_links", distinct=True))
+        if text:
+            every = every.filter(key__icontains=text)
+        return Response([{"id": tag.pk, "name": tag.name, "uses": tag.uses} for tag in every.order_by("name")[:500]])
     tags = Tag.objects.filter(
         document_links__document__in=visible_documents(request.user, scope).values("pk")
     )
@@ -845,3 +867,233 @@ def check_view(request, pk):
     check_document(document, actor=request.user, accept=decision == "ACCEPT", reason=reason)
     document = _visible_or_none(request, scope, document.pk)
     return Response(detail_dict(document, request.user, scope))
+
+
+def _office_only(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return scope, refused
+    if not scope.office:
+        return scope, Response(
+            {"detail": "Only the PG office manages File Management settings.", "code": "documents_office_only"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return scope, None
+
+
+TYPE_FLAGS = (
+    ("share_supervisors", "shareSupervisors"),
+    ("share_panel", "sharePanel"),
+    ("share_coordinator", "shareCoordinator"),
+    ("needs_check", "needsCheck"),
+    ("one_per_student", "onePerStudent"),
+    ("is_active", "isActive"),
+)
+
+
+def _type_values(data, doc_type=None):
+    errors, values = {}, {}
+    if doc_type is None or "label" in data:
+        label = " ".join(str(data.get("label") or "").split())
+        same = DocumentType.objects.filter(label__iexact=label)
+        if doc_type is not None:
+            same = same.exclude(pk=doc_type.pk)
+        if not label or len(label) > 120:
+            errors["label"] = ["Give the type a name of up to 120 characters."]
+        elif same.exists():
+            errors["label"] = [f"There is already a type called {label}."]
+        values["label"] = label
+    if "description" in data:
+        description = " ".join(str(data.get("description") or "").split())
+        if len(description) > 300:
+            errors["description"] = ["Keep the description to 300 characters."]
+        values["description"] = description
+    if doc_type is None or "group" in data:
+        group = str(data.get("group") or DocumentType.Group.OTHER)
+        if group not in DocumentType.Group.values:
+            errors["group"] = ["Choose a group from the list."]
+        values["group"] = group
+    kind = doc_type.kind if doc_type else DocumentType.Kind.STUDENT
+    if doc_type is None or "kind" in data:
+        wanted = str(data.get("kind") or kind)
+        if wanted not in DocumentType.Kind.values:
+            errors["kind"] = ["Choose student files or staff files."]
+        elif doc_type is not None and wanted != doc_type.kind and doc_type.documents.exists():
+            errors["kind"] = ["Files already use this type, so it cannot switch between student and staff files. Add a new type instead."]
+        else:
+            kind = wanted
+            values["kind"] = kind
+    allowed = KIND_UPLOADERS[kind]
+    if doc_type is None or "uploaders" in data:
+        raw = data.get("uploaders") or []
+        if not isinstance(raw, list) or any(value not in allowed for value in raw):
+            errors["uploaders"] = ["Choose who can upload from the list."]
+        else:
+            values["uploaders"] = [value for value in allowed if value in raw]
+    elif "kind" in values:
+        values["uploaders"] = [value for value in allowed if value in (doc_type.uploaders or [])]
+    for field, key in TYPE_FLAGS:
+        if key in data:
+            values[field] = _flag(data.get(key))
+        elif doc_type is None:
+            values[field] = field == "is_active"
+    if kind == DocumentType.Kind.STAFF:
+        values.update(share_supervisors=False, share_panel=False, share_coordinator=False, one_per_student=False)
+    return values, errors
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def types_view(request):
+    """Every document type, switched off ones included, for the office."""
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    if request.method == "POST":
+        values, errors = _type_values(request.data)
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        doc_type = add_type(actor=request.user, values=values)
+        return Response(type_settings_dict(types_with_counts().get(pk=doc_type.pk)), status=status.HTTP_201_CREATED)
+    return Response({
+        "types": [type_settings_dict(doc_type) for doc_type in types_with_counts()],
+        "groups": [{"value": value, "label": label} for value, label in DocumentType.Group.choices],
+        "kindUploaders": {kind.value: list(uploaders) for kind, uploaders in KIND_UPLOADERS.items()},
+    })
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def type_view(request, pk):
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    doc_type = DocumentType.objects.filter(pk=pk).first()
+    if doc_type is None:
+        return Response({"detail": "This document type does not exist."}, status=status.HTTP_404_NOT_FOUND)
+    values, errors = _type_values(request.data, doc_type)
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    doc_type, updated = change_type(doc_type, actor=request.user, values=values)
+    payload = type_settings_dict(types_with_counts().get(pk=doc_type.pk))
+    payload["updatedFiles"] = updated
+    return Response(payload)
+
+
+def _reach_by_group(document, students):
+    """Who each sharing tick would reach, ticked or not."""
+    probe = copy.copy(document)
+    probe.share_supervisors = probe.share_panel = probe.share_coordinator = True
+    groups = {"supervisors": [], "panel": [], "coordinator": []}
+    for user, label in people_reached(probe, students):
+        key = {"panel member": "panel", "programme coordinator": "coordinator"}.get(label, "supervisors")
+        groups[key].append({"name": user.full_name, "role": label})
+    return groups
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def sharing_view(request, pk):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if not permissions(request.user, document, scope)["canChangeSharing"]:
+        return Response(
+            {"detail": "Only the PG office or the staff member who uploaded it can change who sees this file.", "code": "documents_not_uploader"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if request.method == "GET":
+        if document.is_staff_file:
+            return Response({
+                "isStaffFile": True,
+                **sharing_of(document),
+                "audiences": [{"value": value, "label": label} for value, label in Document.Audience.choices],
+                "allProgrammes": list(APPROVED_PROGRAMMES),
+            })
+        students = [link.student for link in document.student_links.all()]
+        return Response({
+            "isStaffFile": False,
+            "share": sharing_of(document),
+            "followsType": document.follows_type,
+            "people": _reach_by_group(document, students),
+        })
+    data = request.data
+    if document.is_staff_file:
+        errors, programmes = {}, []
+        audience = str(data.get("audience") or "")
+        if audience not in Document.Audience.values:
+            errors["audience"] = ["Choose who can see this staff file."]
+        raw = data.get("programmes") if isinstance(data.get("programmes"), list) else _list(data, "programmes")
+        for value in raw:
+            programme = normalise_programme(str(value))
+            if programme is None:
+                errors["programmes"] = [f"Unknown programme: {value}."]
+            elif programme not in programmes:
+                programmes.append(programme)
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        sharing = {"audience": audience, "programmes": [] if audience == Document.Audience.OFFICE else programmes}
+    else:
+        sharing = {key: _flag(data.get(key)) for key in ("supervisors", "panel", "coordinator")}
+    change_sharing(document, actor=request.user, sharing=sharing)
+    document = _visible_or_none(request, scope, document.pk)
+    return Response(detail_dict(document, request.user, scope))
+
+
+def _tag_dict(tag):
+    return {"id": tag.pk, "name": tag.name, "uses": tag.document_links.count()}
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def tag_view(request, pk):
+    """Rename a tag everywhere, or remove it from every file."""
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    tag = Tag.objects.filter(pk=pk).first()
+    if tag is None:
+        return Response({"detail": "This tag no longer exists."}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        return Response({"files": remove_tag(tag, actor=request.user)})
+    try:
+        names = clean_tags([request.data.get("name")])
+    except TagProblem as problem:
+        return Response({"name": [str(problem)]}, status=status.HTTP_400_BAD_REQUEST)
+    if not names:
+        return Response({"name": ["Give the tag a name."]}, status=status.HTTP_400_BAD_REQUEST)
+    name = names[0]
+    twin = Tag.objects.filter(key=name.casefold()).exclude(pk=tag.pk).first()
+    if twin is not None:
+        return Response(
+            {
+                "detail": f"There is already a tag called {twin.name}. Merge them instead.",
+                "code": "tag_exists",
+                "existingId": twin.pk,
+                "existingName": twin.name,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+    if name != tag.name:
+        rename_tag(tag, actor=request.user, name=name)
+    return Response(_tag_dict(tag))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def tag_merge_view(request, pk):
+    _, refused = _office_only(request)
+    if refused:
+        return refused
+    tag = Tag.objects.filter(pk=pk).first()
+    if tag is None:
+        return Response({"detail": "This tag no longer exists."}, status=status.HTTP_404_NOT_FOUND)
+    raw = str(request.data.get("into") or "")
+    into = Tag.objects.filter(pk=raw).exclude(pk=tag.pk).first() if raw.isdigit() else None
+    if into is None:
+        return Response({"into": ["Choose another tag to merge into."]}, status=status.HTTP_400_BAD_REQUEST)
+    merge_tag(tag, into, actor=request.user)
+    return Response(_tag_dict(into))

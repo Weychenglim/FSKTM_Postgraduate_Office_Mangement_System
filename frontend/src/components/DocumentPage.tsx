@@ -15,7 +15,7 @@ import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
-import { EditDetailsDialog, NewVersionDialog, ReturnDialog } from './DocumentDialogs';
+import { EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -42,7 +42,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
-  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | null>(null);
+  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | 'sharing' | null>(null);
   const [askedForVersion, setAskedForVersion] = useState(false);
   const uploadedReference = typeof location.state?.uploadedReference === 'string' ? location.state.uploadedReference : '';
   const from = typeof location.state?.from === 'string' ? location.state.from : '';
@@ -119,6 +119,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   const menu: MenuAction[] = [
     ...(document?.permissions.canUploadVersion ? [{ label: 'Upload a new version', onSelect: () => setDialog('version') }] : []),
     ...(document?.permissions.canEdit ? [{ label: 'Edit details', onSelect: () => setDialog('edit') }] : []),
+    ...(document?.permissions.canChangeSharing ? [{ label: 'Change who can see it', onSelect: () => setDialog('sharing') }] : []),
     ...(document?.permissions.canDelete ? [{ label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
   const who = document ? studentsLine(document.students) : null;
@@ -264,6 +265,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           <NewVersionDialog document={document} isOpen={dialog === 'version'} onClose={() => setDialog(null)} onDone={finished} />
           <EditDetailsDialog document={document} isOpen={dialog === 'edit'} onClose={() => setDialog(null)} onDone={finished} />
           <ReturnDialog document={document} isOpen={dialog === 'return'} onClose={() => setDialog(null)} onDone={finished} />
+          <SharingDialog document={document} isOpen={dialog === 'sharing'} onClose={() => setDialog(null)} onDone={finished} />
         </>
       )}
       <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />

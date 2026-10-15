@@ -5,14 +5,17 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
-import type { DocumentDetail } from '../types';
-import { addDocumentVersion, checkDocument, updateDocument } from '../services/filesApi';
+import { isStaffFileSharing, type DocumentDetail, type DocumentSharing, type DocumentSharingOptions, type StaffAudience } from '../types';
+import { addDocumentVersion, checkDocument, getDocumentSharing, updateDocument, updateDocumentSharing } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { formatFileSize } from '../utils/documentDisplay';
 import { acceptAttribute, kindForName } from '../utils/documentUpload';
+import { peopleLine, STAFF_AUDIENCES } from '../utils/documentSharing';
 import { PortalButton } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { KindBadge, TagInput } from './DocumentParts';
+import { SelectMenu } from './SelectMenu';
+import { ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -23,7 +26,7 @@ interface DialogProps {
   onDone: (document: DocumentDetail, message: string) => void;
 }
 
-const DialogShell: React.FC<{ title: string; titleId: string; isOpen: boolean; busy: boolean; onClose: () => void; children: React.ReactNode; footer: React.ReactNode }> = ({
+export const DialogShell: React.FC<{ title: string; titleId: string; isOpen: boolean; busy: boolean; onClose: () => void; children: React.ReactNode; footer: React.ReactNode }> = ({
   title, titleId, isOpen, busy, onClose, children, footer,
 }) => (
   <PortalModal isOpen={isOpen} onClose={onClose} busy={busy} labelledBy={titleId} className="max-w-lg p-0">
@@ -237,6 +240,129 @@ export const ReturnDialog: React.FC<DialogProps> = ({ document, isOpen, onClose,
           </button>
         ))}
       </div>
+      {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
+    </DialogShell>
+  );
+};
+
+const NO_SHARING: DocumentSharing = { supervisors: false, panel: false, coordinator: false };
+
+/** Who can see a file: the three ticks for a student file, the audience for a staff file. */
+export const SharingDialog: React.FC<DialogProps> = ({ document, isOpen, onClose, onDone }) => {
+  const titleId = useModalTitle();
+  const [options, setOptions] = useState<DocumentSharingOptions | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [share, setShare] = useState<DocumentSharing>(NO_SHARING);
+  const [audience, setAudience] = useState<StaffAudience>('ACADEMIC');
+  const [programme, setProgramme] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setOptions(null);
+    setLoadError(null);
+    setProblem(null);
+    getDocumentSharing(document.id)
+      .then(found => {
+        if (cancelled) return;
+        setOptions(found);
+        if (isStaffFileSharing(found)) {
+          setAudience(found.audience);
+          setProgramme(found.programmes[0] ?? '');
+        } else {
+          setShare(found.share);
+        }
+      })
+      .catch(err => !cancelled && setLoadError(errorText(err, 'Could not load who can see this file.')));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, document.id, attempt]);
+
+  const save = async () => {
+    if (!options) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const updated = await updateDocumentSharing(
+        document.id,
+        isStaffFileSharing(options) ? { audience, programmes: audience === 'OFFICE' || !programme ? [] : [programme] } : share,
+      );
+      onDone(updated, 'Sharing saved.');
+    } catch (err) {
+      const fields = fieldErrors(err);
+      setProblem(fields.audience || fields.programmes || errorText(err, 'Could not save who can see this file.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DialogShell
+      title="Who can see this file?"
+      titleId={titleId}
+      isOpen={isOpen}
+      busy={busy}
+      onClose={onClose}
+      footer={<>
+        <PortalButton onClick={onClose} disabled={busy}>Cancel</PortalButton>
+        <PortalButton variant="primary" isLoading={busy} disabled={!options} onClick={() => void save()}>Save</PortalButton>
+      </>}
+    >
+      {loadError ? (
+        <ErrorState message={loadError} onRetry={() => setAttempt(value => value + 1)} />
+      ) : !options ? (
+        <LoadingState message="Loading..." />
+      ) : isStaffFileSharing(options) ? (
+        <>
+          <fieldset className="space-y-1">
+            <legend className="sr-only">Who can see it</legend>
+            {STAFF_AUDIENCES.map(item => (
+              <label key={item.value} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-2">
+                <input type="radio" name="sharing-audience" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={audience === item.value} onChange={() => setAudience(item.value)} />
+                <span>
+                  <span className="block text-[14px] font-bold text-slate-800">{item.label}</span>
+                  <span className="block text-[12px] text-slate-500">{item.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          {audience !== 'OFFICE' && (
+            <SelectMenu<string>
+              aria-label="Programme"
+              variant="filter"
+              prefix="Programme"
+              value={programme}
+              options={[{ value: '', label: 'All programmes', triggerLabel: 'All' }, ...options.allProgrammes.map(item => ({ value: item, label: item }))]}
+              onChange={setProgramme}
+            />
+          )}
+          <p className="text-[12px] text-slate-500">Students never see staff files.</p>
+        </>
+      ) : (
+        <>
+          {([
+            ['supervisors', 'Supervisors', peopleLine(options.people.supervisors, 'No supervisor yet')],
+            ['panel', 'Panel member', peopleLine(options.people.panel, 'No panel member yet')],
+            ['coordinator', 'Programme coordinator', peopleLine(options.people.coordinator, 'None')],
+          ] as const).map(([key, label, people]) => (
+            <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1.5">
+              <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={share[key]} onChange={() => setShare(current => ({ ...current, [key]: !current[key] }))} />
+              <span>
+                <span className="block text-[14px] font-bold text-slate-800">{label}</span>
+                <span className="block text-[13px] text-slate-500">{people}</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-[12px] text-slate-500">The PG office and the uploader always see it.</p>
+          {options.followsType && (
+            <p className="rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-700">Right now this file follows the settings for {document.type.label}. If you change it here, it keeps your choice.</p>
+          )}
+        </>
+      )}
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
     </DialogShell>
   );

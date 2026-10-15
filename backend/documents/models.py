@@ -309,4 +309,47 @@ class DocumentEvent(models.Model):
         raise ValidationError("Document history cannot be deleted.")
 
 
+class SettingsChange(models.Model):
+    """The office's changes to document types and tags. Never changed or deleted."""
+
+    class Area(models.TextChoices):
+        TYPE = "TYPE", "Document type"
+        TAG = "TAG", "Tag"
+
+    class Action(models.TextChoices):
+        ADDED = "ADDED", "Added"
+        CHANGED = "CHANGED", "Changed"
+        RENAMED = "RENAMED", "Renamed"
+        MERGED = "MERGED", "Merged"
+        REMOVED = "REMOVED", "Removed"
+
+    area = models.CharField(max_length=8, choices=Area.choices)
+    action = models.CharField(max_length=16, choices=Action.choices)
+    label = models.CharField(max_length=120)
+    doc_type = models.ForeignKey(
+        DocumentType, on_delete=models.SET_NULL, related_name="changes", null=True, blank=True
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="document_settings_changes",
+        null=True,
+        blank=True,
+    )
+    actor_name = models.CharField(max_length=255, blank=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Settings history cannot be changed.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Settings history cannot be deleted.")
+
+
 ACTIVE_DOCUMENT = Q(archived_at__isnull=True)

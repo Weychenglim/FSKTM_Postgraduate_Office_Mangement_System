@@ -330,3 +330,54 @@ def update_details(document, *, actor, changes, students=None, tags=None):
         if changed:
             record_event(document, DocumentEvent.Action.DETAILS_CHANGED, actor, details=changed)
     return document
+
+
+def sharing_of(document):
+    if document.is_staff_file:
+        return {"audience": document.staff_audience, "programmes": list(document.staff_programmes or [])}
+    return {
+        "supervisors": document.share_supervisors,
+        "panel": document.share_panel,
+        "coordinator": document.share_coordinator,
+    }
+
+
+def change_sharing(document, *, actor, sharing):
+    """Change who a file is shared with. A student upload changed here stops
+    following its type. People who can newly see it get a notice."""
+    with transaction.atomic():
+        document = Document.objects.select_for_update(of=("self",)).select_related("uploaded_by", "doc_type").get(pk=document.pk)
+        before = sharing_of(document)
+        if sharing == before:
+            return document
+        students = list(document.students.select_related("user"))
+        reached = {user.pk for user, _ in people_reached(document, students)}
+        if document.is_staff_file:
+            document.staff_audience = sharing["audience"]
+            document.staff_programmes = sharing["programmes"]
+        else:
+            document.share_supervisors = sharing["supervisors"]
+            document.share_panel = sharing["panel"]
+            document.share_coordinator = sharing["coordinator"]
+            document.follows_type = False
+        document.save(update_fields=[
+            "staff_audience", "staff_programmes", "share_supervisors", "share_panel",
+            "share_coordinator", "follows_type", "updated_at",
+        ])
+        event = record_event(
+            document,
+            DocumentEvent.Action.SHARING_CHANGED,
+            actor,
+            details={"before": before, "after": sharing_of(document)},
+        )
+        newcomers = [user for user, _ in people_reached(document, students) if user.pk not in reached and user.pk != actor.pk]
+        about = f" about {_student_names(students)}" if students else ""
+        transaction.on_commit(lambda: _notify(
+            newcomers,
+            document,
+            event_key=f"documents:shared:{document.pk}:e{event.pk}",
+            title=f"{actor.full_name} shared a file with you",
+            summary=f"{document.doc_type.label}: {document.title}",
+            message=f"{actor.full_name} shared {document.title}{about}.",
+        ))
+    return document

@@ -1,4 +1,17 @@
-import type { DocumentSharing, DocumentTypeOption, TaggableStudent } from '../types';
+import type { DocumentSharing, DocumentTypeOption, SharingPerson, StaffAudience, TaggableStudent } from '../types';
+
+export const STAFF_AUDIENCES: Array<{ value: StaffAudience; label: string; hint: string }> = [
+  { value: 'ACADEMIC', label: 'All lecturers and coordinators', hint: 'Everyone on the academic staff' },
+  { value: 'COORDINATORS', label: 'Programme coordinators only', hint: 'Acting coordinators included' },
+  { value: 'OFFICE', label: 'PG office only', hint: 'Only the office and the uploader' },
+];
+
+/** "Dr A, Dr B (co-supervisor)" for the people one sharing tick reaches. */
+export function peopleLine(people: SharingPerson[], none: string): string {
+  return people.length
+    ? people.map(person => (person.role === 'co-supervisor' ? `${person.name} (co-supervisor)` : person.name)).join(', ')
+    : none;
+}
 
 export function defaultSharing(type: DocumentTypeOption | null | undefined): DocumentSharing {
   return {

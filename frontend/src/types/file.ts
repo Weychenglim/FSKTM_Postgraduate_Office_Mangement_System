@@ -178,3 +178,63 @@ export interface DocumentUploadInput {
   programmes?: string[];
   acknowledgeWarnings?: boolean;
 }
+
+export interface DocumentTypeSetting extends DocumentTypeOption {
+  id: number;
+  files: number;
+  studentUploads: number;
+  waiting: number;
+  updatedFiles?: number;
+}
+
+export interface DocumentTypeSettings {
+  types: DocumentTypeSetting[];
+  groups: Array<{ value: string; label: string }>;
+  kindUploaders: Record<DocumentTypeKind, DocumentUploaderRole[]>;
+}
+
+export interface DocumentTypeInput {
+  label: string;
+  description: string;
+  group: string;
+  kind: DocumentTypeKind;
+  uploaders: DocumentUploaderRole[];
+  shareSupervisors: boolean;
+  sharePanel: boolean;
+  shareCoordinator: boolean;
+  needsCheck: boolean;
+  onePerStudent: boolean;
+  isActive: boolean;
+}
+
+export interface ManagedTag {
+  id: number;
+  name: string;
+  uses: number;
+}
+
+export interface SharingPerson {
+  name: string;
+  role: string;
+}
+
+export interface StudentFileSharingOptions {
+  isStaffFile: false;
+  share: DocumentSharing;
+  followsType: boolean;
+  people: Record<keyof DocumentSharing, SharingPerson[]>;
+}
+
+export interface StaffFileSharingOptions {
+  isStaffFile: true;
+  audience: StaffAudience;
+  programmes: string[];
+  audiences: Array<{ value: StaffAudience; label: string }>;
+  allProgrammes: string[];
+}
+
+export type DocumentSharingOptions = StudentFileSharingOptions | StaffFileSharingOptions;
+
+export const isStaffFileSharing = (options: DocumentSharingOptions): options is StaffFileSharingOptions => options.isStaffFile === true;
+
+export type DocumentSharingChange = DocumentSharing | { audience: StaffAudience; programmes: string[] };

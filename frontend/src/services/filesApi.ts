@@ -10,8 +10,14 @@ import type {
   DocumentFilters,
   DocumentOptions,
   DocumentPage,
+  DocumentSharingChange,
+  DocumentSharingOptions,
   DocumentSummary,
+  DocumentTypeInput,
+  DocumentTypeSetting,
+  DocumentTypeSettings,
   DocumentUploadInput,
+  ManagedTag,
   PortalDocument,
   StudentFileHeader,
   TaggableStudent,
@@ -154,4 +160,49 @@ export function checkDocument(id: number, decision: 'ACCEPT' | 'RETURN', reason:
 
 export function updateDocument(id: number, changes: { title?: string; description?: string; tags?: string[] }): Promise<DocumentDetail> {
   return request<DocumentDetail>(`${BASE}/${id}/`, { method: 'PATCH', body: JSON.stringify(changes) });
+}
+
+export function getDocumentSharing(id: number): Promise<DocumentSharingOptions> {
+  return request<DocumentSharingOptions>(`${BASE}/${id}/sharing/`);
+}
+
+export function updateDocumentSharing(id: number, sharing: DocumentSharingChange): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`${BASE}/${id}/sharing/`, { method: 'PUT', body: JSON.stringify(sharing) });
+}
+
+export function getDocumentTypeSettings(): Promise<DocumentTypeSettings> {
+  return request<DocumentTypeSettings>(`${BASE}/types/`);
+}
+
+export function addDocumentType(input: DocumentTypeInput): Promise<DocumentTypeSetting> {
+  return request<DocumentTypeSetting>(`${BASE}/types/`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateDocumentType(id: number, input: Partial<DocumentTypeInput>): Promise<DocumentTypeSetting> {
+  return request<DocumentTypeSetting>(`${BASE}/types/${id}/`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function getManagedTags(search = ''): Promise<ManagedTag[]> {
+  const query = new URLSearchParams({ manage: '1' });
+  if (search.trim()) query.set('search', search.trim());
+  return request<ManagedTag[]>(`${BASE}/tags/?${query}`);
+}
+
+export function renameTag(id: number, name: string): Promise<ManagedTag> {
+  return request<ManagedTag>(`${BASE}/tags/${id}/`, { method: 'PATCH', body: JSON.stringify({ name }) });
+}
+
+export function mergeTag(id: number, into: number): Promise<ManagedTag> {
+  return request<ManagedTag>(`${BASE}/tags/${id}/merge/`, { method: 'POST', body: JSON.stringify({ into }) });
+}
+
+export function removeTag(id: number): Promise<{ files: number }> {
+  return request<{ files: number }>(`${BASE}/tags/${id}/`, { method: 'DELETE' });
+}
+
+/** The existing tag when a rename would clash with it. */
+export function tagClash(error: unknown): { id: number; name: string } | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const body = error.body as { code?: string; existingId?: number; existingName?: string } | undefined;
+  return body?.code === 'tag_exists' && typeof body.existingId === 'number' ? { id: body.existingId, name: body.existingName ?? '' } : null;
 }

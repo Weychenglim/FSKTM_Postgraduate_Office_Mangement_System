@@ -19,6 +19,7 @@ export const APP_ROUTES = {
   files: '/files',
   filesUpload: '/files/upload',
   filesDocuments: '/files/documents',
+  filesSettings: '/files/settings',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',

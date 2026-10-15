@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Settings2, SlidersHorizontal } from 'lucide-react';
 import type { DocumentFilters, DocumentOptions, DocumentSummary, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
@@ -176,7 +176,12 @@ export const FileRepository: React.FC = () => {
       <PageHeader
         title="File Management"
         subtitle="Every student's official documents, in one place."
-        actions={<PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {isOffice && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
+            <PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
+          </div>
+        }
       />
 
       {filters.student ? (

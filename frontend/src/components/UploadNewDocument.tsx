@@ -9,7 +9,7 @@ import type { DocumentDetail, DocumentKind, DocumentOptions, DocumentSharing, St
 import { addDocumentVersion, getDocumentOptions, searchTaggableStudents, uploadConflict, uploadDocument } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { formatFileSize } from '../utils/documentDisplay';
-import { defaultSharing, namesOrNone, sharingNames, staffTypeChoices, studentAudienceSentence } from '../utils/documentSharing';
+import { defaultSharing, namesOrNone, sharingNames, STAFF_AUDIENCES, staffTypeChoices, studentAudienceSentence } from '../utils/documentSharing';
 import { acceptAttribute, acceptedKinds, fileProblem, kindForName, kindsSentence, titleFromFileName } from '../utils/documentUpload';
 import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
@@ -25,12 +25,6 @@ interface UploadNewDocumentProps {
   initialStudent?: string;
   onOpenExisting?: (documentId: number) => void;
 }
-
-const AUDIENCES: Array<{ value: StaffAudience; label: string; hint: string }> = [
-  { value: 'ACADEMIC', label: 'All lecturers and coordinators', hint: 'Everyone on the academic staff' },
-  { value: 'COORDINATORS', label: 'Programme coordinators only', hint: 'Acting coordinators included' },
-  { value: 'OFFICE', label: 'PG office only', hint: 'Only the office and you' },
-];
 
 const Section: React.FC<{ title?: string; htmlFor?: string; children: React.ReactNode }> = ({ title, htmlFor, children }) => (
   <div className="space-y-3 px-5 py-5 sm:px-6">
@@ -310,7 +304,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 <p className="text-[13px] text-slate-600">A staff file is not about any student. Students never see it; to send a file to students, use an announcement.</p>
                 <fieldset className="space-y-1">
                   <legend className="sr-only">Who can see it</legend>
-                  {AUDIENCES.map(item => (
+                  {STAFF_AUDIENCES.map(item => (
                     <label key={item.value} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-2.5">
                       <input type="radio" name="audience" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={audience === item.value} onChange={() => setAudience(item.value)} />
                       <span>

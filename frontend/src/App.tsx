@@ -102,6 +102,7 @@ const FileRepository = lazyNamed('FileRepository', () => import('./components/Fi
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
+const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
 const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
@@ -934,6 +935,8 @@ export default function App() {
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
                 />
+              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Office Staff/Admin' ? (
+                <FileSettings onBack={() => navigate(APP_ROUTES.files)} />
               ) : documentMatch ? (
                 <DocumentPage
                   key={documentMatch.params.documentId}
