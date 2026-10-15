@@ -177,7 +177,7 @@ Coordinators do not get a new view. Everyone else gets "not found".
 | Phase | What | Status | Commit |
 |---|---|---|---|
 | L1 | Backend: purpose and signatory, appointment placeholders, the hook, letter creation, recipients and access, missing letters, reissue | Done | `df853d9` |
-| L2 | Office screens: the Used for choice, signatory, placeholders, the Made by filter, Reissue, the missing-letters banner | Not started | |
+| L2 | Office screens: the Used for choice, signatory, placeholders, the Made by filter, Reissue, the missing-letters banner | Done | `54a6e97` |
 | L3 | Recipient side: the letter page in Files, notices and email, the student's places, docs and wrap-up | Not started | |
 
 **Tests:**

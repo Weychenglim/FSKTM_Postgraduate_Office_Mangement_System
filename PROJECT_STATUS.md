@@ -1,5 +1,45 @@
 # Project Status
 
+## Appointment Letters, Phase L2: Office Screens (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `54a6e97`.
+
+**Template editor:**
+- **Used For.** Three cards: Student requests, Supervisor appointment letter, Panel appointment letter. Choosing an appointment letter shows a note on who receives it.
+- **Signatory.** "Signed by" name and title fields.
+- **Placeholders.**
+  - Tags are grouped into "Student record" and "Appointment". Appointment tags appear only for the letter kinds that can use them.
+  - The placeholder check uses the same rules and hint wording as the server.
+- **Library.** It marks templates that are sent automatically.
+- **Preview.** It prints the template's own signatory and, for appointment letters, the office disclaimer.
+
+**Issued Letters:**
+- **Missing-letters banner.** It appears only when approved appointments have no letter. It shows how many can be made now, why the others cannot, and a "See which appointments" list, with **Create N letters** and **Set up template**.
+- **Made by filter.** All, Student requests, or Sent automatically.
+- **Letter view.** It says who the letter was sent to. For appointment letters, its footer offers **Reissue with current details** (rather than a menu clipped by the scrolling table).
+
+**Requests:**
+- A waiting appointment letter is labelled as made automatically and shows "Goes to".
+- It has no Reject and no student note, and is issued with **Issue letter**.
+- The preview shows who will sign it.
+
+**Shared:**
+- `LetterPages`, the print window and `letterDataFromIssued` use each letter's own closing lines (`letterClosing`).
+- Every letter's API row now carries its signatory.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 33 of 33 pass.
+- Covered: the editor, the panel and supervisor tag rules, the banner and its button, the Made by filter, the letter view and reissue, and the Requests review and issue.
+- Widths: 360, 390, 768 and 1440 px all fit, with no console errors.
+- The banner's Create button was answered in the browser, so no letters were made for the dev database's real demo appointments.
+
+**Found and fixed during the check:** the preview of a *waiting* letter showed the default signatory. A waiting letter has no signatory copy until issued, so the review data now carries the template's signatory, and a backend test covers it.
+
+**Smoke data:** removed afterwards, including the "waiting" notices sent to the three real office accounts. The Files smoke cleanup now also removes appointment-letter notices, since its setup creates appointments.
+
+**Verification:**
+- Backend: 1,270 of 1,271 tests pass; the one failure is Wey Cheng's known migration test.
+- Frontend: all 145 test scripts pass, plus TypeScript, the build and both production security checks.
+
 ## Appointment Letters, Phase L1: Backend (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A (UC22).
