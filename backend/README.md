@@ -241,6 +241,39 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 
 **History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
 
+## FAQ knowledge base endpoints (`/api/faq/`)
+
+The chatbot's answers (UC28, UC29). Everything below is for Office Staff/Admin only.
+
+| Method | Path | Body or query | Returns |
+| ------ | ---- | ------------- | ------- |
+| GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}` |
+| POST | `entries/` | `{question, answer, category, portalLink, altQuestions, publish}` | the entry (a draft unless `publish`) |
+| GET, PATCH, DELETE | `entries/<id>/` | `{question, answer, category, portalLink, altQuestions}` | the entry with its other ways of asking, PDF text and history |
+| POST | `entries/<id>/publish/`, `checked/`, `archive/`, `restore/` | | the entry |
+| GET, POST | `categories/` | `{name, position}` | categories with entry counts per status |
+| PATCH | `categories/<id>/` | `{name, position}` | the category |
+| GET | `review-list/` (`?all=1` for every entry) | | an Excel file of the entries to check |
+
+**Statuses.**
+- Students only ever see Published entries.
+- Needs checking holds imported rows that came out damaged. "Mark as checked" makes one a draft; publishing it straight away also counts as checked.
+- Publishing needs a question and an answer. Archived entries can be restored as drafts.
+
+**Answers** can use the same light formatting as letters. Links must start with `https://`, `http://`, `mailto:` or `/`, so an answer can never carry a script link.
+
+**History.** Every change is a `FaqChange` row. Rows cannot be edited or deleted, and keep the question as text after an entry is deleted.
+
+**Importing the office's FAQ.**
+```
+python manage.py import_faq            # docs/faq/faq-entries.json
+python manage.py export_faq_review     # the review list for the office, as Excel
+```
+- Clean rows from the six category sheets are Published: 56 at the start.
+- Damaged rows (37), and the 24 rows found only on the PDF's "ALL" sheet, wait as Needs checking: 61 in all. The PDF's own text is kept beside them.
+- The 46 "ALL" rows that repeat a categorised question are skipped.
+- Running the import again adds nothing and never overwrites the office's edits.
+
 ## File Management endpoints (`/api/documents/`)
 
 | Method | Path | Actor |

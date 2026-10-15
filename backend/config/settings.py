@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     "letters",
     "announcements",
     "documents",
+    "faq",
 ]
 
 MIDDLEWARE = [
