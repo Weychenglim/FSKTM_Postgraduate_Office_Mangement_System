@@ -990,7 +990,7 @@ export default function App() {
                 <FileRepository />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
-              isStudentWorkspace ? (
+              isStudentWorkspace || currentUser.role === 'Programme Coordinator' ? (
                 <StudentFAQChatbot />
               ) : (
                 <AcademicFAQEditor />

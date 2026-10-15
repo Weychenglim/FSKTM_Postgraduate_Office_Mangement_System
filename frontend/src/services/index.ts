@@ -23,3 +23,4 @@ export * from './academicSemestersApi';
 export * from './participantLifecycleApi';
 export * from './workflowReconciliationApi';
 export * from './lecturerCapacityApi';
+export * from './faqApi';
