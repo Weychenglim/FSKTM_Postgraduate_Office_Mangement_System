@@ -52,7 +52,7 @@ import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { Link } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import { LoadingState, ErrorState } from './StateViews';
-import { StaffLecturersRegistry, RegistryModuleTabs } from './StaffLecturersRegistry';
+import { RegistryModuleTabs } from './RegistryModuleTabs';
 import {
   ImportCommitResponse,
   ImportDefaults,
@@ -281,7 +281,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // Note: defaulted to 'register' and 'single' as requested so the exact single student entry screen is rendered immediately!
   const [currentView, setCurrentView] = useState<'list' | 'register'>('list');
   const [registerActiveTab, setRegisterActiveTab] = useState<'bulk' | 'single'>('single');
-  const [registryModuleTab, setRegistryModuleTab] = useListState<'students' | 'staff_lecturers'>('StudentRegistry', 'registryModuleTab', 'students');
 
   // Lists Filters States
   const [searchQuery, setSearchQuery] = useListState('StudentRegistry', 'searchQuery', '');
@@ -1045,8 +1044,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         onCancel={() => setHeldBatchToSend(null)}
       />
 
-      {registryModuleTab === 'students' ? (
-        <>
+      <>
           {/* ========================================================== */}
           {/* SCREEN A: PRIMARY REGISTRY STUDENT DIRECTORY LIST VIEW */}
           {/* ========================================================== */}
@@ -1077,7 +1075,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {!readOnly && <RegistryModuleTabs active={registryModuleTab} onChange={setRegistryModuleTab} />}
+          {!readOnly && <RegistryModuleTabs active="students" />}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
           <div id="student-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -2391,12 +2389,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         </div>}</RecordPage>
       )}
         </>
-      ) : (
-        <StaffLecturersRegistry
-          registryTab={registryModuleTab}
-          onRegistryTabChange={setRegistryModuleTab}
-        />
-      )}
 
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}

@@ -15,6 +15,8 @@ export const APP_ROUTES = {
   dashboardWorkflowReconciliation: '/dashboard/workflow-reconciliation',
   dashboardLecturerCapacity: '/dashboard/lecturer-capacity',
   registry: '/registry',
+  registryStaff: '/registry/staff',
+  registryStaffNew: '/registry/staff/new',
   faq: '/faq',
   files: '/files',
   filesUpload: '/files/upload',
@@ -83,6 +85,9 @@ const PATH_TO_SIDEBAR: Array<{ path: string; sidebarItem: SidebarItemId }> = [
 
 export const routeForSidebarItem = (item: SidebarItemId | string): string =>
   SIDEBAR_TO_ROUTE[item as SidebarItemId] ?? APP_ROUTES.dashboard;
+
+export const routeForStaffAccount = (accountId: string): string =>
+  `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;
 
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 

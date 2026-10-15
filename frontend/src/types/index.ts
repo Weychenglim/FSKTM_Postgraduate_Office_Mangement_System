@@ -10,7 +10,7 @@
 
 export * from './auth';
 export * from './student';
-export * from './lecturer';
+export * from './staffAccount';
 export * from './marks';
 export * from './appointment';
 export * from './file';

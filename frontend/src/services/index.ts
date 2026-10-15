@@ -9,7 +9,7 @@
 export * from './apiClient';
 export * as authApi from './authApi';
 export * from './studentsApi';
-export * from './lecturersApi';
+export * from './staffAccountsApi';
 export * from './appointmentsApi';
 export * from './marksApi';
 export * from './filesApi';

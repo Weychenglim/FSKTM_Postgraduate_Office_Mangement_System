@@ -340,7 +340,9 @@ export const SelectMenu = <T extends string>({
               );
             })}
           </motion.ul>,
-          document.body,
+          // A modal dialog leaves the rest of the page inert and below it, so
+          // a list opened from inside one has to live inside it too.
+          triggerRef.current?.closest('dialog') ?? document.body,
         )}
     </>
   );

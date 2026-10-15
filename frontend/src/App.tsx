@@ -114,6 +114,7 @@ const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => imp
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
 const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
+const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
 const CoordinatorDashboard = lazyNamed('CoordinatorDashboard', () => import('./components/CoordinatorDashboard'));
@@ -228,6 +229,8 @@ export default function App() {
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
   const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
   const fileLetterMatch = matchPath(`${APP_ROUTES.filesLetters}/:letterId`, pathname);
+  const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
+  const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorRequestsRoute = pathname === APP_ROUTES.supervisorAppointmentRequests;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
@@ -850,6 +853,13 @@ export default function App() {
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute && currentUser.role !== 'Office Staff/Admin' ? (
+              <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute ? (
+              <StaffLecturersRegistry
+                view={pathname === APP_ROUTES.registryStaffNew ? 'new' : staffAccountMatch ? 'account' : 'list'}
+                accountId={staffAccountMatch?.params.accountId}
+              />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
