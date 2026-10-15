@@ -3,6 +3,8 @@
 - announcement: needs "Email alerts" and "Announcement alerts"
 - deadline: needs "Email alerts" and "Deadline reminders"
 - summary: needs "Weekly summary"
+- letter: needs "Email alerts" (a decision on the person's own letter request)
+- document: needs "Email alerts" (the office accepted or returned the person's file)
 
 Sending never raises: a mail outage must not undo the in-app notification.
 """
@@ -12,6 +14,8 @@ from django.core.mail import send_mass_mail
 ANNOUNCEMENT = "announcement"
 DEADLINE = "deadline"
 SUMMARY = "summary"
+LETTER = "letter"
+DOCUMENT = "document"
 
 SIGN_OFF = "Regards,\nFSKTM Postgraduate Office"
 
@@ -23,6 +27,8 @@ def allows(user, kind):
         return user.email_notifications and user.deadline_reminders
     if kind == SUMMARY:
         return user.weekly_summary
+    if kind in (LETTER, DOCUMENT):
+        return user.email_notifications
     raise ValueError(f"Unknown email kind: {kind}")
 
 

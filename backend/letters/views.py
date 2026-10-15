@@ -3,6 +3,8 @@
 Mounted under ``/api/letter-templates/`` by the project URLconf.
 
 - Any authenticated user can read templates (students fetch ``?status=Active``).
+  Only staff get a template's wording and office-filled fields: a student sees
+  a letter's text only once the office has approved their request.
 - Only office staff / coordinators can create, update, or delete them.
 - Students get 404 for a template that is not Active, so draft ids stay hidden.
 - Students whose own status is not Active get 403 (see ``eligibility.py``).
@@ -15,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .eligibility import inactive_student_refusal
-from .models import LetterTemplate
+from .models import GeneratedLetter, LetterTemplate
 from .placeholders import placeholder_catalogue, placeholder_problems
 from .serializers import LetterTemplateSerializer
 
@@ -45,9 +47,12 @@ def _require_content(template):
     return None
 
 
-def _placeholder_errors(content):
-    """Error body when ``content`` uses unknown or malformed tags, otherwise None."""
-    unknown, malformed = placeholder_problems(content)
+def _placeholder_errors(content, custom_fields=()):
+    """Error body when ``content`` uses unknown or malformed tags, otherwise None.
+
+    The template's own office-filled fields are known tags.
+    """
+    unknown, malformed = placeholder_problems(content, custom_fields)
     if not unknown and not malformed:
         return None
     problems = []
@@ -93,7 +98,8 @@ def templates_list(request):
         status_param = request.query_params.get("status")
         if status_param:
             queryset = queryset.filter(status__iexact=status_param)
-        return Response([t.to_public_dict() for t in queryset])
+        include_wording = _is_staff(request.user)
+        return Response([t.to_public_dict(include_wording=include_wording) for t in queryset])
 
     _require_staff(request)
     serializer = LetterTemplateSerializer(data=request.data)
@@ -103,7 +109,9 @@ def templates_list(request):
             {"content": "Letter content is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    invalid = _placeholder_errors(serializer.validated_data["content"])
+    invalid = _placeholder_errors(
+        serializer.validated_data["content"], serializer.validated_data.get("customFields", [])
+    )
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
     template = LetterTemplate.objects.create(
@@ -129,13 +137,25 @@ def templates_detail(request, pk):
     template = get_object_or_404(LetterTemplate, pk=pk)
 
     if request.method == "GET":
-        if not _is_staff(request.user) and template.status != LetterTemplate.Status.ACTIVE:
+        staff = _is_staff(request.user)
+        if not staff and template.status != LetterTemplate.Status.ACTIVE:
             raise NotFound("Letter template not found.")
-        return Response(template.to_public_dict())
+        return Response(template.to_public_dict(include_wording=staff))
 
     _require_staff(request)
 
     if request.method == "DELETE":
+        # Approval fills the template's wording, so it must outlive its requests.
+        waiting = template.generated_letters.filter(status=GeneratedLetter.Status.PENDING).count()
+        if waiting:
+            return Response(
+                {
+                    "detail": f"{waiting} request{'s' if waiting != 1 else ''} for this letter "
+                    f"{'are' if waiting != 1 else 'is'} waiting for a decision. Approve or reject "
+                    "them first, or archive the template instead."
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         template.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -147,9 +167,10 @@ def templates_detail(request, pk):
     invalid = _require_content(template)
     if not invalid and (
         "content" in serializer.validated_data
+        or "customFields" in serializer.validated_data
         or template.status == LetterTemplate.Status.ACTIVE
     ):
-        invalid = _placeholder_errors(template.content)
+        invalid = _placeholder_errors(template.content, template.custom_fields)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 

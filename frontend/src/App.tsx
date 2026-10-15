@@ -30,6 +30,8 @@ import {
   APP_ROUTES,
   isKnownAppPath,
   routeForDashboardTimeline,
+  routeForDocument,
+  routeForLetterRequest,
   routeForMarkRecord,
   routeForNotificationTarget,
   routeForPanelAssignment,
@@ -98,6 +100,9 @@ const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', (
 const LecturerCapacityManagement = lazyNamed('LecturerCapacityManagement', () => import('./components/LecturerCapacityManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
+const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
+const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
+const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
 const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
@@ -217,6 +222,8 @@ export default function App() {
   const isStudentWorkspace = currentUser?.role === 'Student';
   const activeSidebarItem = sidebarItemForPath(pathname);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
+  const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
+  const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
   const isSupervisorHistoryRoute = pathname === APP_ROUTES.supervisorAppointmentHistory;
@@ -827,9 +834,9 @@ export default function App() {
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
-              pathname === APP_ROUTES.myRecords && !isStudentWorkspace ? (
+              pathname === APP_ROUTES.myProfile && !isStudentWorkspace ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
-              ) : pathname === APP_ROUTES.myRecords ? (
+              ) : pathname === APP_ROUTES.myProfile ? (
                 <StudentMyRecords
                   currentUser={currentUser}
                   onNavigate={(route, state) => navigate(route, state ? { state } : undefined)}
@@ -919,7 +926,26 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
-              isStudentWorkspace ? (
+              pathname === APP_ROUTES.filesUpload ? (
+                <UploadNewDocument
+                  isStudent={isStudentWorkspace}
+                  role={currentUser.role}
+                  initialStudent={new URLSearchParams(location.search).get('student') ?? ''}
+                  initialType={new URLSearchParams(location.search).get('type') ?? ''}
+                  onBack={() => navigate(APP_ROUTES.files)}
+                  onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
+                  onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
+                />
+              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Office Staff/Admin' ? (
+                <FileSettings onBack={() => navigate(APP_ROUTES.files)} />
+              ) : documentMatch ? (
+                <DocumentPage
+                  key={documentMatch.params.documentId}
+                  documentId={documentMatch.params.documentId ?? ''}
+                  isStudent={isStudentWorkspace}
+                  onBack={() => navigate(APP_ROUTES.files)}
+                />
+              ) : isStudentWorkspace ? (
                 <StudentFileSubmission />
               ) : (
                 <FileRepository />
@@ -942,8 +968,19 @@ export default function App() {
               ) : (
                 <LetterTemplateManagement
                   canViewIssuedLetters={currentUser.role === 'Office Staff/Admin'}
-                  view={pathname === APP_ROUTES.lettersIssued ? 'issued' : 'templates'}
-                  onViewChange={(view) => navigate(view === 'issued' ? APP_ROUTES.lettersIssued : APP_ROUTES.letters)}
+                  view={
+                    pathname === APP_ROUTES.lettersIssued
+                      ? 'issued'
+                      : pathname === APP_ROUTES.lettersRequests || letterRequestMatch
+                        ? 'requests'
+                        : 'templates'
+                  }
+                  onViewChange={(view) => navigate(
+                    view === 'issued' ? APP_ROUTES.lettersIssued : view === 'requests' ? APP_ROUTES.lettersRequests : APP_ROUTES.letters,
+                  )}
+                  requestId={letterRequestMatch?.params.requestId ?? null}
+                  onOpenRequest={(id) => navigate(routeForLetterRequest(id))}
+                  onCloseRequest={() => navigate(APP_ROUTES.lettersRequests)}
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.ANNOUNCEMENTS ? (

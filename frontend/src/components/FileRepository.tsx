@@ -1,1174 +1,423 @@
-import { useListState } from './ListState';
-import { RecordPage } from './RecordPage';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { 
-  Search, 
-  Upload, 
-  FolderLock, 
-  FileText, 
-  FileCode, 
-  FileSpreadsheet, 
-  FileImage, 
-  MoreHorizontal, 
-  ChevronLeft, 
-  ChevronRight, 
-  X, 
-  Download, 
-  Archive, 
-  Check, 
-  Grid, 
-  List, 
-  ZoomIn, 
-  ZoomOut, 
-  Filter, 
-  User, 
-  Tag as TagIcon,
-  Trash2,
-  Lock,
-  Plus,
-  HelpCircle,
-  Clock,
-  Database
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { UploadNewDocument } from './UploadNewDocument';
-import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge, StatusDot, getStatusBadgeTone } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
-import { FileItem } from '../types';
-import { getFiles } from '../services';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { ArrowLeft, Plus, Search, Settings2, SlidersHorizontal } from 'lucide-react';
+import type { DocumentFilters, DocumentOptions, DocumentSummary, PortalDocument, StudentFileHeader } from '../types';
+import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
+import { APP_ROUTES, routeForDocument } from '../constants/routes';
+import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
+import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
+import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { SelectMenu, SelectMenuOption } from './SelectMenu';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { CheckChip, DownloadIconButton, KindBadge } from './DocumentParts';
+import { RequiredDocuments } from './RequiredDocuments';
 
-// FileItem now lives in src/types.
+const PAGE_SIZE = 25;
+
+const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
+
+const ArchivedChip: React.FC = () => (
+  <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700">Archived</span>
+);
 
 export const FileRepository: React.FC = () => {
-  // Files loaded from filesApi (mock-backed today). setFiles is retained for
-  // local archive/upload mutations.
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [params, setParams] = useSearchParams();
+  const filters = useMemo(() => filtersFromParams(params), [params]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [options, setOptions] = useState<DocumentOptions | null>(null);
+  const [summary, setSummary] = useState<DocumentSummary | null>(null);
+  const [rows, setRows] = useState<PortalDocument[]>([]);
+  const [count, setCount] = useState(0);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState(filters.q);
+  const [moreOpen, setMoreOpen] = useState(moreFilterCount(filters) > 0);
+  const [downloading, setDownloading] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(
+    typeof location.state?.message === 'string' ? { message: location.state.message, tone: 'success' } : null,
+  );
+  const [student, setStudent] = useState<StudentFileHeader | null>(null);
+  const [reload, setReload] = useState(0);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [zipping, setZipping] = useState(false);
 
-  const loadFiles = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getFiles()
-      .then(setFiles)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load files.'))
-      .finally(() => setLoading(false));
+  const update = useCallback((changes: Partial<DocumentFilters>) => {
+    setParams(filtersToParams({ ...filters, ...changes }), { replace: true });
+  }, [filters, setParams]);
+
+  useEffect(() => {
+    getDocumentOptions().then(setOptions).catch(() => setOptions(null));
   }, []);
 
   useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
+    getDocumentSummary().then(setSummary).catch(() => setSummary(null));
+  }, [reload]);
 
-  // View state options
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [selectedFileId, setSelectedFileId] = useState<string>('file_1');
-  const [isPreviewOpen, setIsPreviewOpen] = useState(true);
-  const [searchTerm, setSearchTerm] = useListState('FileRepository', 'searchTerm', '');
-  
-  // Tag Filter list
-  const [selectedTags, setSelectedTags] = useListState<string[]>('FileRepository', 'selectedTags', []);
-  // Dropdown filter parameters
-  const [categoryFilter, setCategoryFilter] = useListState<string>('FileRepository', 'categoryFilter', 'All');
-  const [moduleFilter, setModuleFilter] = useListState<string>('FileRepository', 'moduleFilter', 'All');
-  const [semesterFilter, setSemesterFilter] = useListState<string>('FileRepository', 'semesterFilter', 'All');
-  const [fileTypeFilter, setFileTypeFilter] = useListState<string>('FileRepository', 'fileTypeFilter', 'All');
-  const [statusFilter, setStatusFilter] = useListState<string>('FileRepository', 'statusFilter', 'All');
+  useEffect(() => setSearch(filters.q), [filters.q]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (search.trim() !== filters.q.trim()) update({ q: search });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search, filters.q, update]);
 
-  // Multi Selection state
-  const [checkedIds, setCheckedIds] = useState<string[]>([]);
-  
-  // Actions Modals
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [currentSubView, setCurrentSubView] = useState<'repository' | 'upload'>('repository');
-  const [showArchivedOnly, setShowArchivedOnly] = useListState('FileRepository', 'showArchivedOnly', false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Form states for manual uploading entry simulation
-  const [newFileName, setNewFileName] = useState('');
-  const [newStudentId, setNewStudentId] = useState('');
-  const [newCategory, setNewCategory] = useState<'Coursework' | 'Research' | 'Administrative' | 'Evaluation'>('Coursework');
-  const [newSem, setNewSem] = useState('2023/24 S1');
-  const [newTagsStr, setNewTagsStr] = useState('Assignment, Final');
-  const [newFileType, setNewFileType] = useState<'pdf' | 'docx' | 'xlsx' | 'pptx'>('pdf');
-  const [newDescription, setNewDescription] = useState('');
-
-  // Zoom size indicator simulation
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
-
-  // Trigger Toast Notification helper
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
-  };
-
-  // Lists of tags, categories and parameters dynamically extracted
-  const allAvailableTags = useMemo(() => {
-    const list = new Set<string>();
-    files.forEach(f => f.tags.forEach(t => list.add(t)));
-    return Array.from(list);
-  }, [files]);
-
-  const allAvailableSemesters = useMemo(() => {
-    return Array.from(new Set(files.map(f => f.sem)));
-  }, [files]);
-
-  const allAvailableModules = useMemo(() => {
-    return Array.from(new Set(files.filter(f => f.moduleName).map(f => f.moduleName as string)));
-  }, [files]);
-
-  // Filtered List calculation
-  const filteredFiles = useMemo(() => {
-    return files.filter(f => {
-      // Search Box text (Checks File Name, Student ID, Tags)
-      const matchesSearch = searchTerm.trim() === '' || 
-        f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      // Dropdown Category
-      const matchesCategory = categoryFilter === 'All' || f.category === categoryFilter;
-      
-      // Dropdown Module
-      const matchesModule = moduleFilter === 'All' || f.moduleName === moduleFilter;
-
-      // Dropdown Semester
-      const matchesSemester = semesterFilter === 'All' || f.sem === semesterFilter;
-
-      // Dropdown FileType
-      const matchesFileType = fileTypeFilter === 'All' || f.fileType === fileTypeFilter;
-
-      // Filter Status
-      const matchesStatus = (statusFilter === 'All' && !showArchivedOnly) || 
-        (showArchivedOnly && f.status === 'Archived') ||
-        (!showArchivedOnly && statusFilter !== 'All' && f.status === statusFilter);
-
-      // Selected Tag Pills multi filter
-      const matchesTagsList = selectedTags.length === 0 || 
-        selectedTags.some(tag => f.tags.includes(tag));
-
-      return matchesSearch && matchesCategory && matchesModule && matchesSemester && matchesFileType && matchesStatus && matchesTagsList;
-    });
-  }, [files, searchTerm, categoryFilter, moduleFilter, semesterFilter, fileTypeFilter, statusFilter, showArchivedOnly, selectedTags]);
-
-  // Selected file item metadata mapping
-  const selectedFileItem = useMemo(() => {
-    return files.find(f => f.id === selectedFileId) || files[0] || null;
-  }, [files, selectedFileId]);
-
-  // Checkbox multi logic
-  const handleCheckboxAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setCheckedIds(filteredFiles.map(f => f.id));
-    } else {
-      setCheckedIds([]);
-    }
-  };
-
-  const handleCheckboxSingle = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop row preview selection logic from firing
-    if (checkedIds.includes(id)) {
-      setCheckedIds(prev => prev.filter(item => item !== id));
-    } else {
-      setCheckedIds(prev => [...prev, id]);
-    }
-  };
-
-  // Reset Filters logic
-  const handleClearAllFilters = () => {
-    setSearchTerm('');
-    setCategoryFilter('All');
-    setModuleFilter('All');
-    setSemesterFilter('All');
-    setFileTypeFilter('All');
-    setStatusFilter('All');
-    setSelectedTags([]);
-    setShowArchivedOnly(false);
-    triggerToast('All file filters cleared successfully.');
-  };
-
-  // Download File simulation handler
-  const handleDownloadFile = (fileName: string) => {
-    triggerToast(`Dowloading document: "${fileName}" in progress.`);
-  };
-
-  // Multi Archive simulation
-  const handleBulkArchive = () => {
-    if (checkedIds.length === 0) return;
-    setFiles(prev => prev.map(f => {
-      if (checkedIds.includes(f.id)) {
-        return { ...f, status: 'Archived' };
-      }
-      return f;
-    }));
-    triggerToast(`Successfully archived ${checkedIds.length} selected document(s).`);
-    setCheckedIds([]);
-  };
-
-  // Toggle Single Archive status
-  const handleToggleArchiveSingle = (id: string) => {
-    setFiles(prev => prev.map(f => {
-      if (f.id === id) {
-        const nextStatus = f.status === 'Active' ? 'Archived' : 'Active';
-        triggerToast(`Document "${f.name}" is now marked as ${nextStatus}.`);
-        return { ...f, status: nextStatus };
-      }
-      return f;
-    }));
-  };
-
-  // Manual Creation Entry (Upload simulation)
-  const handleCreateFile = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFileName.trim()) {
-      triggerToast('Validation Error: File name cannot be empty.');
+  // Rows only show for the filters they were loaded for, so a tab switch never
+  // flashes the previous list.
+  const listKey = `${params.toString()}#${reload}`;
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    if (filters.view === 'required') {
+      setRows([]);
+      setLoadedKey(listKey);
       return;
     }
-
-    const payloadTags = newTagsStr
-      .split(',')
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
-
-    const generatedId = `file_${Date.now()}`;
-    const newDoc: FileItem = {
-      id: generatedId,
-      name: newFileName,
-      studentId: newStudentId || 'Admin',
-      category: newCategory,
-      sem: newSem,
-      uploadedBy: 'Admin Office Staff',
-      date: '28 May 2026',
-      size: '1.5 MB',
-      status: 'Active',
-      tags: payloadTags,
-      moduleName: 'Administrative',
-      fileType: newFileType,
-      description: newDescription || 'Newly uploaded custom administrative reference file.'
+    getDocuments(filters, 0, PAGE_SIZE)
+      .then(page => {
+        if (cancelled) return;
+        setRows(page.results);
+        setCount(page.count);
+        setLoadedKey(listKey);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(errorText(err, 'Could not load the files.'));
+        setLoadedKey(listKey);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [listKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loading = loadedKey !== listKey;
 
-    setFiles(prev => [newDoc, ...prev]);
-    setSelectedFileId(generatedId);
-    setIsUploadOpen(false);
-    triggerToast(`Document "${newFileName}" uploaded successfully!`);
+  useEffect(() => {
+    if (!filters.student) {
+      setStudent(null);
+      return;
+    }
+    let cancelled = false;
+    getStudentFileHeader(filters.student)
+      .then(header => !cancelled && setStudent(header))
+      .catch(() => !cancelled && setStudent(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.student]);
 
-    // Reset Form Fields
-    setNewFileName('');
-    setNewStudentId('');
-    setNewCategory('Coursework');
-    setNewSem('2023/24 S1');
-    setNewTagsStr('Assignment, Final');
-    setNewFileType('pdf');
-    setNewDescription('');
-  };
-
-  // Utility to map file types to icons
-  const getFileIcon = (type: FileItem['fileType']) => {
-    switch (type) {
-      case 'pdf':
-        return (
-          <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500 border border-rose-100">
-            <FileText className="w-4 h-4" />
-          </div>
-        );
-      case 'docx':
-        return (
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-150">
-            <FileCode className="w-4 h-4" />
-          </div>
-        );
-      case 'xlsx':
-        return (
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500 border border-emerald-100">
-            <FileSpreadsheet className="w-4 h-4" />
-          </div>
-        );
-      default:
-        return (
-          <div className="w-8 h-8 rounded-lg bg-slate-150 flex items-center justify-center text-slate-500">
-            <FileImage className="w-4 h-4" />
-          </div>
-        );
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const page = await getDocuments(filters, rows.length, PAGE_SIZE);
+      setRows(current => [...current, ...page.results]);
+      setCount(page.count);
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not load more files.'), tone: 'danger' });
+    } finally {
+      setLoadingMore(false);
     }
   };
 
-  // Calculate generic aggregate stats to feed upper metadata columns
-  const activeCount = files.filter(f => f.status === 'Active').length;
-  const archivedCount = files.filter(f => f.status === 'Archived').length;
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected([]);
+  };
+
+  const toggle = (id: number) => {
+    const next = toggleSelection(selected, id);
+    setSelected(next.selected);
+    if (next.full) setToast({ message: `You can download up to ${MAX_ZIP_FILES} files at a time.`, tone: 'danger' });
+  };
+
+  const downloadZip = async () => {
+    setZipping(true);
+    try {
+      await downloadDocumentsZip(selected);
+      stopSelecting();
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not download these files.'), tone: 'danger' });
+    } finally {
+      setZipping(false);
+    }
+  };
+
+  const download = async (document: PortalDocument) => {
+    setDownloading(document.id);
+    try {
+      await downloadDocument(document);
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not download this file.'), tone: 'danger' });
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const typeOptions: SelectMenuOption<string>[] = [
+    { value: '', label: 'All types', triggerLabel: 'All' },
+    ...(options?.types ?? []).map(type => ({ value: type.code, label: type.label, description: type.groupLabel })),
+  ];
+  const semesterOptions: SelectMenuOption<string>[] = [
+    { value: '', label: 'All semesters', triggerLabel: 'All' },
+    ...(options?.semesters ?? []).map(semester => ({ value: String(semester.id), label: semester.label })),
+    { value: 'none', label: 'Not linked to a semester' },
+  ];
+  const activeFilters = Boolean(filters.q || filters.type || filters.semester || moreFilterCount(filters));
+  const from = `${location.pathname}${location.search}`;
+  const isOffice = Boolean(options?.isOffice);
+  const tabs: Array<{ view: DocumentFilters['view']; label: string; short?: string; count?: number; alert?: boolean }> = [
+    { view: 'all', label: 'All files' },
+    ...(isOffice ? [{ view: 'check' as const, label: 'To check', count: summary?.toCheck ?? 0, alert: true }] : []),
+    ...(options?.canSeeRequired ? [{ view: 'required' as const, label: 'Required documents', short: 'Required' }] : []),
+    { view: 'staff', label: 'Staff files' },
+  ];
+  const uploadPath = filters.student
+    ? `${APP_ROUTES.filesUpload}?student=${encodeURIComponent(filters.student)}`
+    : APP_ROUTES.filesUpload;
 
   return (
-    <div id="file-repository-workspace" className="font-sans text-brand-navy text-xs">
-      
-      <PortalToast message={toastMessage} />
-
+    <div className="space-y-6">
       <PageHeader
-        title="File Repository"
-        subtitle="Browse, preview and download documents"
-        className="mb-6"
-        actions={(
-          <>
-          <PortalButton
-            type="button"
-            onClick={() => {
-              setShowArchivedOnly(!showArchivedOnly);
-              triggerToast(showArchivedOnly ? 'Viewing active files.' : 'Filtered dataset to Archived files only.');
-            }}
-            variant={showArchivedOnly ? 'soft' : 'secondary'}
-            size="md"
-            icon={FolderLock}
-          >
-            Archived Files
-          </PortalButton>
-
-          <PortalButton
-            type="button"
-            onClick={() => setCurrentSubView('upload')}
-            variant="primary"
-            size="md"
-            icon={Upload}
-          >
-            Upload New File
-          </PortalButton>
-          </>
-        )}
+        title="File Management"
+        subtitle="Every student's official documents, in one place."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {isOffice && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
+            <PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
+          </div>
+        }
       />
 
-      {/* 4 Summary Cards Row */}
-      <div id="file-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 text-left">
-        {/* TOTAL FILES */}
-        <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
-          <span className="card-label">Total Files</span>
-          <span className="card-metric">12,458</span>
-          <span className="card-description pt-1">Active + archived documents</span>
-        </div>
-
-        {/* ACTIVE DOCUMENTS */}
-        <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
-          <span className="card-label">Active Documents</span>
-          <span className="card-metric">11,204</span>
-          <span className="card-value text-emerald-600 pt-1 flex items-center gap-1">
-            <StatusDot tone="success" />
-            90% of overall database files
-          </span>
-        </div>
-
-        {/* ARCHIVED */}
-        <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
-          <span className="card-label">Archived</span>
-          <span className="card-metric">1,254</span>
-          <span className="card-description pt-1">Historical files storage</span>
-        </div>
-
-        {/* STORAGE USED */}
-        <div className="bg-white border border-slate-200/70 p-6 rounded-2xl flex flex-col space-y-1 shadow-2xs relative">
-          <span className="card-label">Storage Used</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="card-metric">45.2 GB</span>
-            <span className="card-value">/ 100 GB</span>
-          </div>
-          {/* Progress slider bar illustration */}
-          <ProgressBar value={45.2} tone="brand" trackClassName="mt-2.5 bg-slate-100" />
-        </div>
-      </div>
-
-      {/* Main Grid: Left side list filters, Right side Preview Dock */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* LEFT COLUMN: Files List Panel (Colspan depends on Preview Open) */}
-        <div className={`${isPreviewOpen ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-4`}>
-          
-          {/* White Panel container */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
-            
-            {/* Filter controls section */}
-            <div className="filter-toolbar m-5 space-y-4">
-              
-              {/* Row 1: Search block */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="relative flex-1">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Search className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Search by file name, student ID, or tags..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="form-control form-control-sm pl-10 pr-4"
-                  />
-                </div>
-
-                {/* Grid vs List toggles */}
-                <div className="flex items-center gap-1.5 border border-slate-200 rounded-xl p-1 bg-slate-50">
-                  <button
-                    type="button"
-                    onClick={() => { setViewMode('grid'); triggerToast('Switched to Grid thumbnails layout.'); }}
-                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-3xs' : 'text-slate-400 hover:text-slate-600'}`}
-                    title="Grid view"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setViewMode('list'); }}
-                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-3xs' : 'text-slate-400 hover:text-slate-600'}`}
-                    title="List table view"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                </div>
+      {filters.student ? (
+        <div className="space-y-3">
+          <button type="button" className="back-link" onClick={() => update({ student: '' })}>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All files
+          </button>
+          <section aria-label="Student" className="app-card flex flex-wrap items-center justify-between gap-5 p-5">
+            <div className="flex min-w-0 items-center gap-4">
+              <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-navy text-[15px] font-extrabold text-white">
+                {(student?.name ?? filters.student).split(/\s+/).map(word => word[0]).slice(0, 2).join('').toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate text-[19px] font-extrabold text-brand-navy">{student?.name ?? filters.student}</h2>
+                <p className="truncate text-[13px] text-slate-500">{student ? `${student.matric} · ${student.programme || 'No programme'}` : 'Loading the student...'}</p>
               </div>
-
-              {/* Row 2: Selected active parameters summary */}
-              <div className="flex items-center gap-3 flex-wrap">
-                
-                {/* Category select */}
-                <div className="relative">
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="form-control form-control-sm appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="All">Category: All</option>
-                    <option value="Coursework">Coursework</option>
-                    <option value="Research">Research</option>
-                    <option value="Administrative">Administrative</option>
-                    <option value="Evaluation">Evaluation</option>
-                  </select>
-                  <Filter className="w-3 h-3 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
-
-                {/* Module Filter */}
-                <div className="relative">
-                  <select
-                    value={moduleFilter}
-                    onChange={(e) => setModuleFilter(e.target.value)}
-                    className="form-control form-control-sm appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="All">Module: All</option>
-                    {allAvailableModules.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                  <Filter className="w-3 h-3 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
-
-                {/* Semester select */}
-                <div className="relative">
-                  <select
-                    value={semesterFilter}
-                    onChange={(e) => setSemesterFilter(e.target.value)}
-                    className="form-control form-control-sm appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="All">Semester: All</option>
-                    {allAvailableSemesters.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <Filter className="w-3 h-3 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
-
-                {/* File Type Filter */}
-                <div className="relative">
-                  <select
-                    value={fileTypeFilter}
-                    onChange={(e) => setFileTypeFilter(e.target.value)}
-                    className="form-control form-control-sm appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="All">File Type: All</option>
-                    <option value="pdf">PDF files</option>
-                    <option value="docx">Word docs</option>
-                    <option value="xlsx">Excel files</option>
-                  </select>
-                  <Filter className="w-3 h-3 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
-
-                {/* Status Filter */}
-                <div className="relative">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="form-control form-control-sm appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="All">Status: All</option>
-                    <option value="Active">Active</option>
-                    <option value="Archived">Archived</option>
-                  </select>
-                  <Filter className="w-3 h-3 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
-
-                {/* Clear Actions link button */}
-                <PortalButton
-                  type="button"
-                  onClick={handleClearAllFilters}
-                  variant="ghost"
-                  size="sm"
-                  className="px-2 py-1"
-                >
-                  Clear All Filters
-                </PortalButton>
-              </div>
-
-              {/* Row 3: Multiselect bulk actions */}
-              {checkedIds.length > 0 && (
-                <div className="bg-indigo-50 border border-indigo-150 p-3 rounded-xl flex items-center justify-between text-indigo-900 font-bold text-[11px] animate-fade-in">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-indigo-600" />
-                    <span className="card-description text-indigo-900"><strong className="card-value text-indigo-900">{checkedIds.length}</strong> document(s) checked.</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <PortalButton
-                      type="button"
-                      onClick={() => handleDownloadFile(`${checkedIds.length} selected zip package`)}
-                      variant="primary"
-                      size="sm"
-                      icon={Download}
-                    >
-                      Download Bundle
-                    </PortalButton>
-                    <PortalButton
-                      type="button"
-                      onClick={handleBulkArchive}
-                      variant="secondary"
-                      size="sm"
-                      icon={Archive}
-                    >
-                      Archive Selected
-                    </PortalButton>
-                  </div>
-                </div>
-              )}
-
-              {/* Row 4: Tag filters list */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="card-label mr-1 flex items-center gap-1">
-                  <TagIcon className="w-3 h-3 text-slate-400" />
-                  Quick tags:
-                </span>
-                {allAvailableTags.map(tag => {
-                  const isSelected = selectedTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedTags(prev => prev.filter(t => t !== tag));
-                        } else {
-                          setSelectedTags(prev => [...prev, tag]);
-                        }
-                      }}
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'bg-brand-navy text-white border border-brand-navy'
-                          : 'bg-slate-100 text-slate-600 border border-transparent hover:bg-slate-200'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-
             </div>
+            {student && (
+              <dl className="flex flex-wrap gap-x-8 gap-y-2 text-[13px]">
+                <div><dt className="text-slate-500">Supervisor</dt><dd className="font-bold text-slate-800">{student.supervisors.join(', ') || 'None yet'}</dd></div>
+                <div><dt className="text-slate-500">Panel member</dt><dd className="font-bold text-slate-800">{student.panel.join(', ') || 'None yet'}</dd></div>
+                {student.letters !== null && <div><dt className="text-slate-500">Letters approved</dt><dd className="font-bold text-slate-800">{student.letters}</dd></div>}
+                {student.required && student.required.length > 0 && (
+                  <div>
+                    <dt className="text-slate-500">Required documents</dt>
+                    <dd className="font-bold text-slate-800">
+                      {student.required.filter(item => item.state === 'DONE').length} of {student.required.length} handed in
+                      {student.required.some(item => item.state === 'MISSING' || item.state === 'RETURNED') && (
+                        <span className="block text-[12px] font-semibold text-rose-700">
+                          Still to hand in: {student.required.filter(item => item.state === 'MISSING' || item.state === 'RETURNED').map(item => item.label).join(', ')}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-x-5 border-b border-slate-200 sm:gap-x-7">
+          {tabs.map(tab => {
+            const selected = filters.view === tab.view;
+            return (
+              <button
+                key={tab.view}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => update({ view: tab.view })}
+                className={`-mb-px inline-flex items-center gap-2 border-b-2 py-3 text-[14px] font-bold transition ${selected ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-brand-navy'}`}
+              >
+                {tab.short ? (
+                  <>
+                    <span className="sm:hidden">{tab.short}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </>
+                ) : tab.label}
+                {tab.count !== undefined && (
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-            {/* List vs Grid display block */}
-            {loading ? (
-              <LoadingState message="Loading files…" />
-            ) : error ? (
-              <ErrorState message={error} onRetry={loadFiles} />
-            ) : filteredFiles.length === 0 ? (
-              <div className="p-12 text-center text-slate-400">
-                <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 mx-auto flex items-center justify-center mb-3">
-                  <Database className="w-5 h-5 text-slate-400" />
-                </div>
-                <p className="card-value">No matching templates or records</p>
-                <p className="card-description mt-1">Please relax search strings or clear quick active filter badges.</p>
-              </div>
-            ) : viewMode === 'list' ? (
-              
-              /* LIST TYPE TABLE VIEW */
-              <div className="overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr className="data-thead bg-[#f8fafc]">
-                      <th className="data-th w-6 select-none">
-                        <input
-                          type="checkbox"
-                          checked={checkedIds.length > 0 && checkedIds.length === filteredFiles.map(f => f.id).length}
-                          onChange={handleCheckboxAll}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-slate-900 cursor-pointer"
-                        />
-                      </th>
-                      <th className="data-th">File Name</th>
-                      <th className="data-th">Student ID</th>
-                      <th className="data-th">Category</th>
-                      <th className="data-th">Sem</th>
-                      <th className="data-th">Uploaded By</th>
-                      <th className="data-th">Date</th>
-                      <th className="data-th">Size</th>
-                      <th className="data-th text-center">Status</th>
-                      <th className="data-th text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredFiles.map((f, idx) => {
-                      const isSelected = selectedFileId === f.id;
-                      const isChecked = checkedIds.includes(f.id);
-                      return (
-                        <tr
-                          key={f.id}
-                          onClick={() => { setSelectedFileId(f.id); setIsPreviewOpen(true); }}
-                          className={`border-b border-slate-100 font-sans hover:bg-slate-50 cursor-pointer group transition-colors ${
-                            isSelected ? 'bg-indigo-50/40 hover:bg-indigo-50/60' : ''
-                          }`}
-                        >
-                          {/* Checked Checkbox selection */}
-                          <td className="data-td w-6 select-none" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setCheckedIds(prev => [...prev, f.id]);
-                                } else {
-                                  setCheckedIds(prev => prev.filter(item => item !== f.id));
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-slate-305 text-indigo-650 focus:ring-slate-900 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* File logo & styling name */}
-                          <td className="data-td">
-                            <div className="flex items-center gap-3">
-                              {getFileIcon(f.fileType)}
-                              <div className="flex flex-col">
-                                <span className="card-value group-hover:text-indigo-600 transition-colors block max-w-[190px] truncate" title={f.name}>
-                                  {f.name}
-                                </span>
-                                {/* Child small tags */}
-                                <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                  {f.tags.map(t => (
-                                    <span key={t} className="text-[8px] font-black uppercase text-slate-400 bg-slate-50 border border-slate-150 rounded px-1 tracking-wider scale-95 origin-left">
-                                      {t}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Student ID */}
-                          <td className="data-td-strong text-slate-500 whitespace-nowrap">
-                            {f.studentId}
-                          </td>
-
-                          {/* Category pill column with beautiful custom layouts */}
-                          <td className="data-td">
-                            {f.category === 'Coursework' ? (
-                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-100 text-[10px]">Coursework</span>
-                            ) : f.category === 'Research' ? (
-                              <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-100 text-[10px]">Research</span>
-                            ) : f.category === 'Administrative' ? (
-                              <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-600 font-bold border border-slate-150 text-[10px]">Administrative</span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-100 text-[10px]">Evaluation</span>
-                            )}
-                          </td>
-
-                          {/* Semester text */}
-                          <td className="data-td-strong text-slate-500 whitespace-nowrap">
-                            {f.sem}
-                          </td>
-
-                          {/* Uploaded By */}
-                          <td className="data-td text-slate-600 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-4 h-4 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-[8px] border border-slate-200">
-                                {f.uploadedBy[0]}
-                              </div>
-                              <span className="card-value">{f.uploadedBy}</span>
-                            </div>
-                          </td>
-
-                          {/* Upload Date */}
-                          <td className="data-td text-slate-500 whitespace-nowrap">
-                            {f.date}
-                          </td>
-
-                          {/* File size size */}
-                          <td className="data-td-strong text-slate-500 whitespace-nowrap">
-                            {f.size}
-                          </td>
-
-                          {/* Status option */}
-                          <td className="data-td text-center whitespace-nowrap">
-                            <StatusBadge
-                              tone={getStatusBadgeTone(f.status)}
-                              dot
-                              className="text-[9px] px-2.5 py-0.5"
-                            >
-                              {f.status}
-                            </StatusBadge>
-                          </td>
-
-                          {/* Actions button */}
-                          <td className="data-td text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex justify-end gap-1.5">
-                              <PortalButton
-                                type="button"
-                                onClick={() => handleDownloadFile(f.name)}
-                                variant="ghost"
-                                size="icon"
-                                icon={Download}
-                                className="w-8 h-8"
-                                title="Download"
-                              />
-                              <PortalButton
-                                type="button"
-                                onClick={() => handleToggleArchiveSingle(f.id)}
-                                variant="ghost"
-                                size="icon"
-                                icon={Archive}
-                                className="w-8 h-8"
-                                title={f.status === 'Active' ? 'Archive file' : 'Activate file'}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              
-              /* GRID TYPE THUMBNAILS COMPONENT DISPLAY */
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-left font-sans text-xs">
-                {filteredFiles.map(f => {
-                  const isSelected = selectedFileId === f.id;
-                  const isChecked = checkedIds.includes(f.id);
-                  return (
-                    <div
-                      key={f.id}
-                      onClick={() => { setSelectedFileId(f.id); setIsPreviewOpen(true); }}
-                      className={`border border-slate-200 hover:border-slate-350 p-4.5 rounded-2xl flex flex-col justify-between space-y-4 hover:shadow-xs cursor-pointer transition relative ${
-                        isSelected ? 'bg-indigo-50/40 border-indigo-200' : 'bg-white'
-                      }`}
-                    >
-                      {/* Checkbox and toggle absolute positions */}
-                      <div className="flex items-start justify-between">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setCheckedIds(prev => [...prev, f.id]);
-                              } else {
-                                setCheckedIds(prev => prev.filter(item => item !== f.id));
-                              }
-                            }}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-slate-900 cursor-pointer"
-                          />
-                        </div>
-
-                        <StatusBadge tone={getStatusBadgeTone(f.status)} className="text-[8px] px-2 py-0.5">
-                          {f.status}
-                        </StatusBadge>
-                      </div>
-
-                      {/* File main identifiers */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          {getFileIcon(f.fileType)}
-                          <span className="card-value line-clamp-1" title={f.name}>
-                            {f.name}
-                          </span>
-                        </div>
-                        <p className="card-description">{f.studentId} • {f.sem}</p>
-                      </div>
-
-                      {/* Pill tags */}
-                      <div className="flex flex-wrap gap-1">
-                        {f.tags.map(t => (
-                          <span key={t} className="text-[8px] font-black uppercase text-slate-400 bg-slate-50 border border-slate-150 px-1 rounded">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Footer size & uploader details */}
-                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-slate-500 text-[10px] font-bold">
-                        <span className="card-description">{f.size}</span>
-                        <span className="card-caption">{f.date}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+      {filters.view === 'required' ? (
+        <RequiredDocuments isOffice={isOffice} />
+      ) : (
+        <>
+          <div className="space-y-3">
+            <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
+              <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="sr-only">Search files</span>
+              <input
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder={filters.student ? 'Search this student’s files' : 'Search by student name, student ID, file name or tag'}
+                className="min-w-0 flex-1 border-0 bg-transparent py-3 text-[14px] font-medium text-slate-800 outline-none placeholder:text-slate-400"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <SelectMenu<string> variant="filter" size="sm" prefix="Type" aria-label="Type" value={filters.type} options={typeOptions} onChange={value => update({ type: value })} />
+              {options?.semesters && (
+                <SelectMenu<string> variant="filter" size="sm" prefix="Semester" aria-label="Semester" value={filters.semester} options={semesterOptions} onChange={value => update({ semester: value })} />
+              )}
+              <PortalButton size="sm" icon={SlidersHorizontal} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}>
+                More filters{moreFilterCount(filters) ? ` (${moreFilterCount(filters)})` : ''}
+              </PortalButton>
+              <span className="ml-auto flex items-center gap-2">
+                {selecting ? (
+                  <>
+                    <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
+                    <PortalButton size="sm" variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
+                    <PortalButton size="sm" onClick={stopSelecting}>Cancel</PortalButton>
+                  </>
+                ) : rows.length > 0 && (
+                  <PortalButton size="sm" onClick={() => setSelecting(true)}>Select</PortalButton>
+                )}
+              </span>
+              {activeFilters && (
+                <button type="button" className="px-2 text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => {
+                  setSearch('');
+                  setParams(filtersToParams({ view: filters.view, student: filters.student }), { replace: true });
+                }}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+            {moreOpen && (
+              <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <SelectMenu<DocumentFilters['uploader']>
+                  variant="filter" size="sm" prefix="Uploaded by" aria-label="Uploaded by" value={filters.uploader}
+                  options={[{ value: '', label: 'Anyone', triggerLabel: 'Anyone' }, { value: 'me', label: 'Me' }, { value: 'students', label: 'Students' }, { value: 'staff', label: 'Staff' }]}
+                  onChange={value => update({ uploader: value })}
+                />
+                <SelectMenu<DocumentFilters['status']>
+                  variant="filter" size="sm" prefix="Status" aria-label="Status" value={filters.status}
+                  options={[{ value: '', label: 'Any status', triggerLabel: 'Any' }, { value: 'WAITING', label: 'Waiting for office' }, { value: 'RETURNED', label: 'Returned' }, { value: 'ACCEPTED', label: 'Accepted' }, { value: 'NONE', label: 'No check needed' }]}
+                  onChange={value => update({ status: value })}
+                />
+                <SelectMenu<DocumentFilters['kind']>
+                  variant="filter" size="sm" prefix="File" aria-label="File kind" value={filters.kind}
+                  options={[{ value: '', label: 'Any kind', triggerLabel: 'Any' }, { value: 'PDF', label: 'PDF' }, { value: 'DOCX', label: 'Word' }, { value: 'IMAGE', label: 'Photo or scan' }, { value: 'XLSX', label: 'Excel' }, { value: 'PPTX', label: 'PowerPoint' }]}
+                  onChange={value => update({ kind: value })}
+                />
+                {isOffice && (
+                  <SelectMenu<DocumentFilters['archived']>
+                    variant="filter" size="sm" prefix="Show" aria-label="Show" value={filters.archived}
+                    options={[
+                      { value: '', label: 'Current files', triggerLabel: 'Current files' },
+                      { value: '1', label: `Archived files${summary?.archived ? ` (${summary.archived})` : ''}`, triggerLabel: 'Archived files' },
+                    ]}
+                    onChange={value => update({ archived: value })}
+                  />
+                )}
+                <label className="text-[12px] font-bold text-slate-600">
+                  From
+                  <input type="date" value={filters.from} onChange={event => update({ from: event.target.value })} className="form-control form-control-sm mt-1 block" />
+                </label>
+                <label className="text-[12px] font-bold text-slate-600">
+                  To
+                  <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1 block" />
+                </label>
               </div>
             )}
-
-            {/* Pagination / records tracker summary footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-150 flex items-center justify-between text-slate-500 font-bold select-none text-[11px]">
-              <span className="card-description">Showing 1-{filteredFiles.length} of {filteredFiles.length} files (Filtered from 11,204 files)</span>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled
-                  className="px-3 py-1.5 border border-slate-250 bg-white rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1 text-[10px]"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="px-3 py-1.5 border border-slate-250 bg-white rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1 text-[10px]"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
           </div>
-        </div>
 
-        {/* RIGHT COLUMN: Interactive live File Preview Panel drawer (Sticky desk side column) */}
-        {isPreviewOpen && selectedFileItem && (
-          <div className="lg:col-span-4 h-full">
-            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden sticky top-20 text-left font-sans text-xs">
-              
-              {/* Header Title section */}
-              <div className="p-4 border-b border-slate-150 flex items-center justify-between">
-                <span className="card-value">
-                  File Preview
-                </span>
-
-                {/* Magnifier zoom controllers & close selector */}
-                <div className="flex items-center gap-1.5 select-none font-sans text-xs">
-                  <button
-                    type="button"
-                    onClick={() => { setZoomLevel(prev => Math.max(50, prev - 10)); triggerToast('Zoomed out of document skeleton view.'); }}
-                    className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-205 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setZoomLevel(prev => Math.min(200, prev + 10)); triggerToast('Zoomed in on page metrics mockup.'); }}
-                    className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-205 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="w-3.5 h-3.5" />
-                  </button>
-                  <div className="w-[1px] h-4 bg-slate-250 mx-1" />
-                  <button
-                    type="button"
-                    onClick={() => setIsPreviewOpen(false)}
-                    className="w-7 h-7 hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 transition"
-                    title="Close preview"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+          <section aria-label="Files" className="app-card overflow-hidden">
+            {loading ? (
+              <LoadingState message="Loading files..." />
+            ) : error ? (
+              <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
+            ) : !rows.length ? (
+              <EmptyState
+                title="No matching files found."
+                description={activeFilters ? 'Try other words, or clear the filters.' : 'Files you upload, or that are shared with you, appear here.'}
+              />
+            ) : (
+              <>
+                <ul>
+                  {rows.map(document => {
+                    const who = studentsLine(document.students);
+                    const first = document.students[0];
+                    return (
+                      <li key={document.id} className="border-t border-slate-100 px-4 py-4 first:border-t-0 hover:bg-slate-50/70 md:px-5">
+                        <div className={`flex items-start gap-3 md:grid md:items-center md:gap-4 ${filters.student ? 'md:grid-cols-[auto_minmax(0,4fr)_minmax(0,1.6fr)_13rem]' : 'md:grid-cols-[auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.6fr)_13rem]'}`}>
+                          <span className="flex shrink-0 items-center gap-3">
+                            {selecting && (
+                              <input
+                                type="checkbox"
+                                className="h-5 w-5 accent-brand-navy"
+                                aria-label={`Select ${document.title}`}
+                                checked={selected.includes(document.id)}
+                                onChange={() => toggle(document.id)}
+                              />
+                            )}
+                            <KindBadge kind={document.file?.kind} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">
+                              {document.title}
+                            </Link>
+                            <p className="truncate text-[12px] text-slate-500">{typeAndTags(document.type.label, document.tags)}</p>
+                            <p className="mt-1 truncate text-[12px] text-slate-600 md:hidden">{filters.student ? '' : `${who.main} · `}{shortDocumentDate(document.uploadedAt)}</p>
+                            <div className="mt-1.5 md:hidden">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</div>
+                          </div>
+                          <div className={filters.student ? 'hidden' : 'hidden min-w-0 md:block'}>
+                            {first && !filters.student ? (
+                              <button type="button" className="block max-w-full truncate text-left text-[13px] font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:decoration-brand-navy" onClick={() => update({ student: first.matric, view: 'all' })} aria-label={`Show every file about ${first.name}`}>
+                                {who.main}
+                              </button>
+                            ) : (
+                              <p className="truncate text-[13px] font-bold text-slate-800">{who.main}</p>
+                            )}
+                            <p className="truncate text-[12px] text-slate-500">{document.isStaffFile ? document.staffAudienceLabel : who.sub}</p>
+                          </div>
+                          <div className="hidden min-w-0 md:block">
+                            <p className="text-[13px] text-slate-700">{shortDocumentDate(document.uploadedAt)}</p>
+                            <p className="truncate text-[12px] text-slate-500">{uploadedLine(document.uploadedBy.name, document.uploadedBy.isMe)}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center justify-end gap-2">
+                            <span className="hidden md:inline-flex">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</span>
+                            {filters.view === 'check' && !filters.student && (
+                              <PortalButton size="sm" variant="primary" onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Review</PortalButton>
+                            )}
+                            <DownloadIconButton label={`Download ${document.title}`} busy={downloading === document.id} onClick={() => void download(document)} />
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
+                  <span className="text-[13px] text-slate-500">Showing {rows.length} of {count} files</span>
+                  {rows.length < count && <PortalButton size="sm" isLoading={loadingMore} onClick={() => void loadMore()}>Load more</PortalButton>}
                 </div>
-              </div>
-
-              {/* 1. PDF Page visual mockup layout (Exact representation of the screenshot mockup) */}
-              <div className="p-4.5 bg-[#f8fafc] border-b border-slate-100">
-                <div 
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mx-auto relative overflow-hidden transition-all duration-200 ease-in-out"
-                  style={{ 
-                    aspectRatio: '1 / 1.414',
-                    width: '100%',
-                    maxWidth: '240px',
-                    transform: `scale(${zoomLevel / 100})`,
-                    transformOrigin: 'top center'
-                  }}
-                >
-                  {/* Visual Skeleton content of document page */}
-                  <div className="space-y-4 font-sans text-left">
-                    {/* Header line mockups */}
-                    <div className="space-y-1.5">
-                      <div className="h-2 bg-slate-100 rounded w-5/6" />
-                      <div className="h-1.5 bg-slate-100 rounded w-1/2" />
-                      <div className="h-1.5 bg-slate-100 rounded w-2/3" />
-                    </div>
-
-                    {/* PDF Visual image placeholder block with chart outline (From screenshot) */}
-                    <div className="border border-dashed border-slate-200 rounded-lg p-4 bg-slate-50 text-center flex flex-col items-center justify-center h-28 space-y-2">
-                      <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-indigo-500">
-                        {getFileIcon(selectedFileItem.fileType)}
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-400 tracking-wider block uppercase">Chart Placeholder</span>
-                    </div>
-
-                    {/* Secondary lines mockups */}
-                    <div className="space-y-2 pt-1.5">
-                      <div className="h-1.5 bg-slate-100 rounded w-11/12" />
-                      <div className="h-1.5 bg-slate-100 rounded w-full" />
-                      <div className="h-1.5 bg-slate-100 rounded w-3/4" />
-                    </div>
-                  </div>
-
-                  {/* Absolute Footer label inside page */}
-                  <span className="absolute bottom-2.5 right-4 text-[7px] text-slate-400 font-bold">
-                    Page 1 of 12
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. File metadata descriptor info */}
-              <div className="p-5 space-y-4 text-left font-sans text-xs">
-                <div className="space-y-1">
-                  <h4 className="section-label break-all">
-                    {selectedFileItem.name}
-                  </h4>
-                  
-                  {/* Category badgess row */}
-                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                    <span className="px-2.5 py-0.5 rounded bg-blue-50 text-blue-700 font-extrabold border border-blue-100 text-[9px] uppercase tracking-wide">
-                      {selectedFileItem.category}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-extrabold border border-emerald-100 text-[9px] uppercase tracking-wide">
-                      {selectedFileItem.status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Sub Metadata card details grid (Exact screenshot references) */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 pt-2 border-t border-slate-100">
-                  <div>
-                    <span className="card-label block">Student ID</span>
-                    <span className="card-value mt-0.5 block">{selectedFileItem.studentId}</span>
-                  </div>
-                  <div>
-                    <span className="card-label block">Semester</span>
-                    <span className="card-value mt-0.5 block">{selectedFileItem.sem}</span>
-                  </div>
-                  <div>
-                    <span className="card-label block">File Size</span>
-                    <span className="card-value mt-0.5 block">{selectedFileItem.size}</span>
-                  </div>
-                  <div>
-                    <span className="card-label block">Upload Date</span>
-                    <span className="card-caption mt-0.5 block">{selectedFileItem.date}</span>
-                  </div>
-                </div>
-
-                {/* Description summary */}
-                <div className="space-y-0.5 pt-1">
-                  <span className="card-label block">Description</span>
-                  <p className="card-description">
-                    {selectedFileItem.description || 'System standard file template repository reference.'}
-                  </p>
-                </div>
-
-                {/* Uploaded By */}
-                <div className="space-y-1 pt-2 border-t border-slate-100">
-                  <span className="card-label block">Uploaded By</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 text-brand-navy font-black text-[9px] flex items-center justify-center border border-slate-200 capitalize">
-                      {selectedFileItem.uploadedBy[0]}
-                    </div>
-                    <span className="card-value">{selectedFileItem.uploadedBy} (Admin Office Staff)</span>
-                  </div>
-                </div>
-
-                {/* Action parameters buttons */}
-                <div className="space-y-2.5 pt-4 border-t border-slate-150">
-                  <PortalButton
-                    type="button"
-                    onClick={() => handleDownloadFile(selectedFileItem.name)}
-                    variant="primary"
-                    size="md"
-                    icon={Download}
-                    fullWidth
-                  >
-                    Download File
-                  </PortalButton>
-
-                  <PortalButton
-                    type="button"
-                    onClick={() => handleToggleArchiveSingle(selectedFileItem.id)}
-                    variant={selectedFileItem.status === 'Active' ? 'danger' : 'secondary'}
-                    size="md"
-                    icon={Archive}
-                    fullWidth
-                  >
-                    {selectedFileItem.status === 'Active' ? 'Archive File' : 'Activate Document'}
-                  </PortalButton>
-                </div>
-
-              </div>
-
-            </div>
-          </div>
-        )}
-
-      </div>
-
-      {/* Manual upload simulation dialog modal overlay */}
-      {isUploadOpen ? <RecordPage title="Upload file" backLabel="Back to File Repository" onBack={() => setIsUploadOpen(false)} pageKey={"file-upload"} dirty={!!newFileName.trim() || !!newStudentId.trim() || newCategory !== 'Coursework' || newSem !== '2023/24 S1' || newTagsStr !== 'Assignment, Final' || newFileType !== 'pdf' || !!newDescription.trim()}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
-
-              <form onSubmit={handleCreateFile} className="space-y-4">
-                
-                {/* File Title */}
-                <div className="space-y-1.5">
-                  <label className="form-label">File Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Thesis_Chapter1_Draft.pdf"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    className="w-full border border-slate-205 px-3 py-2 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Student ID */}
-                <div className="space-y-1.5">
-                  <label className="form-label">Student ID Reference</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. U2001552 or Admin"
-                    value={newStudentId}
-                    onChange={(e) => setNewStudentId(e.target.value)}
-                    className="w-full border border-slate-205 px-3 py-2 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Category classification Selection */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="form-label">Category</label>
-                    <select
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value as any)}
-                      className="w-full bg-[#f8fafc] border border-slate-205 px-3 py-2 rounded-xl focus:outline-none cursor-pointer text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                    >
-                      <option value="Coursework">Coursework</option>
-                      <option value="Research">Research</option>
-                      <option value="Administrative">Administrative</option>
-                      <option value="Evaluation">Evaluation</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="form-label">File Type</label>
-                    <select
-                      value={newFileType}
-                      onChange={(e) => setNewFileType(e.target.value as any)}
-                      className="w-full bg-[#f8fafc] border border-slate-205 px-3 py-2 rounded-xl focus:outline-none cursor-pointer text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                    >
-                      <option value="pdf">PDF (*.pdf)</option>
-                      <option value="docx">Word (*.docx)</option>
-                      <option value="xlsx">Excel (*.xlsx)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Active Semester */}
-                <div className="space-y-1.5">
-                  <label className="form-label">Active Semester Year</label>
-                  <input
-                    type="text"
-                    required
-                    value={newSem}
-                    onChange={(e) => setNewSem(e.target.value)}
-                    className="w-full border border-slate-205 px-3 py-2 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Sub tags input */}
-                <div className="space-y-1.5">
-                  <label className="form-label">Query search tags (comma separated)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Proposal, Draft, Confirmed"
-                    value={newTagsStr}
-                    onChange={(e) => setNewTagsStr(e.target.value)}
-                    className="w-full border border-slate-205 px-3 py-2 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none text-slate-800 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Description parameters */}
-                <div className="space-y-1.5">
-                  <label className="form-label">Brief Notes / Desc</label>
-                  <textarea
-                    rows={2.5}
-                    placeholder="Enter file details or administrative guidelines notes..."
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    className="w-full border border-slate-205 px-3 py-2 rounded-xl focus:ring-1 focus:ring-slate-900 focus:outline-none text-slate-800 resize-none leading-relaxed font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </div>
-
-                {/* Drag-and-drop simulated indicator area */}
-                <div className="border border-dashed border-slate-250 p-4 rounded-2xl bg-slate-50/50 hover:bg-slate-100/40 text-center space-y-1 transition-colors cursor-pointer select-none">
-                  <Upload className="w-5 h-5 mx-auto text-slate-400 stroke-[2.5]" />
-                  <span className="card-value block">Select document sheet / drag & drop</span>
-                  <span className="card-description block">Accept pdf, docx, xlsx, pptx files up to 25MB</span>
-                </div>
-
-                {/* Form Buttons */}
-                <div className="flex items-center gap-2.5 pt-3">
-                  <button
-                    type="button"
-                    onClick={requestBack}
-                    className="flex-1 py-2.5 border border-slate-350 bg-white hover:bg-slate-50 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-brand-navy hover:bg-slate-800 text-white font-extrabold uppercase text-[10px] tracking-wider rounded-xl transition cursor-pointer text-center"
-                  >
-                    Upload Document
-                  </button>
-                </div>
-
-              </form>
-            </section>}</RecordPage> : null}
-
-      {currentSubView === 'upload' ? (
-      <UploadNewDocument
-        onBack={() => setCurrentSubView('repository')}
-        onUploadSuccess={(newFile) => {
-          const generatedId = `file_${Date.now()}`;
-          const newDocItem: FileItem = {
-            id: generatedId,
-            name: newFile.name,
-            studentId: newFile.studentId,
-            category: newFile.category,
-            sem: newFile.semester,
-            uploadedBy: 'Office Staff/Admin',
-            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-            size: '4.2 MB',
-            status: 'Active',
-            tags: newFile.tags,
-            moduleName: newFile.category === 'Administrative' ? 'Administrative' : newFile.name.substring(0, 20),
-            fileType: newFile.fileType,
-            description: newFile.description
-          };
-          setFiles(prev => [newDocItem, ...prev]);
-          setSelectedFileId(generatedId);
-          setCurrentSubView('repository');
-          triggerToast(`Document "${newFile.name}" has been successfully uploaded & logged.`);
-        }}
-      />
-      ) : null}
+              </>
+            )}
+          </section>
+        </>
+      )}
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </div>
   );
 };

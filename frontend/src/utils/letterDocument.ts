@@ -12,10 +12,9 @@
  * either a physical printout or a "Save as PDF" file, so it works on any machine
  * and looks exactly like what is rendered.
  *
- * The on-screen preview in `StudentLetterGeneration` mirrors this layout so the
- * student sees the same thing they print. When the real template wording arrives
- * from the supervisor, update the template fields in `src/mocks/letters.ts`
- * (and the shared letterhead constants below); the print output follows.
+ * The A4 pages shown in the portal (`LetterPages`) follow the same layout, so a
+ * letter viewed on screen looks like its printout. The letterhead constants below
+ * are shared by both, and by the PDF copy on the server.
  */
 
 import type { GeneratedLetter } from '../types';
@@ -83,15 +82,20 @@ const SINGLE_TAG_RE = /(?<!\{)\{[A-Z_]+\}(?!\})/g;
 /**
  * The same check the server runs before saving (`letters/placeholders.py`):
  * tags that are not supported, tags in triple or single braces, and
- * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag.
+ * `{{`/`}}` pairs that are not a well-formed `{{NAME}}` tag. The template's own
+ * office-filled fields (`customNames`) count as supported.
  */
-export function findPlaceholderProblems(content: string): { unknown: string[]; malformed: string[] } {
+export function findPlaceholderProblems(
+  content: string,
+  customNames: readonly string[] = [],
+): { unknown: string[]; malformed: string[] } {
+  const own = new Set(customNames.map((name) => `{{${name}}}`));
   const unknown: string[] = [];
   const malformed: string[] = [...(content.match(TRIPLE_RE) ?? [])];
   const rest = content.replace(TRIPLE_RE, ' ');
   for (const [token, name] of rest.matchAll(TOKEN_RE)) {
     if (!/^[A-Z_]+$/.test(name)) malformed.push(token);
-    else if (!KNOWN_TAGS.has(token)) unknown.push(token);
+    else if (!KNOWN_TAGS.has(token) && !own.has(token)) unknown.push(token);
   }
   const leftover = rest.replace(TOKEN_RE, ' ');
   malformed.push(...(leftover.match(SINGLE_TAG_RE) ?? []));
@@ -101,89 +105,13 @@ export function findPlaceholderProblems(content: string): { unknown: string[]; m
   return { unknown: [...new Set(unknown)], malformed: [...new Set(malformed)] };
 }
 
-/**
- * Fallback for a placeholder we have no value for: a blank line the postgraduate
- * office completes by hand. Registry-backed fields (passport, country, semesters…)
- * are normally filled from the student's StudentRegistry record, but fall back to
- * this line when a student has no registry details captured yet.
- */
-const FILL_IN_BLANK = '____________';
-
-/** The values substituted into a template's placeholders for one student. The
- *  registry-backed fields are optional; a blank fill-in line is used when absent. */
-export interface PlaceholderValues {
-  studentName: string;
-  matricNumber: string;
-  programName: string;
-  currentStatus: string;
-  supervisorName?: string;
-  referenceNumber: string;
-  date: string;
-  // Registry-backed (StudentRegistry) fields.
-  passportNumber?: string;
-  country?: string;
-  programmeMode?: string;
-  fieldOfResearch?: string;
-  modeOfStudy?: string;
-  initialSemester?: string;
-  currentSemester?: string;
-  maxSemester?: string;
-  expectedCompletion?: string;
-}
-
-function valuesByTag(values: PlaceholderValues): Record<string, string | undefined> {
-  return {
-    '{{STUDENT_NAME}}': values.studentName,
-    '{{STUDENT_ID}}': values.matricNumber,
-    '{{PROGRAMME_NAME}}': values.programName,
-    '{{CURRENT_STATUS}}': values.currentStatus,
-    '{{SUPERVISOR_NAME}}': values.supervisorName,
-    '{{REFERENCE_NUMBER}}': values.referenceNumber,
-    '{{CURRENT_DATE}}': values.date,
-    // Registry-backed fields (filled from the student's StudentRegistry record).
-    '{{PASSPORT_NUMBER}}': values.passportNumber,
-    '{{COUNTRY}}': values.country,
-    '{{PROGRAMME_MODE}}': values.programmeMode,
-    '{{FIELD_OF_RESEARCH}}': values.fieldOfResearch,
-    '{{MODE_OF_STUDY}}': values.modeOfStudy,
-    '{{INITIAL_SEMESTER}}': values.initialSemester,
-    '{{CURRENT_SEMESTER}}': values.currentSemester,
-    '{{MAX_SEMESTER}}': values.maxSemester,
-    '{{EXPECTED_COMPLETION}}': values.expectedCompletion,
-  };
-}
-
-/** Replace every `{{TAG}}` in `content` with the matching student value. */
-export function substitutePlaceholders(content: string, values: PlaceholderValues): string {
-  const map = valuesByTag(values);
-  return content.replace(/\{\{[A-Z_]+\}\}/g, (token) => {
-    // Unknown tags are left untouched so authors can see what they mistyped.
-    if (!(token in map)) return token;
-    // Known tag with no value (e.g. an unfilled field) → a line to complete by hand.
-    const value = map[token];
-    return value && value.trim() ? value : FILL_IN_BLANK;
-  });
-}
-
-// The server fills these when it issues the letter, so they are never missing.
-const ISSUED_WITH_LETTER = new Set(['{{REFERENCE_NUMBER}}', '{{CURRENT_DATE}}']);
-const LABEL_BY_TAG = new Map(LETTER_PLACEHOLDERS.map((p) => [p.tag, p.label]));
-
-/**
- * Labels of the placeholders `content` uses that this student has no value
- * for, in order of first use. The server refuses to issue such a letter
- * (`missingFields`), so the screen can say what is missing up front.
- */
-export function missingPlaceholderLabels(content: string, values: PlaceholderValues): string[] {
-  const map = valuesByTag(values);
-  const labels: string[] = [];
-  for (const tag of content.match(/\{\{[A-Z_]+\}\}/g) ?? []) {
-    const label = LABEL_BY_TAG.get(tag);
-    if (!label || ISSUED_WITH_LETTER.has(tag) || map[tag]?.trim() || labels.includes(label)) continue;
-    labels.push(label);
-  }
-  return labels;
-}
+// Chip colours in the preview: built-in placeholders, office-filled fields,
+// and tags that are not supported.
+const TAG_STYLES = {
+  builtIn: { background: '#0c1424', color: '#a5b4fc', title: '' },
+  office: { background: '#fef3c7', color: '#92400e', title: 'Filled in by the office when approving' },
+  unknown: { background: '#fee2e2', color: '#b91c1c', title: 'Unknown placeholder' },
+} as const;
 
 /**
  * Apply the inline text markup to one line: `**bold**`, `__underline__`,
@@ -192,17 +120,17 @@ export function missingPlaceholderLabels(content: string, values: PlaceholderVal
  * window. When `highlightPlaceholders` is on (the staff editor preview), any
  * leftover `{{TAG}}` is wrapped in a highlight chip.
  */
-function applyInlineMarkup(raw: string, highlightPlaceholders: boolean): string {
+function applyInlineMarkup(raw: string, highlightPlaceholders: boolean, officeTags: ReadonlySet<string>): string {
   let s = esc(raw);
   s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>'); // bold (before italic)
   s = s.replace(/__([^_]+?)__/g, '<u>$1</u>'); // underline (double underscore)
   s = s.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>'); // italic (single asterisk)
   if (highlightPlaceholders) {
     s = s.replace(/\{\{[A-Z_]+\}\}/g, (tag) => {
-      const known = KNOWN_TAGS.has(tag);
+      const look = KNOWN_TAGS.has(tag) ? TAG_STYLES.builtIn : officeTags.has(tag) ? TAG_STYLES.office : TAG_STYLES.unknown;
       return (
-        `<span${known ? '' : ' title="Unknown placeholder"'} style="background:${known ? '#0c1424' : '#fee2e2'};` +
-        `color:${known ? '#a5b4fc' : '#b91c1c'};font-family:ui-monospace,monospace;` +
+        `<span${look.title ? ` title="${look.title}"` : ''} style="background:${look.background};` +
+        `color:${look.color};font-family:ui-monospace,monospace;` +
         `font-weight:800;font-size:.85em;padding:1px 6px;border-radius:4px;">${tag}</span>`
       );
     });
@@ -220,9 +148,10 @@ function applyInlineMarkup(raw: string, highlightPlaceholders: boolean): string 
  */
 export function renderLetterBodyHtml(
   body: string,
-  opts?: { highlightPlaceholders?: boolean },
+  opts?: { highlightPlaceholders?: boolean; officeFields?: readonly string[] },
 ): string {
   const highlight = opts?.highlightPlaceholders ?? false;
+  const officeTags = new Set((opts?.officeFields ?? []).map((name) => `{{${name}}}`));
   return body
     .split(/\n{2,}/)
     .map((block) => {
@@ -237,15 +166,62 @@ export function renderLetterBodyHtml(
               `<li style="margin:0 0 4px;">${applyInlineMarkup(
                 l.replace(/^\s*-\s+/, ''),
                 highlight,
+                officeTags,
               )}</li>`,
           )
           .join('');
         return `<ul style="margin:0 0 14px;padding-left:22px;list-style:disc;">${items}</ul>`;
       }
-      const html = lines.map((l) => applyInlineMarkup(l, highlight)).join('<br>');
+      const html = lines.map((l) => applyInlineMarkup(l, highlight, officeTags)).join('<br>');
       return `<p style="margin:0 0 14px;">${html}</p>`;
     })
     .join('');
+}
+
+/**
+ * Fill each `{{NAME}}` in `content` that has a non-blank value in `values`
+ * (keyed by placeholder name); the rest stay as tags, so a preview can show
+ * what is still to be filled in.
+ */
+export function fillLetterTags(content: string, values: Readonly<Record<string, string | undefined>>): string {
+  return content.replace(/\{\{([A-Z_]+)\}\}/g, (token, name: string) => {
+    const value = values[name]?.trim();
+    return value ? value : token;
+  });
+}
+
+// Office-filled field names: capitals and underscores, as the server requires.
+export const FIELD_NAME_PATTERN = /^[A-Z][A-Z_]{1,39}$/;
+const BUILT_IN_NAMES = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag.slice(2, -2)));
+
+/** Why a new office-filled field name cannot be used, or null. */
+export function fieldNameProblem(name: string, taken: readonly string[]): string | null {
+  if (!FIELD_NAME_PATTERN.test(name)) return 'Use 2 to 40 capital letters or underscores, for example ATTENDANCE.';
+  if (BUILT_IN_NAMES.has(name)) return `{{${name}}} is already a built-in placeholder.`;
+  if (taken.includes(name)) return `{{${name}}} is already one of this template's fields.`;
+  return null;
+}
+
+/**
+ * A tag name made from a field's label: "Attendance (%)" becomes ATTENDANCE.
+ * Letters only (no digits, as the server requires); a name already in use gets
+ * a letter suffix, e.g. ATTENDANCE_B.
+ */
+export function fieldNameFromLabel(label: string, taken: readonly string[]): string {
+  const base =
+    label
+      .toUpperCase()
+      .replace(/[^A-Z]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 36)
+      .replace(/_+$/, '') || 'FIELD';
+  const name = base.length < 2 ? `${base}_FIELD` : base;
+  if (!fieldNameProblem(name, taken)) return name;
+  for (const suffix of 'BCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const candidate = `${name}_${suffix}`;
+    if (!fieldNameProblem(candidate, taken)) return candidate;
+  }
+  return name;
 }
 
 /** Today's date, formatted for a letter ("05 June 2026"). */
@@ -253,8 +229,8 @@ export function formatLetterDate(date: Date = new Date()): string {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-/** What the reference line shows before the server issues the real number. */
-export const PENDING_REFERENCE = 'Assigned when generated';
+/** What the reference line shows before the office approves a request. */
+export const PENDING_REFERENCE = 'Assigned on approval';
 
 /** Print data for a letter the server has issued (needs its `content`). */
 export function letterDataFromIssued(letter: GeneratedLetter): LetterData {

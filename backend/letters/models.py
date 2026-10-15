@@ -1,16 +1,18 @@
-"""Letter template model for the FSKTM PG Office system.
+"""Letter templates and letter requests for the FSKTM PG Office system.
 
-A single template is authored by the office staff (status, name, body content
-with ``{{PLACEHOLDER}}`` tags) and consumed by students, who generate an
-official letter by substituting their own details into the placeholders. Staff
-manage these records; students only ever see the ``Active`` ones. ``Archived``
-retires a template without deleting its wording.
+The office authors templates (name, status, body with ``{{PLACEHOLDER}}`` tags,
+and any fields the office fills in itself, such as attendance). Students only
+ever see an Active template's name and description, never its wording.
 
-Every generated letter is saved as a ``GeneratedLetter``: the filled wording,
-the student details it used, and a reference number issued by the server.
+A student asks for a letter by creating a ``GeneratedLetter`` request. The
+office approves it, filling in what the student's record cannot, and the
+server then fills the template's current wording, issues the reference number
+and saves the letter; or the office rejects it with a reason. Either way the
+student is told. A template with pending requests cannot be deleted.
 """
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.timezone import localtime
 
 
@@ -31,8 +33,11 @@ class LetterTemplate(models.Model):
         blank=True,
         default="",
         help_text="Letter body with {{PLACEHOLDER}} tags; the allowed tags are "
-        "listed in letters/placeholders.py.",
+        "listed in letters/placeholders.py, plus this template's own fields.",
     )
+    # Values the office types in when it approves a request, e.g.
+    # [{"name": "ATTENDANCE", "label": "Attendance (%)", "hint": ""}].
+    custom_fields = models.JSONField(default=list, blank=True)
     # Prefix used to build the student's reference number, e.g. "UMF/PG".
     reference_prefix = models.CharField(max_length=64, blank=True, default="UMF/PG")
     modified_by = models.CharField(max_length=255, blank=True, default="Office Staff")
@@ -45,20 +50,24 @@ class LetterTemplate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.status})"
 
-    def to_public_dict(self):
+    def to_public_dict(self, *, include_wording=True):
         """Shape this template the way the React frontend's ``LetterTemplate``
-        type expects."""
-        return {
+        type expects. Students get it without the wording or the office fields,
+        so a letter cannot be copied before the office approves it."""
+        data = {
             "id": str(self.pk),
             "name": self.name,
             "type": self.letter_type,
             "status": self.status,
             "description": self.description,
-            "content": self.content,
             "referencePrefix": self.reference_prefix,
             "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,
         }
+        if include_wording:
+            data["content"] = self.content
+            data["customFields"] = list(self.custom_fields or [])
+        return data
 
 
 class LetterReferenceCounter(models.Model):
@@ -79,11 +88,26 @@ class LetterReferenceCounter(models.Model):
         return f"{self.prefix}/{self.year}: {self.last_number}"
 
 
+def _day(value):
+    return value.strftime("%d %B %Y") if value else ""
+
+
+def _moment(value):
+    return localtime(value).isoformat() if value else None
+
+
 class GeneratedLetter(models.Model):
-    """A letter issued to a student, kept exactly as it was generated."""
+    """A student's letter request and, once approved, the letter as issued.
+
+    Pending requests have no reference number, wording or date yet; those are
+    set when the office approves. Issued letters are kept exactly as issued.
+    """
 
     class Status(models.TextChoices):
+        PENDING = "Pending", "Pending"
         ISSUED = "Issued", "Issued"
+        REJECTED = "Rejected", "Rejected"
+        WITHDRAWN = "Withdrawn", "Withdrawn"
         REVOKED = "Revoked", "Revoked"
 
     # SET_NULL keeps the register intact if an account or template is removed;
@@ -104,13 +128,19 @@ class GeneratedLetter(models.Model):
     )
     template_name = models.CharField(max_length=255)
     letter_type = models.CharField(max_length=128, blank=True, default="")
-    reference_number = models.CharField(max_length=96, unique=True)
-    content = models.TextField(help_text="The letter body with every placeholder filled in.")
+    # Set on approval. Several pending requests may hold no number at once.
+    reference_number = models.CharField(max_length=96, unique=True, null=True, blank=True)
+    content = models.TextField(
+        blank=True, default="", help_text="The letter body with every placeholder filled in."
+    )
     student_data = models.JSONField(
         default=dict, help_text="The student details the letter was filled from."
     )
-    issued_on = models.DateField()
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ISSUED)
+    # What the office typed in on approval, keyed by placeholder name.
+    office_values = models.JSONField(default=dict, blank=True)
+    student_note = models.CharField(max_length=500, blank=True, default="")
+    issued_on = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -118,6 +148,16 @@ class GeneratedLetter(models.Model):
         on_delete=models.SET_NULL,
         related_name="+",
     )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    reject_reason = models.CharField(max_length=500, blank=True, default="")
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
     resend_count = models.PositiveIntegerField(default=0)
     revoked_at = models.DateTimeField(null=True, blank=True)
     revoked_by = models.ForeignKey(
@@ -132,25 +172,42 @@ class GeneratedLetter(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["status", "-created_at"])]
+        constraints = [
+            # One request at a time per letter: a second click, or a second
+            # tab, cannot queue the same letter twice.
+            models.UniqueConstraint(
+                fields=["student", "template"],
+                condition=Q(status="Pending"),
+                name="one_pending_request_per_letter",
+            )
+        ]
 
     def __str__(self):
-        return f"{self.reference_number} ({self.template_name})"
+        return f"{self.reference_number or f'Request {self.pk}'} ({self.template_name})"
 
     def to_public_dict(self, *, include_content=True):
         snapshot = self.student_data or {}
+        decider = self.decided_by
         data = {
             "id": str(self.pk),
-            "referenceNumber": self.reference_number,
+            "referenceNumber": self.reference_number or "",
             "templateId": str(self.template_id) if self.template_id else None,
             "templateName": self.template_name,
             "letterType": self.letter_type,
             "status": self.status,
-            "date": self.issued_on.strftime("%d %B %Y"),
-            "issuedAt": localtime(self.created_at).isoformat(),
+            "date": _day(self.issued_on),
+            "requestedAt": _moment(self.created_at),
+            "issuedAt": _moment(self.decided_at) if self.status in (self.Status.ISSUED, self.Status.REVOKED) else None,
             "studentName": snapshot.get("studentName", ""),
             "matricNumber": snapshot.get("matricNumber", ""),
             "programName": snapshot.get("programName", ""),
-            "revokedAt": localtime(self.revoked_at).isoformat() if self.revoked_at else None,
+            "note": self.student_note,
+            "decidedAt": _moment(self.decided_at),
+            "decidedBy": (getattr(decider, "full_name", "") or getattr(decider, "email", "")) if decider else "",
+            "rejectReason": self.reject_reason,
+            "withdrawnAt": _moment(self.withdrawn_at),
+            "revokedAt": _moment(self.revoked_at),
             "revokeReason": self.revoke_reason,
         }
         if include_content:

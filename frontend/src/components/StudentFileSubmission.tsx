@@ -3,428 +3,200 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  FileText,
-  UploadCloud, 
-  Trash2, 
-  Download, 
-  CheckCircle, 
-  Clock, 
-  AlertCircle, 
-  File, 
-  ChevronDown, 
-  History, 
-  Loader2,
-  Info
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast } from './PortalPrimitives';
-import { LoadingState, ErrorState } from './StateViews';
-import { SubmissionRecord } from '../types';
-import { getStudentSubmissions } from '../services';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { Plus } from 'lucide-react';
+import type { GeneratedLetter, MyRequiredDocument, PortalDocument } from '../types';
+import { deleteDocument, downloadDocument, getDocuments, getMyRequiredDocuments } from '../services/filesApi';
+import { getMyLetterRequests } from '../services/lettersApi';
+import { APP_ROUTES, routeForDocument } from '../constants/routes';
+import { shortDocumentDate } from '../utils/documentDisplay';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { CheckChip, KindBadge, OverflowMenu } from './DocumentParts';
+import { LetterView, useLetterOutput } from './IssuedLetters';
 
-// SubmissionRecord now lives in src/types.
+const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 export const StudentFileSubmission: React.FC = () => {
-  // Available Submission Categories
-  const categories = [
-    'Thesis Proposal',
-    'Midterm Progress Report',
-    'Final Thesis Draft',
-    'Research Methodology Progress',
-    'Ethics Clearance Application',
-    'Sponsorship Clearance Form'
-  ];
-
-  // Student submissions loaded from filesApi (mock-backed today).
-  const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [files, setFiles] = useState<PortalDocument[]>([]);
+  const [letters, setLetters] = useState<GeneratedLetter[]>([]);
+  const [required, setRequired] = useState<MyRequiredDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const loadSubmissions = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getStudentSubmissions()
-      .then(setSubmissions)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load submissions.'))
-      .finally(() => setLoading(false));
-  }, []);
+  const [lettersError, setLettersError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [deleting, setDeleting] = useState<PortalDocument | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(
+    typeof location.state?.message === 'string' ? { message: location.state.message, tone: 'success' } : null,
+  );
+  const showError = useCallback((message: string) => setToast({ message, tone: 'danger' }), []);
+  const { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView } = useLetterOutput(showError);
 
   useEffect(() => {
-    loadSubmissions();
-  }, [loadSubmissions]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getDocuments({ view: 'all' }, 0, 100)
+      .then(page => !cancelled && setFiles(page.results))
+      .catch(err => !cancelled && setError(errorText(err, 'Could not load your files.')))
+      .finally(() => !cancelled && setLoading(false));
+    getMyLetterRequests()
+      .then(found => {
+        if (cancelled) return;
+        setLetters(found.filter(letter => letter.status === 'Issued'));
+        setLettersError(false);
+      })
+      .catch(() => !cancelled && setLettersError(true));
+    getMyRequiredDocuments()
+      .then(found => !cancelled && setRequired(found))
+      .catch(() => !cancelled && setRequired([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [reload]);
 
-  // UI state
-  const [selectedCategory, setSelectedCategory] = useState<string>('Thesis Proposal');
-  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [uploadingName, setUploadingName] = useState<string>('');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Trigger auto-dismiss toast alerts
-  const triggerToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  // Helper formatting for file size
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = 1;
-    const sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
-
-  // Drag and drop events
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFile(e.dataTransfer.files[0]);
+  const remove = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await deleteDocument(deleting.id);
+      setFiles(current => current.filter(file => file.id !== deleting.id));
+      setToast({ message: `Deleted "${deleting.title}".`, tone: 'success' });
+      setDeleting(null);
+    } catch (err) {
+      setDeleting(null);
+      showError(errorText(err, 'Could not delete this file.'));
+    } finally {
+      setBusy(false);
     }
   };
 
-  // File Picker Trigger
-  const handleBrowseClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processFile(e.target.files[0]);
+  const download = async (file: PortalDocument) => {
+    try {
+      await downloadDocument(file);
+    } catch (err) {
+      showError(errorText(err, 'Could not download this file.'));
     }
   };
 
-  // Main file processor with 50MB size & DOCX/PDF type validation
-  const processFile = (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    const isSupported = extension === 'pdf' || extension === 'docx';
-    const isUnderSize = file.size <= 50 * 1024 * 1024; // 50MB
-
-    if (!isSupported) {
-      triggerToast('Unsupported file type. Please upload a PDF or DOCX file.', 'error');
-      return;
-    }
-
-    if (!isUnderSize) {
-      triggerToast('File size exceeds the 50MB threshold.', 'error');
-      return;
-    }
-
-    // Simulate animated upload progress
-    setUploadingName(file.name);
-    setUploadProgress(0);
-    
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev === null) return null;
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            // Append new draft upload
-            const newRecord: SubmissionRecord = {
-              id: `sub-${Date.now()}`,
-              name: file.name,
-              category: selectedCategory,
-              uploaded: `${new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-              size: formatBytes(file.size),
-              sizeBytes: file.size,
-              status: 'Draft' // Always uploads as Draft initial state for editing
-            };
-            setSubmissions(prevSub => [newRecord, ...prevSub]);
-            setUploadProgress(null);
-            setUploadingName('');
-            triggerToast(`"${file.name}" uploaded successfully as a draft submission.`, 'success');
-          }, 300);
-          return 100;
-        }
-        return prev + 25; // upload increment
-      });
-    }, 150);
-  };
-
-  // Action handlers
-  const handleDownload = (record: SubmissionRecord) => {
-    triggerToast(`Establishing secure SSL handshake connection. Downloading "${record.name}"...`, 'info');
-  };
-
-  const handleDeleteDraft = (id: string, name: string) => {
-    setSubmissions(prev => prev.filter(item => item.id !== id));
-    triggerToast(`Draft file "${name}" has been permanently purged.`, 'success');
-  };
-
-  const handleExportHistory = (e: React.MouseEvent) => {
-    e.preventDefault();
-    triggerToast('Generating encrypted digital ledger audit trail export. PDF summary ready shortly.', 'success');
-  };
+  const returned = files.filter(file => file.checkStatus === 'RETURNED');
+  const toHandIn = required.filter(item => item.state === 'MISSING');
+  const from = `${location.pathname}${location.search}`;
 
   return (
-    <div id="student-file-submission-workspace" className="space-y-6 text-left font-sans pb-12 select-none">
-      
-      <PortalToast message={toast?.text ?? null} tone={toast?.type === 'error' ? 'danger' : toast?.type === 'success' ? 'success' : 'info'} />
-
+    <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader
-        title="Submission Portal"
-        subtitle="Upload your research documents for faculty review. Ensure your submission aligns with the FSKTM academic standards."
-        subtitleClassName="max-w-2xl leading-relaxed"
-        className="border-b border-slate-100 pb-5"
-        actions={(
-          <div className="w-full lg:w-72 space-y-1.5 self-start lg:self-end">
-          <label htmlFor="submission-category-select" className="form-label uppercase text-slate-400 tracking-wider block">
-            Submission Category
-          </label>
-          <div className="relative">
-            <select
-              id="submission-category-select"
-              value={selectedCategory}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                triggerToast(`Category switched to "${e.target.value}". Drag files or browse below.`, 'info');
-              }}
-              className="w-full bg-white border border-[#e2e8f0] text-xs font-bold text-slate-800 px-4 py-3 rounded-xl appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-slate-950 shadow-3xs"
-            >
-              {categories.map((cat, idx) => (
-                <option key={idx} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-          </div>
-        )}
+        title="File Submission"
+        subtitle="Upload your documents for the PG office."
+        actions={<PortalButton variant="primary" icon={Plus} onClick={() => navigate(APP_ROUTES.filesUpload)}>Upload a file</PortalButton>}
       />
 
-      {/* Main Drag-And-Drop High Fidelity Area */}
-      <div 
-        id="drag-dropzone-uploader"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 flex flex-col items-center justify-center min-h-[260px] relative ${
-          isDragging 
-            ? 'border-brand-navy bg-slate-50/80 ring-2 ring-[#0c1424]/10' 
-            : 'border-slate-200/80 bg-white hover:border-slate-350 hover:bg-slate-50/30'
-        }`}
-      >
-        <input 
-          type="file" 
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".pdf,.docx"
-          className="hidden" 
-        />
+      {(returned.length > 0 || toHandIn.length > 0) && (
+        <section aria-labelledby="todo-title" className="app-card px-5 pb-2 pt-5">
+          <h2 id="todo-title" className="section-label pb-3">To do</h2>
+          {toHandIn.map(item => (
+            <div key={item.code} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
+              <div className="min-w-0">
+                <p className="text-[14px] font-bold text-slate-800">Hand in your {item.label}</p>
+                <p className="text-[13px] text-slate-600">{item.dueNote || 'Every student must hand this in.'}</p>
+              </div>
+              <PortalButton size="sm" variant="primary" onClick={() => navigate(`${APP_ROUTES.filesUpload}?type=${encodeURIComponent(item.code)}`)}>Upload</PortalButton>
+            </div>
+          ))}
+          {returned.map(file => (
+            <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
+              <div className="min-w-0">
+                <p className="text-[14px] font-bold text-slate-800">Your {file.title} was returned</p>
+                <p className="text-[13px] text-rose-700">"{file.checkReason}"{file.checkedBy ? ` ${file.checkedBy}, PG office` : ''}</p>
+              </div>
+              <PortalButton size="sm" onClick={() => navigate(routeForDocument(file.id), { state: { from, openNewVersion: true } })}>Upload again</PortalButton>
+            </div>
+          ))}
+        </section>
+      )}
 
-        {uploadProgress !== null ? (
-          /* Custom uploading progression feedback widget exactly mirroring pristine mockup guidelines */
-          <div className="space-y-4 max-w-xs w-full animate-pulse select-none">
-            <div className="w-12 h-12 bg-brand-navy/5 text-brand-navy rounded-full flex items-center justify-center mx-auto">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-            </div>
-            <div className="space-y-1">
-              <p className="card-value text-slate-800 truncate" title={uploadingName}>
-                Uploading {uploadingName}
-              </p>
-              <p className="text-[10px] font-bold text-slate-400 font-mono">
-                Progress: {uploadProgress}% Completed
-              </p>
-            </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-indigo-600 transition-all duration-150 rounded-full"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
+      <section aria-labelledby="files-title" className="app-card">
+        <h2 id="files-title" className="section-label px-5 pb-3 pt-5">My files</h2>
+        {loading ? (
+          <LoadingState message="Loading your files..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
+        ) : !files.length ? (
+          <EmptyState
+            title="You have not uploaded any files yet."
+            description="Upload forms, your thesis, letters and other documents for the PG office."
+            actionLabel="Upload a file"
+            onAction={() => navigate(APP_ROUTES.filesUpload)}
+          />
         ) : (
-          <div className="space-y-4 select-none">
-            {/* Round elegant Cloud icon wrapper */}
-            <div className="w-14 h-14 bg-slate-50 border border-slate-100 text-brand-navy rounded-2xl flex items-center justify-center mx-auto shadow-3xs">
-              <UploadCloud className="w-6 h-6 text-indigo-600" />
-            </div>
-
-            <div className="space-y-1">
-              <p className="card-value text-slate-800">
-                Drag &amp; drop your thesis or report here, or{' '}
-                <button 
-                  type="button" 
-                  onClick={handleBrowseClick}
-                  className="text-indigo-600 hover:text-indigo-800 underline underline-offset-4 cursor-pointer font-black"
-                >
-                  browse
-                </button>
-              </p>
-              <p className="card-description">
-                Supported formats: PDF, DOCX up to 50MB
-              </p>
-            </div>
-          </div>
+          <ul>
+            {files.map(file => (
+              <li key={file.id} className="flex items-center gap-3 border-t border-slate-100 px-5 py-4">
+                <KindBadge kind={file.file?.kind} />
+                <div className="min-w-0 flex-1">
+                  <Link to={routeForDocument(file.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">{file.title}</Link>
+                  <p className="truncate text-[12px] text-slate-500">{file.type.label} · {shortDocumentDate(file.uploadedAt)}</p>
+                </div>
+                <CheckChip status={file.checkStatus} />
+                <OverflowMenu
+                  label={`Actions for ${file.title}`}
+                  actions={[
+                    { label: 'Open', onSelect: () => navigate(routeForDocument(file.id), { state: { from } }) },
+                    { label: 'Download', onSelect: () => void download(file) },
+                    { label: 'Upload a new version', onSelect: () => navigate(routeForDocument(file.id), { state: { from, openNewVersion: true } }) },
+                    { label: 'Delete', danger: true, onSelect: () => setDeleting(file) },
+                  ]}
+                />
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
+        {!loading && !error && files.length > 0 && (
+          <p className="border-t border-slate-100 px-5 py-4 text-[12px] text-slate-500">Only you, the PG office and the staff shown on each file can see your files.</p>
+        )}
+      </section>
 
-      {/* Section Title: Recent Activity */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="section-label">
-            Recent Activity
-          </h2>
-          <button
-            type="button"
-            onClick={handleExportHistory}
-            className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest flex items-center gap-1 cursor-pointer hover:underline underline-offset-4"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Export Full History</span>
-          </button>
-        </div>
+      <section aria-labelledby="letters-title" className="app-card px-5 pb-2 pt-5">
+        <h2 id="letters-title" className="section-label">Letters from the office</h2>
+        <p className="pb-3 text-[12px] text-slate-500">Letters you requested and the office approved. Requests still waiting are in Letter Generation.</p>
+        {lettersError ? (
+          <p className="border-t border-slate-100 py-4 text-[13px] text-slate-600">Could not load your letters. <button type="button" className="font-bold text-blue-700" onClick={() => setReload(value => value + 1)}>Try again</button></p>
+        ) : !letters.length ? (
+          <p className="border-t border-slate-100 py-4 text-[13px] text-slate-600">No approved letters yet. <Link to={APP_ROUTES.letters} className="font-bold text-blue-700">Request a letter</Link></p>
+        ) : (
+          letters.map(letter => (
+            <div key={letter.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
+              <div className="min-w-0">
+                <p className="text-[14px] font-bold text-slate-800">{letter.templateName}</p>
+                <p className="text-[12px] text-slate-500">{letter.referenceNumber} · approved {shortDocumentDate(letter.decidedAt ?? letter.issuedAt)}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PortalButton size="sm" isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>View</PortalButton>
+                <PortalButton size="sm" isLoading={isBusy(letter, 'print')} onClick={() => void printLetter(letter)}>Print</PortalButton>
+                <PortalButton size="sm" isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>Download</PortalButton>
+              </div>
+            </div>
+          ))
+        )}
+      </section>
 
-        {/* Clean responsive table block */}
-        <div className="bg-white border border-[#e2e8f0]/85 rounded-2xl overflow-hidden shadow-3xs text-xs">
-          <div className="overflow-x-auto">
-            <table id="recent-activity-table" className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-105 select-none">
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">File Name</th>
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Category</th>
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Uploaded</th>
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Size</th>
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-[10px] font-extrabold uppercase text-slate-450 text-slate-400 tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="p-0">
-                      <LoadingState message="Loading submissions…" />
-                    </td>
-                  </tr>
-                ) : error ? (
-                  <tr>
-                    <td colSpan={6} className="p-0">
-                      <ErrorState message={error} onRetry={loadSubmissions} />
-                    </td>
-                  </tr>
-                ) : submissions.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 font-bold select-none">
-                      No recent submissions recorded under your index. Select a category and upload to begin.
-                    </td>
-                  </tr>
-                ) : (
-                  submissions.map((sub) => {
-                    const isDraft = sub.status === 'Draft';
-                    const isApproved = sub.status === 'Approved';
-                    const isPending = sub.status === 'Pending Review';
-
-                    return (
-                      <tr key={sub.id} className="hover:bg-slate-50/40 transition">
-                        {/* File Name cell */}
-                        <td className="py-4 px-6 text-xs font-semibold">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                              sub.name.endsWith('.pdf') 
-                                ? 'bg-rose-50 border-rose-100 text-rose-500' 
-                                : 'bg-blue-50 border-blue-100 text-blue-500'
-                            }`}>
-                              <File className="w-4 h-4" />
-                            </div>
-                            <span className="font-bold text-slate-800 text-xs truncate max-w-[210px] block select-all" title={sub.name}>
-                              {sub.name}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Category cell */}
-                        <td className="py-4 px-6 text-slate-500 text-xs font-semibold">
-                          {sub.category}
-                        </td>
-
-                        {/* Uploaded date cell */}
-                        <td className="py-4 px-6 font-medium text-slate-500 text-xs font-semibold">
-                          {sub.uploaded}
-                        </td>
-
-                        {/* Size cell */}
-                        <td className="py-4 px-6 font-mono text-slate-500 text-xs text-xs font-semibold">
-                          {sub.size}
-                        </td>
-
-                        {/* Status Chip cell exactly matching color presets */}
-                        <td className="py-4 px-6 text-xs font-semibold">
-                          {isApproved && (
-                            <span className="bg-emerald-50/80 border border-emerald-150 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 select-none">
-                              <CheckCircle className="w-3 h-3 text-emerald-600" />
-                              <span>Approved</span>
-                            </span>
-                          )}
-
-                          {isPending && (
-                            <span className="bg-amber-50/80 border border-amber-150 text-amber-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 select-none">
-                              <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
-                              <span>Pending Review</span>
-                            </span>
-                          )}
-
-                          {isDraft && (
-                            <span className="bg-blue-50 border border-blue-150 text-blue-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 select-none">
-                              <FileText className="w-3 h-3 text-blue-600" />
-                              <span>Draft</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Actions item triggers */}
-                        <td className="py-4 px-6 text-right text-xs font-semibold">
-                          <div className="flex items-center justify-end gap-2 text-slate-400">
-                            {/* Download Icon always allowed for all states */}
-                            <button
-                              type="button"
-                              onClick={() => handleDownload(sub)}
-                              className="p-1.5 hover:bg-slate-100 hover:text-brand-navy rounded-lg transition-colors cursor-pointer text-slate-500"
-                              title="Download File"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-
-                            {/* Delete Icon ONLY shown for Draft state */}
-                            {isDraft ? (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDraft(sub.id, sub.name)}
-                                className="p-1.5 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors cursor-pointer text-slate-400"
-                                title="Purge Draft submission"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              /* Empty disabled cell to preserve grid balance */
-                              <div className="w-7 h-7" />
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
+      {viewing && <LetterView letter={viewing} onClose={closeView} />}
+      <PortalConfirmModal
+        isOpen={deleting !== null}
+        title={`Delete "${deleting?.title ?? ''}"?`}
+        message="It will be gone for everyone, including older versions. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        tone="danger"
+        isLoading={busy}
+        onConfirm={() => void remove()}
+        onCancel={() => setDeleting(null)}
+      />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </div>
   );
 };

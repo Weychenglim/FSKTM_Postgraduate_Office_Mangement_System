@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Publish and expiry times for announcements. Form values are datetime-local
-// strings read as Malaysia time, like the rest of the portal.
+// Publish times for announcements. Form values are datetime-local strings
+// read as Malaysia time, like the rest of the portal.
 
 import { malaysiaDeadline } from './malaysiaDateTime';
 
@@ -21,29 +21,6 @@ export function isScheduledFor(publishAt: string, now: Date = new Date()): boole
   } catch {
     return false;
   }
-}
-
-/**
- * What is wrong with a publish / expiry pair before going live, or null. The
- * same rules the server applies: valid times, expiry after the publish time,
- * and an expiry that has not already passed.
- */
-export function scheduleProblem(publishAt: string, expiresAt: string, now: Date = new Date()): string | null {
-  let publish: string | null;
-  let expiry: string | null;
-  try {
-    publish = scheduleTime(publishAt);
-    expiry = scheduleTime(expiresAt);
-  } catch (err) {
-    return err instanceof Error ? err.message : 'Enter a valid Malaysia date and time.';
-  }
-  if (publish && expiry && Date.parse(publish) >= Date.parse(expiry)) {
-    return 'The expiry time must be after the publish time.';
-  }
-  if (expiry && Date.parse(expiry) <= now.getTime()) {
-    return 'The expiry time has already passed.';
-  }
-  return null;
 }
 
 /** "12 Oct 2026, 9:00 am" in Malaysia time, for list rows and messages. */

@@ -127,23 +127,82 @@ Evaluation tasks are generated for active supervisor and panel appointments;
 backup/manual-override evaluator tasks require an Office Staff/Admin reason and
 audit record.
 
-## Issued letter endpoints (`/api/letters/`)
+## Letter request endpoints (`/api/letters/`)
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| POST | `requests/` (`{templateId}`) | Active student |
-| GET | `requests/` | Student (own letters) or Office Staff/Admin (`search`, `from`, `to`, `status`) |
-| GET | `requests/<id>/` | The letter's student or Office Staff/Admin |
-| GET | `requests/<id>/docx/` | The letter's student or Office Staff/Admin |
-| POST | `requests/<id>/resend-notification/` | Office Staff/Admin |
-| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin |
+| POST | `requests/` (`{templateId, note?}`) | Active student |
+| GET | `requests/` | Student (own requests) or Office Staff/Admin (`search`, `status` (one or several, comma separated), `from`, `to` on the issue date) |
+| GET | `requests/counts/` | Office Staff/Admin |
+| GET | `requests/<id>/` | The request's student or Office Staff/Admin |
+| POST | `requests/<id>/withdraw/` | The request's student, while Pending |
+| POST | `requests/<id>/approve/` (`{values: {NAME: text}}`) | Office Staff/Admin, while Pending |
+| POST | `requests/<id>/reject/` (`{reason}`) | Office Staff/Admin, while Pending |
+| GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin, once Issued |
+| POST | `requests/<id>/resend-notification/` | Office Staff/Admin, once Issued |
+| POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin, once Issued |
 
-Generating a letter fills an Active template from the student's record, issues
-the next reference number for its prefix and year (`UMF/PG/2026/0001`), saves
-the filled wording and notifies the student. If the template needs a detail the
-record does not have, it returns 400 with `missingFields` and saves nothing.
-The Word copy is built with `python-docx`. Revoked letters keep their number but
-can no longer be downloaded.
+**Requesting.**
+- A student asks for a letter from an Active template, with an optional note.
+- The request is `Pending`: it has no wording, reference number or date yet. Students never get a template's wording, so a letter cannot be copied before it is approved.
+- One request per letter per student can be pending at a time (409 `letter_request_pending`).
+- Office staff are notified in the app.
+
+**Reviewing.**
+- The office's `GET requests/<id>/` adds the template's current wording and `fields`: each placeholder value the letter needs, from the student's record or `needed` from the office.
+- Office-filled fields (a template's `customFields`, such as attendance worked out in another system) are always typed in, as are record fields the student's record leaves blank.
+- Values are at most 300 characters on one line.
+
+**Deciding.**
+- Approving fills the wording, issues the next reference number for the template's prefix and year (`UMF/PG/2026/0001`) and saves the letter.
+- Rejecting needs a reason, which the student sees.
+- Either way the student is notified in the app, and by email when "Email alerts" is on.
+- A student can withdraw a pending request.
+- A template with pending requests cannot be deleted.
+- Approval is refused once the student is no longer Active.
+
+**The PDF.** The download is a PDF built with `reportlab`, locked against editing (printing and copying text stay allowed), so a letter cannot simply be changed. Its reference number lets anyone verify it with the office. Revoked letters keep their number but can no longer be downloaded.
+
+## File Management endpoints (`/api/documents/`)
+
+| Method | Path | Actor |
+| ------ | ---- | ----- |
+| GET | `options/` | Everyone: the types they may choose, semesters, programmes |
+| GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
+| GET, POST | `/` (list with `view`, `q`, `type`, `semester`, `student`, `uploader`, `status`, `kind`, `from`, `to`, `tag`, `archived`; multipart upload) | Everyone, by the access rules below |
+| GET | `summary/`, `tags/?search=` | Everyone (tab counts, tag suggestions) |
+| GET, PATCH, DELETE | `<id>/` | View right; edit by the uploader or the office; delete by the uploader |
+| GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
+| POST | `download-zip/` (`{ids}`) | View right on every file |
+| POST | `<id>/versions/` (multipart) | The uploader or the office |
+| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | Office Staff/Admin |
+| GET, PUT | `<id>/sharing/` | The office, or the staff member who uploaded it |
+| POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | Office Staff/Admin |
+| GET, POST | `types/`, PATCH `types/<id>/` | Office Staff/Admin |
+| GET | `tags/?manage=1`; PATCH, DELETE `tags/<id>/`; POST `tags/<id>/merge/` (`{into}`) | Office Staff/Admin |
+| GET | `history/?show=&q=` | Office Staff/Admin |
+| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Office Staff/Admin, and programme coordinators for their programmes |
+| POST | `required/<typeId>/remind/` | Office Staff/Admin, once a day per type |
+| GET | `required/mine/` | Student |
+
+**Who sees what.**
+- The office sees every file. Uploaders see their own. Students see only what they uploaded.
+- Staff see a student's files through real relationships, ticked per file: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included).
+- Staff files (about no student) go to all lecturers and coordinators, coordinators only, or the office only, optionally narrowed to programmes. Students never see them.
+- Archived files are seen by the office only. A file someone may not see answers 404, the same as a missing one.
+
+**Uploads.**
+- Up to 10 MB (`DOCUMENT_MAX_UPLOAD_BYTES`) and 100 an hour per person (`DOCUMENT_UPLOAD_THROTTLE_RATE`).
+- PDF, Word and images for everyone; Excel and PowerPoint for staff only.
+- Checks: real file signatures; no hidden inner extensions; PDFs without JavaScript, attachments or passwords and at most 500 pages (`pypdfium2`); Office files without macros, ActiveX, OLE objects or external links; images re-saved upright without hidden data (`Pillow`).
+- Files are stored under `MEDIA_ROOT/documents/<year>/<month>/` with random names and are only served through the permission-checked download, as attachments.
+- Previews are drawn on the server as PNG pages, because the production security policy blocks the browser's own PDF viewer.
+
+**Checking and versions.** For types the office checks, uploads wait in "To check". Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
+
+**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on), renames, merges and removes tags, and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
+
+**Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
 
 ## Scheduled commands
 
@@ -155,6 +214,7 @@ repeatedly, so schedule them every few minutes:
 | `release_announcements` | Publishes scheduled announcements that are due and expires finished ones. The announcement and notification list endpoints also do this on every read, so the command only matters when nobody is signed in. |
 | `send_deadline_reminders --days 3` | Reminds people of active-timeline deadlines (by the entry's target roles) and of Marks periods closing within the days given (evaluators with unsubmitted tasks). One reminder per person per deadline. |
 | `send_weekly_summary` | Emails everyone who turned the weekly summary on a list of their unread notifications from the past seven days. One email per person per week. |
+| `check_document_storage [--remove-orphans]` | Reports stored File Management files that are missing, and left-over files nothing refers to. With `--remove-orphans` it deletes left-overs more than an hour old. Run it weekly, or after restoring a backup. |
 
 Each person's Settings switches decide what they get: no reminders when
 "Deadline reminders" is off, and email copies of announcements and reminders

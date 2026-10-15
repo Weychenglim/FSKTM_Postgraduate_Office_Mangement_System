@@ -17,6 +17,9 @@ export const APP_ROUTES = {
   registry: '/registry',
   faq: '/faq',
   files: '/files',
+  filesUpload: '/files/upload',
+  filesDocuments: '/files/documents',
+  filesSettings: '/files/settings',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',
@@ -30,6 +33,7 @@ export const APP_ROUTES = {
   letters: '/letters',
   lettersMine: '/letters/my-letters',
   lettersIssued: '/letters/issued',
+  lettersRequests: '/letters/requests',
   announcements: '/announcements',
   marks: '/marks',
   marksConfig: '/marks/config',
@@ -44,7 +48,7 @@ export const APP_ROUTES = {
   panelAppointmentAssignments: '/panel-appointments/assignments',
   notifications: '/notifications',
   settings: '/settings',
-  myRecords: '/my-records',
+  myProfile: '/my-profile',
 } as const;
 
 const SIDEBAR_TO_ROUTE: Record<SidebarItemId, string> = {
@@ -122,6 +126,12 @@ export const routeForSupervisorSupervisee = (studentId: string): string =>
 export const routeForSupervisorResearchRequest = (requestId: string): string =>
   `${APP_ROUTES.supervisorResearchChanges}/${encodeURIComponent(requestId)}`;
 
+export const routeForDocument = (documentId: number | string): string =>
+  `${APP_ROUTES.filesDocuments}/${encodeURIComponent(String(documentId))}`;
+
+export const routeForLetterRequest = (requestId: string): string =>
+  `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
+
 export const routeForPanelRecommendation = (recommendationId: string): string =>
   `${APP_ROUTES.panelAppointments}/recommendations/${encodeURIComponent(recommendationId)}`;
 
@@ -158,8 +168,8 @@ export const isKnownAppPath = (pathname: string): boolean => {
     return true;
   }
 
-  // The student's own records page sits under the Dashboard sidebar entry.
-  if (pathname === APP_ROUTES.myRecords) {
+  // The student's own profile page sits under the Dashboard sidebar entry.
+  if (pathname === APP_ROUTES.myProfile) {
     return true;
   }
 
@@ -233,7 +243,21 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
   }
 
   if (target.targetModule === 'LETTERS') {
+    // A new request opens for the office to review; decisions open the student's list.
+    if (target.recordType === 'LETTER_REQUEST' && target.recordId) {
+      return routeForLetterRequest(target.recordId);
+    }
     return APP_ROUTES.lettersMine;
+  }
+
+  if (target.targetModule === 'FILES') {
+    if (target.recordType === 'STUDENT_DOCUMENT' && target.recordId) {
+      return routeForDocument(target.recordId);
+    }
+    if (target.recordType === 'REQUIRED_DOCUMENT' && target.recordId) {
+      return `${APP_ROUTES.filesUpload}?type=${encodeURIComponent(String(target.recordId))}`;
+    }
+    return APP_ROUTES.files;
   }
 
   if (target.targetModule === 'DASHBOARD') {

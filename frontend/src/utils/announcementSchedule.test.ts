@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { announcementForm, getAnnouncementRecipientCount } from '../services/announcementsApi';
-import { formatScheduleMoment, isScheduledFor, scheduleProblem, scheduleTime } from './announcementSchedule';
+import { formatScheduleMoment, isScheduledFor, scheduleTime } from './announcementSchedule';
 
 const now = new Date('2026-10-11T04:00:00.000Z'); // 12:00 noon in Malaysia
 
@@ -15,14 +15,6 @@ assert.equal(isScheduledFor('', now), false);
 assert.equal(isScheduledFor('2026-10-11T12:30', now), true);
 assert.equal(isScheduledFor('2026-10-11T11:30', now), false);
 assert.equal(isScheduledFor('not a date', now), false);
-
-// the same rules the server applies before going live
-assert.equal(scheduleProblem('', '', now), null);
-assert.equal(scheduleProblem('2026-10-12T09:00', '2026-10-13T09:00', now), null);
-assert.equal(scheduleProblem('2026-10-12T09:00', '2026-10-12T08:00', now), 'The expiry time must be after the publish time.');
-assert.equal(scheduleProblem('2026-10-12T09:00', '2026-10-12T09:00', now), 'The expiry time must be after the publish time.');
-assert.equal(scheduleProblem('', '2026-10-11T11:00', now), 'The expiry time has already passed.');
-assert.equal(scheduleProblem('2026-02-30T09:00', '', now), 'Enter a valid Malaysia date and time.');
 
 assert.equal(formatScheduleMoment('2026-10-12T09:00:00+08:00'), '12 Oct 2026, 9:00 am');
 assert.equal(formatScheduleMoment('2026-10-12T13:30:00Z'), '12 Oct 2026, 9:30 pm');
@@ -74,10 +66,11 @@ assert.equal(query.get('priority'), 'Urgent');
 assert.deepEqual(query.getAll('programmes'), ['A', 'B']);
 assert.deepEqual(query.getAll('intakes'), ['Semester 1 2025/2026']);
 
-// the composer offers the schedule, targeting and the live recipient count
+// the composer offers a publish time but no expiry, and saving clears an old one
 const composer = readFileSync(resolve('src/components/AnnouncementManagement.tsx'), 'utf8');
 assert.match(composer, /id="announcement-publish-at"/);
-assert.match(composer, /id="announcement-expires-at"/);
+assert.doesNotMatch(composer, /id="announcement-expires-at"/);
+assert.equal(composer.match(/expiresAt: null/g)?.length, 2, 'saving and publishing a draft both clear the expiry');
 assert.match(composer, /getAnnouncementRecipientCount\(/);
 assert.match(composer, /getAnnouncementAudienceOptions\(\)/);
 

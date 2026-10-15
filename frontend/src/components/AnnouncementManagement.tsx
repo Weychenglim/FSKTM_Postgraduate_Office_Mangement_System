@@ -5,31 +5,31 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Megaphone,
-  Search, 
-  Paperclip, 
-  Calendar, 
-  AlertTriangle, 
-  Info, 
-  HelpCircle, 
-  CheckCircle, 
-  Trash2, 
-  X, 
-  ChevronLeft, 
-  ChevronRight,
-  Sparkles,
-  Users,
-  ShieldAlert,
-  Send,
-  Eye,
-  FileText,
-  Pencil,
-  Minus,
+  AlertTriangle,
+  Calendar,
   CalendarClock,
-  Plus
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Info,
+  Lock,
+  Megaphone,
+  Minus,
+  Paperclip,
+  Pencil,
+  Plus,
+  Radio,
+  Search,
+  SearchX,
+  Send,
+  Trash2,
+  UserRound,
+  Users,
+  X,
+  type LucideIcon,
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
-import { StatCard } from './StatCard';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot, getStatusBadgeTone, type BadgeTone } from './PortalPrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementAudienceOptions, AnnouncementItem } from '../types';
@@ -42,9 +42,10 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '../services';
-import { formatScheduleMoment, isScheduledFor, scheduleProblem, scheduleTime } from '../utils/announcementSchedule';
+import { formatScheduleMoment, isScheduledFor, scheduleTime } from '../utils/announcementSchedule';
 import { toMalaysiaDateTimeLocalValue } from '../utils/malaysiaDateTime';
 import { describeProgramme } from '../utils/programmeLabel';
+import { pageWindow } from '../utils/pageWindow';
 
 // AnnouncementItem now lives in src/types.
 
@@ -106,19 +107,114 @@ const programmeName = (programme: string) => describeProgramme(programme).field;
 const targetingSummary = (item: AnnouncementItem) =>
   [...(item.targetProgrammes ?? []).map(programmeName), ...(item.targetIntakes ?? [])].join(', ');
 
-// "Broadcasted ..." line under each history row, following its schedule.
-const scheduleLine = (item: AnnouncementItem) => {
-  const by = item.createdBy || 'Postgraduate Office';
-  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt)} by ${by}`;
-  const base = `Broadcasted ${item.dateCreated} by ${by}`;
-  if (!item.expiresAt) return base;
-  return `${base}, ${item.status === 'Expired' ? 'expired' : 'expires'} ${formatScheduleMoment(item.expiresAt)}`;
+// List filters; 'any' turns a filter off.
+type StatusFilter = Exclude<AnnouncementItem['status'], 'Expired'> | 'any';
+type AudienceFilter = AnnouncementItem['target'] | 'any';
+type PriorityFilter = AnnouncementItem['priority'] | 'any';
+
+// How each status reads in the list. Recipients can see Active ones, so they show as Live.
+const STATUS_LOOK: Record<AnnouncementItem['status'], { label: string; tone: BadgeTone }> = {
+  Active: { label: 'Live', tone: 'success' },
+  Scheduled: { label: 'Scheduled', tone: 'info' },
+  Draft: { label: 'Draft', tone: 'warning' },
+  Expired: { label: 'Expired', tone: 'neutral' },
 };
 
-// Headline, audience, priority, content, publish and expiry times,
-// programmes, intakes and the attachment removal, in that order.
+// The coloured edge on each row, as in the recipients' feed.
+const PRIORITY_EDGE: Record<AnnouncementItem['priority'], string> = {
+  Urgent: 'bg-rose-500',
+  Info: 'bg-blue-500',
+  General: 'bg-slate-300',
+};
+
+const AUDIENCE_LABEL: Record<AnnouncementItem['target'], string> = {
+  All: 'Everyone',
+  'All Students': 'All students',
+  Lecturers: 'Lecturers',
+  Staff: 'Staff',
+  Coordinators: 'Coordinators',
+};
+
+const LIST_HEADING: Record<StatusFilter, string> = {
+  any: 'All announcements',
+  Active: 'Live announcements',
+  Scheduled: 'Scheduled announcements',
+  Draft: 'Drafts',
+};
+
+const STATUS_FILTER_OPTIONS: SelectMenuOption<StatusFilter>[] = [
+  { value: 'any', label: 'All statuses', triggerLabel: 'All' },
+  ...(['Active', 'Scheduled', 'Draft'] as const).map((status) => ({
+    value: status,
+    label: STATUS_LOOK[status].label,
+    leading: <StatusDot tone={STATUS_LOOK[status].tone} className="w-2 h-2" />,
+  })),
+];
+
+const AUDIENCE_FILTER_OPTIONS: SelectMenuOption<AudienceFilter>[] = [
+  { value: 'any', label: 'All audiences', triggerLabel: 'All' },
+  ...(['All', 'All Students', 'Lecturers', 'Staff', 'Coordinators'] as const).map((target) => ({
+    value: target,
+    label: AUDIENCE_LABEL[target],
+  })),
+];
+
+const PRIORITY_FILTER_OPTIONS: SelectMenuOption<PriorityFilter>[] = [
+  { value: 'any', label: 'All priorities', triggerLabel: 'All' },
+  ...(['Urgent', 'Info', 'General'] as const).map((priority) => ({
+    value: priority,
+    label: priority,
+    leading: <span aria-hidden="true" className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_EDGE[priority]}`} />,
+  })),
+];
+
+// "Everyone", "Lecturers", or "Students: Data Science, Semester 1 2025/2026" when narrowed.
+const audienceLine = (item: AnnouncementItem) => {
+  const narrowed = targetingSummary(item);
+  if (!narrowed) return AUDIENCE_LABEL[item.target] ?? item.target;
+  return `${item.target === 'All Students' ? 'Students' : AUDIENCE_LABEL[item.target] ?? item.target}: ${narrowed}`;
+};
+
+// When it went out, or goes out for a scheduled one.
+const timingLine = (item: AnnouncementItem) => {
+  if (item.status === 'Draft') return `Created ${item.dateCreated}`;
+  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt) || 'at its set time'}`;
+  return `Published ${formatScheduleMoment(item.publishAt) || item.dateCreated}`;
+};
+
+// A summary count that also filters the list; pressing it again shows everything.
+const StatusTile: React.FC<{
+  label: string;
+  count: number;
+  caption: string;
+  icon: LucideIcon;
+  iconClass: string;
+  selected: boolean;
+  onClick: () => void;
+}> = ({ label, count, caption, icon: Icon, iconClass, selected, onClick }) => (
+  <button
+    type="button"
+    aria-pressed={selected}
+    onClick={onClick}
+    className={`relative w-full bg-white border rounded-2xl p-4 sm:p-5 text-left shadow-3xs select-none transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 ${
+      selected ? 'bg-slate-50 border-brand-navy ring-1 ring-brand-navy' : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+    }`}
+  >
+    <span className={`absolute top-5 right-5 w-10 h-10 rounded-xl border hidden sm:flex items-center justify-center ${iconClass}`}>
+      <Icon aria-hidden="true" className="w-5 h-5" />
+    </span>
+    <span className={`block sm:pr-12 text-[10px] font-extrabold uppercase tracking-wider ${selected ? 'text-brand-navy' : 'text-slate-400'}`}>
+      {label}
+    </span>
+    <span className="block mt-2 text-2xl font-extrabold text-brand-navy tracking-tight leading-none tabular-nums">{count}</span>
+    <span className="hidden sm:block mt-2 pr-1 text-[11px] font-semibold text-slate-400 truncate">{caption}</span>
+  </button>
+);
+
+// Headline, audience, priority, content, publish time, programmes, intakes
+// and the attachment removal, in that order.
 const formSnapshot = (values: unknown[]) => JSON.stringify(values);
-const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', '', [], [], false]);
+const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', [], [], false]);
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -170,10 +266,9 @@ export const AnnouncementManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   // A published announcement stays published when saved; a draft stays a draft.
   const [editingStatus, setEditingStatus] = useState<AnnouncementItem['status']>('Draft');
-  // Schedule (datetime-local, Malaysia time; empty = publish when saved / never
-  // expire) and registry targeting for student announcements.
+  // Publish time (datetime-local, Malaysia time; empty = publish when saved)
+  // and registry targeting for student announcements.
   const [publishAtInput, setPublishAtInput] = useState('');
-  const [expiresAtInput, setExpiresAtInput] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [targetProgrammes, setTargetProgrammes] = useState<string[]>([]);
   const [targetIntakes, setTargetIntakes] = useState<string[]>([]);
@@ -184,10 +279,13 @@ export const AnnouncementManagement: React.FC = () => {
   const [pendingDelete, setPendingDelete] = useState<AnnouncementItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // --- 4. Search and Table Pagination States ---
+  // --- 4. Search, filters and pagination for the list ---
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('any');
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>('any');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('any');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const itemsPerPage = 8;
 
   useEffect(() => {
     getAnnouncementAudienceOptions().then(setAudienceOptions).catch(() => setAudienceOptions(null));
@@ -254,18 +352,10 @@ export const AnnouncementManagement: React.FC = () => {
   // Publishing (status Active) makes the backend fan it out to the target audience.
   const submitAnnouncement = async (status: 'Active' | 'Draft') => {
     let publishAt: string | null;
-    let expiresAt: string | null;
     try {
       publishAt = scheduleTime(publishAtInput);
-      expiresAt = scheduleTime(expiresAtInput);
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : 'Enter a valid Malaysia date and time.');
-      return;
-    }
-    const problem = status === 'Active' ? scheduleProblem(publishAtInput, expiresAtInput) : null;
-    if (problem) {
-      setScheduleError(problem);
-      showToast(`Error: ${problem}`);
       return;
     }
     setScheduleError(null);
@@ -283,7 +373,8 @@ export const AnnouncementManagement: React.FC = () => {
         attachment: attachedFile,
         removeAttachment: removeExistingAttachment,
         publishAt,
-        expiresAt,
+        // Announcements no longer expire; saving clears an end time set before.
+        expiresAt: null,
         targetProgrammes: forStudents ? targetProgrammes : [],
         targetIntakes: forStudents ? targetIntakes : [],
       };
@@ -305,8 +396,6 @@ export const AnnouncementManagement: React.FC = () => {
             ? `Changes saved. ${reach} recipient${reach === 1 ? '' : 's'} see the updated announcement.`
             : `Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
         );
-      } else if (wasPublished) {
-        showToast('Moved back to drafts. Recipients no longer see it.');
       } else {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
       }
@@ -315,7 +404,7 @@ export const AnnouncementManagement: React.FC = () => {
       loadAnnouncements();
     } catch (err) {
       const fields = fieldErrors(err);
-      setScheduleError(fields.publishAt ?? fields.expiresAt ?? null);
+      setScheduleError(fields.publishAt ?? null);
       showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
     } finally {
       submittingRef.current = false;
@@ -333,7 +422,6 @@ export const AnnouncementManagement: React.FC = () => {
     setTargetAudience(audienceFromTarget(draft.target));
     setPriorityLevel(draft.priority);
     setPublishAtInput(toMalaysiaDateTimeLocalValue(draft.publishAt));
-    setExpiresAtInput(toMalaysiaDateTimeLocalValue(draft.expiresAt));
     setTargetProgrammes(draft.targetProgrammes ?? []);
     setTargetIntakes(draft.targetIntakes ?? []);
     setScheduleError(null);
@@ -346,7 +434,6 @@ export const AnnouncementManagement: React.FC = () => {
       draft.priority,
       draft.content ?? draft.summary ?? '',
       toMalaysiaDateTimeLocalValue(draft.publishAt),
-      toMalaysiaDateTimeLocalValue(draft.expiresAt),
       draft.targetProgrammes ?? [],
       draft.targetIntakes ?? [],
       false,
@@ -372,6 +459,7 @@ export const AnnouncementManagement: React.FC = () => {
         priority: draft.priority,
         status: 'Active',
         attachment: null,
+        expiresAt: null,
       });
       const reach = saved.deliveredTo ?? 0;
       showToast(
@@ -424,7 +512,6 @@ export const AnnouncementManagement: React.FC = () => {
     setEditingId(null);
     setEditingStatus('Draft');
     setPublishAtInput('');
-    setExpiresAtInput('');
     setScheduleError(null);
     setTargetProgrammes([]);
     setTargetIntakes([]);
@@ -442,7 +529,6 @@ export const AnnouncementManagement: React.FC = () => {
       priorityLevel,
       contentBody,
       publishAtInput,
-      expiresAtInput,
       targetProgrammes,
       targetIntakes,
       removeExistingAttachment,
@@ -467,28 +553,6 @@ export const AnnouncementManagement: React.FC = () => {
     }
   };
 
-  // Pull a published announcement back to drafts; recipients' copies are withdrawn.
-  const handleWithdraw = async (item: AnnouncementItem) => {
-    try {
-      await updateAnnouncement(item.id, {
-        title: item.title,
-        content: item.content ?? item.summary ?? '',
-        target: item.target,
-        priority: item.priority,
-        status: 'Draft',
-        attachment: null,
-      });
-      showToast(
-        item.status === 'Scheduled'
-          ? `"${item.title}" moved back to drafts. It will not be published.`
-          : `"${item.title}" moved back to drafts. Recipients no longer see it.`,
-      );
-      loadAnnouncements();
-    } catch (err) {
-      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to withdraw announcement.'}`);
-    }
-  };
-
   // The main button follows the publish time: a future time schedules instead.
   const willSchedule = isScheduledFor(publishAtInput);
   const publishLabel = !editingId
@@ -499,31 +563,56 @@ export const AnnouncementManagement: React.FC = () => {
         ? (willSchedule ? 'Save Schedule' : 'Publish Now')
         : (willSchedule ? 'Schedule Draft' : 'Publish Draft');
 
-  // --- 6. Split drafts (their own section) from published records (history) ---
+  // --- 6. The list holds every announcement, drafts included ---
+  // Drafts also keep their own section under the composer.
   const drafts = historyItems.filter(item => item.status === 'Draft');
-  const publishedItems = historyItems.filter(item => item.status !== 'Draft');
 
-  // History search runs over published records only (drafts live below the form).
-  const filteredAnnouncements = publishedItems.filter(item => {
-    const term = searchQuery.toLowerCase();
-    return (
-      item.title.toLowerCase().includes(term) ||
-      item.summary.toLowerCase().includes(term) ||
-      item.target.toLowerCase().includes(term) ||
-      item.priority.toLowerCase().includes(term)
-    );
-  });
-
-  // Counts shown on the history cards, all taken from the loaded records.
-  const activeCount = publishedItems.filter(item => item.status === 'Active').length;
-  const urgentCount = publishedItems.filter(
+  // Counts on the status tiles, over everything loaded whatever the filters.
+  const countOf = (status: AnnouncementItem['status']) =>
+    historyItems.filter(item => item.status === status).length;
+  const activeCount = countOf('Active');
+  const urgentCount = historyItems.filter(
     item => item.status === 'Active' && item.priority === 'Urgent',
   ).length;
-  const scheduledCount = publishedItems.filter(item => item.status === 'Scheduled').length;
-  const publishedCount = publishedItems.filter(item => item.status === 'Active' || item.status === 'Expired').length;
+  const scheduledCount = countOf('Scheduled');
   const draftCount = drafts.length;
 
-  // Pagination bounds (a shrinking search result never leaves an empty page)
+  const term = searchQuery.trim().toLowerCase();
+  const filteredAnnouncements = historyItems.filter(item =>
+    (statusFilter === 'any' || item.status === statusFilter) &&
+    (audienceFilter === 'any' || item.target === audienceFilter) &&
+    (priorityFilter === 'any' || item.priority === priorityFilter) &&
+    (!term || [
+      item.title,
+      item.content || item.summary || '',
+      audienceLine(item),
+      item.priority,
+      item.createdBy || '',
+      STATUS_LOOK[item.status]?.label ?? item.status,
+    ].some(text => text.toLowerCase().includes(term))),
+  );
+  const filtersOn =
+    term !== '' || statusFilter !== 'any' || audienceFilter !== 'any' || priorityFilter !== 'any';
+
+  const toggleStatus = (status: Exclude<StatusFilter, 'any'>) => {
+    setStatusFilter(current => (current === status ? 'any' : status));
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('any');
+    setAudienceFilter('any');
+    setPriorityFilter('any');
+    setCurrentPage(1);
+  };
+
+  const openComposer = () => {
+    resetForm();
+    setView('create');
+  };
+
+  // Pagination bounds (a shrinking result never leaves an empty page)
   const totalPages = Math.ceil(filteredAnnouncements.length / itemsPerPage) || 1;
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * itemsPerPage;
@@ -753,24 +842,9 @@ export const AnnouncementManagement: React.FC = () => {
                   type="datetime-local"
                   value={publishAtInput}
                   onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
-                  className="form-control form-control-md"
-                />
-                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="announcement-expires-at" className="form-label block">
-                  Expires At (optional)
-                </label>
-                <input
-                  id="announcement-expires-at"
-                  type="datetime-local"
-                  value={expiresAtInput}
-                  onChange={(e) => { setExpiresAtInput(e.target.value); setScheduleError(null); }}
                   className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
                 />
-                <p className="text-[10px] text-slate-400 font-semibold">
-                  After this it leaves the active list. People who received it keep it.
-                </p>
+                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
               </div>
               {scheduleError && (
                 <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
@@ -788,15 +862,17 @@ export const AnnouncementManagement: React.FC = () => {
                     }`}
               </p>
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                <PortalButton
-                  type="button"
-                  onClick={handleSaveDraft}
-                  variant="secondary"
-                  size="md"
-                  disabled={submitting}
-                >
-                  {editingId ? (editingStatus === 'Draft' ? 'Update Draft' : 'Move to Drafts') : 'Save Draft'}
-                </PortalButton>
+                {(!editingId || editingStatus === 'Draft') && (
+                  <PortalButton
+                    type="button"
+                    onClick={handleSaveDraft}
+                    variant="secondary"
+                    size="md"
+                    disabled={submitting}
+                  >
+                    {editingId ? 'Update Draft' : 'Save Draft'}
+                  </PortalButton>
+                )}
 
                 <PortalButton
                   type="button"
@@ -909,218 +985,300 @@ export const AnnouncementManagement: React.FC = () => {
       </fieldset>
       </RecordPage>
       ) : (
-      /* ==================== ANNOUNCEMENT HISTORY VIEW ==================== */
-      <div id="announcements-history-view" className="space-y-8">
+      /* ==================== ANNOUNCEMENTS LIST VIEW ==================== */
+      <div id="announcements-history-view" className="space-y-6">
 
         <PageHeader
           title="Announcements"
-          subtitle="Review and manage past announcements broadcast to the FSKTM community."
+          subtitle="Create, schedule and manage announcements for the FSKTM community."
           actions={(
-            <div className="flex flex-wrap items-center gap-3">
-            <PortalButton icon={Plus} onClick={() => { resetForm(); setView('create'); }}>New announcement</PortalButton>
-            <div className="relative max-w-xs w-full">
-              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Search announcements..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-white border border-slate-205 text-xs font-bold text-slate-800 pl-9 pr-3 py-2 rounded-xl placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-brand-navy focus:border-brand-navy transition-all shadow-3xs"
-              />
-            </div>
-            </div>
+            <PortalButton variant="primary" icon={Plus} onClick={openComposer}>
+              New announcement
+            </PortalButton>
           )}
         />
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Active Now" value={activeCount} caption={`Live for recipients, ${urgentCount} urgent`} icon={Megaphone} tone="green" />
-            <StatCard label="Scheduled" value={scheduledCount} caption="Waiting for their publish time" icon={CalendarClock} tone="purple" />
-            <StatCard label="Drafts" value={draftCount} caption="Not published yet" icon={Pencil} tone="blue" />
-            {/* Everything published so far, including expired */}
-            <StatCard label="Published (All)" value={publishedCount} caption="Including expired" icon={Send} tone="slate" />
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <StatusTile
+            label="Live"
+            count={activeCount}
+            caption={urgentCount > 0 ? `${urgentCount} urgent` : 'Visible to recipients'}
+            icon={Radio}
+            iconClass="bg-emerald-50 text-emerald-600 border-emerald-100"
+            selected={statusFilter === 'Active'}
+            onClick={() => toggleStatus('Active')}
+          />
+          <StatusTile
+            label="Scheduled"
+            count={scheduledCount}
+            caption="Waiting to publish"
+            icon={CalendarClock}
+            iconClass="bg-blue-50 text-blue-600 border-blue-100"
+            selected={statusFilter === 'Scheduled'}
+            onClick={() => toggleStatus('Scheduled')}
+          />
+          <StatusTile
+            label="Drafts"
+            count={draftCount}
+            caption="Not published yet"
+            icon={Pencil}
+            iconClass="bg-amber-50 text-amber-600 border-amber-100"
+            selected={statusFilter === 'Draft'}
+            onClick={() => toggleStatus('Draft')}
+          />
+        </div>
+
+        <section
+          aria-labelledby="announcement-list-heading"
+          className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden"
+        >
+
+          {/* Search and filters */}
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="relative flex-1 min-w-0">
+              <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                aria-label="Search announcements"
+                placeholder="Search title, message, audience or author..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="form-control form-control-sm pl-10 pr-4 shadow-3xs"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <SelectMenu
+                variant="filter"
+                prefix="Status"
+                aria-label="Filter by status"
+                value={statusFilter}
+                options={STATUS_FILTER_OPTIONS}
+                onChange={(status) => { setStatusFilter(status); setCurrentPage(1); }}
+              />
+              <SelectMenu
+                variant="filter"
+                prefix="Audience"
+                aria-label="Filter by audience"
+                value={audienceFilter}
+                options={AUDIENCE_FILTER_OPTIONS}
+                onChange={(audience) => { setAudienceFilter(audience); setCurrentPage(1); }}
+              />
+              <SelectMenu
+                variant="filter"
+                prefix="Priority"
+                aria-label="Filter by priority"
+                value={priorityFilter}
+                options={PRIORITY_FILTER_OPTIONS}
+                onChange={(priority) => { setPriorityFilter(priority); setCurrentPage(1); }}
+              />
+              {filtersOn && (
+                <PortalButton variant="ghost" icon={X} onClick={clearFilters}>
+                  Clear
+                </PortalButton>
+              )}
+            </div>
           </div>
 
-          {/* Announcement history Table frame card structure */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-            
-            <div className="overflow-x-auto">
-              <table className="data-table text-xs">
-                <thead>
-                  <tr className="data-thead bg-[#f8fafc]">
-                    <th className="data-th">Title & Content</th>
-                    <th className="data-th text-right">Target</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={2} className="p-0">
-                        <LoadingState message="Loading announcements…" />
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={2} className="p-0">
-                        <ErrorState message={error} onRetry={loadAnnouncements} />
-                      </td>
-                    </tr>
-                  ) : displayedAnnouncements.length === 0 ? (
-                    <tr>
-                      <td colSpan={2} className="px-5 py-12 text-center text-slate-400 font-medium">
-                        No stored broadcasts found matching &quot;{searchQuery}&quot;.
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedAnnouncements.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/50 transition">
-                        
-                        {/* Title & summary block */}
-                        <td className="data-td text-left max-w-sm space-y-1">
-                          <div className="flex items-center gap-2">
-                            {item.status === 'Draft' && (
-                              <StatusBadge tone="warning" className="rounded-md px-1.5 py-0.5 text-[8px]">
-                                Draft
-                              </StatusBadge>
-                            )}
-                            <span className="font-extrabold text-slate-800 text-[12px] leading-snug tracking-tight">
-                              {item.title}
-                            </span>
-                            
-                            {/* Priority visual mini circle tag */}
-                            <StatusBadge
-                              tone={getStatusBadgeTone(item.priority)}
-                              className="rounded-md px-1.5 py-0.5 text-[8px]"
-                            >
-                              {item.priority}
-                            </StatusBadge>
-                          </div>
-                          
-                          <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-                            {item.summary}
-                          </p>
+          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
+            <h2 id="announcement-list-heading" className="section-label">
+              {LIST_HEADING[statusFilter]}
+            </h2>
+            {!loading && !error && (
+              <span className="card-caption text-slate-400 text-right">
+                {filteredAnnouncements.length} {filteredAnnouncements.length === 1 ? 'announcement' : 'announcements'}, newest first
+              </span>
+            )}
+          </div>
 
-                          <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-bold select-none pt-1">
-                            <span>{scheduleLine(item)}</span>
-                            {item.status !== 'Active' && (
-                              <StatusBadge tone={item.status === 'Scheduled' ? 'info' : 'neutral'} className="rounded-md px-1.5 py-0.5 text-[8px]">
-                                {item.status}
-                              </StatusBadge>
-                            )}
-                            {item.canManage !== false && (
-                              <>
-                                <span>•</span>
-                                {(item.status === 'Active' || item.status === 'Scheduled') && (
-                                  <>
-                                    <PortalButton
-                                      type="button"
-                                      onClick={() => handleEditDraft(item)}
-                                      variant="ghost"
-                                      size="sm"
-                                      icon={Pencil}
-                                      className="px-1 py-0 h-auto"
-                                    >
-                                      Edit
-                                    </PortalButton>
-                                    <PortalButton
-                                      type="button"
-                                      onClick={() => handleWithdraw(item)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="px-1 py-0 h-auto"
-                                    >
-                                      Move to Drafts
-                                    </PortalButton>
-                                  </>
-                                )}
-                                <PortalButton
-                                  type="button"
-                                  onClick={() => setPendingDelete(item)}
-                                  variant="ghost"
-                                  size="sm"
-                                  icon={Trash2}
-                                  className="px-1 py-0 h-auto text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                                >
-                                  Remove
-                                </PortalButton>
-                              </>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Target tag */}
-                        <td className="data-td text-right vertical-align-middle">
-                          <StatusBadge tone="neutral" className="rounded-lg px-2.5 py-1 text-[9px]">
-                            {item.target}
-                          </StatusBadge>
-                          {targetingSummary(item) && (
-                            <p className="mt-1.5 text-[10px] text-slate-400 font-semibold leading-snug max-w-[200px] ml-auto">
-                              {targetingSummary(item)}
-                            </p>
-                          )}
-                        </td>
-
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          {loading ? (
+            <LoadingState message="Loading announcements…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={loadAnnouncements} />
+          ) : displayedAnnouncements.length === 0 ? (
+            <div className="px-6 py-14 flex flex-col items-center text-center gap-3">
+              <span className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+                {filtersOn ? <SearchX className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
+              </span>
+              <div className="space-y-1">
+                <p className="section-label">
+                  {filtersOn ? 'No announcements match' : 'No announcements yet'}
+                </p>
+                <p className="card-description">
+                  {filtersOn
+                    ? 'Try a different search, or clear the filters to see everything.'
+                    : 'Announcements you create will appear here.'}
+                </p>
+              </div>
+              {filtersOn ? (
+                <PortalButton size="sm" icon={X} onClick={clearFilters}>
+                  Clear filters
+                </PortalButton>
+              ) : (
+                <PortalButton variant="primary" size="sm" icon={Plus} onClick={openComposer}>
+                  New announcement
+                </PortalButton>
+              )}
             </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {displayedAnnouncements.map((item) => {
+                const look = STATUS_LOOK[item.status] ?? { label: item.status, tone: 'neutral' as BadgeTone };
+                const name = item.title || 'Untitled draft';
+                const preview = (item.content || item.summary || '').replace(/\s+/g, ' ').trim();
+                return (
+                  <li
+                    key={item.id}
+                    className="relative pl-6 pr-5 py-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-6 hover:bg-slate-50/60 transition-colors"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`absolute left-0 inset-y-0 w-1 ${PRIORITY_EDGE[item.priority] ?? 'bg-slate-300'}`}
+                    />
 
-            {/* Interactive custom pagination layout block */}
-            {totalPages > 1 && (
-              <div className="bg-[#f8fafc]/50 border-t border-slate-150 px-5 py-4 flex items-center justify-between select-none">
-                <span className="text-[10px] font-bold text-slate-400">
-                  Showing {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredAnnouncements.length)} of {filteredAnnouncements.length} records
-                </span>
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="section-label leading-snug [overflow-wrap:anywhere]">{name}</h3>
+                        <StatusBadge
+                          tone={look.tone}
+                          dot={item.status === 'Active'}
+                          pulse={item.status === 'Active'}
+                          className="px-2 py-0.5 text-[9px]"
+                        >
+                          {look.label}
+                        </StatusBadge>
+                        <StatusBadge tone={getStatusBadgeTone(item.priority)} className="px-2 py-0.5 text-[9px]">
+                          {item.priority}
+                        </StatusBadge>
+                      </div>
 
-                <div className="flex items-center gap-1.5">
-                  <PortalButton
+                      <p className="card-description line-clamp-2 [overflow-wrap:anywhere]">
+                        {preview || 'No message yet.'}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 card-caption text-slate-500">
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                          <Users aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="sr-only">Audience:</span>
+                          <span className="[overflow-wrap:anywhere]">{audienceLine(item)}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.status === 'Scheduled' ? (
+                            <CalendarClock aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          ) : (
+                            <Calendar aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          )}
+                          {timingLine(item)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <UserRound aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          By {item.createdBy || 'Postgraduate Office'}
+                        </span>
+                        {item.attachmentName && (
+                          <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                            <Paperclip aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="sr-only">Attachment:</span>
+                            <span className="truncate">{item.attachmentName}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.canManage !== false ? (
+                      <div className="flex items-center gap-2 shrink-0 md:w-32 md:justify-end">
+                        {item.status !== 'Expired' && (
+                          <PortalButton
+                            size="sm"
+                            icon={Pencil}
+                            aria-label={`Edit "${name}"`}
+                            onClick={() => handleEditDraft(item)}
+                          >
+                            Edit
+                          </PortalButton>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Remove "${name}"`}
+                          title="Remove"
+                          onClick={() => setPendingDelete(item)}
+                          className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/30"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="card-caption inline-flex items-center gap-1.5 text-slate-400 shrink-0 md:w-32 md:justify-end md:pt-2">
+                        <Lock aria-hidden="true" className="w-3.5 h-3.5" />
+                        View only
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {!loading && !error && filteredAnnouncements.length > 0 && (
+            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 select-none">
+              <p className="card-caption text-slate-500">
+                Showing <strong className="font-bold text-slate-700">{startIndex + 1}</strong> to{' '}
+                <strong className="font-bold text-slate-700">
+                  {Math.min(startIndex + itemsPerPage, filteredAnnouncements.length)}
+                </strong>{' '}
+                of <strong className="font-bold text-slate-700">{filteredAnnouncements.length}</strong>
+              </p>
+
+              {totalPages > 1 && (
+                <nav aria-label="Announcement pages" className="flex flex-wrap items-center justify-center gap-1.5">
+                  <button
                     type="button"
-                    onClick={() => setCurrentPage(Math.max(safePage - 1, 1))}
-                    disabled={safePage === 1}
-                    variant="secondary"
-                    size="icon"
-                    icon={ChevronLeft}
-                    className="w-8 h-8"
                     aria-label="Previous page"
-                  />
-
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const pageNum = i + 1;
-                    const isCurrent = safePage === pageNum;
-                    return (
-                      <PortalButton
+                    disabled={safePage === 1}
+                    onClick={() => setCurrentPage(Math.max(safePage - 1, 1))}
+                    className="w-8 h-8 flex items-center justify-center border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {pageWindow(safePage, totalPages).map((pageNum, index) =>
+                    pageNum === null ? (
+                      <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-[11px] font-black text-slate-400">
+                        …
+                      </span>
+                    ) : (
+                      <button
                         key={pageNum}
                         type="button"
+                        aria-label={`Page ${pageNum}`}
+                        aria-current={pageNum === safePage ? 'page' : undefined}
                         onClick={() => setCurrentPage(pageNum)}
-                        variant={isCurrent ? 'primary' : 'secondary'}
-                        size="sm"
-                        className="w-7 h-7 p-0 text-[11px]"
+                        className={`w-8 h-8 text-[11px] font-black rounded-lg transition flex items-center justify-center cursor-pointer ${
+                          pageNum === safePage
+                            ? 'border border-blue-600 bg-blue-50 text-blue-600'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                       >
                         {pageNum}
-                      </PortalButton>
-                    );
-                  })}
-
-                  <PortalButton
+                      </button>
+                    ),
+                  )}
+                  <button
                     type="button"
-                    onClick={() => setCurrentPage(Math.min(safePage + 1, totalPages))}
-                    disabled={safePage === totalPages}
-                    variant="secondary"
-                    size="icon"
-                    icon={ChevronRight}
-                    className="w-8 h-8"
                     aria-label="Next page"
-                  />
-                </div>
-              </div>
-            )}
+                    disabled={safePage === totalPages}
+                    onClick={() => setCurrentPage(Math.min(safePage + 1, totalPages))}
+                    className="w-8 h-8 flex items-center justify-center border border-slate-200 bg-white text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </nav>
+              )}
+            </div>
+          )}
 
-          </div>
+        </section>
 
-        </div>
+      </div>
 
       )}
 

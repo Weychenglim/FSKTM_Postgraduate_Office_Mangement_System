@@ -32,6 +32,8 @@ interface LoginCardProps {
 export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onLoginSuccess, notice }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  // Off by default, so a shared computer does not stay signed in.
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ id?: string; pass?: string }>({});
@@ -62,7 +64,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
 
     setIsLoading(true);
     try {
-      const { user } = await authApi.login(identifier.trim(), password);
+      const { user } = await authApi.login(identifier.trim(), password, rememberMe);
       setAlert({ type: 'success', message: `Authorization approved. Welcome, ${user.fullName}.` });
       onLoginSuccess?.(user);
     } catch (err) {
@@ -156,6 +158,19 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               autoComplete="current-password"
               required
             />
+
+            <label htmlFor="remember-me" className="flex items-center gap-2.5 w-fit mb-6 cursor-pointer select-none group">
+              <input
+                id="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 shrink-0 accent-blue-600 cursor-pointer"
+              />
+              <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">
+                Remember me on this device
+              </span>
+            </label>
 
             <ActionButton id="login-action-btn" type="submit" isLoading={isLoading} className="mt-1">
               Sign In

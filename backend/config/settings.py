@@ -117,6 +117,7 @@ INSTALLED_APPS = [
     "marks",
     "letters",
     "announcements",
+    "documents",
 ]
 
 MIDDLEWARE = [
@@ -209,6 +210,10 @@ CACHES = {
 ANNOUNCEMENT_MAX_ATTACHMENT_BYTES = env_int(
     "ANNOUNCEMENT_MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024
 )
+# File Management uploads. Raising this also means raising the reverse
+# proxy's request body limit.
+DOCUMENT_MAX_UPLOAD_BYTES = env_int("DOCUMENT_MAX_UPLOAD_BYTES", 10 * 1024 * 1024)
+DOCUMENT_UPLOAD_THROTTLE_RATE = os.getenv("DOCUMENT_UPLOAD_THROTTLE_RATE", "100/hour")
 
 AUTH_LOGIN_THROTTLE_RATE = os.getenv("AUTH_LOGIN_THROTTLE_RATE", "10/minute")
 AUTH_LOGIN_IDENTIFIER_THROTTLE_RATE = os.getenv(
@@ -267,6 +272,11 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
+# Without "Remember me" a sign-in ends this long after its last use, and its
+# cookie is dropped when the browser closes.
+JWT_SESSION_REFRESH_LIFETIME = timedelta(
+    hours=max(env_int("JWT_SESSION_REFRESH_HOURS", 12), 1)
+)
 JWT_REFRESH_COOKIE_NAME = "fsktm_refresh_token"
 JWT_REFRESH_COOKIE_PATH = "/api/auth/"
 JWT_REFRESH_COOKIE_SECURE = not DEBUG

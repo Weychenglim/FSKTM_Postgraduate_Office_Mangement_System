@@ -22,6 +22,7 @@ import {
   Save,
   LogOut,
   KeyRound,
+  Info,
 } from 'lucide-react';
 import { DemoUser } from '../types';
 import { FormInput } from './FormInput';
@@ -291,7 +292,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 onChange={setPref('announcementAlerts')}
                 id="pref-ann"
               />
-              <p className="card-description py-3">Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</p>
               {capabilities.emailNotifications && (
                 <PrefRow
                   title="Email alerts"
@@ -323,6 +323,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 <p className="card-description py-3">{unavailable.join(', ')}: Not available.</p>
               )}
             </div>
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 border border-slate-150 px-3.5 py-2.5 card-description">
+              <Info className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />
+              <span>Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</span>
+            </p>
             <div className="flex justify-end mt-5">
               <PortalButton
                 type="button"
@@ -388,11 +392,18 @@ const PrefRow: React.FC<{
   checked: boolean;
   onChange: (v: boolean) => void;
 }> = ({ id, title, description, checked, onChange }) => (
-  <div className="flex items-center justify-between gap-4 py-3.5">
+  <div className="flex items-center justify-between gap-6 py-4">
     <div className="min-w-0">
-      <p className="card-value text-slate-800">{title}</p>
-      <p className="card-description mt-0.5">{description}</p>
+      <label id={`${id}-title`} htmlFor={id} className="card-value text-slate-800 cursor-pointer">{title}</label>
+      <p id={`${id}-description`} className="card-description mt-0.5">{description}</p>
     </div>
-    <ToggleSwitch id={id} checked={checked} onChange={onChange} label={title} className="shrink-0" />
+    <ToggleSwitch
+      id={id}
+      checked={checked}
+      onChange={onChange}
+      labelledBy={`${id}-title`}
+      describedBy={`${id}-description`}
+      className="shrink-0 py-0"
+    />
   </div>
 );

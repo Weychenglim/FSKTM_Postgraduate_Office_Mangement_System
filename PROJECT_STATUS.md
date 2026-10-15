@@ -1,5 +1,146 @@
 # Project Status
 
+## File Management: All 8 Phases (2026-10-14 to 2026-10-15)
+
+Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Not built yet: supervisor application files in a student's view (waiting for Wey Cheng's agreement) and the optional links from a file to an appointment or letter.
+
+- **Uploads (Phase 1, `379892c`).**
+  - Students upload their own forms, thesis, letters and so on. The office, lecturers, panel members and coordinators upload files about their students, or staff files about no student.
+  - Every upload is checked: PDF, Word, Excel, PowerPoint and image contents, macros, hidden extensions, 10 MB, and duplicates.
+  - Files are tagged by student and by keyword, and found by student name, student ID, title, tag or reference.
+  - Who sees a file follows real relationships: supervisors, panel members and programme coordinators, ticked per type and per file. Students see only their own uploads.
+- **Screens (Phase 2, `dd6aa7e`).** Files for staff (All files, Staff files, one student's files), the file page, both upload screens, and File Submission for students with their approved letters.
+- **Preview and ZIP (Phase 3, `0cec8ae`).** PDF pages and images are drawn on the server, so previews work under the production security policy. Several files download as one ZIP.
+- **Checking (Phase 4, `f9f96ea`).**
+  - For types the office checks, uploads wait in "To check". The office accepts, or returns with a reason.
+  - The student sees the reason under To do, and uploads a corrected file as a new version. A second upload of a one-per-student type offers to become a new version.
+  - Uploaders and the office edit the title, tags and note; every change is kept in the history.
+  - Notices go out in the app, and by email when "Email alerts" is on.
+- **File settings (Phase 5, `4a8df87`).**
+  - The office opens Settings from Files. It changes, for each document type: who can upload it, who can see it, whether the office checks it, and whether it can still be chosen. It can also add new types.
+  - New sharing reaches files students already uploaded, while what staff chose when uploading stays. The screen says how many files a change touches before saving.
+  - A Tags tab renames, merges and removes tags. Renaming to an existing tag offers to merge.
+  - On a file's page, the office or the staff uploader changes who can see it, and people who can newly see it are told.
+  - Changes to types and tags are kept in a settings history.
+- **Archive and history (Phase 6, `5bc3095`).**
+  - The office archives a file with a reason (quick reasons offered) instead of deleting someone else's upload. Archived files disappear for everyone but the office, are listed under More filters (Show: Archived files), and can be restored.
+  - File settings has a History tab: uploads, changes, checks, archiving, deleted files (with who they were about), opens and downloads, and settings changes, with one Show choice and a search box.
+  - Each file page shows its own history to the office.
+  - `manage.py check_document_storage` reports missing and left-over stored files; `--remove-orphans` deletes left-overs more than an hour old.
+- **Required documents (Phase 7, `429a5c9`).**
+  - In File settings the office turns on "Every student must hand it in" for a type, with an optional due note and, if needed, only chosen programmes (Xiang's choice on 2026-10-15). Only Active students count, and a required type must be one students can upload.
+  - Students see what they still owe under To do, with an Upload button that opens the upload screen with the type chosen.
+  - A Required documents tab in Files shows the office and programme coordinators (their programmes only) how many students have handed in, are waiting for a check, or still owe it; names on request, and a returned file counts as still owed.
+  - The office presses Remind at most once a day per type: a notice in the app, and an email for students with "Deadline reminders" on.
+  - A student's header in Files shows their required documents.
+  - Migration `documents.0004`, after the backup `db-backups/fsktm_pg_office_before_required_documents_2026-10-15.dump`.
+- **Wrap-up (Phase 8, `c09e257`).**
+  - My Profile lists the files a student uploaded (type, status, date) instead of "Available when File Management is released".
+  - A student's record in the Registry has a "View files" link to that student's files.
+  - Notices open the right place: a file notice opens the file, a reminder opens the upload screen with the type chosen.
+  - The backend README describes the File Management endpoints, access rules, upload checks and `check_document_storage`.
+- **Migrations** `documents.0001` to `documents.0003`. The dev DB was migrated after the backups `db-backups/fsktm_pg_office_before_documents_2026-10-14.dump` and `db-backups/fsktm_pg_office_before_document_settings_2026-10-14.dump`.
+- **Verification.**
+  - The backend passes 1142 tests.
+  - All 116 frontend scripts pass, along with lint, the build and the production security tests.
+  - Browser checks on private servers:
+    - screens, preview and ZIP: 23 of 23;
+    - previews under the enforced security policy: 10 of 10;
+    - checking and versions: 12 of 12;
+    - file settings, sharing and tags, including a phone: 20 of 20;
+    - archive, restore and history, including a phone: 11 of 11;
+    - required documents, including a phone: 15 of 15. Remind was answered inside the browser, because the dev database has demo students in every programme; sending is covered by the backend tests;
+    - My Profile files and the Registry link: 4 of 4.
+  - All smoke accounts, files, notices, tags and types were removed afterwards.
+
+## Letters: Requests Approved By The Office (2026-10-13)
+
+Following the supervisor meeting (plan: `docs/superpowers/plans/2026-10-13-letter-requests-with-office-approval.md`).
+
+- **Students request, the office decides.**
+  - Students no longer get letters straight away, and never see a letter's wording before approval (the template API hides it from them).
+  - A student chooses a letter by name and description, adds an optional note, and sends a request.
+  - The office reviews it on its own page (`/letters/requests/<id>`, also opened from the bell). It fills in what the portal does not hold, checks a live A4 preview, then approves (which issues the reference number and date) or rejects with a reason.
+  - The student is notified in the app, and by email when "Email alerts" is on.
+  - Once approved, the student can view, print or download the letter.
+  - After a rejection the student sees the reason and can request again. A pending request can be withdrawn.
+- **Office-filled fields.**
+  - Templates can define fields such as `{{ATTENDANCE}}` ("Attendance (%)"), added in the template editor's Office-Filled Fields panel.
+  - The office types them in when approving.
+  - Any record field the student's record leaves blank (for example a passport number) is also typed in at approval, for that letter only.
+- **Rules.**
+  - One pending request per letter per student, enforced by a database constraint.
+  - Approval is refused once the student is no longer Active.
+  - A template with pending requests cannot be deleted (archive it instead).
+  - Only issued letters can be downloaded, resent or revoked.
+- **Migration** `letters.0004` (dev DB migrated after the backup `db-backups/before-letter-requests-2026-10-13.dump`). Existing letters keep their status, number and wording.
+- **Commits:** `a879c21` (data and templates), `ebf3dc1` (backend workflow), `facafed` (screens). The backend README describes the endpoints.
+- **Verification.**
+  - The backend passes 1057 tests.
+  - All 113 frontend scripts pass, along with lint and the build.
+  - The end-to-end browser check passed 26 of 26 on private servers:
+    1. the office builds a template with an Attendance field;
+    2. a student requests it;
+    3. the office opens it from the bell, fills in the missing passport and the attendance, and approves;
+    4. the student views it on A4 pages and downloads the PDF;
+    5. a second request is rejected with a reason, requested again, then withdrawn.
+  - Phone layouts were checked, and no console errors occurred.
+  - All smoke data was removed, including the request notifications sent to other office accounts.
+
+## Registry Import: Paste Rows Removed (2026-10-13)
+
+- At Xiang's request the Bulk Import card is back to file upload only, as it was before `c49e6aa`: one File Upload card with the drag-and-drop box and the template buttons. The Upload/Paste toggle, the paste box and `pastedRowsFile` are gone, and the guideline reads "CSV or XLSX".
+- Kept from `c49e6aa`: an uploaded file with no column-name row still works ("No column names" on the Match step, columns matched from their values). The backend is unchanged.
+- Two sample files for trying the import live outside the repo in `Final Year Project/test-data/registry-import/`. Both hold 5 made-up students with `@example.com` emails, so nobody can receive their activation emails.
+  - "Sample 1 - Excel template" is filled in the system's template and goes straight to the row check.
+  - "Sample 2 - Office extract style" has title rows, Malay column names, extra columns, Student IDs ending in `/1` and programmes spelt several ways ("MDS", "Sarjana Keselamatan Siber"). It goes through Match columns and the programme choices.
+- Lint, the build and all 112 frontend scripts pass. A browser check passed 7 of 7: the card, and both sample files previewing (nothing imported).
+
+## Announcements List Redesign (2026-10-13)
+
+- **Frontend only** (`00e115c`). The backend, the API calls and the composer are unchanged.
+- **Layout.** It follows common web patterns (Stripe-style count tiles, a Mailchimp-style status filter, a Canvas-style search and newest-first list) built from the portal's own cards, badges, filter menus and pager.
+  - Live, Scheduled, Drafts and Expired tiles show counts, and pressing one filters the list.
+  - A search box plus Status, Audience and Priority filters, with Clear.
+  - Each row shows a priority edge as in the recipients' feed, status and priority badges, a two-line preview, and the audience, timing, author and attachment.
+- **Drafts** now appear in the list as well as under the composer.
+- **Actions.** Edit and Remove use the same handlers as before. Remove still asks for confirmation, and Expired rows still offer Remove only.
+- **Move to drafts removed** at Xiang's request, from the list and from the edit page.
+  - It pulled a published announcement out of recipients' feeds, but emails already sent stayed, and publishing it again emailed everyone a second time.
+  - Editing a published or scheduled announcement now offers only its save button (Save & Keep Published, Reschedule, Save Schedule or Publish Now). New announcements and drafts can still be saved as drafts.
+  - To take an announcement down, Remove it. The backend still accepts a status change back to Draft; only the buttons are gone.
+- **Expires At removed** at Xiang's request. Recipients kept expired announcements in their feed anyway, so the end time only relabelled the office's own list.
+  - The composer has Publish At only. Saving, or publishing a draft from the composer's draft list, sends no end time and clears any end time set before.
+  - The list has three tiles (Live, Scheduled, Drafts) and no Expired filter. An announcement that had already expired still lists under All with its Expired badge and Remove only.
+  - `scheduleProblem` (the client-side expiry check) is gone. The backend is unchanged and still supports `expiresAt` for older rows.
+  - Checked in a browser (42 of 42 checks): the field and tile are gone, and saving cleared a stored end time in the database while the announcement stayed live.
+- **Verification.** Lint, the build and all 112 frontend scripts pass. A browser check on a private server passed 32 of 32 checks at 390, 768, 1280 and 1440 wide:
+  - the tiles, filters, search, empty state and pager;
+  - a real edit and save, and Remove;
+  - no Move to drafts anywhere, while drafts and new announcements keep their draft buttons.
+  The test announcements were aimed at a made-up intake so nobody received them, and they were deleted afterwards.
+
+## Sign-In, Profile Menu, Settings And Letter Download Fixes (2026-10-12)
+
+- **Remember me** (`3b9a753`). Sign-in has "Remember me on this device", off by default.
+  - Ticked, the refresh cookie lasts 7 days and survives closing the browser.
+  - Unticked, the cookie ends with the browser, and the server ends the session 12 hours after its last use (`JWT_SESSION_REFRESH_HOURS`).
+  - The choice travels in the refresh token, so refreshes and password changes keep it. Before this, every sign-in lasted 7 days, and the checkbox on `main` was not connected to anything.
+  - Checked in a browser by closing and reopening it: unticked returns to sign-in, ticked stays signed in.
+- **Forgot password** verified end to end on a private test server:
+  - the email arrives with its link, and the link sets a new password;
+  - the old password stops working and the new one signs in;
+  - the link works once only, and the reset signs out a device that was already signed in;
+  - an unknown email gets the same answer and no email.
+  No code change was needed.
+- **Notification preference switches** (`3f25c49`). The switch knob now sits in its track, so on and off read correctly. Each switch is named by its row title (also clickable) instead of repeating it. Saving and reloading keeps every choice.
+- **Profile menu** (`a14465f`):
+  - "My Records" is now "My Profile" at `/my-profile`.
+  - The menu's My Profile opens it for students and Settings for staff; it no longer opens the helpdesk dialog.
+  - The menu's Settings item now works, and Settings is no longer in the sidebar.
+- **Letters download as PDF** (`2de34dd`). `GET /api/letters/requests/<id>/pdf/` replaces the Word download. It is built with `reportlab` in the printed layout, and locked against editing while printing and copying text stay allowed. This replaces the Word half of design decision D5. Run `pip install -r requirements.txt` for `reportlab` and `pypdf`.
+- **Verification.** The backend passes 1039 tests and all 112 frontend scripts pass, along with lint and the build. Browser checks for each item passed, and all test data was removed.
+
 ## Registry Import: Excel Template, And The Plan Complete (2026-10-12)
 
 - Phase 9 of the registry import plan (commit `42b6a76`). All nine phases are now built.

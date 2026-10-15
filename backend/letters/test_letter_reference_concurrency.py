@@ -7,7 +7,7 @@ from rest_framework.test import APIClient, APITransactionTestCase
 
 from .models import GeneratedLetter, LetterReferenceCounter, LetterTemplate
 from .references import next_reference_number
-from .test_letter_requests import REQUESTS, make_student
+from .test_letter_requests import REQUESTS, User, make_student, make_user
 
 
 class ReferenceNumberConcurrencyTests(APITransactionTestCase):
@@ -41,30 +41,50 @@ class ReferenceNumberConcurrencyTests(APITransactionTestCase):
             LetterReferenceCounter.objects.get(prefix="UMF/PG/RACE", year=2026).last_number, 4
         )
 
-    def test_students_generating_at_the_same_time_get_different_letters(self):
+    def test_requests_approved_at_the_same_time_get_different_numbers(self):
         template = LetterTemplate.objects.create(
             name="Confirmation of Study",
             status=LetterTemplate.Status.ACTIVE,
             reference_prefix="UMF/PG/ENR",
             content="Dear {{STUDENT_NAME}}, ref {{REFERENCE_NUMBER}}",
         )
-        students = [make_student(f"RACE00{index}") for index in range(3)]
+        office = make_user("office.race@example.test", User.Role.OFFICE_ADMIN)
+        ids = []
+        for index in range(3):
+            client = APIClient()
+            client.force_authenticate(make_student(f"RACE00{index}"))
+            ids.append(client.post(REQUESTS, {"templateId": template.pk}, format="json").data["id"])
 
-        def generate(user):
+        def approve(request_id):
             def call():
                 client = APIClient()
-                client.force_authenticate(user)
-                response = client.post(REQUESTS, {"templateId": template.pk}, format="json")
+                client.force_authenticate(office)
+                response = client.post(f"{REQUESTS}{request_id}/approve/", {"values": {}}, format="json")
                 return response.status_code, response.data.get("referenceNumber")
 
             return call
 
-        results = self.parallel([generate(user) for user in students])
+        results = self.parallel([approve(request_id) for request_id in ids])
 
         year = timezone.localdate().year
-        self.assertEqual([code for code, _ in results], [201, 201, 201])
+        self.assertEqual([code for code, _ in results], [200, 200, 200])
         self.assertCountEqual(
             [reference for _, reference in results],
             [f"UMF/PG/ENR/{year}/{n:04d}" for n in range(1, 4)],
         )
-        self.assertEqual(GeneratedLetter.objects.count(), 3)
+
+    def test_a_double_click_queues_one_request(self):
+        template = LetterTemplate.objects.create(
+            name="Visa Letter", status=LetterTemplate.Status.ACTIVE, content="For {{STUDENT_NAME}}"
+        )
+        student = make_student("RACE100")
+
+        def ask():
+            client = APIClient()
+            client.force_authenticate(student)
+            return client.post(REQUESTS, {"templateId": template.pk}, format="json").status_code
+
+        codes = self.parallel([ask, ask, ask])
+
+        self.assertEqual(sorted(codes), [201, 409, 409])
+        self.assertEqual(GeneratedLetter.objects.filter(status=GeneratedLetter.Status.PENDING).count(), 1)
