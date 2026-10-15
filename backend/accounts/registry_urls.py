@@ -48,6 +48,21 @@ urlpatterns = [
         name="registry-staff-activation-link",
     ),
     path(
+        "staff/<int:account_id>/duties/",
+        staff_views.staff_duties_view,
+        name="registry-staff-duties",
+    ),
+    path(
+        "staff/<int:account_id>/programme/",
+        staff_views.staff_programme_view,
+        name="registry-staff-programme",
+    ),
+    path(
+        "staff/<int:account_id>/sign-in/",
+        staff_views.staff_sign_in_view,
+        name="registry-staff-sign-in",
+    ),
+    path(
         "staff/<int:account_id>/history/",
         staff_views.staff_history_view,
         name="registry-staff-history",

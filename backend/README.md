@@ -196,7 +196,11 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 | GET | `/` | `search`, `role` (OFFICE, LECTURER, COORDINATOR), `status` (ACTIVE, NOT_ACTIVATED, SIGN_IN_OFF), `page`, `pageSize` (25, at most 100) | `{count, page, pageSize, results}` |
 | POST | `/` | `{role, name, email, staffId, phone, department, title, researchArea, position, duties, programme, sendActivation}` | `{account, activation: sent, failed or held}` |
 | GET | `options/` | | `{departments, programmes: [{programme, coordinator}]}` |
-| GET, PATCH | `<id>/` | `{name, email, phone, staffId, department, title, researchArea, position}` | the account; PATCH returns `{account, oldAddressTold}` |
+| GET, PATCH | `<id>/` | `{name, email, phone, staffId, department, title, researchArea, position}` | the account page (the account plus `capacity`, `activeWork`, `deletion`); PATCH returns `{account, oldAddressTold}` |
+| DELETE | `<id>/` | | 204, only for an unused account |
+| POST | `<id>/duties/` | `{duties: [Supervisor, Panel]}` | the account page |
+| POST | `<id>/programme/` | `{programme, check}` (blank means none) | the account page; with `check`, `{from, to}` and the approvals waiting in each |
+| POST | `<id>/sign-in/` | `{on, reason}` (a reason is needed to turn it off) | the account page |
 | POST | `<id>/send-link/` | | `{kind: activation or reset, sent}` |
 | POST | `<id>/activation-link/` | | `{link}`, only before activation |
 | GET | `<id>/history/` | | newest first, at most 200 |
@@ -218,6 +222,22 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 **Links.**
 - `send-link` sends whichever fits: activation until a password is set, then the 30-minute reset link. It is refused while sign-in is off, and limited per account by `REGISTRY_ACCESS_LINK_THROTTLE_RATE`.
 - Only an activation link can be copied, so the office can never sign in as someone who already has a password.
+
+**Duties and programme.**
+- Only lecturer accounts have duties. A coordinator who also supervises needs a separate lecturer account.
+- A duty is added only while the lecturer is active and can sign in. Until Lecturer capacity has a limit for it, the account page shows `NOT_CONFIGURED`, and students cannot pick the lecturer.
+- A duty is removed only when nothing open needs it. For Supervisor that means active supervision or co-supervision, and supervisor requests or co-supervisor nominations still waiting. For Panel it means active panel appointments and nominations still waiting. A limit left behind in Lecturer capacity shows as `LIMIT_WITHOUT_DUTY`.
+- A coordinator can move to a programme no other coordinator who can sign in manages, or to none.
+
+**Sign-in.**
+- Turning it off ends every session and needs a reason.
+- It is refused for your own account and for the last office account that can sign in. It is also refused while the participant lifecycle's `lecturer_blockers` shows open work, and that work is listed under `blockers`. A coordinator moves to no programme first.
+- Turning it back on is refused for a retired lecturer, and for a coordinator whose programme another coordinator now manages.
+
+**Deleting.**
+- Only for an account that has never signed in and that no record points to: every table that links to the account or its lecturer profile is checked, apart from its own profile, duties, notices and history.
+- Otherwise the reasons come back under `blockers`, and the office turns sign-in off instead.
+- The history keeps a "deleted" row with the name, email, role and Staff ID.
 
 **History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
 

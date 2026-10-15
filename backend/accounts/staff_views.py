@@ -21,13 +21,20 @@ from .staff_accounts import (
     STATUSES,
     StaffAccountError,
     account_history,
+    active_work,
+    capacity_summary,
+    change_programme,
     copy_activation_link,
     create_account,
+    delete_account,
+    deletion_check,
     edit_account,
     filter_staff,
     find_account,
     link_kind,
     send_access_link,
+    set_duties,
+    set_sign_in,
     staff_accounts,
     staff_id_problem,
     staff_options,
@@ -52,7 +59,21 @@ def _refused(exc):
     body = {key: [message] if key != "error" else message for key, message in exc.errors.items()}
     if exc.existing:
         body["existing"] = exc.existing
+    if exc.blockers:
+        body["blockers"] = exc.blockers
     return Response(body, status=exc.status)
+
+
+def account_page(user, viewer):
+    """The account page: the account, plus its capacity, open work and
+    whether it can be deleted, which the list leaves out."""
+    reasons = deletion_check(user, viewer)
+    return {
+        **to_staff_dict(user, viewer),
+        "capacity": capacity_summary(user),
+        "activeWork": active_work(user),
+        "deletion": {"allowed": not reasons, "reasons": reasons},
+    }
 
 
 class StaffDetailsMixin(serializers.Serializer):
@@ -130,6 +151,25 @@ class StaffAccountUpdateSerializer(StaffDetailsMixin):
         return super().to_internal_value(data)
 
 
+class DutiesSerializer(serializers.Serializer):
+    duties = serializers.ListField(
+        child=serializers.ChoiceField(choices=DUTIES), allow_empty=True, max_length=len(DUTIES)
+    )
+
+    def validate_duties(self, value):
+        return [duty for duty in DUTIES if duty in value]
+
+
+class ProgrammeSerializer(serializers.Serializer):
+    programme = serializers.ChoiceField(choices=["", *APPROVED_PROGRAMMES], allow_blank=True)
+    check = serializers.BooleanField(required=False, default=False)
+
+
+class SignInSerializer(serializers.Serializer):
+    on = serializers.BooleanField()
+    reason = serializers.CharField(max_length=500, allow_blank=True, required=False, default="")
+
+
 def _page_number(value, default, upper=None):
     number = int(value) if value not in (None, "") else default
     if number < 1:
@@ -204,14 +244,20 @@ def _account_or_404(account_id):
     return user, None
 
 
-@api_view(["GET", "PATCH"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def staff_account_detail_view(request, account_id):
-    """One account, or the office's edits to its details."""
+    """One account, the office's edits to its details, or deleting it."""
     _require_office(request)
     if request.method == "GET":
         user, missing = _account_or_404(account_id)
-        return missing or Response(to_staff_dict(user, request.user))
+        return missing or Response(account_page(user, request.user))
+    if request.method == "DELETE":
+        try:
+            delete_account(actor=request.user, account_id=account_id)
+        except StaffAccountError as exc:
+            return _refused(exc)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     serializer = StaffAccountUpdateSerializer(data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
@@ -229,7 +275,65 @@ def staff_account_detail_view(request, account_id):
     told = None
     if old_email and user.has_usable_password():
         told = tell_old_address(user, old_email)
-    return Response({"account": to_staff_dict(user, request.user), "oldAddressTold": told})
+    return Response({"account": account_page(user, request.user), "oldAddressTold": told})
+
+
+def _change(request, serializer_class, action):
+    """Run one account change and answer with the updated account page."""
+    _require_office(request)
+    serializer = serializer_class(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        result = action(serializer.validated_data)
+    except StaffAccountError as exc:
+        return _refused(exc)
+    if isinstance(result, dict):
+        return Response(result)
+    return Response(account_page(result, request.user))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def staff_duties_view(request, account_id):
+    """Set a lecturer's duties (Supervisor, Panel)."""
+    return _change(
+        request,
+        DutiesSerializer,
+        lambda data: set_duties(actor=request.user, account_id=account_id, duties=data["duties"]),
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def staff_programme_view(request, account_id):
+    """Move a coordinator to another programme, or to none. ``check`` only
+    counts the approvals that would move."""
+    return _change(
+        request,
+        ProgrammeSerializer,
+        lambda data: change_programme(
+            actor=request.user,
+            account_id=account_id,
+            programme=data["programme"],
+            check=data["check"],
+        ),
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def staff_sign_in_view(request, account_id):
+    """Turn sign-in off (with a reason) or back on."""
+    return _change(
+        request,
+        SignInSerializer,
+        lambda data: set_sign_in(
+            actor=request.user,
+            account_id=account_id,
+            on=data["on"],
+            reason=data["reason"].strip(),
+        ),
+    )
 
 
 @api_view(["POST"])
