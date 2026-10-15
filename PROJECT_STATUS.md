@@ -1,5 +1,36 @@
 # Project Status
 
+## Appointment Letters, Phase L3: Students And Lecturers; UC22 Complete (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `1040211`. **This completes UC22.**
+
+- **The letter page.** It lives at `/files/letters/<id>`, in Files, because lecturers have no Letter Generation menu.
+  - It shows the reference, the issue date, who the letter was sent to, the A4 letter with its own signatory and the office disclaimer, and **Download PDF**.
+  - Back goes to the student's files for staff, and to File Submission for students.
+  - Anyone the letter was not sent to sees "This letter isn't available to you."
+- **Notices.**
+  - `APPOINTMENT_LETTER` notices open the letter page.
+  - The office's "appointment letter not made" notices open Issued Letters.
+- **Lecturers.** On a student's files, the header lists "Your appointment letters" with links, from `GET /api/letters/appointment-letters/received/`.
+- **Students.**
+  - File Submission's "Letters from the office" now includes appointment letters, marked "issued".
+  - My Requests labels them "Sent automatically".
+  - A letter still waiting for the office stays hidden.
+- **Docs:** `backend/README.md` has the appointment letter endpoints and rules.
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 16 of 16 pass.
+- The supervisor opens the letter from the notice, downloads the PDF, reaches it from the student's files, and goes back.
+- Another lecturer is refused.
+- The student opens it from the notice at phone width and sees it in File Submission.
+- A waiting letter stays hidden and cannot be opened.
+- No console errors apart from the planned 404s.
+- With "Email alerts" on, the supervisor's email (console backend) read "Appointment letter: supervisor for …" and linked to `/files/letters/<id>`.
+- Smoke data was removed afterwards.
+
+**Verification:**
+- Frontend: all 145 test scripts pass, plus TypeScript, the build and both production security checks.
+- Backend: L3 changed no backend code, so the L2 run stands (1,270 of 1,271, with only Wey Cheng's known test failing).
+
 ## Appointment Letters, Phase L2: Office Screens (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `54a6e97`.
