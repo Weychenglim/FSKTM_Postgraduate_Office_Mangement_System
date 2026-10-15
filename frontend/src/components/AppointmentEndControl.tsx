@@ -1,110 +1,30 @@
-import { useRecordDraft } from './RecordDraft';
-import React, { useState } from 'react';
-import { CircleStop, X } from 'lucide-react';
+import React, {useState} from 'react';
+import {CircleStop} from 'lucide-react';
+import type {AppointmentEndOutcome} from '../types';
+import type {DecisionOutcome} from '../utils/decisionSubmission';
+import {PortalButton} from './PortalPrimitives';
+import {DecisionDialog} from './DecisionDialog';
 
-import type { AppointmentEndOutcome } from '../types';
-import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
-
-
-type DirectOutcome = Exclude<AppointmentEndOutcome, 'REPLACED'>;
-
+type DirectOutcome=Exclude<AppointmentEndOutcome,'REPLACED'>;
 interface AppointmentEndControlProps {
-  label: string;
-  onSubmit: (outcome: DirectOutcome, reason: string) => Promise<void>;
+  label:string; context?:React.ReactNode; decisionKey?:string|number; disabled?:boolean;
+  onReload?:()=>Promise<unknown>;
+  onSubmit:(outcome:DirectOutcome,reason:string)=>Promise<void|DecisionOutcome>;
 }
-
-export const AppointmentEndControl: React.FC<AppointmentEndControlProps> = ({
-  label,
-  onSubmit,
-}) => {
-  const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [outcome, setOutcome] = useState<DirectOutcome>('COMPLETED');
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  useRecordDraft(open && (!!reason.trim() || outcome !== 'COMPLETED'), submitting);
-
-  const close = () => {
-    if (submitting) return;
-    setOpen(false);
-    setConfirming(false);
-    setReason('');
-    setError(null);
-  };
-
-  const requestConfirmation = () => {
-    if (!reason.trim()) {
-      setError('A lifecycle reason is required.');
-      return;
-    }
-    setError(null);
-    setConfirming(true);
-  };
-
-  const submit = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onSubmit(outcome, reason.trim());
-      setOpen(false);
-      setConfirming(false);
-      setReason('');
-      setError(null);
-    } catch (failure) {
-      setConfirming(false);
-      setError(failure instanceof Error ? failure.message : 'The appointment could not be ended.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <PortalButton variant="danger" icon={CircleStop} onClick={() => setOpen(true)}>
-        End Appointment
-      </PortalButton>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 space-y-3 min-w-[280px]">
-      <PortalConfirmModal
-        isOpen={confirming}
-        title={`End ${label}?`}
-        message="This takes effect immediately, releases active workload, and retires unfinished official Marks tasks. The audit history remains available."
-        confirmLabel="End Appointment"
-        tone="danger"
-        isLoading={submitting}
-        onConfirm={submit}
-        onCancel={() => setConfirming(false)}
-      />
-      <div className="flex items-center justify-between gap-3">
-        <p className="card-value text-rose-800">End {label}</p>
-        <button type="button" aria-label="Close end appointment control" onClick={close}>
-          <X className="w-4 h-4 text-rose-600" />
-        </button>
-      </div>
-      <select
-        value={outcome}
-        onChange={(event) => setOutcome(event.target.value as DirectOutcome)}
-        className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-      >
-        <option value="COMPLETED">Completed</option>
-        <option value="WITHDRAWN">Withdrawn</option>
-        <option value="OTHER">Other</option>
-      </select>
-      <textarea
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-        rows={3}
-        placeholder="Record the faculty decision and context"
-        className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
-      />
-      {error && <p className="card-description text-rose-700">{error}</p>}
-      <PortalButton variant="dangerSolid" size="sm" onClick={requestConfirmation}>
-        Review Closure
-      </PortalButton>
-    </div>
-  );
+export const AppointmentEndControl:React.FC<AppointmentEndControlProps>=({label,context,decisionKey,disabled=false,onReload,onSubmit})=>{
+  const [open,setOpen]=useState(false);
+  const [outcome,setOutcome]=useState<DirectOutcome>('COMPLETED');
+  const [reason,setReason]=useState('');
+  return <>
+    {!disabled ? <PortalButton variant="danger" icon={CircleStop} onClick={()=>setOpen(true)}>End Appointment</PortalButton> : null}
+    <DecisionDialog isOpen={open} decisionKey={decisionKey??label} title={`End ${label}?`} context={context}
+      kind="confirmation" tone="danger" confirmLabel="End appointment" successMessage={`${label} ended.`}
+      message="This ends the appointment immediately, releases its active workload and retires unfinished official Marks tasks. The recorded history remains available."
+      dirty={!!reason.trim()||outcome!=='COMPLETED'} canConfirm={!!reason.trim()}
+      onClose={()=>{setOpen(false);setReason('');setOutcome('COMPLETED');}} onReload={onReload}
+      onConfirm={async()=>{if(!reason.trim())return false;return await onSubmit(outcome,reason.trim());}}>
+      <label className="form-label block">Appointment outcome<select value={outcome} onChange={event=>setOutcome(event.target.value as DirectOutcome)} className="form-control form-control-md mt-2"><option value="COMPLETED">Completed</option><option value="WITHDRAWN">Withdrawn</option><option value="OTHER">Other</option></select></label>
+      <label className="form-label block">Reason<textarea required value={reason} onChange={event=>setReason(event.target.value)} className="form-control form-control-md mt-2 min-h-28" placeholder="Record the decision and context"/></label>
+    </DecisionDialog>
+  </>;
 };

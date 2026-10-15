@@ -6,12 +6,13 @@ from appointments.ageing import elapsed_calendar_days
 
 
 def amendment_waiting_metadata(row, *, now=None):
+    from appointments.research_amendments import review_status
     if not row.status.startswith('PENDING_'):
         return {'waitingSince': None, 'waitingDays': None, 'waitingOn': None}
     return {
         'waitingSince': row.updated_at,
         'waitingDays': elapsed_calendar_days(row.updated_at, now=now),
-        'waitingOn': row.status.removeprefix('PENDING_'),
+        'waitingOn': review_status(row).removeprefix('PENDING_'),
     }
 
 
@@ -41,7 +42,7 @@ def amendment_actions(actor, now):
 
 
 def amendment_report_rows(actor, programme, start_date, end_date, now, selector, semester):
-    from appointments.research_amendments import scoped_requests
+    from appointments.research_amendments import scoped_requests, review_status
     from .reports import _age_band, _filter_semester, _iso, _semester_row, _within_range
 
     rows = _filter_semester(scoped_requests(actor), 'academic_semester', selector, semester)
@@ -55,7 +56,7 @@ def amendment_report_rows(actor, programme, start_date, end_date, now, selector,
         result.append({
             'recordId': str(row.pk), 'recordType': 'RESEARCH_AMENDMENT',
             'studentId': row.matric_no, 'studentName': row.student_name,
-            'programme': row.source_programme, 'kind': row.kind, 'status': row.status,
+            'programme': row.source_programme, 'kind': row.kind, 'status': review_status(row),
             'sourceProgramme': row.source_programme, 'destinationProgramme': row.destination_programme,
             'baselineRevision': row.baseline_revision,
             'reportDate': _iso(row.created_at),

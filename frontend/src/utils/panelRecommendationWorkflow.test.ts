@@ -151,35 +151,23 @@ const studentSupervisorTrackingSource = readFileSync(
   resolve('src/components/StudentSupervisorAppointment.tsx'),
   'utf8',
 );
-assert.match(studentSupervisorTrackingSource, /unavailableUntil/);
+assert.match(studentSupervisorTrackingSource, /SupervisorRequestDetail/);
+const sharedSupervisorTrackingSource = readFileSync(resolve('src/components/SupervisorRequestDetail.tsx'), 'utf8');
+assert.match(sharedSupervisorTrackingSource, /unavailableUntil/);
+assert.doesNotMatch(sharedSupervisorTrackingSource, /availabilityReason|internalReason/);
 assert.doesNotMatch(studentSupervisorTrackingSource, /availabilityReason|internalReason/);
 
 const coordinatorSupervisorSource = readFileSync(
   resolve('src/components/CoordinatorSupervisorApprovals.tsx'),
   'utf8',
 );
-const coordinatorApproveSource = coordinatorSupervisorSource.slice(
-  coordinatorSupervisorSource.indexOf('const approve'),
-  coordinatorSupervisorSource.indexOf('const reject'),
-);
-assert.match(
-  coordinatorApproveSource,
-  /catch\s*\([^)]*\)\s*\{[\s\S]{0,400}loadRecords\(\)/,
-  'Coordinator capacity conflicts must refresh the pending Supervisor queue.',
-);
-
-const lecturerPanelSource = readFileSync(
-  resolve('src/components/LecturerPanelAppointments.tsx'),
-  'utf8',
-);
-const panelApprovalSource = lecturerPanelSource.slice(
-  lecturerPanelSource.indexOf('const handleReviewAccept'),
-  lecturerPanelSource.indexOf('const handleReviewReject'),
-);
-assert.match(
-  panelApprovalSource,
-  /catch\s*\([^)]*\)\s*\{[\s\S]{0,400}loadData\(\)/,
-  'Panel approval conflicts must refresh the persisted pending queue.',
-);
+const dialogSource=readFileSync(resolve('src/components/DecisionDialog.tsx'),'utf8');
+const submissionSource=readFileSync(resolve('src/utils/decisionSubmission.ts'),'utf8');
+assert.match(coordinatorSupervisorSource,/onReload=\{\(\) => loadRecords\(true\)\}/,'Coordinator conflicts offer strict latest-record reload before another decision');
+const lecturerPanelSource=readFileSync(resolve('src/components/LecturerPanelAppointments.tsx'),'utf8');
+assert.match(lecturerPanelSource,/onReload=\{async \(\) => \{await loadData\(true\)/,'Panel conflicts offer strict latest-record reload');
+assert.match(submissionSource,/status === 403 \|\| record\?\.status === 409/,'Permission and conflict errors block stale submissions');
+assert.match(dialogSource,/Review latest record/);
+assert.match(dialogSource,/await onReload\(\)/);
 
 console.log('panelRecommendationWorkflow tests passed');

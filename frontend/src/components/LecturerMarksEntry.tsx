@@ -1,3 +1,5 @@
+import { completeDecision } from '../utils/decisionSubmission';
+import { ApiError } from '../services/apiClient';
 import { useListState } from './ListState';
 /**
  * @license
@@ -111,12 +113,12 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadTasks = useCallback(() => {
+  const loadTasks = useCallback((propagateError = false) => {
     setLoading(true);
     setError(null);
-    getEvaluationTasks()
+    return getEvaluationTasks()
       .then(setTasks)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'))
+      .catch((e) => { setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'); if (propagateError) throw e; })
       .finally(() => setLoading(false));
   }, []);
 
@@ -529,16 +531,27 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                 triggerToast(reason instanceof Error ? reason.message : 'Failed to save mark draft.');
               }
             }}
-            onSubmit={async (updatedTask) => {
+            onReload={async () => {
               try {
-                const submittedTask = await submitMarkEntry(updatedTask);
-                setTasks((current) => replaceEvaluationTask(current, submittedTask));
-                setActiveFormTask(null);
-                triggerToast(`Marks finalized and submitted for ${submittedTask.studentName}!`);
-              } catch (reason) {
-                triggerToast(reason instanceof Error ? reason.message : 'Failed to submit marks.');
+                const latestTasks = await getEvaluationTasks();
+                setTasks(latestTasks);
+                const latest = latestTasks.find(task => task.id === activeFormTask.id);
+                if (!latest) {
+                  setActiveFormTask(current => current ? {...current, canEdit: false, canSubmit: false} : current);
+                  throw new Error('This evaluation task is no longer available.');
+                }
+                setActiveFormTask(latest);
+              } catch (failure) {
+                if (failure instanceof ApiError && (failure.status === 403 || failure.status === 404)) {
+                  setActiveFormTask(current => current ? {...current, canEdit: false, canSubmit: false} : current);
+                }
+                throw failure;
               }
             }}
+            onSubmit={async (updatedTask) => completeDecision(async () => {
+              const submittedTask = await submitMarkEntry(updatedTask);
+              setTasks((current) => replaceEvaluationTask(current, submittedTask));
+            }, () => loadTasks(true))}
           />
         ) : null}
       </AnimatePresence>

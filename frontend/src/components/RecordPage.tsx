@@ -16,7 +16,7 @@ export function RecordPageProvider({ children }: { children: React.ReactNode }) 
 
 export type RecordPageProps = {
   title: string; subtitle?: string; backLabel: string; onBack: () => void; children: React.ReactNode | ((requestBack: () => void) => React.ReactNode);
-  actions?: React.ReactNode; pageKey?: string; dirty?: boolean; busy?: boolean;
+  actions?: React.ReactNode; metadata?: React.ReactNode; pageKey?: string; dirty?: boolean; busy?: boolean;
   /** Set synchronously only after a successful mutation, before its redirect. */
   navigationComplete?: React.RefObject<boolean>;
 };
@@ -30,7 +30,7 @@ function NavigationGuard({ dirty, busy, allow, pageKey }: { dirty: boolean; busy
     onConfirm={() => { if (!busy && blocker.state === 'blocked') blocker.proceed(); }} />;
 }
 
-function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, pageKey, navigationComplete, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
+function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, metadata, pageKey, navigationComplete, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
   const host = useContext(RecordHost);
   const page = useRef<HTMLDivElement>(null);
   const origin = useRef<{ focused: HTMLElement | null; top: number } | null>(null);
@@ -68,6 +68,7 @@ function RecordPageContent({ title, subtitle, backLabel, onBack, children, actio
   const requestBack = () => { if (busy) return; if (dirty) setConfirmLeave(true); else leave(); };
   const content = <div ref={page} data-record-page className="space-y-6 pb-12 text-left font-sans">
     <PageHeader title={title} subtitle={subtitle} backLabel={backLabel} onBack={requestBack} backDisabled={busy} actions={actions ? <fieldset disabled={dirty || busy} className="contents">{actions}</fieldset> : undefined} />
+    {metadata ? <div data-record-metadata>{metadata}</div> : null}
     <RecordDraft.Provider value={reportDraft}><div className="space-y-5">{typeof children === 'function' ? children(requestBack) : children}</div></RecordDraft.Provider>
     {dataRouter ? <NavigationGuard dirty={dirty} busy={busy} allow={allow} pageKey={pageKey} /> : null}
     <PortalConfirmModal isOpen={confirmLeave} title="Discard unsaved changes?" message="Your changes have not been saved. Return to the list and discard them?"

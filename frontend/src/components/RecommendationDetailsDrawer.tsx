@@ -8,14 +8,16 @@ import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PanelRecommendationStatus, SubmittedRecommendation } from '../types';
-import { PortalConfirmModal } from './PortalPrimitives';
+import {PortalButton} from './PortalPrimitives';
+import {DecisionDialog} from './DecisionDialog';
+import type {DecisionOutcome} from '../utils/decisionSubmission';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface RecommendationDetailsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   recommendation: SubmittedRecommendation | null;
-  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void> | void;
+  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void | DecisionOutcome> | void;
 }
 
 type TimelineItemState = 'completed' | 'active' | 'pending' | 'rejected' | 'cancelled';
@@ -196,45 +198,23 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
     Boolean(onCancelRecommendation) &&
     workflowStatus === 'SUBMITTED_TO_PANEL';
 
-  const performCancellation = async () => {
-    if (!recommendation) return;
-    const reason = cancellationReason.trim();
+  const performCancellation=async()=>{
+    if(!onCancelRecommendation||!cancellationReason.trim())return false;
     setIsCancelling(true);
-    setCancellationError(null);
-    try {
-      await onCancelRecommendation?.(recommendation, reason);
-      setCancellationReason('');
-      setIsCancelConfirmOpen(false);
-      onClose();
-    } catch (error) {
-      setCancellationError(error instanceof Error ? error.message : 'Failed to cancel the recommendation.');
-    } finally {
-      setIsCancelling(false);
-    }
+    try {return await onCancelRecommendation(recommendation,cancellationReason.trim());}
+    finally {setIsCancelling(false);}
   };
-
-  const handleCancel = () => {
-    const reason = cancellationReason.trim();
-    if (!reason) {
-      setCancellationError('Please provide a cancellation reason.');
-      return;
-    }
-    setCancellationError(null);
-    setIsCancelConfirmOpen(true);
-  };
+  const handleCancel=()=>{setCancellationReason('');setIsCancelConfirmOpen(true);};
 
   if (!isOpen) return null;
-  return <RecordPage title="Panel recommendation" backLabel="Back to Submitted recommendations" onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5"><PortalConfirmModal
-            isOpen={isCancelConfirmOpen}
-            title="Cancel panel recommendation?"
-            message="This workflow attempt will be closed permanently and cannot be restored. A replacement recommendation can be submitted later if needed."
-            confirmLabel="Cancel Recommendation"
-            cancelLabel="Keep Recommendation"
-            tone="danger"
-            isLoading={isCancelling}
-            onConfirm={performCancellation}
-            onCancel={() => setIsCancelConfirmOpen(false)}
-          />
+  return <RecordPage title="Panel recommendation" backLabel="Back to Submitted recommendations" onBack={onClose} pageKey={`panel-history:${recommendation.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5"><DecisionDialog isOpen={isCancelConfirmOpen} decisionKey={recommendation.id} title="Cancel Panel recommendation?"
+      context={<>{recommendation.studentName} · {recommendation.programme}</>} kind="confirmation" tone="danger"
+      message="This closes the pending recommendation and releases its reserved Panel workload. Its history remains available."
+      confirmLabel="Cancel recommendation" cancelLabel="Keep recommendation" busy={isCancelling} dirty={!!cancellationReason.trim()} canConfirm={!!cancellationReason.trim()}
+      successMessage="Panel recommendation cancelled." onConfirm={performCancellation}
+      onClose={()=>{setIsCancelConfirmOpen(false);setCancellationReason('');setCancellationError(null);}}>
+      <label className="form-label block">Cancellation reason<textarea required className="form-control form-control-md mt-2 min-h-28" value={cancellationReason} onChange={event=>setCancellationReason(event.target.value)}/></label>
+    </DecisionDialog>
               <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-3xs flex gap-4 items-center">
                 <div className="w-[52px] h-[52px] rounded-xl bg-brand-navy text-white font-black text-sm flex items-center justify-center shrink-0 tracking-wider shadow-sm select-none">
                   {getInitials(recommendation.studentName)}
@@ -434,37 +414,7 @@ export const RecommendationDetailsDrawer: React.FC<RecommendationDetailsDrawerPr
               <WorkflowAuditLog events={recommendation.workflow} />
 
               {canCancel && (
-                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
-                  <div>
-                    <h4 className="section-label uppercase tracking-wider text-amber-900">
-                      Cancel Recommendation
-                    </h4>
-                    <p className="card-description mt-1 leading-relaxed text-amber-800">
-                      Cancellation is immediate and is only available before the selected panel member takes action.
-                    </p>
-                  </div>
-                  <textarea
-                    value={cancellationReason}
-                    onChange={(event) => {
-                      setCancellationReason(event.target.value);
-                      if (cancellationError) setCancellationError(null);
-                    }}
-                    rows={3}
-                    placeholder="State why this recommendation is being cancelled..."
-                    className="w-full resize-none rounded-xl border border-amber-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-none transition focus:border-amber-400"
-                  />
-                  {cancellationError && (
-                    <p className="card-description text-rose-600">{cancellationError}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    disabled={isCancelling}
-                    className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isCancelling ? 'Cancelling...' : 'Cancel Recommendation'}
-                  </button>
-                </div>
+                <PortalButton variant="danger" disabled={isCancelling} onClick={handleCancel}>Cancel recommendation</PortalButton>
               )}
             </section></RecordPage>;
 };

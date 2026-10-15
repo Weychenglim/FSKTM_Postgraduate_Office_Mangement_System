@@ -1,3 +1,4 @@
+from appointments.request_visibility import routine_supervisor_requests
 from collections import Counter
 from datetime import date, datetime
 from io import BytesIO
@@ -250,6 +251,7 @@ def _scope_supervisor_records(user, programme, selector, semester):
         "appointment__ended_by",
         "appointment__supersedes",
     ).prefetch_related("workflow_events")
+    records = routine_supervisor_requests(records, user)
     if user.role == User.Role.COORDINATOR:
         records = records.filter(coordinator_scope_q(user, "student__programme"))
     elif user.role == User.Role.LECTURER:

@@ -1,3 +1,4 @@
+import type {DecisionOutcome} from '../utils/decisionSubmission';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -39,7 +40,7 @@ interface SubmittedRecommendationsPageProps {
   onBack: () => void;
   recommendations?: SubmittedRecommendation[];
   onViewRecommendation?: (recId: string) => void;
-  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void> | void;
+  onCancelRecommendation?: (recommendation: SubmittedRecommendation, reason: string) => Promise<void | DecisionOutcome> | void;
 }
 
 export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPageProps> = ({

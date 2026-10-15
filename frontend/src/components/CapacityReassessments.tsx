@@ -1,7 +1,12 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
+import {officeSupervisorApi} from '../services/staffSupervisorWorkspaceApi';
+import type {CapacityRequestKind} from '../types/capacityReassessment';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { UserRole } from '../types/auth';
 import type { CapacityPolicy, CapacityReassessment, CapacityReassessmentWorkspace, CapacitySemester } from '../types/capacityReassessment';
-import { authorizeCapacityReassessment, getCapacityReassessments, revokeCapacityReassessment, runCapacityReassessmentAction } from '../services/capacityReassessmentsApi';
+import { authorizeCapacityReassessment, getCapacityReassessments, revokeCapacityReassessment } from '../services/capacityReassessmentsApi';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
@@ -34,17 +39,16 @@ export function CapacityReassessmentCard({ row, activeSemester, office, busy, on
   </article>;
 }
 
-export function CapacityReassessments({ role, onChanged, showRefresh = true, refreshVersion = 0, onBusyChange }: { role?: UserRole; onChanged?: () => void; showRefresh?: boolean; refreshVersion?: number; onBusyChange?: (busy: boolean) => void }) {
+export function CapacityReassessments({ role, onChanged, showRefresh = true, refreshVersion = 0, onBusyChange, target }: { target?:{kind:CapacityRequestKind;id:number};role?: UserRole; onChanged?: () => void; showRefresh?: boolean; refreshVersion?: number; onBusyChange?: (busy: boolean) => void }) {
   // Do not mount the data-loading workspace for roles outside the staff scope.
   if (role !== 'Office Staff/Admin' && role !== 'Programme Coordinator') return null;
-  return <CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} showRefresh={showRefresh} refreshVersion={refreshVersion} onBusyChange={onBusyChange} />;
+  return <CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} showRefresh={showRefresh} refreshVersion={refreshVersion} onBusyChange={onBusyChange} target={target}/>;
 }
 
-function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, refreshVersion, onBusyChange }: { office: boolean; onChanged?: () => void; showRefresh: boolean; refreshVersion: number; onBusyChange?: (busy: boolean) => void }) {
+function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, refreshVersion, onBusyChange, target }: { target?:{kind:CapacityRequestKind;id:number};office: boolean; onChanged?: () => void; showRefresh: boolean; refreshVersion: number; onBusyChange?: (busy: boolean) => void }) {
   const [workspace, setWorkspace] = useState<CapacityReassessmentWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ row: CapacityReassessment; action: Action; semester: CapacitySemester | null } | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,29 +56,24 @@ function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, ref
   const [page, setPage] = useState(1);
   const version = useRef(0);
   const mutating = useRef(false);
-  const form = useRef<HTMLFormElement>(null);
-  const load = useCallback(async () => {
+  const load = useCallback(async (strict = false, background = false) => {
     const token = ++version.current;
-    setLoading(true); setError(null);
-    try { const result = await getCapacityReassessments(); if (version.current === token) setWorkspace(result); }
-    catch (failure) { if (version.current === token) { setWorkspace(null); setError(failure instanceof Error ? failure.message : 'Capacity reassessments could not be loaded.'); } }
-    finally { if (version.current === token) setLoading(false); }
-  }, []);
+    if (!background) { setLoading(true); setError(null); }
+    try { const result = target ? await officeSupervisorApi.carryoverRecord(target.kind,target.id).then(data=>({activeSemester:data.activeSemester,requests:[data.record]})) : await getCapacityReassessments(); if (version.current === token) setWorkspace(result); }
+    catch (failure) { if (!background && version.current === token) { setWorkspace(null); setError(failure instanceof Error ? failure.message : 'Capacity reassessments could not be loaded.'); } if (strict) throw failure; }
+    finally { if (!background && version.current === token) setLoading(false); }
+  }, [target?.kind,target?.id]);
   useEffect(() => { void load(); return () => { version.current += 1; }; }, [load, refreshVersion]);
-  useEffect(() => { if (edit) { form.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); form.current?.querySelector('textarea')?.focus({ preventScroll: true }); } }, [edit]);
+  useReturnToFocusReload(() => void load(), !loading && !busy && !edit && !target);
   const save = async () => {
-    if (!office || !edit || !reason.trim() || mutating.current) return;
+    if (!office || !edit || !reason.trim() || mutating.current) return false;
     const { row, action, semester } = edit;
-    if (action === 'authorize' && (!row.canAuthorize || !semester) || action === 'revoke' && (!row.canRevoke || !row.authorization)) return;
-    mutating.current = true; setBusy(true); setNotice(null);
-    try {
-      const result = await runCapacityReassessmentAction(() => action === 'authorize'
-        ? authorizeCapacityReassessment(row.kind, row.id, { reason: reason.trim(), expectedStatus: row.status, expectedActiveSemesterId: semester!.id, expectedAuthorizationId: row.authorization?.id ?? null, expectedEventId: row.latestEventId })
-        : revokeCapacityReassessment(row.kind, row.id, { reason: reason.trim(), expectedStatus: row.status, expectedAuthorizationId: row.authorization!.id, expectedEventId: row.latestEventId }), load);
-      setNotice(result.message);
-      if (result.ok || result.conflict) { setEdit(null); setReason(''); }
-      if (result.ok) onChanged?.();
-    } finally { mutating.current = false; setBusy(false); }
+    if (action === 'authorize' && (!row.canAuthorize || !semester || workspace?.activeSemester?.id !== semester.id) || action === 'revoke' && (!row.canRevoke || !row.authorization)) return false;
+    mutating.current = true; setBusy(true);
+    try { return await completeDecision(async () => { const updated = await (action === 'authorize'
+      ? authorizeCapacityReassessment(row.kind, row.id, { reason: reason.trim(), expectedStatus: row.status, expectedActiveSemesterId: semester!.id, expectedAuthorizationId: row.authorization?.id ?? null, expectedEventId: row.latestEventId })
+      : revokeCapacityReassessment(row.kind, row.id, { reason: reason.trim(), expectedStatus: row.status, expectedAuthorizationId: row.authorization!.id, expectedEventId: row.latestEventId })); if (updated) setWorkspace(current => current ? {...current, requests:current.requests.map(request => request.kind === row.kind && request.id === row.id ? updated : request)} : current); }, async () => { await load(true, true); onChanged?.(); }); }
+    finally { mutating.current = false; setBusy(false); }
   };
   useEffect(() => { onBusyChange?.(loading || busy || (!!edit && !!reason.trim())); }, [onBusyChange, loading, busy, edit, reason]);
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
@@ -83,20 +82,21 @@ function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, ref
   const pageCount = Math.max(1, Math.ceil(rows.length / 8));
   const currentPage = Math.min(page, pageCount);
   return <section className="space-y-3 border-t border-slate-200 pt-5" aria-label="Carryover capacity reassessment">
-    <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="section-label">Carryover capacity reassessment</h3><>{showRefresh ? <PortalButton size="sm" disabled={busy || loading || (!!edit && !!reason.trim())} onClick={() => { setEdit(null); setReason(''); void load(); }}>Refresh reassessments</PortalButton> : null}</></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="section-label">Carryover capacity reassessment</h3></div>
     <p className="card-description">Office may authorize pending requests from closed semesters to use the current active semester’s capacity policy. This does not approve an appointment or add capacity. The original semester and approval stage remain unchanged; eligibility and workload limits are checked again at approval.</p>
     {!office ? <p className="card-description">Read-only history for students in your authorized programme scope.</p> : null}
-    {notice ? <p role="status" className="card-description rounded-lg bg-slate-50 p-3">{notice}</p> : null}
-    {edit ? <form ref={form} className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4" onSubmit={event => { event.preventDefault(); void save(); }}>
-      <h4 className="card-value">{edit.action === 'authorize' ? 'Authorize reassessment' : 'Revoke authorization'} · {kinds[edit.row.kind]} #{edit.row.id} · {edit.row.student.name}</h4>
-      <p className="card-description">Original semester: {edit.row.originalSemester?.label ?? 'Not recorded'}. {edit.action === 'authorize' ? `Capacity target: ${edit.semester?.label ?? 'No active semester'}.` : `Revoking target: ${edit.row.authorization?.targetSemester.label ?? 'Not recorded'}.`}</p>
-      <label className="form-label block">Reason<textarea required rows={3} disabled={busy} value={reason} onChange={event => setReason(event.target.value)} className="form-control form-control-sm mt-1" /></label>
-      <div className="flex gap-2"><PortalButton type="submit" variant="primary" disabled={!reason.trim() || loading || !!error} isLoading={busy}>{edit.action === 'authorize' ? 'Confirm authorization' : 'Confirm revocation'}</PortalButton><PortalButton disabled={busy} onClick={() => { setEdit(null); setReason(''); }}>Cancel</PortalButton></div>
-    </form> : null}
+    <DecisionDialog isOpen={!!edit} decisionKey={`${edit?.row.kind}:${edit?.row.id}`} title={edit?.action === 'authorize' ? 'Authorize capacity reassessment' : 'Revoke capacity authorization'} confirmLabel={edit?.action === 'authorize' ? 'Authorize reassessment' : 'Revoke authorization'} kind="confirmation" tone={edit?.action === 'revoke' ? 'danger' : 'warning'}
+      context={<p>{edit?.row.student.name} &middot; {edit?.row.student.matricNo} &middot; {edit?.row.student.programme}<br/>{edit ? kinds[edit.row.kind] : ''}: {edit?.row.candidate.name}<br/>Original semester: {edit?.row.originalSemester?.label ?? 'Not recorded'}. Current active semester: {workspace?.activeSemester?.label ?? 'No active semester'}.</p>}
+      message={edit?.action === 'authorize' ? `This pending carryover request will use ${edit.semester?.label ?? 'the active semester'} capacity policy at its existing approval stage. This does not approve the appointment or add capacity.` : `Authorization to use ${edit?.row.authorization?.targetSemester.label ?? 'the recorded semester'} capacity policy will be revoked.`}
+      busy={busy} dirty={!!reason.trim()} canConfirm={office&&!!edit&&!!reason.trim()&&!loading&&!error&&(edit.action === 'authorize' ? edit.row.canAuthorize&&!!edit.semester&&workspace?.activeSemester?.id === edit.semester.id : edit.row.canRevoke&&!!edit.row.authorization)}
+      successMessage={edit?.action === 'authorize' ? 'Capacity reassessment authorized. The appointment remains at its existing approval stage.' : 'Capacity reassessment authorization revoked.'}
+      onClose={()=>{setEdit(null);setReason('');}} onConfirm={save} onReload={()=>load(true,true)}>
+      <label className="form-label block">Reason (required)<textarea required rows={3} disabled={busy} value={reason} onChange={event=>setReason(event.target.value)} className="form-control mt-2"/></label>
+    </DecisionDialog>
     {loading ? <LoadingState message="Loading capacity reassessments…" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : workspace ? <>
       {!workspace.activeSemester ? <p className="card-description text-amber-900">No effective active semester is available. New authorizations cannot be granted.</p> : null}
       {workspace.requests.length > 1 ? <label className="form-label block">Find a carryover request<input type="search" value={search} placeholder="Student, matric number, programme or candidate" onChange={event => { setSearch(event.target.value); setPage(1); }} className="form-control form-control-sm mt-1" /></label> : null}
-      {rows.slice((currentPage - 1) * 8, currentPage * 8).map(row => <CapacityReassessmentCard key={`${row.kind}-${row.id}`} row={row} activeSemester={workspace.activeSemester} office={office} busy={busy} onAction={(row, action) => { setEdit({ row, action, semester: workspace.activeSemester }); setReason(''); setNotice(null); }} />)}
+      {rows.slice((currentPage - 1) * 8, currentPage * 8).map(row => <CapacityReassessmentCard key={`${row.kind}-${row.id}`} row={row} activeSemester={workspace.activeSemester} office={office} busy={busy} onAction={(row, action) => { setEdit({ row, action, semester: workspace.activeSemester }); setReason(''); }} />)}
       {!rows.length ? <EmptyState title={query ? 'No matching carryover requests' : 'No carryover requests'} description="Eligible pending requests and recorded authorization history will appear here." /> : null}
       {rows.length > 8 ? <div className="card-description flex items-center justify-between"><PortalButton size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</PortalButton><span>Page {currentPage} of {pageCount}</span><PortalButton size="sm" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</PortalButton></div> : null}
     </> : null}

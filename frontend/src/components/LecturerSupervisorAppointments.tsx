@@ -1,3 +1,4 @@
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -6,7 +7,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Users,
-  RefreshCw,
   Clock, 
   CheckCircle, 
   ChevronRight, 
@@ -39,7 +39,6 @@ import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistory } from './SupervisorRequestHistory';
 import { supervisorResearchPage } from '../utils/supervisorWorkspace';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
-import { ActiveSuperviseeDetail } from './ActiveSuperviseeDetail';
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { SupervisorRequest, ActiveSuperviseeRow, SupervisorWorkloadSummary } from '../types';
@@ -281,7 +280,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
       <div className="fixed inset-y-0 right-0 max-w-full flex">
         {/* Sliding Panel container */}
         <div className="w-screen max-w-md bg-white shadow-sm flex flex-col overflow-hidden z-50 border-l border-slate-100">
-          
+
           {/* Header block with close icon */}
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white select-none shrink-0">
             <h3 className="section-label">
@@ -512,6 +511,7 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToHistory?: () => void;
   onNavigateToSupervisee?: (studentId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
+  onNavigateToPanelRequest?: (id: string,recordKey?:string) => void;
   onNavigateToPanelRecommendation?: (studentId: string) => void;
   onNavigateToSupervisees?: () => void;
   researchView?: 'list' | 'detail' | 'profile' | 'new';
@@ -525,7 +525,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   lecturerId,
   initialApplicationId, initialSupportingId, onNavigateToRequest, requestBackLabel, routeView = 'list', routeSuperviseeStudentId,
   onNavigateToList, onNavigateToSupervisee, onNavigateToDossier,
-  onNavigateToPanelRecommendation, onNavigateToSupervisees,
+  onNavigateToPanelRequest, onNavigateToPanelRecommendation, onNavigateToSupervisees,
   researchView = 'list', researchRequestId, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
   const { search: workspaceSearch } = useLocation();
@@ -535,6 +535,8 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
   const [supervisees, setSupervisees] = useState<ActiveSuperviseeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [researchMetadata, setResearchMetadata] = useState<React.ReactNode>(null);
+  const [researchDetailTitle, setResearchDetailTitle] = useState<string | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [researchRefresh, setResearchRefresh] = useState(0);
@@ -555,24 +557,23 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const selectedSupervisee = supervisees.find(row => row.studentId === routeSuperviseeStudentId);
   const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
   const isSupervisionDetail = routeView === 'superviseeDetail';
+  useReturnToFocusReload(() => void loadData(), !loading && !workspaceBusy && !initialApplicationId && !initialSupportingId && !isSupervisionDetail && routeView !== 'research');
   const refresh = () => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); };
-  const refreshAction = <PortalButton size="sm" icon={RefreshCw} disabled={loading || workspaceBusy} onClick={refresh}>Refresh</PortalButton>;
   if (initialApplicationId || initialSupportingId) return <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh}
     onChanged={loadData} initialApplicationId={initialApplicationId} initialSupportingId={initialSupportingId} onCloseRoute={onNavigateToList} backLabel={requestBackLabel} onNavigateToDossier={onNavigateToDossier} />;
-  if (researchPage) return <RecordPage title={researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})} actions={refreshAction}>
-    <LecturerResearchWorkspace hideHeader showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
+  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})}>
+    <LecturerResearchWorkspace onDetailMetadata={setResearchMetadata} onDetailTitle={setResearchDetailTitle} hideHeader showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
       onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
       refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />
   </RecordPage>;
-  if (isSupervisionDetail) return <RecordPage title="Supervision details" backLabel="Back to My supervisees" onBack={onNavigateToSupervisees ?? (() => {})} actions={refreshAction}>
+  if (isSupervisionDetail) return <RecordPage title="Supervision details" backLabel="Back to My supervisees" onBack={onNavigateToSupervisees ?? (() => {})}>
     {loading ? <LoadingState message="Loading supervision details…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
-      {selectedSupervisee ? <ActiveSuperviseeDetail hideHeader onBack={onNavigateToSupervisees ?? (() => {})} onViewStudentRecord={() => onNavigateToDossier?.(selectedSupervisee.studentId)} onRecommendPanel={onNavigateToPanelRecommendation} supervisee={selectedSupervisee} /> : null}
-      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
+      <SupervisoryTeamManagement key={routeSuperviseeStudentId} role="Lecturer" view="detail" routeStudentId={routeSuperviseeStudentId} detailContext={selectedSupervisee} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} onNavigateToPanelRecommendation={onNavigateToPanelRecommendation} showResearchChanges={false} showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={teamRefresh} onChanged={refresh} />
     </>}
   </RecordPage>;
   return <div id="lecturer-portal-workspace" className="space-y-6 text-left font-sans pb-12">
     <PageHeader title="Supervisor Appointments" subtitle="Review appointment requests, manage your supervisees and follow research changes."
-      actions={<PortalButton size="sm" icon={RefreshCw} disabled={loading || workspaceBusy} onClick={refresh}>Refresh</PortalButton>} />
+       />
     <SupervisorWorkspaceNavigation role="Lecturer" />
     {(routeView === 'list' || routeView === 'history') && <div className="space-y-5">
       <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh} historyRoute={routeView === 'history'} onChanged={loadData} onNavigateToRequest={onNavigateToRequest} workload={capacity} onNavigateToDossier={onNavigateToDossier} onBusyChange={setWorkspaceBusy} />

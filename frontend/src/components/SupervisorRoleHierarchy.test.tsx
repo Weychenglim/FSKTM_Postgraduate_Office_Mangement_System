@@ -9,8 +9,10 @@ import { ResearchAmendmentRouteContent } from './ResearchAmendments';
 for (const role of ['Office Staff/Admin', 'Programme Coordinator'] as const) {
   const html = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-appointments/supervisees']}><SupervisorWorkspaceNavigation role={role} /></MemoryRouter>);
   assert.match(html, /aria-current="page"[^>]*>Supervisory teams/);
-  assert.match(html, role === 'Office Staff/Admin' ? /Appointment records/ : /Appointment requests/);
-  assert.match(html, /Research changes/);
+  assert.match(html, /Appointment requests/);
+  assert.doesNotMatch(html, /Research changes/);
+  if (role === 'Programme Coordinator') assert.match(html, /Programme transfers/);
+  else assert.doesNotMatch(html, /Research records|Programme transfers/);
   assert.doesNotMatch(html, /My supervisees/);
 }
 const studentTable = renderToStaticMarkup(<WorkspaceRecordTable identityLabel="Supervisor" label="Applications" rows={[{ key:1, studentName:'Dr Example', matricNo:'', status:'Awaiting Supervisor review', waitingDays:2, actionLabel:'View request' }]} />);
@@ -25,7 +27,18 @@ for (const role of ['Student','Office Staff/Admin','Programme Coordinator'] as c
   assert.match(render('requests'), /<table/);
   assert.doesNotMatch(render('requests'), /Final student/);
   assert.doesNotMatch(render('history'), /Ongoing student/);
-  assert.match(render('history'), /aria-label="Not applicable"/);
+  assert.match(render('history'), /Waiting at this stage<\/span>Rejected<\/td>/);
   assert.doesNotMatch(render('requests'), /Old|>New<|>Approve</);
 }
 console.log('All roles share navigation, request tables and terminal research history without comparisons in lists');
+
+const sharedDetail = {...row,reason:'Recorded submission reason',events:[{id:1,action:'SUBMITTED',actorName:'Office Initiator',actorRole:'Office Staff/Admin',previousStatus:'',newStatus:'PENDING_SUPERVISOR',createdAt:row.createdAt,reason:'Recorded submission reason'}]};
+for (const role of ['Student','Lecturer','Office Staff/Admin','Programme Coordinator'] as const) {
+  const html=renderToStaticMarkup(<ResearchAmendmentRouteContent role={role} routeView="detail" routeRequestId="1" options={options} rows={[sharedDetail]} revisions={[]} busy={false} requestForm={null} onAction={()=>{}} />);
+  for (const text of ['Request summary','Requested changes','Original abstract','Requested abstract','Approval progress','Audit history']) assert.ok(html.includes(text),`${role} uses shared research detail: ${text}`);
+  assert.doesNotMatch(html,/Not applied|PENDING_SUPERVISOR|Copy reference/);
+  assert.doesNotMatch(html,/Request #1|Research request #1/, 'The request reference belongs in the page metadata');
+  assert.match(html,/Office Initiator/, 'The submitter is the recorded Office actor, not the student');
+  assert.doesNotMatch(html,/Proposed \/ recorded after|>Previously<|>Proposed</);
+}
+console.log('Authorized research details share snapshot labels, progress and audit across roles');

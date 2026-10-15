@@ -8,6 +8,11 @@ const html=renderToStaticMarkup(React.createElement((office as any).OfficeSuperv
 assert.match(html, /Current stage/);
 assert.match(html, /Waiting at this stage/);
 assert.match(html, /3 calendar days/);
+for (const [status, label] of [['Approved','Completed'],['Cancelled','Cancelled'],['Rejected','Rejected'],['Ended','Ended']] as const) {
+  const final = renderToStaticMarkup(<office.OfficeSupervisorRecordTable records={[{...rows[0],status,waitingDays:99,workflow:status==='Ended'?[{newStatus:'APPROVED'}]:[]}]} onOpen={()=>{}} onDossier={()=>{}}/>);
+  assert.ok(final.includes(`Waiting at this stage</span>${label}</td>`), `${status} explains its final waiting state`);
+  assert.doesNotMatch(final,/99 calendar days|Not applicable/);
+}
 assert.match(html, /Awaiting Coordinator approval/);
 assert.match(html, /View request/);
 assert.match(html, /data-table/);
@@ -15,6 +20,15 @@ assert.doesNotMatch(html, /font-mono|Research abstract/);
 assert.doesNotMatch(html, /�/);
 assert.ok(html.indexOf('Student One') < html.indexOf('M1'), 'Student name leads the identity');
 assert.ok('filterOfficeSupervisorRecords' in office);
+assert.equal(office.officeRequestPresentation({...rows[0],waitingOn:undefined}).status,'UNKNOWN','Coarse historical Pending labels cannot invent a reviewer');
+assert.equal(office.officeRequestPresentation({...rows[0],waitingOn:'COORDINATOR'}).status,'PENDING_COORDINATOR','Persisted waiting metadata can identify the current stage');
+const administration=renderToStaticMarkup(<office.OfficeAppointmentAdministration record={{...rows[0],status:'Ended',appointmentLifecycle:{appointmentId:4,status:'ENDED',endOutcome:'COMPLETED',endReason:'Final submission',endedAt:'2026-10-13T18:30:00Z',endedBy:'Actual office',supersedesAppointmentId:null,replacementAppointmentId:null}}} onEnd={async()=>{}}/>);
+assert.match(administration,/Ended on[\s\S]*14 Oct 2026/,'Lifecycle end timestamp is displayed when legacy releasedDate is absent');
+assert.doesNotMatch(administration,/End Supervisor Appointment/,'Ended records cannot offer another ending action');
+const activeAdministration=renderToStaticMarkup(<office.OfficeAppointmentAdministration record={{...rows[0],status:'Approved',appointmentLifecycle:{appointmentId:4,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null}}} onEnd={async()=>{}}/>);
+assert.doesNotMatch(activeAdministration,/Ended on/,'Active relationships do not imply an unrecorded ending');
+const endedApprovedRequest=renderToStaticMarkup(<office.OfficeAppointmentAdministration record={{...rows[0],status:'Approved',appointmentLifecycle:{appointmentId:4,status:'ENDED',endOutcome:'COMPLETED',endReason:'Final submission',endedAt:'2026-10-13T18:30:00Z',endedBy:'Actual office',supersedesAppointmentId:null,replacementAppointmentId:null}}} onEnd={async()=>{}}/>);
+assert.match(endedApprovedRequest,/Ended on[\s\S]*14 Oct 2026/,'Request approval and appointment ending are independent statuses');
 const filter=(office as any).filterOfficeSupervisorRecords;
 assert.equal(filter(rows,{search:'',programme:'All Programmes',semester:'S2',status:'All Records'}).length,0, 'Semester applies to loaded records');
 assert.equal(filter(rows,{search:'M1',programme:'Programme A',semester:'S1',status:'Pending'}).length,1);

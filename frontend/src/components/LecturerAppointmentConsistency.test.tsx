@@ -7,15 +7,16 @@ const request: any = {id:2,kind:'RESEARCH',status:'PENDING_SUPERVISOR',studentNa
 const renderRequest = (value: any) => renderToStaticMarkup(React.createElement(ResearchAmendmentCard, {row:value,busy:false,onAction:()=>{},lecturerView:true} as any));
 const lecturerRequest = renderRequest(request);
 assert.match(lecturerRequest, /<details><summary[^>]*>View details<\/summary>/);
-for (const text of ['Abstract change','Research Student','PG007','Old abstract','Proposed abstract','Endorse request','Reject request','Recorded progress']) assert.ok(lecturerRequest.includes(text), `Missing Lecturer research data: ${text}`);
-assert.doesNotMatch(lecturerRequest, /Same title|Same programme|>Cancel request</);
+for (const text of ['Abstract change','Research Student','PG007','Old abstract','Proposed abstract','Approve request','Reject request','Approval progress']) assert.ok(lecturerRequest.includes(text), `Missing Lecturer research data: ${text}`);
+assert.doesNotMatch(lecturerRequest, /Same title|>Cancel request</);
+assert.equal((lecturerRequest.match(/Same programme/g) ?? []).length, 1, 'The request summary retains Programme without repeating an unchanged field in the comparison');
 assert.doesNotMatch(renderRequest({...request,canDecide:false}), />Endorse request<|>Reject request</);
 const initial: any = {id:1,revision:0,kind:'BASELINE',before:{programme:'',title:'',abstract:''},after:{programme:'Original programme',title:'Original title',abstract:'Original abstract'},actorName:'Office',createdAt:request.createdAt,reason:'Initial profile',requestId:null,studentName:'Research Student'};
 const baseline = renderToStaticMarkup(React.createElement(ResearchRevisionCard,{revision:initial,lecturerView:true} as any));
 for (const text of ['Initial record','Research Student','Original programme','Original title','Original abstract','Office']) assert.ok(baseline.includes(text), `Missing initial research profile data: ${text}`);
 assert.doesNotMatch(baseline, /Previously|>Before<|Not recorded/);
 const later = renderToStaticMarkup(React.createElement(ResearchRevisionCard,{revision:{...initial,id:2,revision:1,kind:'RESEARCH',before:initial.after,after:{...initial.after,title:'Approved title'}},lecturerView:true} as any));
-for (const text of ['Previously','Recorded','Original title','Approved title']) assert.ok(later.includes(text), `Missing changed-field comparison: ${text}`);
+for (const text of ['Recorded before this revision','Recorded after revision','Original title','Approved title']) assert.ok(later.includes(text), `Missing changed-field comparison: ${text}`);
 assert.doesNotMatch(later,/Original programme|Original abstract/);
 console.log('Lecturer research cards preserve authority and audit data with compact comparisons and a single initial profile');
 

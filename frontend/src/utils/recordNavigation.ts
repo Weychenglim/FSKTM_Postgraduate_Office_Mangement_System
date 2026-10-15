@@ -35,6 +35,7 @@ export function recordNavigationState(path: string, label: string) {
 }
 
 export function recordSourceLabel(path: string): string {
+  if (path === '/supervisor-appointments/requests') return 'Appointment requests';
   if (/^\/supervisor-appointments\/research-changes\//.test(path)) return 'Research change request';
   if (/^\/supervisor-appointments\/supervisees\//.test(path)) return 'Supervision details';
   if (path === '/supervisor-appointments/supervisees') return 'My supervisees';

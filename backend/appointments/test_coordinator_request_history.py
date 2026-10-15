@@ -36,10 +36,11 @@ class CoordinatorRequestHistoryTests(APITestCase):
             cancellation_reason="Recorded cancellation" if state.startswith("CANCELLED") else "",
         )
 
-    def test_terminal_outcomes_include_rejected_cancelled_and_approved_without_appointments(self):
+    def test_terminal_outcomes_include_staff_cancellations_and_exclude_student_withdrawals(self):
         expected = {self.application.pk}
-        for state in ("APPROVED", "REJECTED_BY_SUPERVISOR", "REJECTED_BY_COORDINATOR", "CANCELLED_BY_STUDENT", "CANCELLED_BY_OFFICE"):
+        for state in ("APPROVED", "REJECTED_BY_SUPERVISOR", "REJECTED_BY_COORDINATOR", "CANCELLED_BY_OFFICE"):
             expected.add(self.make_application(state).pk)
+        self.make_application("CANCELLED_BY_STUDENT")
         self.make_application("SUBMITTED_TO_SUPERVISOR")
         self.make_application("PENDING_COORDINATOR")
         self.make_application("REJECTED_BY_COORDINATOR", "Unrelated Programme")
@@ -49,7 +50,7 @@ class CoordinatorRequestHistoryTests(APITestCase):
         self.assertEqual({row["id"] for row in response.data}, expected)
         rejected = next(row for row in response.data if row["status"] == "REJECTED_BY_COORDINATOR")
         self.assertEqual(rejected["rejectionReason"], "Recorded rejection")
-        cancelled = next(row for row in response.data if row["status"] == "CANCELLED_BY_STUDENT")
+        cancelled = next(row for row in response.data if row["status"] == "CANCELLED_BY_OFFICE")
         self.assertEqual(cancelled["cancellationReason"], "Recorded cancellation")
         records = self.client.get("/api/appointments/supervisor/coordinator-records/")
         self.assertEqual([row["id"] for row in records.data], [self.application.pk])

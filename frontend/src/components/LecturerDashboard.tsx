@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Award, BarChart3, CheckSquare, ChevronRight, UsersRound } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
@@ -14,6 +14,8 @@ import { APP_ROUTES, sidebarItemForPath } from '../constants/routes';
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { capacityStateLabel, capacityUtilization } from '../utils/lecturerCapacity';
+import { ErrorState, LoadingState } from './StateViews';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 
 interface LecturerDashboardProps {
   lifecycleStatus?: string | null;
@@ -74,6 +76,31 @@ const LecturerSummaryCard: React.FC<LecturerSummaryCardProps> = ({
   </button>
 );
 
+export function LecturerDashboardSummaryCards({ summary, loading, error, onRetry, onNavigateToTab, onNavigateToRoute }: {
+  summary: DashboardSummary | null; loading: boolean; error: string | null; onRetry: () => void;
+  onNavigateToTab: LecturerDashboardProps['onNavigateToTab']; onNavigateToRoute?: LecturerDashboardProps['onNavigateToRoute'];
+}) {
+  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+  if (loading || !summary) return <LoadingState message="Loading your Lecturer dashboard counts…" />;
+  const navigate = (route: string, tab: string) => onNavigateToRoute ? onNavigateToRoute(route) : onNavigateToTab(tab);
+  return <section aria-label="Your assignments" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+    <LecturerSummaryCard title="Students Under Supervision" value={summary.activeSupervisees == null ? 'Unavailable' : String(summary.activeSupervisees)}
+      subtext="Students with an active primary or supporting supervision appointment with you."
+      badge={`${summary.pendingSupervisorRequests} pending ${summary.pendingSupervisorRequests === 1 ? 'request' : 'requests'}`}
+      badgeTone={summary.pendingSupervisorRequests > 0 ? 'warning' : 'success'} icon={UsersRound}
+      actionLabel="View supervisees" onClick={() => navigate(APP_ROUTES.supervisorAppointmentSupervisees, 'Supervisor Appointments')} />
+    <LecturerSummaryCard title="My Panel Assignments" value={summary.activePanelAssignments == null ? 'Unavailable' : String(summary.activePanelAssignments)}
+      subtext="Students with a confirmed active Panel appointment assigned to you."
+      badge={`${summary.pendingPanelReviews} pending ${summary.pendingPanelReviews === 1 ? 'review' : 'reviews'}`}
+      badgeTone={summary.pendingPanelReviews > 0 ? 'warning' : 'success'} icon={Award}
+      actionLabel="View panels" onClick={() => navigate(APP_ROUTES.panelAppointments, 'Panel Appointments')} />
+    <LecturerSummaryCard title="Assigned Marks Tasks" value={String(summary.assignedMarkTasks ?? ((summary.supervisorMarkTasks ?? 0) + (summary.panelMarkTasks ?? 0) + (summary.backupMarkTasks ?? 0)))}
+      subtext={`${summary.supervisorMarkTasks ?? 0} supervisor, ${summary.panelMarkTasks ?? 0} panel, ${summary.backupMarkTasks ?? 0} backup task(s).`}
+      badge={`${summary.incompleteMarkEntries} incomplete`} badgeTone={summary.incompleteMarkEntries > 0 ? 'warning' : 'success'}
+      icon={CheckSquare} actionLabel="Open marks" onClick={() => navigate(APP_ROUTES.marks, 'Marks Entry')} />
+  </section>;
+}
+
 export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
   lifecycleStatus,
   onNavigateToTab,
@@ -81,11 +108,32 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const summaryVersion = useRef(0);
   const [supervisorCapacity, setSupervisorCapacity] = useState<SupervisorWorkloadSummary | null>(null);
   const [panelCapacity, setPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
 
+  const loadSummary = useCallback(async () => {
+    const version = ++summaryVersion.current;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const data = await getDashboardSummary();
+      if (summaryVersion.current === version) setSummary(data);
+    } catch (reason) {
+      if (summaryVersion.current === version) setSummaryError(reason instanceof Error ? reason.message : 'Failed to load Lecturer dashboard counts.');
+    } finally {
+      if (summaryVersion.current === version) setSummaryLoading(false);
+    }
+  }, []);
   useEffect(() => {
-    getDashboardSummary().then(setSummary).catch(() => setSummary(null));
+    void loadSummary();
+    return () => { summaryVersion.current += 1; };
+  }, [loadSummary]);
+  useReturnToFocusReload(() => { void loadSummary(); }, !summaryLoading);
+
+  useEffect(() => {
     getOwnSupervisorWorkload().then(setSupervisorCapacity).catch(() => setSupervisorCapacity(null));
     getOwnPanelWorkload().then(setPanelCapacity).catch(() => setPanelCapacity(null));
   }, []);
@@ -170,38 +218,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         visibleRoles={['LECTURER']}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-        <LecturerSummaryCard
-          title="Students Under Supervision"
-          value={summary === null ? '…' : String(summary.pendingSupervisorRequests)}
-          subtext="Supervisor appointment requests awaiting your decision."
-          badge="Pending requests"
-          badgeTone={(summary?.pendingSupervisorRequests ?? 0) > 0 ? 'warning' : 'success'}
-          icon={UsersRound}
-          actionLabel="View supervisees"
-          onClick={() => onNavigateToTab('Supervisor Appointments')}
-        />
-        <LecturerSummaryCard
-          title="Panel Appointment for Students"
-          value={summary === null ? '…' : String(summary.pendingPanelReviews)}
-          subtext="Panel recommendations awaiting your acceptance or rejection."
-          badge="Pending reviews"
-          badgeTone={(summary?.pendingPanelReviews ?? 0) > 0 ? 'warning' : 'info'}
-          icon={Award}
-          actionLabel="View panels"
-          onClick={() => onNavigateToTab('Panel Appointments')}
-        />
-        <LecturerSummaryCard
-          title="Assigned Mark Entries"
-          value={summary === null ? '…' : String(summary.incompleteMarkEntries)}
-          subtext={`${summary?.supervisorMarkTasks ?? 0} supervisor, ${summary?.panelMarkTasks ?? 0} panel, ${summary?.backupMarkTasks ?? 0} backup task(s).`}
-          badge="Incomplete marks"
-          badgeTone={(summary?.incompleteMarkEntries ?? 0) > 0 ? 'warning' : 'success'}
-          icon={CheckSquare}
-          actionLabel="Open marks"
-          onClick={() => onNavigateToTab('Marks Entry')}
-        />
-      </div>
+      <LecturerDashboardSummaryCards summary={summary} loading={summaryLoading} error={summaryError}
+        onRetry={() => { void loadSummary(); }} onNavigateToTab={onNavigateToTab} onNavigateToRoute={onNavigateToRoute} />
 
       <MonitoringTasksCard
         title="Lecturer Action Centre"

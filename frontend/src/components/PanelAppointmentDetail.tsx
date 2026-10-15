@@ -1,3 +1,4 @@
+import {completeDecision} from '../utils/decisionSubmission';
 import { RecordPage } from './RecordPage';
 /**
  * @license
@@ -21,6 +22,7 @@ import { PanelWorkflowItem, PanelWorkflowTimeline } from './PanelWorkflowTimelin
 import { WorkflowAuditLog } from './WorkflowAuditLog';
 
 interface PanelAppointmentDetailProps {
+  backLabel?: string;
   onBack: () => void;
   record?: PanelRecord | null;
   onLifecycleChanged?: () => Promise<void> | void;
@@ -148,6 +150,7 @@ const buildWorkflowItems = (record?: PanelRecord | null): PanelWorkflowItem[] =>
 
 export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
   onBack,
+  backLabel = 'Back to Panel Appointment Management',
   record,
   onLifecycleChanged,
 }) => {
@@ -158,7 +161,7 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
       <RecordPage
         title="Panel Appointment Detail"
         subtitle="View student panel appointment details, appointment status, related records, and supporting documents."
-        backLabel="Back to Panel Appointment Management"
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <div className="flex flex-wrap items-start justify-end gap-2">
@@ -170,16 +173,11 @@ export const PanelAppointmentDetail: React.FC<PanelAppointmentDetailProps> = ({
       >
 
     <div id="panel-appointment-detail-root" className="space-y-8 animate-fade-in text-left font-sans">
-            {record?.appointmentLifecycle?.status === 'ACTIVE' && (
+            {!!record?.appointmentLifecycle && (
               <AppointmentEndControl
-                label="Panel Appointment"
+                label="Panel appointment" context={<>{record.studentName} · {record.programme}</>} decisionKey={record.appointmentLifecycle!.appointmentId} disabled={record.appointmentLifecycle!.status!=='ACTIVE'} onReload={onLifecycleChanged?async()=>{await onLifecycleChanged();}:undefined}
                 onSubmit={async (outcome, reason) => {
-                  await endPanelAppointment(
-                    record.appointmentLifecycle!.appointmentId,
-                    outcome,
-                    reason,
-                  );
-                  await onLifecycleChanged?.();
+                  return await completeDecision(()=>endPanelAppointment(record.appointmentLifecycle!.appointmentId,outcome,reason),onLifecycleChanged?async()=>{await onLifecycleChanged();}:undefined);
                 }}
               />
             )}

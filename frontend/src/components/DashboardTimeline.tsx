@@ -1,10 +1,11 @@
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useEffect, useState } from 'react';
-import { CalendarCog, ListTodo, RefreshCw } from 'lucide-react';
+import { CalendarCog, ListTodo } from 'lucide-react';
 import { getActiveTimeline } from '../services';
 import { ActiveSemesterTimeline, TimelineLevel, TimelineRole } from '../types';
 import { PortalButton } from './PortalPrimitives';
@@ -53,6 +54,8 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
   useEffect(() => {
     loadTimeline();
   }, []);
+
+  useReturnToFocusReload(loadTimeline, !loading);
 
   const scopedTimeline = timeline?.available && visibleRoles
     ? {
@@ -113,16 +116,6 @@ export const DashboardTimeline: React.FC<DashboardTimelineProps> = ({
               ))}
             </div>
           )}
-
-          <PortalButton
-            onClick={loadTimeline}
-            variant="secondary"
-            size="md"
-            icon={RefreshCw}
-            isLoading={loading}
-          >
-            Refresh
-          </PortalButton>
 
           {showManageTimeline && (
             <PortalButton

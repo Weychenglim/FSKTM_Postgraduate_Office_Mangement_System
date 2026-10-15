@@ -1,5 +1,131 @@
 # Project Requirements
 
+## Panel Appointments consistency request (2026-10-15, design proposed)
+
+The user requests Supervisor-style structure, typography, spacing and reusable table/card/progress/decision components across Office Staff, Lecturer (nominating Supervisor and selected Panel) and Programme Coordinator Panel Appointments. Office must open on records needing attention. Align every permitted list/detail/history/assignment/form and workload page while retaining role-specific actions, programme/delegation access, current capacity policy, replacement continuity and Student pending-Panel privacy. Use shared renderers for common staff content. The reviewable design and role/page/action matrix are in `docs/superpowers/specs/2026-10-15-panel-appointments-consistency-design.md`; proposed staff redesign is not implemented yet.
+
+## Student research profile in both appointment overviews (2026-10-15)
+
+Student My supervisors and Panel Appointment display the same visible Research profile section: emphasized current research title, Programme/Research area facts and a readable, regular-weight abstract. Replace the nested grey Research profile disclosure with clear spacing and the existing appointment typography. Preserve line breaks and fit narrow screens. The Panel view uses the authenticated Student's current saved research profile; without one, do not present a pending application as a saved profile. Keep pending Panel identities/contact details hidden until confirmation. This supersedes the earlier collapsed Student profile presentation; staff views and research-change workflows retain their current behavior.
+
+## Cross-programme local test accounts (2026-10-15)
+
+Provide the user-approved 15 fresh local test accounts across the three approved Coursework programmes (Data Science, Cyber Security and Artificial Intelligence): two Students, two Lecturers and one Programme Coordinator per programme. Each Lecturer has Supervisor and Panel profiles; programme-themed Lecturer names/departments do not introduce programme restrictions. Coordinators manage only their assigned programme without new delegations. Students start without academic applications/appointments/research/Marks records. Preserve existing accounts, passwords and academic records. Keep generated test credentials only in an ignored local file. Semester capacity publication remains an explicit Office configuration step, not an implicit effect of account creation.
+
+## Shared decisions and user confirmations (2026-10-15, approved)
+
+Reviewer approvals/rejections and an authorised user's own confirmations share one dialog/process across Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks and Workflow/Approval Tracking. They remain distinct: Marks submission/correction/reopening, completion windows, Timeline deletion, workflow repair, backup exception assignment and appointment ending do not acquire another reviewer. Normal drafts and ordinary add/edit forms remain direct forms. Each final dialog identifies its target and consequence, uses an explicit action label, retains existing required reasons/transfer acknowledgements, blocks duplicate submission/dismissal during saving, retains inputs on failure, and reports one confirmed outcome. Permission/conflict failures require fresh review even after closing/reopening; a committed save with a failed reload is reported as saved and cannot invite duplicate Office Marks correction/reopening. Existing role permissions, Student privacy and Supervisor-only final research decisions remain.
+
+Coordinator Panel decisions and Panel closure require an authoritative linked Student programme that agrees with the research profile. Mismatched/unlinked records cannot grant Coordinator decisions; legitimate active official delegations still apply. Office/assigned Lecturer audit and permitted legacy monitoring remain. Programme transfers retain explicit source/destination stages. This resolves the programme mismatch found during inspection; no new approval workflow stage, capacity policy or database schema is introduced.
+
+## Approved supervision text hierarchy across roles (2026-10-14)
+
+The user approved restoring a clear label/value hierarchy after the preceding font-weight reduction made content too uniform. Equivalent supervision content across Student, Lecturer, Coordinator and Office Staff uses semibold muted 12px labels, regular dark 12px values/narrative, emphasized semibold 14px person names and larger semibold section headings. Lecturer/Coordinator/Office keep one shared exact-student layout; Student My supervisors adopts the same hierarchy for its own permitted content. Role-specific actions and privacy remain intact. This supersedes the preceding medium-label/regular-person-value styling.
+
+## Supervision detail visual hierarchy correction (2026-10-14)
+
+Staff supervision details must use matching Supervisor/Panel member headings and a consistent weight hierarchy: semibold names and section headings, medium muted labels, regular facts and research narrative. Give identity facts, member cards, actions and disclosure rows enough spacing to scan comfortably. Use the same presentation for Lecturer, Coordinator and Office Staff; action availability remains role-authorized. This corrects the preceding compact, overly bold presentation.
+
+## Staff supervision details and Panel state (2026-10-14)
+
+Office/Coordinator/Lecturer exact Student supervision shares a header with View student record at the upper right, visible Student email with the key facts, and a compact current Panel section alongside supervision/research information. Confirmed Panel details include name, status, department, email and appointment date. Recommend Panel is available only to an eligible current primary Supervisor without an active Panel or pending nomination; Replace Panel is a secondary action for an eligible primary Supervisor with an active Panel and no pending replacement. Pending nominations show the reviewer stage and authorized request link; pending replacements retain the current Panel until confirmation and block duplicates. Loading/unavailable data must not imply no Panel or enable recommendations. Panel links return to originating supervision details. Student pending-identity restrictions and existing academic decision rules remain unchanged.
+
+## Student supervision overview research profile (2026-10-14)
+
+Student My supervisors shows the current saved research profile in the same card as the current supervisory team: title stays visible, while an expandable Research profile contains programme, research area and abstract. Use current scoped profile data, not pending request snapshots; pending changes do not replace the approved profile. Existing Research changes pages/actions/history remain available. Do not invent profile data when no profile exists or expose staff nominations/evaluations.
+
+## Lecturer dashboard assignment counts (2026-10-14)
+
+The three Lecturer dashboard cards must use persisted counts scoped to the signed-in Lecturer. Students Under Supervision counts distinct students with active primary/supporting appointments, matching My supervisees. My Panel Assignments counts confirmed active appointments where the Lecturer is the Panel member, excluding pending recommendations and ended appointments. Assigned Marks Tasks counts the Lecturer's active evaluation assignments, including submitted work, with a separate incomplete badge and consistent Supervisor/Panel/Backup totals. Pending request/review counts remain separate badges. Loading or failed requests must not masquerade as zero; errors offer Retry and returning to the dashboard/focus reloads counts. Student/Coordinator/Office data access and workflows remain unchanged.
+
+## Supervisor detail corrections (2026-10-14, approved feedback)
+
+Remove visible request and appointment reference numbers and Copy reference from Supervisor detail views; IDs remain internal. Header metadata must be concise and omit unknown submitters. Audit entries use readable actions/statuses and relevant details, without raw enum codes or unrelated research transfer acknowledgements. Requested changes show Original/Requested field labels without implementation explanations or Not applied filler. Missing historical review details use one concise explanation instead of repeated actor/time placeholders or a fabricated full timeline. Office and Coordinator use one appointment-record component, and Office/Coordinator/Lecturer student supervision uses one shared layout with role-authorized actions and information. This supersedes the previous visible-reference requirement.
+
+Primary and research-change detail cards share typography: emphasized summary facts, consistent muted labels and regular-weight research narrative. View research profile belongs at the upper right inside the research request summary header for each authorized role, wrapping within the card on narrow screens. Decision and cancellation controls remain near the approval progress.
+
+## Shared Supervisor record details (2026-10-14, implemented)
+
+Use consistent record detail structure across authorized primary/replacement, supporting, research/transfer and team/history views. Request metadata belongs below the page title outside the content card. Research changes compare Recorded before this request with Requested change, using immutable snapshots and actual submitter attribution. Visible approval progress summarizes recorded workflow; detailed audit remains collapsed on the same page and decision reasons remain visible. Role permissions/data visibility, current Supervisor-only research approval, primary/supporting Coordinator stages, transfer stages, legacy decisions, document access and draft/return guards remain. Shared UI is reusable for future modules; Panel remains outside this first implementation.
+
+Confirmed and ended relationships show appointment dates/outcomes and lifecycle audit separately from request decisions. Missing historical actors, dates or stages explicitly remain Not recorded. Research and transfer headings identify the actual request kind across role hosts. Same-page presentation retains each role's permitted information and actions; Student supporting-nomination privacy remains unchanged.
+
+## Waiting-column final outcomes (2026-10-14)
+
+Every table with Waiting at this stage explains terminal request outcomes rather than showing a dash: approved/completed requests show Completed, cancellations show Cancelled and rejections show Rejected. Ended/withdrawn/expired records retain their corresponding labels where applicable. Ongoing requests retain current-stage calendar days (including zero); absent or invalid timing shows Not recorded. These labels describe request review, not graduation or total historical processing time. Existing status, waiting timestamps and workflow decisions remain unchanged.
+
+## Owned-module controls and supervision exports (2026-10-14, implemented)
+
+Remove manual Refresh controls across Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks and Workflow/Approval Tracking for every role, including secondary governed surfaces. Preserve automatic loading after navigation/filtering/saves, draft protection and error Retry; conservatively reload read-only views on return to focus. Office Tools groups described monitoring destinations separately from Document requirements configuration; Capacity reassessments remains separate. Current supervisory team lists and selected lecturer student lists export every matching record to Excel, respecting current filters and existing role scopes. Students by lecturer lists confirmed ACTIVE primary/supporting relationships; Supervisors by student shows each matched student's complete current primary/supporting team. Pending and ended appointments are excluded. Existing attention/request/history CSV exports remain contextual. This supersedes the general appointment-record export in the Office tools menu.
+
+Lecturer-name searches must match a relationship that satisfies the semester, supervision-role, appointment-date and selected-lecturer filters. Direct student/matric/research searches retain complete teams for matching students. Removing refresh controls does not remove fresh-recipient review or closure acknowledgements: saved draft recipients load automatically and stale closure previews regenerate after conflicts before a new confirmation.
+
+## Office Supervisor Needs attention workspace (2026-10-13, implemented)
+
+Office Supervisor Appointments opens Needs attention, followed by Appointment requests and Supervisory teams. Identify active enabled students without an active primary supervisor (including students with no application), distinguish ongoing primary applications, monitor mixed ongoing requests by current-stage waiting and show authoritative current-semester capacity concerns. Counts keep student/request/lecturer units separate and cover all eligible records; category filters apply to the selected table. Do not invent deadlines or approval powers. Preserve capacity reassessments, existing exact records/lifecycle controls, research monitoring/history/profiles/corrections/transfers, full CSV export, workload and document requirements. Secondary tools replace the duplicate Records administration destination. Student/Lecturer/Coordinator behavior and proposed Registry transfer relocation are unchanged.
+
+## Staff research navigation (2026-10-13, approved)
+
+Replace the Coordinator Research changes main tab with interim Programme transfers. Its Requests and History browse only transfers; research-only saved filters cannot widen the list. Preserve source/destination Coordinator approvals and authorized exact legacy request access. Remove Office Research changes from main tabs; provide a secondary Research records tool for monitoring, request history, profiles and existing permitted corrections/transfer initiation. Student/Lecturer Research changes tabs remain. This supersedes the earlier three-section Office hierarchy; the Office Overview/attention redesign and Registry transfer relocation remain deferred. Capacity reassessments remains unchanged.
+
+## Proposed programme-transfer ownership handoff (2026-10-13)
+
+Recommend Student Registry as the owner/home for programme-transfer initiation, history and Coordinator review navigation. Keep primary Supervisor-only research title/abstract changes in Supervisor Appointments and retain appointment/team integration guards. This is a prepared handoff, not an implemented relocation or accepted teammate assignment; existing transfer approvals and eligibility remain unchanged. Details: docs/PROGRAMME_TRANSFER_HANDOFF_2026-10-13.md.
+
+## Latest main integration (2026-10-13)
+
+Integrate main while preserving the approved optional manual course codes, primary Supervisor-only research-change decisions and existing Office/Coordinator workspace behavior. Retain incoming account activation, Technical Administrator, registry import, My Records, scheduled announcements and letter export features. This integration adds no academic approval or evidence requirements; programme transfers keep their existing Coordinator review path.
+
+## Supervisor-only research change decisions (2026-10-13)
+
+Student research title/abstract changes require only the active primary Supervisor's final approve/reject decision. Approval immediately applies an audited profile revision, preserving the original appointment application. Programme Coordinator management alone grants no research-change decision authority or decision-queue entry. Programme transfers retain source/destination Coordinator reviews. Legacy research rows stored as PENDING_COORDINATOR await primary Supervisor review, without automatic approval or rewriting historical events. This requirement supersedes earlier two-review research-change descriptions; appointment approval is unchanged.
+
+
+## Manual Supervisor application course codes (2026-10-13, approved primary scope)
+
+Implemented after five critical review passes: an optional Student-entered Course code(s) field: free text, 255 characters, outer whitespace trimmed, no programme mapping or allowlist. Preserve existing approval and supporting-document policy; omitted/blank values and historical records remain valid. Show submitted course text in authorized exact application views and allow editable prefill for Supervisor replacements. Identity snapshots, Office notes and printing remain deferred.
+
+
+## Provisional Supervisor appointment form review (2026-10-13)
+
+The received `TD(IT):FSK29` appointment/title form is a provisional reference. User direction retains Student submission -> Supervisor review -> final Programme Coordinator review, with no Dean/Deputy Dean sign-off or extra Office approval gate. Existing approval, activation and Supervisor-to-Panel handoff requirements remain authoritative.
+
+Revised primary proposal: a Student-entered Course code(s) text field with basic trimming/length validation and no programme mapping, catalogue or allowlist. User feedback removes separate research-title confirmation work and new proposal/results/transcript requirements; existing Supervisor acceptance, research amendments and supporting-document policy remain unchanged. Identity/contact prefill or historical snapshots, non-gating Office receipt metadata and an adapted print record are optional later suggestions. The provisional form does not introduce new mandatory data or evidence policies. This historical review entry records the provisional form analysis; the implemented primary scope is described above and does not assert approved faculty requirements. See `docs/superpowers/specs/2026-10-13-supervisor-appointment-form-review.md` and `docs/superpowers/plans/2026-10-13-supervisor-appointment-form-alignment.md`.
+
+## Office Supervisor workspace structure (2026-10-13)
+
+Office Staff use the same Appointment requests / Supervisory teams / Research changes hierarchy and shared filter/table wording as Coordinator. Office Requests monitor all ongoing primary/supporting stages; History holds final request outcomes. Office cannot approve Coordinator decisions. Supervisory teams groups by supervisor, carries student search into paged drilldowns and separates ended/replaced records under Past appointments with a light switch outside the card.
+
+Routine Office appointment/research browsing is filtered, counted and paged on the server with 10/25/50-row pages, separate stage/waiting columns, visible status/date filters and aligned Clear filters. Capacity reassessments is a separate paged tool retaining Office authorise/revoke controls. Records administration retains exports, students without supervisors, workload and document requirements. Research profiles retains profile correction and programme transfer capabilities. Existing authorised lifecycle/cancellation actions, notification detail routes, source list state and Student withdrawal exclusions remain intact.
+
+## Coordinator list simplification (2026-10-13)
+
+Coordinator Appointment requests and Research changes Requests show only records awaiting the current Coordinator's permitted decision. Remove Needs your decision/All ongoing selectors; old saved focus values cannot broaden these lists or their Next queues. Keep status and date filters directly visible in the shared aligned filter grid, with Clear filters at the lower right. History remains final request outcomes.
+
+Supervisory teams uses a light Current teams/Past appointments switch outside the record card, below module navigation. Past appointments means ended/replaced appointments and is distinct from request History. Current teams always groups by supervisor; no grouping dropdown. Student name/matric search finds the relevant supervisor groups and carries into View students. The card header contains only its title and brief description.
+
+## Coordinator Supervisor workspace efficiency (2026-10-13)
+
+Coordinator Appointment requests and Research changes retain Requests/History and default to Needs your decision, with All ongoing for tracking. Both use the same filter controls and wording, server-side search, programme/semester/type/status/date filtering, stable sorting and 10/25/50-row pagination. Ongoing date filters use submission dates; history uses the recorded outcome date. Stage and waiting days remain separate. View changes clear incompatible status/date filters.
+
+Supervisory teams defaults to By supervisor, showing scoped primary/supporting student counts and a paged student drilldown; By student remains available. Current teams and ended/replaced Appointment history are separate views. Capacity reassessments is a secondary dedicated read-only Coordinator tool, with per-request Carryover links. Existing Office authorisation and lifecycle actions remain intact. Record pages preserve the source view, filters and pagination; Next request requires a known filtered queue position and is disabled during decision drafts or busy work. Other roles retain their existing capabilities and browse paths.
+
+## Student withdrawal visibility (2026-10-12)
+
+Supervisor applications and research changes cancelled by the Student are omitted from routine Lecturer, Programme Coordinator and Office lists, histories, dossiers, report counts and exports. Student own history retains withdrawn requests. Office and system cancellations remain visible; cancellation ownership is based on the cancellation event rather than the original requester. Audit rows and existing authorised detail access are retained; approved appointments and research profiles remain unaffected. Students cannot cancel panel/supporting nominations, so those workflows retain their existing visibility.
+
+## Student research summary hierarchy (2026-10-12)
+
+The Student research list leads its profile summary with the current research title. Existing View research profile and Request research change actions share an aligned group on wide screens and follow the title on smaller screens. Pending request guidance stays with the profile information; existing submission eligibility is unchanged.
+
+## Panel review decision disclosure (2026-10-12)
+
+Panel reviewers initially see neutral Accept/Reject choices. Reject reveals a required reason with Confirm rejection and Cancel; Cancel clears the rejection draft and returns to neutral choices. Acceptance has a brief confirmation without a reason. Existing role, stage and participant eligibility restrictions remain unchanged.
+
+## Explicit panel candidate selection (2026-10-12)
+
+Panel recommendations and replacements require an explicit candidate choice. Selection is visibly labelled separately from availability. Remove selection clears the chosen candidate and search, retains recommendation/replacement notes, and disables submission until a valid candidate is chosen again. Searching must not silently change the selected candidate.
+
 ## Main integration preservation (2026-10-12)
 
 When integrating main, retain the FAQ chat-assistant layout, registry import/activation and read-only role controls, and letter-template validation/archive behavior alongside portal typography, RecordPage draft guards and preserved list filters.
@@ -20,7 +146,7 @@ Office Appointment records search applies with Apply filters and matches loaded 
 
 Supervisor lists share the module heading/Refresh, role navigation, relevant summaries, section heading with Requests/History where applicable, filters, responsive table and 10/25/50 pagination. Student retains My supervisors/Applications/Research changes and identifies proposed supervisors in application rows. Office uses Appointment records/Supervisory teams/Research changes. Coordinator uses Appointment requests/Supervisory teams/Research changes. Lecturer keeps its existing three tabs. Current Student supervisors remain member cards; record details retain the independent page standard.
 
-Research requests separate ongoing records from final outcomes for every role; profile revisions remain separate. Coordinator request history includes scoped approved/rejected/cancelled applications through a separate read-only endpoint, without changing approved appointment records. Preserve all existing permissions, lifecycle controls, supporting nominations, administrative filters, exports, workload, requirements, carryover actions and notification links. Students see only confirmed current/former supporting appointments in My supervisors; supporting nominations remain within staff workflow, as specified above.
+Research requests separate ongoing records from final outcomes for every role; profile revisions remain separate. Coordinator request history includes scoped approved/rejected applications and Office cancellations through a separate read-only endpoint, without changing approved appointment records. Preserve all existing permissions, lifecycle controls, supporting nominations, administrative filters, exports, workload, requirements, carryover actions and notification links. Students see only confirmed current/former supporting appointments in My supervisors; supporting nominations remain within staff workflow, as specified above.
 
 Design: docs/superpowers/specs/2026-10-12-supervisor-role-hierarchy.md.
 
@@ -57,7 +183,7 @@ The active-module inventory and intentional contextual exceptions are recorded i
 ## Lecturer request workspace restructuring (2026-10-11)
 
 - Lecturer Supervisor navigation uses Appointment requests, My supervisees and Research changes. Appointment requests combines primary and supporting records in one searchable list with type, actual-status, semester/date filters and local Requests/History views. Research changes has its own independent Requests/History views and student/search filters.
-- Requests retains all ongoing records, grouped by Needs your review, Awaiting Coordinator approval and other ongoing work. Only permitted decisions count toward review badges; cancel-only nominations and ineligible participants do not inflate them. History contains final approved/rejected/cancelled request outcomes. Supporting appointment endings/replacements remain a separately identified activity section.
+- Requests retains all ongoing records, grouped by Needs your review, Awaiting Coordinator approval and other ongoing work. Only permitted decisions count toward review badges; cancel-only nominations and ineligible participants do not inflate them. Staff History contains final approved/rejected outcomes and non-Student cancellations; Student own History retains their withdrawals. Supporting appointment endings/replacements remain a separately identified activity section.
 - Lecturer acceptance/endorsement is distinct from final approval. Lecturers can follow their authorised requests while Coordinator approval is pending, with recorded stages, dates, reasons and informational calendar-day waiting ages. No estimates, progress percentages or additional approval authority are introduced.
 - Both appointment types open review panels with their existing permitted actions, documents and audit information. Lecturer research/supervision details retain dedicated routes, a stable module heading and contextual Back below module navigation. This supersedes the older Lecturer Back-above-navigation requirement; Student and embedded Office/Coordinator conventions remain unchanged.
 - View, search, filters, pagination and research student selection survive detail/return navigation and reload through URL state. Current research profiles and saved revisions remain separate from request outcome history.

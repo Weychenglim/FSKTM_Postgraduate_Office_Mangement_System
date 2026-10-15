@@ -1,5 +1,143 @@
 # Architecture and Coding Design
 
+## Panel consistency design under review (2026-10-15)
+
+Proposed design: `docs/superpowers/specs/2026-10-15-panel-appointments-consistency-design.md`. Reuse neutral Supervisor RecordPage/request/table/filter/typography/approval/decision primitives through Panel-specific DTO adapters and shared nomination/appointment renderers. Role-specific workspace navigation separates requests, nominations and confirmed/past appointments; Office lands on a purpose-built attention projection. Existing Office no-panel list semantics exclude any historically involved profile, so attention requires current active eligibility/appointment queries rather than a renamed status filter. Existing array APIs remain compatible; new attention paging/exact projections require explicit role-scoped contracts. No Panel implementation or new dependency/schema design has been applied from this proposal.
+
+For the authorised latest-main restart, the current branch now includes `f54bf72`, existing local edits are restored and both project status histories are retained. Installed main's already-declared reportlab/pypdfium2/Pillow/pypdf dependencies and applied documents.0001-0004 plus letters.0004 to the existing local development database after a custom-format backup outside the repository. Existing guarded development launcher serves API 127.0.0.1:8000; Vite serves 127.0.0.1:3001. No dependency manifest edits were needed.
+
+## Shared Student research profile section (2026-10-15)
+
+`StudentResearchProfileSection` is a presentational section used by StudentSupervisorsOverview and StudentPanelAppointmentOverview, reusing `appointmentDetailTypography`. It shows one title, a responsive two-column facts row and a prose-width abstract without nested disclosure/card borders; semantic definition lists preserve label/value hierarchy. Panel overview opts into the existing detailed section/member styles to match Student supervision spacing and weights. The existing GET /api/appointments/panel/student/ adds an allowlisted nullable `researchProfile` object (title/programme/area/abstract), serialized from the authenticated Student's saved StudentResearchProfile. The no-profile payload returns null; the existing researchTitle field remains for compatibility. No schema, dependency, approval or pending Panel privacy change. Existing scoped API/rendering tests cover this extension.
+
+## Cross-programme test data provisioning (2026-10-15)
+
+Created the approved local-only account set through the existing Django UserManager (`create_user` hashes the generated password), role profile models and model validation in one database transaction, guarded by DEBUG/demo mode and a local database host. Students have StudentRegistry rows; Lecturers have Supervisor/Panel profiles; Coordinators have Lecturer/Coordinator profiles. No runtime code, schema, authentication, authorization or capacity-plan change. Login accepts their existing email/matric/staff identifier mechanism. The credential roster is `backend/.env.cross-programme-test-accounts-2026-10-15.md`, covered by the existing `.env*` ignore rule; no password is stored in tracked documentation. Published semester capacity remains authoritative, so new Lecturer profile limits do not themselves enable appointments.
+
+## Shared decision process implementation (2026-10-15)
+
+`DecisionDialog.tsx` composes the existing native `PortalModal`, shared buttons, RecordDraft and outcome feedback. It distinguishes `review` from `confirmation`, supports contextual fields and explicit consequences, holds asynchronous saving/error state and one synchronous duplicate-submit latch, preserves typed fields on failure, and uses an in-dialog discard prompt. The last open immutable record identity persists through closing/reopening; 403/409 submission blocks clear only after explicit successful latest-record reload or a different record identity. `decisionSubmission.ts` provides `completeDecision` (save errors propagate; reload errors return `refreshFailed`) and the tested submission latch. `DecisionOutcome.successMessage` can carry a result-specific handoff message such as research-profile readiness.
+
+`DecisionFeedbackProvider` in the authenticated AppLayout retains one success/warning toast when a saved record leaves its host; publishing is limited to the current layout/session/role scope. Stable detail hosts and strict background refresh preserve dialogs, explicit latest-record review and the distinction between failed save and failed reload. Office Marks additionally disables further correction/reopening until a strict reload succeeds after a saved-but-refresh-failed outcome. Module callbacks keep business APIs, exact role/action capability checks, versions, expected stages, required reasons and transfer acknowledgements. Existing confirmation sites in Supervisor/research/supporting, Panel review/cancellation/lifecycle, Marks/completion/backup, Timeline deletion, Workflow repair and existing capacity authorisation use this shared layer; ordinary drafts retain their existing forms.
+
+Backend `appointments/panel_access.py` centralises linked-Student/programme agreement for Coordinator object and SQL queue scope. Recommendation mutations and Panel ending recheck authoritative access after workflow locks; profile changes and invalid/unlinked Student identities fail closed. Active delegation rules remain in accounts.authorization. Office/assigned audit and legacy list monitoring remain. No migration or added dependency.
+
+## Approved supervision hierarchy refinement (2026-10-14)
+
+`appointmentDetailTypography` now separates name (14px/600), heading (16px/600), label (12px/600) and body (12px/400); disclosure headings use 14px/600. All use the portal's Inter family. Primary/Panel detail cards and the shared appointment record reuse those styles. `RequestSection` accepts an optional heading class without changing its default. `AppointmentSection` accepts an opt-in detail presentation used by Student My supervisors; its person cards and expanded research fields use the same typography. Existing staff layout, spacing, contracts, backend decisions and authorization are retained; no global CSS change.
+
+## Shared supervision typography and spacing correction (2026-10-14)
+
+`AppointmentPrimitives` exposes scoped `appointmentDetailTypography` and an opt-in detail presentation for `AppointmentMemberCard`. Primary Supervisor and Panel use that same name/status structure; the Panel name is no longer a small bold field value. The shared staff student-detail card uses 32px desktop outer padding, 24px member padding, regular facts, semibold headings, footer actions and grouped disclosure rows. Active supporting rows opt into the same lighter typography without nested card borders. `SupervisorAppointmentRecordCard` reuses detail typography and large padding; `RequestDetailCard` forwards an optional existing PortalCard padding setting, preserving its default elsewhere. Nested history emphasis is reduced within these detail cards. No global CSS, backend, authorization or workflow changes.
+
+## Exact supervision Panel projection (2026-10-14)
+
+Extend existing exact team serialization with staff-only studentEmail and panel: current active appointment, ongoing reserved-status nomination/replacement and server-derived start capabilities. Only exact staff team endpoints request include_details; routine roster projections and Student payloads do not gain pending identities/contact data. Shared panel_access preserves the existing recommendation-detail authorization for API and UI link capabilities. Lecturer detail resolves the authorized roster Student ID, then fetches the exact team response with identity/version guards. SupervisionPanelSummary renders state-aware controls in the shared card; host callbacks retain role-specific Panel routes and validated return context. Header actions and visible email use existing portal styling, with no dependency/schema/new endpoint or decision-rule change.
+
+## Student overview profile disclosure (2026-10-14)
+
+StudentSupervisorsOverview renders a bordered Research profile disclosure beneath the visible current title using existing SupervisoryWorkspace team research data and shared RequestField typography. Remove the obsolete overviewOnly suppression from the Student route. No additional request, API/backend/schema/dependency change; current profile persistence, scoped team loading, Student privacy and existing research routes remain unchanged.
+
+## Lecturer dashboard summary integration (2026-10-14)
+
+Extend the existing authenticated GET /api/dashboard/summary/ with activeSupervisees, activePanelAssignments and assignedMarkTasks. The Lecturer branch reuses visible_students for distinct active primary/supporting roster scope and filters PanelAppointment by panel_member and ACTIVE status. Task totals retain the existing evaluator/lifecycle scope and submitted/incomplete split; other roles retain existing counters. No client-supplied Lecturer identity, new endpoint, schema or dependency. LecturerDashboardSummaryCards renders counts and separate review/incomplete badges; its owner loads the existing service with explicit loading/error/Retry and request-version guards, reloads on mount and return to focus, and navigates View supervisees directly to the roster. Capacity requests remain independent so their failure does not hide a successful summary.
+
+## Supervisor detail correction (2026-10-14)
+
+The first shared-detail implementation retained divergent Office lifecycle and Lecturer supervision blocks. Replace those with SupervisorAppointmentRecordCard and SupervisoryStudentDetailCard, normalized from existing scoped payloads. Place View student record consistently through ViewStudentRecordAction. Keep immutable IDs/events internally; translate audit labels for display. Compact missing-history presentation and request metadata; no visible reference/copy controls. Student visibility, existing endpoint authorization, action/draft guards and document identities stay intact. Preserve Lecturer contact/semester/date context and Panel recommendation in shared sections; staff primary endings use the existing guarded endpoint. Office-only administrative data appears separately when present.
+
+RequestSection supports an optional header action slot for profile navigation. RequestField separates summary facts from narrative text; requestBodyTextClass is shared by primary submitted research and immutable change comparisons. Existing portal fonts and unrelated modules remain unchanged. Normalize Lecturer roster status Active into ACTIVE at the appointment presentation boundary and validate both student and current appointment identity before using roster context. Exact staff DTOs retain their recorded lifecycle audit; Lecturer date-only context does not fabricate one.
+
+## Shared Supervisor request presentation (2026-10-14, implemented)
+
+Introduce neutral metadata/card/section/audit and approval-step presentation, plus workflow adapters for primary, supporting, research and transfer records. Extend RecordPage with a metadata slot outside the content card without altering guards. Existing scoped endpoints remain; role hosts normalize permitted payloads and supply permitted action slots. Requested changes remain separate from live profiles and lifecycle endings. Detailed spec/plan: docs/superpowers/specs/2026-10-14-supervisor-shared-record-details.md and matching plan.
+
+`approvalProcess.ts` derives steps from persisted status and immutable events; `ApprovalProcess` only renders those steps. Account role does not determine acting workflow stage. Historical research review is identified from the stored transition and labelled as belonging to the earlier process; current research has no additional Coordinator approval. Unknown coarse Office statuses do not fabricate a reviewer. Outcomes omit repeated actor/time visually when already shown at the deciding stage; event data remains available in the full collapsed audit.
+
+`SupervisorRequestDetail` normalizes primary detail content across four role hosts, with exact document identity and caller-owned actions. `RequestedChangesComparison` displays changed immutable request/revision fields, keeping live profiles distinct. Supporting exact records reuse the same metadata/section/process/audit primitives; historical supporting details validate the selected record identity before displaying it. Primary lifecycle/admin details and supporting appointment endings retain dates/reasons and lifecycle audit without inventing request approval stages. No new API, schema or dependency for this refactor.
+
+## Shared stage-waiting presentation (2026-10-14)
+
+formatRequestStageWaiting centralizes terminal labels and valid ongoing calendar-day formatting. WorkspaceRecordTable accepts a raw workflowStatus separate from the human-readable Current stage; Student, Lecturer, Coordinator and research/transfer row adapters supply it. Paged staff requests, legacy Office records and Office waiting attention tables reuse the same formatter. Terminal outcomes take precedence over stale age values; inactive history without a recognized outcome falls back to No longer waiting. No API, timestamp, schema or ageing calculation changes.
+
+## Office Tools visual polish (2026-10-14)
+
+OfficeSupervisorTools uses aligned decorative Lucide icons, consistent title/description spacing and a quieter inset divider between Monitoring and Configuration. The menu is 288px where space permits and still clamps to 16px viewport insets. Visible keyboard focus, Escape/outside dismissal and existing navigation remain unchanged; no dependency or behavior change.
+
+## Contextual supervision exports and automatic reload (2026-10-14)
+
+The guarded Office/Coordinator supervision-export endpoints reuse scoped team membership/filter semantics and existing XLSX support, independently of UI pagination. Workbook rows come from persisted ACTIVE SupervisorAppointment and CoSupervisorAppointment; matched student teams are fetched in bounded queries, with text cells protected from spreadsheet formulas. SupervisionWorkbookExport uses the authenticated requestBlob path through supervisionExportApi, retaining filters while dropping page/size/view. It handles busy/error/success states beside team records rather than in OfficeSupervisorTools. Tools retains its viewport-clamped accessible disclosure with described Monitoring and Configuration groups. Manual refresh controls are removed while loaders, mutation callbacks, error recovery and conservative draft-safe return-to-focus updates remain.
+
+Shared team_selection/filter_team_relationship helpers keep search eligibility, paged team browse and workbook membership aligned; lecturer-name Exists expressions use filtered active appointments. The student sheet deliberately includes the complete active team after eligibility, even for a selected lecturer/semester. listenForReturnToFocus deduplicates visibility/focus events, skips initial focus, cleans up subscriptions and uses current enabled/draft guards. MarkEntryPeriodConfig keeps saved-config checks and request generations while loading recipient previews automatically; ClosureReview invalidates old approval state, resets acknowledgements and reloads a 409 preview before another confirmation. Existing server concurrency checks remain authoritative.
+
+## Office attention projections and navigation (2026-10-13, implemented)
+
+Add Office-only attention-summary and attention endpoints under the existing office-workspace namespace, requiring active Office role plus is_staff. Student absence uses enabled Active Student and Exists(active primary) rather than application statuses. Compact waiting rows union current pending primary/supporting/research/transfer records and preserve effective legacy research stages. Capacity projection uses published current-semester policy and total active primary/supporting load, distinguishing missing configuration from full load. Count/filter/sort before paging.
+
+OfficeSupervisorAttention reuses portal table/filter/footer components and separate ListState category scopes. The Office root is Needs attention; /supervisor-appointments/requests retains requests/history without parsing requests as an application ID. OfficeSupervisorTools supplies secondary tools and on-demand legacy full CSV; matching-page exports collect all filtered pages before download and reject incomplete/changing envelopes. Exact record/dossier/workload links carry return context; tools and capacity remain separate. Shared filters accept an optional Intake semester label while their defaults stay unchanged. The tools menu clamps to the viewport on open/resize. No dependency, model/schema or academic decision changes were made.
+
+## Staff research navigation (2026-10-13)
+
+supervisorWorkspaceLinks supplies two Office main sections and a Coordinator Programme transfers section using the existing research-changes route. supervisorResearchLabel supplies role-specific source/Back labels. OfficeSupervisorWorkspace opens Research records with its originating appointment/team context; StaffResearchWorkspace renders the Office tool through RecordPage with profile/refresh actions and existing paged request/history views. Coordinator keeps the shared tabbed module shell. LecturerResearchWorkspace normalizes Coordinator list/Next queries with coordinatorTransferQuery; the paged API client repeats the normalization to enforce TRANSFER and decision focus, clearing research-only pending statuses. Transfer-only filters hide request type and research-only status facets. Exact authorized detail requests remain independent of list filters. Existing backend scope, decisions, immutable events, transfer guards, routes, schema and dependencies are unchanged. The shared new-research subtitle now describes final primary Supervisor review.
+
+## Programme-transfer handoff design (2026-10-13, proposed)
+
+The proposed first increment moves transfer presentation/navigation to Registry while reusing the existing appointments amendment API, tables, immutable events and atomic programme/profile update. Preserve pending-transfer nomination guards, scoped Coordinator decisions, legacy request links and workflow/report consumers. Model/table extraction and transfer approval for students without research profiles are outside the proposed move. The handoff records file ownership, contracts and cutover checks; no runtime changes are implemented.
+
+## Main integration and development runtime (2026-10-13)
+
+The working branch fast-forwarded to origin/main commit 93049a242259ca6b7256d4caf53318b8743fa491, then restored its existing local changes. PROJECT_STATUS.md was the only conflicting file; both histories were retained. The declared python-docx dependency is installed locally, and incoming accounts, announcements and letters migrations are applied. No additional schema changes were authored for the merge.
+
+Development runs Django at 127.0.0.1:8000 and Vite at 127.0.0.1:3001 using bundled Node 24.19.0. Process-scoped FRONTEND_URL=http://localhost:3001, API_PORT=8000 and VITE_API_BASE_URL=/api connect the portal through the existing Vite proxy. Port 3000 belongs to an unrelated Docker application. These runtime overrides do not modify committed environment configuration.
+
+## Supervisor-only research review (2026-10-13, implementation)
+
+Research amendment approval applies the profile revision and terminal APPROVED event atomically at primary Supervisor review. can_decide separates RESEARCH primary-assignment authorization from TRANSFER programme-Coordinator authorization; research_paging decision scope includes only transfers. review_status maps legacy research PENDING_COORDINATOR to the effective Supervisor review stage for labels/ageing/UI and report distributions while retaining raw detail/stored status for stale-decision guards and historical audit. Labels/grouping/filter wording reflect final Supervisor review. No schema migration, role expansion, automatic approvals or transfer-process changes.
+
+
+## Manual course-code implementation (2026-10-13, complete)
+
+SupervisorApplication.project_course_codes and migration appointments.0016 add a blank-default CharField(255). DRF exposes optional projectCourseCodes with server trimming; existing multipart submission and Student conversion carry the value. Student form state includes replacement prefill and dirty-draft protection. Student/Supervisor/Coordinator/Office detail views render the value with a Not recorded legacy fallback. Shared exact staff projections already reuse the serializer. No new dependencies, endpoints, approval states or document policies.
+
+
+## Proposed appointment-form alignment (2026-10-13, planning only)
+
+Retain the current SupervisorApplication state machine and atomic final Coordinator approval/handoff. Revised primary proposal adds project_course_codes as a bounded text field on SupervisorApplication, transmitted as projectCourseCodes through the existing multipart API and exact-record views. No programme mapping, course catalogue, separate title-confirmation record or changed upload policy is proposed. Legacy values remain blank rather than guessed. Optional identity/contact snapshots and audited non-gating Office metadata are later suggestions, with sensitive data restricted to authorized exact views. Dean roles/sign-off and new academic approval states remain excluded.
+
+Reuse private immutable uploads, current exact record pages and ResearchAmendment/ResearchProfileRevision for later title changes; an optional print view would use original application/review data and omit Dean sign-off. The earlier review proposed no runtime changes; the manual course-code increment is now implemented as described above. Updated contracts, deferred scope and tests: `docs/superpowers/plans/2026-10-13-supervisor-appointment-form-alignment.md`.
+
+## Shared staff Supervisor browse projection (2026-10-13)
+
+The Coordinator projection is reused through a separate office-workspace namespace requiring active Office role plus is_staff; Coordinator endpoints retain their Coordinator-only guards and programme/delegation scope. browse_scope_q provides Office's existing all-programme read scope, with decision_q false for Office and all ongoing monitoring regardless of saved focus. Compact page/detail APIs preserve routine withdrawal hiding and audit access; Office exact primary detail includes existing contact/workload fields. Research pagination/minimal options are opt-in for Office and Coordinator, preserving unpaged legacy contracts.
+
+StaffSupervisorBrowseContext and staffSupervisorWorkspaceApi supply role-specific loaders and scope labels to the same browse components. OfficeSupervisorWorkspace handles monitoring, shared supervisor drilldown/past appointments, separate capacity/admin tools and exact primary/supporting detail. Legacy notification keys remain supported; new primary routes use request-<id> to distinguish application from appointment identity. Existing Office detail/lifecycle controls receive a mapped exact record, with targeted refresh after changes. CapacityReassessments can load one target while preserving existing reason/conflict/authorise/revoke handling. Research profiles is a separate entry for Office corrections/transfers. Return labels identify administration and past appointment sources. No schema or dependency changes.
+
+## Coordinator browse controls simplification (2026-10-13)
+
+CoordinatorFiltersBar uses a responsive one/two/four-column grid with always-visible status/date controls when applicable and a right-aligned Clear filters action row. Focus and More filters UI state were removed. Coordinator request and paged research service reads normalise focus=decision, including saved Next queues, while exact detail and legacy role APIs remain intact. CoordinatorTeamsToolbar places the light view switch outside cards; supervisor grouping is fixed. Past appointment labels and ended-date filters distinguish lifecycle records from request outcomes. Existing fonts, scope, paging and scoped student search are preserved.
+
+## Scoped Coordinator browse projections (2026-10-13)
+
+appointments.coordinator_workspace and coordinator_workspace_views add Coordinator-only GET page/detail endpoints. SQL scope, routine cancellation exclusions, relationship filters, stable sorting, counts and slicing precede compact row serialization. Supervisor groups use User identity and distinct Student relationship counts; group and drilldown filters match. Exact primary/supporting/team/appointment/carryover details reuse authoritative serializers and active participant decision checks. No migrations or dependencies.
+
+Research collection pagination is opt-in for Coordinator via research_paging; legacy envelopes remain unchanged. Paged list options avoid whole-profile/student/revision loads; details load the exact request independently of list filters. CoordinatorSupervisorWorkspace uses shared CoordinatorFiltersBar, existing Portal/table typography, debounced guarded page reads and authenticated ListState. LecturerResearchWorkspace retains URL filters and performs each filter change atomically, including Clear filters. RecordPage handles dedicated drilldowns/secondary tools and browser Back; source context and bounded queue page positions are retained. Missing or stale queue successors do not wrap or synthesize targets. History display dates match query dates, with the recorded update timestamp for legacy requests lacking a decision timestamp.
+
+## Routine request visibility projections (2026-10-12)
+
+appointments.request_visibility centralises routine staff exclusion for SupervisorApplication CANCELLED_BY_STUDENT and ResearchAmendment CANCELLED with an immutable CANCEL event whose actor_role is Student. Supervisor Lecturer/Coordinator histories, Office records, workflow report scopes, dossier collections and staff supervisory-team activity use the shared projection. Research scoped_requests defaults to routine filtering, automatically covering lists, report/export summaries and dossiers; detail explicitly uses routine=False after the same role/programme/relationship scope to preserve authorised audit access. Student projections remain intact. No data deletion, permission widening, migration or dependency changes.
+
+## Research profile summary layout (2026-10-12)
+
+ResearchAmendmentRouteContent Student list uses a responsive flex summary: card-label for context, section-label for the wrapping title, a separate flex-wrap action group and existing PortalButton styles. lg places actions beside the title; smaller widths place them below. The summary is an accessible labelled section. No new typography, API, dependency or eligibility logic.
+
+## Panel review decision state (2026-10-12)
+
+PanelRecommendationReviewDrawer uses explicit rejection-editing and acceptance-confirmation state. Recommendation identity/status and open-state changes reset decision drafts. Inline rejection entry reuses PortalButton, preserves reasons after API failures and clears them on Cancel; all decision controls respect busy state. Acceptance uses PortalConfirmModal and existing mutation callbacks; no backend workflow or permission changes.
+
+## Panel candidate selection state (2026-10-12)
+
+RecommendPanelMemberDrawer starts with a null candidate and separate search text; candidate refresh reconciles an existing selection without choosing a default. Selection clears search to show all options when reopened. Remove selection clears candidate/search/dropdown/attempt state, retains notes and respects busy state. Candidate card and option expose explicit selection cues; form guidance distinguishes selection and missing notes. Existing eligibility checks and submit payload remain authoritative.
+
 ## Main integration conflict resolution (2026-10-12)
 
 Resolved concurrent edits in StudentFAQChatbot, StudentRegistry and LetterTemplateManagement by preserving main functionality and branch navigation/typography conventions. Registry retains dynamic column spans, real import history/counts, activation wording and read-only registration guards; supervisor filtering uses useListState with existing filters. Template validation callbacks, accessibility invalid state and expanded status type retain shared editor typography.

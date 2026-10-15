@@ -1,3 +1,5 @@
+import { DecisionDialog } from './DecisionDialog';
+import type { DecisionOutcome } from '../utils/decisionSubmission';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -10,7 +12,6 @@ import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
 import {
   PortalButton,
-  PortalConfirmModal,
   PortalCard,
   StatusBadge,
 } from './PortalPrimitives';
@@ -19,8 +20,9 @@ interface MarkEntryDetailProps {
   task: EvaluationTask;
   backLabel?: string;
   onBack: () => void;
+  onReload?: () => Promise<unknown>;
   onSave: (updatedTask: EvaluationTask) => void | Promise<void>;
-  onSubmit: (updatedTask: EvaluationTask) => void | Promise<void>;
+  onSubmit: (updatedTask: EvaluationTask) => void | DecisionOutcome | Promise<void | DecisionOutcome>;
 }
 
 const evaluatorRoleLabel = (task: EvaluationTask): string =>
@@ -35,6 +37,7 @@ const evaluatorRoleLabel = (task: EvaluationTask): string =>
 export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   task,
   onBack,
+  onReload,
   onSave,
   onSubmit,
   backLabel = 'Back to Marks Entry',
@@ -51,19 +54,24 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   ));
   const [comments, setComments] = useState(task.comments || '');
   const [showValidation, setShowValidation] = useState(false);
+  const [submitted, setSubmitted] = useState(task.status === 'SUBMITTED');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const initial = useRef(JSON.stringify({ values, comments }));
   const dirty = JSON.stringify({ values, comments }) !== initial.current;
   const save = async (submit: boolean) => {
-    if (savingRef.current) return;
+    if (savingRef.current) return false;
     savingRef.current = true;
     setSaving(true);
-    try { await (submit ? onSubmit(buildTask('SUBMITTED')) : onSave(buildTask('DRAFT SAVED'))); }
+    try {
+      const outcome = await (submit ? onSubmit(buildTask('SUBMITTED')) : onSave(buildTask('DRAFT SAVED')));
+      if (submit) setSubmitted(true);
+      return outcome;
+    }
     finally { savingRef.current = false; setSaving(false); }
   };
-  const isReadOnly = task.status === 'SUBMITTED' || task.canEdit !== true;
+  const isReadOnly = submitted || task.canEdit !== true;
 
   const errors = components.flatMap((component) => {
     const raw = values[component.id]?.mark;
@@ -112,31 +120,24 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         onBack={onBack}
         pageKey={`marks-entry:${task.id}`} dirty={!isReadOnly && dirty} busy={saving}
         actions={(
-          <StatusBadge tone={task.status === 'SUBMITTED' ? 'success' : isReadOnly ? 'neutral' : 'info'}>
-            {task.status === 'SUBMITTED' ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
+          <StatusBadge tone={submitted ? 'success' : isReadOnly ? 'neutral' : 'info'}>
+            {submitted ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
           </StatusBadge>
         )}
       >
 
 
     <fieldset id="mark-entry-detail-page" disabled={saving} className="space-y-6 text-left">
-      <PortalConfirmModal
-        isOpen={confirmOpen}
-        title="Submit and lock marks?"
-        message={`You are about to finalize marks for ${task.studentName}. Submitted marks become locked immediately and can only be reopened by authorized office staff during the open period.`}
-        confirmLabel="Submit marks"
-        cancelLabel="Review again"
-        tone="warning"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          if (!isReadOnly && task.canSubmit === true) void save(true);
-        }}
-        onCancel={() => setConfirmOpen(false)}
-      />
+      <DecisionDialog isOpen={confirmOpen} decisionKey={task.id} kind="confirmation"
+        title="Submit and lock marks?" context={<p>{task.studentName} · {task.studentId} · {evaluatorRoleLabel(task)}</p>}
+        message="Submitted marks lock immediately. Authorized Office staff can reopen them only while the period is open."
+        confirmLabel="Submit and lock marks" cancelLabel="Review again" tone="warning"
+        canConfirm={!isReadOnly && task.canSubmit === true && errors.length === 0} busy={saving}
+        successMessage="Marks submitted and locked." onReload={onReload} onConfirm={() => save(true)} onClose={() => setConfirmOpen(false)} />
 
       {task.periodEffectiveStatus ? <p className="card-description text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
       {task.completionWindow ? <p className="card-description text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}
-      {isReadOnly && task.status !== 'SUBMITTED' ? <p className="card-description text-slate-600">This task is currently read only.</p> : null}
+      {isReadOnly && !submitted ? <p className="card-description text-slate-600">This task is currently read only.</p> : null}
       {components.length === 0 ? (
         <PortalCard padding="lg" className="rounded-lg">
           <div className="card-description flex items-start gap-3 text-amber-800">

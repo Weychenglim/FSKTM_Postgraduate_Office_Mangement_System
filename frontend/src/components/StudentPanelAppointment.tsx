@@ -1,3 +1,4 @@
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -14,11 +15,13 @@ import { formatWaitingText } from '../utils/workflowAgeing';
 import { getPanelReadinessCopy } from '../utils/panelReadiness';
 import { APP_ROUTES } from '../constants/routes';
 import { StudentAppointmentSection, StudentAppointmentMemberCard, StudentAppointmentGuidance } from './StudentAppointmentPrimitives';
+import { StudentResearchProfileSection } from './StudentResearchProfileSection';
+import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 
 interface StudentPanelAppointmentProps { onShowFAQChatbot?: () => void }
 
 function InfoItem({ label, value }: { label: string; value?: string | null }) {
-  return <div className="space-y-1"><dt className="card-label">{label}</dt><dd className="card-value break-words">{value || 'Not recorded'}</dd></div>;
+  return <div className="space-y-2"><dt className={typography.label}>{label}</dt><dd className={`${typography.body} break-words`}>{value || 'Not recorded'}</dd></div>;
 }
 
 function panelGuidance(appointment: StudentPanelAppointmentView) {
@@ -42,18 +45,18 @@ export function StudentPanelAppointmentOverview({ appointment, onRefresh, refres
   const confirmed = appointment.status === 'CONFIRMED' && appointment.readinessState === 'CONFIRMED';
   const waiting = formatWaitingText(appointment);
   return <>
-    <StudentAppointmentSection title="My panel" description="Your Panel appointment and recorded appointment details." onRefresh={onRefresh} refreshing={refreshing}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <StudentAppointmentMemberCard label="Panel member" name={confirmed ? appointment.panelMemberName || 'Panel member not recorded' : 'Panel not appointed'} status={confirmed ? 'Confirmed' : getPanelReadinessCopy(appointment.readinessState).title} tone={confirmed ? 'success' : 'warning'}>
-          {confirmed && appointment.panelMemberDepartment ? <p className="card-description">{appointment.panelMemberDepartment}</p> : null}
-          {confirmed && appointment.panelMemberEmail ? <a href={`mailto:${appointment.panelMemberEmail}`} className="card-value inline-flex max-w-full items-start gap-2 break-all text-blue-600 hover:underline"><Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />{appointment.panelMemberEmail}</a> : null}
+    <StudentAppointmentSection detail title="My panel" description="Your Panel appointment and recorded appointment details." onRefresh={onRefresh} refreshing={refreshing}>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <StudentAppointmentMemberCard detail label="Panel member" name={confirmed ? appointment.panelMemberName || 'Panel member not recorded' : 'Panel not appointed'} status={confirmed ? 'Confirmed' : getPanelReadinessCopy(appointment.readinessState).title} tone={confirmed ? 'success' : 'warning'}>
+          {confirmed && appointment.panelMemberDepartment ? <p className={typography.body}>{appointment.panelMemberDepartment}</p> : null}
+          {confirmed && appointment.panelMemberEmail ? <a href={`mailto:${appointment.panelMemberEmail}`} className={`${typography.body} inline-flex max-w-full items-start gap-2 break-all text-blue-600 hover:underline`}><Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />{appointment.panelMemberEmail}</a> : null}
         </StudentAppointmentMemberCard>
-        <dl className="space-y-3 rounded-xl border border-slate-200 p-4">
+        <dl className="space-y-6 rounded-xl border border-slate-200 p-6">
           <InfoItem label="Programme" value={appointment.programme} /><InfoItem label="Semester" value={appointment.semester} />
           {confirmed ? <InfoItem label="Appointment date" value={appointment.appointmentDate} /> : waiting !== 'Not waiting' ? <InfoItem label="Waiting" value={waiting} /> : null}
         </dl>
       </div>
-      {appointment.researchTitle ? <div className="space-y-2"><p className="card-label">Current research title</p><p className="card-value break-words">{appointment.researchTitle}</p></div> : null}
+      {appointment.researchProfile ? <StudentResearchProfileSection profile={appointment.researchProfile} /> : null}
     </StudentAppointmentSection>
     <StudentAppointmentGuidance cards={[panelGuidance(appointment)]} onShowFAQChatbot={onShowFAQChatbot} />
   </>;
@@ -70,6 +73,7 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
       .finally(() => setLoading(false));
   }, []);
   useEffect(() => { loadAppointment(); }, [loadAppointment]);
+  useReturnToFocusReload(loadAppointment, !loading);
   return <div id="student-panel-app-workspace" className="space-y-6 text-left font-sans pb-12">
     <PageHeader title="Panel Appointment" subtitle="See your Panel appointment and the next step for your current status." />
     {loading ? <LoadingState message="Loading your panel appointment..." /> : error || !appointment ? <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} /> : <StudentPanelAppointmentOverview appointment={appointment} onRefresh={loadAppointment} onShowFAQChatbot={onShowFAQChatbot} />}

@@ -35,6 +35,7 @@ from .models import (
     AppointmentLifecycleEvent,
 )
 from .notifications import publish_workflow_notification
+from .request_visibility import routine_supervisor_requests
 from .student_panel import student_panel_timeline
 
 
@@ -698,7 +699,37 @@ def serialize_appointment(row, actor):
     }
 
 
-def serialize_team(student, actor):
+def supervision_panel_summary(student, actor, profile, primary):
+    from .panel_access import can_view_panel_recommendation
+
+    current = profile.panel_appointments.filter(status="ACTIVE").select_related(
+        "panel_member__lecturer", "recommendation__profile"
+    ).first() if profile else None
+    pending = profile.panel_recommendations.filter(
+        status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+    ).select_related("profile").order_by("-submitted_at", "-pk").first() if profile else None
+    eligible = bool(profile and primary and primary.supervisor_id == actor.pk
+        and profile.supervisor_id == actor.pk and profile.student_id == student.user_id
+        and student_is_workflow_eligible(student) and user_is_assignable_lecturer(actor)
+        and current_effective_semester() and not pending)
+    return {
+        "current": {
+            "member": person(current.panel_member), "email": current.panel_member.email,
+            "department": getattr(getattr(current.panel_member, "lecturer", None), "department", ""),
+            "appointmentDate": iso(current.appointment_date),
+            "requestId": current.recommendation_id,
+            "recordKey": f"appointment-{current.pk}",
+            "canView": can_view_panel_recommendation(actor, current.recommendation),
+        } if current else None,
+        "pending": {"id": pending.pk, "status": pending.status, "recordKey": f"recommendation-{pending.pk}",
+            "replacement": bool(pending.replaces_appointment_id),
+            "canView": can_view_panel_recommendation(actor, pending)} if pending else None,
+        "canRecommend": eligible and current is None,
+        "canReplace": eligible and current is not None,
+    }
+
+
+def serialize_team(student, actor, *, include_details=False):
     if not can_read_team(actor, student):
         raise CoSupervisionForbidden(
             "This student is outside your current supervisory team access."
@@ -728,7 +759,7 @@ def serialize_team(student, actor):
                         "status": event["newStatus"],
                     }
                 )
-    for row in student.supervisor_applications.all():
+    for row in routine_supervisor_requests(student.supervisor_applications.all(), actor):
         timeline.append(
             {
                 "id": f"primary-workflow-{row.pk}",
@@ -766,7 +797,7 @@ def serialize_team(student, actor):
                     }
                 )
     timeline.sort(key=lambda event: (event["date"] or "", event["id"]))
-    return {
+    result = {
         "studentId": student.pk,
         "matricNo": student.matric_no,
         "studentName": student.user.full_name,
@@ -784,6 +815,10 @@ def serialize_team(student, actor):
         "canNominate": can_nominate(actor, student),
         "timeline": timeline,
     }
+    if include_details and actor.role in {User.Role.OFFICE_ADMIN, User.Role.COORDINATOR, User.Role.LECTURER}:
+        result["studentEmail"] = student.user.email
+        result["panel"] = supervision_panel_summary(student, actor, profile, primary)
+    return result
 
 
 def workspace(actor):

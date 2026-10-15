@@ -20,12 +20,65 @@ export interface ResearchAmendmentOptions {
   profile: (ResearchSnapshot & { studentId: number; revision: number }) | null;
   canSubmitResearch: boolean; canCorrect: boolean; canTransfer: boolean;
 }
+export interface ResearchPageQuery {
+  page?: number; size?: number; view?: 'requests' | 'history'; focus?: 'decision' | 'all';
+  q?: string; programme?: string; semester?: string; type?: string; status?: string;
+  from?: string; to?: string; sort?: 'waiting' | 'oldest' | 'newest';
+}
+export interface ResearchPagination {
+  total: number; page: number; pageSize: number; pageCount: number; reviewCount: number;
+  facets: { programmes: string[]; semesters: string[]; statuses: string[] };
+}
+export interface ResearchAmendmentCollection {
+  requests: ResearchAmendment[]; revisions: ResearchRevision[]; pagination?: ResearchPagination;
+}
 export type AmendmentInput = { studentId?: number; kind: AmendmentKind; title?: string; abstract?: string; destinationProgramme?: string; reason: string };
 export type CorrectionInput = { studentId: number; title?: string; abstract?: string; reason: string; meaningUnchanged: true; expectedRevision: number };
 const base = '/appointments/research-amendments';
 const query = (studentId?: number) => studentId === undefined ? '' : `?studentId=${studentId}`;
-export const getResearchAmendmentOptions = (studentId?: number) => request<ResearchAmendmentOptions>(`${base}/options/${query(studentId)}`);
-export const getResearchAmendments = (studentId?: number) => request<{ requests: ResearchAmendment[]; revisions: ResearchRevision[] }>(`${base}/${query(studentId)}`);
+export const getResearchAmendmentOptions = (studentId?: number, minimal = false) => request<ResearchAmendmentOptions>(`${base}/options/${minimal ? '?minimal=true' : query(studentId)}`);
+export const getResearchAmendments = (studentId?: number) => request<ResearchAmendmentCollection>(`${base}/${query(studentId)}`);
+export const getResearchAmendment = (id: number) => request<ResearchAmendment>(`${base}/${id}/`);
+export function coordinatorTransferQuery(filters: ResearchPageQuery): ResearchPageQuery {
+  const status = ['PENDING_SUPERVISOR','PENDING_COORDINATOR'].includes(filters.status ?? '') ? '' : filters.status;
+  return {...filters, type:'TRANSFER', focus:'decision', status};
+}
+export const getResearchAmendmentsPage = (filters: ResearchPageQuery, office = false) => {
+  filters = office ? filters : coordinatorTransferQuery(filters);
+  const params = new URLSearchParams({page: String(filters.page ?? 1)});
+  for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.set(key, String(value));
+  params.set('focus',office?'all':'decision');
+  return request<ResearchAmendmentCollection>(`${base}/?${params}`);
+};
+export type ResearchNextTarget = {id: number; page: number};
+export async function getNextResearchAmendment(filters: ResearchPageQuery, currentId: number): Promise<ResearchNextTarget | null> {
+  const currentPage = await getResearchAmendmentsPage(filters);
+  if (!currentPage.pagination) return null;
+  const index = currentPage.requests.findIndex(row => row.id === currentId);
+  if (index < 0) return null;
+  const next = currentPage.requests[index + 1];
+  if (next) return {id:next.id,page:currentPage.pagination.page};
+  if (currentPage.pagination.page >= currentPage.pagination.pageCount) return null;
+  const nextPage = await getResearchAmendmentsPage({...filters,page:currentPage.pagination.page + 1});
+  const nextRow = nextPage.requests.find(row => row.id !== currentId);
+  return nextRow && nextPage.pagination ? {id:nextRow.id,page:nextPage.pagination.page} : null;
+}
+export async function loadResearchAmendmentWorkspace({coordinator, office=false, routeView, requestId, studentId, pageQuery}: {
+  coordinator: boolean; office?:boolean; routeView?: 'list' | 'detail' | 'profile' | 'new'; requestId?: string; studentId?: number; pageQuery?: ResearchPageQuery;
+}): Promise<ResearchAmendmentCollection & {options: ResearchAmendmentOptions}> {
+  if ((coordinator||office) && routeView === 'detail') {
+    const id = Number(requestId);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Request not found.');
+    const [options, row] = await Promise.all([getResearchAmendmentOptions(undefined, true), getResearchAmendment(id)]);
+    return {options, requests:[row], revisions:[]};
+  }
+  const paged = (coordinator||office) && routeView === 'list';
+  const [options, data] = await Promise.all([
+    getResearchAmendmentOptions(paged ? undefined : studentId, paged),
+    paged ? getResearchAmendmentsPage(pageQuery ?? {},office) : getResearchAmendments(studentId),
+  ]);
+  return {options, ...data};
+}
 export const submitResearchAmendment = (input: AmendmentInput) => request<ResearchAmendment>(`${base}/`, { method: 'POST', body: JSON.stringify(input) });
 export const correctResearchProfile = (input: CorrectionInput) => request<ResearchRevision>(`${base}/corrections/`, { method: 'POST', body: JSON.stringify(input) });
 export const decideResearchAmendment = (id: number, input: { decision: 'APPROVE' | 'REJECT'; reason?: string; retainTeam?: true; expectedStatus: AmendmentStatus }) => request<ResearchAmendment>(`${base}/${id}/decision/`, { method: 'POST', body: JSON.stringify(input) });

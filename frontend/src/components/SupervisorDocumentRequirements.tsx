@@ -27,6 +27,7 @@ type Filter = 'Active' | 'Inactive' | 'All';
 
 interface Props {
   onBack?: () => void;
+  backLabel?:string;
 }
 
 const emptyForm = {
@@ -37,7 +38,7 @@ const emptyForm = {
   displayOrder: 1,
 };
 
-export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
+export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack,backLabel='Back to Supervisor Appointments' }) => {
   const [requirements, setRequirements] = useState<SupervisorDocumentRequirement[]>([]);
   const [audits, setAudits] = useState<SupervisorDocumentRequirementAudit[]>([]);
   const [filter, setFilter] = useState<Filter>('Active');
@@ -130,7 +131,7 @@ export const SupervisorDocumentRequirements: React.FC<Props> = ({ onBack }) => {
       <PageHeader
         title="Supervisor document requirements"
         subtitle="Control the private documents students must provide with new supervisor applications. Changes affect future submissions only."
-        backLabel="Back to Supervisor Appointments"
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <PortalButton onClick={openCreate} variant="primary" size="sm">

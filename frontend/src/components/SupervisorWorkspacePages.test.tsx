@@ -79,7 +79,7 @@ for (const detailProps of [{initialApplicationId:'8'}, {initialSupportingId:'20'
 
 for (const routeView of ['list', 'supervisees', 'research'] as const) {
   const page = renderToStaticMarkup(<MemoryRouter><LecturerSupervisorAppointments routeView={routeView} researchView="list" /></MemoryRouter>);
-  assert.equal((page.match(/>Refresh</g) ?? []).length, 1, `${routeView} has one consistently named page refresh action`);
+  assert.equal((page.match(/>Refresh</g) ?? []).length, 0, `${routeView} has no manual refresh action`);
   assert.doesNotMatch(page, /Refresh appointments|Refresh teams|Refresh research changes/, 'Lecturer cards do not duplicate the page refresh action');
   if (routeView !== 'supervisees') assert.match(page, /<header\b[^>]*>[\s\S]*?<h2[^>]*>[\s\S]*?Request views[\s\S]*?<\/header>/, 'Request views belong in the section header beside its title');
 }

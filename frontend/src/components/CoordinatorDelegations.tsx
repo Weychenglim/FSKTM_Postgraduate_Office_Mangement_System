@@ -1,3 +1,4 @@
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CoordinatorDelegation, CoordinatorDelegationInput, CoordinatorDelegationOptions } from '../types/coordinatorDelegation';
 import { createCoordinatorDelegation, getCoordinatorDelegationOptions, getCoordinatorDelegations, revokeCoordinatorDelegation } from '../services/coordinatorDelegationsApi';
@@ -36,6 +37,7 @@ export function CoordinatorDelegations({ office = false, regularProgramme = '', 
     const current = new AbortController();
     controller.current = current;
     setLoading(true);
+    setError(null);
     try {
       const [grants, choices] = await Promise.all([getCoordinatorDelegations(current.signal), office ? getCoordinatorDelegationOptions(current.signal) : Promise.resolve(null)]);
       if (current.signal.aborted) return;
@@ -46,6 +48,7 @@ export function CoordinatorDelegations({ office = false, regularProgramme = '', 
     } finally { if (!current.signal.aborted) setLoading(false); }
   }, [office]);
   useEffect(() => { void load(); return () => controller.current?.abort(); }, [load]);
+  useReturnToFocusReload(() => { if (onRefreshScope) onRefreshScope(); else void load(); }, !loading && !saving && !creating && !revoking);
   const cancel = () => { setCreating(false); setRevoking(null); setReason(''); setValues(blank()); };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -62,9 +65,9 @@ export function CoordinatorDelegations({ office = false, regularProgramme = '', 
     } finally { setSaving(false); }
   };
   return <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4 text-xs" aria-label="Acting coordinator delegations">
-    <div className="flex flex-wrap justify-between gap-3"><h3 className="section-label">{office ? 'Acting coordinator delegations' : 'My coordinator scope'}</h3><div className="flex gap-2"><PortalButton disabled={saving} onClick={() => { setError(null); if (onRefreshScope) onRefreshScope(); else void load(); }}>Refresh delegations</PortalButton>{office && !creating && !revoking && <PortalButton disabled={loading || saving} onClick={() => { setCreating(true); setError(null); }}>Grant acting access</PortalButton>}</div></div>
+    <div className="flex flex-wrap justify-between gap-3"><h3 className="section-label">{office ? 'Acting coordinator delegations' : 'My coordinator scope'}</h3><div className="flex gap-2">{office && !creating && !revoking && <PortalButton disabled={loading || saving} onClick={() => { setCreating(true); setError(null); }}>Grant acting access</PortalButton>}</div></div>
     {office ? <p className="card-description">Grant full coordinator access to an additional programme while retaining the coordinator’s regular programme. Only one acting coordinator may cover a programme at a time. Dates are inclusive in Malaysia time. To correct a grant, revoke it and create a new one.</p> : <><p className="card-description">Regular programme: <strong className="card-value">{regularProgramme || 'None assigned'}</strong></p><p className="card-description">Current access: <strong className="card-value">{effectiveProgrammes.join(', ') || 'None assigned'}</strong></p><p className="card-description">Acting access covers the full coordinator workflow during the dates below. Your regular programme is retained.</p></>}
-    {error && <ErrorState message={error} />}{message && <p role="status" className="card-description text-emerald-700">{message}</p>}
+    {error && <ErrorState message={error} onRetry={!saving && !creating && !revoking ? () => void load() : undefined} />}{message && <p role="status" className="card-description text-emerald-700">{message}</p>}
     {office && (creating || revoking) && <form onSubmit={submit} className="space-y-3 rounded-xl bg-white p-4 border border-slate-200">
       {revoking ? <><h4 className="section-label">Revoke access to {revoking.programme} for {revoking.coordinator.name}</h4><label className="form-label block">Revocation reason<textarea required className={fieldClass} value={reason} onChange={e => setReason(e.target.value)} disabled={saving} /></label></> : <>
         <div className="grid gap-3 sm:grid-cols-2"><label className="form-label">Additional programme<select required className={fieldClass} value={values.programme} disabled={saving} onChange={e => setValues({ ...values, programme: e.target.value, coordinatorId: 0 })}><option value="">Select programme</option>{options.programmes.map(p => <option key={p}>{p}</option>)}</select></label>

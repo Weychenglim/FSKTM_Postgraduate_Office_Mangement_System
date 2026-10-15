@@ -1,3 +1,5 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -27,7 +29,7 @@ import {
 import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { AddTimelineEntryDrawer } from './AddTimelineEntryDrawer';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
@@ -137,7 +139,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
   const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) ?? null;
 
-  const loadEntries = useCallback(() => {
+  const loadEntries = useCallback((propagateError = false) => {
     const semesterId = selectedSemesterRef.current;
     const version = ++loadVersion.current;
     if (!semesterId) {
@@ -152,7 +154,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     setTimeline(null);
     setEntries([]);
     setAuditLogs([]);
-    Promise.all([
+    return Promise.all([
       getActiveTimeline(semesterId),
       getTimelineAuditLogs(semesterId),
     ])
@@ -166,6 +168,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       })
       .catch((e) => {
         if (version === loadVersion.current) setError(e instanceof Error ? e.message : 'Failed to load timeline entries.');
+        if (propagateError) throw e;
       })
       .finally(() => { if (version === loadVersion.current) setLoading(false); });
   }, []);
@@ -293,23 +296,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     setEntryToDelete({ id, name });
   };
 
-  const confirmDeleteEntry = () => {
-    if (!entryToDelete || deletingEntryRef.current) return;
+  const confirmDeleteEntry = async () => {
+    if (!entryToDelete || deletingEntryRef.current) return false;
     deletingEntryRef.current = true; setDeletingEntry(true);
-    const { id, name } = entryToDelete;
-    deleteTimelineEntry(id)
-      .then(() => {
-        setEntries(prev => prev.filter(ent => ent.id !== id));
-        triggerToast(`Deleted entry "${name}" from master record.`);
-        loadEntries();
-      })
-      .catch((e) => {
-        triggerToast(e instanceof Error ? e.message : 'Failed to delete timeline entry.');
-      })
-      .finally(() => {
-        setEntryToDelete(null);
-        deletingEntryRef.current = false; setDeletingEntry(false);
-      });
+    const { id } = entryToDelete;
+    try { return await completeDecision(() => deleteTimelineEntry(id), async () => { await loadEntries(true); }); }
+    finally { deletingEntryRef.current = false; setDeletingEntry(false); }
   };
 
   const handleDownloadTemplate = () => {
@@ -783,7 +775,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       />
 
       {/* Delete Confirmation Modal */}
-      <PortalConfirmModal isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" isLoading={deletingEntry} onConfirm={confirmDeleteEntry} onCancel={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
+      <DecisionDialog kind="confirmation" tone="danger" decisionKey={entryToDelete?.id} successMessage="Timeline entry deleted." onReload={async () => { await loadEntries(true); }} isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" busy={deletingEntry} onConfirm={confirmDeleteEntry} onClose={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>
   );

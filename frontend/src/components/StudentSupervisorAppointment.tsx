@@ -1,3 +1,5 @@
+import {DecisionDialog} from './DecisionDialog';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
 /**
  * @license
@@ -10,22 +12,20 @@ import {
   Users, 
   Eye, 
   Plus, 
-  RefreshCw
 } from 'lucide-react';
 import { SupervisorAppointmentApplicationPage } from './SupervisorAppointmentApplicationPage';
 import { StudentSupervisorApplication, SupervisorApplicationRecord } from '../types';
 import {
   cancelSupervisorApplication,
-  formatSupervisorWaiting,
   getMySupervisorApplications,
   toStudentSupervisorApplication,
 } from '../services';
-import { PageHeader, PortalButton, PortalConfirmModal } from './PortalPrimitives';
-import { WorkflowAuditLog } from './WorkflowAuditLog';
+import { PageHeader, PortalButton } from './PortalPrimitives';
+import { SupervisorRequestDetail, supervisorRequestMetadata, toStudentSupervisorRequestPresentation } from './SupervisorRequestDetail';
+import { RequestMetadata } from './RequestDetailPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { canStudentCancelSupervisorApplication } from '../utils/workflowTracking';
 import { SupervisorApplicationWorkflowStatus, SupervisorWorkflowEvent } from '../types';
-import { SupervisorDocumentsList } from './SupervisorDocumentsList';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
 import { SupervisorAppointmentGuidance } from './StudentAppointmentGuidance';
@@ -81,15 +81,17 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
   const [researchRefreshVersion, setResearchRefreshVersion] = useState(0);
+  const [researchMetadata, setResearchMetadata] = useState<React.ReactNode>(null);
+  const [researchDetailTitle, setResearchDetailTitle] = useState<string | null>(null);
   const [replacementApplication, setReplacementApplication] = useState<SupervisorApplicationRecord | null>(null);
   const [loadingApplications, setLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
 
-  const loadApplications = useCallback(() => {
+  const loadApplications = useCallback((strict=false) => {
     setLoadingApplications(true);
     setApplicationsError(null);
-    getMySupervisorApplications()
+    return getMySupervisorApplications()
       .then((records) => {
         setApplications(records.map(toStudentSupervisorApplication));
         setApprovedApplication(records.find(
@@ -103,6 +105,7 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
             ? reason.message
             : 'Supervisor applications could not be loaded.',
         );
+        if(strict)throw reason;
       })
       .finally(() => setLoadingApplications(false));
   }, []);
@@ -118,6 +121,8 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const navigationComplete = useRef(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
+  useReturnToFocusReload(loadApplications, !loadingApplications && !workspaceBusy && !isCancelling && !isCancelConfirmOpen && !activeDetailAp && !initialApplicationId && routeView !== 'newApplication' && routeView !== 'research');
+
   useEffect(() => {
     setCancellationReason('');
     setCancellationError(null);
@@ -132,60 +137,21 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
     );
     if (!app) return;
     navigationComplete.current = false;
-    setActiveDetailAp({
-      applicationId: app.applicationId,
-      workflowStatus: app.workflowStatus,
-      workflow: app.workflow,
-      cancellationReason: app.cancellationReason,
-      rejectionReason: app.rejectionReason,
-      documents: app.documents,
-      id: app.id,
-      supervisor: app.supervisor,
-      title: app.title,
-      researchArea: app.researchArea,
-      status: app.status,
-      date: app.date,
-      submittedDate: app.date,
-      step1Date: app.date,
-      waitingSince: app.waitingSince,
-      waitingDays: app.waitingDays,
-      waitingOn: app.waitingOn,
-      unavailableUntil: app.unavailableUntil,
-    });
+    setActiveDetailAp({ ...app, documents: app.documents, submittedDate: app.submittedAt });
   }, [applications, initialApplicationId]);
 
   const performCancelRequest = async () => {
-    if (!activeDetailAp?.applicationId || !activeDetailAp.workflowStatus) return;
-    const reason = cancellationReason.trim();
+    if (!activeDetailAp?.applicationId || !activeDetailAp.workflowStatus || !cancellationReason.trim()) return false;
     setIsCancelling(true);
-    setCancellationError(null);
     try {
-      const updated = await cancelSupervisorApplication(activeDetailAp.applicationId, reason);
-      navigationComplete.current = true;
-      const mapped = toStudentSupervisorApplication(updated);
-      setApplications((items) =>
-        items.map((item) => item.applicationId === mapped.applicationId ? mapped : item),
-      );
-      setActiveDetailAp(null);
-      setCancellationReason('');
-      setIsCancelConfirmOpen(false);
-      if (initialApplicationId) onNavigateToList?.();
-    } catch (error) {
-      setCancellationError(error instanceof Error ? error.message : 'Failed to cancel the request.');
-    } finally {
-      setIsCancelling(false);
-    }
+      const updated=await cancelSupervisorApplication(activeDetailAp.applicationId,cancellationReason.trim());
+      const mapped=toStudentSupervisorApplication(updated);
+      setApplications(items=>items.map(item=>item.applicationId===mapped.applicationId?mapped:item));
+      setActiveDetailAp({...mapped,documents:mapped.documents,submittedDate:mapped.submittedAt});
+      return {};
+    } finally {setIsCancelling(false);}
   };
-
-  const handleCancelRequest = () => {
-    const reason = cancellationReason.trim();
-    if (!reason) {
-      setCancellationError('Please provide a cancellation reason.');
-      return;
-    }
-    setCancellationError(null);
-    setIsCancelConfirmOpen(true);
-  };
+  const handleCancelRequest = () => {setCancellationReason('');setIsCancelConfirmOpen(true);};
 
   const handleCreateNewApplication = () => {
     onNavigateToNewApplication?.();
@@ -227,24 +193,19 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
   const pending = partitionSupervisorApplications(applications).pending;
   const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
-  const refresh = () => {
-    if (loadingApplications || workspaceBusy || isCancelling || activeDetailAp || initialApplicationId || researchPage) return;
-    loadApplications();
-    setResearchRefreshVersion(value => value + 1);
-  };
   const pageHeader = <>
     <PageHeader title={initialApplicationId ? 'Appointment request' : researchPage?.title ?? 'Supervisor Appointments'} subtitle={researchPage?.subtitle ?? (routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.')}
       backLabel={initialApplicationId ? 'Back to Applications' : researchPage ? 'Back to research changes' : undefined} onBack={initialApplicationId ? onNavigateToList : researchPage ? onNavigateToResearchList : undefined}
       actions={!initialApplicationId && !researchPage ? <>
-        <PortalButton size="sm" icon={RefreshCw} disabled={loadingApplications || workspaceBusy || isCancelling} onClick={refresh}>Refresh</PortalButton>
+
         {routeView !== 'research' && !approvedApplication && workflowEligible ? <PortalButton variant="primary" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={() => { setReplacementApplication(null); handleCreateNewApplication(); }}>New application</PortalButton> : null}
       </> : undefined} />
     {!researchPage && !initialApplicationId ? <SupervisorWorkspaceNavigation role="Student" /> : null}
   </>;
 
   if (initialApplicationId && !activeDetailAp) return <div className="space-y-6">{pageHeader}{loadingApplications ? <LoadingState message="Loading request details…" /> : applicationsError ? <ErrorState message={applicationsError} onRetry={loadApplications} /> : <EmptyState title="Application not found" description="This application does not exist or is outside your access." />}</div>;
-  if (researchPage) return <RecordPage title={researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})}>
-    <LecturerResearchWorkspace role="Student" hideHeader routeView={researchView} routeRequestId={researchRequestId} showRefresh={false}
+  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})}>
+    <LecturerResearchWorkspace onDetailMetadata={setResearchMetadata} onDetailTitle={setResearchDetailTitle} role="Student" hideHeader routeView={researchView} routeRequestId={researchRequestId} showRefresh={false}
       onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile} onNavigateToNew={onNavigateToResearchNew}
       onChanged={() => setResearchRefreshVersion(value => value + 1)} />
   </RecordPage>;
@@ -259,19 +220,17 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
 
   return (
     <div id="student-supervisor-app-workspace" className="space-y-6 text-left font-sans pb-12">
-      <PortalConfirmModal
-        isOpen={isCancelConfirmOpen}
-        title="Cancel supervisor request?"
-        message="This workflow attempt will be closed permanently and cannot be restored. You may submit a new supervisor request after cancellation."
-        confirmLabel="Cancel Request"
-        cancelLabel="Keep Request"
-        tone="danger"
-        isLoading={isCancelling}
-        onConfirm={performCancelRequest}
-        onCancel={() => setIsCancelConfirmOpen(false)}
-      />
+      <DecisionDialog isOpen={isCancelConfirmOpen} decisionKey={activeDetailAp?.applicationId}
+        title="Cancel Supervisor request?" context={<>{activeDetailAp?.studentName} · {activeDetailAp?.programme}</>}
+        kind="confirmation" tone="danger" message="Cancellation closes this pending request. Its history remains available, and you may submit a new request afterwards."
+        confirmLabel="Cancel request" cancelLabel="Keep request" canConfirm={!!cancellationReason.trim()} busy={isCancelling} dirty={!!cancellationReason.trim()}
+        successMessage="Supervisor request cancelled." onConfirm={performCancelRequest}
+        onClose={()=>{setIsCancelConfirmOpen(false);setCancellationReason('');setCancellationError(null);}}
+        onReload={async()=>{await loadApplications(true); if(activeDetailAp?.applicationId){const rows=await getMySupervisorApplications();const fresh=rows.find(row=>String(row.id)===String(activeDetailAp.applicationId));if(!fresh)throw new Error('This request is no longer available.');const mapped=toStudentSupervisorApplication(fresh);setActiveDetailAp({...mapped,documents:mapped.documents,submittedDate:mapped.submittedAt});}}}>
+        <label className="form-label block">Cancellation reason<textarea required className="form-control form-control-md mt-2 min-h-28" value={cancellationReason} onChange={event=>setCancellationReason(event.target.value)}/></label>
+      </DecisionDialog>
 
-      
+
       {!activeDetailAp ? pageHeader : null}
       {routeView === 'overview' && <>
         <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication ? <>
@@ -291,117 +250,12 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
       {/* ========================================================================= */}
       {/* REQUEST RECORD                                                        */}
       {/* ========================================================================= */}
-      {activeDetailAp ? <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel="Back to Applications" onBack={closeActiveDetail} pageKey={initialApplicationId ? undefined : `student-application:${activeDetailAp.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
-                
-                {/* Application metadata summary card */}
-                <div className="bg-[#f0f5ff]/60 border border-indigo-50/70 rounded-2xl p-4.5 space-y-3 shadow-3xs select-none">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="card-label block">App ID</span>
-                      <span className="card-value block font-mono mt-1">{activeDetailAp.id}</span>
-                    </div>
-                    <div>
-                      <span className="card-label block">Supervisor</span>
-                      <span className="card-value block mt-1">{activeDetailAp.supervisor}</span>
-                    </div>
-                  </div>
-
-                  <div className="h-[1px] bg-slate-200/50" />
-
-                  <div className="space-y-1">
-                    <span className="card-label block">Research Title</span>
-                    <span className="card-value block">
-                      &ldquo;{activeDetailAp.title}&rdquo;
-                    </span>
-                  </div>
-
-                  <div className="h-[1px] bg-slate-200/50" />
-
-                  <div className="space-y-1">
-                    <span className="card-label block">Research Area</span>
-                    <span className="card-value block">
-                      {activeDetailAp.researchArea || 'Not recorded'}
-                    </span>
-                  </div>
-
-                  <div className="h-[1px] bg-slate-200/50" />
-
-                  <div className="space-y-1">
-                    <span className="card-label block">Submitted Date</span>
-                    <span className="card-value block font-mono">
-                      {activeDetailAp.submittedDate || 'Not available'}
-                    </span>
-                  </div>
-
-                  <div className="h-[1px] bg-slate-200/50" />
-
-                  <div className="space-y-1">
-                    <span className="card-label block">Waiting</span>
-                    <span className="card-value block">
-                      {formatSupervisorWaiting(activeDetailAp)}
-                    </span>
-                  </div>
-                  {activeDetailAp.unavailableUntil && (
-                    <div className="card-description border-t border-amber-100 pt-3 text-amber-700">
-                      The selected Supervisor is unavailable for new appointments until {activeDetailAp.unavailableUntil}. Your existing workflow remains recorded.
-                    </div>
-                  )}
-                </div>
-
-                {activeDetailAp.rejectionReason && (
-                  <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
-                    <p className="card-label text-rose-700">Decision reason</p>
-                    <p className="card-description mt-1 text-rose-800">{activeDetailAp.rejectionReason}</p>
-                  </div>
-                )}
-
-                <SupervisorDocumentsList
-                  applicationId={activeDetailAp.applicationId}
-                  documents={activeDetailAp.documents}
-                  compact
-                />
-
-                <WorkflowAuditLog events={activeDetailAp.workflow} />
-
-                {activeDetailAp.workflowStatus
+      {activeDetailAp ? <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel="Back to Applications" onBack={closeActiveDetail} pageKey={initialApplicationId ? undefined : `student-application:${activeDetailAp.id}`} dirty={!!cancellationReason.trim()} busy={isCancelling} metadata={<RequestMetadata {...supervisorRequestMetadata(toStudentSupervisorRequestPresentation(activeDetailAp))} />}>
+        <SupervisorRequestDetail request={toStudentSupervisorRequestPresentation(activeDetailAp)} actions={activeDetailAp.workflowStatus
                   && workflowEligible
                   && canStudentCancelSupervisorApplication(activeDetailAp.workflowStatus) && (
-                  <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                    <div>
-                      <h4 className="section-label text-amber-900">
-                        Cancel Supervisor Request
-                      </h4>
-                      <p className="card-description mt-1 text-amber-800">
-                        This is available only before the requested supervisor takes action.
-                      </p>
-                    </div>
-                    <textarea
-                      value={cancellationReason}
-                      onChange={(event) => {
-                        setCancellationReason(event.target.value);
-                        if (cancellationError) setCancellationError(null);
-                      }}
-                      rows={3}
-                      placeholder="Explain why you are cancelling this request..."
-                      className="form-control form-control-sm resize-none border-amber-200 focus:border-amber-400"
-                    />
-                    {cancellationError && (
-                      <p className="card-description text-rose-600">{cancellationError}</p>
-                    )}
-                    <PortalButton
-                      type="button"
-                      onClick={handleCancelRequest}
-                      disabled={isCancelling}
-                      variant="danger"
-                      size="md"
-                      fullWidth
-                    >
-                      {isCancelling ? 'Cancelling…' : 'Cancel Request'}
-                    </PortalButton>
-                  </div>
-                )}
-
-              </section></RecordPage> : null}
+                  <PortalButton type="button" onClick={handleCancelRequest} disabled={isCancelling} variant="danger">Cancel request</PortalButton>
+                )} /></RecordPage> : null}
 
     </div>
   );

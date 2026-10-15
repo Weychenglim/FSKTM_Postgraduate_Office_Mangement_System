@@ -1,6 +1,14 @@
+import type {SupervisorApplicationRecord} from './appointment';
+
 export type CoSupervisorAction = 'accept' | 'reject' | 'approve' | 'coordinator-reject' | 'cancel';
 export type CoSupervisorOutcome = 'COMPLETED' | 'WITHDRAWN' | 'OTHER';
 export interface TeamPerson { id: number; name: string }
+export interface SupervisionPanel {
+  current: { member: TeamPerson; email: string; department: string; appointmentDate: string; requestId: number; recordKey?: string; canView: boolean } | null;
+  pending: { id: number; status: string; replacement: boolean; recordKey?: string; canView: boolean } | null;
+  canRecommend: boolean;
+  canReplace: boolean;
+}
 export interface TeamAudit { id: number; action: string; actor: string; createdAt: string; reason?: string; previousStatus?: string; newStatus?: string }
 export interface CoSupervisorNomination {
   id: number;
@@ -39,6 +47,8 @@ export interface CoSupervisorAppointment {
   history: TeamAudit[];
 }
 export interface SupervisoryTeam {
+  studentEmail?: string;
+  panel?: SupervisionPanel;
   studentId: number;
   matricNo: string;
   studentName: string;
@@ -64,4 +74,5 @@ export interface SupervisoryWorkspace {
   teams: SupervisoryTeam[];
   nominations: CoSupervisorNomination[];
   appointments: CoSupervisorAppointment[];
+  primaryApplication?: SupervisorApplicationRecord | null;
 }

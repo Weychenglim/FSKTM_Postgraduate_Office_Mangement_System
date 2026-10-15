@@ -1,3 +1,4 @@
+import { ApiError } from '../services/apiClient';
 import { RecordPage } from './RecordPage';
 /**
  * @license
@@ -55,41 +56,42 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   const [record, setRecord] = useState<MarkRecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const loadGeneration = useRef(0);
 
-  const loadRecord = useCallback(async () => {
+  const loadRecord = useCallback(async (propagateError = false) => {
     const generation = ++loadGeneration.current;
     setLoading(true);
-    setRecord(null);
+    setRecord(current => current?.recordId === recordId ? current : null);
     setError(null);
     try {
       const loaded = await getMarkRecordById(recordId);
       if (generation === loadGeneration.current) setRecord(loaded);
     } catch (loadError) {
       if (generation !== loadGeneration.current) return;
-      setRecord(null);
+      if (loadError instanceof ApiError && (loadError.status === 403 || loadError.status === 404)) {
+        setRecord(current => current ? {...current, officeActions: {canCorrect: false, canReopen: false, version: null}} : null);
+      }
       setError(
         loadError instanceof Error
           ? loadError.message
           : 'Mark record could not be loaded.',
       );
+      if (propagateError) throw loadError;
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
   }, [recordId]);
 
   useEffect(() => {
-    setNotice(null);
     void loadRecord();
     return () => {loadGeneration.current += 1;};
   }, [loadRecord]);
 
-  if (loading) {
+  if (loading && !record) {
     return <RecordPage title="Mark Entry Record Detail" backLabel="Back to Mark Entry Records" onBack={onBack}><LoadingState message="Loading mark record..." /></RecordPage>;
   }
 
-  if (error || !record) {
+  if (!record) {
     return (
         <RecordPage
           title="Mark Entry Record Detail"
@@ -120,10 +122,12 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         )}
       >
 
-      {notice ? <p role="status" className="card-description rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">{notice}</p> : null}
-      <SubmittedMarksActions key={`${record.recordId}:${record.officeActions?.version}`} record={record}
-        onChanged={async message => {setNotice(message); await loadRecord();}}
-        onReload={async () => {setNotice(null); await loadRecord();}}/>
+      {loading ? <p role="status" className="card-description text-slate-600">Refreshing mark record…</p> : null}
+      {error ? <ErrorState message={error} onRetry={() => { void loadRecord(); }} /> : null}
+      <SubmittedMarksActions key={record.recordId} record={record}
+        onChanged={async () => { await loadRecord(true); }}
+        onReload={async () => { await loadRecord(true); }}/>
+
 
     <div id="mark-entry-record-detail" className="space-y-7 animate-fade-in text-left">
       <div className="grid grid-cols-2 lg:grid-cols-4 border-y border-slate-200">

@@ -1,3 +1,6 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision, type DecisionOutcome } from '../utils/decisionSubmission';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
 import { useSearchParams } from 'react-router';
 /**
@@ -38,7 +41,6 @@ import {
   Calendar,
   AlertTriangle,
   UserCheck,
-  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
@@ -68,6 +70,7 @@ import {
   getEligiblePanelSupervisees,
   getPanelCandidates,
   getPanelAssignments,
+  getPanelRecommendation,
   getPanelRecommendationDrafts,
   getPanelRecommendations,
   getPanelReviewQueue,
@@ -287,19 +290,21 @@ const PanelRecommendationProgressTimeline: React.FC<{ items: PanelProgressItem[]
 );
 
 interface PanelRecommendationReviewDrawerProps {
+  backLabel?: string;
   isOpen: boolean;
   onClose: () => void;
   recommendation: PanelRecommendationDraft | null;
   reviewerRole: PanelRecommendationReviewerRole;
-  onAccept?: (recommendation: PanelRecommendationDraft) => void;
-  onReject?: (recommendation: PanelRecommendationDraft, reason: string) => void;
+  onAccept?: (recommendation: PanelRecommendationDraft) => Promise<void | false | DecisionOutcome> | void;
+  onReject?: (recommendation: PanelRecommendationDraft, reason: string) => Promise<void | false | DecisionOutcome> | void;
   readOnly?: boolean;
   routed?: boolean;
   busy?: boolean;
-  onAppointmentEnded?: () => Promise<void>;
+  onAppointmentEnded?: () => Promise<unknown>;
+  onReload?: () => Promise<unknown>;
 }
 
-const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
+export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
   isOpen,
   onClose,
   recommendation,
@@ -309,12 +314,16 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
   readOnly = false,
   routed = false,
   busy = false,
-  onAppointmentEnded,
+  onAppointmentEnded, onReload, backLabel = 'Back to Panel Appointments',
 }) => {
+  const [rejecting, setRejecting] = useState(false);
+  const [confirmingAcceptance, setConfirmingAcceptance] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
 
   useEffect(() => {
+    setRejecting(false);
+    setConfirmingAcceptance(false);
     setRejectionReason('');
     setRejectionError(null);
   }, [recommendation?.id, isOpen]);
@@ -333,7 +342,7 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
       ? 'Programme Coordinator Review'
       : 'Supervisor Tracking View';
 
-  return <RecordPage title="Panel recommendation" subtitle={reviewerLabel} backLabel="Back to Panel Appointments" onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
+  return <RecordPage title="Panel recommendation" subtitle={reviewerLabel} backLabel={backLabel} onBack={onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex gap-4 items-center py-4 border-b border-slate-100 select-none">
               <div className="w-14 h-14 bg-slate-100 text-slate-500 font-black text-sm rounded-full flex items-center justify-center tracking-widest shrink-0 border border-slate-200">
                 {recommendation.studentName
@@ -423,17 +432,15 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
             <WorkflowAuditLog events={recommendation.workflow} />
 
             {reviewerRole === 'PROGRAMME_COORDINATOR'
-              && recommendation.appointmentLifecycle?.status === 'ACTIVE'
+              && !!recommendation.appointmentLifecycle
               && (
                 <AppointmentEndControl
-                  label="Panel appointment"
+                  label="Panel appointment" context={<>{recommendation.studentName} · {recommendation.programme}</>} decisionKey={recommendation.appointmentLifecycle?.appointmentId} disabled={recommendation.appointmentLifecycle?.status !== 'ACTIVE'}
+                  onReload={onReload}
                   onSubmit={async (outcome, reason) => {
-                    await endPanelAppointment(
-                      recommendation.appointmentLifecycle!.appointmentId,
-                      outcome,
-                      reason,
-                    );
-                    await onAppointmentEnded?.();
+                    return await completeDecision(() => endPanelAppointment(
+                      recommendation.appointmentLifecycle!.appointmentId, outcome, reason,
+                    ), onAppointmentEnded);
                   }}
                 />
               )}
@@ -444,53 +451,37 @@ const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerP
               </p>
             )}
 
-            {canAct && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onAccept?.(recommendation)}
-                    className="w-full py-4 bg-brand-navy hover:bg-slate-900 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
-                  >
-                    {reviewerRole === 'SELECTED_PANEL' ? 'Accept Panel Nomination' : 'Confirm Panel Appointment'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!rejectionReason.trim()) {
-                        setRejectionError('A reason is required before rejecting this panel recommendation.');
-                        return;
-                      }
-                      setRejectionError(null);
-                      onReject?.(recommendation, rejectionReason.trim());
-                    }}
-                    className="w-full py-3.5 border border-rose-200 hover:bg-rose-50 text-rose-600 font-extrabold text-xs uppercase tracking-widest rounded-xl transition cursor-pointer text-center"
-                  >
-                    {reviewerRole === 'SELECTED_PANEL' ? 'Reject Panel Nomination' : 'Reject Recommendation'}
-                  </button>
-                </div>
-
-                <div className="space-y-1.5 text-left">
-                  <span className="form-label block">REASON FOR REJECTION</span>
-                  <textarea
-                    className={`form-control form-control-md min-h-[124px] ${rejectionError ? 'border-rose-200 bg-rose-50/30' : ''}`}
-                    placeholder="Enter reason..."
-                    value={rejectionReason}
-                    onChange={(event) => {
-                      setRejectionReason(event.target.value);
-                      if (rejectionError) setRejectionError(null);
-                    }}
-                  />
-                  <p className={`card-description ${rejectionError ? 'text-rose-600' : 'text-slate-400'}`}>
-                    {rejectionError || 'A reason is required before rejecting this panel recommendation.'}
-                  </p>
-                </div>
-              </div>
-            )}
+            {canAct && <div className="flex flex-wrap gap-3">
+              <PortalButton variant="primary" disabled={busy} onClick={() => setConfirmingAcceptance(true)}>
+                {reviewerRole === 'SELECTED_PANEL' ? 'Accept Panel Nomination' : 'Confirm Panel Appointment'}
+              </PortalButton>
+              <PortalButton variant="danger" disabled={busy} onClick={() => setRejecting(true)}>
+                {reviewerRole === 'SELECTED_PANEL' ? 'Reject Panel Nomination' : 'Reject Recommendation'}
+              </PortalButton>
+            </div>}
+            <DecisionDialog isOpen={rejecting || confirmingAcceptance} decisionKey={recommendation.id}
+              title={rejecting ? 'Reject Panel recommendation?' : reviewerRole === 'SELECTED_PANEL' ? 'Accept Panel nomination?' : 'Confirm Panel appointment?'}
+              context={<>{recommendation.studentName} · {recommendation.programme}</>}
+              message={rejecting ? 'This recommendation will be rejected. The recorded reason remains in its history.' : reviewerRole === 'SELECTED_PANEL' ? 'Acceptance sends this nomination to the Programme Coordinator for final approval.' : 'Confirmation creates the Panel appointment.'}
+              confirmLabel={rejecting ? 'Reject recommendation' : reviewerRole === 'SELECTED_PANEL' ? 'Accept nomination' : 'Confirm appointment'}
+              tone={rejecting ? 'danger' : 'info'} busy={busy} dirty={!!rejectionReason.trim()}
+              canConfirm={rejecting ? !!rejectionReason.trim() && !!onReject : !!onAccept}
+              successMessage={rejecting ? 'Panel recommendation rejected.' : reviewerRole === 'SELECTED_PANEL' ? 'Panel nomination accepted and sent to the Programme Coordinator.' : 'Panel appointment confirmed.'}
+              onClose={() => {setRejecting(false); setConfirmingAcceptance(false); setRejectionReason(''); setRejectionError(null);}}
+              onReload={onReload}
+              onConfirm={async () => {
+                if (busy) return false;
+                if (rejecting) { if (!onReject || !rejectionReason.trim()) return false; return await onReject(recommendation, rejectionReason.trim()); }
+                if (!onAccept) return false;
+                return await onAccept(recommendation);
+              }}>
+              {rejecting ? <label className="form-label block">Reason for rejection<textarea required className="form-control form-control-md mt-2 min-h-28" value={rejectionReason} onChange={event => setRejectionReason(event.target.value)}/></label> : null}
+            </DecisionDialog>
           </section>}</RecordPage>;
 };
 
 interface LecturerPanelAppointmentsProps {
+  detailBackLabel?: string;
   currentUser?: DemoUser | null;
   initialRecommendationId?: string;
   initialSuperviseeId?: string;
@@ -505,6 +496,7 @@ interface LecturerPanelAppointmentsProps {
 
 export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
   currentUser,
+  detailBackLabel = 'Back to Panel Appointments',
   initialRecommendationId,
   initialSuperviseeId,
   routeView = 'list',
@@ -520,7 +512,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [mutationBusy, setMutationBusy] = useState(false);
   const mutation = useRef(false);
   const openedInitialSupervisee = useRef<string | null>(null);
-  
+
   const [selectedRecommendation, setSelectedRecommendation] = useState<PanelRecommendationDraft | null>(null);
   const [selectedReviewerRole, setSelectedReviewerRole] = useState<PanelRecommendationReviewerRole>('SUPERVISOR');
   const [selectedRecommendationReadOnly, setSelectedRecommendationReadOnly] = useState(false);
@@ -561,7 +553,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback((strict = false) => {
     setLoading(true);
     setError(null);
     const load = isCoordinator
@@ -577,7 +569,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           getOwnPanelWorkload(),
         ]);
 
-    load
+    return load
       .then((result) => {
         if (isCoordinator) {
           const [workspace] = result as [CoordinatorPanelWorkspace];
@@ -630,9 +622,11 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             ?? null;
         });
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
+      .catch((e) => {setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'); if (strict) throw e;})
       .finally(() => setLoading(false));
   }, [initialSuperviseeId, isCoordinator]);
+
+  useReturnToFocusReload(loadData, !loading && !mutationBusy && !isRecommendDrawerOpen && !selectedRecommendation && !initialRecommendationId && !initialSuperviseeId && routeView !== 'assignmentDetail');
 
   useEffect(() => {
     loadData();
@@ -817,62 +811,29 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     ? 'PROGRAMME_COORDINATOR'
     : 'SELECTED_PANEL';
 
-  const handleReviewAccept = async (recommendation: PanelRecommendationDraft) => {
-    if (recommendation.id === undefined) {
-      triggerToast('This recommendation cannot be updated because it has no backend ID.');
-      return;
-    }
-
-    if (mutation.current) return;
+  const recordPanelDecision = async (recommendation: PanelRecommendationDraft, reason?: string) => {
+    if (recommendation.id === undefined) throw new Error('This recommendation is unavailable. Reload the record.');
+    if (mutation.current) return false;
     mutation.current = true; setMutationBusy(true);
     try {
-      const updated = selectedReviewerRole === 'PROGRAMME_COORDINATOR'
-        ? await approvePanelRecommendationByCoordinator(recommendation.id)
-        : await acceptPanelRecommendation(recommendation.id);
-
-      setSubmittedRecs((items) => items.map((item) => item.id === updated.id ? updated : item));
-      setPanelReviewQueue((items) => items.filter((item) => item.id !== updated.id));
-      setCoordinatorReviewQueue((items) => items.filter((item) => item.id !== updated.id));
-      setSelectedRecommendation(updated);
-      triggerToast(
-        selectedReviewerRole === 'PROGRAMME_COORDINATOR'
-          ? 'Panel appointment confirmed by Programme Coordinator.'
-          : 'Panel nomination accepted and routed to Programme Coordinator.',
-      );
-      loadData();
-    } catch (e) {
-      triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
-      if (e instanceof ApiError && e.status === 409) loadData();
+      return await completeDecision(async () => {
+        const updated = reason !== undefined
+          ? selectedReviewerRole === 'PROGRAMME_COORDINATOR'
+            ? await rejectPanelRecommendationByCoordinator(recommendation.id!, reason)
+            : await rejectPanelRecommendation(recommendation.id!, reason)
+          : selectedReviewerRole === 'PROGRAMME_COORDINATOR'
+            ? await approvePanelRecommendationByCoordinator(recommendation.id!)
+            : await acceptPanelRecommendation(recommendation.id!);
+        setSubmittedRecs(items => items.map(item => item.id === updated.id ? updated : item));
+        setPanelReviewQueue(items => items.filter(item => item.id !== updated.id));
+        setCoordinatorReviewQueue(items => items.filter(item => item.id !== updated.id));
+        setSelectedRecommendation(updated);
+        setSelectedRecommendationReadOnly(true);
+      }, () => loadData(true));
     } finally { mutation.current = false; setMutationBusy(false); }
   };
-
-  const handleReviewReject = async (recommendation: PanelRecommendationDraft, reason: string) => {
-    if (recommendation.id === undefined) {
-      triggerToast('This recommendation cannot be updated because it has no backend ID.');
-      return;
-    }
-
-    if (mutation.current) return;
-    mutation.current = true; setMutationBusy(true);
-    try {
-      const updated = selectedReviewerRole === 'PROGRAMME_COORDINATOR'
-        ? await rejectPanelRecommendationByCoordinator(recommendation.id, reason)
-        : await rejectPanelRecommendation(recommendation.id, reason);
-
-      setSubmittedRecs((items) => items.map((item) => item.id === updated.id ? updated : item));
-      setPanelReviewQueue((items) => items.filter((item) => item.id !== updated.id));
-      setCoordinatorReviewQueue((items) => items.filter((item) => item.id !== updated.id));
-      setSelectedRecommendation(updated);
-      triggerToast(
-        selectedReviewerRole === 'PROGRAMME_COORDINATOR'
-          ? 'Panel recommendation rejected by Programme Coordinator.'
-          : 'Panel nomination rejected.',
-      );
-      loadData();
-    } catch (e) {
-      triggerToast(e instanceof Error ? e.message : 'Failed to update panel recommendation.');
-    } finally { mutation.current = false; setMutationBusy(false); }
-  };
+  const handleReviewAccept = (recommendation: PanelRecommendationDraft) => recordPanelDecision(recommendation);
+  const handleReviewReject = (recommendation: PanelRecommendationDraft, reason: string) => recordPanelDecision(recommendation, reason);
 
   const handleCancelRecommendation = async (
     recommendation: SubmittedRecommendation,
@@ -882,6 +843,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       throw new Error('This recommendation cannot be cancelled because it has no backend ID.');
     }
 
+    return await completeDecision(async()=>{
     const updated = await cancelPanelRecommendation(recommendation.recommendationId, reason);
     setSubmittedRecs((items) => items.map((item) => item.id === updated.id ? updated : item));
     setPanelRecommendations((items) => items.map((item) =>
@@ -895,23 +857,22 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
           }
         : item,
     ));
-    triggerToast('Panel recommendation cancelled. The reserved panel workload has been released.');
-    await loadData();
+    },()=>loadData(true));
   };
 
-  if (initialRecommendationId && !selectedRecommendation) return <RecordPage title="Panel recommendation" backLabel="Back to Panel Appointments" onBack={navigateToList}>
+  if (initialRecommendationId && !selectedRecommendation) return <RecordPage title="Panel recommendation" backLabel={detailBackLabel} onBack={navigateToList}>
     {loading ? <LoadingState message="Loading panel recommendation…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <EmptyState title="Recommendation not found" description="This recommendation does not exist or is outside your access." />}
   </RecordPage>;
 
   return (
     <div id="lecturer-panel-module-container" className="space-y-6 text-left pb-12">
-      
+
       <PortalToast message={toastText} />
 
       {/* RENDER LAYOUT 1: MAIN LISTING PORTAL VIEW */}
       {routeView === 'list' && (
         <div id="main-panel-listing-view" className="space-y-6">
-          
+
           <PageHeader
             title={isCoordinator ? 'Panel Recommendation Coordinator Review' : 'Panel Appointments'}
             subtitle={
@@ -923,7 +884,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             }
             subtitleClassName="leading-relaxed max-w-4xl"
             className="select-none"
-            actions={<PortalButton size="sm" icon={RefreshCw} disabled={loading} onClick={loadData}>Refresh appointments</PortalButton>}
+
           />
 
           {loading ? <LoadingState message="Loading panel appointments…" /> : error ? <ErrorState message={error} onRetry={loadData} /> : <>
@@ -1234,9 +1195,10 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       {/* RIGHT SLIDING DRAWER: RECOMMEND PANEL MEMBER DRAWER */}
       {recommendationStudent && (
         <RecommendPanelMemberDrawer
+          backLabel={detailBackLabel}
           isOpen={isRecommendDrawerOpen}
           busy={mutationBusy}
-          onClose={() => setIsRecommendDrawerOpen(false)}
+          onClose={() => { setIsRecommendDrawerOpen(false); if (initialSuperviseeId) navigateToList(); }}
           student={recommendationStudent}
           candidates={panelCandidates.filter(
             (candidate) => candidate.staffId !== replacementAssignment?.currentPanelMemberId,
@@ -1248,7 +1210,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         />
       )}
 
-      <PanelRecommendationReviewDrawer
+      <PanelRecommendationReviewDrawer backLabel={detailBackLabel}
         isOpen={selectedRecommendation !== null}
         routed={!!initialRecommendationId}
         busy={mutationBusy}
@@ -1261,12 +1223,12 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
         reviewerRole={selectedReviewerRole}
         onAccept={handleReviewAccept}
         onReject={handleReviewReject}
+        onReload={async () => {await loadData(true); if (selectedRecommendation?.id !== undefined) {const fresh=await getPanelRecommendation(selectedRecommendation.id); setSelectedRecommendation(fresh); setSelectedRecommendationReadOnly(!canReviewPanelRecommendation(fresh.status, selectedReviewerRole));}}}
         readOnly={selectedRecommendationReadOnly}
         onAppointmentEnded={async () => {
-          setSelectedRecommendation(null);
-          setSelectedRecommendationReadOnly(false);
-          await loadData();
-          triggerToast('Panel appointment ended. Workload and records were refreshed.');
+          await loadData(true);
+          if (selectedRecommendation?.id !== undefined) setSelectedRecommendation(await getPanelRecommendation(selectedRecommendation.id));
+          setSelectedRecommendationReadOnly(true);
         }}
       />
 

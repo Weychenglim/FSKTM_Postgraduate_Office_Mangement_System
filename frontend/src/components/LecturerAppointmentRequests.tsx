@@ -1,3 +1,5 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { getSupervisorApplication, getSupervisorRequestHistory, acceptSupervisorApplication, rejectSupervisorApplication } from '../services/appointmentsApi';
@@ -6,17 +8,31 @@ import type { SupervisorRequest, SupervisorRequestHistoryRow, SupervisorApplicat
 import type { SupervisoryWorkspace, CoSupervisorAction } from '../types/coSupervision';
 import { appointmentRequestRows, requestCalendarDay, requestGroup, requestStatusLabel, type LecturerAppointmentRow, type RequestGroup } from '../utils/lecturerRequests';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
-import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspaceRequestReference, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
+import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
-import { SupervisorDocumentsList } from './SupervisorDocumentsList';
-import { CoSupervisorAppointmentCard } from './SupervisoryTeamManagement';
+import { SupervisorRequestDetail, supervisorRequestMetadata, toSupervisorRequestPresentation } from './SupervisorRequestDetail';
+import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
+import { CoSupervisorAppointmentCard, CoSupervisorNominationCard, supportingRequestMetadata } from './SupervisoryTeamManagement';
 import { AppointmentSummaryCard } from './AppointmentPrimitives';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
 
 const groups: RequestGroup[] = ['review', 'coordinator', 'other'];
 const EMPTY_WORKSPACE: SupervisoryWorkspace = { teams: [], nominations: [], appointments: [] };
+
+export function LecturerPrimaryRequestActions({ record, blocked = false, busy, onAction, onNavigateToDossier, children }: {
+  record: SupervisorApplicationRecord; blocked?: boolean; busy: boolean; onAction: (action: 'accept' | 'reject') => void;
+  onNavigateToDossier?: (studentId: string) => void; children?: React.ReactNode;
+}) {
+  const canReview = record.status === 'SUBMITTED_TO_SUPERVISOR' && record.participantEligible !== false && !blocked;
+  return <div className="space-y-4">
+    <ViewStudentRecordAction studentId={record.studentId} onOpen={onNavigateToDossier} disabled={busy}/>
+    {record.participantEligible === false ? <p className="card-description">This Student is currently ineligible for a decision.</p> : null}
+    {canReview ? <div className="flex flex-wrap gap-2">{(['accept', 'reject'] as const).map(value => <PortalButton key={value} size="sm" variant={value === 'accept' ? 'primary' : 'secondary'} disabled={busy} onClick={() => onAction(value)}>{value === 'accept' ? 'Accept request' : 'Reject request'}</PortalButton>)}</div> : null}
+    {children}
+  </div>;
+}
 
 export function LecturerAppointmentRequestList({ rows, history, onOpen }: { rows: LecturerAppointmentRow[]; history: boolean; onOpen: (row: LecturerAppointmentRow) => void }) {
   return <div className="space-y-6">{(history ? ['history'] as const : groups).map(group => {
@@ -24,7 +40,7 @@ export function LecturerAppointmentRequestList({ rows, history, onOpen }: { rows
     return selected.length ? <RequestGroupSection key={group} group={group} count={selected.length}><WorkspaceRecordTable label="Appointment request records" rows={selected.map(row => ({
       key: row.key, studentName: row.studentName, matricNo: row.matricNo,
       kind: row.kind === 'primary' ? 'Primary supervisor' : 'Supporting supervisor', submittedAt: row.submittedAt,
-      status: requestStatusLabel(row.status, row.canDecide), waitingDays: row.waitingDays, waitingApplicable: group !== 'history',
+      status: requestStatusLabel(row.status, row.canDecide), workflowStatus: row.status, waitingDays: row.waitingDays, waitingApplicable: group !== 'history',
       actionLabel: group === 'review' ? 'Review request' : 'View request', onOpen: () => onOpen(row),
     }))} /></RequestGroupSection> : null;
   })}</div>;
@@ -68,14 +84,15 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   const detailVersion = useRef(0);
   const openedRoute = useRef('');
   const mutation = useRef(false);
+  const decisionSaved = useRef(false);
   const navigationComplete = useRef(false);
   const mounted = useRef(false);
   const scope = `${location.pathname}:${location.search}`;
   const scopeRef = useRef(scope); scopeRef.current = scope;
-  const load = useCallback(async () => {
+  const load = useCallback(async (strict = false) => {
     const token = ++loadVersion.current; setLoading(true); setError(null);
     try { const [records, teams] = await Promise.all([getSupervisorRequestHistory(), getSupervisoryWorkspace()]); if (token === loadVersion.current) { setHistory(records); setWorkspace(teams); } }
-    catch (failure) { if (token === loadVersion.current) { setError(failure instanceof Error ? failure.message : 'Requests could not be loaded.'); setHistory([]); setWorkspace(EMPTY_WORKSPACE); } }
+    catch (failure) { if (token === loadVersion.current) { setError(failure instanceof Error ? failure.message : 'Requests could not be loaded.'); setHistory([]); setWorkspace(EMPTY_WORKSPACE); } if (strict) throw failure; }
     finally { if (token === loadVersion.current) setLoading(false); }
   }, []);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; detailVersion.current += 1; }; }, []);
@@ -83,36 +100,41 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   const close = () => { detailVersion.current += 1; setSelected(null); setDetail(null); setAction(null); setReason(''); };
   const closePanel = () => { close(); if (initialApplicationId || initialSupportingId) onCloseRoute?.(); };
   useEffect(() => { close(); }, [scope]);
-  const open = useCallback(async (row: LecturerAppointmentRow) => {
+  const open = useCallback(async (row: LecturerAppointmentRow, preserveDecision = false, strict = false) => {
     const token = ++detailVersion.current; const openedScope = scopeRef.current;
     navigationComplete.current = false;
-    setSelected(row); setDetail(null); setDetailError(null); setAction(null); setReason('');
+    if (!preserveDecision) decisionSaved.current = false;
+    setSelected(row); setDetail(null); setDetailError(null); if (!preserveDecision) { setAction(null); setReason(''); }
     setDetailLoading(true);
     try {
       if (row.kind === 'supporting') {
         const teams = await getSupervisoryWorkspace();
         const current = appointmentRequestRows([], [], teams).find(record => record.key === row.key);
-        if (!current) throw new Error('This request is no longer available. Refresh the request list.');
-        if (token === detailVersion.current && openedScope === scopeRef.current) setSelected(current);
+        if (!current) throw new Error('This request is no longer available. Return to the request list.');
+        if (token === detailVersion.current && openedScope === scopeRef.current) { setSelected(current); setWorkspace(teams); }
       } else {
         const record = await getSupervisorApplication(row.id);
         if (token === detailVersion.current && openedScope === scopeRef.current) setDetail(record);
       }
     }
-    catch (failure) { if (token === detailVersion.current && openedScope === scopeRef.current) setDetailError(failure instanceof Error ? failure.message : 'Request details could not be loaded.'); }
+    catch (failure) { if (token === detailVersion.current && openedScope === scopeRef.current) setDetailError(failure instanceof Error ? failure.message : 'Request details could not be loaded.'); if (strict) throw failure; }
     finally { if (token === detailVersion.current) setDetailLoading(false); }
   }, []);
   const decide = async () => {
-    if (!selected || !action || mutation.current || (!['accept', 'approve'].includes(action) && !reason.trim())) return;
-    mutation.current = true; setBusy(true); setDetailError(null);
+    if (!selected || !action || mutation.current || (!['accept', 'approve'].includes(action) && !reason.trim())) return false;
+    mutation.current = true; setBusy(true);
     const operationScope = scopeRef.current;
     const operationToken = detailVersion.current;
     try {
-      if (selected.kind === 'primary') { if (action === 'accept') await acceptSupervisorApplication(selected.id); else await rejectSupervisorApplication(selected.id, reason.trim()); }
-      else await decideCoSupervisor(Number(selected.id), action as CoSupervisorAction, reason.trim());
-      if (mounted.current) { await Promise.all([load(), onChanged()]); if (scopeRef.current === operationScope && detailVersion.current === operationToken) { navigationComplete.current = true; closePanel(); setNotice(action === 'accept' ? 'Request accepted and forwarded to the Programme Coordinator.' : action === 'approve' ? 'Supporting appointment approved.' : action === 'cancel' ? 'Nomination cancelled.' : 'Request rejected.'); } }
-    } catch (failure) { if (mounted.current && scopeRef.current === operationScope && detailVersion.current === operationToken) { setDetailError(failure instanceof Error ? failure.message : 'The decision could not be saved.'); setAction(null); await Promise.all([load(), onChanged()]); } }
-    finally { mutation.current = false; if (mounted.current) setBusy(false); }
+      return await completeDecision(async () => {
+        if (selected.kind === 'primary') { if (action === 'accept') await acceptSupervisorApplication(selected.id); else await rejectSupervisorApplication(selected.id, reason.trim()); }
+        else await decideCoSupervisor(Number(selected.id), action, reason.trim());
+        decisionSaved.current = true;
+      }, async () => {
+        await Promise.all([load(true), onChanged()]);
+        if (mounted.current && scopeRef.current === operationScope && detailVersion.current === operationToken) await open(selected, true, true);
+      });
+    } finally { mutation.current = false; if (mounted.current) setBusy(false); }
   };
   const rows = appointmentRequestRows(primaryRequests, history, workspace);
   useEffect(() => {
@@ -137,31 +159,29 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   const page = Math.min(pageCount, Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1));
   const appointments = [...new Map([...workspace.appointments, ...workspace.teams.flatMap(team => team.appointments)].filter(row => row.status === 'ENDED').map(row => [row.id, row])).values()];
   const panelRow = selected?.nomination;
-  const canReviewPrimary = detail?.status === 'SUBMITTED_TO_SUPERVISOR' && detail.participantEligible !== false;
-  const audit = detail?.workflow ?? panelRow?.history.map(event => ({ ...event, actorName: event.actor, actorRole: '' })) ?? [];
   const loadError = primaryError ?? error;
-  if (initialApplicationId || initialSupportingId || selected) return <RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closePanel}
+  const decisionLabel = action === 'accept' ? 'Accept request' : action === 'approve' ? 'Approve supporting appointment' : action === 'cancel' ? 'Cancel nomination' : 'Reject request';
+  const decisionDialog = <DecisionDialog isOpen={!!action} decisionKey={selected?.key} title={decisionLabel} confirmLabel={decisionLabel} kind={action==='cancel'?'confirmation':'review'} tone={action&&['accept','approve'].includes(action)?'info':'danger'}
+    context={<p>{selected?.studentName} · {selected?.matricNo} · {selected?.programme}</p>}
+    message={action === 'accept' ? 'Acceptance forwards this request to the Programme Coordinator for final approval.' : action === 'approve' ? 'Approval confirms the supporting appointment after eligibility and capacity checks.' : action === 'cancel' ? 'This nomination will be cancelled.' : 'This request will be rejected with your reason recorded.'}
+    busy={busy} dirty={!!reason.trim()} canConfirm={!!selected && !!action && (['accept', 'approve'].includes(action) || !!reason.trim())}
+    successMessage={action === 'accept' ? 'Request accepted and forwarded to the Programme Coordinator.' : action === 'approve' ? 'Supporting appointment approved.' : action === 'cancel' ? 'Nomination cancelled.' : 'Request rejected.'}
+    onClose={() => { setAction(null); setReason(''); }} onConfirm={decide} onReload={async () => { if (selected) await open(selected, true, true); }}>
+    {action && !['accept', 'approve'].includes(action) ? <label className="form-label block">Reason (required)<textarea required className="form-control mt-2" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
+  </DecisionDialog>;
+  const primaryActions = detail ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy} onNavigateToDossier={onNavigateToDossier}
+    onAction={value => { setAction(value); setReason(''); }} /> : null;
+  if (initialApplicationId || initialSupportingId || selected) return <>{decisionDialog}<RecordPage navigationComplete={navigationComplete} title="Appointment request" backLabel={backLabel} onBack={closePanel}
+    metadata={!detailLoading && !detailError ? detail ? <RequestMetadata {...supervisorRequestMetadata(toSupervisorRequestPresentation(detail))} /> : panelRow ? <RequestMetadata {...supportingRequestMetadata(panelRow)} /> : undefined : undefined}
     pageKey={initialApplicationId || initialSupportingId ? undefined : `supervisor-request:${selected?.key}`}
     dirty={!!action && !!reason.trim()} busy={busy}>
-    {selected ? <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <WorkspaceRequestReference key={selected.key} reference={selected.kind === 'primary' ? `SV-REQ-${String(selected.id).padStart(5, '0')}` : `Supporting request #${selected.id}`} />
-      <div className="space-y-1"><h3 className="section-label">{detail?.studentName ?? selected.studentName}</h3><p className="card-description">{detail?.studentId ?? selected.matricNo}</p>{detail?.status || selected.status ? <StatusBadge tone={requestGroup(detail?.status ?? selected.status, false) === 'history' ? 'neutral' : 'warning'}>{requestStatusLabel(detail?.status ?? selected.status)}</StatusBadge> : null}</div>
-      <p className="card-description">Programme: {detail?.programme || selected.programme || 'Not recorded'} · Submitted {formatMalaysiaDate(selected.submittedAt)}</p>
-      {detailLoading ? <LoadingState message="Loading request details…" /> : <>
-        {detailError ? <ErrorState message={detailError} onRetry={() => void open(selected)} /> : null}
-        {detail && onNavigateToDossier ? <PortalButton size="sm" variant="secondary" onClick={() => onNavigateToDossier(detail.studentId)}>View student record</PortalButton> : null}
-        {detail || panelRow ? <>
-          {detail ? <><div className="space-y-2"><h4 className="card-value">Submitted research</h4><p className="card-value">{detail.researchTitle}</p><p className="card-description">{detail.researchArea || 'Research area not recorded'}</p><p className="card-description whitespace-pre-wrap">{detail.researchAbstract}</p></div>{detail.replacementReason ? <p className="card-description">Replacement reason: {detail.replacementReason}</p> : null}<SupervisorDocumentsList applicationId={detail.id} documents={detail.documents ?? []} compact /></> : panelRow ? <div className="space-y-2"><p className="card-value">Supporting supervisor: {panelRow.candidate.name}</p><p className="card-description">Nominated by {panelRow.nominator.name}{panelRow.replacesAppointmentId ? ' · Replacement nomination' : ''}</p><p className="card-description whitespace-pre-wrap">{panelRow.justification}</p></div> : null}
-          {(detail?.waitingDays ?? panelRow?.waitingDays) != null && requestGroup(detail?.status ?? panelRow!.status, false) !== 'history' ? <dl className="grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-2"><div><dt className="card-label">Current stage</dt><dd className="card-value mt-1">{requestStatusLabel(detail?.status ?? panelRow!.status)}</dd></div><div><dt className="card-label">Waiting at this stage</dt><dd className="card-value mt-1">{detail?.waitingDays ?? panelRow?.waitingDays} calendar {(detail?.waitingDays ?? panelRow?.waitingDays) === 1 ? 'day' : 'days'}</dd></div></dl> : null}
-          <div className="space-y-3"><h4 className="section-label">Recorded progress</h4><p className="card-description">Submitted {formatMalaysiaDate(detail?.submittedAt ?? panelRow!.submittedAt)}</p><ol className="space-y-3 border-l border-slate-200 pl-3">{audit.map(event => <li key={event.id}><p className="card-value">{requestStatusLabel(event.newStatus)}</p><p className="card-description">{event.actorName} · {formatMalaysiaDate(event.createdAt)}</p>{event.reason ? <p className="card-description whitespace-pre-wrap">{event.reason}</p> : null}</li>)}</ol></div>
-          {detail?.participantEligible === false ? <p className="card-description">This Student is currently ineligible for a decision.</p> : null}
-          {!detailError && (canReviewPrimary || panelRow?.allowedActions.length) ? <div className="flex flex-wrap gap-2">{(canReviewPrimary ? ['accept', 'reject'] as const : panelRow!.allowedActions).map(value => <PortalButton key={value} size="sm" variant={['accept', 'approve'].includes(value) ? 'primary' : 'secondary'} disabled={busy} onClick={() => { setAction(value as typeof action); setReason(''); }}>{value === 'accept' ? 'Accept request' : value === 'approve' ? 'Approve request' : value === 'cancel' ? 'Cancel nomination' : 'Reject request'}</PortalButton>)}</div> : null}
-          {action ? <form className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4" onSubmit={event => { event.preventDefault(); void decide(); }}><h4 className="card-value">Confirm {action === 'cancel' ? 'cancellation' : action === 'approve' ? 'approval' : action === 'accept' ? 'acceptance' : 'rejection'}</h4>{['accept', 'approve'].includes(action) ? <p className="card-description">{action === 'accept' ? 'Acceptance forwards this request to the Programme Coordinator for final approval.' : 'Approval confirms the supporting appointment after eligibility checks.'}</p> : <label className="form-label block">Reason<textarea required className="form-control form-control-sm mt-1" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label>}<div className="flex gap-2"><PortalButton type="submit" size="sm" variant="primary" isLoading={busy}>Confirm decision</PortalButton><PortalButton size="sm" disabled={busy} onClick={() => setAction(null)}>Cancel</PortalButton></div></form> : null}
-        </> : null}
-      </>}
-    </section> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <LoadingState message="Loading request details…" />}
-  </RecordPage>;
-  return <div className="space-y-5">
+    {selected ? detailLoading ? <LoadingState message="Loading request details…" /> : <>
+      {detailError ? <ErrorState message={detailError} onRetry={() => void open(selected)} /> : null}
+      {detail ? <SupervisorRequestDetail request={toSupervisorRequestPresentation(detail)} actions={primaryActions} /> : panelRow ? <CoSupervisorNominationCard nomination={decisionSaved.current ? { ...panelRow, allowedActions: [] } : panelRow} hideMetadata busy={busy || !!detailError}
+        onAction={(_, value) => { if (!detailError) { setAction(value); setReason(''); } }}  /> : null}
+    </> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <LoadingState message="Loading request details…" />}
+  </RecordPage></>;
+  return <>{decisionDialog}<div className="space-y-5">
     {view === 'requests' && !loading && !primaryLoading && !loadError && workload ? <div className="grid gap-4 md:grid-cols-3">
       <AppointmentSummaryCard title="Supervisory load" value="" description={`${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable ? 'success' : 'warning'} progress={{ current: workload.currentStudents, max: workload.workloadLimit }} />
       <AppointmentSummaryCard title="Needs your review" value={String(reviewCount)} description="Primary and supporting requests needing your decision." tone={reviewCount ? 'warning' : 'success'} />
@@ -178,5 +198,5 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
       {view === 'history' && appointments.length ? <details className="border-t border-slate-200 pt-4"><summary className="card-value cursor-pointer">Supporting appointment activity ({appointments.length})</summary><p className="card-description mt-2">Recorded appointment endings and replacements, separate from request decisions.</p><div className="mt-3 space-y-3">{appointments.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={{ ...row, canEnd: false }} busy={false} canReplace={false} onEnd={() => {}} onReplace={() => {}} />)}</div></details> : null}
     </>}
 
-  </section></div>;
+  </section></div></>;
 }

@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Users, HelpCircle } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { RecordPageProvider } from './RecordPage';
+import {DecisionFeedbackProvider} from './DecisionFeedback';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -45,6 +46,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   );
 
   return (
+    <DecisionFeedbackProvider scopeKey={`${userName}:${userRole}`}>
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
       {/* 1. Left navigation sidebar (collapsible drawer) */}
       <Sidebar
@@ -173,5 +175,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
             </PortalModal>
     </div>
+    </DecisionFeedbackProvider>
   );
 };

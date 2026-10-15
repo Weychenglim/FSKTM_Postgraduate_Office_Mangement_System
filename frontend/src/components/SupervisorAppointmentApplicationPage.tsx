@@ -73,6 +73,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
 
   // Form Fields
   const [researchTitle, setResearchTitle] = useState(replacementApplication?.researchTitle || '');
+  const [projectCourseCodes, setProjectCourseCodes] = useState(replacementApplication?.projectCourseCodes || '');
   const [researchArea, setResearchArea] = useState(replacementApplication?.researchArea || '');
   const [researchAbstract, setResearchAbstract] = useState(replacementApplication?.researchAbstract || '');
   const [replacementReason, setReplacementReason] = useState('');
@@ -208,6 +209,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
       const body = buildSupervisorApplicationFormData({
         proposedSupervisorId: selectedSupervisorId,
         researchTitle: researchTitle.trim(),
+        projectCourseCodes: projectCourseCodes.trim(),
         researchArea: researchArea.trim(),
         researchAbstract: researchAbstract.trim(),
         replacesAppointmentId: replacementApplication?.appointmentLifecycle?.appointmentId,
@@ -229,7 +231,7 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
   return (
     <RecordPage navigationComplete={navigationComplete} title={replacementApplication ? 'Change Supervisor' : 'Supervisor Appointment Application'} subtitle={replacementApplication
           ? 'Request a replacement through the normal Supervisor and Programme Coordinator approval workflow. Your current appointment remains active until final approval.'
-          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'} backLabel="Back to Applications" onBack={onBack} dirty={researchTitle !== (replacementApplication?.researchTitle ?? '') || researchArea !== (replacementApplication?.researchArea ?? '') || researchAbstract !== (replacementApplication?.researchAbstract ?? '') || !!replacementReason.trim() || selectedSupervisorId !== null || selectedFiles.size > 0} busy={submitting}><form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
+          : 'Complete the following steps to formally request a research supervisor. Ensure your proposal abstract is clear and aligned with the faculty research areas.'} backLabel="Back to Applications" onBack={onBack} dirty={projectCourseCodes !== (replacementApplication?.projectCourseCodes ?? '') || researchTitle !== (replacementApplication?.researchTitle ?? '') || researchArea !== (replacementApplication?.researchArea ?? '') || researchAbstract !== (replacementApplication?.researchAbstract ?? '') || !!replacementReason.trim() || selectedSupervisorId !== null || selectedFiles.size > 0} busy={submitting}><form id="submission-supervisor-form" onSubmit={handleSubmitRequest} className="space-y-8 text-left font-sans pb-12">
       <PortalToast message={toastMessage} tone={toastTone} onClose={clearToast} />
       
 
@@ -268,6 +270,21 @@ export const SupervisorAppointmentApplicationPage: React.FC<SupervisorAppointmen
             />
           </div>
         )}
+
+        <div className="space-y-1.5">
+          <label htmlFor="project-course-codes-input" className="form-label uppercase text-slate-400 tracking-wider block">Course code(s) (optional)</label>
+          <input
+            id="project-course-codes-input"
+            type="text"
+            maxLength={255}
+            value={projectCourseCodes}
+            onChange={(event) => setProjectCourseCodes(event.target.value)}
+            aria-describedby="project-course-codes-hint"
+            placeholder="e.g. WQD7002"
+            className="form-control"
+          />
+          <p id="project-course-codes-hint" className="card-description">Enter your project course code(s). Separate multiple codes with commas.</p>
+        </div>
 
         {/* Input Field: Research Title */}
         <div className="space-y-1.5">

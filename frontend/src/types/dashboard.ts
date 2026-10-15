@@ -47,6 +47,9 @@ export interface DashboardTask
 }
 
 export interface DashboardSummary {
+  activeSupervisees?: number;
+  activePanelAssignments?: number;
+  assignedMarkTasks?: number;
   pendingSupervisorRequests: number;
   pendingSupervisorApprovals: number;
   pendingPanelReviews: number;

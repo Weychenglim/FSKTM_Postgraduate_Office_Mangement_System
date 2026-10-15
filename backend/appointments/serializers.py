@@ -842,6 +842,7 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
     )
     proposedSupervisorId = serializers.SerializerMethodField()
     researchTitle = serializers.CharField(source="research_title", read_only=True)
+    projectCourseCodes = serializers.CharField(source="project_course_codes", read_only=True)
     researchArea = serializers.CharField(source="research_area", read_only=True)
     researchAbstract = serializers.CharField(source="research_abstract", read_only=True)
     researchProfileReady = serializers.SerializerMethodField()
@@ -893,6 +894,7 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             "proposedSupervisor",
             "proposedSupervisorId",
             "researchTitle",
+            "projectCourseCodes",
             "researchArea",
             "researchAbstract",
             "researchProfileReady",
@@ -983,6 +985,9 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
 
 class SupervisorApplicationCreateSerializer(serializers.Serializer):
     proposedSupervisorId = serializers.CharField()
+    projectCourseCodes = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, trim_whitespace=True, default="",
+    )
     researchTitle = serializers.CharField(max_length=500)
     researchArea = serializers.CharField(max_length=255, allow_blank=False)
     researchAbstract = serializers.CharField()
@@ -1137,6 +1142,7 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
             academic_semester=validated_data["academic_semester"],
             proposed_supervisor=validated_data["supervisor"],
             research_title=validated_data["researchTitle"],
+            project_course_codes=validated_data["projectCourseCodes"],
             research_area=validated_data["researchArea"],
             research_abstract=validated_data["researchAbstract"],
             replaces_appointment=validated_data.get("replaces_appointment"),
@@ -1334,6 +1340,13 @@ class PanelAssignmentSerializer(serializers.ModelSerializer):
         return department_for_user(obj.supervisor)
 
 
+class StudentResearchProfileSummarySerializer(serializers.Serializer):
+    title = serializers.CharField()
+    programme = serializers.CharField()
+    area = serializers.CharField(allow_blank=True)
+    abstract = serializers.CharField(allow_blank=True)
+
+
 class StudentPanelAppointmentSerializer(serializers.Serializer):
     status = serializers.CharField()
     readinessState = serializers.CharField()
@@ -1344,6 +1357,7 @@ class StudentPanelAppointmentSerializer(serializers.Serializer):
     semesterId = serializers.IntegerField(allow_null=True)
     semesterCode = serializers.CharField(allow_null=True)
     researchTitle = serializers.CharField()
+    researchProfile = StudentResearchProfileSummarySerializer(allow_null=True)
     supervisorName = serializers.CharField()
     panelMemberName = serializers.CharField(allow_null=True)
     panelMemberId = serializers.CharField(allow_null=True)
@@ -1369,6 +1383,12 @@ def student_panel_appointment_payload(profile):
         "semesterId": None,
         "semesterCode": None,
         "researchTitle": profile.proposed_topic,
+        "researchProfile": {
+            "title": profile.proposed_topic,
+            "programme": profile.programme,
+            "area": profile.research_area,
+            "abstract": profile.abstract,
+        },
         "supervisorName": profile.supervisor.full_name,
         "panelMemberName": None,
         "panelMemberId": None,
@@ -1459,6 +1479,7 @@ def pending_student_panel_payload_from_user(user):
         "researchTitle": (
             application.research_title if application else "Not available yet"
         ),
+        "researchProfile": None,
         "supervisorName": (
             application.proposed_supervisor.full_name
             if application

@@ -74,6 +74,14 @@ export type SupervisorAppointmentStatus =
   | 'Cancelled';
 
 export interface SupervisorRecord extends WorkflowAgeingMetadata {
+  workflowStatus?: SupervisorApplicationWorkflowStatus;
+  submittedAt?: string;
+  rejectionReason?: string;
+  cancellationReason?: string;
+  cancelledAt?: string | null;
+  participantEligible?: boolean;
+  participantLifecycleStatus?: string;
+  projectCourseCodes?: string;
   applicationId?: number;
   studentId: string;
   studentName: string;
@@ -89,6 +97,7 @@ export interface SupervisorRecord extends WorkflowAgeingMetadata {
   appointmentId?: number | string | null;
   workloadLimit?: string;
   approvedDate?: string;
+  approvalRecordedAt?: string | null;
   releasedDate?: string;
   panelMemberName?: string;
   panelAssignedDate?: string;
@@ -333,6 +342,13 @@ export interface PanelWorkloadRecord extends AppointmentCapacityMetadata {
   workloadItems: PanelWorkloadItem[];
 }
 
+export interface StudentResearchProfileSummary {
+  title: string;
+  programme: string;
+  area: string;
+  abstract: string;
+}
+
 export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
   status: 'PENDING' | 'CONFIRMED';
   readinessState:
@@ -346,6 +362,7 @@ export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
   programme: string;
   semester: string;
   researchTitle: string;
+  researchProfile?: StudentResearchProfileSummary | null;
   supervisorName: string;
   panelMemberName: string | null;
   panelMemberId: string | null;
@@ -423,6 +440,13 @@ export type StudentSupervisorApplicationStatus =
   | 'APPROVED';
 
 export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
+  studentId?: string;
+  studentName?: string;
+  programme?: string;
+  semester?: string;
+  researchAbstract?: string;
+  submittedAt?: string;
+  projectCourseCodes?: string;
   applicationId?: number;
   id: string;
   title: string;
@@ -463,6 +487,7 @@ export interface SupervisorWorkflowEvent {
 }
 
 export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
+  projectCourseCodes?: string;
   id: number;
   studentId: string;
   studentName: string;

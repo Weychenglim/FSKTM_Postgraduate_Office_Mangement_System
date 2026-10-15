@@ -62,7 +62,7 @@ function StudentApplicationWorkspace({ applications, onViewApplication }: Studen
       key: app.id, studentName: app.supervisor,
       matricNo: app.unavailableUntil ? `Unavailable for new appointments until ${app.unavailableUntil}` : '',
       kind: app.replacesAppointmentId ? 'Replacement supervisor' : 'Primary supervisor', submittedAt: applicationDate(app.date),
-      status: requestStatusLabel(app.workflowStatus ?? app.status), waitingDays: app.waitingDays ?? requestWaitingDays(app.waitingSince ?? ''), waitingApplicable: view !== 'history',
+      status: requestStatusLabel(app.workflowStatus ?? app.status), workflowStatus: app.workflowStatus ?? app.status, waitingDays: app.waitingDays ?? requestWaitingDays(app.waitingSince ?? ''), waitingApplicable: view !== 'history',
       actionLabel: 'View request', disabled: app.applicationId === undefined || !onViewApplication,
       onOpen: () => app.applicationId !== undefined && onViewApplication?.(String(app.applicationId)),
     }))} /> : <p className="card-description rounded-lg bg-slate-50 p-4">{filtered ? 'No matching requests. Adjust the filters to see more records.' : view === 'history' ? 'No final request outcomes yet.' : 'No ongoing supervisor requests.'}</p>}
