@@ -130,10 +130,11 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const [programmeOptions, setProgrammeOptions] = useState<string[]>([]);
   const [preview, setPreview] = useState<(EvaluationRecipientPreview & PeriodPreviewApproval) | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const selectionRequest = useRef(0);
   const previewRequest = useRef(0);
-  const invalidatePreview = () => { previewRequest.current += 1; setPreview(null); setPreviewLoading(false); };
+  const invalidatePreview = () => { previewRequest.current += 1; setPreview(null); setPreviewLoading(false); setPreviewError(null); };
   const updateForm = (change: React.SetStateAction<PeriodForm>) => { invalidatePreview(); setForm(change); };
   const [reason, setReason] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -331,12 +332,12 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const canPublish = !saving && !selecting && !previewLoading && canPublishPeriodPreview(selected, formSnapshot, savedFormSnapshot, preview);
   const selectableProgrammes = [...new Set([...programmeOptions, ...form.programmes])].sort();
 
-  const refreshPreview = async () => {
+  const loadRecipientPreview = async () => {
     if (!selected || hasUnsavedChanges || saving || selecting) return;
     const requestId = ++previewRequest.current;
     setPreview(null);
     setPreviewLoading(true);
-    setError(null);
+    setPreviewError(null);
     try {
       // Refresh the saved configuration first, so another office edit cannot be
       // silently approved using this screen's previous draft values.
@@ -344,18 +345,24 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       if (requestId !== previewRequest.current) return;
       if (JSON.stringify(detail) !== JSON.stringify(selected)) {
         replacePeriod(detail);
-        setError('The saved period changed. Review its configuration and refresh the recipient preview.');
+        setError('The saved period changed. Review its current configuration and recipient preview before publishing.');
         return;
       }
       const result = await getEvaluationRecipientPreview(selected.id);
       if (requestId !== previewRequest.current) return;
       setPreview({ ...result, formSnapshot, periodSnapshot: JSON.stringify(detail) });
     } catch (previewError) {
-      if (requestId === previewRequest.current) setError(marksMutationErrorMessage(previewError));
+      if (requestId === previewRequest.current) setPreviewError(marksMutationErrorMessage(previewError));
     } finally {
       if (requestId === previewRequest.current) setPreviewLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (selected?.lifecycleStatus !== 'DRAFT' || hasUnsavedChanges || saving || selecting || loading) return;
+    void loadRecipientPreview();
+    return () => { previewRequest.current += 1; };
+  }, [selected, formSnapshot, hasUnsavedChanges, saving, selecting, loading, includeArchived]);
 
   return (
     <div id="mark-entry-period-configuration" className="space-y-7 animate-fade-in">
@@ -581,9 +588,10 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
               ) : null}
 
               {selected?.lifecycleStatus === 'DRAFT' ? <div className="space-y-3 border-t border-slate-100 pt-4">
-                <p className="card-description">Save changes, then refresh and review recipients before publishing.</p>
+                <p className="card-description">Save changes, then review the automatically updated recipients before publishing.</p>
                 {hasUnsavedChanges ? <p role="status" className="card-value text-amber-800">Save your unsaved changes before reviewing recipients.</p> : null}
-                <PortalButton variant="secondary" disabled={hasUnsavedChanges || previewLoading} isLoading={previewLoading} onClick={() => void refreshPreview()}>Refresh recipient preview</PortalButton>
+                {previewLoading ? <p role="status" className="card-description">Loading recipient preview…</p> : null}
+                {previewError ? <ErrorState message={previewError} onRetry={() => void loadRecipientPreview()} /> : null}
                 {preview && canPublish ? <MarkEntryRecipientPreview preview={preview} /> : null}
               </div> : null}
 

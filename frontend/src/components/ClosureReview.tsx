@@ -32,12 +32,12 @@ export function ClosureReview({ kind, id, disabled, onConfirm }: { kind: 'semest
     session.current.invalidate();
     setBusy(true);setError('');
     try { await onConfirm(approval); setPreview(null); }
-    catch(reason){setPreview(null);setAcknowledged(false);setError(reason instanceof ApiError && reason.status===409?'The preview changed. Refresh and review it again.':reason instanceof Error?reason.message:'Unable to complete transition.');}
+    catch(reason){setPreview(null);setAcknowledged(false);if(reason instanceof ApiError && reason.status===409)setRevision(v=>v+1);else setError(reason instanceof Error?reason.message:'Unable to complete transition.');}
     finally{setBusy(false);}
   };
   return <div className="my-4 space-y-4 border-y border-slate-200 py-4">
     {error?<p role="alert" className="card-description text-red-700">{error}</p>:null}
     {preview?<><ClosureSummary preview={preview}/>{preview.requiresAcknowledgement?<label className="card-description flex gap-2 text-slate-700"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)} disabled={busy}/>I acknowledge the unfinished tasks and active completion windows shown above.</label>:null}</>:!error?<p className="card-description">Loading closure preview…</p>:null}
-    <div className="flex gap-2"><PortalButton disabled={busy} onClick={()=>{session.current.invalidate();setPreview(null);setAcknowledged(false);setRevision(v=>v+1);}}>Refresh preview</PortalButton><PortalButton variant="primary" disabled={disabled||busy||!preview||(preview.requiresAcknowledgement&&!acknowledged)} onClick={()=>void confirm()}>Confirm closure / handover</PortalButton></div>
+    <div className="flex gap-2">{error?<PortalButton disabled={busy} onClick={()=>setRevision(v=>v+1)}>Retry</PortalButton>:null}<PortalButton variant="primary" disabled={disabled||busy||!preview||(preview.requiresAcknowledgement&&!acknowledged)} onClick={()=>void confirm()}>Confirm closure / handover</PortalButton></div>
   </div>;
 }

@@ -243,10 +243,17 @@ assert.doesNotMatch(officeSource, /4 records in queue/i);
 assert.match(officeSource, /formatSupervisorWaiting/);
 assert.match(officeSource, /View workload alerts/i);
 assert.match(coordinatorSource, /orderSupervisorQueueOldestFirst/);
-assert.match(coordinatorSource, /formatSupervisorWaiting/);
+assert.match(coordinatorSource, /SupervisorRequestDetail/);
 assert.match(lecturerSource, /orderSupervisorQueueOldestFirst/);
 assert.match(lecturerSource, /formatSupervisorWaiting/);
 assert.doesNotMatch(lecturerSource, /Requires review within 7 days/i);
-assert.match(studentSource, /formatSupervisorWaiting/);
+assert.match(studentSource, /SupervisorRequestDetail/);
+
+const React = await import('react');
+const {renderToStaticMarkup} = await import('react-dom/server');
+const {SupervisorRequestDetail,toSupervisorRequestPresentation} = await import('../components/SupervisorRequestDetail');
+const sharedDetail = (record:SupervisorApplicationRecord) => renderToStaticMarkup(React.createElement(SupervisorRequestDetail,{request:toSupervisorRequestPresentation(record)}));
+assert.match(sharedDetail(applicationRecord),/2 calendar days at this stage/,'Role-neutral primary detail retains waiting age');
+assert.doesNotMatch(sharedDetail({...applicationRecord,status:'APPROVED'}),/2 calendar days/,'Final primary detail suppresses stale waiting age');
 
 console.log('supervisor appointment ageing frontend tests passed');

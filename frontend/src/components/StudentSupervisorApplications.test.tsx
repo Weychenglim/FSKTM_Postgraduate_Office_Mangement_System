@@ -66,7 +66,8 @@ const history = render('?view=history');
 assert.equal((history.match(/>View request</g) ?? []).length, 3);
 assert.match(history, /Dr Historical 0|Dr Historical 1|Dr Historical 2/);
 assert.doesNotMatch(history, /Dr Proposed|2 calendar days/);
-assert.match(history, /aria-label="Not applicable"/);
+for (const outcome of ['Completed', 'Rejected', 'Cancelled']) assert.ok(history.includes(`Waiting at this stage</span>${outcome}</td>`), `Waiting cells explain ${outcome}`);
+assert.doesNotMatch(history, /aria-label="Not applicable"/);
 assert.match(history, /Cancelled by Office/);
 const overview = render('', applications, true);
 assert.match(overview, /Current request|Dr Proposed 1/);
@@ -77,9 +78,9 @@ const missingId = render('', [{ ...applications[0], applicationId: undefined }])
 assert.match(missingId, /disabled=""[^>]*><span>View request/);
 for (const routeView of ['overview', 'applications', 'research'] as const) {
   const page = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView={routeView} /></MemoryRouter>);
-  assert.equal((page.match(/>Refresh</g) ?? []).length, 1, `${routeView} has one owning refresh`);
+  assert.equal((page.match(/>Refresh</g) ?? []).length, 0, `${routeView} has no manual refresh action`);
   assert.doesNotMatch(page, /Refresh teams|Refresh research changes/);
 }
 const detail = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView="applications" initialApplicationId="1" /></MemoryRouter>);
 assert.doesNotMatch(detail, /New application|>Refresh</);
-console.log('Student application partitions, supervisor identity, filters, paging and owning refresh pass');
+console.log('Student application partitions, supervisor identity, filters, paging without manual refresh pass');

@@ -51,6 +51,7 @@ export function buildSupervisorApplicationFormData(
     researchTitle: string;
     researchArea: string;
     researchAbstract: string;
+    projectCourseCodes?: string;
     replacesAppointmentId?: number | null;
     replacementReason?: string;
   },
@@ -61,6 +62,7 @@ export function buildSupervisorApplicationFormData(
   body.append('researchTitle', fields.researchTitle);
   body.append('researchArea', fields.researchArea);
   body.append('researchAbstract', fields.researchAbstract);
+  body.append('projectCourseCodes', (fields.projectCourseCodes ?? '').trim());
   if (fields.replacesAppointmentId) {
     body.append('replacesAppointmentId', String(fields.replacesAppointmentId));
   }

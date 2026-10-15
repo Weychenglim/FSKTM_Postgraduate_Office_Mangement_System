@@ -21,6 +21,7 @@ export const APP_ROUTES = {
   filesDocuments: '/files/documents',
   filesSettings: '/files/settings',
   supervisorAppointments: '/supervisor-appointments',
+  supervisorAppointmentRequests: '/supervisor-appointments/requests',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
   supervisorAppointmentNew: '/supervisor-appointments/new',
   supervisorAppointmentHistory: '/supervisor-appointments/history',

@@ -1,19 +1,32 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
 import { PortalButton, ProgressBar, StatusBadge } from './PortalPrimitives';
 
-export function AppointmentSection({ title, description, children, onRefresh, refreshing = false, id, actions }: {
-  title: string; description?: string; children: React.ReactNode; onRefresh?: () => void; refreshing?: boolean; id?: string; actions?: React.ReactNode;
+export const appointmentDetailTypography = {
+  label: 'text-xs font-semibold leading-relaxed text-slate-500',
+  body: 'text-xs font-normal leading-relaxed text-slate-700',
+  name: 'text-sm font-semibold leading-relaxed text-brand-navy',
+  heading: 'text-base font-semibold leading-relaxed text-brand-navy',
+  disclosure: 'cursor-pointer py-5 text-sm font-semibold leading-relaxed text-brand-navy',
+};
+
+export function AppointmentSection({ title, description, children, id, actions, detail = false }: {
+  title: string; description?: string; children: React.ReactNode; onRefresh?: () => void; refreshing?: boolean; id?: string; actions?: React.ReactNode; detail?: boolean;
 }) {
-  return <section id={id} aria-label={title} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="section-label">{title}</h2>{description ? <p className="card-description mt-1">{description}</p> : null}</div><div className="flex flex-wrap gap-2">{actions}{onRefresh ? <PortalButton size="sm" icon={RefreshCw} disabled={refreshing} onClick={onRefresh}>Refresh appointments</PortalButton> : null}</div></div>
+  return <section id={id} aria-label={title} className={`${detail ? 'space-y-6 p-6 md:p-8' : 'space-y-4 p-5'} rounded-2xl border border-slate-200 bg-white shadow-sm`}>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className={detail ? appointmentDetailTypography.heading : 'section-label'}>{title}</h2>{description ? <p className={`${detail ? appointmentDetailTypography.body : 'card-description'} mt-1`}>{description}</p> : null}</div><div className="flex flex-wrap gap-2">{actions}</div></div>
     {children}
   </section>;
 }
 
-export function AppointmentMemberCard({ label, name, status, tone, children, actions }: {
-  label: string; name: string; status: string; tone: React.ComponentProps<typeof StatusBadge>['tone']; children?: React.ReactNode; actions?: React.ReactNode;
+export function AppointmentMemberCard({ label, name, status, tone, children, actions, detail = false }: {
+  label: string; name: string; status: string; tone: React.ComponentProps<typeof StatusBadge>['tone']; children?: React.ReactNode; actions?: React.ReactNode; detail?: boolean;
 }) {
+  if (detail) return <article aria-label={label} className="space-y-6 rounded-xl border border-slate-200 p-6">
+    <div className="space-y-3"><p className={appointmentDetailTypography.label}>{label}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3"><h3 className={`${appointmentDetailTypography.name} break-words`}>{name}</h3><StatusBadge tone={tone}>{status}</StatusBadge></div>
+    </div>
+    {children}{actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+  </article>;
   return <article className="space-y-2 rounded-xl border border-slate-200 p-4">
     <p className="card-label">{label}</p><h3 className="section-label break-words">{name}</h3><StatusBadge tone={tone}>{status}</StatusBadge>
     {children}{actions ? <div className="flex flex-wrap gap-2 pt-2">{actions}</div> : null}

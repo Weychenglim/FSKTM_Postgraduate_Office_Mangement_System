@@ -75,10 +75,12 @@ assert.ok(
 const componentOpening = (name: string, length = 1600) => {
   const start = appSource.indexOf(`<${name}`);
   assert.notEqual(start, -1, `${name} should be rendered by App`);
-  return appSource.slice(start, start + length);
+  const remaining=appSource.slice(start);
+  const closing=remaining.search(/\n\s*\/>/);
+  return appSource.slice(start, closing>=0?start+closing+remaining.slice(closing).indexOf('/>')+2:start+length);
 };
 assert.match(componentOpening('PanelAppointmentManagement'), /onOpenCapacity=/);
-assert.match(componentOpening('SupervisorAppointmentManagement'), /onOpenCapacity=/);
+assert.match(componentOpening('OfficeSupervisorWorkspace', 2400), /onOpenCapacity=/);
 assert.doesNotMatch(componentOpening('LecturerMarksEntry', 500), /onOpenCapacity=/);
 assert.doesNotMatch(componentOpening('MarkEntryRecords', 700), /onOpenCapacity=/);
 

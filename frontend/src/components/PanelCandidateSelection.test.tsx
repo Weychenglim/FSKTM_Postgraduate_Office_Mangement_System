@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
+import type { PanelCandidate } from '../types';
+
+const student = { studentName: 'Student', studentId: 'PG001', programme: 'Programme', intake: 'Semester 1', supervisor: 'Primary supervisor', initials: 'ST', proposedTopic: 'Research', area: 'Area', abstract: 'Abstract' };
+const candidate: PanelCandidate = { staffId: 'LECT001', name: 'Eligible Lecturer', department: 'Department', workloadCount: 0, workloadLimit: 5, canSubmit: true, availability: 'Available', workloadHelpText: '' };
+const render = (candidates: PanelCandidate[]) => renderToStaticMarkup(<RecommendPanelMemberDrawer isOpen student={student} candidates={candidates} onClose={() => {}} onSubmit={() => {}} />);
+const initial = render([candidate]);
+assert.doesNotMatch(initial, /id="candidate-highlight-card"/, 'An eligible candidate must not be chosen automatically');
+assert.match(initial, /Choose a panel member/);
+assert.match(initial, /role="combobox"/);
+assert.match(initial, /aria-expanded="false"/);
+assert.match(render([]), /No eligible panel candidates are available/);
+const replacement = renderToStaticMarkup(<RecommendPanelMemberDrawer isOpen student={student} candidates={[candidate]} replacementMember="Current Panel" backLabel="Back to Supervision details" onClose={()=>{}} onSubmit={()=>{}} />);
+assert.match(replacement,/Replace Panel Member|Panel replacement|Back to Supervision details|Current Panel/);
+assert.doesNotMatch(replacement,/Recommendation needed/,'Existing Panel appointments are labelled as replacements');
+console.log('Panel recommendation starts without an implicit candidate selection');

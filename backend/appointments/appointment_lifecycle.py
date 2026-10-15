@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from accounts.authorization import coordinator_manages_programme
+from .panel_access import coordinator_can_decide_panel
 
 from .models import (
     AppointmentLifecycleEvent,
@@ -22,18 +23,16 @@ class AppointmentLifecycleForbidden(Exception):
     pass
 
 
-def _appointment_programme(appointment):
-    if isinstance(appointment, SupervisorAppointment):
-        return appointment.student.programme.strip()
-    return appointment.profile.programme.strip()
-
-
 def assert_can_manage_appointment(actor, appointment, *, lock=False):
     if actor.role == User.Role.OFFICE_ADMIN:
         return
     if (
         actor.role == User.Role.COORDINATOR
-        and coordinator_manages_programme(actor, _appointment_programme(appointment), lock=lock)
+        and (
+            coordinator_can_decide_panel(actor, appointment, lock=lock)
+            if isinstance(appointment, PanelAppointment)
+            else coordinator_manages_programme(actor, appointment.student.programme, lock=lock)
+        )
     ):
         return
     raise AppointmentLifecycleForbidden(
@@ -154,6 +153,8 @@ def end_appointment(*, model, appointment_id, actor, outcome, reason):
     from accounts.models import Student
 
     source = model.objects.get(pk=appointment_id)
+    if model is PanelAppointment:
+        assert_can_manage_appointment(actor, source)
     student_id = (
         source.student_id
         if model is SupervisorAppointment
@@ -168,6 +169,8 @@ def end_appointment(*, model, appointment_id, actor, outcome, reason):
         )
         .get(pk=appointment_id)
     )
+    if model is PanelAppointment and appointment.profile.student_id != student_id:
+        raise AppointmentLifecycleConflict("The linked student changed. Review the latest appointment.")
     assert_can_manage_appointment(actor, appointment, lock=True)
     return _end_locked(
         appointment,

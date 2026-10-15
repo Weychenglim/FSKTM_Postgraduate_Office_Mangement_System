@@ -6,6 +6,13 @@ import type { SupervisorCandidate } from '../types';
 
 const html = renderToStaticMarkup(<form.SupervisorAppointmentApplicationPage onBack={() => {}} onSuccess={() => {}} />);
 assert.match(html, /aria-label="Application sections"/);
+assert.match(html, /<label[^>]*for="project-course-codes-input"[^>]*>Course code\(s\) \(optional\)<\/label>/);
+assert.match(html, /<input[^>]*id="project-course-codes-input"[^>]*maxLength="255"/);
+const replacement = renderToStaticMarkup(<form.SupervisorAppointmentApplicationPage
+  onBack={() => {}} onSuccess={() => {}}
+  replacementApplication={{ projectCourseCodes: 'ABC1234, XYZ9000' } as import('../types').SupervisorApplicationRecord}
+/>);
+assert.match(replacement, /id="project-course-codes-input"[^>]*value="ABC1234, XYZ9000"/);
 for (const id of ['project-details','supervisor-selection','supporting-documents']) {
   assert.ok(html.includes(`href="#${id}"`) && html.includes(`id="${id}"`), `Section link and destination: ${id}`);
 }

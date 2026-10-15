@@ -63,6 +63,7 @@ export interface AttentionItem {
 type PanelAppointmentRouteView = 'list' | 'detail' | 'workload';
 
 interface PanelAppointmentManagementProps {
+  detailBackLabel?: string;
   routeView?: PanelAppointmentRouteView;
   routeRecordId?: string;
   onNavigateToList?: () => void;
@@ -105,6 +106,7 @@ export const PanelWorkloadSnapshotRow = ({ record: w }: { record: PanelWorkloadR
 };
 
 export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProps> = ({
+  detailBackLabel = 'Back to Panel Appointment Management',
   routeView = 'list',
   routeRecordId,
   onNavigateToList,
@@ -120,12 +122,11 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadRecords = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getPanelAppointments()
+  const loadRecords = useCallback((strict=false) => {
+    if(!strict){setLoading(true);setError(null);}
+    return getPanelAppointments()
       .then(setRecords)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load panel appointments.'))
+      .catch((e)=>{if(strict)throw e;setError(e instanceof Error?e.message:'Failed to load panel appointments.');})
       .finally(() => setLoading(false));
   }, []);
 
@@ -315,17 +316,18 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
       {/* RENDER PATH 1: DETAILED VIEW OF ONE REPORT */}
       {routeView === 'detail' && (
         loading ? (
-          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><LoadingState message="Loading panel appointment record…" /></RecordPage>
+          <RecordPage title="Panel Appointment Detail" backLabel={detailBackLabel} onBack={navigateToList}><LoadingState message="Loading panel appointment record…" /></RecordPage>
         ) : error ? (
-          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>
+          <RecordPage title="Panel Appointment Detail" backLabel={detailBackLabel} onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>
         ) : selectedRouteRecord ? (
           <PanelAppointmentDetail
+            backLabel={detailBackLabel}
             onBack={navigateToList}
             record={selectedRouteRecord}
-            onLifecycleChanged={loadRecords}
+            onLifecycleChanged={()=>loadRecords(true)}
           />
         ) : (
-          <RecordPage title="Panel Appointment Detail" backLabel="Back to Panel Appointment Management" onBack={navigateToList}><EmptyState
+          <RecordPage title="Panel Appointment Detail" backLabel={detailBackLabel} onBack={navigateToList}><EmptyState
             title="Panel appointment record not found"
             description="The requested panel appointment record does not exist or is no longer available."
           /></RecordPage>

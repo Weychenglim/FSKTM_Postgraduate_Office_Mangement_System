@@ -34,14 +34,16 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 interface SupervisorWorkloadMonitoringProps {
   onBack: () => void;
+  backLabel?:string;
   onOpenCapacity?: () => void;
+  initialLecturerId?:string;
 }
 
 const ITEMS_PER_PAGE = 5;
 
 export const SupervisorWorkloadMonitoring: React.FC<
   SupervisorWorkloadMonitoringProps
-> = ({ onBack, onOpenCapacity }) => {
+> = ({ onBack, onOpenCapacity,initialLecturerId,backLabel='Back to Supervisor Appointments' }) => {
   const [records, setRecords] = useState<SupervisorWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,13 @@ export const SupervisorWorkloadMonitoring: React.FC<
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  useEffect(()=>{
+    if(initialLecturerId&&!loading&&!error){
+      setSearchTerm(initialLecturerId);
+      setFilters({search:initialLecturerId,department:'All Departments',status:'All Statuses'});
+    }
+  },[initialLecturerId,loading,error]);
 
   const departments = useMemo(
     () => Array.from(
@@ -181,7 +190,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
       <PageHeader
         title="Supervisor Workload Monitoring"
         subtitle="Monitor current active supervision loads and configured capacity."
-        backLabel="Back to Supervisor Appointment Management"
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <>

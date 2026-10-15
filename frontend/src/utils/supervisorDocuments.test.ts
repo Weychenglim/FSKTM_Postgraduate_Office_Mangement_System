@@ -67,4 +67,17 @@ assert.equal(body.get('researchArea'), 'Secure Software Engineering');
 assert.deepEqual(body.getAll('requirementCodes'), ['research-proposal']);
 assert.equal((body.getAll('documents')[0] as File).name, 'proposal.pdf');
 
+const courseBody = buildSupervisorApplicationFormData(
+  {
+    proposedSupervisorId: 'DEMO-LECT-001',
+    researchTitle: 'Manual course codes',
+    researchArea: 'Software Engineering',
+    researchAbstract: 'A complete research abstract.',
+    ...{ projectCourseCodes: '  ABC1234, XYZ9000  ' },
+  },
+  new Map([['research-proposal', proposal]]),
+);
+assert.equal(courseBody.get('projectCourseCodes'), 'ABC1234, XYZ9000');
+assert.equal(body.get('projectCourseCodes'), '');
+
 console.log('supervisor document utility tests passed');

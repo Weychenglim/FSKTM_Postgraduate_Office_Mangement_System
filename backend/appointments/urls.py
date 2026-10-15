@@ -1,8 +1,11 @@
+from . import coordinator_workspace_views
 from django.urls import include, path
 
 from . import views, co_supervision_views
 
 urlpatterns = [
+    path("coordinator-workspace/", include("appointments.coordinator_workspace_views")),
+    path("office-workspace/", include((coordinator_workspace_views.office_urlpatterns, "office_workspace"))),
     path("capacity-reassessments/", include("appointments.capacity_reassessment_urls")),
     path("research-amendments/", include("appointments.amendment_urls")),
     path("co-supervisor/", co_supervision_views.workspace_view),

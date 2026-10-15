@@ -1,3 +1,4 @@
+import {completeDecision} from '../utils/decisionSubmission';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
 /**
@@ -24,9 +25,9 @@ import {
   User,
   Calendar,
   Eye,
-  AlertCircle, RefreshCw
+  AlertCircle
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, PortalCard, StatusBadge, StatusDot } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -47,6 +48,37 @@ import { AppointmentSummaryCard } from './AppointmentPrimitives';
 import { WorkspaceSectionHeader, RequestFilters, WorkspacePagination } from './RequestWorkspacePrimitives';
 import { CapacityReassessments } from './CapacityReassessments';
 import { requestStatusLabel } from '../utils/lecturerRequests';
+import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
+import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
+import { SupervisorRequestDetail, supervisorRequestMetadata, type SupervisorRequestPresentation } from './SupervisorRequestDetail';
+import { SupervisorAppointmentRecordCard, toOfficeAppointmentPresentation } from './SupervisorAppointmentRecordCard';
+
+export function officeRequestPresentation(record: SupervisorRecord): SupervisorRequestPresentation {
+  const events=record.workflow??[];
+  const submitted=events.find(event=>['SUBMIT','SUBMITTED'].includes(event.action.toUpperCase()));
+  const status=record.workflowStatus??(record.status==='Pending'
+    ? events.at(-1)?.newStatus || (['PROGRAMME_COORDINATOR','COORDINATOR'].includes(record.waitingOn??'')?'PENDING_COORDINATOR':record.waitingOn==='SUPERVISOR'?'SUBMITTED_TO_SUPERVISOR':'UNKNOWN')
+    : record.status==='Ended'?events.at(-1)?.newStatus||'UNKNOWN':record.status.toUpperCase());
+  return {applicationId:record.applicationId,reference:record.applicationId!=null?'SV-REQ-'+String(record.applicationId).padStart(5,'0'):undefined,
+    status,submittedAt:record.submittedAt||submitted?.createdAt,submittedBy:submitted?.actorName,
+    studentName:record.studentName,studentId:record.studentId,programme:record.programme,semester:record.semester,
+    proposedSupervisor:record.supervisor,researchTitle:record.researchTopic,researchArea:record.researchArea,
+    researchAbstract:record.abstract,projectCourseCodes:record.projectCourseCodes,replacementReason:record.replacementReason,
+    rejectionReason:record.rejectionReason,cancellationReason:record.cancellationReason,
+    waitingDays:record.waitingDays,waitingOn:record.waitingOn,events,documents:record.documents};
+}
+
+export function OfficeAppointmentAdministration({record:r,onEnd}:{record:SupervisorRecord;onEnd:React.ComponentProps<typeof AppointmentEndControl>['onSubmit']}) {
+  const hasAppointment=!!r.appointmentLifecycle||!!r.appointmentId;
+  const fields=[['Supervisor workload',r.workloadLimit],['Panel member',r.panelMemberName],['Panel appointment date',r.panelAssignedDate]].filter(([,value])=>!!value);
+  return <>
+    {hasAppointment?<SupervisorAppointmentRecordCard record={toOfficeAppointmentPresentation(r)} onEnd={r.appointmentLifecycle?.status==='ACTIVE'?onEnd:undefined}/>:null}
+    {r.email||fields.length?<PortalCard><details><summary className="card-value cursor-pointer">Administrative details</summary><dl className="grid gap-4 pt-4 sm:grid-cols-2">
+      {r.email?<div><dt className="card-label">Student email</dt><dd className="card-description mt-1 break-words"><a className="text-brand-navy underline" href={'mailto:'+r.email}>{r.email}</a></dd></div>:null}
+      {fields.map(([label,value])=><div key={label}><dt className="card-label">{label}</dt><dd className="card-description mt-1">{value}</dd></div>)}
+    </dl></details></PortalCard>:null}
+  </>;
+}
 
 export function filterOfficeSupervisorRecords(records: SupervisorRecord[], filters: { search: string; programme: string; semester: string; status: string }) {
   const query = filters.search.trim().toLowerCase();
@@ -60,7 +92,7 @@ export function OfficeSupervisorRecordTable({ records, onOpen, onDossier }: { re
   const stage = (row: SupervisorRecord) => row.status === 'Ended' ? 'Ended' : row.workflow?.length ? requestStatusLabel(row.workflow[row.workflow.length - 1].newStatus) : row.status === 'Pending' ? row.waitingOn === 'PROGRAMME_COORDINATOR' || row.waitingOn === 'COORDINATOR' ? 'Awaiting Coordinator approval' : 'Awaiting Supervisor review' : row.status;
   return <table className="data-table block lg:table" aria-label="Appointment records"><thead className="hidden lg:table-header-group"><tr className="data-thead bg-slate-50">{columns.map(value => <th key={value} scope="col" className="data-th">{value}</th>)}</tr></thead><tbody className="block space-y-3 lg:table-row-group lg:space-y-0">{records.map(row => <tr key={row.applicationId != null ? `application-${row.applicationId}` : supervisorRecordRouteKey(row)} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0">{[
     <><p>{row.studentName}</p><p className="card-caption mt-1">{row.studentId}</p></>, row.programme, row.supervisor || 'Not assigned', stage(row),
-    row.status !== 'Pending' ? <span aria-label="Not applicable">—</span> : row.waitingDays == null ? 'Not recorded' : `${row.waitingDays} calendar ${row.waitingDays === 1 ? 'day' : 'days'}`, row.updatedDate,
+    formatRequestStageWaiting(row.status === 'Ended' ? row.status : row.workflow?.at(-1)?.newStatus ?? row.status, row.waitingDays, row.status === 'Pending'), row.updatedDate,
     <div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" onClick={() => onDossier(row)}>View student record</PortalButton><PortalButton size="sm" onClick={() => onOpen(row)}>{row.status === 'Approved' || row.status === 'Ended' ? 'View supervision' : row.status === 'No Supervisor' ? 'View record' : 'View request'}</PortalButton></div>
   ].map((cell,index) => <td key={columns[index]} className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 break-words lg:table-cell ${index === 0 || index === 6 ? 'col-span-2' : ''}`}>
     {index > 0 && index < 6 ? <span className="card-label block lg:hidden">{columns[index]}</span> : null}{cell}</td>)}</tr>)}</tbody></table>;
@@ -69,6 +101,10 @@ export function OfficeSupervisorRecordTable({ records, onOpen, onDossier }: { re
 // SupervisorRecord now lives in src/types.
 
 interface SupervisorAppointmentManagementProps {
+  providedRecord?:SupervisorRecord;
+  onProvidedRecordRefresh?:()=>Promise<unknown>|void;
+  administrationMode?:boolean;
+  backLabel?:string;
   routeView?: 'list' | 'detail' | 'workload' | 'teams' | 'teamDetail';
   routeRecordId?: string;
   routeTeamStudentId?: string;
@@ -78,17 +114,18 @@ interface SupervisorAppointmentManagementProps {
   onNavigateToWorkload?: () => void;
   onNavigateToRecord?: (recordId: string) => void;
   onNavigateToDossier?: (studentId: string) => void;
+  onNavigateToPanelRequest?: (id:string,recordKey?:string)=>void;
   onNavigateToRequirements?: () => void;
   onOpenCapacity?: () => void;
 }
 
 export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
-  routeView = 'list',
+  routeView = 'list',providedRecord,onProvidedRecordRefresh,administrationMode=false,backLabel='Back to Appointment requests',
   routeRecordId, routeTeamStudentId, onNavigateToTeam, onNavigateToTeams,
   onNavigateToList,
   onNavigateToWorkload,
   onNavigateToRecord,
-  onNavigateToDossier,
+  onNavigateToDossier, onNavigateToPanelRequest,
   onNavigateToRequirements,
   onOpenCapacity,
 }) => {
@@ -105,14 +142,15 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadRecords = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getSupervisorAppointments()
+  const loadRecords = useCallback((strict=false) => {
+    if(routeView==='teamDetail'||routeView==='teams'||routeView==='workload'){setLoading(false);return;}
+    if(providedRecord){setRecords([providedRecord]);setLoading(false);return;}
+    if(!strict){setLoading(true);setError(null);}
+    return getSupervisorAppointments()
       .then(setRecords)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load supervisor appointments.'))
+      .catch((e)=>{if(strict)throw e;setError(e instanceof Error?e.message:'Failed to load supervisor appointments.');})
       .finally(() => setLoading(false));
-  }, []);
+  }, [providedRecord,routeView]);
 
   useEffect(() => {
     loadRecords();
@@ -122,7 +160,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const [searchQuery, setSearchQuery] = useListState('SupervisorAppointmentManagement', 'searchQuery', '');
   const [programmeFilter, setProgrammeFilter] = useListState('SupervisorAppointmentManagement', 'programmeFilter', 'All Programmes');
   const [semesterFilter, setSemesterFilter] = useListState('SupervisorAppointmentManagement', 'semesterFilter', 'All Semesters');
-  
+
   // Tab/status filter state
   const [activeTab, setActiveTab] = useListState<'All Records' | 'No Supervisor' | 'Pending' | 'Approved' | 'Ended' | 'Rejected' | 'Cancelled' | 'Workload Alert'>('SupervisorAppointmentManagement', 'activeTab', 'All Records');
 
@@ -216,22 +254,22 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 
   if (routeView === 'workload') {
     return (
-      <SupervisorWorkloadMonitoring onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
+      <SupervisorWorkloadMonitoring backLabel={backLabel} onBack={navigateToList} onOpenCapacity={onOpenCapacity} />
     );
   }
 
   if (routeView === 'detail') {
     if (loading) {
-      return <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><LoadingState message="Loading supervisor appointment record…" /></RecordPage>;
+      return <RecordPage title={providedRecord?"Appointment request":"Appointment record"} backLabel={backLabel} onBack={navigateToList}><LoadingState message="Loading supervisor appointment record…" /></RecordPage>;
     }
 
     if (error) {
-      return <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>;
+      return <RecordPage title={providedRecord?"Appointment request":"Appointment record"} backLabel={backLabel} onBack={navigateToList}><ErrorState message={error} onRetry={loadRecords} /></RecordPage>;
     }
 
     if (!selectedRouteRecord) {
       return (
-        <RecordPage title="Appointment record" backLabel="Back to Appointment records" onBack={navigateToList}><EmptyState
+        <RecordPage title={providedRecord?"Appointment request":"Appointment record"} backLabel={backLabel} onBack={navigateToList}><EmptyState
           title="Supervisor appointment record not found"
           description="The requested supervisor appointment record does not exist or is no longer available."
         /></RecordPage>
@@ -239,346 +277,31 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     }
 
     const r = selectedRouteRecord;
-    return (
-        <RecordPage
-          title="Appointment record"
-          subtitle="View student supervision details, appointment status, related records, and supporting documents."
-          backLabel="Back to Appointment records"
-          onBack={navigateToList}
-          actions={(
-            <>
-              <PortalButton variant="secondary" onClick={() => onNavigateToDossier?.(r.studentId)}>
-                View student record
-              </PortalButton>
-              <div className="bg-brand-navy text-white text-[11px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl shadow-sm shrink-0">
-                {r.semester || 'Legacy / Unassigned'}
-              </div>
-            </>
-          )}
-        >
-
-      <div id="sup-detail-viewport" className="space-y-6 animate-fade-in text-left font-sans text-xs">
-        <PortalToast message={toastMessage} />
-
-              {r.appointmentLifecycle?.status === 'ACTIVE' && (
-                <AppointmentEndControl
-                  label="Supervisor Appointment"
-                  onSubmit={async (outcome, reason) => {
-                    await endSupervisorAppointment(
-                      r.appointmentLifecycle!.appointmentId,
-                      outcome,
-                      reason,
-                    );
-                    showToast('Supervisor appointment ended and workload released.');
-                    await loadRecords();
-                  }}
-                />
-              )}
-        {/* Grid Layout of Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-4">
-          
-          {/* Left Column (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
-            
-            {/* Student Profile Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-[#eff6ff] text-[#3b82f6] font-black text-lg rounded-xl flex items-center justify-center uppercase tracking-wider shrink-0 shadow-3xs border border-indigo-100">
-                  {r.studentName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="section-label">{r.studentName}</h3>
-                  <div className="mt-1.5 flex items-center">
-                    <StatusBadge tone="success" dot pulse className="text-[9px]">
-                      {r.status === 'No Supervisor' ? 'APPROVED' : r.status.toUpperCase()}
-                    </StatusBadge>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5 space-y-4 font-sans">
-                <div>
-                  <span className="card-label block">
-                    Student ID
-                  </span>
-                  <span className="font-mono text-xs font-black text-slate-800 block mt-1 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
-                    {r.studentId}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="card-label block">
-                    Programme
-                  </span>
-                  <span className="card-value block mt-1">
-                    {r.programme}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="card-label block">
-                    Semester
-                  </span>
-                  <span className="card-value block mt-1">
-                    {r.semester || 'Legacy / Unassigned'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="card-label block">
-                    Email
-                  </span>
-                  <span className="card-description hover:text-blue-600 block mt-1 break-all select-all">
-                    {r.email || 'Not recorded'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Appointment Information Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <User className="w-4 h-4 text-brand-navy" />
-                <span className="card-label">
-                  Appointment Info
-                </span>
-              </div>
-
-              <div className="space-y-3 font-sans text-xs">
-                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="card-label">Appointment ID</span>
-                  <span className="font-mono font-black text-brand-navy">
-                    {r.appointmentId || 'Not assigned'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="card-label">Supervisor</span>
-                  <span className="card-value">
-                    {r.supervisor}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="card-label">Workload</span>
-                  <span className="card-value">
-                    {r.workloadLimit || 'Not available'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1.5 border-b border-slate-50">
-                  <span className="card-label">Approved Date</span>
-                  <span className="card-value">
-                    {r.approvedDate || '-'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1.5">
-                  <span className="card-label">Released Date</span>
-                  <span className="card-value">
-                    {r.releasedDate || '-'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Evaluation Summary Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <BookOpen className="w-4 h-4 text-brand-navy" />
-                <span className="card-label">
-                  Evaluation Summary
-                </span>
-              </div>
-
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
-                <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center border border-slate-100">
-                  <AlertCircle className="w-5 h-5 text-slate-500 opacity-40 animate-pulse" />
-                </div>
-                <h4 className="section-label text-center">No evaluation records available</h4>
-                <p className="card-description max-w-[210px] text-center">
-                  Student has not yet reached the evaluation stage of the appointment process.
-                </p>
-              </div>
-
-              <div className="border-t border-slate-100 pt-4 mt-2 flex justify-between items-center">
-                <span className="card-label font-sans">Status:</span>
-                <span className="px-2.5 py-1 bg-slate-150 border border-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-wider rounded-lg">
-                  NOT STARTED
-                </span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Right Column (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            
-            {/* Research Information Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs space-y-5 text-left">
-              <div className="flex items-center gap-2 pb-1">
-                <BookOpen className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="card-label">
-                  Research Information
-                </span>
-              </div>
-
-              <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-5 space-y-2">
-                <h4 className="section-label leading-snug">
-                  {r.researchTopic || 'No research title recorded'}
-                </h4>
-                <span className="card-value block">
-                  Area: {r.researchArea || 'Not recorded'}
-                </span>
-              </div>
-
-              <div className="space-y-2 font-sans">
-                <span className="card-label block">
-                  ABSTRACT
-                </span>
-                <p className="card-description">
-                  {r.abstract || 'No research abstract recorded.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Status History Card (Timeline design) */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <FileText className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="card-label">
-                  Status History
-                </span>
-              </div>
-
-              {r.workflow && r.workflow.length > 0 ? (
-                <div className="relative pl-6 border-l-2 border-slate-150 space-y-6 ml-2.5 py-1">
-                  {[...r.workflow].reverse().map((event) => (
-                    <div key={event.id} className="relative">
-                      <span className="absolute -left-[32px] top-1 w-3.5 h-3.5 rounded-full bg-brand-navy border-2 border-white ring-4 ring-slate-100" />
-                      <h4 className="section-label">
-                        {event.action.replaceAll('_', ' ')}
-                      </h4>
-                      <p className="card-description mt-1">
-                        {new Date(event.createdAt).toLocaleString('en-GB')}
-                        {' · '}
-                        {event.actorName}
-                      </p>
-                      {event.reason && (
-                        <p className="card-description text-rose-600 mt-1">{event.reason}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="card-description">No workflow history recorded.</p>
-              )}
-            </div>
-
-            {r.appointmentLifecycle && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                  <Calendar className="w-4.5 h-4.5 text-brand-navy" />
-                  <span className="card-label">
-                    Appointment Lifecycle
-                  </span>
-                </div>
-                {r.appointmentLifecycle.endReason && (
-                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="card-label">
-                      {r.appointmentLifecycle.endOutcome || 'Ended'}
-                    </p>
-                    <p className="card-description mt-1">{r.appointmentLifecycle.endReason}</p>
-                  </div>
-                )}
-                {r.appointmentLifecycle.lifecycle?.length ? (
-                  <div className="space-y-4 border-l-2 border-slate-150 pl-4">
-                    {[...r.appointmentLifecycle.lifecycle].reverse().map((event) => (
-                      <div key={event.id}>
-                        <p className="card-value">{event.action.replaceAll('_', ' ')}</p>
-                        <p className="card-description mt-1">{event.actorName} · {new Date(event.createdAt).toLocaleString('en-GB')}</p>
-                        {event.reason && <p className="card-description mt-1">{event.reason}</p>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="card-description">No lifecycle events were recorded for this legacy appointment.</p>
-                )}
-              </div>
-            )}
-
-            {/* Related Panel Status Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-3xs text-left">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-5">
-                <Users className="w-4.5 h-4.5 text-brand-navy" />
-                <span className="card-label">
-                  Related Panel Status
-                </span>
-              </div>
-
-              <div className="bg-[#f8fafc] border border-slate-150 rounded-2xl p-4 flex items-center justify-between mb-4 shadow-3xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-brand-navy text-white font-black text-xs rounded-lg flex items-center justify-center shrink-0">
-                    {r.panelMemberName ? r.panelMemberName.split(' ').filter(n => !n.includes('.')).map(n => n[0]).slice(0, 2).join('').toUpperCase() : '--'}
-                  </div>
-                  <div>
-                    <h5 className="section-label">{r.panelMemberName || 'Not assigned'}</h5>
-                    <p className="card-description mt-0.5">Internal Panel Member</p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="card-label block">Assigned</span>
-                  <span className="card-value block mt-1">{r.panelAssignedDate || '-'}</span>
-                </div>
-              </div>
-
-              <p className="card-description">
-                Open Panel Appointments for persisted panel workflow details.
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-left shadow-3xs">
-          <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <span className="card-label block">Submitted documents</span>
-              <span className="card-value mt-1 block">Private files attached to this supervisor application.</span>
-            </div>
-            <StatusBadge tone="neutral">{r.documents?.length || 0} recorded</StatusBadge>
-          </div>
-          <SupervisorDocumentsList applicationId={r.applicationId} documents={r.documents} />
-        </div>
-
-        {/* Notice Alert Banner */}
-        <div className="bg-[#eff6ff] border border-blue-150 rounded-2xl p-5 text-left flex items-start gap-4 shadow-3xs mt-6">
-          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="card-label block">
-              Confidential Administrative View
-            </span>
-            <p className="card-description text-slate-650">
-              This page provides a read-only administrative view of the supervisor appointment record. Use the related management modules to update files, letters, panel records, or evaluation setup.
-            </p>
-          </div>
-        </div>
-
-      </div>
-      </RecordPage>
-    );
+    const request=officeRequestPresentation(r);
+    const hasRequest=r.applicationId!=null||!!r.workflow?.length;
+    const ended=r.status==='Ended'||r.appointmentLifecycle?.status==='ENDED';
+    const administration=<OfficeAppointmentAdministration record={r} onEnd={async(outcome,reason)=>{
+      return await completeDecision(()=>endSupervisorAppointment(r.appointmentLifecycle!.appointmentId,outcome,reason),async()=>{
+        if(providedRecord)await onProvidedRecordRefresh?.();else await loadRecords(true);
+      });
+    }}/>;
+    return <RecordPage title={ended?'Supervisor appointment record':hasRequest?'Appointment request':'Supervision record'}
+      metadata={<RequestMetadata {...supervisorRequestMetadata(request)} statusLabel={ended?'Appointment ended':hasRequest?supervisorRequestMetadata(request).statusLabel:r.status} statusTone={ended||!hasRequest?'neutral':supervisorRequestMetadata(request).statusTone}/>}
+      backLabel={backLabel} onBack={navigateToList}>
+      <PortalToast message={toastMessage}/>
+      <SupervisorRequestDetail request={request} showApproval={hasRequest} actions={onNavigateToDossier?<ViewStudentRecordAction studentId={r.studentId} onOpen={onNavigateToDossier}/>:undefined} administration={administration}/>
+    </RecordPage>;
   }
 
   if (routeView === 'teamDetail') return <RecordPage title="Supervision details" backLabel="Back to Supervisory teams" onBack={onNavigateToTeams ?? navigateToList}>
-    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} showResearchChanges={false} showRefresh={false} />
+    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} showResearchChanges={false} showRefresh={false} />
   </RecordPage>;
   const programmes = [...new Set(records.map(row => row.programme).filter(Boolean))];
   const semesters = [...new Set(records.map(row => row.semester).filter((value): value is string => !!value))];
   return <div id="supervisor-mgmt-viewport" className="space-y-6 text-left font-sans pb-12">
     <PortalToast message={toastMessage} />
-    <PageHeader title="Supervisor Appointments" subtitle="Monitor appointment records, manage supervisory teams and follow research changes." actions={<PortalButton size="sm" icon={RefreshCw} disabled={routeView === 'teams' ? teamBusy : loading || carryBusy} onClick={refresh}>Refresh</PortalButton>} />
-    <SupervisorWorkspaceNavigation role="Office Staff/Admin" />
+    {!administrationMode?<PageHeader title="Supervisor Appointments" subtitle="Monitor appointment records, manage supervisory teams and follow research changes."  />:null}
+    {!administrationMode?<SupervisorWorkspaceNavigation role="Office Staff/Admin" />:null}
     {routeView === 'teams' ? <SupervisoryTeamManagement role="Office Staff/Admin" view="roster" showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setTeamBusy} onNavigateToStudent={onNavigateToTeam} /> : <>
       {!loading && !error ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AppointmentSummaryCard title="Without supervisor" value={recordSummary.withoutSupervisor} description="Students without an approved supervisor." />
@@ -596,12 +319,12 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
           <div className="flex items-end gap-2"><PortalButton size="sm" onClick={handleResetFilters}>Reset filters</PortalButton><PortalButton size="sm" variant="primary" onClick={handleApplyFilters}>Apply filters</PortalButton></div>
         </RequestFilters>
         {loading ? <LoadingState message="Loading appointment records…" /> : error ? <ErrorState message={error} onRetry={loadRecords} /> : <>
-          {paginatedRecords.length ? <OfficeSupervisorRecordTable records={paginatedRecords} onOpen={record => onNavigateToRecord?.(supervisorRecordRouteKey(record))} onDossier={record => onNavigateToDossier?.(record.studentId)} /> : <EmptyState title="No matching records" description="Adjust the filters to see more records." />}
+          {paginatedRecords.length ? <OfficeSupervisorRecordTable records={paginatedRecords} onOpen={record => onNavigateToRecord?.(record.applicationId!=null?`request-${record.applicationId}`:supervisorRecordRouteKey(record))} onDossier={record => onNavigateToDossier?.(record.studentId)} /> : <EmptyState title="No matching records" description="Adjust the filters to see more records." />}
           <WorkspacePagination page={currentPage} pageCount={totalPages} total={filteredRecords.length} noun="records" pageSize={itemsPerPage} onPage={setCurrentPage} onPageSize={value => { setItemsPerPage(value); setCurrentPage(1); }} />
         </>}
       </section>
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Records needing attention"><WorkspaceSectionHeader title="Records needing attention" description={`Longest waiting: ${longestWaitingText}`} /><div className="flex flex-wrap gap-2">{(['No Supervisor','Pending','Workload Alert'] as const).map(value => <PortalButton key={value} size="sm" onClick={() => { setActiveTab(value); setCurrentPage(1); }}>{value === 'No Supervisor' ? 'View students without supervisor' : value === 'Pending' ? 'View pending records' : 'View workload alerts'}</PortalButton>)}</div></section>
-      <CapacityReassessments role="Office Staff/Admin" showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setCarryBusy} onChanged={loadRecords} />
+      {!administrationMode?<CapacityReassessments role="Office Staff/Admin" showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setCarryBusy} onChanged={loadRecords} />:null}
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><WorkspaceSectionHeader title="Appointment guidance" /><p className="card-description">Submission document requirements are configured centrally and recorded when each application is created.</p><PortalButton size="sm" onClick={onNavigateToRequirements}>Manage document requirements</PortalButton></section>
     </>}
   </div>;

@@ -1,3 +1,6 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -8,7 +11,6 @@ import {
   ChevronRight,
   History,
   Gauge,
-  RefreshCw,
   Search,
   ShieldCheck,
   Wrench,
@@ -68,6 +70,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   const [selectedResolution, setSelectedResolution] = useState<ReconciliationAllowedResolution | null>(null);
   const [programme, setProgramme] = useState('');
   const [reason, setReason] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);
@@ -76,7 +79,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   const [drawerError, setDrawerError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (propagateError = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -88,6 +91,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
       setAudits(auditResponse.results);
     } catch (loadError) {
       setError(reconciliationErrorMessage(loadError));
+      if (propagateError) throw loadError;
     } finally {
       setLoading(false);
     }
@@ -98,7 +102,8 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const openIssue = async (issue: ReconciliationIssue) => {
+  useReturnToFocusReload(() => void load(), !loading && !saving && !previewing && !preview && !reason.trim());
+  const openIssue = async (issue: ReconciliationIssue, propagateError = false) => {
     setPreviewing(true);
     setDrawerError(null);
     setReason('');
@@ -110,6 +115,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
       setSelectedResolution(response.allowedResolutions[0] ?? null);
     } catch (previewError) {
       setDrawerError(reconciliationErrorMessage(previewError));
+      if (propagateError) throw previewError;
     } finally {
       setPreviewing(false);
     }
@@ -124,24 +130,14 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   };
 
   const applyRepair = async () => {
-    if (!preview || !selectedResolution || !reason.trim() || !confirmed) return;
+    if (!preview || !selectedResolution || !reason.trim() || !confirmed) return false;
     setSaving(true);
-    setDrawerError(null);
     try {
-      await applyReconciliationIssue(preview.issue.issueId, {
-        expectedFingerprint: preview.issue.fingerprint,
-        reason: reason.trim(),
+      return await completeDecision(() => applyReconciliationIssue(preview.issue.issueId, {
+        expectedFingerprint: preview.issue.fingerprint, reason: reason.trim(),
         resolution: resolutionPayload(selectedResolution, programme),
-      });
-      setToast('Repair completed and recorded in the immutable audit history.');
-      closePreview();
-      await load();
-      window.setTimeout(() => setToast(null), 3500);
-    } catch (applyError) {
-      setDrawerError(reconciliationErrorMessage(applyError));
-    } finally {
-      setSaving(false);
-    }
+      }), async () => { await load(true); await openIssue(preview.issue, true); });
+    } finally { setSaving(false); }
   };
 
   const setFilter = (key: keyof ReconciliationFilters, value: string) => {
@@ -169,6 +165,12 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   return (
     <div className="space-y-6 pb-16 text-left text-xs">
       <PortalToast message={toast} />
+      <DecisionDialog isOpen={confirmOpen} kind="confirmation" decisionKey={preview?.issue.issueId}
+        title="Apply this audited repair?" context={<p>{preview?.issue.title}</p>}
+        message={<><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p><p>Reason: {reason}</p></>}
+        confirmLabel="Apply audited repair" successMessage="Repair completed and recorded in audit history."
+        canConfirm={canApply} busy={saving} onConfirm={applyRepair} onClose={() => setConfirmOpen(false)}
+        onReload={async () => { if (preview) await openIssue(preview.issue, true); }} />
       <PageHeader
         title="Workflow Reconciliation Centre"
         subtitle="Detect and repair cross-module data inconsistencies with preview, confirmation, and immutable audit history."
@@ -177,7 +179,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
         actions={(
           <>
             {onOpenCapacity && <PortalButton icon={Gauge} onClick={onOpenCapacity}>Lecturer Capacity</PortalButton>}
-            <PortalButton icon={RefreshCw} onClick={() => void load()}>Refresh Scan</PortalButton>
+
           </>
         )}
       />
@@ -334,7 +336,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                       <input type="checkbox" className="mt-0.5" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
                       <span>I confirm this individual repair after reviewing the current state and affected identifiers.</span>
                     </label>
-                    <PortalButton variant="success" icon={Wrench} fullWidth isLoading={saving} disabled={!canApply} onClick={() => void applyRepair()}>Apply Audited Repair</PortalButton>
+                    <PortalButton variant="success" icon={Wrench} fullWidth isLoading={saving} disabled={!canApply} onClick={() => setConfirmOpen(true)}>Apply Audited Repair</PortalButton>
                   </section>
                 ) : (
                   <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">

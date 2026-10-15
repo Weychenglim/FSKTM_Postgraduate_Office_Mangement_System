@@ -13,6 +13,7 @@ from accounts.models import Student
 from appointments.models import (
     CoSupervisorNomination,
     PanelRecommendation,
+    PanelAppointment,
     SupervisorApplication,
 )
 from marks.models import EvaluationTask, MarkEntry
@@ -550,6 +551,9 @@ def dashboard_tasks_view(request):
 def dashboard_summary_view(request):
     ensure_active_period_tasks()
     summary = {
+        "activeSupervisees": 0,
+        "activePanelAssignments": 0,
+        "assignedMarkTasks": 0,
         "pendingSupervisorRequests": 0,
         "pendingSupervisorApprovals": 0,
         "pendingPanelReviews": 0,
@@ -596,6 +600,13 @@ def dashboard_summary_view(request):
         ).count()
         all_tasks = EvaluationTask.objects.none()
     elif request.user.role == User.Role.LECTURER:
+        from appointments.co_supervision import visible_students
+
+        summary["activeSupervisees"] = visible_students(request.user).count()
+        summary["activePanelAssignments"] = PanelAppointment.objects.filter(
+            panel_member=request.user,
+            status=PanelAppointment.Status.ACTIVE,
+        ).values("profile__student_id").distinct().count()
         summary["pendingSupervisorRequests"] = SupervisorApplication.objects.filter(
             proposed_supervisor=request.user,
             status=SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR,
@@ -631,6 +642,7 @@ def dashboard_summary_view(request):
     summary["supervisorMarkTasks"] = all_tasks.filter(
         evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
     ).count()
+    summary["assignedMarkTasks"] = all_tasks.count()
     from appointments.models import ResearchAmendment
     from appointments.research_amendments import scoped_requests
     summary["pendingResearchAmendments"] = scoped_requests(request.user).filter(

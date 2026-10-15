@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { nextCoordinatorRequest } from './coordinatorQueue';
+import type { BrowsePage, CoordinatorRequestRow } from '../services/coordinatorWorkspaceApi';
+const rows = [1,2,3,4].map(id=>({key:`primary-${id}`,id,kind:'primary',studentName:`Student ${id}`,matricNo:`PG${id}`,programme:'Programme',candidateName:'Supervisor',status:'PENDING_COORDINATOR',submittedAt:'2026-10-01',waitingDays:1,canDecide:true,carryover:false} as CoordinatorRequestRow));
+const calls:number[]=[];
+const load=async (params:any):Promise<BrowsePage<CoordinatorRequestRow>>=>{const page=Number(params.page??1);calls.push(page);return {results:rows.slice((page-1)*2,page*2),total:4,page,pageSize:2,pageCount:2,facets:{programmes:[],semesters:[],statuses:[]}};};
+const across=await nextCoordinatorRequest({page:1},'primary-2',load);
+assert.equal(across?.id,3);assert.equal(across?.queuePage,2);
+assert.equal((await nextCoordinatorRequest({page:across!.queuePage},across!.key,load))?.id,4,'Next continues on its target page instead of returning to page 1');
+assert.equal(await nextCoordinatorRequest({page:1},'primary-99',load),null,'Unrelated or removed records do not select the first queue item');
+assert.equal(await nextCoordinatorRequest({page:2},'primary-4',load),null);
+assert.deepEqual(calls,[1,2,2,1,2],'Reads are bounded to the current and next page');
+console.log('Coordinator next navigation retains page position and never wraps to an unrelated record');

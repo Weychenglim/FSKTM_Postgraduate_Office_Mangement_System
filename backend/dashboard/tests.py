@@ -8,9 +8,13 @@ from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervi
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
+    CoSupervisorAppointment,
+    CoSupervisorNomination,
+    PanelAppointment,
     PanelRecommendation,
     StudentResearchProfile,
     SupervisorApplication,
+    SupervisorAppointment,
 )
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
 from dashboard.models import SemesterTimeline, SemesterTimelineEntry
@@ -152,6 +156,73 @@ class DashboardSummaryTests(APITestCase):
         self.assertEqual(response.data["pendingSupervisorRequests"], 0)
         self.assertEqual(response.data["pendingPanelReviews"], 0)
         self.assertEqual(response.data["incompleteMarkEntries"], 1)
+
+    def test_lecturer_assignment_counts_are_distinct_from_pending_reviews(self):
+        application = SupervisorApplication.objects.get(student=self.student_user.student)
+        application.status = SupervisorApplication.Status.APPROVED
+        application.save(update_fields=["status"])
+        primary = SupervisorAppointment.objects.create(application=application,
+            student=self.student_user.student, supervisor=self.supervisor, approved_by=self.coordinator)
+        supporting_user = User.objects.create_user(email="summary-supporting-student@example.test",
+            password="unused-test-password", full_name="Supporting Student", role=User.Role.STUDENT)
+        supporting_student = Student.objects.create(user=supporting_user, matric_no="SUMMARY-SUPPORTING", programme="AI")
+        other_application = SupervisorApplication.objects.create(student=supporting_student,
+            proposed_supervisor=self.panel, research_title="Supporting research", status="APPROVED")
+        other_primary = SupervisorAppointment.objects.create(application=other_application,
+            student=supporting_student, supervisor=self.panel, approved_by=self.coordinator)
+        nomination = CoSupervisorNomination.objects.create(student=supporting_student,
+            primary_appointment=other_primary, nominator=self.panel, candidate=self.supervisor,
+            academic_semester=self.academic_semester, justification="Supporting test", status="APPROVED")
+        CoSupervisorAppointment.objects.create(student=supporting_student, nomination=nomination,
+            supervisor=self.supervisor, approved_by=self.coordinator)
+        self.authenticate(self.supervisor)
+        response = self.client.get("/api/dashboard/summary/")
+        self.assertEqual(response.data["activeSupervisees"], 2)
+        self.assertEqual(response.data["pendingSupervisorRequests"], 0)
+        primary.status = "ENDED"
+        primary.save(update_fields=["status"])
+        response = self.client.get("/api/dashboard/summary/")
+        self.assertEqual(response.data["activeSupervisees"], 1)
+        self.authenticate(self.panel)
+        self.assertEqual(self.client.get("/api/dashboard/summary/").data["activeSupervisees"], 1)
+
+    def test_panel_assignments_require_active_confirmed_appointment(self):
+        recommendation = PanelRecommendation.objects.get(profile=self.profile)
+        self.authenticate(self.panel)
+        self.assertEqual(self.client.get("/api/dashboard/summary/").data["activePanelAssignments"], 0)
+        recommendation.status = "APPROVED"
+        recommendation.save(update_fields=["status"])
+        appointment = PanelAppointment.objects.create(recommendation=recommendation, profile=self.profile,
+            supervisor=self.supervisor, panel_member=self.panel, approved_by=self.coordinator)
+        self.assertEqual(self.client.get("/api/dashboard/summary/").data["activePanelAssignments"], 1)
+        self.authenticate(self.supervisor)
+        self.assertEqual(self.client.get("/api/dashboard/summary/").data["activePanelAssignments"], 0)
+        appointment.status = "ENDED"
+        appointment.save(update_fields=["status"])
+        self.authenticate(self.panel)
+        self.assertEqual(self.client.get("/api/dashboard/summary/").data["activePanelAssignments"], 0)
+
+    def test_assigned_tasks_include_submissions_but_exclude_inactive_and_other_evaluators(self):
+        task = EvaluationTask.objects.get(evaluator=self.panel)
+        MarkEntry.objects.filter(task=task).update(status=MarkEntry.Status.SUBMITTED)
+        EvaluationTask.objects.create(profile=self.profile, evaluator=self.panel, period=task.period,
+            evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR)
+        EvaluationTask.objects.create(profile=self.profile, evaluator=self.panel, period=task.period,
+            evaluator_role=EvaluationTask.EvaluatorRole.BACKUP, lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
+        EvaluationTask.objects.create(profile=self.profile, evaluator=self.supervisor, period=task.period)
+        self.authenticate(self.panel)
+        result = self.client.get("/api/dashboard/summary/").data
+        self.assertEqual(result["assignedMarkTasks"], 2)
+        self.assertEqual(result["incompleteMarkEntries"], 1)
+        self.assertEqual(result["submittedMarkEntries"], 1)
+        self.assertEqual(result["supervisorMarkTasks"], 1)
+        self.assertEqual(result["panelMarkTasks"], 1)
+        self.assertEqual(result["backupMarkTasks"], 0)
+        self.authenticate(self.student_user)
+        result = self.client.get("/api/dashboard/summary/").data
+        self.assertEqual(result["assignedMarkTasks"], 0)
+        self.assertEqual(result["activeSupervisees"], 0)
+        self.assertEqual(result["activePanelAssignments"], 0)
 
     def test_coordinator_summary_is_scoped_to_managed_programme(self):
         self.authenticate(self.coordinator)

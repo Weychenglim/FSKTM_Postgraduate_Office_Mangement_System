@@ -59,10 +59,14 @@ def collection(request):
         data = _data(request)
         return _perform(lambda: Response(service.request_payload(service.submit(actor=request.user, data=data), request.user), status=201))
     rows = service.scoped_requests(request.user)
-    profiles = service.current_profiles(request.user)
     student_id = _student_filter(request)
     if student_id is not None:
         rows = rows.filter(student_id=student_id)
+    if (request.user.role == User.Role.COORDINATOR or service.office(request.user)) and 'page' in request.query_params:
+        from .research_paging import collection_page
+        return Response(collection_page(rows, request.user, request.query_params))
+    profiles = service.current_profiles(request.user)
+    if student_id is not None:
         profiles = profiles.filter(student_id=student_id)
     revisions = ResearchProfileRevision.objects.filter(profile__in=profiles).select_related('actor', 'profile').order_by('-created_at', '-pk')
     return Response({'requests': [service.request_payload(row, request.user) for row in rows],
@@ -72,8 +76,11 @@ def collection(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def options(request):
-    profiles = service.current_profiles(request.user)
     student_id = _student_filter(request)
+    if (request.user.role == User.Role.COORDINATOR or service.office(request.user)) and student_id is None and request.query_params.get('minimal') == 'true':
+        return Response({'students': [], 'programmes': [], 'profile': None,
+                         'canSubmitResearch': False, 'canCorrect': False, 'canTransfer': False})
+    profiles = service.current_profiles(request.user)
     selected = profiles.filter(student_id=student_id).first() if student_id is not None else (profiles.first() if request.user.role == User.Role.STUDENT else None)
     if student_id is not None and selected is None:
         return Response({'error': 'Student research record was not found.'}, status=404)
@@ -100,8 +107,11 @@ def options(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def detail(request, pk):
-    row = get_object_or_404(service.scoped_requests(request.user), pk=pk)
-    return Response(service.request_payload(row, request.user))
+    row = get_object_or_404(service.scoped_requests(request.user, routine=False), pk=pk)
+    payload = service.request_payload(row, request.user)
+    if request.user.role == User.Role.COORDINATOR:
+        payload['canDecide'] = payload['canDecide'] and row.student.user.is_active
+    return Response(payload)
 
 
 @api_view(['POST'])

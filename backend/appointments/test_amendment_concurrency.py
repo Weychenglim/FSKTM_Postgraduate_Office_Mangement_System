@@ -47,8 +47,7 @@ class AmendmentConcurrencyTests(APITransactionTestCase):
 
     def test_concurrent_final_approvals_apply_one_revision(self):
         row = self.request()
-        decide(request_id=row.pk, actor=self.supervisor, decision='APPROVE', expected_status='PENDING_SUPERVISOR')
-        approve = lambda: decide(request_id=row.pk, actor=self.coordinator, decision='APPROVE', expected_status='PENDING_COORDINATOR')
+        approve = lambda: decide(request_id=row.pk, actor=self.supervisor, decision='APPROVE', expected_status='PENDING_SUPERVISOR')
         self.assertCountEqual(self.race(approve, approve), ['ok', 'conflict'])
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.revision, 1)
@@ -56,9 +55,8 @@ class AmendmentConcurrencyTests(APITransactionTestCase):
 
     def test_withdrawal_and_final_decision_never_leave_pending_work(self):
         row = self.request()
-        decide(request_id=row.pk, actor=self.supervisor, decision='APPROVE', expected_status='PENDING_SUPERVISOR')
         results = self.race(
-            lambda: decide(request_id=row.pk, actor=self.coordinator, decision='APPROVE', expected_status='PENDING_COORDINATOR'),
+            lambda: decide(request_id=row.pk, actor=self.supervisor, decision='APPROVE', expected_status='PENDING_SUPERVISOR'),
             lambda: transition_student(matric_no=self.student.matric_no, actor=self.office,
                                        target_status='WITHDRAWN', reason='Student withdrawal.'),
         )

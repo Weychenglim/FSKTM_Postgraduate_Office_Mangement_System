@@ -1,4 +1,5 @@
 """Audited changes to current research records; applications remain historical."""
+from .request_visibility import routine_research_requests
 from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -195,15 +196,25 @@ def submit(*, actor, data):
     return row
 
 
+def review_status(row):
+    # Keep legacy persisted status/events intact; only the primary Supervisor
+    # may finish a research request left at the former Coordinator stage.
+    if getattr(row, 'kind', None) == 'RESEARCH' and row.status == 'PENDING_COORDINATOR':
+        return 'PENDING_SUPERVISOR'
+    return row.status
+
+
 def can_decide(row, actor, *, lock=False):
     if not actor.is_active:
         return False
-    if row.status == 'PENDING_SUPERVISOR':
+    if row.kind == 'RESEARCH':
+        if review_status(row) != 'PENDING_SUPERVISOR':
+            return False
         primary = row.team_snapshot.get('primary')
         return bool(primary and primary['userId'] == actor.pk and user_is_assignable_lecturer(actor)
                     and SupervisorAppointment.objects.filter(pk=primary['appointmentId'], status='ACTIVE', supervisor=actor).exists())
     programme = (row.destination_programme if row.status == 'PENDING_DESTINATION_COORDINATOR' else row.source_programme)
-    return row.status in {'PENDING_COORDINATOR', 'PENDING_SOURCE_COORDINATOR', 'PENDING_DESTINATION_COORDINATOR'} and coordinator_manages_programme(actor, programme, lock=lock)
+    return row.kind == 'TRANSFER' and row.status in {'PENDING_SOURCE_COORDINATOR', 'PENDING_DESTINATION_COORDINATOR'} and coordinator_manages_programme(actor, programme, lock=lock)
 
 
 def can_cancel(row, actor):
@@ -248,8 +259,7 @@ def decide(*, request_id, actor, decision, reason='', retain_team=False, expecte
         _no_nominations(student.pk)
         if not programme_coordinators(row.destination_programme).exists():
             raise AmendmentConflict('The destination programme has no eligible coordinator.')
-    next_status = {'PENDING_SUPERVISOR': 'PENDING_COORDINATOR',
-                   'PENDING_SOURCE_COORDINATOR': 'PENDING_DESTINATION_COORDINATOR'}.get(row.status, 'APPROVED')
+    next_status = 'PENDING_DESTINATION_COORDINATOR' if row.kind == 'TRANSFER' and row.status == 'PENDING_SOURCE_COORDINATOR' else 'APPROVED'
     if next_status == 'APPROVED':
         _apply(student, profile, row.after_values, actor, row.kind, row.reason, row)
     _transition(row, actor, next_status, 'APPROVE' if next_status == 'APPROVED' else 'ENDORSE', reason, retain_team)
@@ -296,8 +306,10 @@ def correct(*, actor, data):
     return _apply(student, profile, _research_values(profile, data), actor, 'CORRECTION', _reason(data.get('reason')))
 
 
-def scoped_requests(actor):
+def scoped_requests(actor, *, routine=True):
     rows = ResearchAmendment.objects.select_related('student__user', 'profile', 'academic_semester').prefetch_related('events')
+    if routine:
+        rows = routine_research_requests(rows, actor)
     if not actor.is_active:
         return rows.none()
     if office(actor):
@@ -347,7 +359,7 @@ def request_payload(row, actor):
             'studentName': row.student_name, 'matricNo': row.matric_no, 'sourceProgramme': row.source_programme,
             'destinationProgramme': row.destination_programme, 'before': row.before_values, 'after': row.after_values,
             'reason': row.reason, 'createdAt': row.created_at.isoformat(), 'updatedAt': row.updated_at.isoformat(),
-            'stageLabel': row.get_status_display(), 'canDecide': can_decide(row, actor) and row.student.status == Student.Status.ACTIVE,
+            'stageLabel': ResearchAmendment.Status(review_status(row)).label, 'canDecide': can_decide(row, actor) and row.student.status == Student.Status.ACTIVE,
             'canCancel': can_cancel(row, actor), 'requiresTeamAcknowledgement': row.kind == 'TRANSFER',
             'teamSnapshot': row.team_snapshot, 'unfinishedTaskCount': unfinished,
             'events': [{'id': e.pk, 'action': e.action, 'actorName': e.actor_name, 'actorRole': e.actor_role,

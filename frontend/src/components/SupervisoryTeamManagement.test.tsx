@@ -25,6 +25,10 @@ const ended = renderToStaticMarkup(<CoSupervisorAppointmentCard appointment={app
 assert.match(ended, /Research changed/);
 assert.doesNotMatch(ended, />End appointment</);
 assert.doesNotMatch(ended, />Replace</);
+const endedDetail = renderToStaticMarkup(<CoSupervisorAppointmentCard detail appointment={{...appointment, endedAt:'2026-10-13T18:30:00Z'}} busy={false} canReplace={false} onEnd={() => {}} onReplace={() => {}} />);
+assert.match(endedDetail, /Appointment summary|Appointment outcome|Audit history/);
+assert.match(endedDetail, /14 Oct 2026/, 'Supporting lifecycle uses the actual Malaysia ending time');
+assert.doesNotMatch(endedDetail, /Approval progress|End appointment|>Replace</, 'Ended relationships are not approval requests');
 console.log('Supervisory team role-specific rendering passed');
 
 const timeline = renderToStaticMarkup(<SupervisoryTeamTimeline entries={[
@@ -47,7 +51,8 @@ const workspace: import('../types/coSupervision').SupervisoryWorkspace = {
 };
 const studentTeam = renderToStaticMarkup(<StudentSupervisorsOverview workspace={workspace} actions={<button>View appointment</button>} />);
 assert.match(studentTeam, /Dr Primary|Current approved title|No supporting supervisors assigned/);
-assert.match(studentTeam, /<details><summary[^>]*>Research profile<\/summary>/);
+assert.match(studentTeam, /<section aria-label="Research profile"/);
+assert.doesNotMatch(studentTeam, /<summary[^>]*>Research profile/);
 assert.match(studentTeam, /Full current abstract|Previous supporting supervisors/);
 assert.doesNotMatch(studentTeam, /Research changed|Complementary research expertise|Audit history|Ended reason/);
 assert.doesNotMatch(studentTeam, /Timeline and progress|Semester milestone|>Approve<|>End appointment<|>Replace</);

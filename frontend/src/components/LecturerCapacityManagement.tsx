@@ -7,7 +7,6 @@ import {
   Eye,
   History,
   Plus,
-  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -429,11 +428,6 @@ export function LecturerCapacityManagement({ onBack }: LecturerCapacityManagemen
         title="Lecturer Capacity Management"
         backLabel="Back to Dashboard" onBack={onBack}
         subtitle="Configure versioned Supervisor and Panel limits and temporary availability by academic semester."
-        actions={(
-          <>
-            <PortalButton icon={RefreshCw} onClick={() => semesterId && void loadSemesterData(semesterId)}>Refresh</PortalButton>
-          </>
-        )}
       />
 
       <section className="border-y border-slate-200 py-5">

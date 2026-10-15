@@ -1,3 +1,4 @@
+from appointments.request_visibility import routine_supervisor_requests
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404
@@ -139,6 +140,7 @@ def _supervisor_records(student, user, visibility, now):
         .prefetch_related("workflow_events__actor")
         .order_by("-updated_at", "-created_at", "-id")
     )
+    applications_query = routine_supervisor_requests(applications_query, user)
     if user.role == User.Role.LECTURER:
         applications_query = applications_query.filter(proposed_supervisor=user)
     applications = sorted(

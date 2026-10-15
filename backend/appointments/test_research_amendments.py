@@ -28,15 +28,15 @@ class ResearchAmendmentTests(APITestCase):
         self.assertEqual(result.status_code, 201, result.data)
         return result.data['id']
 
-    def test_research_requires_both_reviews_and_preserves_proposal(self):
+    def test_supervisor_finalizes_research_and_preserves_original_proposal(self):
         pk = self.research()
         result = self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE')
         self.assertEqual(result.status_code, 403)
-        self.assertEqual(self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE').status_code, 200)
-        self.profile.refresh_from_db()
-        self.assertNotEqual(self.profile.proposed_topic, 'Revised research')
-        result = self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE')
+        result = self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE')
         self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(result.data['status'], 'APPROVED')
+        self.assertEqual(result.data['events'][-1]['action'], 'APPROVE')
+        self.assertEqual(result.data['events'][-1]['actorName'], self.supervisor.full_name)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.proposed_topic, 'Revised research')
         self.assertEqual(self.profile.revision, 1)
@@ -54,6 +54,59 @@ class ResearchAmendmentTests(APITestCase):
         with self.assertRaises(ValidationError):
             row.save()
         self.assertEqual(ResearchProfileRevision.objects.filter(profile=self.profile).count(), 2)
+        self.assertEqual(ResearchProfileRevision.objects.get(request_id=pk).actor_id, self.supervisor.pk)
+
+    def test_legacy_coordinator_stage_returns_final_authority_to_primary_supervisor(self):
+        from django.db import models
+        from .models import ResearchAmendment, ResearchAmendmentEvent
+        from dashboard.amendment_tracking import amendment_waiting_metadata, amendment_actions
+        from django.utils import timezone
+        pk = self.research()
+        models.QuerySet(model=ResearchAmendment).filter(pk=pk).update(status='PENDING_COORDINATOR')
+        endorsement = ResearchAmendmentEvent.objects.create(
+            request_id=pk, actor=self.supervisor, actor_role=self.supervisor.role,
+            actor_name=self.supervisor.full_name, action='ENDORSE',
+            previous_status='PENDING_SUPERVISOR', new_status='PENDING_COORDINATOR',
+            reason='Historical Supervisor endorsement.',
+        )
+        self.assertEqual(self.post(self.supervisor, f'{pk}/decision/',
+            decision='APPROVE', expectedStatus='PENDING_SUPERVISOR').status_code, 409)
+        for actor, allowed in ((self.supervisor, True), (self.coordinator, False)):
+            self.client.force_authenticate(user=actor)
+            detail = self.client.get(self.base + f'{pk}/')
+            self.assertEqual(detail.status_code, 200)
+            self.assertEqual(detail.data['canDecide'], allowed)
+            self.assertEqual(detail.data['stageLabel'], 'Awaiting primary supervisor')
+        self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE').status_code, 403)
+        self.client.force_authenticate(user=self.coordinator)
+        queue = self.client.get(self.base, {'page': 1, 'focus': 'decision'})
+        self.assertEqual(queue.data['pagination']['reviewCount'], 0)
+        self.assertEqual(queue.data['requests'], [])
+        self.client.force_authenticate(user=self.office)
+        report = self.client.get('/api/dashboard/reports/?semester=all')
+        self.assertEqual(report.status_code, 200)
+        self.assertEqual(report.data['researchAmendments']['records'][0]['status'], 'PENDING_SUPERVISOR')
+        row = ResearchAmendment.objects.get(pk=pk)
+        self.assertEqual(amendment_waiting_metadata(row)['waitingOn'], 'SUPERVISOR')
+        self.assertFalse(amendment_actions(self.coordinator, timezone.now()))
+        self.assertEqual(amendment_actions(self.supervisor, timezone.now())[0]['recordId'], str(pk))
+        result = self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE')
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(result.data['status'], 'APPROVED')
+        endorsement.refresh_from_db()
+        self.assertEqual(endorsement.new_status, 'PENDING_COORDINATOR')
+        self.assertEqual(endorsement.reason, 'Historical Supervisor endorsement.')
+        self.assertEqual([event['action'] for event in result.data['events']], ['SUBMIT', 'ENDORSE', 'APPROVE'])
+
+    def test_programme_coordinator_and_supporting_lecturer_have_no_research_decision_authority(self):
+        pk = self.research()
+        self.client.force_authenticate(user=self.coordinator)
+        queue = self.client.get(self.base, {'page': 1, 'focus': 'decision'})
+        self.assertEqual(queue.data['pagination']['reviewCount'], 0)
+        self.assertEqual(queue.data['requests'], [])
+        for actor, expected in ((self.coordinator, 403), (self.new_supervisor, 404)):
+            response = self.post(actor, f'{pk}/decision/', decision='APPROVE')
+            self.assertEqual(response.status_code, expected)
 
     def test_active_supervisee_without_linked_profile_uses_original_application(self):
         from .models import StudentResearchProfile
@@ -110,10 +163,9 @@ class ResearchAmendmentTests(APITestCase):
 
     def test_final_approval_detects_stale_profile(self):
         pk = self.research()
-        self.assertEqual(self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE').status_code, 200)
         from .models import StudentResearchProfile
         StudentResearchProfile.objects.filter(pk=self.profile.pk).update(abstract='External changed value')
-        result = self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE')
+        result = self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE')
         self.assertEqual(result.status_code, 409)
 
     def test_old_coordinator_keeps_only_decision_history_after_transfer(self):
@@ -144,10 +196,9 @@ class ResearchAmendmentTests(APITestCase):
 
     def test_rejections_and_cancellations_preserve_profile(self):
         original = self.profile.proposed_topic
-        for reviewer in (self.supervisor, self.coordinator):
+        for reviewer in (self.supervisor,):
             pk = self.research()
-            if reviewer == self.coordinator:
-                self.assertEqual(self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE').status_code, 200)
+            self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='REJECT', reason='Programme reviewer').status_code, 403)
             self.assertEqual(self.post(reviewer, f'{pk}/decision/', decision='REJECT', reason='Revise proposal').status_code, 200)
             self.profile.refresh_from_db()
             self.assertEqual(self.profile.proposed_topic, original)

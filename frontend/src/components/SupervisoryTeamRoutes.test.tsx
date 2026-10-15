@@ -51,7 +51,7 @@ assert.doesNotMatch(history, /Actionable nomination justification|Prospective no
 const detail = render('detail', { routeStudentId: 'PG007' });
 for (const text of ['Primary full abstract', 'Current team ended appointment', 'Closed current team nomination', '>Accept<', '>Reject<', 'Nominate co-supervisor', 'End appointment', '>Replace<']) assert.ok(detail.includes(text), `Detail missing ${text}`);
 assert.doesNotMatch(detail, /Supporting Student|Supporting full abstract|Prospective nomination justification|Previous team ended appointment/);
-assert.match(detail, /^<article/);
+assert.match(detail, /<article/,'A shared student card lives inside the consistent detail layout');
 assert.match(render('detail', { routeStudentId: 'PG008' }), /Supporting full abstract/);
 assert.doesNotMatch(render('detail', { routeStudentId: 'PG008' }), /Nominate co-supervisor|>Replace<|End appointment|>Accept</);
 assert.match(render('detail', { routeStudentId: 'PG999' }), /Supervision not found/);
@@ -59,7 +59,12 @@ assert.doesNotMatch(render('detail', { routeStudentId: 'PG999' }), /Primary full
 
 const overview = render('studentOverview', { studentActions: <button>View appointment</button> });
 for (const text of ['Primary Lecturer', 'Supporting Lecturer', 'Primary research title', 'View appointment']) assert.ok(overview.includes(text), `Overview missing ${text}`);
-assert.doesNotMatch(overview, /Research profile|Primary full abstract|Current team ended appointment|Closed current team nomination|Supporting appointment history/);
+for (const text of ['Research profile','Research area','Primary full abstract','Computing MSc']) assert.ok(overview.includes(text),`Student overview research profile missing ${text}`);
+assert.match(overview, /<section aria-label="Research profile"/,'Current research is visible in the shared profile section');
+assert.doesNotMatch(overview, /<summary[^>]*>Research profile/,'The profile no longer has a nested disclosure');
+assert.doesNotMatch(overview, /Current team ended appointment|Closed current team nomination|Supporting appointment history|Supporting full abstract/);
+const noProfile = render('studentOverview',{workspace:{...workspace,teams:[{...workspace.teams[0],research:{title:'',area:'',abstract:''}}]}});
+assert.doesNotMatch(noProfile,/Research profile|Primary full abstract/,'A Student without a saved profile must not see invented research');
 assert.doesNotMatch(overview, /Actionable nomination justification|Pending Candidate|Supporting supervisor requests/);
 assert.match(overview, /Previous supporting supervisors/);
 assert.doesNotMatch(overview, />Accept<|>Reject</);

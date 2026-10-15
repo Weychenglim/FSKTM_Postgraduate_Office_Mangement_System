@@ -70,7 +70,7 @@ def workspace_view(request):
 @guarded(["GET"])
 def team_view(request, student_id):
     student = Student.objects.select_related("user").get(pk=student_id)
-    return Response(service.serialize_team(student, request.user))
+    return Response(service.serialize_team(student, request.user, include_details=True))
 
 
 @guarded(["GET"])

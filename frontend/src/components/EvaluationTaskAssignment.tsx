@@ -1,3 +1,5 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
 import { RecordPage } from './RecordPage';
 import { PortalModal } from './PortalModal';
 import { MarksCompletionWindows } from './MarksCompletionWindows';
@@ -15,7 +17,6 @@ import {
   CheckCircle2,
   Eye,
   Filter,
-  RefreshCw,
   ShieldAlert,
   Sliders,
   Users,
@@ -136,6 +137,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
   const [roleFilter, setRoleFilter] = useState<typeof ALL_ROLES | EvaluationTaskRole>(ALL_ROLES);
   const [statusFilter, setStatusFilter] = useState<typeof ALL_STATUSES | EvaluationPreviewStatus>(ALL_STATUSES);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [confirmBackup, setConfirmBackup] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<EvaluationPreviewTask | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -156,7 +158,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     window.setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (propagateError = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -175,6 +177,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load evaluation assignment workspace.');
+      if (propagateError) throw e;
     } finally {
       setLoading(false);
     }
@@ -279,41 +282,35 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     return null;
   };
 
+  const reviewBackup = () => {
+    const validation = validateBackupForm(); setFormError(validation);
+    if (!validation) setConfirmBackup(true);
+  };
   const handleBackupSubmit = async () => {
-    const validation = validateBackupForm();
-    if (validation) {
-      setFormError(validation);
-      return;
-    }
+    if (validateBackupForm()) return false;
     setSubmittingBackup(true);
-    setFormError(null);
     try {
-      const task = await createBackupEvaluationTask(Number(backupForm.periodId), {
-        studentId: backupForm.studentId,
-        evaluatorId: Number(backupForm.evaluatorId),
+      return await completeDecision(async () => { const task = await createBackupEvaluationTask(Number(backupForm.periodId), {
+        studentId: backupForm.studentId, evaluatorId: Number(backupForm.evaluatorId),
         reason: backupForm.reason.trim(),
         originalTaskId: backupForm.originalTaskId ? Number(backupForm.originalTaskId) : undefined,
       });
-      showToast(`Backup evaluator task created for ${task.studentName}.`);
-      setActivities(prev => [{
-        id: String(Date.now()),
-        date: 'Today',
-        action: 'Backup evaluator assigned',
-        details: `${task.studentId} assigned as ${task.evaluatorRoleLabel || 'Backup / Manual Override'}`,
-        performedBy: 'Office Staff/Admin',
-      }, ...prev]);
-      setDrawerOpen(false);
-      await loadWorkspace();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create backup evaluator task.');
-    } finally {
-      setSubmittingBackup(false);
-    }
+        setActivities(prev => [{id: String(Date.now()), date: 'Today', action: 'Backup evaluator assigned',
+          details: `${task.studentId} assigned as ${task.evaluatorRoleLabel || 'Backup / Manual Override'}`,
+          performedBy: 'Office Staff/Admin'}, ...prev]);
+      }, () => loadWorkspace(true));
+    } finally { setSubmittingBackup(false); }
   };
 
   return (
     <div id="eval-assignment-workspace" className="space-y-8 animate-fade-in relative text-left">
       <PortalToast message={toastMessage} />
+      <DecisionDialog isOpen={confirmBackup} kind="confirmation" decisionKey={`${backupForm.studentId}:${backupForm.evaluatorId}`}
+        title="Assign this backup evaluator?" context={<p>{selectedBackupStudent?.studentName} · {backupForm.studentId} · {selectedBackupLecturer?.fullName} · {selectedBackupPeriod?.name}</p>}
+        message={<><p>This creates an exception evaluation task and leaves official Supervisor and Panel appointments unchanged.</p><p>Reason: {backupForm.reason}</p></>}
+        confirmLabel="Assign backup evaluator" successMessage="Backup evaluator task created."
+        busy={submittingBackup} canConfirm={!validateBackupForm()} onConfirm={handleBackupSubmit}
+        onClose={() => setConfirmBackup(false)} onReload={() => loadWorkspace(true)} />
 
       <PageHeader
         title="Evaluation Task Assignment"
@@ -378,14 +375,6 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     Creates only missing supervisor and panel tasks. Existing and submitted marks are preserved.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadWorkspace}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-black text-slate-600 hover:bg-slate-50"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Refresh
-                </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-5">
@@ -759,7 +748,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                   <button
                     type="button"
                     disabled={submittingBackup}
-                    onClick={handleBackupSubmit}
+                    onClick={reviewBackup}
                     className="px-5 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 disabled:bg-slate-300 text-white font-black uppercase tracking-wider"
                   >
                     {submittingBackup ? 'Assigning…' : 'Assign Backup'}

@@ -1,11 +1,12 @@
+import { DecisionDialog } from './DecisionDialog';
+import { completeDecision } from '../utils/decisionSubmission';
 import { useRecordDraft } from './RecordDraft';
 import React, {useEffect, useRef, useState} from 'react';
 import type {MarkRecordDetail} from '../types';
-import {ApiError} from '../services/apiClient';
 import {correctSubmittedMarkRecord, reopenSubmittedMarkRecord} from '../services/marksApi';
 import {validateSubmittedMarksCorrection} from '../utils/submittedMarksCorrection';
 import {formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
-import {PortalButton, PortalCard, PortalConfirmModal} from './PortalPrimitives';
+import {PortalButton, PortalCard} from './PortalPrimitives';
 
 interface SubmittedMarksActionsProps {
   record: MarkRecordDetail;
@@ -19,7 +20,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   const [comments, setComments] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const [blocked, setBlocked] = useState(false);
+  const [awaitingLatest, setAwaitingLatest] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
@@ -29,7 +30,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   const editedScores = record.rubric.components.some(component => component.marksAwarded !== null && values[component.id] !== (component.marksAwarded || '0'));
   useRecordDraft(!!mode && (!!reason.trim() || (mode === 'correct' && (editedScores || comments !== record.entry.comments))), busy);
   const actions = record.officeActions;
-  if (record.entry.status !== 'SUBMITTED' || !actions?.version || (!actions.canCorrect && !actions.canReopen)) return null;
+  const eligible = record.entry.status === 'SUBMITTED' && !!actions?.version && !!(actions.canCorrect || actions.canReopen);
   const components = record.rubric.components.filter(component => component.marksAwarded !== null);
   const original = {comments: record.entry.comments, components};
   const correctedTotal = components.reduce((total, component) => total + Number(values[component.id] || 0), 0);
@@ -45,41 +46,48 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
     if (!validation) setConfirmOpen(true);
   };
   const submit = async () => {
-    if (submitting.current || blocked || !mode || !actions.version) return;
-    submitting.current = true; setBusy(true); setError('');
+    if (submitting.current || awaitingLatest || !eligible || !mode || !actions?.version) return false;
+    submitting.current = true; setBusy(true);
     try {
-      if (mode === 'correct') {
-        await correctSubmittedMarkRecord(record.recordId, {
-          expectedVersion: actions.version, reason: reason.trim(), comments,
-          scores: components.filter(component => Number(values[component.id]) !== Number(component.marksAwarded))
-            .map(component => ({componentId: Number(component.id), marksAwarded: values[component.id]})),
-        });
-      } else {
-        await reopenSubmittedMarkRecord(record.recordId, {expectedVersion: actions.version, reason: reason.trim()});
-      }
-      if (mounted.current) await onChanged(mode === 'correct'
-        ? 'Correction saved and audited. The submission remains locked.'
-        : 'Marks reopened and audited. The assigned Lecturer can review and resubmit.');
-    } catch (failure) {
-      if (mounted.current) {
-        setConfirmOpen(false);
-        setError(failure instanceof Error ? failure.message : 'Unable to update this record.');
-        if (failure instanceof ApiError && (failure.status === 409 || failure.status === 403)) setBlocked(true);
-      }
-    } finally {
-      submitting.current = false;
-      if (mounted.current) setBusy(false);
-    }
+      const outcome = await completeDecision(async () => {
+        if (mode === 'correct') {
+          await correctSubmittedMarkRecord(record.recordId, {
+            expectedVersion: actions!.version!, reason: reason.trim(), comments,
+            scores: components.filter(component => Number(values[component.id]) !== Number(component.marksAwarded))
+              .map(component => ({componentId: Number(component.id), marksAwarded: values[component.id]})),
+          });
+        } else {
+          await reopenSubmittedMarkRecord(record.recordId, {expectedVersion: actions!.version!, reason: reason.trim()});
+        }
+        setMode(null); setReason('');
+      }, onReload);
+      setAwaitingLatest(!!outcome.refreshFailed);
+      return outcome;
+    } finally { submitting.current = false; if (mounted.current) setBusy(false); }
   };
 
-  return <PortalCard padding="lg" className="rounded-lg">
+  const reviewLatest = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      await onReload();
+      setAwaitingLatest(false);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Unable to reload the latest mark record.');
+    } finally { setBusy(false); }
+  };
+
+  return <>{eligible ? <PortalCard padding="lg" className="rounded-lg">
     <h2 className="section-label">Office Marks actions</h2>
     <p className="card-description mt-2 text-slate-600">Changes require a reason and retain the original values in correction history.</p>
     {error ? <p role="alert" className="card-description mt-3 text-red-700">{error}</p> : null}
-    {blocked ? <PortalButton className="mt-3" onClick={() => void onReload()}>Reload latest record</PortalButton> : <>
+    {awaitingLatest ? <div className="mt-4 space-y-3">
+      <p className="card-description text-amber-800">Your change was saved. Review the latest mark record before making another Office change.</p>
+      <PortalButton disabled={busy} onClick={() => void reviewLatest()}>Review latest record</PortalButton>
+    </div> : <>
       {!mode ? <div className="mt-4 flex flex-wrap gap-2">
-        {actions.canCorrect ? <PortalButton onClick={() => choose('correct')}>Correct submitted marks</PortalButton> : null}
-        {actions.canReopen ? <PortalButton onClick={() => choose('reopen')}>Reopen for Lecturer</PortalButton> : null}
+        {actions?.canCorrect ? <PortalButton onClick={() => choose('correct')}>Correct submitted marks</PortalButton> : null}
+        {actions?.canReopen ? <PortalButton onClick={() => choose('reopen')}>Reopen for Lecturer</PortalButton> : null}
       </div> : <div className="mt-4 space-y-4">
         <h3 className="section-label">{mode === 'correct' ? 'Correct submitted marks' : 'Reopen for Lecturer'}</h3>
         {mode === 'correct' ? <>
@@ -99,14 +107,17 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
         </div>
       </div>}
     </>}
-    <PortalConfirmModal isOpen={confirmOpen} isLoading={busy}
+  </PortalCard> : null}
+    <DecisionDialog isOpen={confirmOpen} busy={busy} kind="confirmation" decisionKey={record.recordId}
+      context={<p>{record.student.name} · {record.student.studentId} · {record.evaluator.name}</p>}
       title={mode === 'correct' ? 'Save this correction?' : 'Reopen this submission?'}
       message={<div className="card-description space-y-2"><p>{mode === 'correct'
         ? `Total ${record.entry.totalMark} → ${correctedTotal.toFixed(2)}. The submission remains locked; the changes are audited.`
         : 'The submission returns to Draft with its scores and comments preserved.'}</p><p className="card-description whitespace-pre-wrap">Reason: {reason}</p></div>}
       confirmLabel={mode === 'correct' ? 'Save correction' : 'Reopen marks'} cancelLabel="Review again" tone="warning"
-      onConfirm={() => void submit()} onCancel={() => {if (!submitting.current) setConfirmOpen(false);}}/>
-  </PortalCard>;
+      successMessage={mode === 'correct' ? 'Correction saved and audited. The submission remains locked.' : 'Marks reopened and audited for Lecturer review.'}
+      onReload={onReload} onConfirm={submit} onClose={() => setConfirmOpen(false)}/>
+  </>;
 }
 
 export function MarkCorrectionHistoryView({events, components}: {

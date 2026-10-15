@@ -5,7 +5,7 @@ import {SubmittedMarksActions, MarkCorrectionHistoryView} from './SubmittedMarks
 import type {MarkRecordDetail} from '../types';
 
 const record = {
-  recordId: 'MRK-00001', entry: {status:'SUBMITTED',comments:'Original',totalMark:'80.00'},
+  recordId: 'MRK-00001', student:{name:'Student',studentId:'S1'}, evaluator:{name:'Lecturer'}, entry: {status:'SUBMITTED',comments:'Original',totalMark:'80.00'},
   rubric: {components:[{id:'1',name:'Problem',marksAwarded:'30.00',maxMarks:'40.00'}]},
   officeActions: {canCorrect:true,canReopen:true,version:'reviewed'},
 } as MarkRecordDetail;

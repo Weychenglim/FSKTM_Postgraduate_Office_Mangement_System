@@ -143,10 +143,6 @@ export const ActiveSuperviseeDetail: React.FC<
       </div>
       <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
         <DetailField
-          label="Appointment ID"
-          value={`SV-APT-${String(supervisee.appointmentId).padStart(5, '0')}`}
-        />
-        <DetailField
           label="Appointment date"
           value={supervisee.appointmentDate}
         />

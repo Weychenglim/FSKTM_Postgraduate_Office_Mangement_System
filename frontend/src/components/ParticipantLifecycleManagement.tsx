@@ -1,5 +1,6 @@
+import { useReturnToFocusReload } from '../utils/returnToFocus';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, History, RefreshCw, Search, ShieldAlert, ShieldCheck, UserRoundCheck } from 'lucide-react';
+import { AlertTriangle, History, Search, ShieldAlert, ShieldCheck, UserRoundCheck } from 'lucide-react';
 import type {
   ParticipantLifecycleListResponse,
   ParticipantLifecycleRecord,
@@ -101,6 +102,8 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
     }
   }, [programme, search, statusFilter, typeFilter]);
 
+  useReturnToFocusReload(() => void load(), !loading && !saving && !detailLoading && !selected && !reason.trim());
+
   useEffect(() => {
     setLoading(true);
     setSelected(null);
@@ -183,7 +186,7 @@ export const ParticipantLifecycleManagement: React.FC<ParticipantLifecycleManage
         actions={(
           <>
             {onOpenReconciliation && <PortalButton icon={ShieldAlert} onClick={onOpenReconciliation}>Reconcile Workflows</PortalButton>}
-            <PortalButton icon={RefreshCw} disabled={saving} onClick={() => void load()}>Refresh</PortalButton>
+
           </>
         )}
       />

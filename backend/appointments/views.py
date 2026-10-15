@@ -1,3 +1,4 @@
+from .request_visibility import routine_supervisor_requests
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
@@ -59,6 +60,8 @@ from .appointment_lifecycle import (
     end_appointment,
 )
 from .notifications import publish_workflow_notification
+from .panel_access import (can_view_panel_recommendation, coordinator_can_decide_panel,
+                           coordinator_panel_scope_q)
 from .serializers import (
     PanelAssignmentSerializer,
     PanelCandidateSerializer,
@@ -557,27 +560,14 @@ def notify_workflow(
 def get_recommendation_or_404(pk):
     try:
         return PanelRecommendation.objects.select_related(
-            "profile", "supervisor", "recommended_member"
+            "profile__student__student", "supervisor", "recommended_member"
         ).get(pk=pk)
     except PanelRecommendation.DoesNotExist:
         return None
 
 
-def can_view_panel_recommendation(user, recommendation):
-    if user.role == User.Role.OFFICE_ADMIN:
-        return True
-    if user.pk in [
-        recommendation.supervisor_id,
-        recommendation.recommended_member_id,
-    ]:
-        return True
-    return user.role == User.Role.COORDINATOR and coordinator_can_access_recommendation(
-        user, recommendation
-    )
-
-
 def coordinator_can_access_recommendation(user, recommendation, *, lock=False):
-    return coordinator_manages_programme(user, recommendation.profile.programme, lock=lock)
+    return coordinator_can_decide_panel(user, recommendation, lock=lock)
 
 
 @api_view(["GET"])
@@ -911,7 +901,7 @@ def coordinator_queue_view(request):
             status.HTTP_403_FORBIDDEN,
         )
     recommendations = PanelRecommendation.objects.filter(
-        coordinator_scope_q(request.user, "profile__programme"),
+        coordinator_panel_scope_q(request.user),
         status=PanelRecommendation.Status.PENDING_COORDINATOR,
     ).select_related(
         "profile", "supervisor", "recommended_member", "recommended_member__lecturer"
@@ -943,7 +933,7 @@ def coordinator_workspace_view(request):
         )
 
     recommendations = (
-        PanelRecommendation.objects.filter(coordinator_scope_q(request.user, "profile__programme"))
+        PanelRecommendation.objects.filter(coordinator_panel_scope_q(request.user, include_legacy=True))
         .select_related(
             "profile",
             "supervisor",
@@ -952,10 +942,14 @@ def coordinator_workspace_view(request):
         )
         .order_by("-updated_at", "-created_at")
     )
+    decision_ids = set(recommendations.filter(
+        coordinator_panel_scope_q(request.user),
+        status=PanelRecommendation.Status.PENDING_COORDINATOR,
+    ).values_list("pk", flat=True))
     queue = [
         recommendation
         for recommendation in recommendations
-        if recommendation.status == PanelRecommendation.Status.PENDING_COORDINATOR
+        if recommendation.pk in decision_ids
     ]
     return Response(
         {
@@ -1230,12 +1224,11 @@ def coordinator_approve_view(request, pk):
     from .capacity_reassessment import lock_policy_semesters, assert_request_capacity, consume
     with transaction.atomic():
         lock_policy_semesters()
-        if recommendation.profile.student_id:
-            locked_student = Student.objects.select_for_update().get(
-                pk=recommendation.profile.student_id
-            )
-            if not student_is_workflow_eligible(locked_student):
-                return participant_ineligible_response()
+        locked_student = Student.objects.select_for_update().get(
+            pk=recommendation.profile.student_id
+        )
+        if not student_is_workflow_eligible(locked_student):
+            return participant_ineligible_response()
         recommendation = (
             PanelRecommendation.objects.select_for_update(of=("self",))
             .select_related(
@@ -1248,6 +1241,8 @@ def coordinator_approve_view(request, pk):
             )
             .get(pk=recommendation.pk)
         )
+        if recommendation.profile.student_id != locked_student.pk:
+            return error_response("The linked student changed. Review the latest recommendation.", status.HTTP_409_CONFLICT)
         if not profile_student_is_workflow_eligible(recommendation.profile):
             return participant_ineligible_response()
         if not user_is_assignable_lecturer(recommendation.recommended_member):
@@ -1365,9 +1360,10 @@ def coordinator_reject_view(request, pk):
     with transaction.atomic():
         from .capacity_reassessment import lock_policy_semesters
         lock_policy_semesters()
-        if recommendation.profile.student_id:
-            Student.objects.select_for_update().get(pk=recommendation.profile.student_id)
+        locked_student = Student.objects.select_for_update().get(pk=recommendation.profile.student_id)
         recommendation = PanelRecommendation.objects.select_for_update(of=("self",)).select_related("profile").get(pk=pk)
+        if recommendation.profile.student_id != locked_student.pk:
+            return error_response("The linked student changed. Review the latest recommendation.", status.HTTP_409_CONFLICT)
         try:
             assert_not_archived(recommendation)
         except ReassessmentConflict as exc:
@@ -2021,6 +2017,7 @@ def supervisor_coordinator_history_view(request):
         )
         .order_by("-updated_at", "-pk")
     )
+    applications = routine_supervisor_requests(applications, request.user)
     return Response(SupervisorApplicationSerializer(applications, many=True).data)
 
 
@@ -2245,6 +2242,7 @@ def supervisor_request_history_view(request):
         )
         .select_related("student", "student__user")
     )
+    applications = routine_supervisor_requests(applications, request.user)
     return Response(
         [
             {
@@ -2328,6 +2326,7 @@ def supervisor_records_view(request):
             return "Cancelled"
         return "Pending"
 
+    applications = routine_supervisor_requests(applications, request.user)
     return Response(
         [
             {
@@ -2341,6 +2340,7 @@ def supervisor_records_view(request):
                 "email": application.student.user.email,
                 **workflow_semester_payload(application),
                 "researchTopic": application.research_title,
+                "projectCourseCodes": application.project_course_codes,
                 "researchArea": application.research_area,
                 "abstract": application.research_abstract,
                 "appointmentId": (

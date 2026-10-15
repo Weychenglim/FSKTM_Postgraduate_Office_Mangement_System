@@ -279,6 +279,7 @@ class SupervisorApplication(models.Model):
         related_name="supervisor_applications_to_review",
     )
     research_title = models.CharField(max_length=500)
+    project_course_codes = models.CharField(max_length=255, blank=True, default="")
     research_area = models.CharField(max_length=255, blank=True, default="")
     research_abstract = models.TextField()
     status = models.CharField(

@@ -34,6 +34,7 @@ export interface StudentData {
 }
 
 interface RecommendPanelMemberDrawerProps {
+  backLabel?: string;
   isOpen: boolean;
   busy?: boolean;
   onClose: () => void;
@@ -47,6 +48,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   isOpen,
   busy = false,
   onClose,
+  backLabel = 'Back to Panel Appointments',
   student,
   candidates,
   replacementMember,
@@ -54,27 +56,16 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedLecturer, setSelectedLecturer] =
-    useState<PanelCandidate | null>(
-      candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit) ?? null,
-    );
-  const initialCandidate = useRef(selectedLecturer?.staffId);
+  const [selectedLecturer, setSelectedLecturer] = useState<PanelCandidate | null>(null);
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [replacementReason, setReplacementReason] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (
-      selectedLecturer
-      && candidates.some((lecturer) => lecturer.staffId === selectedLecturer.staffId)
-    ) {
-      return;
-    }
-    const nextLecturer = candidates.find((candidate) => candidate.selectable ?? candidate.canSubmit)
-      ?? null;
-    setSelectedLecturer(nextLecturer);
-    setSearchTerm(nextLecturer?.name ?? '');
+    if (!selectedLecturer) return;
+    const current = candidates.find(candidate => candidate.staffId === selectedLecturer.staffId);
+    if (current !== selectedLecturer) setSelectedLecturer(current ?? null);
   }, [candidates, selectedLecturer]);
 
   // Close dropdown on outside click
@@ -91,9 +82,18 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   }, []);
 
   const handleLecturerSelect = (lecturer: PanelCandidate) => {
+    if (busy || !(lecturer.selectable ?? lecturer.canSubmit)) return;
     setSelectedLecturer(lecturer);
-    setSearchTerm(lecturer.name);
+    setSearchTerm('');
     setShowDropdown(false);
+  };
+
+  const removeSelection = () => {
+    if (busy) return;
+    setSelectedLecturer(null);
+    setSearchTerm('');
+    setShowDropdown(false);
+    setSubmitAttempted(false);
   };
 
   const filteredLecturers = candidates.filter(lec =>
@@ -117,7 +117,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
       hasNotes: hasRecommendationNotes,
     });
   const validationMessage = selectedLecturer === null
-    ? 'No eligible panel candidates are available.'
+    ? (candidates.some(candidate => candidate.selectable ?? candidate.canSubmit) ? 'Choose a panel member before submitting your recommendation.' : 'No eligible panel candidates are available.')
     : getPanelCandidateValidationMessage({
         workloadCount: selectedLecturer.workloadCount,
         workloadLimit: selectedLecturer.workloadLimit,
@@ -140,7 +140,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   };
 
   if (!isOpen) return null;
-  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel="Back to Panel Appointments" onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer?.staffId !== initialCandidate.current || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
+  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel={backLabel} onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer !== null || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}><section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
               {/* SECTION A: Student Summary Card at Top */}
               <div 
                 id="recommend-student-card" 
@@ -167,7 +167,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     id="summary-status-badge" 
                     className="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100"
                   >
-                    Recommendation Needed
+                    {replacementMember ? 'Panel replacement' : 'Recommendation needed'}
                   </span>
                 </div>
 
@@ -284,6 +284,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     </div>
                     <input
                       type="text"
+                      role="combobox"
+                      aria-label="Find a panel member"
+                      aria-expanded={showDropdown}
+                      aria-controls="panel-candidate-options"
+                      aria-autocomplete="list"
+                      disabled={busy}
+                      placeholder={selectedLecturer ? 'Search to change panel member' : 'Search by name, staff ID or department'}
                       className="w-full pl-10 pr-10 py-3 text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-800 focus:outline-none transition-all rounded-xl shadow-3xs cursor-pointer"
                       value={searchTerm}
                       onChange={(e) => {
@@ -291,6 +298,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                         setShowDropdown(true);
                       }}
                       onFocus={() => setShowDropdown(true)}
+                      onClick={() => setShowDropdown(true)}
+                      onKeyDown={event => { if (event.key === 'Escape') setShowDropdown(false); }}
                     />
                     <div className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
                       <ChevronDown className="w-4 h-4 cursor-pointer text-slate-500" />
@@ -300,6 +309,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     <AnimatePresence>
                       {showDropdown && (
                         <motion.div
+                          id="panel-candidate-options"
                           initial={{ opacity: 0, y: 5 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 5 }}
@@ -316,14 +326,15 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                               <button
                                 key={lec.staffId}
                                 type="button"
-                                disabled={!isSelectable}
+                                disabled={busy || !isSelectable}
+                                aria-pressed={selectedLecturer?.staffId === lec.staffId}
                                 onClick={() => handleLecturerSelect(lec)}
                                 className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-0 enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-between text-brand-navy transition ${
                                   selectedLecturer?.staffId === lec.staffId ? 'bg-indigo-50/45 text-blue-600' : ''
                                 }`}
                               >
                                 <div className="space-y-0.5">
-                                  <span className="block">{lec.name}</span>
+                                  <span className="block">{lec.name}{selectedLecturer?.staffId === lec.staffId ? <span className="ml-2 inline-flex items-center gap-1 text-blue-600"><CheckCircle className="h-3 w-3" />Selected</span> : null}</span>
                                   <span className="card-caption text-slate-400 block">{lec.department}</span>
                                 </div>
                                 <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
@@ -347,6 +358,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                     id="candidate-highlight-card"
                     className="p-4 bg-gradient-to-r from-blue-50/30 to-blue-50/5 border border-blue-200/70 rounded-xl flex items-center justify-between gap-4"
                   >
+                    <div className="min-w-0 flex-1 space-y-2">
+                    <p className="card-label inline-flex items-center gap-1 text-blue-700"><CheckCircle className="h-4 w-4" />Selected panel member</p>
                     <div className="flex items-center gap-3 w-full">
                       {/* Avatar with beautiful sketch style or generic portrait */}
                       <div className="w-11 h-11 rounded-lg bg-[#e0f2fe]/80 border border-blue-200 flex items-center justify-center shrink-0 overflow-hidden">
@@ -381,6 +394,9 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                       </div>
                     </div>
 
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                    <button type="button" onClick={removeSelection} disabled={busy} className="text-xs font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50">Remove selection</button>
                     {/* Available indicator */}
                     <span 
                       id="candidate-avail-badge"
@@ -394,12 +410,13 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                         ? capacityStateLabel(selectedLecturer.capacityState)
                         : selectedLecturer.availability}
                     </span>
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* SECTION D: Eligibility validation panel message box */}
-              {selectedLecturer && (
+              {(
                 <div 
                   id="eligibility-notice-panel"
                   className={`p-4 rounded-xl border flex gap-3 items-start transition-colors ${
@@ -417,7 +434,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                   </div>
                   <div className="space-y-1">
                     <span className="card-label uppercase tracking-wider block">
-                      {canSubmitRecommendation ? 'Ready for Panel Review' : 'Validation Required'}
+                      {canSubmitRecommendation ? 'Ready to submit' : !selectedLecturer ? 'Choose a panel member' : !hasRecommendationNotes ? 'Add recommendation notes to continue' : !hasReplacementReason ? 'Add a replacement reason to continue' : 'Panel member unavailable'}
                     </span>
                     <p id="eligibility-text" className="card-description">
                       {validationMessage}
