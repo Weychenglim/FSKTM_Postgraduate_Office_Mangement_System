@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, Upload } from 'lucide-react';
 import type { DocumentDetail, DocumentKind, DocumentOptions, DocumentSharing, StaffAudience, TaggableStudent } from '../types';
-import { getDocumentOptions, searchTaggableStudents, uploadConflict, uploadDocument } from '../services/filesApi';
+import { addDocumentVersion, getDocumentOptions, searchTaggableStudents, uploadConflict, uploadDocument } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { formatFileSize } from '../utils/documentDisplay';
 import { defaultSharing, namesOrNone, sharingNames, staffTypeChoices, studentAudienceSentence } from '../utils/documentSharing';
@@ -179,6 +179,20 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
     }
   };
 
+  const addAsVersion = async (documentId: number) => {
+    if (!file) return;
+    setSubmitting(true);
+    try {
+      const document = await addDocumentVersion(documentId, file, description);
+      done.current = true;
+      onUploadSuccess(document);
+    } catch (err) {
+      setBanner(errorText(err, 'Could not add the new version.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const typeOptions: SelectMenuOption<string>[] = types.map(item => ({
     value: item.code,
     label: item.label,
@@ -282,7 +296,10 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
             {existing && (
               <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
                 <span>{existing.detail}</span>
-                {existing.id && onOpenExisting && <PortalButton size="sm" type="button" onClick={() => onOpenExisting(existing.id!)}>Open it</PortalButton>}
+                <span className="flex flex-wrap gap-2">
+                  {existing.id && onOpenExisting && <PortalButton size="sm" type="button" onClick={() => onOpenExisting(existing.id!)}>Open it</PortalButton>}
+                  {existing.id && file && <PortalButton size="sm" type="button" variant="primary" isLoading={submitting} onClick={() => void addAsVersion(existing.id!)}>Add as a new version</PortalButton>}
+                </span>
               </div>
             )}
           </Section>

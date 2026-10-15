@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
+from announcements.emails import DOCUMENT, SIGN_OFF, email_users, portal_link
 from announcements.models import Notification
 
 from .access import people_reached, supervisors_of
@@ -96,8 +97,9 @@ def _student_names(students):
     return f"{names[0]} and {len(names) - 1} others"
 
 
-def send_upload_notices(document, students):
+def send_upload_notices(document, students, version_number=1):
     uploader = document.uploaded_by
+    suffix = "" if version_number == 1 else f":v{version_number}"
     if document.uploader_role == User.Role.STUDENT:
         if not document.share_supervisors:
             return
@@ -106,8 +108,8 @@ def send_upload_notices(document, students):
         _notify(
             recipients,
             document,
-            event_key=f"documents:uploaded:{document.pk}",
-            title=f"New file from {uploader.full_name}",
+            event_key=f"documents:uploaded:{document.pk}{suffix}",
+            title=f"New file from {uploader.full_name}" if version_number == 1 else f"New version from {uploader.full_name}",
             summary=f"{document.doc_type.label}: {document.title}",
             message=f"{uploader.full_name} uploaded {document.title} ({document.doc_type.label}).",
         )
@@ -117,7 +119,7 @@ def send_upload_notices(document, students):
     _notify(
         recipients,
         document,
-        event_key=f"documents:shared:{document.pk}",
+        event_key=f"documents:shared:{document.pk}{suffix}",
         title=f"{uploader.full_name} shared a file with you",
         summary=f"{document.doc_type.label}: {document.title}",
         message=f"{uploader.full_name} shared {document.title}{about}.",
@@ -209,3 +211,122 @@ def _remove_files(names):
             default_storage.delete(name)
         except OSError:
             pass
+
+
+def add_version(document, *, actor, checked, note, is_office):
+    """A corrected or newer file. Older versions stay; the check starts again
+    for types the office checks, unless the office added the version."""
+    stored_name = default_storage.save(version_path(None, checked.original_name), ContentFile(checked.content))
+    try:
+        with transaction.atomic():
+            document = Document.objects.select_for_update(of=("self",)).select_related("doc_type").get(pk=document.pk)
+            number = (document.versions.order_by("-number").values_list("number", flat=True).first() or 0) + 1
+            version = DocumentVersion(
+                document=document,
+                number=number,
+                original_name=checked.original_name,
+                content_type=checked.content_type,
+                kind=checked.kind,
+                size=checked.size,
+                sha256=checked.sha256,
+                page_count=checked.page_count,
+                uploaded_by=actor,
+                note=note,
+            )
+            version.file.name = stored_name
+            version.save()
+            document.current_version = version
+            if document.doc_type.needs_check:
+                document.check_status = Document.CheckStatus.ACCEPTED if is_office else Document.CheckStatus.WAITING
+                if is_office:
+                    document.checked_by, document.checked_at, document.check_reason = actor, timezone.now(), ""
+            document.save(update_fields=["current_version", "check_status", "checked_by", "checked_at", "check_reason", "updated_at"])
+            record_event(document, DocumentEvent.Action.VERSION_ADDED, actor, version_number=number, reason=note)
+            students = list(document.students.select_related("user"))
+            if actor.pk == document.uploaded_by_id:
+                transaction.on_commit(lambda: send_upload_notices(document, students, number))
+    except Exception:
+        default_storage.delete(stored_name)
+        raise
+    return document
+
+
+def check_document(document, *, actor, accept, reason):
+    with transaction.atomic():
+        document = Document.objects.select_for_update(of=("self",)).select_related("uploaded_by", "doc_type", "current_version").get(pk=document.pk)
+        document.check_status = Document.CheckStatus.ACCEPTED if accept else Document.CheckStatus.RETURNED
+        document.checked_by = actor
+        document.checked_at = timezone.now()
+        document.check_reason = "" if accept else reason
+        document.save(update_fields=["check_status", "checked_by", "checked_at", "check_reason", "updated_at"])
+        number = document.current_version.number if document.current_version else None
+        record_event(
+            document,
+            DocumentEvent.Action.ACCEPTED if accept else DocumentEvent.Action.RETURNED,
+            actor,
+            version_number=number,
+            reason=document.check_reason,
+        )
+        transaction.on_commit(lambda: send_check_notice(document, number))
+    return document
+
+
+def send_check_notice(document, number):
+    uploader = document.uploaded_by
+    if not uploader.is_active or uploader.role == User.Role.OFFICE_ADMIN:
+        return
+    accepted = document.check_status == Document.CheckStatus.ACCEPTED
+    title = f"Accepted: {document.title}" if accepted else f"Returned: {document.title}"
+    message = (
+        f"The PG office accepted your {document.doc_type.label}, {document.title}."
+        if accepted
+        else f"The PG office returned your {document.doc_type.label}, {document.title}: {document.check_reason} Please upload a corrected file."
+    )
+    _notify(
+        [uploader],
+        document,
+        event_key=f"documents:{'accepted' if accepted else 'returned'}:{document.pk}:{number}",
+        title=title,
+        summary=document.check_reason[:255] if not accepted else document.doc_type.label,
+        message=message,
+    )
+    email_users(
+        [uploader],
+        DOCUMENT,
+        title,
+        f"{message}\n\nOpen it in the portal: {portal_link(f'/files/documents/{document.pk}')}\n\n"
+        "You get this email because email alerts are on in your Settings.\n\n"
+        f"{SIGN_OFF}",
+    )
+
+
+def update_details(document, *, actor, changes, students=None, tags=None):
+    with transaction.atomic():
+        document = Document.objects.select_for_update().get(pk=document.pk)
+        before = {
+            "title": document.title,
+            "description": document.description,
+            "semester": document.semester_id,
+            "tags": sorted(link.tag.name for link in document.tag_links.select_related("tag")),
+            "students": sorted(document.students.values_list("matric_no", flat=True)),
+        }
+        for field, value in changes.items():
+            setattr(document, field, value)
+        document.save()
+        if tags is not None:
+            DocumentTag.objects.filter(document=document).delete()
+            DocumentTag.objects.bulk_create([DocumentTag(document=document, tag=tag) for tag in tags_for(tags, actor)])
+        if students is not None:
+            DocumentStudent.objects.filter(document=document).delete()
+            DocumentStudent.objects.bulk_create([DocumentStudent(document=document, student=student) for student in students])
+        after = {
+            "title": document.title,
+            "description": document.description,
+            "semester": document.semester_id,
+            "tags": sorted(tags) if tags is not None else before["tags"],
+            "students": sorted(student.matric_no for student in students) if students is not None else before["students"],
+        }
+        changed = {key: {"before": before[key], "after": after[key]} for key in before if before[key] != after[key]}
+        if changed:
+            record_event(document, DocumentEvent.Action.DETAILS_CHANGED, actor, details=changed)
+    return document

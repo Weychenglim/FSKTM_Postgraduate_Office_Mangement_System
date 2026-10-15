@@ -99,7 +99,7 @@ export const StudentFileSubmission: React.FC = () => {
                 <p className="text-[14px] font-bold text-slate-800">Your {file.title} was returned</p>
                 <p className="text-[13px] text-rose-700">"{file.checkReason}"{file.checkedBy ? ` ${file.checkedBy}, PG office` : ''}</p>
               </div>
-              <PortalButton size="sm" onClick={() => navigate(routeForDocument(file.id), { state: { from } })}>Open</PortalButton>
+              <PortalButton size="sm" onClick={() => navigate(routeForDocument(file.id), { state: { from, openNewVersion: true } })}>Upload again</PortalButton>
             </div>
           ))}
         </section>
@@ -133,6 +133,7 @@ export const StudentFileSubmission: React.FC = () => {
                   actions={[
                     { label: 'Open', onSelect: () => navigate(routeForDocument(file.id), { state: { from } }) },
                     { label: 'Download', onSelect: () => void download(file) },
+                    { label: 'Upload a new version', onSelect: () => navigate(routeForDocument(file.id), { state: { from, openNewVersion: true } }) },
                     { label: 'Delete', danger: true, onSelect: () => setDeleting(file) },
                   ]}
                 />

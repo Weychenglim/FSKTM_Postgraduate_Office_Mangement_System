@@ -5,9 +5,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { CheckCircle2, Download } from 'lucide-react';
+import { Check, CheckCircle2, Download, Upload } from 'lucide-react';
 import type { DocumentDetail } from '../types';
-import { deleteDocument, downloadDocument, getDocument } from '../services/filesApi';
+import { checkDocument, deleteDocument, downloadDocument, getDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
 import { shortDocumentDate, studentsLine } from '../utils/documentDisplay';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
@@ -15,6 +15,7 @@ import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
+import { EditDetailsDialog, NewVersionDialog, ReturnDialog } from './DocumentDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -40,7 +41,9 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
+  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | null>(null);
+  const [askedForVersion, setAskedForVersion] = useState(false);
   const uploadedReference = typeof location.state?.uploadedReference === 'string' ? location.state.uploadedReference : '';
   const from = typeof location.state?.from === 'string' ? location.state.from : '';
   const listLabel = isStudent ? 'File Submission' : 'Files';
@@ -58,7 +61,34 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     };
   }, [documentId, reload]);
 
+  useEffect(() => {
+    if (!askedForVersion && document?.permissions.canUploadVersion && location.state?.openNewVersion) {
+      setAskedForVersion(true);
+      setDialog('version');
+    }
+  }, [document, askedForVersion, location.state]);
+
   const back = () => (from ? navigate(from) : onBack());
+
+  const finished = (updated: DocumentDetail, message: string) => {
+    setDocument(updated);
+    setDialog(null);
+    setToast({ message, tone: 'success' });
+  };
+
+  const accept = async () => {
+    if (!document) return;
+    setBusy('accept');
+    try {
+      const updated = await checkDocument(document.id, 'ACCEPT', '', document.file?.number);
+      finished(updated, `Accepted. ${document.uploadedBy.name} has been told.`);
+    } catch (err) {
+      setToast({ message: errorText(err, 'Could not accept this file.'), tone: 'danger' });
+      setReload(value => value + 1);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const download = async (version?: number) => {
     if (!document) return;
@@ -66,7 +96,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     try {
       await downloadDocument(document, version);
     } catch (err) {
-      setToast(errorText(err, 'Could not download this file.'));
+      setToast({ message: errorText(err, 'Could not download this file.'), tone: 'danger' });
     } finally {
       setBusy(null);
     }
@@ -80,15 +110,17 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
       navigate(from || APP_ROUTES.files, { replace: true, state: { message: `Deleted "${document.title}".` } });
     } catch (err) {
       setConfirmDelete(false);
-      setToast(errorText(err, 'Could not delete this file.'));
+      setToast({ message: errorText(err, 'Could not delete this file.'), tone: 'danger' });
     } finally {
       setBusy(null);
     }
   };
 
-  const menu: MenuAction[] = document?.permissions.canDelete
-    ? [{ label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) }]
-    : [];
+  const menu: MenuAction[] = [
+    ...(document?.permissions.canUploadVersion ? [{ label: 'Upload a new version', onSelect: () => setDialog('version') }] : []),
+    ...(document?.permissions.canEdit ? [{ label: 'Edit details', onSelect: () => setDialog('edit') }] : []),
+    ...(document?.permissions.canDelete ? [{ label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+  ];
   const who = document ? studentsLine(document.students) : null;
   const subtitle = document
     ? [document.type.label, document.isStaffFile ? 'Staff file' : who?.main, `uploaded ${shortDocumentDate(document.uploadedAt)}`].filter(Boolean).join(' · ')
@@ -120,14 +152,36 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
             </div>
           )}
           {document.checkStatus === 'RETURNED' && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
-              <p className="text-[15px] font-extrabold text-rose-800">Returned by the PG office</p>
-              <p className="mt-1 text-[14px] text-rose-800">"{document.checkReason}"{document.checkedBy ? ` ${document.checkedBy}, ${shortDocumentDate(document.checkedAt)}` : ''}</p>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
+              <div>
+                <p className="text-[15px] font-extrabold text-rose-800">Returned by the PG office</p>
+                <p className="mt-1 text-[14px] text-rose-800">"{document.checkReason}"{document.checkedBy ? ` ${document.checkedBy}, ${shortDocumentDate(document.checkedAt)}` : ''}</p>
+              </div>
+              {document.permissions.canUploadVersion && document.uploadedBy.isMe && (
+                <PortalButton icon={Upload} onClick={() => setDialog('version')}>Upload corrected file</PortalButton>
+              )}
             </div>
           )}
           {document.checkStatus === 'WAITING' && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-              <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the PG office to check it'}</p>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <div>
+                <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the PG office to check it'}</p>
+                {document.permissions.canCheck && (document.file?.number ?? 1) > 1 && (
+                  <p className="mt-1 text-[14px] text-amber-900">This is version {document.file?.number}. Earlier versions are listed under Versions.</p>
+                )}
+              </div>
+              {document.permissions.canCheck && (
+                <div className="flex flex-wrap gap-2">
+                  <PortalButton variant="danger" disabled={busy === 'accept'} onClick={() => setDialog('return')}>Return to student</PortalButton>
+                  <PortalButton variant="success" icon={Check} isLoading={busy === 'accept'} onClick={() => void accept()}>Accept</PortalButton>
+                </div>
+              )}
+            </div>
+          )}
+          {document.checkStatus === 'ACCEPTED' && (
+            <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-[14px] font-semibold text-emerald-900">
+              <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
+              Accepted by the PG office{document.checkedBy ? ` (${document.checkedBy}, ${shortDocumentDate(document.checkedAt)})` : ''}.
             </div>
           )}
 
@@ -205,7 +259,14 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}
       />
-      <PortalToast message={toast} tone="danger" onClose={() => setToast(null)} />
+      {document && (
+        <>
+          <NewVersionDialog document={document} isOpen={dialog === 'version'} onClose={() => setDialog(null)} onDone={finished} />
+          <EditDetailsDialog document={document} isOpen={dialog === 'edit'} onClose={() => setDialog(null)} onDone={finished} />
+          <ReturnDialog document={document} isOpen={dialog === 'return'} onClose={() => setDialog(null)} onDone={finished} />
+        </>
+      )}
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </RecordPage>
   );
 };

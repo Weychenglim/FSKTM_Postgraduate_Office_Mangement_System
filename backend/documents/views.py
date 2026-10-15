@@ -30,7 +30,16 @@ from .access import (
 from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
 from .previews import PreviewMissing, docx_text, image_png, pdf_page_png
 from .serializers import detail_dict, document_dict, with_details
-from .services import TagProblem, clean_tags, create_document, delete_document, record_event
+from .services import (
+    TagProblem,
+    add_version,
+    check_document,
+    clean_tags,
+    create_document,
+    delete_document,
+    record_event,
+    update_details,
+)
 from .validation import UploadRejected, check_upload, max_upload_bytes, title_from_name
 
 INACTIVE_STUDENT_CODE = "documents_need_active_status"
@@ -529,7 +538,7 @@ def _visible_or_none(request, scope, pk):
     return with_details(visible_documents(request.user, scope).filter(pk=pk)).first()
 
 
-@api_view(["GET", "DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def document_view(request, pk):
     scope, refused = _scope_or_refuse(request)
@@ -538,6 +547,8 @@ def document_view(request, pk):
     document = _visible_or_none(request, scope, pk)
     if document is None:
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == "PATCH":
+        return _edit(request, scope, document)
     if request.method == "DELETE":
         if document.uploaded_by_id != request.user.pk:
             return Response(
@@ -718,3 +729,119 @@ def download_zip_view(request):
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+def _edit(request, scope, document):
+    """Title, note, tags and semester; staff uploaders and the office may also
+    change which students the file is about."""
+    user = request.user
+    uploader = document.uploaded_by_id == user.pk
+    if not (uploader or scope.office) or document.archived_at:
+        return Response({"detail": "Only the uploader or the PG office can change this file.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
+    data = request.data
+    errors, changes = {}, {}
+    if "title" in data:
+        title = str(data.get("title") or "").strip()
+        if not title or len(title) > MAX_TITLE:
+            errors["title"] = [f"Give the file a title of up to {MAX_TITLE} characters."]
+        changes["title"] = title
+    if "description" in data:
+        description = str(data.get("description") or "").strip()
+        if len(description) > MAX_DESCRIPTION:
+            errors["description"] = [f"Keep the note to {MAX_DESCRIPTION} characters."]
+        changes["description"] = description
+    if "semester" in data and user.role != User.Role.STUDENT:
+        raw = str(data.get("semester") or "").strip()
+        semester = None if raw in ("", "none") else AcademicSemester.objects.filter(pk=raw if raw.isdigit() else 0).first()
+        if raw not in ("", "none") and semester is None:
+            errors["semester"] = ["Choose a semester from the list."]
+        changes["semester"] = semester
+    tags = None
+    if "tags" in data:
+        try:
+            tags = clean_tags(data.get("tags") if isinstance(data.get("tags"), list) else _list(data, "tags"))
+        except TagProblem as problem:
+            errors["tags"] = [str(problem)]
+    students = None
+    if "students" in data and not document.is_staff_file and user.role != User.Role.STUDENT:
+        matrics = list(dict.fromkeys(_list(data, "students") if not isinstance(data.get("students"), list) else data.get("students")))
+        if not matrics or len(matrics) > MAX_STUDENTS:
+            errors["students"] = [f"A file is about 1 to {MAX_STUDENTS} students."]
+        else:
+            found = {s.matric_no.casefold(): s for s in taggable_students(user, scope).filter(
+                Q(*[Q(matric_no__iexact=m) for m in matrics], _connector=Q.OR)
+            )}
+            missing = [m for m in matrics if m.casefold() not in found]
+            if missing:
+                errors["students"] = [f"You cannot add these students: {', '.join(missing)}."]
+            else:
+                students = [found[m.casefold()] for m in matrics]
+    if errors:
+        return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    update_details(document, actor=user, changes=changes, students=students, tags=tags)
+    document = _visible_or_none(request, scope, document.pk)
+    if document is None:
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(detail_dict(document, user, scope))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DocumentUploadThrottle])
+def versions_view(request, pk):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    user = request.user
+    if not (document.uploaded_by_id == user.pk or scope.office) or document.archived_at:
+        return Response({"detail": "Only the uploader or the PG office can add a version.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
+    if user.role == User.Role.STUDENT:
+        student = user._related_or_none("student")
+        if student is None or student.status != Student.Status.ACTIVE:
+            return Response({"detail": "You can upload files while your status is Active.", "code": INACTIVE_STUDENT_CODE}, status=status.HTTP_403_FORBIDDEN)
+    note = str(request.data.get("note") or "").strip()
+    if len(note) > 300:
+        return Response({"note": ["Keep the note to 300 characters."]}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        checked = check_upload(request.FILES.get("file"), doc_type=document.doc_type, staff=user.role != User.Role.STUDENT)
+    except UploadRejected as problem:
+        return Response({"file": [str(problem)]}, status=status.HTTP_400_BAD_REQUEST)
+    if document.current_version and document.current_version.sha256 == checked.sha256:
+        return Response({"file": ["This is the same file as the current version."]}, status=status.HTTP_400_BAD_REQUEST)
+    add_version(document, actor=user, checked=checked, note=note, is_office=scope.office)
+    document = _visible_or_none(request, scope, document.pk)
+    return Response(detail_dict(document, user, scope), status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def check_view(request, pk):
+    """The office accepts a waiting file, or returns it with a reason."""
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    if not scope.office:
+        return Response({"detail": "Only the PG office checks files.", "code": "documents_office_only"}, status=status.HTTP_403_FORBIDDEN)
+    document = _visible_or_none(request, scope, pk)
+    if document is None:
+        return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    decision = str(request.data.get("decision") or "").upper()
+    reason = str(request.data.get("reason") or "").strip()
+    if decision not in ("ACCEPT", "RETURN"):
+        return Response({"decision": ["Choose Accept or Return."]}, status=status.HTTP_400_BAD_REQUEST)
+    if decision == "RETURN" and not reason:
+        return Response({"reason": ["Say what the student should fix."]}, status=status.HTTP_400_BAD_REQUEST)
+    if len(reason) > 1000:
+        return Response({"reason": ["Keep the reason to 1,000 characters."]}, status=status.HTTP_400_BAD_REQUEST)
+    if document.check_status != Document.CheckStatus.WAITING:
+        return Response({"detail": "This file is not waiting for a check any more.", "code": "not_waiting"}, status=status.HTTP_409_CONFLICT)
+    expected = request.data.get("expectedVersion")
+    current = document.current_version.number if document.current_version else None
+    if expected is not None and str(expected) != str(current):
+        return Response({"detail": "A newer version arrived while you were checking. Look at it first.", "code": "stale_version"}, status=status.HTTP_409_CONFLICT)
+    check_document(document, actor=request.user, accept=decision == "ACCEPT", reason=reason)
+    document = _visible_or_none(request, scope, document.pk)
+    return Response(detail_dict(document, request.user, scope))

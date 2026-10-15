@@ -137,3 +137,21 @@ export async function downloadDocumentsZip(ids: number[]): Promise<void> {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export function addDocumentVersion(id: number, file: File, note = ''): Promise<DocumentDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  if (note.trim()) form.append('note', note.trim());
+  return requestMultipart<DocumentDetail>(`${BASE}/${id}/versions/`, form);
+}
+
+export function checkDocument(id: number, decision: 'ACCEPT' | 'RETURN', reason: string, expectedVersion?: number): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`${BASE}/${id}/check/`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, reason, ...(expectedVersion ? { expectedVersion } : {}) }),
+  });
+}
+
+export function updateDocument(id: number, changes: { title?: string; description?: string; tags?: string[] }): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`${BASE}/${id}/`, { method: 'PATCH', body: JSON.stringify(changes) });
+}

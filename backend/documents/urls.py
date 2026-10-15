@@ -12,6 +12,8 @@ urlpatterns = [
     path("download-zip/", views.download_zip_view, name="document-zip"),
     path("<int:pk>/", views.document_view, name="document-detail"),
     path("<int:pk>/download/", views.download_view, name="document-download"),
+    path("<int:pk>/versions/", views.versions_view, name="document-versions"),
+    path("<int:pk>/check/", views.check_view, name="document-check"),
     path("<int:pk>/preview/", views.preview_view, name="document-preview"),
     path("<int:pk>/preview/pages/<int:number>/", views.preview_page_view, name="document-preview-page"),
 ]
