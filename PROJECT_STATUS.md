@@ -1,8 +1,8 @@
 # Project Status
 
-## File Management: Phases 1 To 5 (2026-10-14 to 2026-10-15)
+## File Management: Phases 1 To 6 (2026-10-14 to 2026-10-15)
 
-Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phases 6 to 8 are next.
+Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phases 7 and 8 are next.
 
 - **Uploads (Phase 1, `379892c`).**
   - Students upload their own forms, thesis, letters and so on. The office, lecturers, panel members and coordinators upload files about their students, or staff files about no student.
@@ -22,15 +22,21 @@ Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plan
   - A Tags tab renames, merges and removes tags. Renaming to an existing tag offers to merge.
   - On a file's page, the office or the staff uploader changes who can see it, and people who can newly see it are told.
   - Changes to types and tags are kept in a settings history.
+- **Archive and history (Phase 6, `5bc3095`).**
+  - The office archives a file with a reason (quick reasons offered) instead of deleting someone else's upload. Archived files disappear for everyone but the office, are listed under More filters (Show: Archived files), and can be restored.
+  - File settings has a History tab: uploads, changes, checks, archiving, deleted files (with who they were about), opens and downloads, and settings changes, with one Show choice and a search box.
+  - Each file page shows its own history to the office.
+  - `manage.py check_document_storage` reports missing and left-over stored files; `--remove-orphans` deletes left-overs more than an hour old.
 - **Migrations** `documents.0001` to `documents.0003`. The dev DB was migrated after the backups `db-backups/fsktm_pg_office_before_documents_2026-10-14.dump` and `db-backups/fsktm_pg_office_before_document_settings_2026-10-14.dump`.
 - **Verification.**
-  - The backend passes 1128 tests.
+  - The backend passes 1135 tests.
   - All 116 frontend scripts pass, along with lint, the build and the production security tests.
   - Browser checks on private servers:
     - screens, preview and ZIP: 23 of 23;
     - previews under the enforced security policy: 10 of 10;
     - checking and versions: 12 of 12;
-    - file settings, sharing and tags, including a phone: 20 of 20.
+    - file settings, sharing and tags, including a phone: 20 of 20;
+    - archive, restore and history, including a phone: 11 of 11.
   - All smoke accounts, files, notices, tags and types were removed afterwards.
 
 ## Letters: Requests Approved By The Office (2026-10-13)
