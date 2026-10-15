@@ -291,7 +291,9 @@ No summary cards. The mock's cards and fake numbers go.
 |---|---|---|---|
 | S1 | Backend: list, create, details, edit, email change, links, history | Done | `8efcbec` |
 | S2 | Backend: duties, coordinator programme, sign-in off and on, delete, all the blocking rules | Done | `2eeb89a` |
-| S3 | Screens: list, Add account, account page; remove mocks; docs (D9) and wrap-up | Not started | |
+| S3 | Screens: list, Add account, account page; remove mocks; docs (D9) and wrap-up | Done | `d97177f` |
+
+**Part B is complete (2026-10-15).**
 
 **Tests:**
 - **S1:**

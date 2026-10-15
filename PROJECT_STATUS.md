@@ -1,5 +1,55 @@
 # Project Status
 
+## Staff Accounts, Phase S3: The Screens; UC03 Complete (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `d97177f`. **This completes UC03.** Registry > Staff & Lecturers now runs on live data, and the office no longer needs Django admin to make staff accounts.
+
+- **Pages** (office only; anyone else who opens them is sent back to `/registry`):
+  - **`/registry/staff`, the list:**
+    - search, plus Role and Status dropdowns;
+    - columns for name and email, role with duties or programme underneath, status (a chip only when not Active) and last signed in;
+    - pages of 25;
+    - one main button, **Add account**. There are no summary cards.
+  - **`/registry/staff/new`, Add account:**
+    - pick one of three role cards first; only that role's fields then appear;
+    - lecturers tick their duties, with a reminder about Lecturer capacity;
+    - coordinators pick a programme, and programmes that already have a coordinator are greyed out with the coordinator's name;
+    - the "Send the activation email now" tick is on by default;
+    - a duplicate email or Staff ID names its holder, with an "Open their account" link;
+    - leaving a filled form asks first.
+  - **`/registry/staff/<id>`, the account page:**
+    - Details, with Edit details in a dialog;
+    - Duties as ticks. A duty with open work can't be unticked and lists that work;
+    - a capacity line read from Lecturer capacity;
+    - History;
+    - an Access box with one fitting action: send activation email (or copy the link), send password reset link, or turn sign-in back on.
+
+    The ⋯ menu holds "Turn off sign-in" and "Delete account". Each one opens a dialog that explains first when it can't go ahead: the open work for sign-in, or the reasons for delete. The same dialog offers "Turn off sign-in instead". Coordinators get Change programme, which shows what waits in each programme before moving.
+- **Created accounts** open on their own page with the activation outcome. If the email failed, the page offers **Try again** and **Copy the link**.
+- **The mock is gone.** `getStaff`, `MOCK_STAFF`, `MOCK_DEPARTMENTS` and the `StaffRecord` type are removed. They are replaced by `types/staffAccount.ts`, `services/staffAccountsApi.ts` and `utils/staffAccounts.ts`.
+- **Code layout:**
+  - `StaffLecturersRegistry.tsx` keeps its exported names.
+  - The Students / Staff & Lecturers switcher moved to `RegistryModuleTabs.tsx` and now changes the address.
+  - Shared files have additive changes only: `App.tsx` (one lazy route) and `constants/routes.ts`.
+- **Fixed on the way: `SelectMenu` inside a dialog.** A modal dialog leaves the rest of the page inert and below it, so a dropdown list opened inside one could not be clicked. The list now opens inside the dialog. This also fixes the programme dropdown in File Management's "Who can see this file?" dialog.
+- **Design decisions for the report:**
+  - **D9.** One role per account. A lecturer's duties (Supervisor, Panel member) give several roles at once (FR-06), with no separate permission editor (UC03 "configure permissions").
+  - **D10.** Used accounts are switched off, not deleted, so history and audits stay. Only an account added by mistake, never signed in and linked to nothing, can be deleted (UC03).
+
+**Browser check** (private servers 8002 and 3002, smoke accounts only): 49 of 49 pass.
+- **Accounts:** the list and filters, adding a lecturer with the email sent, editing, adding a duty, copying the link, and deleting the unused account.
+- **Refusals:** a duplicate email and Staff ID refused with links; the leave-page warning.
+- **Blocked actions:** an unremovable duty, and sign-in off and delete explained for a lecturer with a waiting request.
+- **Sign-in and programme:** sign-in off and back on; a coordinator's programme move, with the taken programme greyed out; no risky actions on your own account.
+- **Widths:** the list, account page and form fit at 1440, 1024, 768 and 390 pixels.
+- **Other roles:** a coordinator and a lecturer are sent back from `/registry/staff`, see no tab, and get 403 from the API.
+- No unexpected console errors.
+- Emails went to the console only. Smoke data was removed afterwards: the dev database is back to 8 staff accounts, no history rows, and the demo coordinator unchanged.
+
+**Verification:**
+- Frontend: all 146 test scripts pass, including the new `utils/staffAccounts.test.ts`. It also checks that every backend work count and history action has words. TypeScript, the build and both production security checks pass.
+- Backend: no change in this phase, so the S2 run stands (1,341 of 1,342, with only Wey Cheng's known test failing).
+
 ## Staff Accounts, Phase S2: The Rules (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `2eeb89a`. The backend for staff accounts is complete; the screens come in S3.
