@@ -187,6 +187,40 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 - **Reissue.** It issues a new letter with the current details and revokes the old one as "Replaced by <ref>.".
 - **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy.
 
+## Staff account endpoints (`/api/registry/staff/`)
+
+Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical Administrator accounts are not staff accounts and answer 404.
+
+| Method | Path | Body or query | Returns |
+| ------ | ---- | ------------- | ------- |
+| GET | `/` | `search`, `role` (OFFICE, LECTURER, COORDINATOR), `status` (ACTIVE, NOT_ACTIVATED, SIGN_IN_OFF), `page`, `pageSize` (25, at most 100) | `{count, page, pageSize, results}` |
+| POST | `/` | `{role, name, email, staffId, phone, department, title, researchArea, position, duties, programme, sendActivation}` | `{account, activation: sent, failed or held}` |
+| GET | `options/` | | `{departments, programmes: [{programme, coordinator}]}` |
+| GET, PATCH | `<id>/` | `{name, email, phone, staffId, department, title, researchArea, position}` | the account; PATCH returns `{account, oldAddressTold}` |
+| POST | `<id>/send-link/` | | `{kind: activation or reset, sent}` |
+| POST | `<id>/activation-link/` | | `{link}`, only before activation |
+| GET | `<id>/history/` | | newest first, at most 200 |
+
+**Creating.**
+- No password is made. The account gets the activation link with no time limit, as imported students do.
+- Office accounts also get `is_staff` and the marks permissions, as `seed_users` gives the demo office, because the office screens built on them need both.
+- Lecturers get a Supervisor and a Panel row for each duty ticked. Coordinators get their programme; a programme already managed by a coordinator who can sign in is refused.
+
+**Unique details.**
+- Email ignores letter case.
+- A Staff ID is unique across office staff and lecturers, and must not be a student's matric number, because sign-in accepts all three.
+- A refused duplicate names the account that holds it under `existing`, so the screen can link to it.
+
+**Editing.**
+- The role cannot be changed. Duties and programme have their own actions.
+- An email change tells the old address, but only for an activated account. Older activation and reset links stop working.
+
+**Links.**
+- `send-link` sends whichever fits: activation until a password is set, then the 30-minute reset link. It is refused while sign-in is off, and limited per account by `REGISTRY_ACCESS_LINK_THROTTLE_RATE`.
+- Only an activation link can be copied, so the office can never sign in as someone who already has a password.
+
+**History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
+
 ## File Management endpoints (`/api/documents/`)
 
 | Method | Path | Actor |
