@@ -449,7 +449,7 @@ On phones it is the same, stacked. Errors show Retry, and too many questions in 
 
 | Phase | What | Status | Commit |
 |---|---|---|---|
-| C1 | Backend: the faq app, models, import with statuses, the review-list export, entry CRUD, history | Not started | |
+| C1 | Backend: the faq app, models, import with statuses, the review-list export, entry CRUD, history | Done | `b4ec50e` |
 | C2 | Search: install check, encoder, BM25, fusion, ask, feedback, saved questions, rate limit, fallback mode | Not started | |
 | C3 | Student chat screen, all states, phones | Not started | |
 | C4 | Office screens: Entries, entry page with Try it, Student questions, Settings; the office's corrections loaded | Not started | |

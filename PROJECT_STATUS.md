@@ -1,5 +1,42 @@
 # Project Status
 
+## FAQ Chatbot, Phase C1: The Knowledge Base Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `b4ec50e`.
+
+- **New app `backend/faq/`** (migration `faq.0001`):
+  - `FaqCategory`;
+  - `FaqEntry`, with four statuses: Published, Draft, Needs checking and Archived, plus the PDF's own text for imported rows;
+  - `FaqAltQuestion`, for other ways students ask;
+  - `FaqChange`, the history, which cannot be edited or deleted.
+
+  Only Published entries are ever searchable (`FaqEntry.objects.published()`).
+- **API** at `/api/faq/`, for Office Staff/Admin only:
+  - entries: list with search, category and status filters and counts per status; create; edit; delete;
+  - status actions: publish, mark as checked, archive, restore;
+  - categories: list, add, rename;
+  - the review list as an Excel download.
+- **Answers:** links must start with `https://`, `http://`, `mailto:` or `/`. A script link is refused.
+- **Import** (`python manage.py import_faq`, from `docs/faq/faq-entries.json`):
+  - **56 Published**: the clean category rows;
+  - **61 Needs checking**: 37 damaged category rows, plus the 24 rows found only on the PDF's "ALL" sheet, placed in the category of the row before them;
+  - **46 skipped**: "ALL" rows that repeat a categorised question exactly, so none of them added another way of asking;
+  - the six categories get plain names, in PDF order. The spelling slips are fixed;
+  - running it again adds nothing and never overwrites the office's edits.
+- **Review list for the office** (`python manage.py export_faq_review`): one Excel sheet of the 61 entries to check, with the question and answer now, the PDF's text, what looks wrong, and empty columns for the corrections. Text that starts like a formula is made safe.
+  - **To send to the office:** `Final Year Project/faq-review-2026-10-15.xlsx` (outside the repository).
+- **Dev database:** backed up (`..._before_faq_app_2026-10-15.dump`), migrated to `faq.0001`, and the FAQ imported.
+- **Docs:** `backend/README.md` has an FAQ knowledge base section.
+
+**Verification:**
+- Backend: 1,373 of 1,374 pass. The one failure is Wey Cheng's known test. The 32 new tests cover:
+  - the import counts per status and categories;
+  - running twice, and the office's edits kept;
+  - Needs checking never searchable, the PDF text kept, and the nearest category for "ALL" rows;
+  - the review list, and formula safety;
+  - office-only access, safe links, other ways of asking, the status steps, delete with history, and the list filters.
+- `check` and `makemigrations --check` are clean. No frontend change.
+
 ## Staff Accounts, Phase S3: The Screens; UC03 Complete (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `d97177f`. **This completes UC03.** Registry > Staff & Lecturers now runs on live data, and the office no longer needs Django admin to make staff accounts.
