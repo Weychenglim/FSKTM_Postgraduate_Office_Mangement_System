@@ -1,5 +1,49 @@
 # Project Status
 
+## FAQ Chatbot, Phase C2: Search And Replies (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `62603fe`.
+
+- **New dependency:** `fastembed` 0.9 (it brings `onnxruntime` 1.31 and `numpy` 2.5). It is in `requirements.txt` and installed in `backend/.venv`.
+  - The model, `paraphrase-multilingual-MiniLM-L12-v2`, downloaded once into `backend/faq_model_cache/` (241 MB). The folder is git-ignored.
+- **How an answer is found** (`faq/search.py`):
+  - two searches run over every Published entry and its other ways of asking. A keyword search (BM25, with English and Malay stop words and simple plurals) catches exact terms; the meaning model catches paraphrases and Malay;
+  - the two rankings are merged with reciprocal rank fusion;
+  - the top entry's confidence decides: Strong shows the answer with up to three related questions, Possible offers up to three choices, and anything lower is No match with the office's contact text;
+  - the starting cut-offs are 0.72 and 0.5 (`FAQ_STRONG_MATCH`, `FAQ_POSSIBLE_MATCH`). They are set properly from the evaluation in C6.
+- **Speed and storage:**
+  - the model loads once per process, lazily, never at import;
+  - vectors are stored in `FaqVector`, keyed by model and a fingerprint of the text, so nothing is worked out twice;
+  - the index rebuilds itself when entries, other ways of asking or category names change.
+- **No model, still answers.** If the model can't be loaded, keyword search carries on alone, and `search-status/` tells the office. `FAQ_SEARCH=keywords` forces it.
+- **API:**
+  - `start/`, `ask/` (also for a picked choice or related question) and `feedback/`, for students and programme coordinators;
+  - `try/` (saves nothing, shows the scores) and `search-status/`, for the office;
+  - lecturers are refused, as they have no FAQ menu.
+- **Saved questions** (`FaqQuestion`) keep the text, outcome, entry shown, score, search mode and "Did this help?", but no name or student ID. "Did this help?" needs the signed token from that answer.
+  - `purge_faq_questions` deletes questions after 12 months.
+  - At most 30 questions a minute per person.
+- **New settings row** (`FaqSettings`): the contact text and the four common questions. The office edits them in C4; until then the start screen suggests one question per topic.
+- **Dev database:** migrated to `faq.0002`.
+  - **Slip:** the backup was taken just after this migration rather than before (`..._before_faq_search_after_0002_2026-10-15.dump`). The migration only adds three new empty tables, so nothing was at risk.
+- **First run on the real FAQ** (Try it, nothing saved):
+  - the first answer takes about 4 seconds (loading, and working out the 56 questions once); later ones take 10 to 30 ms;
+  - "how to apply?" is a Strong match;
+  - "where to buy nasi lemak" gets No match;
+  - questions whose only entry still needs checking (PTPTN, weekend classes) correctly find nothing.
+- **Docs:** `backend/README.md` covers asking, the search, the model and the commands (`rebuild_faq_index`, `purge_faq_questions`).
+
+**Verification:**
+- Backend: 1,400 pass, 1 skipped (the real-model check) and 1 fails, Wey Cheng's known test. The 28 new tests use a small fake encoder and cover:
+  - a Malay question finding the English entry, and keywords rescuing an exact term the model misses;
+  - choices, no match, and only Published entries ever found;
+  - the index following changes, and vectors kept;
+  - questions saved without identity, feedback tokens, and picking a choice;
+  - who may ask, Try it saving nothing, the rate limit, keyword fallback and a model that won't load;
+  - deleting after 12 months.
+- With `FAQ_REAL_MODEL_TESTS=1`, the real model finds the English entry for a Malay question (it passes).
+- `check` and `makemigrations --check` are clean.
+
 ## FAQ Chatbot, Phase C1: The Knowledge Base Backend (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `b4ec50e`.
