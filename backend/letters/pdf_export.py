@@ -46,6 +46,10 @@ DISCLAIMER = (
     "This letter is issued upon the student's request for official purposes only. "
     "Any alteration to this document shall render it invalid."
 )
+APPOINTMENT_DISCLAIMER = (
+    "This letter is issued by the postgraduate office for official purposes only. "
+    "Any alteration to this document shall render it invalid."
+)
 SIGNATORY_NAME = "Dean of Postgraduate Studies"
 SIGNATORY_OFFICE = "FSKTM Office Executive Secretariat"
 
@@ -136,15 +140,18 @@ def _body(content):
     return flowables
 
 
-def _closing():
+def _closing(letter):
+    disclaimer = APPOINTMENT_DISCLAIMER if letter.is_automatic else DISCLAIMER
+    name = letter.signatory_name or SIGNATORY_NAME
+    office = letter.signatory_title or SIGNATORY_OFFICE
     return [
-        Paragraph(escape(DISCLAIMER), DISCLAIMER_STYLE),
+        Paragraph(escape(disclaimer), DISCLAIMER_STYLE),
         KeepTogether(
             [
                 Spacer(1, 30),
                 Paragraph("_" * 28, SIGNATURE_STYLE),
-                Paragraph(escape(SIGNATORY_NAME), NAME_STYLE),
-                Paragraph(escape(SIGNATORY_OFFICE.upper()), OFFICE_STYLE),
+                Paragraph(escape(name), NAME_STYLE),
+                Paragraph(escape(office.upper()), OFFICE_STYLE),
                 Paragraph("Computer-generated. Verify with the PG Office.", STAMP_STYLE),
             ]
         ),
@@ -178,5 +185,5 @@ def build_letter_pdf(letter):
     )
     # The page frame pads its content by 6 points a side; the tables match it.
     width = document.width - 12
-    document.build([*_letterhead(width), *_meta_line(letter, width), *_body(letter.content), *_closing()])
+    document.build([*_letterhead(width), *_meta_line(letter, width), *_body(letter.content), *_closing(letter)])
     return buffer.getvalue()

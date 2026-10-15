@@ -14,6 +14,10 @@ Mounted under ``/api/letters/`` by the project URLconf.
   again once the earlier request is decided or withdrawn.
 - Only Issued letters can be viewed in full, downloaded, resent or revoked.
 - Students whose status is not Active can neither request nor view letters.
+
+Appointment letters (UC22, see ``appointment_letters.py``) use the same
+records. Their lecturers may open them too, students see them only once
+issued, and the office can make missing ones or reissue them.
 """
 import re
 from datetime import date
@@ -33,22 +37,37 @@ from accounts.models import User
 from announcements.emails import LETTER, SIGN_OFF, email_users, portal_link
 from announcements.models import Notification
 
+from .appointment_letters import (
+    KINDS,
+    LetterRefused,
+    LetterValuesMissing,
+    create_letters,
+    letter_values,
+    missing_appointment_letters,
+    notify_recipients,
+    notify_revoked,
+    recipient_rows,
+    reissue_letter,
+)
 from .details import letter_details
 from .eligibility import inactive_student_refusal
-from .models import GeneratedLetter, LetterTemplate
+from .issuing import issue_letter
+from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterPurpose, LetterTemplate
+from .notices import send_notice
 from .pdf_export import build_letter_pdf
-from .placeholders import fill_placeholders, letter_fields, placeholder_problems, value_problem
-from .references import next_reference_number
+from .placeholders import letter_fields, placeholder_problems, value_problem
 
 PDF_TYPE = "application/pdf"
-LETTERS_MODULE = "LETTERS"
 # Students' notifications point at their letter; office ones at the request.
 LETTER_RECORD = "GENERATED_LETTER"
+APPOINTMENT_LETTER_RECORD = "APPOINTMENT_LETTER"
 REQUEST_RECORD = "LETTER_REQUEST"
 MAX_NOTE_LENGTH = 500
 MAX_REASON_LENGTH = 500
+MAX_CREATE = 100
 PENDING_CODE = "letter_request_pending"
 Status = GeneratedLetter.Status
+SEEN_BY_RECIPIENTS = (Status.ISSUED, Status.REVOKED)
 
 
 def _is_office(user):
@@ -75,14 +94,19 @@ def _inactive_refusal(request):
 
 
 def _letter_for(request, pk):
-    """The letter if the caller is its student or office staff, else 404."""
+    """The letter if the caller is its student, one of its lecturers or office
+    staff, else 404. Appointment letters are shown only once issued."""
     letter = get_object_or_404(GeneratedLetter.objects.select_related("decided_by"), pk=pk)
     if _is_office(request.user):
         return letter
-    student = _own_student(request)
-    if student is None or letter.student_id != student.pk:
+    if letter.is_automatic and letter.status not in SEEN_BY_RECIPIENTS:
         raise NotFound("Letter not found.")
-    return letter
+    student = _own_student(request)
+    if student is not None and letter.student_id == student.pk:
+        return letter
+    if letter.is_automatic and student is None and letter.recipients.filter(pk=request.user.pk).exists():
+        return letter
+    raise NotFound("Letter not found.")
 
 
 def _conflict(detail):
@@ -101,22 +125,16 @@ def _student_name(letter):
 
 
 def _notify(recipient, letter, *, event_key, title, summary, message, record_type, priority=Notification.Priority.NORMAL):
-    Notification.objects.get_or_create(
-        recipient=recipient,
+    send_notice(
+        recipient,
         event_key=event_key,
-        defaults={
-            "title": title[:255],
-            "service": "Postgraduate Office",
-            "summary": summary[:255],
-            "message": message,
-            "priority": priority,
-            "is_announcement": False,
-            "reference": (letter.reference_number or "")[:64],
-            "module_label": "Letter Generation",
-            "target_module": LETTERS_MODULE,
-            "record_type": record_type,
-            "record_id": str(letter.pk),
-        },
+        title=title,
+        summary=summary,
+        message=message,
+        record_type=record_type,
+        record_id=letter.pk,
+        reference=letter.reference_number or "",
+        priority=priority,
     )
 
 
@@ -181,9 +199,17 @@ def _office_register(params):
     """Every request for office staff, narrowed by the optional filters.
 
     ``status`` takes one status or several separated by commas. ``from`` and
-    ``to`` bound the issue date, so they only match issued letters.
+    ``to`` bound the issue date, so they only match issued letters. ``madeBy``
+    is ``request`` or ``automatic``.
     """
     letters = GeneratedLetter.objects.select_related("decided_by")
+    made_by = (params.get("madeBy") or "").strip().lower()
+    if made_by == "request":
+        letters = letters.filter(purpose=LetterPurpose.REQUEST)
+    elif made_by == "automatic":
+        letters = letters.filter(purpose__in=AUTOMATIC_PURPOSES)
+    elif made_by:
+        return None, {"madeBy": "Use request or automatic."}
     search = (params.get("search") or "").strip()
     if search:
         letters = letters.filter(
@@ -226,7 +252,11 @@ def letter_requests(request):
         refused = _inactive_refusal(request)
         if refused:
             return refused
-        letters = GeneratedLetter.objects.filter(student=student).select_related("decided_by")
+        letters = (
+            GeneratedLetter.objects.filter(student=student)
+            .exclude(Q(purpose__in=AUTOMATIC_PURPOSES) & ~Q(status__in=SEEN_BY_RECIPIENTS))
+            .select_related("decided_by")
+        )
     return Response([letter.to_public_dict(include_content=False) for letter in letters])
 
 
@@ -257,7 +287,9 @@ def _create_request(request):
             {"note": f"Keep the note under {MAX_NOTE_LENGTH} characters."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    template = LetterTemplate.objects.filter(pk=template_id, status=LetterTemplate.Status.ACTIVE).first()
+    template = LetterTemplate.objects.filter(
+        pk=template_id, status=LetterTemplate.Status.ACTIVE, purpose=LetterPurpose.REQUEST
+    ).first()
     if template is None:
         raise NotFound("This letter is no longer available.")
     unknown, malformed = placeholder_problems(template.content, template.custom_fields)
@@ -299,12 +331,16 @@ def _review(letter):
     template = letter.template
     content = template.content if template else ""
     custom = template.custom_fields if template else []
-    values = letter_details(letter.student) if letter.student else (letter.student_data or {})
-    unknown, malformed = placeholder_problems(content, custom)
+    values = letter_values(letter)
+    unknown, malformed = placeholder_problems(content, custom, template.purpose if template else LetterPurpose.REQUEST)
     if template is None:
         problem = "The letter template was deleted."
+    elif template.purpose != letter.purpose:
+        problem = "The template is no longer used for this kind of letter. Choose it again in the template."
     elif unknown or malformed or not content.strip():
         problem = "The template has placeholder problems. Fix the template first."
+    elif letter.is_automatic and letter.appointment is None:
+        problem = "The appointment for this letter no longer exists."
     elif letter.student is None:
         problem = "The student's account no longer exists."
     elif letter.student.status != letter.student.Status.ACTIVE:
@@ -335,6 +371,10 @@ def letter_detail(request, pk):
     office = _is_office(request.user)
     show_content = letter.status == Status.ISSUED or (office and letter.status == Status.REVOKED)
     data = letter.to_public_dict(include_content=show_content)
+    if letter.is_automatic:
+        data["recipients"] = recipient_rows(letter)
+        data["signatoryName"] = letter.signatory_name
+        data["signatoryTitle"] = letter.signatory_title
     if office:
         data["officeValues"] = letter.office_values or {}
         if letter.status == Status.PENDING:
@@ -354,6 +394,8 @@ def withdraw_request(request, pk):
     with transaction.atomic():
         owned = _letter_for(request, pk)
         letter = GeneratedLetter.objects.select_for_update().get(pk=owned.pk)
+        if letter.is_automatic:
+            return _conflict("An appointment letter comes from the office and cannot be withdrawn.")
         if letter.status != Status.PENDING:
             return _not_pending(letter)
         letter.status = Status.WITHDRAWN
@@ -395,22 +437,11 @@ def approve_request(request, pk):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        template = letter.template
-        issued_on = timezone.localdate()
-        reference = next_reference_number(template.reference_prefix, issued_on.year)
-        values = letter_details(letter.student)
-        values.update(referenceNumber=reference, date=issued_on.strftime("%d %B %Y"))
-        letter.content = fill_placeholders(template.content, values, typed)
-        letter.student_data = values
-        letter.office_values = typed
-        letter.template_name = template.name
-        letter.letter_type = template.letter_type
-        letter.reference_number = reference
-        letter.issued_on = issued_on
-        letter.status = Status.ISSUED
-        letter.decided_by = request.user
-        letter.decided_at = timezone.now()
-        letter.save()
+        issue_letter(letter, letter.template, letter_values(letter), typed, request.user)
+        reference = letter.reference_number
+        if letter.is_automatic:
+            notify_recipients(letter)
+            return Response(letter.to_public_dict())
         _notify_ready(letter, f"letters:request-approved:{letter.pk}")
         _email_student(
             letter,
@@ -446,7 +477,8 @@ def reject_request(request, pk):
         letter.decided_by = request.user
         letter.decided_at = timezone.now()
         letter.save(update_fields=["status", "reject_reason", "decided_by", "decided_at"])
-        if letter.student is not None:
+        # Nobody asked for an appointment letter, so there is nobody to tell.
+        if letter.student is not None and not letter.is_automatic:
             _notify(
                 letter.student.user,
                 letter,
@@ -504,6 +536,9 @@ def resend_notification(request, pk):
             return _conflict("The student's account no longer exists.")
         letter.resend_count += 1
         letter.save(update_fields=["resend_count"])
+        if letter.is_automatic:
+            notify_recipients(letter, resend=letter.resend_count)
+            return Response({"detail": "Notifications sent again to everyone on the letter."})
         _notify_ready(letter, f"letters:request-approved:{letter.pk}:resend-{letter.resend_count}")
     return Response({"detail": f"Notification sent again to {_student_name(letter)}."})
 
@@ -543,7 +578,87 @@ def revoke_letter(request, pk):
                     f"The postgraduate office revoked your {letter.template_name} "
                     f"({letter.reference_number}). Reason: {reason}"
                 ),
-                record_type=LETTER_RECORD,
+                record_type=APPOINTMENT_LETTER_RECORD if letter.is_automatic else LETTER_RECORD,
                 priority=Notification.Priority.HIGH,
             )
+        if letter.is_automatic:
+            notify_revoked(letter, reason)
     return Response(letter.to_public_dict())
+
+
+def _selection(data):
+    """``(kind, appointment id)`` pairs from a create request, or an error body."""
+    if data.get("all") is True:
+        return [(row["kind"], row["appointmentId"]) for row in missing_appointment_letters() if not row["problem"]], None
+    items = data.get("appointments")
+    if not isinstance(items, list) or not items:
+        return None, {"appointments": "Choose at least one appointment, or send all: true."}
+    if len(items) > MAX_CREATE:
+        return None, {"appointments": f"Choose at most {MAX_CREATE} appointments at a time."}
+    selection = []
+    for item in items:
+        kind = item.get("kind") if isinstance(item, dict) else None
+        try:
+            appointment_id = int(item.get("id")) if isinstance(item, dict) else None
+        except (TypeError, ValueError):
+            appointment_id = None
+        if kind not in KINDS or appointment_id is None:
+            return None, {"appointments": "Each item needs a kind (supervisor or panel) and an id."}
+        selection.append((kind, appointment_id))
+    return list(dict.fromkeys(selection)), None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def missing_letters(request):
+    """Office: active appointments that have no letter yet, and why."""
+    _require_office(request)
+    return Response(missing_appointment_letters())
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def create_missing_letters(request):
+    """Office: make the letters for the chosen appointments (or all that can be made)."""
+    _require_office(request)
+    selection, error = _selection(request.data)
+    if error:
+        return Response(error, status=status.HTTP_400_BAD_REQUEST)
+    results = create_letters(selection, request.user)
+    made = sum(1 for row in results if row["letterId"])
+    return Response({"made": made, "results": results})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def received_letters(request):
+    """The appointment letters the caller received as a lecturer. ``?student=``
+    narrows them to one student's matric number."""
+    letters = GeneratedLetter.objects.filter(
+        recipients=request.user, purpose__in=AUTOMATIC_PURPOSES, status__in=SEEN_BY_RECIPIENTS
+    ).select_related("decided_by")
+    matric = (request.query_params.get("student") or "").strip()
+    if matric:
+        letters = letters.filter(student__matric_no__iexact=matric)
+    return Response([letter.to_public_dict(include_content=False) for letter in letters])
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def reissue(request, pk):
+    """Office: issue an appointment letter again with the current details."""
+    _require_office(request)
+    typed_in = request.data.get("values")
+    if typed_in is not None and not isinstance(typed_in, dict):
+        return Response({"values": "Send the values as name: value pairs."}, status=status.HTTP_400_BAD_REQUEST)
+    get_object_or_404(GeneratedLetter, pk=pk)
+    try:
+        letter = reissue_letter(pk, request.user, typed_in)
+    except LetterRefused as refused:
+        return _conflict(str(refused))
+    except LetterValuesMissing as missing:
+        return Response(
+            {"detail": "Fill in every value before reissuing.", "fieldErrors": missing.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response(letter.to_public_dict(), status=status.HTTP_201_CREATED)

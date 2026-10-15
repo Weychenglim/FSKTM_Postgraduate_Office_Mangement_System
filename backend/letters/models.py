@@ -9,11 +9,25 @@ office approves it, filling in what the student's record cannot, and the
 server then fills the template's current wording, issues the reference number
 and saves the letter; or the office rejects it with a reason. Either way the
 student is told. A template with pending requests cannot be deleted.
+
+Appointment letters (UC22) come from templates used for a supervisor or panel
+appointment. They are made by themselves when a coordinator approves the
+appointment (see ``appointment_letters.py``), and go to the student and the
+lecturers named on them.
 """
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.utils.timezone import localtime
+
+
+class LetterPurpose(models.TextChoices):
+    REQUEST = "REQUEST", "Student requests"
+    SUPERVISOR_APPOINTMENT = "SUPERVISOR_APPOINTMENT", "Supervisor appointment letter"
+    PANEL_APPOINTMENT = "PANEL_APPOINTMENT", "Panel appointment letter"
+
+
+AUTOMATIC_PURPOSES = (LetterPurpose.SUPERVISOR_APPOINTMENT, LetterPurpose.PANEL_APPOINTMENT)
 
 
 class LetterTemplate(models.Model):
@@ -25,6 +39,7 @@ class LetterTemplate(models.Model):
         ARCHIVED = "Archived", "Archived"
 
     name = models.CharField(max_length=255)
+    purpose = models.CharField(max_length=32, choices=LetterPurpose.choices, default=LetterPurpose.REQUEST)
     # Frontend calls this "type"; kept distinct from the Python builtin here.
     letter_type = models.CharField(max_length=128, default="Academic Certification")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
@@ -40,15 +55,29 @@ class LetterTemplate(models.Model):
     custom_fields = models.JSONField(default=list, blank=True)
     # Prefix used to build the student's reference number, e.g. "UMF/PG".
     reference_prefix = models.CharField(max_length=64, blank=True, default="UMF/PG")
+    # Printed under the signature line; blank keeps the faculty default.
+    signatory_name = models.CharField(max_length=120, blank=True, default="")
+    signatory_title = models.CharField(max_length=120, blank=True, default="")
     modified_by = models.CharField(max_length=255, blank=True, default="Office Staff")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["purpose"],
+                condition=Q(status="Active") & ~Q(purpose="REQUEST"),
+                name="one_active_template_per_appointment_letter",
+            )
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.status})"
+
+    @property
+    def is_automatic(self):
+        return self.purpose in AUTOMATIC_PURPOSES
 
     def to_public_dict(self, *, include_wording=True):
         """Shape this template the way the React frontend's ``LetterTemplate``
@@ -58,9 +87,12 @@ class LetterTemplate(models.Model):
             "id": str(self.pk),
             "name": self.name,
             "type": self.letter_type,
+            "purpose": self.purpose,
             "status": self.status,
             "description": self.description,
             "referencePrefix": self.reference_prefix,
+            "signatoryName": self.signatory_name,
+            "signatoryTitle": self.signatory_title,
             "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
             "modifiedBy": self.modified_by,
         }
@@ -101,6 +133,9 @@ class GeneratedLetter(models.Model):
 
     Pending requests have no reference number, wording or date yet; those are
     set when the office approves. Issued letters are kept exactly as issued.
+
+    An appointment letter is linked to its supervisor or panel appointment and
+    lists its recipients, the lecturers who may open it besides the student.
     """
 
     class Status(models.TextChoices):
@@ -128,6 +163,25 @@ class GeneratedLetter(models.Model):
     )
     template_name = models.CharField(max_length=255)
     letter_type = models.CharField(max_length=128, blank=True, default="")
+    purpose = models.CharField(max_length=32, choices=LetterPurpose.choices, default=LetterPurpose.REQUEST)
+    supervisor_appointment = models.ForeignKey(
+        "appointments.SupervisorAppointment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="letters",
+    )
+    panel_appointment = models.ForeignKey(
+        "appointments.PanelAppointment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="letters",
+    )
+    recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="received_letters")
+    replaced_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    signatory_name = models.CharField(max_length=120, blank=True, default="")
+    signatory_title = models.CharField(max_length=120, blank=True, default="")
     # Set on approval. Several pending requests may hold no number at once.
     reference_number = models.CharField(max_length=96, unique=True, null=True, blank=True)
     content = models.TextField(
@@ -178,13 +232,37 @@ class GeneratedLetter(models.Model):
             # tab, cannot queue the same letter twice.
             models.UniqueConstraint(
                 fields=["student", "template"],
-                condition=Q(status="Pending"),
+                condition=Q(status="Pending", purpose="REQUEST"),
                 name="one_pending_request_per_letter",
-            )
+            ),
+            # A retry or a second worker cannot make a second letter for the
+            # same appointment; a revoked one can be replaced.
+            models.UniqueConstraint(
+                fields=["supervisor_appointment"],
+                condition=Q(supervisor_appointment__isnull=False, status__in=["Pending", "Issued"]),
+                name="one_live_letter_per_supervisor_appointment",
+            ),
+            models.UniqueConstraint(
+                fields=["panel_appointment"],
+                condition=Q(panel_appointment__isnull=False, status__in=["Pending", "Issued"]),
+                name="one_live_letter_per_panel_appointment",
+            ),
+            models.CheckConstraint(
+                condition=Q(supervisor_appointment__isnull=True) | Q(panel_appointment__isnull=True),
+                name="letter_links_one_appointment",
+            ),
         ]
 
     def __str__(self):
         return f"{self.reference_number or f'Request {self.pk}'} ({self.template_name})"
+
+    @property
+    def is_automatic(self):
+        return self.purpose in AUTOMATIC_PURPOSES
+
+    @property
+    def appointment(self):
+        return self.supervisor_appointment or self.panel_appointment
 
     def to_public_dict(self, *, include_content=True):
         snapshot = self.student_data or {}
@@ -195,6 +273,8 @@ class GeneratedLetter(models.Model):
             "templateId": str(self.template_id) if self.template_id else None,
             "templateName": self.template_name,
             "letterType": self.letter_type,
+            "purpose": self.purpose,
+            "replacedById": str(self.replaced_by_id) if self.replaced_by_id else None,
             "status": self.status,
             "date": _day(self.issued_on),
             "requestedAt": _moment(self.created_at),

@@ -17,4 +17,8 @@ urlpatterns = [
         name="letter-request-resend-notification",
     ),
     path("requests/<int:pk>/revoke/", views.revoke_letter, name="letter-request-revoke"),
+    path("requests/<int:pk>/reissue/", views.reissue, name="letter-request-reissue"),
+    path("appointment-letters/missing/", views.missing_letters, name="appointment-letters-missing"),
+    path("appointment-letters/create/", views.create_missing_letters, name="appointment-letters-create"),
+    path("appointment-letters/received/", views.received_letters, name="appointment-letters-received"),
 ]

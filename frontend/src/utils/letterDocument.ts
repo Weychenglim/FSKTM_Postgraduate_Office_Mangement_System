@@ -33,6 +33,9 @@ export const LETTERHEAD = {
   disclaimer:
     "This letter is issued upon the student's request for official purposes only. " +
     'Any alteration to this document shall render it invalid.',
+  appointmentDisclaimer:
+    'This letter is issued by the postgraduate office for official purposes only. ' +
+    'Any alteration to this document shall render it invalid.',
   signatoryName: 'Dean of Postgraduate Studies',
   signatoryOffice: 'FSKTM Office Executive Secretariat',
 } as const;
@@ -69,6 +72,26 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{CURRENT_SEMESTER}}', label: 'Current Semester' },
   { tag: '{{MAX_SEMESTER}}', label: 'Maximum Semester' },
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
+];
+
+export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT';
+
+const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'];
+
+/** Extra tags for appointment letters, filled from the approved appointment. */
+export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string; purposes: ReadonlyArray<LetterPurpose> }> = [
+  { tag: '{{RESEARCH_TITLE}}', label: 'Research Title', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{RESEARCH_AREA}}', label: 'Research Area', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{COURSE_CODES}}', label: 'Course Codes', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SUPERVISOR_DEPARTMENT}}', label: 'Supervisor Department', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SUPERVISOR_ACCEPTED_DATE}}', label: 'Supervisor Accepted On', purposes: ['SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{PANEL_NAME}}', label: 'Panel Member', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{PANEL_DEPARTMENT}}', label: 'Panel Department', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{PANEL_ACCEPTED_DATE}}', label: 'Panel Accepted On', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{COORDINATOR_NAME}}', label: 'Approved By', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{APPROVED_DATE}}', label: 'Approved On', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{APPOINTMENT_DATE}}', label: 'Appointment Date', purposes: APPOINTMENT_LETTERS },
+  { tag: '{{SEMESTER}}', label: 'Semester', purposes: APPOINTMENT_LETTERS },
 ];
 
 const KNOWN_TAGS = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag));
@@ -192,7 +215,7 @@ export function fillLetterTags(content: string, values: Readonly<Record<string, 
 
 // Office-filled field names: capitals and underscores, as the server requires.
 export const FIELD_NAME_PATTERN = /^[A-Z][A-Z_]{1,39}$/;
-const BUILT_IN_NAMES = new Set(LETTER_PLACEHOLDERS.map((p) => p.tag.slice(2, -2)));
+const BUILT_IN_NAMES = new Set([...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS].map((p) => p.tag.slice(2, -2)));
 
 /** Why a new office-filled field name cannot be used, or null. */
 export function fieldNameProblem(name: string, taken: readonly string[]): string | null {

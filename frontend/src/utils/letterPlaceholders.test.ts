@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  APPOINTMENT_PLACEHOLDERS,
   LETTER_PLACEHOLDERS,
   fieldNameFromLabel,
   fieldNameProblem,
@@ -17,10 +18,28 @@ const serverEntries = [...registry.matchAll(/^\s+"([A-Z_]+)": \("([^"]+)",/gm)].
 );
 assert.ok(serverEntries.length > 0, 'could not read letters/placeholders.py');
 assert.deepEqual(
-  LETTER_PLACEHOLDERS.map((p) => ({ tag: p.tag, label: p.label })),
+  [...LETTER_PLACEHOLDERS, ...APPOINTMENT_PLACEHOLDERS].map((p) => ({ tag: p.tag, label: p.label })),
   serverEntries,
-  'LETTER_PLACEHOLDERS must match letters/placeholders.py',
+  'LETTER_PLACEHOLDERS and APPOINTMENT_PLACEHOLDERS must match letters/placeholders.py',
 );
+
+// each appointment tag works in the same letter kinds as on the server
+const purposeBlock = registry.match(/^APPOINTMENT_PURPOSES = \{([\s\S]*?)^\}/m)?.[1] ?? '';
+const purposeNames: Record<string, string[]> = {
+  _BOTH: ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'],
+  '(SUPERVISOR_LETTER,)': ['SUPERVISOR_APPOINTMENT'],
+  '(PANEL_LETTER,)': ['PANEL_APPOINTMENT'],
+};
+const serverPurposes = [...purposeBlock.matchAll(/^\s+"([A-Z_]+)": ([^\n]+),$/gm)].map(([, name, value]) => ({
+  tag: `{{${name}}}`,
+  purposes: purposeNames[value.trim()],
+}));
+assert.deepEqual(
+  APPOINTMENT_PLACEHOLDERS.map((p) => ({ tag: p.tag, purposes: [...p.purposes] })),
+  serverPurposes,
+  'APPOINTMENT_PLACEHOLDERS purposes must match letters/placeholders.py',
+);
+assert.match(fieldNameProblem('PANEL_NAME', []) ?? '', /built-in/);
 
 // the editor check agrees with the server's rules
 assert.deepEqual(findPlaceholderProblems('Dear {{STUDENT_NAME}}, ref {{REFERENCE_NUMBER}}'), { unknown: [], malformed: [] });

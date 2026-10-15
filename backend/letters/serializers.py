@@ -7,25 +7,40 @@ validates input.
 """
 from rest_framework import serializers
 
-from .models import LetterTemplate
+from .models import LetterPurpose, LetterTemplate
 from .placeholders import clean_custom_fields
 
 
 class LetterTemplateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
     type = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    purpose = serializers.ChoiceField(choices=LetterPurpose.choices, required=False)
     status = serializers.ChoiceField(choices=LetterTemplate.Status.choices, required=False)
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
     content = serializers.CharField(required=False, allow_blank=True)
     referencePrefix = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    signatoryName = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    signatoryTitle = serializers.CharField(max_length=120, required=False, allow_blank=True)
     customFields = serializers.JSONField(required=False)
 
     # Frontend name -> model field name.
-    FIELD_MAP = {"type": "letter_type", "referencePrefix": "reference_prefix", "customFields": "custom_fields"}
+    FIELD_MAP = {
+        "type": "letter_type",
+        "referencePrefix": "reference_prefix",
+        "customFields": "custom_fields",
+        "signatoryName": "signatory_name",
+        "signatoryTitle": "signatory_title",
+    }
 
     def validate_name(self, value):
         if not value.strip():
             raise serializers.ValidationError("Template name is required.")
+        return value.strip()
+
+    def validate_signatoryName(self, value):
+        return value.strip()
+
+    def validate_signatoryTitle(self, value):
         return value.strip()
 
     def validate_customFields(self, value):

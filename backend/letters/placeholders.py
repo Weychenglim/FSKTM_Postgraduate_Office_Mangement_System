@@ -5,11 +5,25 @@ define its own fields that the office types in when it approves a request (for
 example attendance, worked out in another system). Each template's fields are
 stored on it as ``custom_fields``.
 
-``PLACEHOLDERS`` is mirrored by ``LETTER_PLACEHOLDERS`` in
-frontend/src/utils/letterDocument.ts; a frontend test fails if the two differ.
+Appointment letters may also use ``APPOINTMENT_PLACEHOLDERS``, filled from the
+approved appointment. Each one works only in the letter kinds listed for it in
+``APPOINTMENT_PURPOSES``.
+
+``PLACEHOLDERS`` and ``APPOINTMENT_PLACEHOLDERS`` are mirrored by
+``LETTER_PLACEHOLDERS`` and ``APPOINTMENT_PLACEHOLDERS`` in
+frontend/src/utils/letterDocument.ts; a frontend test fails if they differ.
 """
 
 import re
+
+REQUEST = "REQUEST"
+SUPERVISOR_LETTER = "SUPERVISOR_APPOINTMENT"
+PANEL_LETTER = "PANEL_APPOINTMENT"
+PURPOSE_LABELS = {
+    REQUEST: "student request letters",
+    SUPERVISOR_LETTER: "supervisor appointment letters",
+    PANEL_LETTER: "panel appointment letters",
+}
 
 PLACEHOLDERS = {
     "STUDENT_NAME": ("Student Name", "The student's full name"),
@@ -30,6 +44,39 @@ PLACEHOLDERS = {
     "EXPECTED_COMPLETION": ("Expected Completion", "Registry expected completion"),
 }
 
+APPOINTMENT_PLACEHOLDERS = {
+    "RESEARCH_TITLE": ("Research Title", "The student's current research title"),
+    "RESEARCH_AREA": ("Research Area", "The student's current research area"),
+    "COURSE_CODES": ("Course Codes", "Research project course codes from the supervisor application"),
+    "SUPERVISOR_DEPARTMENT": ("Supervisor Department", "The supervisor's department"),
+    "SUPERVISOR_ACCEPTED_DATE": ("Supervisor Accepted On", "The date the supervisor accepted the request"),
+    "PANEL_NAME": ("Panel Member", "The appointed panel member"),
+    "PANEL_DEPARTMENT": ("Panel Department", "The panel member's department"),
+    "PANEL_ACCEPTED_DATE": ("Panel Accepted On", "The date the panel member accepted"),
+    "COORDINATOR_NAME": ("Approved By", "The programme coordinator who approved the appointment"),
+    "APPROVED_DATE": ("Approved On", "The date the coordinator approved the appointment"),
+    "APPOINTMENT_DATE": ("Appointment Date", "The date the appointment starts"),
+    "SEMESTER": ("Semester", "The semester of the appointment"),
+}
+
+_BOTH = (SUPERVISOR_LETTER, PANEL_LETTER)
+APPOINTMENT_PURPOSES = {
+    "RESEARCH_TITLE": _BOTH,
+    "RESEARCH_AREA": _BOTH,
+    "COURSE_CODES": _BOTH,
+    "SUPERVISOR_DEPARTMENT": _BOTH,
+    "SUPERVISOR_ACCEPTED_DATE": (SUPERVISOR_LETTER,),
+    "PANEL_NAME": (PANEL_LETTER,),
+    "PANEL_DEPARTMENT": (PANEL_LETTER,),
+    "PANEL_ACCEPTED_DATE": (PANEL_LETTER,),
+    "COORDINATOR_NAME": _BOTH,
+    "APPROVED_DATE": _BOTH,
+    "APPOINTMENT_DATE": _BOTH,
+    "SEMESTER": _BOTH,
+}
+
+ALL_PLACEHOLDERS = {**PLACEHOLDERS, **APPOINTMENT_PLACEHOLDERS}
+
 # The key in ``letters.details.letter_details`` each placeholder is filled from.
 VALUE_KEYS = {
     "STUDENT_NAME": "studentName",
@@ -48,6 +95,18 @@ VALUE_KEYS = {
     "CURRENT_SEMESTER": "currentSemester",
     "MAX_SEMESTER": "maxSemester",
     "EXPECTED_COMPLETION": "expectedCompletion",
+    "RESEARCH_TITLE": "researchTitle",
+    "RESEARCH_AREA": "researchArea",
+    "COURSE_CODES": "courseCodes",
+    "SUPERVISOR_DEPARTMENT": "supervisorDepartment",
+    "SUPERVISOR_ACCEPTED_DATE": "supervisorAcceptedDate",
+    "PANEL_NAME": "panelName",
+    "PANEL_DEPARTMENT": "panelDepartment",
+    "PANEL_ACCEPTED_DATE": "panelAcceptedDate",
+    "COORDINATOR_NAME": "coordinatorName",
+    "APPROVED_DATE": "approvedDate",
+    "APPOINTMENT_DATE": "appointmentDate",
+    "SEMESTER": "semester",
 }
 
 # Filled by the server when the letter is issued, so never missing.
@@ -71,10 +130,26 @@ MAX_VALUE_LENGTH = 300
 
 
 def placeholder_catalogue():
+    every = (REQUEST, SUPERVISOR_LETTER, PANEL_LETTER)
     return [
-        {"tag": f"{{{{{name}}}}}", "name": name, "label": label, "source": source}
-        for name, (label, source) in PLACEHOLDERS.items()
+        {"tag": f"{{{{{name}}}}}", "name": name, "label": label, "source": source,
+         "purposes": list(APPOINTMENT_PURPOSES.get(name, every))}
+        for name, (label, source) in ALL_PLACEHOLDERS.items()
     ]
+
+
+def allowed_names(purpose=REQUEST):
+    """The built-in placeholder names a template used for ``purpose`` may use."""
+    return set(PLACEHOLDERS) | {name for name, purposes in APPOINTMENT_PURPOSES.items() if purpose in purposes}
+
+
+def purpose_hint(tag):
+    """For a tag that only some letter kinds may use, which ones; else None."""
+    match = TOKEN_RE.fullmatch(tag)
+    purposes = APPOINTMENT_PURPOSES.get(match.group(1)) if match else None
+    if not purposes:
+        return None
+    return f"{tag} works only in {' and '.join(PURPOSE_LABELS[purpose] for purpose in purposes)}."
 
 
 def clean_custom_fields(raw):
@@ -101,7 +176,7 @@ def clean_custom_fields(raw):
                 f"Field name {name or '(blank)'} must be 2 to 40 capital letters or underscores, "
                 "for example ATTENDANCE."
             )
-        if name in PLACEHOLDERS:
+        if name in ALL_PLACEHOLDERS:
             return None, f"{{{{{name}}}}} is already a built-in placeholder; choose another name."
         if name in seen:
             return None, f"The field {{{{{name}}}}} is listed twice."
@@ -120,13 +195,14 @@ def field_names(custom_fields):
     return {field["name"] for field in custom_fields or []}
 
 
-def placeholder_problems(content, custom_fields=()):
+def placeholder_problems(content, custom_fields=(), purpose=REQUEST):
     """Return ``(unknown, malformed)`` tags found in ``content``, each de-duplicated.
 
-    The template's own office-filled fields count as known tags.
+    The template's own office-filled fields count as known tags, and so do the
+    appointment placeholders its ``purpose`` allows.
     """
     content = content or ""
-    known = set(PLACEHOLDERS) | field_names(custom_fields)
+    known = allowed_names(purpose) | field_names(custom_fields)
     unknown, malformed = [], []
     malformed += TRIPLE_RE.findall(content)
     rest = TRIPLE_RE.sub(" ", content)
@@ -153,8 +229,8 @@ def used_names(content):
 
 def missing_labels(content, values):
     """Labels of the built-in placeholders ``content`` uses that ``values`` leaves blank."""
-    used = [name for name in used_names(content) if name in PLACEHOLDERS and name not in ISSUED_WITH_LETTER]
-    return [PLACEHOLDERS[name][0] for name in used if not _value(values, name)]
+    used = [name for name in used_names(content) if name in ALL_PLACEHOLDERS and name not in ISSUED_WITH_LETTER]
+    return [ALL_PLACEHOLDERS[name][0] for name in used if not _value(values, name)]
 
 
 def letter_fields(content, values, custom_fields=()):
@@ -169,8 +245,8 @@ def letter_fields(content, values, custom_fields=()):
     for name in used_names(content):
         if name in ISSUED_WITH_LETTER:
             continue
-        if name in PLACEHOLDERS:
-            label, source = PLACEHOLDERS[name]
+        if name in ALL_PLACEHOLDERS:
+            label, source = ALL_PLACEHOLDERS[name]
             value = _value(values, name)
             fields.append(
                 {"name": name, "label": label, "hint": source, "source": "record", "value": value, "needed": not value}
@@ -206,7 +282,7 @@ def fill_placeholders(content, values, typed=None):
         name = match.group(1)
         if name in typed:
             return str(typed[name])
-        if name in PLACEHOLDERS:
+        if name in ALL_PLACEHOLDERS:
             return _value(values, name)
         return match.group(0)
 
