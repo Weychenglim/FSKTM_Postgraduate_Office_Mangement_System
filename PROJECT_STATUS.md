@@ -1,5 +1,39 @@
 # Project Status
 
+## Staff Accounts, Phase S1: Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part B. Commit `8efcbec`. The office can now add and look after staff accounts through the API; the screens come in S3.
+
+- **New model:** `accounts.AccountChange` (migration `accounts.0014`), the account history.
+  - Each row records who made the change, when, and what changed.
+  - Rows cannot be edited or deleted, and they keep the name and email after an account is deleted.
+- **API** at `/api/registry/staff/`, for Office Staff/Admin only:
+  - list, with search, role, status and pages;
+  - add;
+  - options (departments in use, and each programme's coordinator);
+  - details and edit;
+  - send link and copy the activation link;
+  - history.
+- **Adding an account:**
+  - no password is made; the activation link has no time limit, as for imported students;
+  - lecturers get their ticked duties (Supervisor, Panel);
+  - coordinators get their programme, and a programme that already has a coordinator who can sign in is refused;
+  - office accounts also get `is_staff` and the marks permissions, as `seed_users` gives the demo office. Without them the office actions on participant lifecycle, delegations, capacity reassessment and marks refuse the account.
+- **Duplicates:** the email (ignoring letter case) and the Staff ID (across office staff and lecturers, and never a student's matric number) are refused, and the refusal names the account that holds them.
+- **Editing:**
+  - the role, duties and programme are refused here (duties and programme come in S2);
+  - an email change tells the old address, but only for an activated account. Old links stop working.
+- **Links:**
+  - "Send link" sends activation until a password is set, then the 30-minute reset link, and is limited per account;
+  - only an activation link can be copied, so the office never gets into an account that has a password.
+- **Docs:** `backend/README.md` has a Staff account endpoints section.
+
+**Verification:**
+- Backend: 1,309 of 1,310 pass. The one failure is Wey Cheng's known `appointments.test_capacity_reassessment_migration`. The 39 new tests cover each role's profile rows, duplicates across tables, the activation email sent once, send later, a failed email, a race, reset only after activation, office-only access, filters, and history.
+- `check` and `makemigrations --check` are clean.
+- The dev database was backed up (`..._before_staff_accounts_2026-10-15.dump`) and migrated to `accounts.0014`.
+- No frontend change in this phase.
+
 ## Appointment Letters, Phase L3: Students And Lecturers; UC22 Complete (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A. Commit `1040211`. **This completes UC22.**
