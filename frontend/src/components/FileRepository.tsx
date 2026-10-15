@@ -6,9 +6,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Plus, Search, Settings2, SlidersHorizontal } from 'lucide-react';
-import type { DocumentFilters, DocumentOptions, DocumentSummary, PortalDocument, StudentFileHeader } from '../types';
+import type { DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
-import { APP_ROUTES, routeForDocument } from '../constants/routes';
+import { getReceivedLetters } from '../services/lettersApi';
+import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
 import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
 import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
@@ -113,6 +114,23 @@ export const FileRepository: React.FC = () => {
     };
   }, [filters.student]);
 
+  // A lecturer's own appointment letters about this student, from Letter Generation.
+  const [appointmentLetters, setAppointmentLetters] = useState<GeneratedLetter[]>([]);
+  const lecturerView = options !== null && !options.isOffice;
+  useEffect(() => {
+    if (!filters.student || !lecturerView) {
+      setAppointmentLetters([]);
+      return;
+    }
+    let cancelled = false;
+    getReceivedLetters(filters.student)
+      .then(rows => !cancelled && setAppointmentLetters(rows))
+      .catch(() => !cancelled && setAppointmentLetters([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.student, lecturerView]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     try {
@@ -215,6 +233,18 @@ export const FileRepository: React.FC = () => {
                 <div><dt className="text-slate-500">Supervisor</dt><dd className="font-bold text-slate-800">{student.supervisors.join(', ') || 'None yet'}</dd></div>
                 <div><dt className="text-slate-500">Panel member</dt><dd className="font-bold text-slate-800">{student.panel.join(', ') || 'None yet'}</dd></div>
                 {student.letters !== null && <div><dt className="text-slate-500">Letters approved</dt><dd className="font-bold text-slate-800">{student.letters}</dd></div>}
+                {appointmentLetters.length > 0 && (
+                  <div>
+                    <dt className="text-slate-500">Your appointment letters</dt>
+                    <dd className="font-bold">
+                      {appointmentLetters.map(letter => (
+                        <Link key={letter.id} to={routeForFileLetter(letter.id)} className="block text-blue-700 hover:underline">
+                          {letter.templateName}{letter.status === 'Revoked' ? ' (revoked)' : ''}
+                        </Link>
+                      ))}
+                    </dd>
+                  </div>
+                )}
                 {student.required && student.required.length > 0 && (
                   <div>
                     <dt className="text-slate-500">Required documents</dt>

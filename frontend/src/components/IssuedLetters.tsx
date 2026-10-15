@@ -17,7 +17,7 @@ import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { MissingAppointmentLetters } from './MissingAppointmentLetters';
 import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
 import { downloadLetterPdf, getLetterRequest, getLetterRequests, reissueAppointmentLetter, withdrawLetterRequest } from '../services';
-import { letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
+import { isAppointmentLetter, letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
 import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 
@@ -180,7 +180,7 @@ const StatusNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) => {
     letter.status === 'Pending'
       ? { text: 'Waiting for the office', tone: 'text-slate-400' }
       : letter.status === 'Issued'
-        ? { text: `Approved ${shortDate(letter.decidedAt)}`, tone: 'text-slate-400' }
+        ? { text: `${isAppointmentLetter(letter.purpose) ? 'Issued' : 'Approved'} ${shortDate(letter.decidedAt)}`, tone: 'text-slate-400' }
         : letter.status === 'Withdrawn'
           ? { text: `Withdrawn ${shortDate(letter.withdrawnAt)}`, tone: 'text-slate-400' }
           : letter.status === 'Rejected'
@@ -280,7 +280,9 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                   <div className="min-w-0">
                     <span className="block font-bold text-slate-800 text-[12.5px]">{letter.templateName}</span>
                     <span className="block text-[10.5px] text-slate-400">
-                      {letter.letterType} · Requested {shortDate(letter.requestedAt)}
+                      {isAppointmentLetter(letter.purpose)
+                        ? `${letterOrigin(letter)} · ${shortDate(letter.requestedAt)}`
+                        : `${letter.letterType} · Requested ${shortDate(letter.requestedAt)}`}
                     </span>
                   </div>
                   <LetterStatusBadge status={letter.status} />
@@ -310,7 +312,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                   <tr key={letter.id} className="hover:bg-slate-50/50 transition align-top">
                     <td className="data-td">
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      <span className="block text-[10px] text-slate-400">{letter.letterType}</span>
+                      <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
                     </td>
                     <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
                     <td className="data-td">

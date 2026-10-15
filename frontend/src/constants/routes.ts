@@ -19,6 +19,7 @@ export const APP_ROUTES = {
   files: '/files',
   filesUpload: '/files/upload',
   filesDocuments: '/files/documents',
+  filesLetters: '/files/letters',
   filesSettings: '/files/settings',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentRequests: '/supervisor-appointments/requests',
@@ -129,6 +130,10 @@ export const routeForSupervisorResearchRequest = (requestId: string): string =>
 
 export const routeForDocument = (documentId: number | string): string =>
   `${APP_ROUTES.filesDocuments}/${encodeURIComponent(String(documentId))}`;
+
+/** An appointment letter, opened in Files so its lecturers can reach it too. */
+export const routeForFileLetter = (letterId: number | string): string =>
+  `${APP_ROUTES.filesLetters}/${encodeURIComponent(String(letterId))}`;
 
 export const routeForLetterRequest = (requestId: string): string =>
   `${APP_ROUTES.lettersRequests}/${encodeURIComponent(requestId)}`;
@@ -247,6 +252,13 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
     // A new request opens for the office to review; decisions open the student's list.
     if (target.recordType === 'LETTER_REQUEST' && target.recordId) {
       return routeForLetterRequest(target.recordId);
+    }
+    // Appointment letters open their own page; missing ones, the office's register.
+    if (target.recordType === 'APPOINTMENT_LETTER' && target.recordId) {
+      return routeForFileLetter(target.recordId);
+    }
+    if (target.recordType === 'APPOINTMENT_LETTERS_MISSING') {
+      return APP_ROUTES.lettersIssued;
     }
     return APP_ROUTES.lettersMine;
   }

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { GeneratedLetter, MissingAppointmentLetter } from '../types';
+import { SIDEBAR_ITEMS } from '../constants/navigation';
+import { APP_ROUTES, isKnownAppPath, routeForFileLetter, routeForNotificationTarget, sidebarItemForPath } from '../constants/routes';
 import { canReissue, letterOrigin, missingLettersSummary, recipientsLine } from './appointmentLetters';
 import {
   LETTERHEAD,
@@ -112,5 +114,22 @@ assert.match(register, /madeBy \}\)/);
 assert.match(register, /closing=\{letterClosing\(letter\)\}/);
 const review = readFileSync(resolve('src/components/OfficeLetterRequests.tsx'), 'utf8');
 assert.match(review, /\{!automatic && \(\s*<PortalButton variant="danger"/, 'appointment letters are issued, not rejected');
+
+// notices open the letter in Files, where lecturers can reach it; missing ones open the office register
+assert.equal(routeForFileLetter('5'), '/files/letters/5');
+assert.equal(routeForNotificationTarget({ targetModule: 'LETTERS', recordType: 'APPOINTMENT_LETTER', recordId: '5' }), '/files/letters/5');
+assert.equal(routeForNotificationTarget({ targetModule: 'LETTERS', recordType: 'APPOINTMENT_LETTERS_MISSING', recordId: '3' }), APP_ROUTES.lettersIssued);
+assert.equal(routeForNotificationTarget({ targetModule: 'LETTERS', recordType: 'GENERATED_LETTER', recordId: '5' }), APP_ROUTES.lettersMine);
+assert.equal(isKnownAppPath('/files/letters/5'), true);
+assert.equal(sidebarItemForPath('/files/letters/5'), SIDEBAR_ITEMS.FILE_MANAGEMENT);
+const app = readFileSync(resolve('src/App.tsx'), 'utf8');
+assert.match(app, /const AppointmentLetterPage = lazyNamed\('AppointmentLetterPage'/);
+assert.match(app, /fileLetterMatch \? \(\s*<AppointmentLetterPage/);
+const files = readFileSync(resolve('src/components/FileRepository.tsx'), 'utf8');
+assert.match(files, /getReceivedLetters\(filters\.student\)/, "a lecturer sees their own letters about the student");
+assert.match(files, /to=\{routeForFileLetter\(letter\.id\)\}/);
+const letterPage = readFileSync(resolve('src/components/AppointmentLetterPage.tsx'), 'utf8');
+assert.match(letterPage, /closing=\{letterClosing\(letter\)\}/);
+assert.match(letterPage, /This letter isn't available to you\./);
 
 console.log('Appointment letter tests passed.');

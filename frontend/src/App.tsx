@@ -104,6 +104,7 @@ const FileRepository = lazyNamed('FileRepository', () => import('./components/Fi
 const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('./components/StudentFileSubmission'));
 const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
+const AppointmentLetterPage = lazyNamed('AppointmentLetterPage', () => import('./components/AppointmentLetterPage'));
 const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
@@ -226,6 +227,7 @@ export default function App() {
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
   const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
+  const fileLetterMatch = matchPath(`${APP_ROUTES.filesLetters}/:letterId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorRequestsRoute = pathname === APP_ROUTES.supervisorAppointmentRequests;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
@@ -964,6 +966,13 @@ export default function App() {
                   documentId={documentMatch.params.documentId ?? ''}
                   isStudent={isStudentWorkspace}
                   onBack={() => navigate(APP_ROUTES.files)}
+                />
+              ) : fileLetterMatch ? (
+                <AppointmentLetterPage
+                  key={fileLetterMatch.params.letterId}
+                  letterId={fileLetterMatch.params.letterId ?? ''}
+                  isStudent={isStudentWorkspace}
+                  onBack={(matric) => navigate(matric && !isStudentWorkspace ? `${APP_ROUTES.files}?student=${encodeURIComponent(matric)}` : APP_ROUTES.files)}
                 />
               ) : isStudentWorkspace ? (
                 <StudentFileSubmission />

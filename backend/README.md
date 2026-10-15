@@ -141,6 +141,12 @@ audit record.
 | GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin, once Issued |
 | POST | `requests/<id>/resend-notification/` | Office Staff/Admin, once Issued |
 | POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin, once Issued |
+| POST | `requests/<id>/reissue/` (`{values?}`) | Office Staff/Admin, an Issued appointment letter |
+| GET | `appointment-letters/missing/` | Office Staff/Admin |
+| POST | `appointment-letters/create/` (`{all: true}` or `{appointments: [{kind, id}]}`) | Office Staff/Admin |
+| GET | `appointment-letters/received/?student=` | A lecturer: the appointment letters sent to them |
+
+The office's `GET requests/` also takes `madeBy=request|automatic`.
 
 **Requesting.**
 - A student asks for a letter from an Active template, with an optional note.
@@ -162,6 +168,24 @@ audit record.
 - Approval is refused once the student is no longer Active.
 
 **The PDF.** The download is a PDF built with `reportlab`, locked against editing (printing and copying text stay allowed), so a letter cannot simply be changed. Its reference number lets anyone verify it with the office. Revoked letters keep their number but can no longer be downloaded.
+
+**Appointment letters (UC22).**
+- **Template purpose.** A template's `purpose` is `REQUEST` (students ask for it), `SUPERVISOR_APPOINTMENT` or `PANEL_APPOINTMENT`.
+  - Only one Active template per appointment purpose is allowed (409 `appointment_template_already_active`).
+  - Students never see appointment templates.
+  - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
+- **When a letter is made.**
+  - `letters/signals.py` hears a new active `SupervisorAppointment` or `PanelAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
+  - The appointment code is not changed, and a failed letter never undoes an approval.
+- **Recipients.**
+  - The student and the supervisor.
+  - For a panel letter, also the panel member, with the current primary supervisor in copy.
+  - Each gets an in-app notice (`APPOINTMENT_LETTER`, opening `/files/letters/<id>`) and an email when "Email alerts" is on.
+- **Waiting letters.** If a value is blank, or the template has office-filled fields, the letter waits as `Pending` in the office's requests. The office issues it there, and students do not see it until then.
+- **No usable template.** The office gets one notice per appointment (`APPOINTMENT_LETTERS_MISSING`). `appointment-letters/missing/` lists active appointments with no letter, and `create/` makes them.
+- **Limits.** One live letter per appointment is guarded by the database.
+- **Reissue.** It issues a new letter with the current details and revokes the old one as "Replaced by <ref>.".
+- **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy.
 
 ## File Management endpoints (`/api/documents/`)
 

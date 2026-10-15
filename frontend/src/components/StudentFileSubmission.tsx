@@ -11,6 +11,7 @@ import { deleteDocument, downloadDocument, getDocuments, getMyRequiredDocuments 
 import { getMyLetterRequests } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { shortDocumentDate } from '../utils/documentDisplay';
+import { isAppointmentLetter } from '../utils/letterDocument';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { CheckChip, KindBadge, OverflowMenu } from './DocumentParts';
@@ -162,7 +163,7 @@ export const StudentFileSubmission: React.FC = () => {
 
       <section aria-labelledby="letters-title" className="app-card px-5 pb-2 pt-5">
         <h2 id="letters-title" className="section-label">Letters from the office</h2>
-        <p className="pb-3 text-[12px] text-slate-500">Letters you requested and the office approved. Requests still waiting are in Letter Generation.</p>
+        <p className="pb-3 text-[12px] text-slate-500">Letters the office issued to you, including your appointment letters. Requests still waiting are in Letter Generation.</p>
         {lettersError ? (
           <p className="border-t border-slate-100 py-4 text-[13px] text-slate-600">Could not load your letters. <button type="button" className="font-bold text-blue-700" onClick={() => setReload(value => value + 1)}>Try again</button></p>
         ) : !letters.length ? (
@@ -172,7 +173,9 @@ export const StudentFileSubmission: React.FC = () => {
             <div key={letter.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-4">
               <div className="min-w-0">
                 <p className="text-[14px] font-bold text-slate-800">{letter.templateName}</p>
-                <p className="text-[12px] text-slate-500">{letter.referenceNumber} · approved {shortDocumentDate(letter.decidedAt ?? letter.issuedAt)}</p>
+                <p className="text-[12px] text-slate-500">
+                  {letter.referenceNumber} · {isAppointmentLetter(letter.purpose) ? 'issued' : 'approved'} {shortDocumentDate(letter.decidedAt ?? letter.issuedAt)}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <PortalButton size="sm" isLoading={isBusy(letter, 'view')} onClick={() => void viewLetter(letter)}>View</PortalButton>
