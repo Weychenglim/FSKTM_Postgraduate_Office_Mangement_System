@@ -1,8 +1,8 @@
 # Project Status
 
-## File Management: Phases 1 To 6 (2026-10-14 to 2026-10-15)
+## File Management: Phases 1 To 7 (2026-10-14 to 2026-10-15)
 
-Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phases 7 and 8 are next.
+Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phase 8 is next.
 
 - **Uploads (Phase 1, `379892c`).**
   - Students upload their own forms, thesis, letters and so on. The office, lecturers, panel members and coordinators upload files about their students, or staff files about no student.
@@ -27,16 +27,24 @@ Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plan
   - File settings has a History tab: uploads, changes, checks, archiving, deleted files (with who they were about), opens and downloads, and settings changes, with one Show choice and a search box.
   - Each file page shows its own history to the office.
   - `manage.py check_document_storage` reports missing and left-over stored files; `--remove-orphans` deletes left-overs more than an hour old.
+- **Required documents (Phase 7, `429a5c9`).**
+  - In File settings the office turns on "Every student must hand it in" for a type, with an optional due note and, if needed, only chosen programmes (Xiang's choice on 2026-10-15). Only Active students count, and a required type must be one students can upload.
+  - Students see what they still owe under To do, with an Upload button that opens the upload screen with the type chosen.
+  - A Required documents tab in Files shows the office and programme coordinators (their programmes only) how many students have handed in, are waiting for a check, or still owe it; names on request, and a returned file counts as still owed.
+  - The office presses Remind at most once a day per type: a notice in the app, and an email for students with "Deadline reminders" on.
+  - A student's header in Files shows their required documents.
+  - Migration `documents.0004`, after the backup `db-backups/fsktm_pg_office_before_required_documents_2026-10-15.dump`.
 - **Migrations** `documents.0001` to `documents.0003`. The dev DB was migrated after the backups `db-backups/fsktm_pg_office_before_documents_2026-10-14.dump` and `db-backups/fsktm_pg_office_before_document_settings_2026-10-14.dump`.
 - **Verification.**
-  - The backend passes 1135 tests.
+  - The backend passes 1142 tests.
   - All 116 frontend scripts pass, along with lint, the build and the production security tests.
   - Browser checks on private servers:
     - screens, preview and ZIP: 23 of 23;
     - previews under the enforced security policy: 10 of 10;
     - checking and versions: 12 of 12;
     - file settings, sharing and tags, including a phone: 20 of 20;
-    - archive, restore and history, including a phone: 11 of 11.
+    - archive, restore and history, including a phone: 11 of 11;
+    - required documents, including a phone: 15 of 15. Remind was answered inside the browser, because the dev database has demo students in every programme; sending is covered by the backend tests.
   - All smoke accounts, files, notices, tags and types were removed afterwards.
 
 ## Letters: Requests Approved By The Office (2026-10-13)

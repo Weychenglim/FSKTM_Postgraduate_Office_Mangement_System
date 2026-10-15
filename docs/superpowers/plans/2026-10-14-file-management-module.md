@@ -2,7 +2,7 @@
 
 Date: 2026-10-14. Owner: Xiang (File Management).
 
-**Status: approved on 2026-10-14. Phases 1 to 6 are built and committed; Phases 7 and 8 are next.**
+**Status: approved on 2026-10-14. Phases 1 to 7 are built and committed; Phase 8 is next.**
 
 This plan replaces `2026-10-11-file-management-module.md`, which was written before the supervisor's 2026-10-14 direction:
 - staff can upload and share files too;
@@ -264,7 +264,8 @@ Sources:
 - `uploaders`: a list from `STUDENT`, `SUPERVISOR`, `PANEL`, `COORDINATOR`, `LECTURER`.
 - `share_supervisors`, `share_panel`, `share_coordinator`: the starting ticks.
 - `needs_check`, `one_per_student`.
-- `required`, `required_due_note`. The Phase 7 rule fields are `required_programmes` and `required_when`.
+- `required`, `required_due_note`, `required_programmes` (empty means every programme). Xiang chose on 2026-10-15: every Active student, optionally only chosen programmes; no stage rules.
+- **RequiredReminder:** one row per Remind (type, who, when, how many students), at most one a day per type.
 - `is_active`, `display_order`, timestamps.
 
 **Document**
@@ -360,7 +361,7 @@ Carried over from the 2026-10-11 research.
 | POST | `tags/<id>/merge/`, PATCH and DELETE `tags/<id>/` | Office | 5 |
 | POST | `<id>/archive/`, `<id>/restore/` | Office | 6 |
 | GET | `history/?show=` (all, uploads, changes, checks, archive, deleted, opened, settings; including deletions) | Office | 6 |
-| GET | `required/`, `required/<typeId>/students/` | Office, coordinators | 7 |
+| GET | `required/`, `required/<typeId>/students/?show=todo\|waiting\|done` | Office, coordinators (their programmes) | 7 |
 | GET | `required/mine/` | Student | 7 |
 | POST | `required/<typeId>/remind/` | Office | 7 |
 | GET | `students/<matric>/application-files/` | Supervisor application rules | 8, if agreed |
@@ -396,7 +397,7 @@ Carried over from the 2026-10-11 research.
 | 4 | Checking: the To check tab, Accept and Return, new versions, editing details, the to-do list | Done | `f9f96ea` |
 | 5 | Document types screen, changing a file's sharing, tag tidying | Done | `4a8df87` |
 | 6 | Archive and restore, the office history (including deletions), the storage check | Done | `5bc3095` |
-| 7 | Required documents: the tab, the to-do items, Remind | Not started | |
+| 7 | Required documents: the tab, the to-do items, Remind | Done | `429a5c9` |
 | 8 | Wrap-up: My Records, a Registry link, notification links, supervisor application files (if agreed), optional links, docs, final checks | Not started | |
 
 **Running a phase:**
