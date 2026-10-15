@@ -243,10 +243,40 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 
 ## FAQ knowledge base endpoints (`/api/faq/`)
 
-The chatbot's answers (UC28, UC29). Everything below is for Office Staff/Admin only.
+The chatbot's answers (UC28, UC29).
+
+**Asking** (students and programme coordinators; lecturers have no FAQ menu):
+
+| Method | Path | Body | Returns |
+| ------ | ---- | ---- | ------- |
+| GET | `start/` | | topics with their questions, four common questions, the contact text (the office may read it too) |
+| POST | `ask/` | `{question}`, or `{entryId, questionId, token}` for a picked choice or related question | `{outcome: ANSWERED, CHOICES or NO_MATCH, answer, choices, related, contactText, mode, questionId, token}` |
+| POST | `feedback/` | `{questionId, token, helpful}` | `{helpful, contactText}` (the contact text after "No") |
+
+- At most 30 questions a minute per person (`FAQ_ASK_THROTTLE_RATE`); more get 429.
+- Questions are saved with the text, outcome, entry shown, score and "Did this help?", but no name or student ID. Feedback needs the signed `token` from that answer.
+- `python manage.py purge_faq_questions` deletes questions older than 12 months (`FAQ_QUESTION_RETENTION_DAYS`). Run it daily with the other scheduled commands.
+
+**How an answer is found.**
+- A keyword search (BM25) and a meaning search with `paraphrase-multilingual-MiniLM-L12-v2` (through `fastembed`, on the CPU) both run over every Published entry and its other ways of asking.
+- Their rankings are merged with reciprocal rank fusion.
+- The top entry's confidence decides: at least `FAQ_STRONG_MATCH` shows the answer; at least `FAQ_POSSIBLE_MATCH` offers up to three choices; anything lower is No match with the office's contact text. Both cut-offs are set from the evaluation in phase C6.
+- Vectors are stored in `FaqVector`, so a restart does not work them out again.
+- `python manage.py rebuild_faq_index` works them out ahead of time and drops unused ones.
+
+**The model.**
+- `pip install -r requirements.txt` brings `fastembed`.
+- The first question downloads the model (about 220 MB) into `backend/faq_model_cache/`, which git ignores. The first answer then takes a few seconds; later ones take milliseconds.
+- If the model can't be installed or loaded, the chatbot answers with keyword search alone. The office's `search-status/` says so.
+- `FAQ_SEARCH=keywords` forces keyword search.
+- Tests never download the model: they use `faq.fake_encoder.FakeEncoder`. `FAQ_REAL_MODEL_TESTS=1` also runs one check with the real model.
+
+**Managing** (Office Staff/Admin only; `try/` shows what a student would see, with each candidate's scores, and saves nothing):
 
 | Method | Path | Body or query | Returns |
 | ------ | ---- | ------------- | ------- |
+| POST | `try/` | `{question}` | the reply plus `match` (Strong, Possible, None) and the top five candidates with scores |
+| GET | `search-status/` | | `{mode: hybrid or keywords, model, published, vectors}` |
 | GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}` |
 | POST | `entries/` | `{question, answer, category, portalLink, altQuestions, publish}` | the entry (a draft unless `publish`) |
 | GET, PATCH, DELETE | `entries/<id>/` | `{question, answer, category, portalLink, altQuestions}` | the entry with its other ways of asking, PDF text and history |

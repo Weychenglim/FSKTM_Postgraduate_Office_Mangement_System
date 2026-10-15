@@ -146,3 +146,85 @@ class FaqChange(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("FAQ history cannot be deleted.")
+
+
+DEFAULT_CONTACT_TEXT = (
+    "Please contact the FSKTM Postgraduate Office. Visit the counter during office hours, "
+    "or email the office with your question and your matric number."
+)
+
+
+class FaqSettings(models.Model):
+    """The office's chatbot settings. There is only ever one row."""
+
+    contact_text = models.TextField(default=DEFAULT_CONTACT_TEXT)
+    common_questions = models.JSONField(default=list, blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="faq_settings_changes",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "FAQ chatbot settings"
+        verbose_name_plural = "FAQ chatbot settings"
+
+    @classmethod
+    def load(cls):
+        found, _ = cls.objects.get_or_create(pk=1)
+        return found
+
+
+class FaqVector(models.Model):
+    """A text's meaning as numbers, kept so a restart does not work them out
+    again. Found by the model and a fingerprint of the text."""
+
+    model_name = models.CharField(max_length=200)
+    fingerprint = models.CharField(max_length=64)
+    dimensions = models.PositiveIntegerField()
+    vector = models.BinaryField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["model_name", "fingerprint"], name="unique_faq_vector")]
+
+
+class FaqQuestion(models.Model):
+    """A question asked in the chatbot. It keeps no name and no student ID,
+    and is deleted after 12 months (purge_faq_questions)."""
+
+    class Outcome(models.TextChoices):
+        ANSWERED = "ANSWERED", "Answered"
+        CHOICES = "CHOICES", "Offered choices"
+        DOCUMENT = "DOCUMENT", "Answered from a document"
+        NO_MATCH = "NO_MATCH", "No match"
+
+    class Review(models.TextChoices):
+        WAITING = "WAITING", "Waiting"
+        ADDED = "ADDED", "Added as another way to ask"
+        CREATED = "CREATED", "Entry created"
+        DISMISSED = "DISMISSED", "Dismissed"
+
+    text = models.CharField(max_length=300)
+    typed = models.BooleanField(default=True)
+    outcome = models.CharField(max_length=16, choices=Outcome.choices)
+    entry = models.ForeignKey(FaqEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="asked")
+    score = models.FloatField(null=True, blank=True)
+    search_mode = models.CharField(max_length=16, blank=True)
+    helpful = models.BooleanField(null=True, blank=True)
+    review = models.CharField(max_length=16, choices=Review.choices, default=Review.WAITING)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_faq_questions",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    asked_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-asked_at", "-pk"]

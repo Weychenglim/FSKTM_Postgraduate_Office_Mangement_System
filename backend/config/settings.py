@@ -249,6 +249,19 @@ REGISTRY_STUDENT_EMAIL_DOMAIN = os.getenv(
     "REGISTRY_STUDENT_EMAIL_DOMAIN", "siswa.um.edu.my"
 )
 
+# FAQ chatbot (UC28). "hybrid" adds a small multilingual meaning model to the
+# keyword search; "keywords" never loads it. If the model cannot be loaded,
+# the chatbot falls back to keywords by itself.
+FAQ_SEARCH = os.getenv("FAQ_SEARCH", "hybrid")
+FAQ_MODEL = os.getenv("FAQ_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+FAQ_MODEL_CACHE = os.getenv("FAQ_MODEL_CACHE", str(BASE_DIR / "faq_model_cache"))
+FAQ_ENCODER = os.getenv("FAQ_ENCODER", "faq.encoder.FastEmbedEncoder")
+# How sure the search must be to answer, or to offer choices (set in phase C6).
+FAQ_STRONG_MATCH = float(os.getenv("FAQ_STRONG_MATCH", "0.72"))
+FAQ_POSSIBLE_MATCH = float(os.getenv("FAQ_POSSIBLE_MATCH", "0.5"))
+FAQ_ASK_THROTTLE_RATE = os.getenv("FAQ_ASK_THROTTLE_RATE", "30/minute")
+FAQ_QUESTION_RETENTION_DAYS = int(os.getenv("FAQ_QUESTION_RETENTION_DAYS", "365"))
+
 # Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
