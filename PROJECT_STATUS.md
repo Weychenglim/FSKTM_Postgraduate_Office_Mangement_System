@@ -1,5 +1,38 @@
 # Project Status
 
+## File Management: Phases 1 To 5 (2026-10-14 to 2026-10-15)
+
+Following the supervisor's direction of 2026-10-14 (plan: `docs/superpowers/plans/2026-10-14-file-management-module.md`). Phases 6 to 8 are next.
+
+- **Uploads (Phase 1, `379892c`).**
+  - Students upload their own forms, thesis, letters and so on. The office, lecturers, panel members and coordinators upload files about their students, or staff files about no student.
+  - Every upload is checked: PDF, Word, Excel, PowerPoint and image contents, macros, hidden extensions, 10 MB, and duplicates.
+  - Files are tagged by student and by keyword, and found by student name, student ID, title, tag or reference.
+  - Who sees a file follows real relationships: supervisors, panel members and programme coordinators, ticked per type and per file. Students see only their own uploads.
+- **Screens (Phase 2, `dd6aa7e`).** Files for staff (All files, Staff files, one student's files), the file page, both upload screens, and File Submission for students with their approved letters.
+- **Preview and ZIP (Phase 3, `0cec8ae`).** PDF pages and images are drawn on the server, so previews work under the production security policy. Several files download as one ZIP.
+- **Checking (Phase 4, `f9f96ea`).**
+  - For types the office checks, uploads wait in "To check". The office accepts, or returns with a reason.
+  - The student sees the reason under To do, and uploads a corrected file as a new version. A second upload of a one-per-student type offers to become a new version.
+  - Uploaders and the office edit the title, tags and note; every change is kept in the history.
+  - Notices go out in the app, and by email when "Email alerts" is on.
+- **File settings (Phase 5, `4a8df87`).**
+  - The office opens Settings from Files. It changes, for each document type: who can upload it, who can see it, whether the office checks it, and whether it can still be chosen. It can also add new types.
+  - New sharing reaches files students already uploaded, while what staff chose when uploading stays. The screen says how many files a change touches before saving.
+  - A Tags tab renames, merges and removes tags. Renaming to an existing tag offers to merge.
+  - On a file's page, the office or the staff uploader changes who can see it, and people who can newly see it are told.
+  - Changes to types and tags are kept in a settings history.
+- **Migrations** `documents.0001` to `documents.0003`. The dev DB was migrated after the backups `db-backups/fsktm_pg_office_before_documents_2026-10-14.dump` and `db-backups/fsktm_pg_office_before_document_settings_2026-10-14.dump`.
+- **Verification.**
+  - The backend passes 1128 tests.
+  - All 116 frontend scripts pass, along with lint, the build and the production security tests.
+  - Browser checks on private servers:
+    - screens, preview and ZIP: 23 of 23;
+    - previews under the enforced security policy: 10 of 10;
+    - checking and versions: 12 of 12;
+    - file settings, sharing and tags, including a phone: 20 of 20.
+  - All smoke accounts, files, notices, tags and types were removed afterwards.
+
 ## Letters: Requests Approved By The Office (2026-10-13)
 
 Following the supervisor meeting (plan: `docs/superpowers/plans/2026-10-13-letter-requests-with-office-approval.md`).

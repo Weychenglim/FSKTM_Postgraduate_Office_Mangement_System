@@ -2,14 +2,14 @@
 
 Date: 2026-10-14. Owner: Xiang (File Management).
 
-**Status: planned, waiting for Xiang's review. Nothing is built yet.**
+**Status: approved on 2026-10-14. Phases 1 to 5 are built and committed; Phases 6 to 8 are next.**
 
 This plan replaces `2026-10-11-file-management-module.md`, which was written before the supervisor's 2026-10-14 direction:
 - staff can upload and share files too;
 - students see only their own uploads;
 - tagging by student comes first.
 
-The old file is deleted once this plan is approved.
+The old file has been deleted.
 
 A clickable mockup of the screens comes with this plan. After Xiang's review, the design was simplified: the UI and UX come first, so each screen does one job and shows only what is needed.
 
@@ -22,7 +22,7 @@ Seven screens, all in the portal's current look.
 | 1 | Files | Office and lecturers | One search box and a simple list. Tabs: All files, To check, Required documents, Staff files. Clicking a student's name shows every file about that student. |
 | 2 | A file | Anyone who can see it | Big preview, short details, and who it is shared with. For the office, Accept or Return when the file is waiting. |
 | 3 | Upload (staff) | Office, lecturers, coordinators | Choose the file, say what it is, pick the students, and tick who to share with. |
-| 4 | Document types | Office | Each type: who can upload it, who can see it, whether the office checks it, and whether every student must hand it in. |
+| 4 | File settings | Office | Document types (who can upload each one, who can see it, whether the office checks it, and from Phase 7 whether every student must hand it in), and a Tags tab for tidying tags. |
 | 5 | File Submission | Student | A short to-do list, "My files", and "Letters from the office". |
 | 6 | Upload (student) | Student | Choose the file and say what it is. The screen shows who will see it. |
 | 7 | The student page on a phone | Student | The same as screen 5, stacked. |
@@ -285,6 +285,7 @@ Sources:
 - **Tag** and **DocumentTag:** tags are stored lower-cased for matching, with the first spelling kept for display.
 - **DocumentVersion:** cannot be changed once saved. It holds `number`, `file`, `original_name`, `content_type`, `size`, `sha256` and `page_count`, and is deleted with its document.
 - **DocumentEvent:** the history, which cannot be changed once saved. It covers uploads, versions, edits, sharing changes, checks, archive and restore, previews, downloads and deletions. A deletion keeps the title, type, students and uploader as text.
+- **SettingsChange:** the office's changes to types and tags (added, changed, renamed, merged, removed), with who and when. It cannot be changed or deleted once saved.
 - **DocumentLink:** Phase 8, optional.
 
 ### 7.2 Access (`backend/documents/access.py`)
@@ -353,8 +354,9 @@ Carried over from the 2026-10-11 research.
 | POST | `<id>/versions/` | Uploader or office | 4 |
 | POST | `<id>/check/` (accept or return) | Office | 4 |
 | PATCH | `<id>/` (edit details) | Uploader or office | 4 |
-| PUT | `<id>/sharing/` | Staff uploader or office | 5 |
-| GET, POST, PATCH | `types/` | Office (others read through `options/`) | 5 |
+| GET, PUT | `<id>/sharing/` (the people each tick reaches, then save) | Staff uploader or office | 5 |
+| GET, POST | `types/`, PATCH `types/<id>/` | Office (others read through `options/`) | 5 |
+| GET | `tags/?manage=1` (every tag with its use count) | Office | 5 |
 | POST | `tags/<id>/merge/`, PATCH and DELETE `tags/<id>/` | Office | 5 |
 | POST | `<id>/archive/`, `<id>/restore/` | Office | 6 |
 | GET | `history/` (including deletions) | Office | 6 |
@@ -377,10 +379,10 @@ Carried over from the 2026-10-11 research.
   - `/files?student=<matric>`;
   - `/files/upload`;
   - `/files/documents/:id`;
-  - `/files/types`.
+  - `/files/settings` (office only).
 - **Components:**
   - `FileRepository.tsx`, `StudentFileSubmission.tsx` and `UploadNewDocument.tsx`. The names are kept for the teammate's lazy-loading test.
-  - New: `DocumentPage.tsx`, `DocumentTypeSettings.tsx`, `StudentPicker.tsx`, `TagInput.tsx`, `RequiredDocuments.tsx`.
+  - New: `DocumentPage.tsx`, `DocumentPreview.tsx`, `DocumentDialogs.tsx`, `DocumentParts.tsx` (StudentPicker, TagInput, menus), `FileSettings.tsx`, and in Phase 7 `RequiredDocuments.tsx`.
 - **Shared pieces reused:** `PageHeader`, `PortalButton`, `SelectMenu`, `RecordPage`, `PortalConfirmModal`, `StatusBadge`, `LetterView`.
 - **No mock data.** Errors show a Retry button.
 
@@ -388,11 +390,11 @@ Carried over from the 2026-10-11 research.
 
 | Phase | What | Status | Commit |
 |---|---|---|---|
-| 1 | Backend: the app, types, uploads with all checks, access rules, list and search, download, delete, tags, notices | Not started | |
-| 2 | Screens: Files (All files, Staff files, student view), the file page, both upload screens, File Submission with letters | Not started | |
-| 3 | Preview on the file page, and Select plus ZIP download | Not started | |
-| 4 | Checking: the To check tab, Accept and Return, new versions, editing details, the to-do list | Not started | |
-| 5 | Document types screen, changing a file's sharing, tag tidying | Not started | |
+| 1 | Backend: the app, types, uploads with all checks, access rules, list and search, download, delete, tags, notices | Done | `379892c` |
+| 2 | Screens: Files (All files, Staff files, student view), the file page, both upload screens, File Submission with letters | Done | `dd6aa7e` |
+| 3 | Preview on the file page, and Select plus ZIP download | Done | `0cec8ae` |
+| 4 | Checking: the To check tab, Accept and Return, new versions, editing details, the to-do list | Done | `f9f96ea` |
+| 5 | Document types screen, changing a file's sharing, tag tidying | Done | `4a8df87` |
 | 6 | Archive and restore, the office history (including deletions), the storage check | Not started | |
 | 7 | Required documents: the tab, the to-do items, Remind | Not started | |
 | 8 | Wrap-up: My Records, a Registry link, notification links, supervisor application files (if agreed), optional links, docs, final checks | Not started | |
