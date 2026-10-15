@@ -1,5 +1,54 @@
 # Project Status
 
+## Appointment Letters, Phase L1: Backend (2026-10-15)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part A (UC22).
+
+**Before building:**
+- Wey Cheng's PR #19 (`ee8b3fb`) was fast-forwarded into `Xiang` after a walkthrough.
+- The dev database was backed up and migrated to `appointments.0016` (course codes).
+- One test fails on `main` itself and belongs to his file: `appointments.test_capacity_reassessment_migration` compares rows after migrating to the latest migration, and his new `project_course_codes` column adds a key. Xiang passes it on.
+
+**What L1 adds (backend only):**
+- **Template purpose.**
+  - A template is used for *Student requests*, a *Supervisor appointment letter* or a *Panel appointment letter* (`LetterTemplate.purpose`).
+  - Only one Active template per appointment letter kind; a database constraint covers races.
+  - Students never see or request appointment templates.
+  - A template's purpose cannot change while its letters wait for a decision.
+- **Signatory.** Templates have an optional "Signed by" name and title. Each letter keeps its own copy, and the PDF prints it.
+- **Appointment placeholders.** Twelve new tags, for example `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}` (from Wey Cheng's new field), `{{PANEL_NAME}}`, `{{COORDINATOR_NAME}}` and `{{SEMESTER}}`. Each works only in the letter kinds it fits, and the template check says which.
+- **The hook.**
+  - `letters/signals.py` hears a new active Supervisor or Panel appointment and makes the letter once the approval is saved (`transaction.on_commit`, robust).
+  - No teammate file was changed.
+  - A failed letter never undoes an approval.
+- **Making the letter** (`letters/appointment_letters.py`):
+  - Issued at once from the active template.
+  - Recipients: the student and the supervisor; for panel letters, the panel member too, with the current primary supervisor in copy.
+  - Each person gets an in-app notice and, when email alerts are on, an email linking to `/files/letters/<id>`.
+  - If a value is blank or the template has office-filled fields, the letter waits in Requests for the office instead.
+  - At most one live letter per appointment, guarded by the database.
+- **When there is no usable template** (or the panel profile has no student), the office gets one notice per appointment. `GET /api/letters/appointment-letters/missing/` lists active appointments without letters, and `POST .../create/` makes them (chosen ones, or `all`).
+- **Reissue.** `POST /api/letters/requests/<id>/reissue/` issues the letter again with current details, such as an amended research title. The old letter is revoked as "Replaced by <ref>." and everyone is told.
+- **Access.**
+  - Lecturers on a letter can open it and its PDF; `GET .../appointment-letters/received/` lists theirs.
+  - Students see appointment letters only once issued, and cannot withdraw them.
+  - The office's letter list filters by `madeBy=request|automatic`.
+  - Rejecting a waiting appointment letter tells no student.
+  - Revoking and resending reach everyone on the letter.
+- **Migration:** `letters.0005` (dev DB backed up first, then migrated). The frontend placeholder and disclaimer mirrors (`letterDocument.ts`) and their tests were updated.
+
+- **Migration dependency.** `letters.0005` depends on `appointments.0004`, where `SupervisorAppointment` was created, not on the newest appointments migration. Wey Cheng's migration tests roll appointments back to 0012 or 0014 while keeping every other app at its latest. A dependency on 0016 broke `test_amendment_migration`; 0004 keeps his tests as they were.
+
+**Commit:** `df853d9`.
+
+**Verification:**
+- **Backend:** 1,269 of 1,270 tests pass, including 28 new ones in `letters/test_appointment_letters.py`.
+  - One test goes through the real approval endpoints: apply, accept, approve, then panel recommend, accept, approve.
+  - The one failure is the known teammate test above, which fails the same way on `main`.
+- **Checks:** Django checks and the migration-drift check are clean. The dev DB is consistent (`migrate --check`).
+- **Frontend:** all 144 test scripts pass, plus TypeScript, the production build and both production security guards.
+- **Not yet:** a browser check, because L1 has no screens. That comes in L2 and L3.
+
 ## Current-change snapshot prepared for branch push (2026-10-15)
 
 At the user's request, packaged all current tracked/untracked project changes on `codex/portal-consistency-and-toast` for commit and push; the user will create the PR. Included existing Supervisor/shared-decision/programme-access/workspace work, tests, handoffs and the proposed Panel design. Private environment/credential files and database backups remain excluded; staged filename/content checks found no recognised credential patterns. Removed whitespace only in two staged files. Requirements and architecture were checked and retain the current implemented/proposed boundaries. No new Panel redesign implementation.
