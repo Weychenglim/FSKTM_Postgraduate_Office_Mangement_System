@@ -22,7 +22,7 @@ from django.conf import settings
 from django.db.models import Count, Max
 
 from .encoder import HYBRID, KEYWORDS, get_encoder
-from .models import FaqAltQuestion, FaqCategory, FaqEntry, FaqVector
+from .models import FaqAltQuestion, FaqCategory, FaqDocument, FaqEntry, FaqPassage, FaqVector
 from .text import words
 
 K1 = 1.5
@@ -84,6 +84,7 @@ class Result:
     band: str
     candidates: list
     mode: str
+    passage: object = None
 
     @property
     def top(self):
@@ -262,3 +263,122 @@ def find(text, *, strong=None, possible=None, **kinds):
     confidence = ranked[0].confidence
     band = STRONG if confidence >= strong else POSSIBLE if confidence >= possible else NONE
     return Result(band, ranked, mode)
+
+
+# Passages from the office's reference documents, searched only when no
+# entry is a clear match. They have their own, stricter cut-off.
+
+
+@dataclass
+class Passage:
+    passage_id: int
+    document_id: int
+    title: str
+    file_name: str
+    page: int | None
+    text: str
+    words: Counter
+    length: int
+
+
+@dataclass
+class PassageIndex:
+    key: tuple
+    items: list
+    doc_freq: Counter
+    average_length: float
+    vectors: object = None
+
+    def idf(self, word):
+        total = len(self.items)
+        found = self.doc_freq.get(word, 0)
+        return math.log(1 + (total - found + 0.5) / (found + 0.5))
+
+
+@dataclass
+class PassageMatch:
+    passage: Passage
+    meaning: float | None
+    keywords: float
+    mode: str
+
+    @property
+    def confidence(self):
+        return self.meaning if self.meaning is not None else self.keywords
+
+
+def passage_key():
+    documents = FaqDocument.objects.filter(status=FaqDocument.Status.READY, archived=False).aggregate(
+        total=Count("pk"), latest=Max("updated_at")
+    )
+    return (documents["total"], documents["latest"])
+
+
+def build_passage_index(key, encoder):
+    rows = FaqPassage.objects.filter(
+        document__status=FaqDocument.Status.READY, document__archived=False
+    ).select_related("document")
+    items = []
+    for row in rows:
+        counted = Counter(words(row.text))
+        items.append(
+            Passage(
+                passage_id=row.pk,
+                document_id=row.document_id,
+                title=row.document.title,
+                file_name=row.document.original_name,
+                page=row.page,
+                text=row.text,
+                words=counted,
+                length=sum(counted.values()),
+            )
+        )
+    doc_freq = Counter(word for item in items for word in item.words)
+    average = sum(item.length for item in items) / len(items) if items else 1.0
+    index = PassageIndex(key=key, items=items, doc_freq=doc_freq, average_length=average or 1.0)
+    if encoder is not None and items:
+        index.vectors = vectors_for([item.text for item in items], encoder)
+    return index
+
+
+def current_passages():
+    encoder = get_encoder()
+    key = (passage_key(), getattr(encoder, "name", KEYWORDS))
+    cached = _cache.get("passages")
+    if cached is not None and cached.key == key:
+        return cached
+    with _lock:
+        cached = _cache.get("passages")
+        if cached is None or cached.key != key:
+            cached = build_passage_index(key, encoder)
+            _cache["passages"] = cached
+        return cached
+
+
+def find_passage(text):
+    """The best passage for a question, or None. With the model the meaning
+    decides; keyword search alone needs at least two words to agree."""
+    index = current_passages()
+    if not index.items:
+        return None
+    query = list(dict.fromkeys(words(text)))
+    total = sum(index.idf(word) for word in query)
+    encoder = get_encoder()
+    meanings = None
+    if index.vectors is not None and encoder is not None:
+        meanings = index.vectors @ encoder.encode([text])[0]
+    best = None
+    for position, item in enumerate(index.items):
+        found = [word for word in query if word in item.words]
+        keywords = sum(index.idf(word) for word in found) / total if total else 0.0
+        if meanings is None and len(found) < 2:
+            keywords = 0.0
+        match = PassageMatch(
+            passage=item,
+            meaning=float(meanings[position]) if meanings is not None else None,
+            keywords=keywords,
+            mode=HYBRID if meanings is not None else KEYWORDS,
+        )
+        if best is None or match.confidence > best.confidence:
+            best = match
+    return best

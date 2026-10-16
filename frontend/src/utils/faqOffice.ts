@@ -56,6 +56,16 @@ export function faqHistoryLine(change: FaqChangeRow): string {
       return 'Restored as a draft';
     case 'DELETED':
       return 'Deleted';
+    case 'DOCUMENT_ADDED':
+      return 'Document uploaded';
+    case 'DOCUMENT_REPLACED':
+      return 'Document file replaced';
+    case 'DOCUMENT_RENAMED':
+      return 'Document renamed';
+    case 'DOCUMENT_ARCHIVED':
+      return 'Document archived';
+    case 'DOCUMENT_RESTORED':
+      return 'Document restored';
     default:
       return change.action;
   }
@@ -66,8 +76,20 @@ export function groupLine(group: FaqQuestionGroup, when: string): string {
   const asked = `Asked ${plural(group.count, 'time', 'times')} · last on ${when}`;
   if (group.lastOutcome === 'NO_MATCH') return `${asked} · no answer found`;
   if (group.lastOutcome === 'CHOICES') return `${asked} · the chatbot offered choices`;
+  if (group.lastOutcome === 'DOCUMENT') return `${asked} · the chatbot showed a passage from a document`;
   if (group.lastEntry) return `${asked} · the chatbot showed "${group.lastEntry.question}"`;
   return asked;
 }
 
 export const percent = (value: number | null) => (value === null ? 'None yet' : `${value}%`);
+
+/** A reference document's state, as the Documents tab shows it. */
+export function documentState(document: { status: 'READY' | 'NO_TEXT'; passages: number; archived: boolean }): { label: string; className: string } {
+  if (document.archived) return { label: 'Archived', className: 'bg-slate-100 text-slate-600' };
+  if (document.status === 'NO_TEXT') return { label: 'No text found (scanned PDF?)', className: 'bg-amber-50 text-amber-800' };
+  return { label: `Ready, ${plural(document.passages, 'passage', 'passages')}`, className: 'bg-emerald-50 text-emerald-800' };
+}
+
+/** "From Postgraduate Handbook 2026, page 12" above a passage in the chat. */
+export const passageSource = (passage: { title: string; page: number | null }): string =>
+  `From ${passage.title}${passage.page ? `, page ${passage.page}` : ''}`;

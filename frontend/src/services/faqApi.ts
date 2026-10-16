@@ -8,6 +8,7 @@
 import type {
   FaqCategorySummary,
   FaqChatbotSettings,
+  FaqDocumentSummary,
   FaqEntryDetail,
   FaqEntryFilters,
   FaqEntryInput,
@@ -20,7 +21,7 @@ import type {
   FaqStart,
   FaqTryReply,
 } from '../types';
-import { request, requestBlob } from './apiClient';
+import { request, requestBlob, requestMultipart } from './apiClient';
 
 const BASE = '/faq';
 
@@ -120,6 +121,42 @@ export async function downloadFaqReviewList(): Promise<void> {
   const link = document.createElement('a');
   link.href = url;
   link.download = `faq-review-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function getFaqDocuments(): Promise<FaqDocumentSummary[]> {
+  return request<FaqDocumentSummary[]>(`${BASE}/documents/`);
+}
+
+export function uploadFaqDocument(file: File, title: string): Promise<FaqDocumentSummary> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('title', title);
+  return requestMultipart<FaqDocumentSummary>(`${BASE}/documents/`, form);
+}
+
+export function replaceFaqDocument(id: string, file: File): Promise<FaqDocumentSummary> {
+  const form = new FormData();
+  form.append('file', file);
+  return requestMultipart<FaqDocumentSummary>(`${BASE}/documents/${encodeURIComponent(id)}/replace/`, form);
+}
+
+export function renameFaqDocument(id: string, title: string): Promise<FaqDocumentSummary> {
+  return request<FaqDocumentSummary>(`${BASE}/documents/${encodeURIComponent(id)}/`, json('PATCH', { title }));
+}
+
+export function stepFaqDocument(id: string, step: 'archive' | 'restore'): Promise<FaqDocumentSummary> {
+  return request<FaqDocumentSummary>(`${BASE}/documents/${encodeURIComponent(id)}/${step}/`, { method: 'POST' });
+}
+
+/** Saves a reference document, for the office or a student opening a passage's source. */
+export async function downloadFaqDocument(id: string, fileName: string): Promise<void> {
+  const blob = await requestBlob(`${BASE}/documents/${encodeURIComponent(id)}/file/`);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

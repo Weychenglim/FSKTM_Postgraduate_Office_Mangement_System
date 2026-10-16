@@ -21,6 +21,7 @@ export const APP_ROUTES = {
   faqEntries: '/faq/entries',
   faqEntryNew: '/faq/entries/new',
   faqQuestions: '/faq/questions',
+  faqDocuments: '/faq/documents',
   faqSettings: '/faq/settings',
   files: '/files',
   filesUpload: '/files/upload',

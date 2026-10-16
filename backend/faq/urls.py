@@ -18,4 +18,8 @@ urlpatterns = [
     path("questions/", views.questions_view, name="faq-questions"),
     path("questions/review/", views.questions_review_view, name="faq-questions-review"),
     path("settings/", views.chatbot_settings_view, name="faq-settings"),
+    path("documents/", views.documents_view, name="faq-documents"),
+    path("documents/<int:document_id>/", views.document_detail_view, name="faq-document"),
+    path("documents/<int:document_id>/file/", chat_views.document_file_view, name="faq-document-file"),
+    path("documents/<int:document_id>/<str:step>/", views.document_step_view, name="faq-document-step"),
 ]

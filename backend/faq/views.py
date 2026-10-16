@@ -24,8 +24,9 @@ from .entries import (
     edit_entry,
     entry_dict,
 )
-from .models import FaqCategory, FaqEntry, FaqSettings
+from .models import FaqCategory, FaqDocument, FaqEntry, FaqSettings
 from .questions import question_stats, review_questions, waiting_groups
+from .references import add_document, document_dict, rename_document, replace_document, set_archived
 from .review_export import review_workbook
 
 User = get_user_model()
@@ -301,3 +302,46 @@ def chatbot_settings_view(request):
         chatbot.updated_by = request.user
         chatbot.save()
     return Response(settings_dict(chatbot))
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def documents_view(request):
+    """The office's reference documents, or a new one (multipart: file, title)."""
+    require_office(request)
+    if request.method == "POST":
+        try:
+            document = add_document(actor=request.user, upload=request.FILES.get("file"), title=request.data.get("title", ""))
+        except FaqRefused as exc:
+            return refused(exc)
+        return Response(document_dict(document), status=status.HTTP_201_CREATED)
+    documents = FaqDocument.objects.annotate(passage_total=Count("passages"))
+    return Response([document_dict(document, document.passage_total) for document in documents])
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def document_detail_view(request, document_id):
+    require_office(request)
+    try:
+        document = rename_document(actor=request.user, document_id=document_id, title=request.data.get("title", ""))
+    except FaqRefused as exc:
+        return refused(exc)
+    return Response(document_dict(document))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def document_step_view(request, document_id, step):
+    """Archive or restore a document, or replace its file."""
+    require_office(request)
+    try:
+        if step == "replace":
+            document = replace_document(actor=request.user, document_id=document_id, upload=request.FILES.get("file"))
+        elif step in ("archive", "restore"):
+            document = set_archived(actor=request.user, document_id=document_id, archived=step == "archive")
+        else:
+            return Response({"error": "No such action."}, status=status.HTTP_404_NOT_FOUND)
+    except FaqRefused as exc:
+        return refused(exc)
+    return Response(document_dict(document))

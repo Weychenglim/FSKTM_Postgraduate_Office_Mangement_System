@@ -6,7 +6,7 @@
 // FAQ chatbot (UC28) and its knowledge base (UC29).
 
 export type FaqPortalLink = '' | 'SUPERVISOR_APPOINTMENTS' | 'PANEL_APPOINTMENTS' | 'LETTERS' | 'FILES' | 'ANNOUNCEMENTS';
-export type FaqOutcome = 'ANSWERED' | 'CHOICES' | 'NO_MATCH';
+export type FaqOutcome = 'ANSWERED' | 'CHOICES' | 'DOCUMENT' | 'NO_MATCH';
 
 export interface FaqLink {
   id: string;
@@ -21,11 +21,21 @@ export interface FaqAnswerCard {
   portalLink: FaqPortalLink;
 }
 
+/** A passage from a document the office uploaded: an extract, not a reviewed answer. */
+export interface FaqPassageCard {
+  documentId: string;
+  title: string;
+  fileName: string;
+  page: number | null;
+  text: string;
+}
+
 export interface FaqReply {
   outcome: FaqOutcome;
   answer: FaqAnswerCard | null;
   choices: FaqLink[];
   related: FaqLink[];
+  passage: FaqPassageCard | null;
   contactText: string;
   mode: 'hybrid' | 'keywords';
   questionId: string;
@@ -119,6 +129,7 @@ export interface FaqTryCandidate {
 
 export interface FaqTryReply extends Omit<FaqReply, 'questionId' | 'token'> {
   match: 'Strong' | 'Possible' | 'None';
+  passageConfidence: number | null;
   candidates: FaqTryCandidate[];
 }
 
@@ -152,5 +163,20 @@ export interface FaqSearchStatus {
   mode: 'hybrid' | 'keywords';
   model: string;
   published: number;
+  documents: number;
   vectors: number;
+}
+
+export interface FaqDocumentSummary {
+  id: string;
+  title: string;
+  fileName: string;
+  kind: 'PDF' | 'DOCX';
+  size: string;
+  pages: number | null;
+  status: 'READY' | 'NO_TEXT';
+  passages: number;
+  archived: boolean;
+  uploadedBy: string;
+  uploadedAt: string;
 }

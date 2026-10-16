@@ -233,6 +233,7 @@ export default function App() {
   const faqView = pathname === APP_ROUTES.faqEntryNew ? 'new'
     : faqEntryMatch ? 'entry'
     : pathname === APP_ROUTES.faqQuestions ? 'questions'
+    : pathname === APP_ROUTES.faqDocuments ? 'documents'
     : pathname === APP_ROUTES.faqSettings ? 'settings'
     : 'entries';
   const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);

@@ -36,10 +36,16 @@ import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 import { useListState } from './ListState';
 import { FaqEntryPage } from './FaqEntryPage';
+import { FaqDocumentsTab } from './FaqDocumentsTab';
 
-type Tab = 'entries' | 'questions' | 'settings';
-const TABS: readonly Tab[] = ['entries', 'questions', 'settings'];
-const TAB_ROUTES: Record<Tab, string> = { entries: APP_ROUTES.faq, questions: APP_ROUTES.faqQuestions, settings: APP_ROUTES.faqSettings };
+type Tab = 'entries' | 'questions' | 'documents' | 'settings';
+const TABS: readonly Tab[] = ['entries', 'questions', 'documents', 'settings'];
+const TAB_ROUTES: Record<Tab, string> = {
+  entries: APP_ROUTES.faq,
+  questions: APP_ROUTES.faqQuestions,
+  documents: APP_ROUTES.faqDocuments,
+  settings: APP_ROUTES.faqSettings,
+};
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -439,7 +445,7 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new'; entryId
   const onCount = useCallback((count: number) => setWaiting(count), []);
 
   useEffect(() => {
-    if (view === 'entries' || view === 'settings') getFaqQuestionStats().then(result => setWaiting(result.stats.waiting)).catch(() => undefined);
+    if (view === 'entries' || view === 'documents' || view === 'settings') getFaqQuestionStats().then(result => setWaiting(result.stats.waiting)).catch(() => undefined);
   }, [view]);
 
   if (view === 'entry' || view === 'new') return <FaqEntryPage key={entryId ?? 'new'} entryId={view === 'new' ? null : entryId ?? null} />;
@@ -454,11 +460,12 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new'; entryId
         options={TABS}
         value={view}
         onChange={tab => tab !== view && navigate(TAB_ROUTES[tab])}
-        labels={{ entries: 'Entries', questions: waiting ? `Student questions (${waiting})` : 'Student questions', settings: 'Settings' }}
+        labels={{ entries: 'Entries', questions: waiting ? `Student questions (${waiting})` : 'Student questions', documents: 'Documents', settings: 'Settings' }}
         className="w-fit"
       />
       {view === 'entries' && <EntriesTab />}
       {view === 'questions' && <QuestionsTab onCount={onCount} />}
+      {view === 'documents' && <FaqDocumentsTab />}
       {view === 'settings' && <SettingsTab />}
     </div>
   );

@@ -4,10 +4,14 @@ Students only ever see Published entries. Entries imported from the office's
 FAQ PDF that came out damaged wait as Needs checking until the office fixes
 them.
 """
+import uuid
+from pathlib import PurePosixPath
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
+from django.utils import timezone
 
 
 class FaqCategory(models.Model):
@@ -121,10 +125,16 @@ class FaqChange(models.Model):
         ARCHIVED = "ARCHIVED", "Archived"
         RESTORED = "RESTORED", "Restored as a draft"
         DELETED = "DELETED", "Deleted"
+        DOCUMENT_ADDED = "DOCUMENT_ADDED", "Document uploaded"
+        DOCUMENT_REPLACED = "DOCUMENT_REPLACED", "Document replaced"
+        DOCUMENT_RENAMED = "DOCUMENT_RENAMED", "Document renamed"
+        DOCUMENT_ARCHIVED = "DOCUMENT_ARCHIVED", "Document archived"
+        DOCUMENT_RESTORED = "DOCUMENT_RESTORED", "Document restored"
 
     entry = models.ForeignKey(FaqEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="changes")
+    document = models.ForeignKey("FaqDocument", on_delete=models.SET_NULL, null=True, blank=True, related_name="changes")
     question = models.CharField(max_length=500, blank=True)
-    action = models.CharField(max_length=16, choices=Action.choices)
+    action = models.CharField(max_length=20, choices=Action.choices)
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -212,6 +222,7 @@ class FaqQuestion(models.Model):
     typed = models.BooleanField(default=True)
     outcome = models.CharField(max_length=16, choices=Outcome.choices)
     entry = models.ForeignKey(FaqEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name="asked")
+    document = models.ForeignKey("FaqDocument", on_delete=models.SET_NULL, null=True, blank=True, related_name="asked")
     score = models.FloatField(null=True, blank=True)
     search_mode = models.CharField(max_length=16, blank=True)
     helpful = models.BooleanField(null=True, blank=True)
@@ -228,3 +239,57 @@ class FaqQuestion(models.Model):
 
     class Meta:
         ordering = ["-asked_at", "-pk"]
+
+
+def document_path(instance, filename):
+    now = timezone.localtime()
+    return f"faq/{now:%Y}/{now:%m}/{uuid.uuid4().hex}{PurePosixPath(filename).suffix.lower()}"
+
+
+class FaqDocument(models.Model):
+    """A reference document the office uploaded (a handbook, a guide). When
+    no FAQ entry fits, the chatbot can show a passage from it, labelled as
+    an extract."""
+
+    class Status(models.TextChoices):
+        READY = "READY", "Ready"
+        NO_TEXT = "NO_TEXT", "No text found"
+
+    title = models.CharField(max_length=200)
+    file = models.FileField(upload_to=document_path, max_length=255)
+    original_name = models.CharField(max_length=150)
+    kind = models.CharField(max_length=8)
+    content_type = models.CharField(max_length=128)
+    size = models.PositiveBigIntegerField()
+    page_count = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices)
+    archived = models.BooleanField(default=False)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="faq_documents",
+    )
+    uploaded_by_name = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-pk"]
+        verbose_name = "FAQ reference document"
+
+    def __str__(self):
+        return self.title
+
+
+class FaqPassage(models.Model):
+    """About 150 words of a document, with the page it came from."""
+
+    document = models.ForeignKey(FaqDocument, on_delete=models.CASCADE, related_name="passages")
+    position = models.PositiveIntegerField()
+    page = models.PositiveIntegerField(null=True, blank=True)
+    text = models.TextField()
+
+    class Meta:
+        ordering = ["document", "position"]

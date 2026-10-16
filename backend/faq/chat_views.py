@@ -5,6 +5,7 @@ without saving them. Lecturers have no FAQ menu, so they are refused.
 """
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.http import FileResponse
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import PermissionDenied
@@ -14,7 +15,7 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from .chat import ChatRefused, ask, give_feedback, open_entry, start_screen, try_question
 from .encoder import search_mode
-from .models import FaqEntry, FaqVector
+from .models import FaqDocument, FaqEntry, FaqVector
 from .views import require_office
 
 User = get_user_model()
@@ -121,7 +122,30 @@ def search_status_view(request):
             "mode": mode,
             "model": settings.FAQ_MODEL if mode == "hybrid" else "",
             "published": FaqEntry.objects.published().count(),
+            "documents": FaqDocument.objects.filter(status=FaqDocument.Status.READY, archived=False).count(),
             "vectors": FaqVector.objects.filter(model_name=settings.FAQ_MODEL).count(),
         },
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def document_file_view(request, document_id):
+    """A reference document, for the office, or for a student opening the
+    document a passage came from (only while it is ready and not archived)."""
+    documents = FaqDocument.objects.all()
+    if getattr(request.user, "role", None) != User.Role.OFFICE_ADMIN:
+        require_asker(request)
+        documents = documents.filter(status=FaqDocument.Status.READY, archived=False)
+    document = documents.filter(pk=document_id).first()
+    if document is None:
+        return Response({"error": "This document is not available."}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        handle = document.file.open("rb")
+    except (FileNotFoundError, OSError):
+        return Response({"error": "File not found. Please tell the PG office."}, status=status.HTTP_404_NOT_FOUND)
+    response = FileResponse(handle, as_attachment=True, filename=document.original_name, content_type=document.content_type)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

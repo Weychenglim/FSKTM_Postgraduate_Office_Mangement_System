@@ -7,7 +7,7 @@ from django.core import signing
 from django.utils import timezone
 
 from .models import FaqEntry, FaqQuestion, FaqSettings
-from .search import MAX_CHOICES, MAX_RELATED, NONE, POSSIBLE, STRONG, find
+from .search import MAX_CHOICES, MAX_RELATED, NONE, POSSIBLE, STRONG, find, find_passage
 from .text import clean_question
 
 Outcome = FaqQuestion.Outcome
@@ -70,10 +70,29 @@ def _related(result, answer_id):
     ][:MAX_RELATED]
 
 
+def passage_card(match):
+    passage = match.passage
+    return {
+        "documentId": str(passage.document_id),
+        "title": passage.title,
+        "fileName": passage.file_name,
+        "page": passage.page,
+        "text": passage.text,
+    }
+
+
 def reply_for(text):
     """The reply to a question, and what to save about it."""
     result = find(text)
-    reply = {"outcome": Outcome.NO_MATCH, "answer": None, "choices": [], "related": [], "contactText": "", "mode": result.mode}
+    reply = {
+        "outcome": Outcome.NO_MATCH,
+        "answer": None,
+        "choices": [],
+        "related": [],
+        "passage": None,
+        "contactText": "",
+        "mode": result.mode,
+    }
     top = result.top
     if result.band == STRONG:
         reply.update(outcome=Outcome.ANSWERED, answer=entry_card(top.item), related=_related(result, top.item.entry_id))
@@ -84,7 +103,12 @@ def reply_for(text):
             choices=[_link(c.item) for c in result.candidates[:MAX_CHOICES] if c is top or c.confidence >= floor],
         )
     else:
-        reply["contactText"] = FaqSettings.load().contact_text
+        match = find_passage(text)
+        result.passage = match
+        if match is not None and match.confidence >= settings.FAQ_DOCUMENT_MATCH:
+            reply.update(outcome=Outcome.DOCUMENT, passage=passage_card(match))
+        else:
+            reply["contactText"] = FaqSettings.load().contact_text
     return reply, result
 
 
@@ -94,12 +118,17 @@ def ask(text, *, typed=True):
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
     top = result.top
+    if reply["passage"]:
+        score = result.passage.confidence
+    else:
+        score = top.confidence if top else None
     saved = FaqQuestion.objects.create(
         text=text,
         typed=typed,
         outcome=reply["outcome"],
         entry_id=int(reply["answer"]["id"]) if reply["answer"] else None,
-        score=round(top.confidence, 4) if top else None,
+        document_id=int(reply["passage"]["documentId"]) if reply["passage"] else None,
+        score=round(score, 4) if score is not None else None,
         search_mode=result.mode,
     )
     return {**reply, "questionId": str(saved.pk), "token": token_for(saved)}
@@ -127,6 +156,7 @@ def open_entry(entry_id, *, question_id=None, token=None):
         "answer": entry_card_from(entry),
         "choices": [],
         "related": related[:MAX_RELATED],
+        "passage": None,
         "contactText": "",
         "mode": result.mode,
         "questionId": str(saved.pk),
@@ -162,9 +192,11 @@ def try_question(text):
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
     band = {STRONG: "Strong", POSSIBLE: "Possible", NONE: "None"}[result.band]
+    match = getattr(result, "passage", None)
     return {
         **reply,
         "match": band,
+        "passageConfidence": round(match.confidence, 3) if match is not None else None,
         "candidates": [
             {
                 "id": str(c.item.entry_id),

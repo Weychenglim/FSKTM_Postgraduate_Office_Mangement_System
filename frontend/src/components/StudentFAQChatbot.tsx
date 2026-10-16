@@ -5,11 +5,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight, Bot, Info, RotateCcw, Send } from 'lucide-react';
+import { ArrowRight, Bot, FileText, Info, RotateCcw, Send } from 'lucide-react';
 import type { FaqLink, FaqReply, FaqStart } from '../types';
 import { ApiError } from '../services/apiClient';
-import { askFaq, getFaqStart, openFaqAnswer, sendFaqFeedback } from '../services/faqApi';
+import { askFaq, downloadFaqDocument, getFaqStart, openFaqAnswer, sendFaqFeedback } from '../services/faqApi';
 import { FAQ_PORTAL_LINKS, askedDifferently } from '../utils/faqText';
+import { passageSource } from '../utils/faqOffice';
 import { PageHeader } from './PortalPrimitives';
 import { FaqText } from './FaqText';
 
@@ -161,8 +162,51 @@ export const StudentFAQChatbot: React.FC = () => {
     }
   };
 
+  const feedbackRow = (item: Extract<ChatItem, { kind: 'reply' }>) =>
+    item.feedback === 'none' || item.feedback === 'sending' ? (
+      <div className="flex items-center gap-2 text-[12px] text-slate-500">
+        <span>Did this help?</span>
+        <button type="button" disabled={item.feedback === 'sending'} className="rounded-lg px-2.5 py-1 font-bold text-slate-700 hover:bg-slate-100" onClick={() => void feedback(item, true)}>Yes</button>
+        <button type="button" disabled={item.feedback === 'sending'} className="rounded-lg px-2.5 py-1 font-bold text-slate-700 hover:bg-slate-100" onClick={() => void feedback(item, false)}>No</button>
+      </div>
+    ) : item.feedback === 'yes' ? (
+      <p className="text-[12px] text-slate-500">Thanks for letting us know.</p>
+    ) : (
+      <>
+        <p>Sorry about that.</p>
+        <ContactBox text={item.contact || start?.contactText || ''} />
+      </>
+    );
+
+  const openDocument = async (documentId: string, fileName: string) => {
+    try {
+      await downloadFaqDocument(documentId, fileName);
+    } catch {
+      add({ kind: 'problem', text: 'The document could not be opened. It may have been removed.' });
+    }
+  };
+
   const renderReply = (item: Extract<ChatItem, { kind: 'reply' }>) => {
     const { reply } = item;
+    if (reply.outcome === 'DOCUMENT' && reply.passage) {
+      const passage = reply.passage;
+      return (
+        <AssistantRow>
+          <p className="text-[12px] font-semibold text-slate-500">{passageSource(passage)}</p>
+          <blockquote className="whitespace-pre-line border-l-4 border-slate-300 pl-4 text-slate-700 [overflow-wrap:anywhere]">{passage.text}</blockquote>
+          <p className="text-[12px] text-slate-500">This is a passage from a document the PG Office uploaded, not a reviewed FAQ answer.</p>
+          <button
+            type="button"
+            onClick={() => void openDocument(passage.documentId, passage.fileName)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 shadow-3xs hover:bg-slate-50"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            Open document
+          </button>
+          {feedbackRow(item)}
+        </AssistantRow>
+      );
+    }
     if (reply.outcome === 'NO_MATCH') {
       return (
         <AssistantRow>
@@ -223,20 +267,7 @@ export const StudentFAQChatbot: React.FC = () => {
             </div>
           </div>
         )}
-        {item.feedback === 'none' || item.feedback === 'sending' ? (
-          <div className="flex items-center gap-2 text-[12px] text-slate-500">
-            <span>Did this help?</span>
-            <button type="button" disabled={item.feedback === 'sending'} className="rounded-lg px-2.5 py-1 font-bold text-slate-700 hover:bg-slate-100" onClick={() => void feedback(item, true)}>Yes</button>
-            <button type="button" disabled={item.feedback === 'sending'} className="rounded-lg px-2.5 py-1 font-bold text-slate-700 hover:bg-slate-100" onClick={() => void feedback(item, false)}>No</button>
-          </div>
-        ) : item.feedback === 'yes' ? (
-          <p className="text-[12px] text-slate-500">Thanks for letting us know.</p>
-        ) : (
-          <>
-            <p>Sorry about that.</p>
-            <ContactBox text={item.contact || start?.contactText || ''} />
-          </>
-        )}
+        {feedbackRow(item)}
       </AssistantRow>
     );
   };

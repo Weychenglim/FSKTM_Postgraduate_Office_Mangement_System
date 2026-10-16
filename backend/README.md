@@ -287,6 +287,20 @@ The chatbot's answers (UC28, UC29).
 - "add" puts the group's wording on an entry as another way to ask. "create" notes that an entry was made for it. "dismiss" clears it.
 - The numbers count typed questions from the 1st of this month, Malaysia time.
 
+**Reference documents** (handbooks and guides the chatbot may quote):
+
+| Method | Path | Body | Returns |
+| ------ | ---- | ---- | ------- |
+| GET, POST | `documents/` | multipart `{file, title}` (PDF or Word, the File Management checks, 10 MB) | documents with status (READY or NO_TEXT), passages and archived |
+| PATCH | `documents/<id>/` | `{title}` | the document |
+| POST | `documents/<id>/replace/` (multipart `{file}`), `archive/`, `restore/` | | the document |
+| GET | `documents/<id>/file/` | | the file as an attachment: the office always; students and coordinators only while it is ready and not archived |
+
+- PDF text comes from PDFium, and Word text from the file's own XML. A scanned PDF has no text, so it is kept as NO_TEXT and never searched.
+- Text is cut into passages of about 150 words that end at a sentence and keep their page.
+- Passages are searched only when no entry matches (below `FAQ_POSSIBLE_MATCH`). The reply's outcome is then DOCUMENT, with `passage: {documentId, title, fileName, page, text}`, as long as the passage reaches `FAQ_DOCUMENT_MATCH` (meaning with the model; with keywords alone, at least two words must agree).
+- The chat labels it as a passage, not a reviewed answer.
+
 **The office's corrections.**
 - `python manage.py import_faq_corrections <filled review list.xlsx>` loads the "Correct answer" column, plus "Correct question" where filled.
 - Each corrected entry counts as checked and is published (`--draft` keeps it a draft).

@@ -259,6 +259,8 @@ FAQ_ENCODER = os.getenv("FAQ_ENCODER", "faq.encoder.FastEmbedEncoder")
 # How sure the search must be to answer, or to offer choices (set in phase C6).
 FAQ_STRONG_MATCH = float(os.getenv("FAQ_STRONG_MATCH", "0.72"))
 FAQ_POSSIBLE_MATCH = float(os.getenv("FAQ_POSSIBLE_MATCH", "0.5"))
+# A passage from a reference document is shown only above this (set in phase C6).
+FAQ_DOCUMENT_MATCH = float(os.getenv("FAQ_DOCUMENT_MATCH", "0.6"))
 FAQ_ASK_THROTTLE_RATE = os.getenv("FAQ_ASK_THROTTLE_RATE", "30/minute")
 FAQ_QUESTION_RETENTION_DAYS = int(os.getenv("FAQ_QUESTION_RETENTION_DAYS", "365"))
 
