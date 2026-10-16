@@ -1,5 +1,43 @@
 # Project Status
 
+## FAQ Chatbot, Phase C5: Reference Documents (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `0222ea7`.
+
+- **New models** (migration `faq.0003`):
+  - `FaqDocument`, the uploaded handbook or guide, kept in private storage;
+  - `FaqPassage`, about 150 words with the page it came from;
+  - saved questions and the history now also point at documents;
+  - five new history actions: uploaded, replaced, renamed, archived, restored.
+- **Uploads:**
+  - the same safety checks as File Management (`check_upload`), PDF and Word only, 10 MB;
+  - PDF text comes from PDFium and Word text from the file's own XML, so there is no new library;
+  - passages end at a sentence where possible and never run across a page;
+  - a scanned PDF has no text, so it is kept as "No text found" and never searched. No text recognition is done.
+- **How documents answer:**
+  - passages are searched only when no entry matches;
+  - the reply is then "From <title>, page N", the passage, a note that it is "a passage from a document the PG Office uploaded, not a reviewed FAQ answer", **Open document** (a download), and "Did this help?";
+  - the cut-off is `FAQ_DOCUMENT_MATCH`, 0.6 for now: the meaning score with the model, or, with keywords alone, at least two words must agree;
+  - archived documents and those with no text are never quoted.
+- **Who opens a document:** the office always. Students and coordinators only while it is ready and not archived. Lecturers are refused.
+- **Office screen:** a new **Documents** tab (`/faq/documents`):
+  - upload with an optional title (otherwise taken from the file name);
+  - each document shows its file, size, pages, uploader and date, with "Ready, N passages", "No text found (scanned PDF?)" or "Archived";
+  - the ⋯ menu holds Download, Rename, Replace the file, and Archive or Restore.
+- **Dev database:** backed up first (`..._before_faq_documents_2026-10-16.dump`), then migrated to `faq.0003`.
+
+**Browser check** (private servers, smoke accounts, the real model): 14 of 14 pass.
+- **Office:** a text PDF is ready with its passages; a scanned PDF shows "No text found"; a title comes from the file name; renaming works.
+- **Student:** asking "What time does the faculty library open on Saturday?" quotes "From Smoke Library Guide, page 1" with the extract label, and Open document downloads the PDF.
+- **Archive:** after archiving, the same question no longer quotes it.
+- **Layout:** the tab fits at 1440, 1024, 768 and 390 pixels. No console errors.
+- **Afterwards:** the smoke documents, their files, questions, history and accounts were removed.
+- **Small fixes from the screenshots:** small files now show in KB instead of "0 MB", and "1 page" is singular.
+
+**Verification:**
+- Backend: 1,426 pass, 1 skipped (the real model) and 1 fails, Wey Cheng's known test. The 13 new tests cover a text PDF (passages and pages), a scanned PDF, Word text, refusing other types and broken files, rename, replace (the old file deleted), archive and restore, office-only management, a passage answering with no entry, a clear entry winning, archived and unreadable documents never searched, a weak passage refused, keyword mode needing two words, who may open a file, and passages never crossing a page.
+- Frontend: all 148 test scripts pass. `faqOffice.test.ts` now also checks the document wording and that every new history action has words; that guard caught five missing ones, which were added. TypeScript, the build and both production security checks pass.
+
 ## FAQ Chatbot, Phase C4: The Office's Knowledge Base Screens (2026-10-16)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `c24dacf`. The office's FAQ page ("FAQ Knowledge Base") replaces the Academic FAQ Editor mock. Its tabs are their own addresses: `/faq`, `/faq/questions`, `/faq/settings`, and entries at `/faq/entries/<id>` and `/faq/entries/new`.

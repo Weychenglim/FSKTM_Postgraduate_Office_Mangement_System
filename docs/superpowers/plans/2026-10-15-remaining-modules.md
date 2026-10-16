@@ -453,7 +453,7 @@ On phones it is the same, stacked. Errors show Retry, and too many questions in 
 | C2 | Search: install check, encoder, BM25, fusion, ask, feedback, saved questions, rate limit, fallback mode | Done | `62603fe` |
 | C3 | Student chat screen, all states, phones | Done | `55d961d` |
 | C4 | Office screens: Entries, entry page with Try it, Student questions, Settings; the office's corrections loaded | Done | `c24dacf` (the corrections loader is ready; the office has not sent corrections yet) |
-| C5 | Reference documents: upload, text, passages, search, the Documents tab, the chat document answer | Not started | |
+| C5 | Reference documents: upload, text, passages, search, the Documents tab, the chat document answer | Done | `0222ea7` |
 | C6 | Evaluation set, measuring, cut-offs, a regression test, docs and wrap-up | Not started | |
 | C7 | Optional: AI rewording, off by default | Only if Xiang asks | |
 
