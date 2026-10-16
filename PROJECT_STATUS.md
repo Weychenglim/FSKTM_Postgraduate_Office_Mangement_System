@@ -1,5 +1,65 @@
 # Project Status
 
+## FAQ Chatbot, Phase C6: Evaluation; UC28 And UC29 Complete (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `8eb2fed`. **This completes UC28 and UC29, and with them the whole remaining-modules plan (UC22, UC03, UC28, UC29).** Optional C7 (AI rewording) was not asked for and is not built.
+
+- **The evaluation set** (`docs/faq/evaluation-set.json`): 122 questions written the way students write them, each labelled with the published entries that answer it:
+  - 82 in English: 62 paraphrases, 9 short, 5 slang, 4 with typos and 2 exact terms;
+  - 20 in Malay or mixed Malay and English;
+  - 20 off-topic, which must get no answer.
+
+  Where two entries answer the same thing (for example "Fees" and "How much is the total fee?"), either counts.
+- **`python manage.py evaluate_faq`** runs the set through three versions of the search and reports:
+  - top-1 and top-3;
+  - answered right;
+  - helped (answered right, or the right entry among the choices);
+  - wrong answers;
+  - off-topic refused;
+  - time per question.
+
+  It sweeps the two cut-offs. The results are kept in `docs/faq/evaluation-results.json`.
+- **How the cut-offs were chosen:** answer as many questions right as possible, with at most 2 wrong answers (2%) and at least 90% of off-topic questions refused. A wrong answer misleads a student; a set of choices still helps.
+
+**Results for the report (Testing chapter), 2026-10-16, on the 56 published entries:**
+
+| Version | Cut-offs (strong / possible) | Top-1 | Top-3 | Answered right | Helped | Wrong answers | Off-topic refused | Time per question |
+|---|---|---|---|---|---|---|---|---|
+| Keywords only (BM25) | 0.61 / 0.22 | 65.7% | 75.5% | 39.2% | 67.6% | 2 | 90% | 3 ms |
+| Meaning only (MiniLM) | 0.70 / 0.43 | 85.3% | 93.1% | 52.9% | 87.3% | 2 | 90% | 11 ms |
+| **Combined (fusion), in use** | **0.69 / 0.42** | **91.2%** | **94.1%** | **64.7%** | **89.2%** | **2** | **90%** | **12 ms** |
+
+- **Combined is best on every measure** at the same budget of wrong answers. This justifies the hybrid design (design decision D12 and the C2 notes).
+- **By kind of question** (combined):
+
+  | Kind | Answered right | Helped |
+  |---|---|---|
+  | Paraphrases | 72.6% | 95.2% |
+  | Malay | 50% | 80% |
+  | Short | 55.6% | 88.9% |
+  | Slang | 60% | 80% |
+  | Typos | 25% | 50% |
+  | Exact terms | 100% | 100% |
+- **Trade-off, for the report:** looser cut-offs (0.62 / 0.36) would answer 78.4% right and help 92.2%, but give 4 wrong answers and refuse only 80% of off-topic questions. The stricter pair was chosen.
+- **Tried and dropped:** offering choices whenever the top two entries are nearly level. Margins of 0.02 to 0.08 made no difference, because the wrong answers' runners-up were never that close.
+- **Keyword fallback** gets its own cut-offs (`FAQ_KEYWORD_STRONG_MATCH` 0.61, `FAQ_KEYWORD_POSSIBLE_MATCH` 0.22), since it scores on another scale. Borrowing the combined pair would have helped only 58% instead of 68%.
+- **Regression tests** (`faq.test_evaluation`):
+  - the set itself is sound: 122 questions, 20 Malay, 20 off-topic, every reference is a real FAQ row, no repeats;
+  - the decision and the rule;
+  - keyword search alone on the imported FAQ must keep top-3 at least 72%, helped at least 64%, at most 2 wrong answers and 90% of off-topic refused. This runs every time;
+  - with `FAQ_REAL_MODEL_TESTS=1`, combined must keep top-1 at least 88%, top-3 at least 92%, answered right at least 60%, helped at least 86%, at most 2 wrong answers and 90% of off-topic refused (it passes).
+- **Known limits found** (for the report):
+  - **Typos:** a word like "aply" matches neither the keywords nor the model well.
+  - **Malay:** half of the questions are answered outright, but 80% helped once choices are counted.
+  - **Similar entries:** the two remaining wrong answers go to near entries ("when is course registration" gets the timetable entry; "berapa yuran permohonan" gets the total fee entry).
+  - **What improves these:** the office adding other ways of asking from the Student questions tab, and its corrections to the 61 entries that still need checking.
+  - **The document cut-off** (0.6) can't be measured until the office uploads its real handbook.
+- **Optional student check** (5 students: did it help, was it easy) is left for Xiang to run for the report.
+
+**Verification:**
+- Backend: all pass apart from Wey Cheng's known test. The real-model checks also pass with `FAQ_REAL_MODEL_TESTS=1`.
+- `check` and `makemigrations --check` are clean. No frontend change in this phase.
+
 ## FAQ Chatbot, Phase C5: Reference Documents (2026-10-16)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `0222ea7`.
