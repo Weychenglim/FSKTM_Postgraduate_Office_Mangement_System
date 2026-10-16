@@ -1,5 +1,48 @@
 # Project Status
 
+## FAQ Chatbot, Phase C4: The Office's Knowledge Base Screens (2026-10-16)
+
+Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `c24dacf`. The office's FAQ page ("FAQ Knowledge Base") replaces the Academic FAQ Editor mock. Its tabs are their own addresses: `/faq`, `/faq/questions`, `/faq/settings`, and entries at `/faq/entries/<id>` and `/faq/entries/new`.
+
+- **Entries:**
+  - a banner says how many imported entries need checking and how many are live, with **Show them** and **Download the review list**;
+  - search, plus Category and Status dropdowns (with counts);
+  - columns for Question (with its problem note, or how many other ways of asking and its portal button), Category, Status (a chip only when not Published) and Updated;
+  - a notice appears if the server is on keyword search only.
+- **Entry page:**
+  - question, other ways students ask (chips), answer with a Preview, category, and portal button;
+  - for an imported entry that needs checking, the PDF's text and its problem sit above the fields, with **Save changes**, **Mark as checked**, and **Mark as checked and publish**;
+  - Save draft and Publish for drafts; Save changes once published; Restore when archived. The ⋯ menu holds Archive and Delete;
+  - **Try it** shows the match (Strong, Possible or none) and the top entries with their scores, marks "This entry", and says when the entry isn't published yet. Nothing is saved;
+  - History.
+- **Student questions:**
+  - four numbers: questions this month, answered, marked helpful, and to look at;
+  - groups of questions with No match or "No", with how often and when they were asked, and what the chatbot did;
+  - **Add as another way to ask**: the closest entries are suggested through Try it, with a search for others;
+  - **Create entry**: opens a new entry with the question filled in, and settles the group once it is saved;
+  - **Dismiss**.
+- **Settings:** the contact text, and up to four common questions for the start screen.
+- **Backend additions:**
+  - `questions/` (`?only=stats` gives just the numbers, for the tab's count) and `questions/review/`;
+  - `settings/`;
+  - list rows carry their number of other ways of asking and the import note.
+- **Grouping by meaning.** The first browser run showed that "where can i park my car at the faculty" and "faculty parking where" did not group, because only identical words did. Groups now also form when questions are close in meaning (0.75 with the model, measured: same-meaning pairs scored 0.80 to 0.89, unrelated about 0.08). Without the model, only the same words group.
+- **The office's corrections:** `python manage.py import_faq_corrections <filled review list>` loads the correct answers, and questions where given. Each corrected entry is checked and published (`--draft` to hold them).
+  - **Fixed on the way:** the workbook was left open, which locked the file on Windows.
+  - **Waiting:** the office has not returned the list yet, so the 61 entries still need checking.
+
+**Browser check** (private servers, smoke accounts, the real model): 36 of 36 pass.
+- **Entries:** the banner and the review list download; checking an imported entry with the preview and another way of asking, then publishing it; Try it finding "This entry"; adding and publishing a new entry with a portal button.
+- **Student questions:** grouping, adding a group to an entry, creating an entry from a group, and dismissing.
+- **Settings and the ⋯ menu:** saving settings; archive and delete.
+- **Layout and roles:** all four pages fit at 1440, 1024, 768 and 390 pixels; a coordinator who opens an entry address gets the chatbot instead.
+- No console errors.
+- Afterwards the smoke entries, questions and accounts were removed, and the settings were restored. Nothing was added to the real entries, and the dev database is back to 56 Published and 61 Needs checking.
+
+**Verification:**
+- Backend: 1,413 pass, 1 skipped (the real model) and 1 fails, Wey Cheng's known test. The 13 new office tests cover grouping (by words and by meaning), add, create and dismiss, the numbers, the settings, office-only access, and the corrections loader (publish, draft, blank rows, unknown entry numbers, missing columns, formula text). Tests never load the real model.
+- Frontend: all 148 test scripts pass, including the new `utils/faqOffice.test.ts`. It checks that every backend status and history action has words. TypeScript, the build and both production security checks pass.
+
 ## FAQ Chatbot, Phase C3: The Chat Screen (2026-10-15)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `55d961d`. The FAQ Chatbot page now answers from the office's FAQ instead of fixed replies.
