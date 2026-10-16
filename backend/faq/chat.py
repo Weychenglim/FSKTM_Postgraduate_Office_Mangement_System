@@ -62,7 +62,7 @@ def _link(item):
 
 
 def _related(result, answer_id):
-    floor = settings.FAQ_POSSIBLE_MATCH * RELATED_SHARE
+    floor = result.possible * RELATED_SHARE
     return [
         _link(candidate.item)
         for candidate in result.candidates
@@ -97,7 +97,7 @@ def reply_for(text):
     if result.band == STRONG:
         reply.update(outcome=Outcome.ANSWERED, answer=entry_card(top.item), related=_related(result, top.item.entry_id))
     elif result.band == POSSIBLE:
-        floor = settings.FAQ_POSSIBLE_MATCH * RELATED_SHARE
+        floor = result.possible * RELATED_SHARE
         reply.update(
             outcome=Outcome.CHOICES,
             choices=[_link(c.item) for c in result.candidates[:MAX_CHOICES] if c is top or c.confidence >= floor],

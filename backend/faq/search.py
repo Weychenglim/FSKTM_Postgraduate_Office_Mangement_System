@@ -85,6 +85,7 @@ class Result:
     candidates: list
     mode: str
     passage: object = None
+    possible: float = 0.0
 
     @property
     def top(self):
@@ -251,18 +252,21 @@ def search(text, *, use_meaning=True, use_keywords=True):
 
 def find(text, *, strong=None, possible=None, **kinds):
     """Search and decide how sure the answer is."""
-    strong = settings.FAQ_STRONG_MATCH if strong is None else strong
-    possible = settings.FAQ_POSSIBLE_MATCH if possible is None else possible
     ranked, mode = search(text, **kinds)
+    keywords_only = mode == KEYWORDS
+    if strong is None:
+        strong = settings.FAQ_KEYWORD_STRONG_MATCH if keywords_only else settings.FAQ_STRONG_MATCH
+    if possible is None:
+        possible = settings.FAQ_KEYWORD_POSSIBLE_MATCH if keywords_only else settings.FAQ_POSSIBLE_MATCH
     if not ranked:
-        return Result(NONE, [], mode)
+        return Result(NONE, [], mode, possible=possible)
     # The fused order can put a near miss first; a clear match close behind it wins.
     leader = max(ranked[:MAX_CHOICES], key=lambda c: c.confidence)
     if leader is not ranked[0] and leader.confidence >= strong > ranked[0].confidence:
         ranked = [leader, *(c for c in ranked if c is not leader)]
     confidence = ranked[0].confidence
     band = STRONG if confidence >= strong else POSSIBLE if confidence >= possible else NONE
-    return Result(band, ranked, mode)
+    return Result(band, ranked, mode, possible=possible)
 
 
 # Passages from the office's reference documents, searched only when no

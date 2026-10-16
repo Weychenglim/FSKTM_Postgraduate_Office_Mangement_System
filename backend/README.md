@@ -287,6 +287,14 @@ The chatbot's answers (UC28, UC29).
 - "add" puts the group's wording on an entry as another way to ask. "create" notes that an entry was made for it. "dismiss" clears it.
 - The numbers count typed questions from the 1st of this month, Malaysia time.
 
+**Measuring the chatbot** (`python manage.py evaluate_faq [--out results.json]`):
+- It runs the 122 questions in `docs/faq/evaluation-set.json` through keywords only, meaning only and both combined: 82 English (paraphrases, short questions, slang and typos), 20 Malay or mixed, and 20 off-topic.
+- It reports top-1 and top-3, answered right, helped (answered right, or the right entry among the choices), wrong answers, off-topic refused, and time per question.
+- The cut-offs are chosen by one rule: answer as many questions right as possible, with at most 2 wrong answers and at least 90% of off-topic questions refused.
+- The results of 2026-10-16 are in `docs/faq/evaluation-results.json`. Combined (0.69 / 0.42): top-1 91.2%, top-3 94.1%, answered right 64.7%, helped 89.2%, 2 wrong answers, 90% of off-topic refused, about 12 ms per question.
+- Keyword search alone has its own cut-offs (`FAQ_KEYWORD_STRONG_MATCH` 0.61, `FAQ_KEYWORD_POSSIBLE_MATCH` 0.22), because it scores on another scale.
+- `faq.test_evaluation` fails if keyword search drops below its level. With `FAQ_REAL_MODEL_TESTS=1` it also checks the combined search.
+
 **Reference documents** (handbooks and guides the chatbot may quote):
 
 | Method | Path | Body | Returns |
