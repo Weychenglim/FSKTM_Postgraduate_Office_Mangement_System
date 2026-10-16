@@ -24,7 +24,8 @@ from .entries import (
     edit_entry,
     entry_dict,
 )
-from .models import FaqCategory, FaqEntry
+from .models import FaqCategory, FaqEntry, FaqSettings
+from .questions import question_stats, review_questions, waiting_groups
 from .review_export import review_workbook
 
 User = get_user_model()
@@ -75,7 +76,7 @@ def _page_number(value, default, upper=None):
 
 
 def _entries(params):
-    entries = FaqEntry.objects.select_related("category", "updated_by")
+    entries = FaqEntry.objects.select_related("category", "updated_by").annotate(alt_count=Count("alt_questions", distinct=True))
     search = (params.get("search") or "").strip()
     if search:
         entries = entries.filter(
@@ -232,3 +233,71 @@ def review_list_view(request):
     response = HttpResponse(content, content_type=XLSX)
     response["Content-Disposition"] = f'attachment; filename="faq-review-{date.today().isoformat()}.xlsx"'
     return response
+
+
+class ReviewSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.CharField(max_length=20), min_length=1, max_length=500)
+    action = serializers.ChoiceField(choices=["add", "create", "dismiss"])
+    entryId = serializers.CharField(max_length=20, required=False)
+    text = serializers.CharField(max_length=300, required=False, allow_blank=True)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def questions_view(request):
+    """Questions the chatbot could not answer, or that did not help, grouped."""
+    require_office(request)
+    if request.query_params.get("only") == "stats":
+        return Response({"stats": question_stats()})
+    return Response({"stats": question_stats(), "groups": waiting_groups()})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def questions_review_view(request):
+    require_office(request)
+    serializer = ReviewSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        settled = review_questions(
+            actor=request.user, ids=data["ids"], action=data["action"], entry_id=data.get("entryId"), text=data.get("text", "")
+        )
+    except FaqRefused as exc:
+        return refused(exc)
+    return Response({"settled": settled, "stats": question_stats()})
+
+
+class SettingsSerializer(serializers.Serializer):
+    contactText = serializers.CharField(max_length=1000, required=False)
+    commonQuestions = serializers.ListField(
+        child=serializers.CharField(max_length=300, allow_blank=True), required=False, max_length=4
+    )
+
+
+def settings_dict(chatbot):
+    return {
+        "contactText": chatbot.contact_text,
+        "commonQuestions": chatbot.common_questions,
+        "updatedBy": chatbot.updated_by.full_name if chatbot.updated_by else "",
+        "updatedAt": chatbot.updated_at.isoformat(),
+    }
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def chatbot_settings_view(request):
+    """The contact text shown on no match, and the common questions on the start screen."""
+    require_office(request)
+    chatbot = FaqSettings.load()
+    if request.method == "PATCH":
+        serializer = SettingsSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if "contactText" in data:
+            chatbot.contact_text = data["contactText"].strip()
+        if "commonQuestions" in data:
+            chatbot.common_questions = [" ".join(text.split()) for text in data["commonQuestions"] if text.strip()]
+        chatbot.updated_by = request.user
+        chatbot.save()
+    return Response(settings_dict(chatbot))

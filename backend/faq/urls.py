@@ -15,4 +15,7 @@ urlpatterns = [
     path("categories/", views.categories_view, name="faq-categories"),
     path("categories/<int:category_id>/", views.category_detail_view, name="faq-category"),
     path("review-list/", views.review_list_view, name="faq-review-list"),
+    path("questions/", views.questions_view, name="faq-questions"),
+    path("questions/review/", views.questions_review_view, name="faq-questions-review"),
+    path("settings/", views.chatbot_settings_view, name="faq-settings"),
 ]

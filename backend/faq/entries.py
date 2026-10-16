@@ -97,6 +97,8 @@ def entry_dict(entry, detail=False):
         "status": entry.status,
         "portalLink": entry.portal_link,
         "imported": bool(entry.source_ref),
+        "note": entry.source_note if entry.status == Status.NEEDS_CHECKING else "",
+        "altCount": entry.alt_count if hasattr(entry, "alt_count") else entry.alt_questions.count(),
         "updatedAt": entry.updated_at.isoformat(),
         "updatedBy": entry.updated_by.full_name if entry.updated_by else "",
     }

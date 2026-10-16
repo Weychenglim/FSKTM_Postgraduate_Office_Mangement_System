@@ -229,6 +229,8 @@ class ListTests(FaqBase):
         self.assertEqual(response.data["count"], 4)
         self.assertEqual(response.data["statusCounts"], {"PUBLISHED": 2, "DRAFT": 1, "NEEDS_CHECKING": 1, "ARCHIVED": 0})
         self.assertEqual(self.questions("?status=needs_checking"), ["Weekend classes?"])
+        fees = next(row for row in response.data["results"] if row["question"] == "How much are the fees?")
+        self.assertEqual(fees["altCount"], 1)
         self.assertEqual(self.questions("?search=yuran"), ["How much are the fees?"])
         self.assertEqual(self.questions(f"?category={self.semester.pk}"), ["Weekend classes?"])
         self.assertEqual(self.client.get(f"{ENTRIES}?status=published&search=fee").data["statusCounts"]["PUBLISHED"], 1)

@@ -229,6 +229,12 @@ export default function App() {
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
   const documentMatch = matchPath(`${APP_ROUTES.filesDocuments}/:documentId`, pathname);
   const fileLetterMatch = matchPath(`${APP_ROUTES.filesLetters}/:letterId`, pathname);
+  const faqEntryMatch = pathname === APP_ROUTES.faqEntryNew ? null : matchPath(`${APP_ROUTES.faqEntries}/:entryId`, pathname);
+  const faqView = pathname === APP_ROUTES.faqEntryNew ? 'new'
+    : faqEntryMatch ? 'entry'
+    : pathname === APP_ROUTES.faqQuestions ? 'questions'
+    : pathname === APP_ROUTES.faqSettings ? 'settings'
+    : 'entries';
   const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
   const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
@@ -993,7 +999,7 @@ export default function App() {
               isStudentWorkspace || currentUser.role === 'Programme Coordinator' ? (
                 <StudentFAQChatbot />
               ) : (
-                <AcademicFAQEditor />
+                <AcademicFAQEditor view={faqView} entryId={faqEntryMatch?.params.entryId} />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.LETTER_GENERATION ? (
               isStudentWorkspace ? (

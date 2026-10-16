@@ -18,6 +18,10 @@ export const APP_ROUTES = {
   registryStaff: '/registry/staff',
   registryStaffNew: '/registry/staff/new',
   faq: '/faq',
+  faqEntries: '/faq/entries',
+  faqEntryNew: '/faq/entries/new',
+  faqQuestions: '/faq/questions',
+  faqSettings: '/faq/settings',
   files: '/files',
   filesUpload: '/files/upload',
   filesDocuments: '/files/documents',
@@ -85,6 +89,9 @@ const PATH_TO_SIDEBAR: Array<{ path: string; sidebarItem: SidebarItemId }> = [
 
 export const routeForSidebarItem = (item: SidebarItemId | string): string =>
   SIDEBAR_TO_ROUTE[item as SidebarItemId] ?? APP_ROUTES.dashboard;
+
+export const routeForFaqEntry = (entryId: string): string =>
+  `${APP_ROUTES.faqEntries}/${encodeURIComponent(entryId)}`;
 
 export const routeForStaffAccount = (accountId: string): string =>
   `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;

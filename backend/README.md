@@ -277,6 +277,20 @@ The chatbot's answers (UC28, UC29).
 | ------ | ---- | ------------- | ------- |
 | POST | `try/` | `{question}` | the reply plus `match` (Strong, Possible, None) and the top five candidates with scores |
 | GET | `search-status/` | | `{mode: hybrid or keywords, model, published, vectors}` |
+| GET | `questions/` (`?only=stats` for the numbers alone) | | `{stats: {thisMonth, answeredPercent, helpfulPercent, waiting}, groups}` |
+| POST | `questions/review/` | `{ids, action: add, create or dismiss, entryId, text}` | `{settled, stats}` |
+| GET, PATCH | `settings/` | `{contactText, commonQuestions}` (at most four) | the settings |
+
+**Student questions.**
+- The list holds questions with No match, or marked "No", that nobody has looked at.
+- Questions are grouped when they have the same content words, or are close in meaning (0.75 with the model).
+- "add" puts the group's wording on an entry as another way to ask. "create" notes that an entry was made for it. "dismiss" clears it.
+- The numbers count typed questions from the 1st of this month, Malaysia time.
+
+**The office's corrections.**
+- `python manage.py import_faq_corrections <filled review list.xlsx>` loads the "Correct answer" column, plus "Correct question" where filled.
+- Each corrected entry counts as checked and is published (`--draft` keeps it a draft).
+- Blank rows are skipped, so the list can come back in parts.
 | GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}` |
 | POST | `entries/` | `{question, answer, category, portalLink, altQuestions, publish}` | the entry (a draft unless `publish`) |
 | GET, PATCH, DELETE | `entries/<id>/` | `{question, answer, category, portalLink, altQuestions}` | the entry with its other ways of asking, PDF text and history |
