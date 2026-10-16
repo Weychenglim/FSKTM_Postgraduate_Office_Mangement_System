@@ -130,10 +130,10 @@ const StaffAccountList: React.FC = () => {
 
       <section aria-label="Staff accounts" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-3xs">
         <div className="relative overflow-x-auto">
-          <table className="data-table text-xs">
+          <table className="data-table min-w-[720px] text-xs">
             <thead>
               <tr className="data-thead bg-[#f8fafc]">
-                <th className="data-th">Name</th>
+                <th className="data-th min-w-[15rem]">Name</th>
                 <th className="data-th">Role</th>
                 <th className="data-th">Status</th>
                 <th className="data-th">Last signed in</th>

@@ -1,5 +1,26 @@
 # Project Status
 
+## Remaining-Modules Plan: Full Check (2026-10-16)
+
+A full check of everything the plan built (UC22 appointment letters, UC03 staff accounts, UC28/29 FAQ chatbot): the backend rules, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards. The dev database is back to its real data: 117 FAQ entries, no saved questions, no documents, no smoke accounts.
+
+- **Backend:** 1432 tests, all pass apart from Wey Cheng's known appointments migration test (`project_course_codes`). The real-model FAQ checks ran too (`FAQ_REAL_MODEL_TESTS=1`).
+- **Frontend:** type check, 148 of 148 script tests, the build and the production security checks pass.
+- **Buttons, in the browser:**
+
+  | Module | Earlier runs, again | Buttons those runs did not press |
+  |---|---|---|
+  | UC22 letters | L2 33/33, L3 16/16 | 20/20: panel template with tags, bold and Check Placeholders; a second active panel template refused; register filters, Reset, View, Close; the student's View, Print and PDF; File Submission View and Download |
+  | UC03 staff | S3 49/49 | 62/62: list pages, search, Role and Status filters, the registry tabs; office and coordinator accounts with send later; activation end to end (email, set password, sign in with Staff ID); an email change stopping the old link; reset link; telling the old address; sign-in off for real (signed out, can't sign in, back on); Turn off sign-in instead; No programme; Keep it and Delete; Open their account |
+  | UC28/29 FAQ | C3 29/29, phone, C4 36/36, C5 14/14 | 47/47 knowledge base and chat: list pages, Show them, filters; an entry from Add to Delete (other ways of asking, Preview, Save draft, Publish, Save changes, Try it, Archive, Restore, leaving with changes); Mark as checked alone; Add as another way to ask with search and Cancel; Dismiss; common, related and portal buttons in the chat. 12/12 documents: a wrong file type refused, Download, Replace the file, Restore, Rename Cancel, a restored document quoted again |
+
+  Every failure along the way was the check script itself (waiting too briefly, or a test word no entry contains), confirmed by hand each time.
+- **Layout:** 24 pages, each at the four widths: no sideways page scroll, nothing past the screen edge, no buttons on top of each other.
+- **Fixed:** on a phone, the Staff & Lecturers list and the FAQ entries list squeezed their first column to a few letters a line. Both tables now keep a minimum width and scroll sideways inside their box, like the app's other lists.
+- **Seen, not changed (shared code, not from this plan):**
+  - record pages move focus to the heading for screen readers, so Chrome draws a box around it when a page is opened by its link;
+  - at 1024 px the footer's "Support Desk" link wraps to a second line.
+
 ## FAQ Chatbot, Phase C6: Evaluation; UC28 And UC29 Complete (2026-10-16)
 
 Plan: `docs/superpowers/plans/2026-10-15-remaining-modules.md`, Part C. Commit `8eb2fed`. **This completes UC28 and UC29, and with them the whole remaining-modules plan (UC22, UC03, UC28, UC29).** Optional C7 (AI rewording) was not asked for and is not built.

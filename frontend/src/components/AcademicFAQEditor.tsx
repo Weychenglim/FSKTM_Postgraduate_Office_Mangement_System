@@ -158,10 +158,10 @@ const EntriesTab: React.FC = () => {
 
       <section aria-label="Entries" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-3xs">
         <div className="relative overflow-x-auto">
-          <table className="data-table text-xs">
+          <table className="data-table min-w-[680px] text-xs">
             <thead>
               <tr className="data-thead bg-[#f8fafc]">
-                <th className="data-th">Question</th>
+                <th className="data-th min-w-[16rem]">Question</th>
                 <th className="data-th">Category</th>
                 <th className="data-th">Status</th>
                 <th className="data-th">Updated</th>
