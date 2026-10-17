@@ -723,6 +723,7 @@ export const AnnouncementManagement: React.FC = () => {
                 {/* Urgent */}
                 <button
                   type="button"
+                  aria-pressed={priorityLevel === 'Urgent'}
                   onClick={() => handlePriorityClick('Urgent')}
                   className={`border rounded-xl p-3 flex flex-col items-center justify-center space-y-1.5 transition-all text-center cursor-pointer ${
                     priorityLevel === 'Urgent'
@@ -739,6 +740,7 @@ export const AnnouncementManagement: React.FC = () => {
                 {/* Info */}
                 <button
                   type="button"
+                  aria-pressed={priorityLevel === 'Info'}
                   onClick={() => handlePriorityClick('Info')}
                   className={`border rounded-xl p-3 flex flex-col items-center justify-center space-y-1.5 transition-all text-center cursor-pointer ${
                     priorityLevel === 'Info'
@@ -755,6 +757,7 @@ export const AnnouncementManagement: React.FC = () => {
                 {/* General */}
                 <button
                   type="button"
+                  aria-pressed={priorityLevel === 'General'}
                   onClick={() => handlePriorityClick('General')}
                   className={`border rounded-xl p-3 flex flex-col items-center justify-center space-y-1.5 transition-all text-center cursor-pointer ${
                     priorityLevel === 'General'
@@ -793,7 +796,7 @@ export const AnnouncementManagement: React.FC = () => {
                 />
               </div>
 
-              <div className="relative">
+              <div className="space-y-2">
                 <textarea
                   id="announcement-content"
                   rows={6}
@@ -803,10 +806,11 @@ export const AnnouncementManagement: React.FC = () => {
                   className="form-control form-control-md resize-none"
                 />
 
+                {/* Below the message, not over it, so it never hides text. */}
                 {(attachedFile || existingAttachmentName) && (
-                  <div className="absolute bottom-3 left-3 right-3 bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between text-[10px] shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-blue-500" />
+                  <div className="bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between gap-2 text-[10px] shadow-2xs">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       <span className={`font-bold truncate max-w-[200px] ${removeExistingAttachment && !attachedFile ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                         {attachedFile ? attachedFile.name : existingAttachmentName}
                       </span>
