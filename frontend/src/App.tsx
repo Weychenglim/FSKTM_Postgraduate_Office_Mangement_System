@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, matchPath, useLocation, useNavigate } from 'react-router';
 import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
@@ -68,6 +68,7 @@ import { getEvaluationPeriods, getRubricVersions } from './services/marksApi';
 import { getDashboardSummary } from './services/timelineApi';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { defaultLandingPageForUser } from './utils/landingPage';
+import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
 import { recordBackSteps, recordReturn, recordSourceLabel } from './utils/recordNavigation';
 import {
@@ -435,9 +436,13 @@ export default function App() {
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
+    signedOutOnPurpose.current = false;
     setSessionNotice(null);
     setCurrentUser(user);
-    navigate(routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
+    // A page opened while signed out (an email link, or one a session ended
+    // on) opens after sign-in; the route guards still apply to it. The
+    // redirect off the sign-in page below makes the same choice.
+    navigate(returnPathAfterSignIn(location.state) ?? routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
   };
 
   const showAppToast = (message: string) => {
@@ -445,7 +450,12 @@ export default function App() {
     window.setTimeout(() => setAppToastMessage(null), 3500);
   };
 
+  // Set when the person signs out themselves, so the next sign-in on this
+  // computer starts on its own landing page, not on the page left behind.
+  const signedOutOnPurpose = useRef(false);
+
   const handleLogout = () => {
+    signedOutOnPurpose.current = true;
     void authApi.logout();
     setSessionNotice(null);
     setCurrentUser(null);
@@ -500,7 +510,8 @@ export default function App() {
     }
 
     if (pathname !== APP_ROUTES.login) {
-      return <Navigate to={APP_ROUTES.login} replace />;
+      const returnState: SignInReturnState | null = signedOutOnPurpose.current ? null : { from: `${pathname}${location.search}` };
+      return <Navigate to={APP_ROUTES.login} replace state={returnState} />;
     }
 
     return (
@@ -545,7 +556,9 @@ export default function App() {
     || isPasswordLinkPage
     || !isKnownAppPath(pathname)
   ) {
-    return <Navigate to={defaultAuthenticatedRoute} replace />;
+    // Just signed in on the sign-in page: open the page that was asked for.
+    const requested = pathname === APP_ROUTES.login ? returnPathAfterSignIn(location.state) : null;
+    return <Navigate to={requested ?? defaultAuthenticatedRoute} replace />;
   }
 
   if (!canAccessModule(currentUser.role, activeSidebarItem)) {
@@ -1040,6 +1053,7 @@ export default function App() {
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
               <SettingsView currentUser={currentUser} onLogout={handleLogout} onUserUpdated={(updated) => setCurrentUser((existing) => existing?.id === updated.id ? updated : existing)} onPasswordChanged={() => {
+                signedOutOnPurpose.current = true;
                 setCurrentUser(null);
                 navigate(APP_ROUTES.login, { replace: true });
                 showAppToast('Password updated. Please sign in again.');

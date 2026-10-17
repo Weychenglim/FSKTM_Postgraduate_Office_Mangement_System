@@ -11,6 +11,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import * as settingsApi from '../services/settingsApi';
+import { fieldErrors } from '../services/apiClient';
 import {
   User,
   Mail,
@@ -70,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
   // Contact details
   const [phone, setPhone] = useState(currentUser.phone || '');
+  const [phoneError, setPhoneError] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reload, setReload] = useState(0);
@@ -93,23 +95,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     return () => { cancelled = true; };
   }, [currentUser.id, reload]);
 
-  const save = async (action: () => Promise<void>) => {
+  // A field problem from the server shows under its field; anything else is a toast.
+  const save = async (action: () => Promise<void>, onFieldErrors?: (fields: Record<string, string>) => boolean) => {
     if (busy.current || loading || loadError) return;
     busy.current = true;
     setSaving(true);
     setToast(null);
     try { await action(); }
-    catch (error) { showToast(error instanceof Error ? error.message : 'Unable to save settings.', 'danger'); }
+    catch (error) {
+      if (!onFieldErrors?.(fieldErrors(error))) showToast(error instanceof Error ? error.message : 'Unable to save settings.', 'danger');
+    }
     finally { busy.current = false; setSaving(false); }
   };
 
   const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneError(undefined);
     await save(async () => {
       const data = await settingsApi.saveContact(phone.trim());
       setPhone(data.user.phone || '');
       onUserUpdated(data.user);
       showToast('Contact details updated.');
+    }, (fields) => {
+      if (!fields.phone) return false;
+      setPhoneError(fields.phone);
+      return true;
     });
   };
 
@@ -124,6 +134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     const errors: typeof pwErrors = {};
     if (!currentPassword) errors.current = 'Enter your current password.';
     if (newPassword.length < 8) errors.next = 'Use at least 8 characters.';
+    else if (newPassword === currentPassword) errors.next = 'Choose a password different from your current one.';
     if (confirmPassword !== newPassword) errors.confirm = 'Passwords do not match.';
     setPwErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -134,6 +145,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
       setNewPassword('');
       setConfirmPassword('');
       if (sessionEnded) onPasswordChanged();
+    }, (fields) => {
+      if (!fields.currentPassword && !fields.newPassword) return false;
+      setPwErrors({ current: fields.currentPassword, next: fields.newPassword });
+      return true;
     });
   };
 
@@ -225,7 +240,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                   value={phone}
                   maxLength={32}
                   autoComplete="tel"
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); setPhoneError(undefined); }}
+                  error={phoneError}
                 />
               </div>
               <p id="settings-email-policy" className="card-description mb-4">Email changes are managed by the Office.</p>

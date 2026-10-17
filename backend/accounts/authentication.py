@@ -2,7 +2,8 @@ from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import RefreshToken
+
+from .session_tokens import CookieRefreshToken, is_blacklisted, rotation_grace_allows
 
 
 class RefreshCookieAuthentication(JWTAuthentication):
@@ -14,7 +15,9 @@ class RefreshCookieAuthentication(JWTAuthentication):
             raise AuthenticationFailed("A valid refresh session is required.")
 
         try:
-            refresh = RefreshToken(raw_token)
+            refresh = CookieRefreshToken(raw_token)
+            if is_blacklisted(refresh) and not rotation_grace_allows(request, refresh):
+                raise TokenError("Token is blacklisted")
             user = self.get_user(refresh)
         except TokenError as error:
             raise AuthenticationFailed("The refresh session is invalid or expired.") from error
