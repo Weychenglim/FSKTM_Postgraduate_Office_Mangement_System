@@ -39,6 +39,8 @@ const USE_REGISTRY_BACKEND = parseBooleanEnv(
 
 /** Fields Office Staff may correct from the Registry Management screen. */
 export interface StudentRecordUpdate {
+  name?: string;
+  email?: string;
   programme?: string;
   academicStatus?: StudentRecord['academicStatus'];
   statusReason?: string;
@@ -75,11 +77,15 @@ export async function getStudentById(id: string): Promise<StudentRecord | undefi
   }
 }
 
+/** After an email change: whether the old address was told (null when the
+ *  student never activated, so a new activation email is needed instead). */
+export type StudentRecordUpdated = StudentRecord & { oldAddressTold?: boolean | null };
+
 export async function updateStudent(
   id: string,
   changes: StudentRecordUpdate,
-): Promise<StudentRecord> {
-  return request<StudentRecord>(`/registry/students/${encodeURIComponent(id)}/`, {
+): Promise<StudentRecordUpdated> {
+  return request<StudentRecordUpdated>(`/registry/students/${encodeURIComponent(id)}/`, {
     method: 'PATCH',
     body: JSON.stringify(changes),
   });

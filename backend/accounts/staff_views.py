@@ -38,9 +38,9 @@ from .staff_accounts import (
     staff_accounts,
     staff_id_problem,
     staff_options,
-    tell_old_address,
     to_staff_dict,
 )
+from .registry_views import tell_old_address
 from .throttles import StaffAccessLinkRateThrottle
 from .tokens import ACTIVATION
 from .validators import validate_phone

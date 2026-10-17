@@ -49,6 +49,7 @@ import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes
 import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
+import { historyTime } from '../utils/documentDisplay';
 import { Link } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import { LoadingState, ErrorState } from './StateViews';
@@ -73,6 +74,7 @@ import {
   commitStudentImport,
   createStudent,
   downloadImportTemplate,
+  fieldErrors,
   getParticipant,
   getRecentImports,
   getStudents,
@@ -378,9 +380,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
 
-  const [detailsDraft, setDetailsDraft] = useState({ phone: '', programme: '', intakeDate: '', semester: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '', semester: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+  // An edit clears the last save problem, so a fixed field no longer shows it.
+  const editDetails = (change: Partial<typeof detailsDraft>) => {
+    setDetailsDraft((draft) => ({ ...draft, ...change }));
+    setDetailsError(null);
+  };
   // Sign-in changes are confirmed first; this holds the pending one.
   const [accessChange, setAccessChange] = useState<StudentAccountStatus | null>(null);
 
@@ -391,6 +398,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setStatusBlockers([]);
     setDetailsError(null);
     setDetailsDraft({
+      name: viewingStudent?.name ?? '',
+      email: viewingStudent?.email ?? '',
       phone: viewingStudent?.phone ?? '',
       programme: viewingStudent?.programme ?? '',
       intakeDate: viewingStudent?.intakeDate ?? '',
@@ -435,6 +444,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (!viewingStudent) return;
     const student = viewingStudent;
     const changes: StudentRecordUpdate = {};
+    if (detailsDraft.name.trim() !== student.name) changes.name = detailsDraft.name.trim();
+    if (detailsDraft.email.trim().toLowerCase() !== student.email.toLowerCase()) changes.email = detailsDraft.email.trim();
     if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
     if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
     if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
@@ -446,12 +457,21 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setDetailsSaving(true);
     setDetailsError(null);
     try {
-      const updated = await updateStudent(student.id, changes);
+      const { oldAddressTold, ...updated } = await updateStudent(student.id, changes);
       setViewingStudent(updated);
       loadStudents();
-      triggerToast(`Saved ${student.name}'s details.`);
+      triggerToast(
+        !changes.email
+          ? `Saved ${updated.name}'s details.`
+          : oldAddressTold === null
+            ? 'Saved. The earlier activation link no longer works, so send the activation link to the new address.'
+            : oldAddressTold
+              ? 'Saved. The old address was told about the change.'
+              : 'Saved, but the email to the old address could not be sent.',
+      );
     } catch (err) {
-      setDetailsError(err instanceof Error ? err.message : 'Could not save the details.');
+      const fields = fieldErrors(err);
+      setDetailsError(fields.name ?? fields.email ?? fields.phone ?? (err instanceof Error ? err.message : 'Could not save the details.'));
     } finally {
       setDetailsSaving(false);
     }
@@ -1027,6 +1047,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const filledEmailCount = csvPreviewRecords.filter((row) => row.emailFilled).length;
   const heldCount = heldBatchToSend?.created ?? 0;
 
+  // Unsaved edits on an open record, so leaving it asks before they are lost.
+  const recordDirty = viewingStudent !== null && !readOnly && (
+    detailsDraft.name.trim() !== viewingStudent.name
+    || detailsDraft.email.trim().toLowerCase() !== viewingStudent.email.toLowerCase()
+    || detailsDraft.phone.trim() !== viewingStudent.phone
+    || detailsDraft.programme !== viewingStudent.programme
+    || detailsDraft.intakeDate.trim() !== viewingStudent.intakeDate
+    || detailsDraft.semester.trim() !== viewingStudent.semester
+    || statusTarget !== ''
+    || statusReason.trim() !== ''
+  );
+
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
@@ -1078,7 +1110,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           {!readOnly && <RegistryModuleTabs active="students" />}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
-          <div id="student-summary-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div id="student-summary-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             <StatCard label="Total Students" value={summary.total.toLocaleString()} caption={readOnly ? 'In your scope' : 'In the registry'} icon={GraduationCap} tone="blue" />
             <StatCard label="Active" value={summary.active.toLocaleString()} caption="Currently studying" icon={UserCheck} tone="green" />
             <StatCard label="Deferred" value={summary.deferred.toLocaleString()} caption="On approved deferment" icon={Calendar} tone="amber" />
@@ -1194,7 +1226,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
             {/* DATATABLE LIST VIEW */}
             <div className="overflow-x-auto">
-              <table className="data-table">
+              <table className="data-table min-w-[860px]">
                 <thead>
                   <tr className="data-thead bg-slate-50 select-none">
                     <th className="data-th">
@@ -2393,7 +2425,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={false} busy={statusSaving || saving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
+      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
               {/* Core student details body; only this part scrolls */}
               <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
@@ -2434,7 +2466,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   {/* Semester details */}
                   <div>
                     <span className="card-label block mb-1">
-                      Admission Intake
+                      Current Semester
                     </span>
                     <span className="text-slate-800 font-bold flex items-center gap-1.5 pt-0.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -2443,7 +2475,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   </div>
 
                   <div>
-                    <span className="text-[9.5px] uppercase font-black tracking-wide text-slate-450 block mb-1">
+                    <span className="card-label block mb-1">
                       Intake
                     </span>
                     <span className="text-slate-800 font-bold block pt-0.5">{viewingStudent.intakeDate || '-'}</span>
@@ -2490,11 +2522,33 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1 form-label">
+                      Full Name
+                      <input
+                        type="text"
+                        value={detailsDraft.name}
+                        onChange={(e) => editDetails({ name: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={255}
+                        className="form-control form-control-sm normal-case tracking-normal"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 form-label">
+                      Email (used to sign in)
+                      <input
+                        type="email"
+                        value={detailsDraft.email}
+                        onChange={(e) => editDetails({ email: e.target.value })}
+                        disabled={detailsSaving}
+                        maxLength={254}
+                        className="form-control form-control-sm normal-case tracking-normal"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 form-label">
                       Phone
                       <input
                         type="tel"
                         value={detailsDraft.phone}
-                        onChange={(e) => setDetailsDraft({ ...detailsDraft, phone: e.target.value })}
+                        onChange={(e) => editDetails({ phone: e.target.value })}
                         disabled={detailsSaving}
                         maxLength={32}
                         placeholder="e.g. 012-3456789"
@@ -2513,7 +2567,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             : [programmeOption(detailsDraft.programme, detailsDraft.programme ? 'Not on the approved list' : undefined)]),
                           ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
                         ]}
-                        onChange={(programme) => setDetailsDraft({ ...detailsDraft, programme })}
+                        onChange={(programme) => editDetails({ programme })}
                         disabled={detailsSaving}
                       />
                     </label>
@@ -2522,7 +2576,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <input
                         type="text"
                         value={detailsDraft.intakeDate}
-                        onChange={(e) => setDetailsDraft({ ...detailsDraft, intakeDate: e.target.value })}
+                        onChange={(e) => editDetails({ intakeDate: e.target.value })}
                         disabled={detailsSaving}
                         maxLength={32}
                         placeholder="e.g. 2026/2027 Semester I"
@@ -2535,7 +2589,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         type="text"
                         list="registry-semester-options-edit"
                         value={detailsDraft.semester}
-                        onChange={(e) => setDetailsDraft({ ...detailsDraft, semester: e.target.value })}
+                        onChange={(e) => editDetails({ semester: e.target.value })}
                         disabled={detailsSaving}
                         maxLength={64}
                         placeholder="e.g. Semester I, 2026/2027 Session"
@@ -2662,7 +2716,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="flex items-center gap-2">
                       <div className="w-4.5 h-4.5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">•</div>
                       <span className="text-slate-500 font-semibold">
-                        Last sign-in: {viewingStudent.lastLogin ? new Date(viewingStudent.lastLogin).toLocaleString() : 'Never'}
+                        Last sign-in: {viewingStudent.lastLogin ? historyTime(viewingStudent.lastLogin) : 'Never'}
                       </span>
                     </div>
                   </div>

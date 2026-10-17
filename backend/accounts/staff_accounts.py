@@ -8,14 +8,11 @@ student (D1, D7). Every change is kept as an ``AccountChange`` row.
 Technical Administrator accounts never appear here.
 """
 import hashlib
-import logging
 from itertools import chain
 
-from django.conf import settings
 from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.mail import send_mail
 from django.db import connection, transaction
 from django.db.models import Q
 
@@ -32,7 +29,6 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
-from .account_emails import email_changed_email
 from .delegations import today
 from .models import (
     AccountChange,
@@ -52,7 +48,6 @@ from .tokens import ACTIVATION, RESET, activation_link
 from .validators import MATRIC_PATTERN
 from .views import send_password_reset_email
 
-logger = logging.getLogger(__name__)
 
 OFFICE = User.Role.OFFICE_ADMIN
 LECTURER = User.Role.LECTURER
@@ -411,17 +406,6 @@ def edit_account(*, actor, account_id, data):
     else:
         old_email = None
     return staff_accounts().get(pk=user.pk), old_email
-
-
-def tell_old_address(user, old_email):
-    """Email the old address after an email change. Returns whether it went."""
-    subject, message = email_changed_email(user, old_email)
-    try:
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [old_email], fail_silently=False)
-        return True
-    except Exception:
-        logger.exception("Email-change notice for user %s could not be sent.", user.pk)
-        return False
 
 
 def link_kind(user):
