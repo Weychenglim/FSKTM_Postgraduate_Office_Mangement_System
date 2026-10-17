@@ -584,6 +584,15 @@ def revoke_letter(request, pk):
             )
         if letter.is_automatic:
             notify_revoked(letter, reason)
+        elif letter.student is not None:
+            # A student may already be using the letter, so the email goes out
+            # like the approval and rejection emails do.
+            _email_student(
+                letter,
+                f"Letter revoked: {letter.template_name}",
+                f"The postgraduate office revoked your {letter.template_name} ({letter.reference_number}). "
+                f"It is no longer valid.\n\nReason: {reason}",
+            )
     return Response(letter.to_public_dict())
 
 

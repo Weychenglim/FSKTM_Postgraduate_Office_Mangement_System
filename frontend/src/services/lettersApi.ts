@@ -180,6 +180,19 @@ export async function rejectLetterRequest(id: string, reason: string): Promise<G
   });
 }
 
+/** Office: withdraw a letter issued in error; the reason is shown to the student. */
+export async function revokeLetter(id: string, reason: string): Promise<GeneratedLetter> {
+  return request<GeneratedLetter>(`/letters/requests/${id}/revoke/`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/** Office: send the "letter approved" notification again. */
+export async function resendLetterNotification(id: string): Promise<{ detail: string }> {
+  return request<{ detail: string }>(`/letters/requests/${id}/resend-notification/`, { method: 'POST' });
+}
+
 // Appointment letters (UC22): made by themselves when an appointment is approved.
 
 /** Office: active appointments that have no letter yet, and why. */

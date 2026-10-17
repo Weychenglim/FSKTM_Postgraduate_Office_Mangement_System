@@ -8,7 +8,7 @@
 // copy, so it always carries the original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
+import { Ban, BellRing, Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
@@ -16,7 +16,16 @@ import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { MissingAppointmentLetters } from './MissingAppointmentLetters';
 import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
-import { downloadLetterPdf, getLetterRequest, getLetterRequests, reissueAppointmentLetter, withdrawLetterRequest } from '../services';
+import {
+  downloadLetterPdf,
+  fieldErrors,
+  getLetterRequest,
+  getLetterRequests,
+  reissueAppointmentLetter,
+  resendLetterNotification,
+  revokeLetter,
+  withdrawLetterRequest,
+} from '../services';
 import { isAppointmentLetter, letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
 import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
@@ -158,7 +167,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
         />
       </div>
 
-      <div className="drawer-footer sticky bottom-0 z-10">
+      <div className="drawer-footer sticky bottom-0 z-10 flex-wrap">
         {actions}
         <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
       </div>
@@ -386,6 +395,11 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [madeBy, setMadeBy] = useState<MadeBy>('');
   const [reissuing, setReissuing] = useState<GeneratedLetter | null>(null);
   const [reissueSaving, setReissueSaving] = useState(false);
+  const [revoking, setRevoking] = useState<GeneratedLetter | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [revokeSaving, setRevokeSaving] = useState(false);
+  const [resending, setResending] = useState(false);
   const latestLoad = useRef(0);
   const { viewLetter, isBusy, viewing, closeView } = useLetterOutput(onMessage);
 
@@ -426,6 +440,50 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
       onMessage(errorText(err, 'Could not reissue this letter.'));
     } finally {
       setReissueSaving(false);
+    }
+  };
+
+  // Revoking and resending are rare, so they sit in the letter view, not on each row.
+  const openRevoke = (letter: GeneratedLetter) => {
+    setRevokeReason('');
+    setRevokeError(null);
+    setRevoking(letter);
+  };
+
+  const revoke = async () => {
+    if (!revoking) return;
+    const reason = revokeReason.trim();
+    if (!reason) {
+      setRevokeError('Give the reason, so the student knows why the letter is no longer valid.');
+      return;
+    }
+    setRevokeSaving(true);
+    try {
+      const revoked = await revokeLetter(revoking.id, reason);
+      onMessage(`Revoked ${revoked.referenceNumber}. ${revoked.studentName || 'The student'} has been told why.`);
+      setRevoking(null);
+      closeView();
+      load();
+    } catch (err) {
+      const problem = fieldErrors(err).reason;
+      if (problem) setRevokeError(problem);
+      else {
+        setRevoking(null);
+        onMessage(errorText(err, 'Could not revoke this letter.'));
+      }
+    } finally {
+      setRevokeSaving(false);
+    }
+  };
+
+  const resend = async (letter: GeneratedLetter) => {
+    setResending(true);
+    try {
+      onMessage((await resendLetterNotification(letter.id)).detail);
+    } catch (err) {
+      onMessage(errorText(err, 'Could not send the notification again.'));
+    } finally {
+      setResending(false);
     }
   };
 
@@ -567,14 +625,58 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
           letter={viewing}
           onClose={closeView}
           actions={
-            canReissue(viewing) ? (
-              <PortalButton variant="secondary" icon={RotateCcw} onClick={() => setReissuing(viewing)}>
-                Reissue with current details
-              </PortalButton>
+            viewing.status === 'Issued' ? (
+              <>
+                <PortalButton variant="danger" icon={Ban} onClick={() => openRevoke(viewing)}>
+                  Revoke
+                </PortalButton>
+                <PortalButton variant="secondary" icon={BellRing} isLoading={resending} onClick={() => void resend(viewing)}>
+                  Resend notification
+                </PortalButton>
+                {canReissue(viewing) && (
+                  <PortalButton variant="secondary" icon={RotateCcw} onClick={() => setReissuing(viewing)}>
+                    Reissue with current details
+                  </PortalButton>
+                )}
+              </>
             ) : undefined
           }
         />
       )}
+
+      <PortalConfirmModal
+        isOpen={revoking !== null}
+        title="Revoke this letter?"
+        message={
+          <div className="space-y-3 text-left">
+            <p>
+              {revoking
+                ? `${revoking.referenceNumber} will no longer be valid. ${revoking.studentName || 'The student'} is told the reason and can no longer print or download it.`
+                : ''}
+            </p>
+            <label className="block">
+              <span className="form-label block">Reason (shown to the student)</span>
+              <textarea
+                value={revokeReason}
+                onChange={(e) => {
+                  setRevokeReason(e.target.value);
+                  setRevokeError(null);
+                }}
+                maxLength={500}
+                rows={3}
+                placeholder="For example: issued with the wrong programme. A corrected letter will follow."
+                className={`form-control form-control-sm resize-none ${revokeError ? 'form-control-error' : ''}`}
+              />
+            </label>
+            {revokeError && <p role="alert" className="text-[11px] font-semibold text-rose-600">{revokeError}</p>}
+          </div>
+        }
+        confirmLabel="Revoke letter"
+        tone="danger"
+        isLoading={revokeSaving}
+        onConfirm={() => void revoke()}
+        onCancel={() => setRevoking(null)}
+      />
 
       <PortalConfirmModal
         isOpen={reissuing !== null}
