@@ -1,5 +1,42 @@
 # Project Status
 
+## Module-by-Module Check of Xiang's Modules (2026-10-17)
+
+Each of Xiang's modules was tested in turn: the backend rules through the API, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. The latest code was already on `Xiang` (GitHub's `main` and every teammate branch were merged in), so nothing was pulled. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards.
+
+| Module | Checks run | Bugs fixed | Commit |
+|---|---|---|---|
+| Authentication and Settings | API 53/53, browser 64/64 | 4 | `3b422c6` |
+| Announcements and notifications | API 61/61, browser 69/69 | 4 | `c6b7fbb` |
+| Student Registry | import phases 1 to 9 (all green), browser 45/45 | 4 | `2ffea24` |
+| Letter Generation | requests 26/26, appointment letters 33 + 16 + 20, new checks 24/24 | 2 | `c8cd895` |
+| File Management | 7 existing runs (95 checks), new checks 17/17 | none | |
+| FAQ chatbot | chat 29/29, phone, office 36/36, gaps 47/47 | none | |
+
+- **Authentication and Settings:**
+  - a quick double reload signed people out. A reload that cut off `/api/auth/refresh/` left the browser holding the cookie the server had just replaced. For 30 seconds that browser, proved by a new HttpOnly `fsktm_session_key` cookie set at sign-in, may renew with it. A copied refresh token alone is still refused (Wey Cheng's `test_refresh_rotates_cookie_and_rejects_previous_token` still passes), and sign-out or a password change ends it;
+  - signing in from a portal link (for example an email) now opens that page, as does signing in again after a session ends. Signing out on purpose starts the next sign-in on its landing page;
+  - Settings refused neither a phone number with letters or a formula nor the same password again, unlike the older endpoints. Problems now show under the field;
+  - the header greeting follows the time of day in Malaysia (it always said Good Morning).
+- **Announcements and notifications:**
+  - the attached file covered the last lines of the message box;
+  - the chosen priority is announced to screen readers;
+  - in a notification, Reference lines up under its label like From and To;
+  - on a phone the message scrolls and Close stays in view.
+- **Student Registry:**
+  - the office can correct a student's name and email. An email in use is refused, an activated student's old address is told, and an unactivated student's old activation link stops working;
+  - the record warns before unsaved edits are lost, and a fixed field clears the last save problem;
+  - the current semester was labelled Admission Intake. Intake now uses the same label style, and the last sign-in uses the portal's date format;
+  - on a phone the summary cards sit two to a row, and the student table scrolls sideways instead of squeezing names.
+- **Letter Generation:**
+  - the office could no longer revoke an issued letter or resend its notification (`414ec2b` had left one View button per row). Both are back inside the letter's view, so each row still has one button;
+  - a revoked request letter is now emailed to the student, like an approval or a rejection.
+- **Seen, not changed (Wey Cheng's shared code):**
+  - the sidebar does not react to a resize, so turning a tablet from landscape to portrait leaves it open over the page (`AppLayout`);
+  - record pages move focus to the heading, so a box is drawn around it when a page is opened by its link.
+
+**Verification:** backend 1453 tests, all pass apart from Wey Cheng's known appointments migration test (`project_course_codes`). Frontend type check, 150 of 150 script tests, the build and the production security checks pass. The dev database holds no smoke data afterwards.
+
 ## Remaining-Modules Plan: Full Check (2026-10-16)
 
 A full check of everything the plan built (UC22 appointment letters, UC03 staff accounts, UC28/29 FAQ chatbot): the backend rules, every button in the browser, and the layout at 1440, 1024, 768 and 390 px. It ran on private servers (email printed to the console, never sent) with throwaway smoke accounts, all removed afterwards. The dev database is back to its real data: 117 FAQ entries, no saved questions, no documents, no smoke accounts.
