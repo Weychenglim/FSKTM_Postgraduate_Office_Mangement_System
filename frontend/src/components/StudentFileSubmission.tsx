@@ -109,7 +109,7 @@ export const StudentFileSubmission: React.FC = () => {
   const dropLook = dragging ? 'border-brand-navy bg-indigo-50' : 'border-slate-200';
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="space-y-6 text-left font-sans pb-12">
       <PageHeader title="File Submission" subtitle="Upload your documents for the PG office." />
 
       {(returned.length > 0 || toHandIn.length > 0) && (

@@ -163,7 +163,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   if (blockedReason) {
     return (
-      <div id="student-letter-generation-workspace" className="mx-auto max-w-4xl space-y-6 text-left font-sans text-xs pb-16 animate-fade-in">
+      <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
         <PageHeader title="Letter Generation" subtitle="Official letters for students whose status is Active." />
         <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
           <Info className="w-6 h-6 text-amber-500 mx-auto" />
@@ -175,7 +175,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   }
 
   return (
-    <div id="student-letter-generation-workspace" className="mx-auto max-w-4xl space-y-6 text-left font-sans text-xs pb-16 animate-fade-in">
+    <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
       <PortalToast message={toast} />
 
       <PageHeader
@@ -184,11 +184,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
       />
 
       <SegmentedControl
+        variant="tabs"
         options={LETTER_VIEWS}
         value={activeView}
         onChange={changeView}
-        labels={{ new: 'Request a Letter', history: `My Requests (${letters.length})` }}
-        className="w-fit"
+        labels={{ new: 'Request a letter', history: `My requests (${letters.length})` }}
       />
 
       {activeView === 'history' ? (

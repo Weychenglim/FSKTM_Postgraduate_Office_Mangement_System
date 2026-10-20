@@ -323,6 +323,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
       />
 
       <SegmentedControl
+        variant="tabs"
         options={FEED_TABS}
         value={activeTab}
         onChange={(tab) => { setActiveTab(tab); setSearchQuery(''); }}
@@ -330,7 +331,6 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
           announcements: `Announcements (${announcementFeed.length})`,
           notifications: `Notifications (${notificationFeed.length})`,
         }}
-        className="w-fit"
       />
 
       {/* FILTER SEARCH WRAPPER CARD */}

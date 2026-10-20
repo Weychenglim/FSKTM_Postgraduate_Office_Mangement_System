@@ -319,7 +319,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       busy={saving}
       actions={tab === 'types' && settings ? <PortalButton variant="primary" icon={Plus} onClick={() => open('new')}>Add a type</PortalButton> : undefined}
     >
-      <div role="tablist" aria-label="Settings" className="flex flex-wrap gap-7 border-b border-slate-200">
+      <div role="tablist" aria-label="Settings" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         {(['types', 'tags', 'history'] as const).map(value => (
           <button
             key={value}
@@ -330,7 +330,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               if (dirty) discard(false);
               setTab(value);
             })}
-            className={`-mb-px border-b-2 py-3 text-[14px] font-bold transition ${tab === value ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-brand-navy'}`}
+            className={`card-value rounded-lg px-4 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${tab === value ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'}`}
           >
             {TAB_LABELS[value]}
           </button>

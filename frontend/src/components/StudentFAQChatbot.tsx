@@ -276,7 +276,7 @@ export const StudentFAQChatbot: React.FC = () => {
     <div id="student-faq-chatbot-view" className="space-y-8 text-left font-sans text-xs animate-fade-in">
       <PageHeader title="FAQ Chatbot" subtitle="Ask about postgraduate procedures. Answers come from the PG Office FAQ." />
 
-      <div role="log" aria-live="polite" aria-label="Conversation" className="mx-auto max-w-3xl space-y-8">
+      <div role="log" aria-live="polite" aria-label="Conversation" className="max-w-4xl space-y-8">
         <AssistantRow>
           <p>
             Hi! I answer questions using the PG Office FAQ. I can't see your own records, so for anything about your own
@@ -360,7 +360,7 @@ export const StudentFAQChatbot: React.FC = () => {
       {/* Composer pinned to the bottom of the screen */}
       <div className="pointer-events-none fixed right-0 z-20" style={{ left: workspaceLeft, bottom: footerOffset }}>
         <div className="bg-gradient-to-t from-[#f1f5f9] via-[#f1f5f9] to-transparent px-4 pb-4 pt-10">
-          <div className="pointer-events-auto mx-auto max-w-3xl space-y-2.5">
+          <div className="pointer-events-auto max-w-4xl space-y-2.5">
             {!hasAsked && start && start.commonQuestions.length > 0 && (
               <div className="flex select-none flex-wrap items-center gap-2" aria-label="Common questions">
                 {start.commonQuestions.map(question => (

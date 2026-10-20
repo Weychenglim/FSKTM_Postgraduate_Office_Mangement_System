@@ -492,6 +492,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
           {canViewIssuedLetters && (
             <SegmentedControl
+              variant="tabs"
               options={OFFICE_LETTER_VIEWS}
               value={activeView}
               onChange={(next) => {
@@ -503,7 +504,6 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                 requests: requestCounts?.Pending ? `Requests (${requestCounts.Pending})` : 'Requests',
                 issued: 'Issued Letters',
               }}
-              className="w-fit"
             />
           )}
         </>

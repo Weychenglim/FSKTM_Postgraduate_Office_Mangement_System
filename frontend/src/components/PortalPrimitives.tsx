@@ -143,7 +143,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <span>{backLabel}</span>
         </button>
       )}
-      <h1 className="page-title" tabIndex={-1}>{title}</h1>
+      <h1 className="page-title focus:outline-none" tabIndex={-1}>{title}</h1>
       {subtitle && <p className={joinClasses('page-subtitle', subtitleClassName)}>{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div>}
@@ -273,6 +273,8 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   labels?: Partial<Record<T, string>>;
   className?: string;
+  /** 'tabs' is the page-level look used by Supervisor Appointments. */
+  variant?: 'segmented' | 'tabs';
 }
 
 export const SegmentedControl = <T extends string>({
@@ -280,8 +282,30 @@ export const SegmentedControl = <T extends string>({
   value,
   onChange,
   labels = {},
-  className = ''
-}: SegmentedControlProps<T>) => (
+  className = '',
+  variant = 'segmented'
+}: SegmentedControlProps<T>) => variant === 'tabs' ? (
+  <div className={joinClasses('flex flex-wrap gap-2 border-b border-slate-200 pb-3', className)} role="tablist">
+    {options.map((option) => {
+      const selected = value === option;
+      return (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={joinClasses(
+            'card-value rounded-lg px-4 py-2.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy',
+            selected ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'
+          )}
+          role="tab"
+          aria-selected={selected}
+        >
+          {labels[option] ?? option}
+        </button>
+      );
+    })}
+  </div>
+) : (
   <div className={joinClasses('bg-slate-100 p-1 rounded-xl flex items-center border border-slate-100', className)} role="tablist">
     {options.map((option) => {
       const selected = value === option;

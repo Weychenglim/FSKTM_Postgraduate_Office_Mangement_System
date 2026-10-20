@@ -457,11 +457,11 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new'; entryId
         actions={view === 'entries' ? <PortalButton variant="primary" icon={Plus} onClick={() => navigate(APP_ROUTES.faqEntryNew)}>Add entry</PortalButton> : undefined}
       />
       <SegmentedControl
+        variant="tabs"
         options={TABS}
         value={view}
         onChange={tab => tab !== view && navigate(TAB_ROUTES[tab])}
         labels={{ entries: 'Entries', questions: waiting ? `Student questions (${waiting})` : 'Student questions', documents: 'Documents', settings: 'Settings' }}
-        className="w-fit"
       />
       {view === 'entries' && <EntriesTab />}
       {view === 'questions' && <QuestionsTab onCount={onCount} />}

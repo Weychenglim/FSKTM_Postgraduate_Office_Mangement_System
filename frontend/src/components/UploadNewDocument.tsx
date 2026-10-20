@@ -223,7 +223,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
         <LoadingState message="Loading the upload form..." />
       ) : (
         <form
-          className="app-card mx-auto max-w-2xl divide-y divide-slate-100"
+          className="app-card divide-y divide-slate-100"
           noValidate
           onSubmit={event => {
             event.preventDefault();

@@ -18,13 +18,13 @@ export const RegistryModuleTabs: React.FC<{ active: RegistryModuleTab }> = ({ ac
   const navigate = useNavigate();
   return (
     <SegmentedControl
+      variant="tabs"
       options={REGISTRY_TABS}
       value={active}
       onChange={tab => {
         if (tab !== active) navigate(tab === 'students' ? APP_ROUTES.registry : APP_ROUTES.registryStaff);
       }}
       labels={{ students: 'Students', staff_lecturers: 'Staff & Lecturers' }}
-      className="w-fit"
     />
   );
 };

@@ -1428,11 +1428,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         >{requestBack => <div id="student-registry-register-view" className="space-y-8 text-left select-none animate-fade-in">
 
           <SegmentedControl<RegisterTab>
+            variant="tabs"
             options={REGISTER_TABS}
             value={registerActiveTab}
             onChange={setRegisterActiveTab}
             labels={{ bulk: 'Bulk Import (Excel or CSV)', single: 'Single Student Entry' }}
-            className="w-fit"
           />
 
           {/* CONTENT COLUMNS GRID VIEW */}

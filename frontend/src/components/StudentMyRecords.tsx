@@ -171,11 +171,11 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
       </div>
 
       <SegmentedControl<RecordCategory>
+        variant="tabs"
         options={RECORD_CATEGORIES}
         value={tab}
         onChange={setTab}
         labels={TAB_LABELS}
-        className="inline-flex flex-wrap"
       />
 
       {tab === 'letters' ? (

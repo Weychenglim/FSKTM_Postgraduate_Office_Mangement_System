@@ -263,7 +263,7 @@ export const FileRepository: React.FC = () => {
           </section>
         </div>
       ) : (
-        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-x-5 border-b border-slate-200 sm:gap-x-7">
+        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
           {tabs.map(tab => {
             const selected = filters.view === tab.view;
             return (
@@ -273,7 +273,7 @@ export const FileRepository: React.FC = () => {
                 role="tab"
                 aria-selected={selected}
                 onClick={() => update({ view: tab.view })}
-                className={`-mb-px inline-flex items-center gap-2 border-b-2 py-3 text-[14px] font-bold transition ${selected ? 'border-brand-navy text-brand-navy' : 'border-transparent text-slate-500 hover:text-brand-navy'}`}
+                className={`card-value inline-flex items-center gap-2 rounded-lg px-4 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${selected ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'}`}
               >
                 {tab.short ? (
                   <>
@@ -282,7 +282,7 @@ export const FileRepository: React.FC = () => {
                   </>
                 ) : tab.label}
                 {tab.count !== undefined && (
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : selected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
                 )}
               </button>
             );
