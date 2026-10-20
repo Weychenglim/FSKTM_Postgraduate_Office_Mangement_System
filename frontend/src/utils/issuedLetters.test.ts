@@ -66,7 +66,7 @@ assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_S
 const documentSource = readFileSync(resolve('src/utils/letterDocument.ts'), 'utf8');
 const studentScreen = readFileSync(resolve('src/components/StudentLetterGeneration.tsx'), 'utf8');
 assert.doesNotMatch(documentSource, /generateReferenceNumber|Math\.random/);
-assert.match(studentScreen, /requestLetter\(selected\.id, note\.trim\(\)\)/);
+assert.match(studentScreen, /requestLetter\(requesting\.id, note\.trim\(\)\)/);
 assert.doesNotMatch(studentScreen, /LetterPages|renderLetterBodyHtml|\.content\b/, 'no wording reaches the student before approval');
 assert.equal(PENDING_REFERENCE, 'Assigned on approval');
 

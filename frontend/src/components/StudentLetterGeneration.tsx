@@ -8,8 +8,9 @@
 // the office approves it, so a letter cannot be copied from the screen.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Clock, FileText, Info, Send, UserCheck } from 'lucide-react';
+import { FileText, Info, Send } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterRequests, shortDate } from './IssuedLetters';
 import { GeneratedLetter, LetterTemplate } from '../types';
@@ -26,12 +27,6 @@ export type StudentLetterView = 'new' | 'history';
 
 const LETTER_VIEWS: readonly StudentLetterView[] = ['new', 'history'];
 const MAX_NOTE_LENGTH = 500;
-
-const STEPS = [
-  { icon: Send, title: 'You request it', text: 'Choose the letter and add a note if the office needs to know why.' },
-  { icon: UserCheck, title: 'The office checks it', text: 'Staff check your details and fill in anything kept outside the portal, such as attendance.' },
-  { icon: CheckCircle2, title: 'You get it', text: 'You are notified when it is approved. View, print or download it from My Requests.' },
-];
 
 interface StudentLetterGenerationProps {
   /** Which tab is open; driven by the route when the app provides it. */
@@ -58,7 +53,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The letter whose request pop-up is open.
+  const [requesting, setRequesting] = useState<LetterTemplate | null>(null);
+  const modalTitle = useModalTitle();
 
   // The student's requests ("My Requests").
   const [letters, setLetters] = useState<GeneratedLetter[]>([]);
@@ -75,10 +72,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     setTemplatesLoading(true);
     setTemplatesError(null);
     getStudentLetterTemplates()
-      .then((data) => {
-        setTemplates(data);
-        setSelectedId((current) => (current && data.some((t) => t.id === current) ? current : data[0]?.id ?? null));
-      })
+      .then(setTemplates)
       .catch((err) => {
         const reason = inactiveStudentReason(err);
         if (reason) setBlockedReason(reason);
@@ -105,25 +99,33 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     loadLetters();
   }, [loadTemplates, loadLetters]);
 
-  const selected = templates.find((t) => t.id === selectedId) ?? null;
   const pendingFor = (templateId: string) =>
     letters.find((letter) => letter.templateId === templateId && letter.status === 'Pending') ?? null;
-  const selectedPending = selected ? pendingFor(selected.id) : null;
-  const pendingCount = letters.filter((letter) => letter.status === 'Pending').length;
 
   const replaceLetter = (changed: GeneratedLetter) =>
     setLetters((rows) => rows.map((row) => (row.id === changed.id ? changed : row)));
 
+  const openRequest = (template: LetterTemplate) => {
+    setRequesting(template);
+    setNote('');
+    setNoteError(null);
+  };
+
+  const closeRequest = () => {
+    if (!sending) setRequesting(null);
+  };
+
   const handleRequest = async () => {
-    if (!selected || sending || selectedPending) return;
+    if (!requesting || sending) return;
     if (note.trim().length > MAX_NOTE_LENGTH) {
       setNoteError(`Keep the note under ${MAX_NOTE_LENGTH} characters.`);
       return;
     }
     setSending(true);
     try {
-      const created = await requestLetter(selected.id, note.trim());
+      const created = await requestLetter(requesting.id, note.trim());
       setLetters((rows) => [created, ...rows]);
+      setRequesting(null);
       setNote('');
       setNoteError(null);
       changeView('history');
@@ -131,8 +133,10 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     } catch (err) {
       const reason = inactiveStudentReason(err);
       if (reason) {
+        setRequesting(null);
         setBlockedReason(reason);
       } else if (isAlreadyRequested(err)) {
+        setRequesting(null);
         loadLetters();
         showToast(err instanceof Error ? err.message : 'You already asked for this letter.');
       } else {
@@ -146,22 +150,20 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     }
   };
 
-  // From a rejected request: pick the same letter again on the request tab.
+  // From a rejected request: open the same letter's request again.
   const requestAgain = (letter: GeneratedLetter) => {
-    if (!letter.templateId || !templates.some((t) => t.id === letter.templateId)) {
+    const template = templates.find((t) => t.id === letter.templateId);
+    if (!template) {
       showToast(`A ${letter.templateName} cannot be requested right now.`);
       return;
     }
-    setSelectedId(letter.templateId);
-    setNote('');
-    setNoteError(null);
     changeView('new');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    openRequest(template);
   };
 
   if (blockedReason) {
     return (
-      <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
+      <div id="student-letter-generation-workspace" className="mx-auto max-w-4xl space-y-6 text-left font-sans text-xs pb-16 animate-fade-in">
         <PageHeader title="Letter Generation" subtitle="Official letters for students whose status is Active." />
         <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
           <Info className="w-6 h-6 text-amber-500 mx-auto" />
@@ -173,12 +175,12 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   }
 
   return (
-    <div id="student-letter-generation-workspace" className="space-y-8 text-left font-sans text-xs pb-16 animate-fade-in">
+    <div id="student-letter-generation-workspace" className="mx-auto max-w-4xl space-y-6 text-left font-sans text-xs pb-16 animate-fade-in">
       <PortalToast message={toast} />
 
       <PageHeader
         title="Letter Generation"
-        subtitle="Request an official letter. The postgraduate office checks and completes it, and you can print it once it is approved."
+        subtitle="Ask the PG office for an official letter. You can view, print or download it once it is approved."
       />
 
       <SegmentedControl
@@ -200,156 +202,101 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           onRequestAgain={requestAgain}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Letters to choose from */}
-          <section aria-labelledby="letter-choices-heading" className="lg:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 id="letter-choices-heading" className="section-label">Choose a Letter</h2>
-              <span className="text-[11px] font-semibold text-slate-400">
-                {templates.length} letter{templates.length === 1 ? '' : 's'}
-              </span>
-            </div>
+        <section aria-labelledby="letter-choices-heading" className="app-card">
+          <div className="px-5 pt-5 pb-4">
+            <h2 id="letter-choices-heading" className="section-label">Which letter do you need?</h2>
+            <p className="card-description mt-1">
+              The office checks your details and completes the letter. You get a notification when it is approved.
+            </p>
+          </div>
 
-            {templatesLoading ? (
-              <LoadingState message="Loading the letters you can request…" />
-            ) : templatesError ? (
-              <ErrorState message={templatesError} onRetry={loadTemplates} />
-            ) : templates.length === 0 ? (
-              <p className="py-10 text-center text-slate-400 font-bold">No letters can be requested right now.</p>
-            ) : (
-              <div role="radiogroup" aria-labelledby="letter-choices-heading" className="space-y-3">
-                {templates.map((template) => {
-                  const isSelected = template.id === selectedId;
-                  const pending = pendingFor(template.id);
-                  return (
-                    <button
-                      key={template.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => {
-                        setSelectedId(template.id);
-                        setNoteError(null);
-                      }}
-                      className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 ${
-                        isSelected
-                          ? 'bg-slate-50 border-brand-navy ring-1 ring-brand-navy'
-                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <span className={`mt-0.5 w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-brand-navy text-white border-brand-navy' : 'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}>
+          {templatesLoading ? (
+            <LoadingState message="Loading the letters you can request…" />
+          ) : templatesError ? (
+            <ErrorState message={templatesError} onRetry={loadTemplates} />
+          ) : templates.length === 0 ? (
+            <p className="border-t border-slate-100 py-10 text-center text-slate-400 font-bold">No letters can be requested right now.</p>
+          ) : (
+            <ul>
+              {templates.map((template) => {
+                const pending = pendingFor(template.id);
+                return (
+                  <li key={template.id} className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="mt-0.5 w-9 h-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 flex items-center justify-center shrink-0">
                         <FileText aria-hidden="true" className="w-4 h-4" />
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-[13px] font-extrabold text-slate-800">{template.name}</span>
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className="text-[14px] font-bold text-slate-800">{template.name}</span>
                           <StatusBadge tone="neutral" className="px-2 py-0.5 text-[9px]">{template.type}</StatusBadge>
-                          {pending && (
-                            <StatusBadge tone="warning" dot className="px-2 py-0.5 text-[9px]">Requested</StatusBadge>
-                          )}
-                        </span>
-                        {template.description && (
-                          <span className="card-description mt-1 block">{template.description}</span>
+                        </p>
+                        {template.description && <p className="card-description mt-0.5">{template.description}</p>}
+                        {pending && (
+                          <p className="mt-1 text-[12px] font-semibold text-amber-700">
+                            Requested on {shortDate(pending.requestedAt)}, waiting for the office.
+                          </p>
                         )}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* The request itself */}
-          <section aria-labelledby="letter-request-heading" className="lg:col-span-5 space-y-4">
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
-              <div>
-                <h2 id="letter-request-heading" className="section-label">
-                  {selected ? `Request: ${selected.name}` : 'Request a Letter'}
-                </h2>
-                <p className="card-description mt-1">
-                  {selected
-                    ? 'The office prepares this letter with your details from the student registry.'
-                    : 'Choose a letter to request.'}
-                </p>
-              </div>
-
-              {selectedPending ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-                  <Clock aria-hidden="true" className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="space-y-2">
-                    <p className="text-[12px] font-semibold text-amber-900 leading-relaxed">
-                      You asked for this letter on {shortDate(selectedPending.requestedAt)}. It is waiting for the office.
-                    </p>
-                    <PortalButton size="sm" variant="secondary" onClick={() => changeView('history')}>
-                      See My Requests
-                    </PortalButton>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-request-note" className="form-label block">
-                      Note to the office (optional)
-                    </label>
-                    <textarea
-                      id="letter-request-note"
-                      rows={4}
-                      value={note}
-                      maxLength={MAX_NOTE_LENGTH}
-                      disabled={!selected || sending}
-                      onChange={(e) => {
-                        setNote(e.target.value);
-                        setNoteError(null);
-                      }}
-                      aria-invalid={noteError ? true : undefined}
-                      aria-describedby="letter-request-note-hint"
-                      placeholder="For example: needed for my student pass renewal appointment on 3 November."
-                      className={`form-control form-control-md resize-none ${noteError ? 'form-control-error' : ''}`}
-                    />
-                    <p id="letter-request-note-hint" className={`text-[10px] font-semibold ${noteError ? 'text-rose-600' : 'text-slate-400'}`}>
-                      {noteError ?? `${note.length}/${MAX_NOTE_LENGTH} characters`}
-                    </p>
-                  </div>
-                  <PortalButton
-                    variant="primary"
-                    icon={Send}
-                    fullWidth
-                    isLoading={sending}
-                    disabled={!selected}
-                    onClick={() => void handleRequest()}
-                  >
-                    Request letter
-                  </PortalButton>
-                </>
-              )}
-            </div>
-
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs">
-              <h3 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">How it works</h3>
-              <ol className="mt-3 space-y-3">
-                {STEPS.map((step, index) => (
-                  <li key={step.title} className="flex items-start gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
-                      <step.icon aria-hidden="true" className="w-4 h-4" />
-                    </span>
-                    <span>
-                      <span className="block text-[12px] font-extrabold text-slate-800">{index + 1}. {step.title}</span>
-                      <span className="card-description block">{step.text}</span>
-                    </span>
+                      </div>
+                    </div>
+                    {pending ? (
+                      <PortalButton size="sm" className="self-start sm:self-auto" onClick={() => changeView('history')}>
+                        See request
+                      </PortalButton>
+                    ) : (
+                      <PortalButton size="sm" icon={Send} className="self-start sm:self-auto" onClick={() => openRequest(template)}>
+                        Request
+                      </PortalButton>
+                    )}
                   </li>
-                ))}
-              </ol>
-              {pendingCount > 0 && (
-                <p className="mt-4 text-[11px] font-semibold text-slate-500">
-                  You have {pendingCount} request{pendingCount === 1 ? '' : 's'} waiting for the office.
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       )}
+
+      <PortalModal isOpen={requesting !== null} onClose={closeRequest} busy={sending} labelledBy={modalTitle} className="max-w-lg p-6">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleRequest();
+          }}
+        >
+          <div>
+            <h2 id={modalTitle} className="section-label">Request a {requesting?.name}</h2>
+            <p className="card-description mt-1">The office fills it in with your details from the student registry.</p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="letter-request-note" className="form-label block">
+              Note to the office (optional)
+            </label>
+            <textarea
+              id="letter-request-note"
+              rows={4}
+              value={note}
+              maxLength={MAX_NOTE_LENGTH}
+              disabled={sending}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setNoteError(null);
+              }}
+              aria-invalid={noteError ? true : undefined}
+              aria-describedby="letter-request-note-hint"
+              placeholder="For example: needed for my student pass renewal appointment on 3 November."
+              className={`form-control form-control-md resize-none ${noteError ? 'form-control-error' : ''}`}
+            />
+            <p id="letter-request-note-hint" className={`text-[10px] font-semibold ${noteError ? 'text-rose-600' : 'text-slate-400'}`}>
+              {noteError ?? `${note.length}/${MAX_NOTE_LENGTH} characters`}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <PortalButton type="button" disabled={sending} onClick={closeRequest}>Cancel</PortalButton>
+            <PortalButton type="submit" variant="primary" icon={Send} isLoading={sending}>Send request</PortalButton>
+          </div>
+        </form>
+      </PortalModal>
     </div>
   );
 };
