@@ -984,6 +984,7 @@ export default function App() {
                   role={currentUser.role}
                   initialStudent={new URLSearchParams(location.search).get('student') ?? ''}
                   initialType={new URLSearchParams(location.search).get('type') ?? ''}
+                  initialFile={location.state?.droppedFile instanceof File ? location.state.droppedFile : null}
                   onBack={() => navigate(APP_ROUTES.files)}
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
