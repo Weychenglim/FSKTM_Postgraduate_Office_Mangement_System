@@ -1115,13 +1115,9 @@ export const AnnouncementManagement: React.FC = () => {
                     : 'Announcements you create will appear here.'}
                 </p>
               </div>
-              {filtersOn ? (
+              {filtersOn && (
                 <PortalButton size="sm" icon={X} onClick={clearFilters}>
                   Clear filters
-                </PortalButton>
-              ) : (
-                <PortalButton variant="primary" size="sm" icon={Plus} onClick={openComposer}>
-                  New announcement
                 </PortalButton>
               )}
             </div>
