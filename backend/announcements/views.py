@@ -20,7 +20,7 @@ finished ones expired at the start of the two list endpoints, and by the
 """
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Min, Q
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -205,26 +205,66 @@ def _fan_out(announcement):
         # Only people getting it for the first time are emailed, and only once
         # the delivery is committed.
         transaction.on_commit(lambda fresh=recipients: _email_announcement(announcement, fresh))
-    notifications = [
-        Notification(
-            recipient=recipient,
-            title=announcement.title,
-            service=(announcement.created_by_name or "Postgraduate Office")[:128],
-            summary=announcement.summary,
-            message=announcement.content,
-            priority=PRIORITY_TO_NOTIFICATION.get(
-                announcement.priority, Notification.Priority.NORMAL
-            ),
-            is_announcement=True,
-            reference=event_key,
-            event_key=event_key,
-            module_label="Announcement",
-            announcement=announcement,
-        )
-        for recipient in recipients
-    ]
+    notifications = [_notification_for(announcement, recipient) for recipient in recipients]
     Notification.objects.bulk_create(notifications, ignore_conflicts=True)
     return Notification.objects.filter(announcement=announcement).count()
+
+
+def _notification_for(announcement, recipient):
+    event_key = f"ANN-{announcement.pk}"
+    return Notification(
+        recipient=recipient,
+        title=announcement.title,
+        service=(announcement.created_by_name or "Postgraduate Office")[:128],
+        summary=announcement.summary,
+        message=announcement.content,
+        priority=PRIORITY_TO_NOTIFICATION.get(
+            announcement.priority, Notification.Priority.NORMAL
+        ),
+        is_announcement=True,
+        reference=event_key,
+        event_key=event_key,
+        module_label="Announcement",
+        announcement=announcement,
+    )
+
+
+def deliver_missed_announcements(user, now=None):
+    """Give a person the live announcements addressed to them that they never
+    received, such as a student registered after one was published, or someone
+    whose programme changed. Feed only: the emails went out when it was published.
+    Each one is dated when it first went out, so the feed keeps its order."""
+    if not user.is_active or user.role == User.TECHNICAL_ADMIN:
+        return 0
+    now = now or timezone.now()
+    missed = (
+        Announcement.objects.filter(
+            status=Announcement.Status.ACTIVE,
+            target__in=_audiences_for(user),
+        )
+        .filter(_targeting_q(user))
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        .exclude(notifications__recipient=user)
+    )
+    if not user.announcement_alerts:
+        missed = missed.filter(priority=Announcement.Priority.URGENT)
+    missed = list(missed)
+    if not missed:
+        return 0
+    first_sent = dict(
+        Notification.objects.filter(announcement__in=missed)
+        .values("announcement")
+        .annotate(first=Min("created_at"))
+        .values_list("announcement", "first")
+    )
+    Notification.objects.bulk_create(
+        [_notification_for(announcement, user) for announcement in missed],
+        ignore_conflicts=True,
+    )
+    for announcement in missed:
+        sent = first_sent.get(announcement.pk) or announcement.publish_at or announcement.created_at
+        Notification.objects.filter(recipient=user, announcement=announcement).update(created_at=sent)
+    return len(missed)
 
 
 def _email_announcement(announcement, users):
@@ -557,6 +597,7 @@ def announcement_attachment(request, pk):
 def notifications_list(request):
     """The caller's own notification feed (optionally ``?unread=true``)."""
     release_due_announcements()
+    deliver_missed_announcements(request.user)
     queryset = Notification.objects.filter(recipient=request.user).select_related(
         "recipient", "announcement"
     )

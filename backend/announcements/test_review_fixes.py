@@ -171,9 +171,10 @@ class NotificationFeedTests(AnnouncementReviewBase):
         for total in (1, 7):
             while Notification.objects.filter(recipient=self.student).count() < total:
                 self.publish(self.office, target="All Students", title=f"Notice {total}")
-            self.client.force_authenticate(self.student)
-            # One check for scheduled announcements that are due, then the feed.
-            with self.assertNumQueries(2):
+            self.client.force_authenticate(User.objects.get(pk=self.student.pk))
+            # Due scheduled announcements, the student's programme, live ones
+            # this student missed, then the feed: the same four for any length.
+            with self.assertNumQueries(4):
                 response = self.client.get("/api/notifications/")
             self.assertEqual(len(response.data), total)
 
