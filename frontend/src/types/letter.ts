@@ -162,6 +162,8 @@ export interface GeneratedLetter {
   fields?: LetterRequestField[];
   /** Office only, while pending: why it cannot be approved, if anything. */
   problem?: string | null;
+  /** Office only, while pending: the student's issued copies this approval replaces. */
+  replaces?: { id: string; referenceNumber: string; issuedAt: string | null }[];
 }
 
 /** Office list filters; dates are YYYY-MM-DD and bound the issue date. */

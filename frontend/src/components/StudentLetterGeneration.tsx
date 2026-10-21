@@ -101,6 +101,9 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   const pendingFor = (templateId: string) =>
     letters.find((letter) => letter.templateId === templateId && letter.status === 'Pending') ?? null;
+  const currentFor = (templateId: string) =>
+    letters.find((letter) => letter.templateId === templateId && letter.status === 'Issued') ?? null;
+  const requestingCurrent = requesting ? currentFor(requesting.id) : null;
 
   const replaceLetter = (changed: GeneratedLetter) =>
     setLetters((rows) => rows.map((row) => (row.id === changed.id ? changed : row)));
@@ -220,6 +223,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             <ul>
               {templates.map((template) => {
                 const pending = pendingFor(template.id);
+                const current = currentFor(template.id);
                 return (
                   <li key={template.id} className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -232,6 +236,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                           <StatusBadge tone="neutral" className="px-2 py-0.5 text-[9px]">{template.type}</StatusBadge>
                         </p>
                         {template.description && <p className="card-description mt-0.5">{template.description}</p>}
+                        {current && !pending && (
+                          <p className="mt-1 text-[12px] font-semibold text-slate-500">
+                            Your current copy: {current.referenceNumber}, approved {shortDate(current.decidedAt)}.
+                          </p>
+                        )}
                         {pending && (
                           <p className="mt-1 text-[12px] font-semibold text-amber-700">
                             Requested on {shortDate(pending.requestedAt)}, waiting for the office.
@@ -268,6 +277,11 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
             <h2 id={modalTitle} className="section-label">Request a {requesting?.name}</h2>
             <p className="card-description mt-1">The office fills it in with your details from the student registry.</p>
           </div>
+          {requestingCurrent && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-900">
+              You already have this letter ({requestingCurrent.referenceNumber}, approved {shortDate(requestingCurrent.decidedAt)}). Once the office approves the new one, it replaces that copy, which will no longer be valid.
+            </p>
+          )}
           <div className="space-y-1.5">
             <label htmlFor="letter-request-note" className="form-label block">
               Note to the office (optional)

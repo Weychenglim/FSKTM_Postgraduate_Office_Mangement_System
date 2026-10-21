@@ -212,7 +212,7 @@ const LetterRequestQueue: React.FC<{
                     </td>
                     <td className="data-td whitespace-nowrap">{shortDate(row.requestedAt)}</td>
                     <td className="data-td">
-                      <LetterStatusBadge status={row.status} />
+                      <LetterStatusBadge status={row.status} replaced={Boolean(row.replacedById)} />
                       {row.status === 'Issued' && (
                         <span className="mt-1 block text-[10px] font-semibold text-slate-400">
                           <span className="font-mono">{row.referenceNumber}</span>
@@ -426,7 +426,7 @@ const LetterRequestReview: React.FC<{
       ) : request.status !== 'Pending' ? (
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs space-y-3 max-w-xl">
           <div className="flex items-center gap-2">
-            <LetterStatusBadge status={request.status} />
+            <LetterStatusBadge status={request.status} replaced={Boolean(request.replacedById)} />
             <span className="text-[12px] font-semibold text-slate-600">
               This request was already {request.status === 'Issued' ? 'approved' : request.status.toLowerCase()}
               {request.decidedBy ? ` by ${request.decidedBy}` : ''}
@@ -490,6 +490,15 @@ const LetterRequestReview: React.FC<{
                     : `Type in the ${needed.length} value${needed.length === 1 ? '' : 's'} the portal does not hold. Record values come from the ${automatic ? 'appointment and the ' : ''}student registry.`}
                 </p>
               </div>
+
+              {!request.problem && request.replaces && request.replaces.length > 0 && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-900 flex items-start gap-2">
+                  <AlertTriangle aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5" />
+                  {`Approving replaces the student's current ${request.templateName} (${request.replaces
+                    .map((old) => `${old.referenceNumber}${old.issuedAt ? `, approved ${shortDate(old.issuedAt)}` : ''}`)
+                    .join('; ')}). That copy will no longer be valid.`}
+                </p>
+              )}
 
               {request.problem && (
                 <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] font-semibold text-rose-700 flex items-start gap-2">

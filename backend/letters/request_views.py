@@ -169,7 +169,7 @@ def _email_student(letter, subject, message):
     )
 
 
-def _notify_ready(letter, event_key):
+def _notify_ready(letter, event_key, replaced=()):
     _notify(
         letter.student.user,
         letter,
@@ -180,6 +180,7 @@ def _notify_ready(letter, event_key):
             f"Your {letter.template_name} was approved on {letter.issued_on.strftime('%d %B %Y')} "
             f"with reference {letter.reference_number}. You can view, print or download it "
             "from My Requests."
+            + (f" It replaces {', '.join(replaced)}, which is no longer valid." if replaced else "")
         ),
         record_type=LETTER_RECORD,
     )
@@ -325,6 +326,19 @@ def _create_request(request):
     return Response(letter.to_public_dict(include_content=False), status=status.HTTP_201_CREATED)
 
 
+def _earlier_copies(letter):
+    """The student's issued copies of the same letter, which a newly approved
+    request replaces (a student pass letter, say, is only valid for months)."""
+    if letter.is_automatic or letter.student_id is None or letter.template_id is None:
+        return GeneratedLetter.objects.none()
+    return GeneratedLetter.objects.filter(
+        student_id=letter.student_id,
+        template_id=letter.template_id,
+        purpose=LetterPurpose.REQUEST,
+        status=Status.ISSUED,
+    ).exclude(pk=letter.pk)
+
+
 def _review(letter):
     """What the office needs to decide a pending request: the template's current
     wording and every value it needs, from the student's record or typed in."""
@@ -359,6 +373,10 @@ def _review(letter):
         "signatoryTitle": template.signatory_title if template else "",
         "fields": letter_fields(content, values, custom),
         "problem": problem,
+        "replaces": [
+            {"id": str(old.pk), "referenceNumber": old.reference_number, "issuedAt": old.to_public_dict(include_content=False)["issuedAt"]}
+            for old in _earlier_copies(letter)
+        ],
     }
 
 
@@ -443,12 +461,27 @@ def approve_request(request, pk):
         if letter.is_automatic:
             notify_recipients(letter)
             return Response(letter.to_public_dict())
-        _notify_ready(letter, f"letters:request-approved:{letter.pk}")
+        replaced = []
+        for old in _earlier_copies(letter).select_for_update():
+            old.status = Status.REVOKED
+            old.revoked_at = letter.decided_at or timezone.now()
+            old.revoked_by = request.user
+            old.revoke_reason = f"Replaced by {reference}."
+            old.replaced_by = letter
+            old.save(update_fields=["status", "revoked_at", "revoked_by", "revoke_reason", "replaced_by"])
+            replaced.append(old.reference_number)
+        _notify_ready(letter, f"letters:request-approved:{letter.pk}", replaced)
         _email_student(
             letter,
             f"Letter approved: {letter.template_name}",
             f"Your {letter.template_name} was approved with reference {reference}. "
-            "You can view, print or download it now.",
+            "You can view, print or download it now."
+            + (
+                f"\n\nIt replaces your earlier {letter.template_name} ({', '.join(replaced)}), "
+                "which is no longer valid."
+                if replaced
+                else ""
+            ),
         )
     return Response(letter.to_public_dict())
 

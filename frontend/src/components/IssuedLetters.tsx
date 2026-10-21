@@ -51,9 +51,9 @@ const STATUS_TONE: Record<GeneratedLetterStatus, BadgeTone> = {
   Revoked: 'danger',
 };
 
-export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus }> = ({ status }) => (
-  <StatusBadge tone={STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
-    {LETTER_STATUS_LABEL[status] ?? status}
+export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replaced?: boolean }> = ({ status, replaced = false }) => (
+  <StatusBadge tone={replaced ? 'neutral' : STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
+    {replaced ? 'Replaced' : LETTER_STATUS_LABEL[status] ?? status}
   </StatusBadge>
 );
 
@@ -135,7 +135,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <LetterStatusBadge status={letter.status} />
+          <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
           <button
             type="button"
             onClick={onClose}
@@ -150,7 +150,9 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
       <div className="bg-slate-100/70 p-4 sm:p-6 space-y-4">
         {letter.status === 'Revoked' && (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-semibold text-rose-700">
-            This letter was revoked{letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.
+            {letter.replacedById
+              ? `${letter.revokeReason || 'This letter was replaced by a newer one.'} It is no longer valid.`
+              : `This letter was revoked${letter.revokeReason ? `: ${letter.revokeReason}` : '.'} It is no longer valid.`}
           </p>
         )}
         {sentTo && (
@@ -194,7 +196,9 @@ const StatusNote: React.FC<{ letter: GeneratedLetter }> = ({ letter }) => {
           ? { text: `Withdrawn ${shortDate(letter.withdrawnAt)}`, tone: 'text-slate-400' }
           : letter.status === 'Rejected'
             ? { text: `Reason: ${letter.rejectReason}`, tone: 'text-rose-600' }
-            : { text: `Reason: ${letter.revokeReason}`, tone: 'text-rose-600' };
+            : letter.replacedById
+              ? { text: `${letter.revokeReason} It is no longer valid.`, tone: 'text-slate-500' }
+              : { text: `Reason: ${letter.revokeReason}`, tone: 'text-rose-600' };
   return <p className={`mt-1 text-[10.5px] font-semibold leading-snug max-w-[260px] ${note.tone}`}>{note.text}</p>;
 };
 
@@ -294,7 +298,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                         : `${letter.letterType} · Requested ${shortDate(letter.requestedAt)}`}
                     </span>
                   </div>
-                  <LetterStatusBadge status={letter.status} />
+                  <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                 </div>
                 <StatusNote letter={letter} />
                 {letter.referenceNumber && (
@@ -325,7 +329,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                     </td>
                     <td className="data-td whitespace-nowrap">{shortDate(letter.requestedAt)}</td>
                     <td className="data-td">
-                      <LetterStatusBadge status={letter.status} />
+                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                       <StatusNote letter={letter} />
                     </td>
                     <td className="data-td font-mono whitespace-nowrap text-slate-700">{letter.referenceNumber || '-'}</td>
@@ -593,10 +597,10 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                       {letter.decidedBy && <span className="block text-[10px] text-slate-400">by {letter.decidedBy}</span>}
                     </td>
                     <td className="data-td">
-                      <LetterStatusBadge status={letter.status} />
+                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                       {letter.status === 'Revoked' && letter.revokeReason && (
-                        <p className="mt-1 text-[10px] font-semibold text-rose-600 leading-snug max-w-[220px]">
-                          Reason: {letter.revokeReason}
+                        <p className={`mt-1 text-[10px] font-semibold leading-snug max-w-[220px] ${letter.replacedById ? 'text-slate-500' : 'text-rose-600'}`}>
+                          {letter.replacedById ? letter.revokeReason : `Reason: ${letter.revokeReason}`}
                         </p>
                       )}
                     </td>
