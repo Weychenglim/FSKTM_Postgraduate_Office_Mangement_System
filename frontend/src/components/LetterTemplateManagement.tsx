@@ -13,6 +13,7 @@ import {
   FileText,
   Italic,
   List,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -57,16 +58,16 @@ const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General N
 const DEFAULT_REFERENCE_PREFIX = 'UMF/PG';
 
 const PURPOSE_OPTIONS: ReadonlyArray<{ value: LetterPurpose; label: string; description: string }> = [
-  { value: 'REQUEST', label: 'Student requests', description: 'Students ask for it in Request a Letter. The office approves each one.' },
+  { value: 'REQUEST', label: 'When a student asks for it', description: 'Students request it in Letter Generation, and the office approves each request.' },
   {
     value: 'SUPERVISOR_APPOINTMENT',
-    label: 'Supervisor appointment letter',
-    description: 'Sent by itself when a coordinator approves a supervisor appointment.',
+    label: 'After a supervisor is approved',
+    description: 'Sent automatically once the coordinator approves a supervisor appointment.',
   },
   {
     value: 'PANEL_APPOINTMENT',
-    label: 'Panel appointment letter',
-    description: 'Sent by itself when a coordinator approves a panel appointment.',
+    label: 'After a panel member is approved',
+    description: 'Sent automatically once the coordinator approves a panel appointment.',
   },
 ];
 
@@ -78,9 +79,9 @@ const PURPOSE_NOTE: Partial<Record<LetterPurpose, string>> = {
 };
 
 const PURPOSE_CHIP: Record<LetterPurpose, string> = {
-  REQUEST: 'Student request',
-  SUPERVISOR_APPOINTMENT: 'Sent on supervisor approval',
-  PANEL_APPOINTMENT: 'Sent on panel approval',
+  REQUEST: 'Requested by students',
+  SUPERVISOR_APPOINTMENT: 'Sent after supervisor approval',
+  PANEL_APPOINTMENT: 'Sent after panel approval',
 };
 
 const STATUS_HINT: Record<LetterTemplateStatus, string> = {
@@ -219,11 +220,13 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'write' | 'preview'>('write');
-  const [insertOpen, setInsertOpen] = useState(false);
-  // The "ask the office for something" box inside the Insert detail menu.
-  const [askingOffice, setAskingOffice] = useState(false);
-  const [officeLabel, setOfficeLabel] = useState('');
-  const [officeError, setOfficeError] = useState<string | null>(null);
+  // Which toolbar menu is open: student info, or the blanks the office fills in.
+  const [openMenu, setOpenMenu] = useState<'info' | 'blanks' | null>(null);
+  const [addingBlank, setAddingBlank] = useState(false);
+  const [blankLabel, setBlankLabel] = useState('');
+  const [blankError, setBlankError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameLabel, setRenameLabel] = useState('');
 
   const [editorName, setEditorName] = useState('');
   const [editorType, setEditorType] = useState('');
@@ -248,7 +251,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   // so a placeholder lands at the cursor (not the end) and the caret follows it.
   const editorTextareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCursorRef = useRef<number | null>(null);
-  const insertMenuRef = useRef<HTMLDivElement>(null);
+  const infoMenuRef = useRef<HTMLDivElement>(null);
+  const blanksMenuRef = useRef<HTMLDivElement>(null);
 
   const loadTemplates = useCallback(() => {
     setLoading(true);
@@ -315,19 +319,21 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     }
   }, [editorContent]);
 
-  // Close the Insert detail menu on an outside click or Escape.
+  // Close an open toolbar menu on an outside click or Escape.
   useEffect(() => {
-    if (!insertOpen) {
-      setAskingOffice(false);
-      setOfficeLabel('');
-      setOfficeError(null);
+    if (!openMenu) {
+      setAddingBlank(false);
+      setBlankLabel('');
+      setBlankError(null);
+      setRenaming(null);
       return;
     }
+    const menu = openMenu === 'info' ? infoMenuRef : blanksMenuRef;
     const onDown = (event: MouseEvent) => {
-      if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false);
+      if (!menu.current?.contains(event.target as Node)) setOpenMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setInsertOpen(false);
+      if (event.key === 'Escape') setOpenMenu(null);
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
@@ -335,7 +341,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [insertOpen]);
+  }, [openMenu]);
 
   // Available placeholder tags come from the server's registry, the same list
   // it validates against; the local copy covers the moment before it loads.
@@ -352,7 +358,6 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const tagGroups = [
     { title: 'From the student record', tags: placeholderTags.filter((p) => !p.appointment) },
     { title: 'From the appointment', tags: placeholderTags.filter((p) => p.appointment) },
-    { title: 'Typed in by the office when approving', tags: editorFields.map((f) => ({ label: f.label || f.name, tag: `{{${f.name}}}`, source: f.hint ?? '', appointment: false })) },
   ].filter((group) => group.tags.length > 0);
   // Every detail the letter uses, named the way the office knows it.
   const knownLabels = new Map(placeholderTags.map((p) => [p.tag, p.label]));
@@ -379,16 +384,16 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     const insertion = `${lead}${tag}${trail}`;
 
     setMode('write');
-    setInsertOpen(false);
+    setOpenMenu(null);
     setEditorContent(before + insertion + after);
     pendingCursorRef.current = before.length + insertion.length;
   };
 
-  // The office names what it should be asked; the tag behind it is made for them.
-  const addOfficeField = () => {
-    const label = officeLabel.trim();
+  // The office names a blank it fills in; the tag behind it is made for them.
+  const addBlank = () => {
+    const label = blankLabel.trim();
     if (!label) {
-      setOfficeError('Type what the office should fill in, for example Attendance (%).');
+      setBlankError('Type what the office should fill in, for example Attendance (%).');
       return;
     }
     const existing = editorFields.find((f) => f.label.trim().toLowerCase() === label.toLowerCase());
@@ -397,7 +402,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       return;
     }
     if (editorFields.length >= 20) {
-      setOfficeError('A letter can ask the office for at most 20 details.');
+      setBlankError('A letter can have at most 20 blanks for the office.');
       return;
     }
     const name = fieldNameFromLabel(label, editorFields.map((f) => f.name));
@@ -406,11 +411,25 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     handleInsertTag(`{{${name}}}`);
   };
 
-  // Taking a detail out of the letter; an office-typed one is then gone too.
-  const removeDetail = (tag: string) => {
+  const renameBlank = (name: string) => {
+    const label = renameLabel.trim();
+    if (!label) return;
+    setEditorFields((current) => current.map((f) => (f.name === name ? { ...f, label } : f)));
+    setRenaming(null);
+  };
+
+  // Take a word out of the letter's text.
+  const takeOut = (tag: string) => {
     setEditorContent((current) => current.split(tag).join('').replace(/[ \t]{2,}/g, ' ').replace(/ ([.,;:)])/g, '$1'));
-    setEditorFields((current) => current.filter((f) => `{{${f.name}}}` !== tag));
     clearProblem('content');
+  };
+
+  // Deleting a blank also takes it out of the letter.
+  const deleteBlank = (field: LetterCustomField) => {
+    takeOut(`{{${field.name}}}`);
+    setEditorFields((current) => current.filter((f) => f.name !== field.name));
+    clearProblem('customFields');
+    triggerToast(`Deleted "${field.label || field.name}".`);
   };
 
   const handleSaveTemplate = async () => {
@@ -427,7 +446,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       description: editorDescription,
       referencePrefix: editorPrefix,
       content: editorContent,
-      customFields: editorFields.filter((f) => editorContent.includes(`{{${f.name}}}`)),
+      customFields: editorFields,
       status: editorStatus,
       purpose: editorPurpose,
       signatoryName: editorSignatoryName,
@@ -598,6 +617,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const typeOptions = editorType && !LETTER_TYPES.includes(editorType) ? [...LETTER_TYPES, editorType] : LETTER_TYPES;
   const referencePreview = `${(editorPrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
   const toolButton = 'p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer';
+  const menuButton = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:border-slate-300 cursor-pointer';
+  const menuPanel = 'absolute left-0 z-20 mt-2 w-72 max-w-[calc(100vw-3rem)] max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg';
 
   return (
     <div id="letter-template-management" className="space-y-6 text-left font-sans text-brand-navy text-xs pb-12">
@@ -792,20 +813,21 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           <List className="w-4 h-4" />
                         </button>
                         <span aria-hidden="true" className="mx-2 h-5 w-px bg-slate-200" />
-                        <div ref={insertMenuRef} className="relative">
+                        <div ref={infoMenuRef} className="relative">
                           <button
                             type="button"
                             aria-haspopup="true"
-                            aria-expanded={insertOpen}
-                            onClick={() => setInsertOpen((open) => !open)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:border-slate-300 cursor-pointer"
+                            aria-expanded={openMenu === 'info'}
+                            onClick={() => setOpenMenu((menu) => (menu === 'info' ? null : 'info'))}
+                            className={menuButton}
                           >
                             <Plus aria-hidden="true" className="w-3.5 h-3.5" />
-                            Insert detail
+                            Student info
                             <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
                           </button>
-                          {insertOpen && (
-                            <div className="absolute left-0 z-20 mt-2 w-72 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                          {openMenu === 'info' && (
+                            <div className={menuPanel}>
+                              <p className="px-2 pt-1 pb-2 text-[11px] font-semibold text-slate-500">The portal fills these in for each student.</p>
                               {tagGroups.map((group) => (
                                 <div key={group.title} className="py-1">
                                   <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{group.title}</p>
@@ -815,52 +837,131 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                                       type="button"
                                       onClick={() => handleInsertTag(p.tag)}
                                       title={p.source || undefined}
-                                      className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                                      className="flex w-full items-center rounded-lg px-2 py-1.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                                     >
-                                      <span>{p.label}</span>
+                                      {p.label}
                                     </button>
                                   ))}
                                 </div>
                               ))}
+                            </div>
+                          )}
+                        </div>
+                        <div ref={blanksMenuRef} className="relative">
+                          <button
+                            type="button"
+                            aria-haspopup="true"
+                            aria-expanded={openMenu === 'blanks'}
+                            onClick={() => setOpenMenu((menu) => (menu === 'blanks' ? null : 'blanks'))}
+                            className={menuButton}
+                          >
+                            <Plus aria-hidden="true" className="w-3.5 h-3.5" />
+                            Office fills in
+                            <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
+                          </button>
+                          {openMenu === 'blanks' && (
+                            <div className={menuPanel}>
+                              <p className="px-2 pt-1 pb-2 text-[11px] font-semibold text-slate-500">
+                                Blanks the office types in when approving, for details the portal does not have.
+                              </p>
+                              {editorFields.length === 0 && !addingBlank && (
+                                <p className="px-2 pb-2 text-[12px] font-semibold text-slate-400">No blanks yet.</p>
+                              )}
+                              {editorFields.map((field) => renaming === field.name ? (
+                                <div key={field.name} className="space-y-2 rounded-lg bg-slate-50 p-2">
+                                  <label htmlFor={`rename-${field.name}`} className="block text-[12px] font-bold text-slate-700">Rename</label>
+                                  <input
+                                    id={`rename-${field.name}`}
+                                    type="text"
+                                    autoFocus
+                                    value={renameLabel}
+                                    maxLength={80}
+                                    onChange={(e) => setRenameLabel(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        renameBlank(field.name);
+                                      }
+                                    }}
+                                    className="form-control form-control-sm"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <PortalButton size="sm" variant="ghost" onClick={() => setRenaming(null)}>Cancel</PortalButton>
+                                    <PortalButton size="sm" variant="primary" onClick={() => renameBlank(field.name)} disabled={!renameLabel.trim()}>Save</PortalButton>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div key={field.name} className="flex items-center gap-1 rounded-lg hover:bg-slate-50">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleInsertTag(`{{${field.name}}}`)}
+                                    title="Put it in the letter"
+                                    className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-[12px] font-semibold text-slate-700 cursor-pointer"
+                                  >
+                                    {field.label || field.name}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenaming(field.name);
+                                      setRenameLabel(field.label || field.name);
+                                    }}
+                                    aria-label={`Rename ${field.label || field.name}`}
+                                    title="Rename"
+                                    className="rounded-md p-1.5 text-slate-400 hover:bg-white hover:text-slate-700 cursor-pointer"
+                                  >
+                                    <Pencil aria-hidden="true" className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteBlank(field)}
+                                    aria-label={`Delete ${field.label || field.name}`}
+                                    title="Delete"
+                                    className="rounded-md p-1.5 text-slate-400 hover:bg-white hover:text-rose-600 cursor-pointer"
+                                  >
+                                    <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
                               <div className="mt-1 border-t border-slate-100 pt-2">
-                                {askingOffice ? (
+                                {addingBlank ? (
                                   <div className="space-y-2 px-2 pb-1">
                                     <label htmlFor="office-detail-label" className="block text-[12px] font-bold text-slate-700">
-                                      What should the office fill in when approving?
+                                      What should the office fill in?
                                     </label>
                                     <input
                                       id="office-detail-label"
                                       type="text"
                                       autoFocus
-                                      value={officeLabel}
+                                      value={blankLabel}
                                       maxLength={80}
                                       onChange={(e) => {
-                                        setOfficeLabel(e.target.value);
-                                        setOfficeError(null);
+                                        setBlankLabel(e.target.value);
+                                        setBlankError(null);
                                       }}
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                           e.preventDefault();
-                                          addOfficeField();
+                                          addBlank();
                                         }
                                       }}
                                       placeholder="For example: Attendance (%)"
                                       className="form-control form-control-sm"
                                     />
-                                    {officeError && <p role="alert" className="text-[11px] font-bold text-rose-600">{officeError}</p>}
+                                    {blankError && <p role="alert" className="text-[11px] font-bold text-rose-600">{blankError}</p>}
                                     <div className="flex justify-end gap-2">
-                                      <PortalButton size="sm" variant="ghost" onClick={() => setAskingOffice(false)}>Cancel</PortalButton>
-                                      <PortalButton size="sm" variant="primary" onClick={addOfficeField}>Add to letter</PortalButton>
+                                      <PortalButton size="sm" variant="ghost" onClick={() => setAddingBlank(false)}>Cancel</PortalButton>
+                                      <PortalButton size="sm" variant="primary" onClick={addBlank}>Add to letter</PortalButton>
                                     </div>
                                   </div>
                                 ) : (
                                   <button
                                     type="button"
-                                    onClick={() => setAskingOffice(true)}
+                                    onClick={() => setAddingBlank(true)}
                                     className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[12px] font-bold text-blue-700 hover:bg-blue-50 cursor-pointer"
                                   >
                                     <Plus aria-hidden="true" className="w-3.5 h-3.5" />
-                                    Ask the office for something else
+                                    Add a blank
                                   </button>
                                 )}
                               </div>
@@ -872,7 +973,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           onClick={handleCheckPlaceholders}
                           className="ml-auto text-[12px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
                         >
-                          Check details
+                          Check for mistakes
                         </button>
                       </div>
                       <textarea
@@ -887,12 +988,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         aria-invalid={problems.content ? true : undefined}
                         aria-describedby={problems.content ? 'letter-template-content-error' : 'letter-template-content-hint'}
                         className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
-                        placeholder="Write the letter. Use Insert detail for the student's name, matric number and other details."
+                        placeholder="Write the letter. Use Student info for the student's name, matric number and other details."
                       />
                       <div id="letter-template-content-hint" className="space-y-2 border-t border-slate-100 px-5 py-4">
-                        <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Details in this letter</p>
+                        <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Used in this letter</p>
                         {usedDetails.length === 0 ? (
-                          <p className="text-[12px] font-semibold text-slate-400">None yet. Use Insert detail to add the student's name and other details.</p>
+                          <p className="text-[12px] font-semibold text-slate-400">Nothing yet. Use Student info to add the student's name and other details.</p>
                         ) : (
                           <ul className="flex flex-wrap gap-2">
                             {usedDetails.map((detail) => (
@@ -906,12 +1007,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                                       : 'border-slate-200 bg-slate-50 text-slate-700'
                                 }`}
                               >
-                                {detail.kind === 'unknown' ? `Not recognised: ${detail.tag}` : detail.label}
-                                {detail.kind === 'office' && <span className="font-medium text-amber-700">· office types it in</span>}
+                                {detail.kind === 'unknown' ? `Not recognised: ${detail.tag}. Check the spelling.` : detail.label}
+                                {detail.kind === 'office' && <span className="font-medium text-amber-700">· office fills in</span>}
                                 {detail.kind !== 'record' && (
                                   <button
                                     type="button"
-                                    onClick={() => removeDetail(detail.tag)}
+                                    onClick={() => takeOut(detail.tag)}
                                     aria-label={`Take ${detail.label} out of the letter`}
                                     title="Take it out of the letter"
                                     className="rounded p-0.5 hover:bg-white/70 cursor-pointer"
@@ -924,7 +1025,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           </ul>
                         )}
                         <p className="text-[11px] font-semibold text-slate-400">
-                          Words in double curly brackets are swapped for each student's details when the letter is made.
+                          Words in {'{{double curly brackets}}'} are replaced with the real details when each letter is made.
                         </p>
                       </div>
                     </>
@@ -1040,7 +1141,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
                 <section className="app-card p-5">
                   <fieldset className="space-y-3">
-                    <legend className="section-label mb-3">Used For</legend>
+                    <legend className="section-label mb-3">When is this letter used?</legend>
                     {PURPOSE_OPTIONS.map((option) => (
                       <label key={option.value} className="flex items-start gap-2.5 cursor-pointer">
                         <input
@@ -1072,7 +1173,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                   <Field
                     label="Reference prefix"
                     htmlFor="letter-template-prefix"
-                    hint={`Numbered ${referencePreview}; the last digits are given when ${automatic ? 'the letter is sent' : 'the office approves a request'}.`}
+                    hint={`Letters are numbered ${referencePreview.replace('####', '0001')}, then 0002 and so on.`}
                     error={problems.referencePrefix}
                   >
                     <input
