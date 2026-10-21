@@ -401,13 +401,41 @@ def create_evaluation_period(
 @transaction.atomic
 def update_evaluation_period(*, period, actor, values, reason=""):
     _assert_office_admin(actor)
+    source_semester_id = period.academic_semester_id
+    requested_semester = values.get("academic_semester")
+    destination_semester_id = (
+        requested_semester.pk if requested_semester is not None else source_semester_id
+    )
+    # Timeline links and semester closure take parent locks before period locks.
+    # A move needs both parents; deterministic order also serializes opposite moves.
+    semester_ids = {source_semester_id, destination_semester_id} - {None}
+    locked_semesters = {
+        semester.pk: semester for semester in AcademicSemester.objects.select_for_update()
+        .filter(pk__in=semester_ids).order_by("pk")
+    }
+    if requested_semester is not None:
+        if destination_semester_id not in locked_semesters:
+            raise MarksStateConflict("The selected semester no longer exists. Reload and retry.")
+        # The API may have resolved this object before a concurrent closure.
+        values = {**values, "academic_semester": locked_semesters[destination_semester_id]}
     period = (
         EvaluationPeriod.objects.select_for_update()
         .select_related("rubric")
         .get(pk=period.pk)
     )
+    if period.academic_semester_id != source_semester_id:
+        raise MarksStateConflict("The evaluation period changed semesters. Reload and retry.")
     before = _period_snapshot(period)
     if period.lifecycle_status == EvaluationPeriod.Lifecycle.DRAFT:
+        if (
+            "academic_semester" in values
+            and getattr(values["academic_semester"], "pk", None) != period.academic_semester_id
+            and period.timeline_entries.exists()
+        ):
+            raise MarksStateConflict(
+                "This evaluation period is linked to a semester timeline. "
+                "Resolve its timeline links before moving it to another semester."
+            )
         for field in (
             "name",
             "academic_semester",

@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
 from django.http import HttpResponse
@@ -47,6 +48,7 @@ from .serializers import (
     active_timeline_payload,
 )
 from .upload_security import validate_timeline_upload
+from .timeline_import import create_preview, prepare_rows, verify_preview
 
 
 User = get_user_model()
@@ -278,7 +280,7 @@ def derive_entry_status(deadline_start, deadline_end):
     if today < deadline_start:
         return SemesterTimelineEntry.Status.UPCOMING
     if today > deadline_end:
-        return SemesterTimelineEntry.Status.COMPLETED
+        return SemesterTimelineEntry.Status.ENDED
     if deadline_start == deadline_end:
         return SemesterTimelineEntry.Status.DEADLINE
     return SemesterTimelineEntry.Status.ACTIVE
@@ -302,7 +304,7 @@ def active_timeline_view(request):
                 "levels": [],
             }
         )
-    return Response(active_timeline_payload(timeline))
+    return Response(active_timeline_payload(timeline, user=request.user))
 
 
 @api_view(["GET"])
@@ -312,8 +314,11 @@ def template_view(request):
     if denied:
         return denied
 
+    semester = get_timeline_semester(request)
+    if semester is None:
+        return timeline_locked_response()
     response = HttpResponse(
-        build_template_workbook(),
+        build_template_workbook(semester),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     response["Content-Disposition"] = 'attachment; filename="FSKTM_Semester_Timeline_Template.xlsx"'
@@ -322,78 +327,85 @@ def template_view(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def upload_timeline_view(request):
+def preview_timeline_upload_view(request):
     denied = admin_required_response(request.user)
     if denied:
         return denied
-
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
-        return Response({"errors": ["Timeline Excel file is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-    upload_errors = validate_timeline_upload(uploaded_file)
-    if upload_errors:
-        return Response({"errors": upload_errors}, status=status.HTTP_400_BAD_REQUEST)
-
-    rows, errors = parse_timeline_workbook(uploaded_file)
-    if errors:
-        return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
-
-    academic_semester = get_timeline_semester(request)
-    if academic_semester is None:
+        return Response({"errors": ["Timeline Excel file is required."]}, status=400)
+    semester = get_timeline_semester(request)
+    if semester is None:
         return timeline_locked_response()
-    semester = academic_semester.get_term_display()
-    session = academic_semester.academic_session
-    replaced_existing = SemesterTimeline.objects.filter(
-        academic_semester=academic_semester,
-        is_active=True,
-    ).exists()
-
-    with transaction.atomic():
-        SemesterTimeline.objects.filter(
-            academic_semester=academic_semester,
-            is_active=True,
-        ).update(
-            is_active=False,
-            replaced_at=timezone.now(),
-        )
-        timeline = SemesterTimeline.objects.create(
-            academic_semester=academic_semester,
-            semester=semester,
-            session=session,
-            source_filename=uploaded_file.name,
-            uploaded_by=request.user,
-            is_active=True,
-        )
-        entries = [
-            SemesterTimelineEntry(timeline=timeline, **row)
-            for row in rows
-        ]
-        SemesterTimelineEntry.objects.bulk_create(entries)
-        timeline = get_managed_timeline(request)
-        TimelineAuditLog.objects.create(
-            actor=request.user,
-            timeline=timeline,
-            action=TimelineAuditLog.Action.REPLACE if replaced_existing else TimelineAuditLog.Action.UPLOAD,
-            summary=f"Imported {len(rows)} timeline entries from {uploaded_file.name}.",
-        )
-
-    return Response(
-        {
-            "importedCount": len(rows),
-            "timeline": active_timeline_payload(timeline),
-        },
-        status=status.HTTP_201_CREATED,
-    )
+    try:
+        return Response(create_preview(uploaded_file, semester, request.user))
+    except ValidationError as exc:
+        return Response({"errors": exc.messages}, status=400)
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+def upload_timeline_view(request):
+    denied = admin_required_response(request.user)
+    if denied:
+        return denied
+    uploaded_file = request.FILES.get("file")
+    if uploaded_file is None:
+        return Response({"errors": ["Timeline Excel file is required."]}, status=400)
+    upload_errors = validate_timeline_upload(uploaded_file)
+    if upload_errors:
+        return Response({"errors": upload_errors}, status=400)
+    # Preserve full workbook validation even when a token is missing.
+    _, errors = parse_timeline_workbook(uploaded_file)
+    uploaded_file.seek(0)
+    if errors:
+        return Response({"errors": errors}, status=400)
+    semester = get_timeline_semester(request)
+    if semester is None:
+        return timeline_locked_response()
+    token = request.data.get("previewToken")
+    if not token:
+        return Response({"errors": ["Preview the workbook before confirming the import."]}, status=400)
+    with transaction.atomic():
+        semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+        if semester.lifecycle_status not in {"DRAFT", "ACTIVE"}:
+            return timeline_locked_response()
+        try:
+            verify_preview(token, uploaded_file, semester, request.user)
+        except ValidationError as exc:
+            return Response({"errors": exc.messages}, status=409)
+        try:
+            rows, warnings = prepare_rows(uploaded_file, semester)
+        except ValidationError as exc:
+            return Response({"errors": exc.messages}, status=400)
+        if warnings and str(request.data.get("acknowledgeWarnings", "")).lower() != "true":
+            return Response({"errors": ["Acknowledge all preview warnings before importing."]}, status=400)
+        current = SemesterTimeline.objects.filter(academic_semester=semester, is_active=True)
+        replaced = current.exists()
+        current.update(is_active=False, replaced_at=timezone.now())
+        timeline = SemesterTimeline.objects.create(
+            academic_semester=semester, semester=semester.get_term_display(),
+            session=semester.academic_session, source_filename=uploaded_file.name,
+            uploaded_by=request.user, is_active=True)
+        SemesterTimelineEntry.objects.bulk_create([
+            SemesterTimelineEntry(timeline=timeline, **row) for row in rows])
+        TimelineAuditLog.objects.create(actor=request.user, timeline=timeline,
+            action=TimelineAuditLog.Action.REPLACE if replaced else TimelineAuditLog.Action.UPLOAD,
+            summary=f"Imported {len(rows)} timeline entries from {uploaded_file.name}.")
+    return Response({"importedCount": len(rows), "timeline": active_timeline_payload(timeline)}, status=201)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
 def timeline_entry_list_view(request):
     denied = admin_required_response(request.user)
     if denied:
         return denied
 
+    semester = get_timeline_semester(request)
+    if semester is not None:
+        AcademicSemester.objects.select_for_update().get(pk=semester.pk)
     timeline = get_managed_timeline(request)
     if timeline is None:
         return Response(
@@ -406,7 +418,7 @@ def timeline_entry_list_view(request):
             status=status.HTTP_409_CONFLICT,
         )
 
-    serializer = TimelineEntryCreateSerializer(data=request.data)
+    serializer = TimelineEntryCreateSerializer(data=request.data, context={"timeline": timeline})
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
@@ -434,6 +446,8 @@ def timeline_entry_list_view(request):
             target_roles=data["targetRoles"],
             status=derive_entry_status(data["deadlineStart"], data["deadlineEnd"]),
             display_order=next_display_order,
+            operational_period=data.get("operational_period"),
+            marks_period=data.get("marks_period"),
         )
         TimelineAuditLog.objects.create(
             actor=request.user,
@@ -448,6 +462,7 @@ def timeline_entry_list_view(request):
 
 @api_view(["PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def timeline_entry_detail_view(request, pk):
     denied = admin_required_response(request.user)
     if denied:
@@ -461,6 +476,14 @@ def timeline_entry_detail_view(request, pk):
     except SemesterTimelineEntry.DoesNotExist:
         return Response({"error": "Timeline entry was not found."}, status=status.HTTP_404_NOT_FOUND)
     semester = entry.timeline.academic_semester
+    if semester is not None:
+        semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+        # Refresh after the parent lock so a concurrent replacement cannot edit stale rows.
+        entry = SemesterTimelineEntry.objects.select_related("timeline").filter(pk=pk).first()
+        if entry is None:
+            return Response({"error": "Timeline entry was removed. Reload the timeline."}, status=404)
+    if not entry.timeline.is_active:
+        return timeline_locked_response()
     if semester is None or semester.lifecycle_status not in {
         AcademicSemester.Lifecycle.DRAFT,
         AcademicSemester.Lifecycle.ACTIVE,
@@ -500,6 +523,8 @@ def timeline_entry_detail_view(request, pk):
         ("deadlineEnd", "deadline_end"),
         ("weekLabel", "week_label"),
         ("targetRoles", "target_roles"),
+        ("operational_period", "operational_period"),
+        ("marks_period", "marks_period"),
     ]:
         if api_field in data:
             setattr(entry, model_field, data[api_field])

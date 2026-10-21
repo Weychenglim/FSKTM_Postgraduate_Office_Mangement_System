@@ -66,6 +66,12 @@ class CapacityReassessmentMigrationTests(APITransactionTestCase):
                 label: list(apps.get_model(label).objects.order_by("pk").values())
                 for label in labels
             }
+            historical_fields = {
+                # Later additive migrations can introduce new nullable columns;
+                # compare every original column to verify no history changed.
+                label: [field.attname for field in apps.get_model(label)._meta.concrete_fields]
+                for label in labels
+            }
             old_models = {
                 model._meta.label for model in apps.get_app_config("appointments").get_models()
             }
@@ -75,8 +81,11 @@ class CapacityReassessmentMigrationTests(APITransactionTestCase):
             for label, rows in snapshots.items():
                 with self.subTest(model=label):
                     self.assertEqual(
-                        list(migrated.get_model(label).objects.order_by("pk").values()), rows
+                        list(migrated.get_model(label).objects.order_by("pk").values(*historical_fields[label])), rows
                     )
+            self.assertFalse(migrated.get_model("appointments.SupervisorApplication").objects.filter(
+                research_intent__isnull=False,
+            ).exists(), "Do not fabricate intent for legacy applications.")
             added_models = [
                 model
                 for model in migrated.get_app_config("appointments").get_models()

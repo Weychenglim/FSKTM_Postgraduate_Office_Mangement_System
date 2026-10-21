@@ -2,7 +2,6 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -275,33 +274,23 @@ class AppointmentLifecycleTests(APITestCase):
         self.assertEqual(appointment.status, PanelAppointment.Status.ENDED)
         self.assertEqual(appointment.end_outcome, "COMPLETED")
 
-    def test_student_submits_replacement_with_fresh_documents(self):
-        self.client.force_authenticate(user=self.student_user)
+    def test_office_submits_replacement_without_reusing_student_documents(self):
+        self.client.force_authenticate(user=self.office)
         response = self.client.post(
-            "/api/appointments/supervisor/applications/",
+            f"/api/appointments/supervisor/appointments/{self.supervisor_appointment.pk}/replacement/",
             {
                 "proposedSupervisorId": self.new_supervisor.lecturer.staff_no,
-                "researchTitle": self.profile.proposed_topic,
-                "researchArea": self.profile.research_area,
-                "researchAbstract": self.profile.abstract,
-                "replacesAppointmentId": self.supervisor_appointment.pk,
-                "replacementReason": "Research direction changed.",
-                "documents": [
-                    SimpleUploadedFile(
-                        "proposal.pdf",
-                        b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
-                        content_type="application/pdf",
-                    )
-                ],
-                "requirementCodes": ["research-proposal"],
+                "reason": "Research direction changed.",
             },
-            format="multipart",
+            format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         replacement = SupervisorApplication.objects.get(pk=response.data["id"])
         self.assertEqual(replacement.replaces_appointment, self.supervisor_appointment)
         self.assertEqual(replacement.replacement_reason, "Research direction changed.")
+        self.assertFalse(replacement.documents.exists())
+        self.assertIsNone(replacement.section_a)
         self.supervisor_appointment.refresh_from_db()
         self.assertEqual(
             self.supervisor_appointment.status, SupervisorAppointment.Status.ACTIVE
@@ -318,27 +307,15 @@ class AppointmentLifecycleTests(APITestCase):
             reason="Replacement assignment is temporarily unavailable.",
             created_by=self.office,
         )
-        self.client.force_authenticate(user=self.student_user)
+        self.client.force_authenticate(user=self.office)
 
         response = self.client.post(
-            "/api/appointments/supervisor/applications/",
+            f"/api/appointments/supervisor/appointments/{self.supervisor_appointment.pk}/replacement/",
             {
                 "proposedSupervisorId": self.new_supervisor.lecturer.staff_no,
-                "researchTitle": self.profile.proposed_topic,
-                "researchArea": self.profile.research_area,
-                "researchAbstract": self.profile.abstract,
-                "replacesAppointmentId": self.supervisor_appointment.pk,
-                "replacementReason": "Research direction changed.",
-                "documents": [
-                    SimpleUploadedFile(
-                        "proposal.pdf",
-                        b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
-                        content_type="application/pdf",
-                    )
-                ],
-                "requirementCodes": ["research-proposal"],
+                "reason": "Research direction changed.",
             },
-            format="multipart",
+            format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

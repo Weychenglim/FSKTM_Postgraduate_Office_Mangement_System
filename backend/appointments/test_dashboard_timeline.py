@@ -119,6 +119,18 @@ class DashboardTimelineApiTests(APITestCase):
         )
         publish_test_capacity_plan(self.academic_semester, self.admin)
 
+    def upload(self, data, format="multipart"):
+        """Exercise the required review/confirmation flow for legacy scenarios."""
+        upload = data.get("file")
+        preview = self.client.post("/api/dashboard/timeline/upload/preview/", data, format=format)
+        if preview.status_code != 200:
+            return preview
+        upload.seek(0)
+        return self.client.post("/api/dashboard/timeline/upload/", {
+            **data, "previewToken": preview.data["previewToken"],
+            "acknowledgeWarnings": "true",
+        }, format=format)
+
     def authenticate(self, user):
         self.client.force_authenticate(user=user)
 
@@ -172,8 +184,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.authenticate(self.student)
 
         template_response = self.client.get("/api/dashboard/timeline/template/")
-        upload_response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload_response = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -201,8 +212,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_valid_upload_creates_active_grouped_timeline_and_audit_log(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {
                 "semesterId": self.academic_semester.pk,
                 "file": workbook_upload(
@@ -252,8 +262,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_invalid_upload_reports_template_errors(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {
                 "file": workbook_upload(
                     [["P1", "Missing required fields"]],
@@ -279,8 +288,7 @@ class DashboardTimelineApiTests(APITestCase):
             b"x" * (MAX_TIMELINE_UPLOAD_BYTES + 1),
         )
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": upload},
             format="multipart",
         )
@@ -293,8 +301,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_renamed_non_xlsx_extension(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": workbook_upload(self.valid_rows(), filename="timeline.zip")},
             format="multipart",
         )
@@ -308,8 +315,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_malformed_zip_container(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": SimpleUploadedFile("malformed.xlsx", b"not-a-zip")},
             format="multipart",
         )
@@ -323,8 +329,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_missing_xlsx_workbook_structure(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": archive_upload({"notes.txt": b"not a workbook"})},
             format="multipart",
         )
@@ -342,8 +347,7 @@ class DashboardTimelineApiTests(APITestCase):
         payload_offset = data.find(b"workbook-data")
         data[payload_offset] ^= 0xFF
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": SimpleUploadedFile("corrupt.xlsx", bytes(data))},
             format="multipart",
         )
@@ -357,8 +361,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_encrypted_archive_entries(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": encrypted_flag_upload()},
             format="multipart",
         )
@@ -373,8 +376,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.authenticate(self.admin)
         entries = {**MINIMUM_XLSX_ENTRIES, "../outside.txt": b"blocked"}
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": archive_upload(entries)},
             format="multipart",
         )
@@ -389,8 +391,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.authenticate(self.admin)
         entries = {**MINIMUM_XLSX_ENTRIES, "xl/vbaProject.bin": b"macro"}
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": archive_upload(entries)},
             format="multipart",
         )
@@ -407,8 +408,7 @@ class DashboardTimelineApiTests(APITestCase):
         for index in range(MAX_TIMELINE_ARCHIVE_ENTRIES - len(entries) + 1):
             entries[f"xl/media/item-{index}.txt"] = b"x"
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": archive_upload(entries, compression=ZIP_DEFLATED)},
             format="multipart",
         )
@@ -426,8 +426,7 @@ class DashboardTimelineApiTests(APITestCase):
             "xl/media/expanded.txt": b"0" * (MAX_TIMELINE_UNCOMPRESSED_BYTES + 1),
         }
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {"file": archive_upload(entries, compression=ZIP_DEFLATED)},
             format="multipart",
         )
@@ -441,8 +440,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_invalid_date_range(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {
                 "file": workbook_upload(
                     [
@@ -474,8 +472,7 @@ class DashboardTimelineApiTests(APITestCase):
     def test_upload_rejects_target_roles_outside_student_lecturer_office_staff(self):
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        response = self.upload(
             {
                 "file": workbook_upload(
                     [
@@ -506,8 +503,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_upload_replaces_previous_active_timeline(self):
         self.authenticate(self.admin)
-        first = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        first = self.upload(
             {
                 "semester": "Semester I",
                 "session": "2025/2026",
@@ -517,8 +513,7 @@ class DashboardTimelineApiTests(APITestCase):
         )
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
 
-        second = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        second = self.upload(
             {
                 "semester": "Semester II",
                 "session": "2025/2026",
@@ -553,8 +548,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_office_admin_can_patch_timeline_entry_and_audit_change(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -581,8 +575,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_office_admin_can_move_timeline_entry_between_project_levels(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -606,8 +599,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_office_admin_can_create_timeline_entry_and_audit_change(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -666,8 +658,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_office_admin_can_delete_timeline_entry_and_audit_change(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -689,8 +680,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_office_admin_can_view_real_timeline_audit_logs(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {
                 "file": workbook_upload(
                     self.valid_rows(), filename="timeline-audit.xlsx"
@@ -714,8 +704,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def test_non_admin_cannot_create_delete_or_view_timeline_audit_logs(self):
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )
@@ -749,8 +738,7 @@ class DashboardTimelineApiTests(APITestCase):
         from dashboard.models import SemesterTimelineEntry
 
         self.authenticate(self.admin)
-        upload = self.client.post(
-            "/api/dashboard/timeline/upload/",
+        upload = self.upload(
             {"file": workbook_upload(self.valid_rows())},
             format="multipart",
         )

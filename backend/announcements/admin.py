@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Announcement, Notification
+from .models import Announcement, Notification, DeadlineEmailDelivery, DeadlineReminderRun
 
 
 class InspectionOnlyAdmin(admin.ModelAdmin):
@@ -43,3 +43,13 @@ class NotificationAdmin(InspectionOnlyAdmin):
     search_fields = ("title", "summary", "message", "recipient__email")
     readonly_fields = ("created_at",)
     autocomplete_fields = ()
+
+
+@admin.register(DeadlineReminderRun)
+class DeadlineReminderRunAdmin(InspectionOnlyAdmin):
+    list_display = ('started_at', 'completed_at', 'timeline_count', 'marks_count', 'operation_count', 'email_failed', 'error')
+
+
+@admin.register(DeadlineEmailDelivery)
+class DeadlineEmailDeliveryAdmin(InspectionOnlyAdmin):
+    list_display = ('notification', 'attempts', 'next_attempt_at', 'delivered_at', 'last_error')

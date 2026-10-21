@@ -282,6 +282,8 @@ class SupervisorApplication(models.Model):
     project_course_codes = models.CharField(max_length=255, blank=True, default="")
     research_area = models.CharField(max_length=255, blank=True, default="")
     research_abstract = models.TextField()
+    section_a = models.JSONField(null=True, blank=True, editable=False)
+    research_intent = models.JSONField(null=True, blank=True, editable=False)
     status = models.CharField(
         max_length=32,
         choices=Status.choices,
@@ -322,6 +324,16 @@ class SupervisorApplication(models.Model):
 
     def __str__(self):
         return f"{self.student.matric_no} -> {self.proposed_supervisor}"
+
+
+class SupervisorApplicationDraft(models.Model):
+    """Private incomplete text and choices, with no application/workflow effects."""
+
+    student = models.OneToOneField(
+        "accounts.Student", on_delete=models.CASCADE, related_name="supervisor_application_draft",
+    )
+    content = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 def supervisor_document_upload_path(instance, filename):

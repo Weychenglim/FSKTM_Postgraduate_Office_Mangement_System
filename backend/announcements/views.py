@@ -557,11 +557,10 @@ def announcement_attachment(request, pk):
 def notifications_list(request):
     """The caller's own notification feed (optionally ``?unread=true``)."""
     release_due_announcements()
-    queryset = Notification.objects.filter(recipient=request.user).select_related(
+    from .models import visible_notifications
+    queryset = visible_notifications(request.user).select_related(
         "recipient", "announcement"
     )
-    if request.user.role == User.Role.STUDENT:
-        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
     if request.query_params.get("unread", "").lower() in ("1", "true", "yes"):
         queryset = queryset.filter(is_read=False)
     return Response([n.to_public_dict() for n in queryset[:NOTIFICATION_FEED_LIMIT]])
@@ -571,9 +570,8 @@ def notifications_list(request):
 @permission_classes([IsAuthenticated])
 def notification_mark_read(request, pk):
     """Mark one of the caller's notifications read (or unread via ``isRead``)."""
-    queryset = Notification.objects.filter(recipient=request.user)
-    if request.user.role == User.Role.STUDENT:
-        queryset = queryset.exclude(record_type="CO_SUPERVISOR_NOMINATION")
+    from .models import visible_notifications
+    queryset = visible_notifications(request.user)
     notification = get_object_or_404(queryset, pk=pk)
     try:
         is_read = serializers.BooleanField().to_internal_value(request.data.get("isRead", True))
@@ -588,7 +586,6 @@ def notification_mark_read(request, pk):
 @permission_classes([IsAuthenticated])
 def notifications_mark_all_read(request):
     """Mark every unread notification of the caller read."""
-    updated = Notification.objects.filter(
-        recipient=request.user, is_read=False
-    ).update(is_read=True)
+    from .models import visible_notifications
+    updated = visible_notifications(request.user).filter(is_read=False).update(is_read=True)
     return Response({"updated": updated})

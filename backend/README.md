@@ -212,21 +212,44 @@ repeatedly, so schedule them every few minutes:
 | Command | What it does |
 | ------- | ------------ |
 | `release_announcements` | Publishes scheduled announcements that are due and expires finished ones. The announcement and notification list endpoints also do this on every read, so the command only matters when nobody is signed in. |
-| `send_deadline_reminders --days 3` | Reminds people of active-timeline deadlines (by the entry's target roles) and of Marks periods closing within the days given (evaluators with unsubmitted tasks). One reminder per person per deadline. |
+| `send_deadline_reminders --days 3` | Creates opening, approaching/one-day/due-day and extension notices for informational timelines, enabled appointment periods and eligible unfinished Marks tasks using effective personal deadlines. Linked calendar entries do not duplicate operational reminders. Optional emails use a durable retry queue and current audience/deadline checks. |
+| `send_deadline_reminders --dry-run` | Reports pending recipient/event counts without creating notifications, run records or email deliveries. |
 | `send_weekly_summary` | Emails everyone who turned the weekly summary on a list of their unread notifications from the past seven days. One email per person per week. |
 | `check_document_storage [--remove-orphans]` | Reports stored File Management files that are missing, and left-over files nothing refers to. With `--remove-orphans` it deletes left-overs more than an hour old. Run it weekly, or after restoring a backup. |
 
 Each person's Settings switches decide what they get: no reminders when
 "Deadline reminders" is off, and email copies of announcements and reminders
 only with "Email alerts" on. Run `release_announcements` every 5 minutes,
-`send_deadline_reminders` daily and `send_weekly_summary` weekly.
+`send_deadline_reminders` every 15 minutes and `send_weekly_summary` weekly.
+
+For connected periods, Office uses Dashboard → Timeline Management to configure
+appointment intake, explicitly enable its date rules, link calendar events and
+extend deadlines for everyone or selected eligible cases/tasks. Marks keeps its
+existing period configuration/rubrics and completion-window history. Closed
+semesters remain accessible for eligible selected Marks recovery; they do not
+reopen calendar edits or appointment intake. An entirely past informational
+spreadsheet requires warning acknowledgement and cannot publish intake rules.
+
+The local Windows installer is `scripts/install-deadline-reminders.ps1` from the
+repository root. It registers a hidden job every 15 minutes using the repository
+virtual environment and backend working directory. Its default is **preview
+only**, so installing it does not contact users. After approving real delivery,
+run that installer with `-EnableDelivery`. Jobs use an interactive current-user
+principal and run while that user is signed in. Production requires an appropriate
+host scheduler/service identity; no credentials are stored by this installer.
+Stdout/stderr are in `%LOCALAPPDATA%/FSKTM/deadline-reminders/`. Actual job results
+and pending/retried optional email copies are inspection-only records in Django
+admin (`DeadlineReminderRun`, `DeadlineEmailDelivery`). A PostgreSQL advisory lock
+prevents concurrent actual runs. Delivery honours existing notification/email
+preferences. Console mail backend success is not proof of SMTP delivery.
 
 Windows Task Scheduler:
 
 ```powershell
 $py = "C:\path\to\backend\.venv\Scripts\python.exe"; $manage = "C:\path\to\backend\manage.py"
 schtasks /Create /TN "FSKTM release announcements" /SC MINUTE /MO 5 /TR "\"$py\" \"$manage\" release_announcements"
-schtasks /Create /TN "FSKTM deadline reminders" /SC DAILY /ST 08:00 /TR "\"$py\" \"$manage\" send_deadline_reminders --days 3"
+# From the repository root, install safe preview mode first:
+./scripts/install-deadline-reminders.ps1
 schtasks /Create /TN "FSKTM weekly summary" /SC WEEKLY /D MON /ST 08:00 /TR "\"$py\" \"$manage\" send_weekly_summary"
 ```
 
@@ -234,7 +257,7 @@ cron:
 
 ```
 */5 * * * * cd /path/to/backend && .venv/bin/python manage.py release_announcements
-0 8 * * *   cd /path/to/backend && .venv/bin/python manage.py send_deadline_reminders --days 3
+*/15 * * * * cd /path/to/backend && ../.venv/bin/python manage.py send_deadline_reminders --days 3
 0 8 * * 1   cd /path/to/backend && .venv/bin/python manage.py send_weekly_summary
 ```
 
