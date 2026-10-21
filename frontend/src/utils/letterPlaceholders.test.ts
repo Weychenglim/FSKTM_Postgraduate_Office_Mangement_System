@@ -85,7 +85,7 @@ assert.doesNotMatch(editor, /visual layout assertion check/);
 assert.match(editor, /findPlaceholderProblems\(editorContent, editorFields\.map/);
 assert.match(editor, /getLetterPlaceholders\(\)/);
 assert.match(editor, /<option value="Archived">/);
-assert.match(editor, /<OfficeFieldsEditor\b/);
+assert.match(editor, /fieldNameFromLabel\(label, editorFields\.map/, 'the office only names what it should be asked');
 assert.match(editor, /customFields: editorFields/);
 
 console.log('Letter placeholder parity tests passed.');

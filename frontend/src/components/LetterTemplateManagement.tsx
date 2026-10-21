@@ -17,16 +17,17 @@ import {
   Search,
   Trash2,
   Underline,
+  X,
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SelectMenu } from './SelectMenu';
 import { IssuedLettersRegister } from './IssuedLetters';
-import { OfficeFieldsEditor } from './OfficeFieldsEditor';
 import { OfficeLetterRequests } from './OfficeLetterRequests';
 import { LetterCustomField, LetterPlaceholder, LetterPurpose, LetterRequestCounts, LetterTemplate, LetterTemplateStatus } from '../types';
 import {
   LETTERHEAD,
+  fieldNameFromLabel,
   findPlaceholderProblems,
   isAppointmentLetter,
   letterClosing,
@@ -219,6 +220,10 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'write' | 'preview'>('write');
   const [insertOpen, setInsertOpen] = useState(false);
+  // The "ask the office for something" box inside the Insert detail menu.
+  const [askingOffice, setAskingOffice] = useState(false);
+  const [officeLabel, setOfficeLabel] = useState('');
+  const [officeError, setOfficeError] = useState<string | null>(null);
 
   const [editorName, setEditorName] = useState('');
   const [editorType, setEditorType] = useState('');
@@ -312,7 +317,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
   // Close the Insert detail menu on an outside click or Escape.
   useEffect(() => {
-    if (!insertOpen) return;
+    if (!insertOpen) {
+      setAskingOffice(false);
+      setOfficeLabel('');
+      setOfficeError(null);
+      return;
+    }
     const onDown = (event: MouseEvent) => {
       if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false);
     };
@@ -342,8 +352,16 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const tagGroups = [
     { title: 'From the student record', tags: placeholderTags.filter((p) => !p.appointment) },
     { title: 'From the appointment', tags: placeholderTags.filter((p) => p.appointment) },
-    { title: 'Typed in by the office', tags: editorFields.map((f) => ({ label: f.label || f.name, tag: `{{${f.name}}}`, source: f.hint ?? '', appointment: false })) },
+    { title: 'Typed in by the office when approving', tags: editorFields.map((f) => ({ label: f.label || f.name, tag: `{{${f.name}}}`, source: f.hint ?? '', appointment: false })) },
   ].filter((group) => group.tags.length > 0);
+  // Every detail the letter uses, named the way the office knows it.
+  const knownLabels = new Map(placeholderTags.map((p) => [p.tag, p.label]));
+  const usedDetails = Array.from(new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? [])).map((tag) => {
+    const field = editorFields.find((f) => `{{${f.name}}}` === tag);
+    if (field) return { tag, label: field.label || field.name, kind: 'office' as const };
+    const label = knownLabels.get(tag);
+    return label ? { tag, label, kind: 'record' as const } : { tag, label: tag, kind: 'unknown' as const };
+  });
   const closing = letterClosing({ purpose: editorPurpose, signatoryName: editorSignatoryName, signatoryTitle: editorSignatoryTitle });
   const automatic = isAppointmentLetter(editorPurpose);
 
@@ -366,6 +384,35 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     pendingCursorRef.current = before.length + insertion.length;
   };
 
+  // The office names what it should be asked; the tag behind it is made for them.
+  const addOfficeField = () => {
+    const label = officeLabel.trim();
+    if (!label) {
+      setOfficeError('Type what the office should fill in, for example Attendance (%).');
+      return;
+    }
+    const existing = editorFields.find((f) => f.label.trim().toLowerCase() === label.toLowerCase());
+    if (existing) {
+      handleInsertTag(`{{${existing.name}}}`);
+      return;
+    }
+    if (editorFields.length >= 20) {
+      setOfficeError('A letter can ask the office for at most 20 details.');
+      return;
+    }
+    const name = fieldNameFromLabel(label, editorFields.map((f) => f.name));
+    setEditorFields([...editorFields, { name, label, hint: '' }]);
+    clearProblem('customFields');
+    handleInsertTag(`{{${name}}}`);
+  };
+
+  // Taking a detail out of the letter; an office-typed one is then gone too.
+  const removeDetail = (tag: string) => {
+    setEditorContent((current) => current.split(tag).join('').replace(/[ \t]{2,}/g, ' ').replace(/ ([.,;:)])/g, '$1'));
+    setEditorFields((current) => current.filter((f) => `{{${f.name}}}` !== tag));
+    clearProblem('content');
+  };
+
   const handleSaveTemplate = async () => {
     if (!editorOpen || saving) return;
     if (!editorName.trim()) {
@@ -380,7 +427,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       description: editorDescription,
       referencePrefix: editorPrefix,
       content: editorContent,
-      customFields: editorFields,
+      customFields: editorFields.filter((f) => editorContent.includes(`{{${f.name}}}`)),
       status: editorStatus,
       purpose: editorPurpose,
       signatoryName: editorSignatoryName,
@@ -771,11 +818,52 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                                       className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                                     >
                                       <span>{p.label}</span>
-                                      <code className="text-[10px] text-slate-400">{p.tag}</code>
                                     </button>
                                   ))}
                                 </div>
                               ))}
+                              <div className="mt-1 border-t border-slate-100 pt-2">
+                                {askingOffice ? (
+                                  <div className="space-y-2 px-2 pb-1">
+                                    <label htmlFor="office-detail-label" className="block text-[12px] font-bold text-slate-700">
+                                      What should the office fill in when approving?
+                                    </label>
+                                    <input
+                                      id="office-detail-label"
+                                      type="text"
+                                      autoFocus
+                                      value={officeLabel}
+                                      maxLength={80}
+                                      onChange={(e) => {
+                                        setOfficeLabel(e.target.value);
+                                        setOfficeError(null);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          addOfficeField();
+                                        }
+                                      }}
+                                      placeholder="For example: Attendance (%)"
+                                      className="form-control form-control-sm"
+                                    />
+                                    {officeError && <p role="alert" className="text-[11px] font-bold text-rose-600">{officeError}</p>}
+                                    <div className="flex justify-end gap-2">
+                                      <PortalButton size="sm" variant="ghost" onClick={() => setAskingOffice(false)}>Cancel</PortalButton>
+                                      <PortalButton size="sm" variant="primary" onClick={addOfficeField}>Add to letter</PortalButton>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAskingOffice(true)}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[12px] font-bold text-blue-700 hover:bg-blue-50 cursor-pointer"
+                                  >
+                                    <Plus aria-hidden="true" className="w-3.5 h-3.5" />
+                                    Ask the office for something else
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -801,9 +889,44 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
                         placeholder="Write the letter. Use Insert detail for the student's name, matric number and other details."
                       />
-                      <p id="letter-template-content-hint" className="border-t border-slate-100 px-5 py-3 text-[11px] font-semibold text-slate-400">
-                        **bold**, *italic*, __underline__ and "- " for a list. Details in {'{{'}BRACES{'}}'} are filled in for each student.
-                      </p>
+                      <div id="letter-template-content-hint" className="space-y-2 border-t border-slate-100 px-5 py-4">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Details in this letter</p>
+                        {usedDetails.length === 0 ? (
+                          <p className="text-[12px] font-semibold text-slate-400">None yet. Use Insert detail to add the student's name and other details.</p>
+                        ) : (
+                          <ul className="flex flex-wrap gap-2">
+                            {usedDetails.map((detail) => (
+                              <li
+                                key={detail.tag}
+                                className={`inline-flex items-center gap-1.5 rounded-lg border py-1 pl-2.5 text-[12px] font-semibold ${detail.kind === 'record' ? 'pr-2.5' : 'pr-1'} ${
+                                  detail.kind === 'office'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-900'
+                                    : detail.kind === 'unknown'
+                                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                {detail.kind === 'unknown' ? `Not recognised: ${detail.tag}` : detail.label}
+                                {detail.kind === 'office' && <span className="font-medium text-amber-700">· office types it in</span>}
+                                {detail.kind !== 'record' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDetail(detail.tag)}
+                                    aria-label={`Take ${detail.label} out of the letter`}
+                                    title="Take it out of the letter"
+                                    className="rounded p-0.5 hover:bg-white/70 cursor-pointer"
+                                  >
+                                    <X aria-hidden="true" className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <p className="text-[11px] font-semibold text-slate-400">
+                          Words in double curly brackets are swapped for each student's details when the letter is made.
+                        </p>
+                      </div>
                     </>
                   ) : (
                     <div className="border-t border-slate-100 bg-slate-100/70 p-4 sm:p-6">
@@ -854,19 +977,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                   )}
                 </section>
 
-                <section className="app-card p-5">
-                    <OfficeFieldsEditor
-                      fields={editorFields}
-                      onChange={(fields) => {
-                        setEditorFields(fields);
-                        clearProblem('customFields');
-                      }}
-                      onInsert={handleInsertTag}
-                      isUsed={(tag) => editorContent.includes(tag)}
-                      problem={problems.customFields}
-                      onMessage={triggerToast}
-                    />
-                </section>
+                {problems.customFields && (
+                  <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] font-bold text-rose-700">{problems.customFields}</p>
+                )}
               </div>
 
               <aside className="space-y-6 lg:col-span-4 min-w-0">
