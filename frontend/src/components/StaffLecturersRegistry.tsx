@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
 /**
@@ -238,7 +239,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({ label, required = false,
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <div className="relative">
-        <select
+        <PortalSelect
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -249,8 +250,8 @@ export const FormSelect: React.FC<FormSelectProps> = ({ label, required = false,
           {options.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
-        </select>
-        <ChevronDown className="w-4 h-4 text-slate-450 absolute right-4 top-3.5 pointer-events-none stroke-[2.5]" />
+        </PortalSelect>
+
       </div>
     </div>
   );
@@ -871,7 +872,7 @@ export const StaffLecturersRegistry: React.FC<{
             
             {/* DEPARTMENT FILTER */}
             <div className="relative">
-              <select
+              <PortalSelect
                 value={selectedDept}
                 onChange={(e) => {
                   setSelectedDept(e.target.value);
@@ -883,13 +884,13 @@ export const StaffLecturersRegistry: React.FC<{
                 {DEPARTMENTS.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
+              </PortalSelect>
+
             </div>
 
             {/* STATUS FILTER */}
             <div className="relative">
-              <select
+              <PortalSelect
                 value={selectedStatus}
                 onChange={(e) => {
                   setSelectedStatus(e.target.value);
@@ -901,8 +902,8 @@ export const StaffLecturersRegistry: React.FC<{
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
                 <option value="Suspended">Suspended</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none stroke-[2.5]" />
+              </PortalSelect>
+
             </div>
 
             <PortalButton variant="secondary" size="md" icon={Download} onClick={handleExportCSV}>
@@ -1169,7 +1170,7 @@ export const StaffLecturersRegistry: React.FC<{
                         Assigned Department *
                       </label>
                       <div className="relative">
-                        <select
+                        <PortalSelect
                           value={newAccountFormData.department}
                           onChange={(e) => setNewAccountFormData(prev => ({ ...prev, department: e.target.value }))}
                           className="w-full appearance-none text-slate-800 border border-slate-200 pl-3.5 pr-10 py-2.5 rounded-xl cursor-pointer bg-white focus:outline-none focus:ring-1 focus:ring-slate-900 font-sans not-italic normal-case tracking-normal text-xs font-bold"
@@ -1177,8 +1178,8 @@ export const StaffLecturersRegistry: React.FC<{
                           {DEPARTMENTS.map(dept => (
                             <option key={dept} value={dept}>{dept}</option>
                           ))}
-                        </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-450 absolute right-3 top-3.5 pointer-events-none stroke-[2]" />
+                        </PortalSelect>
+
                       </div>
                     </div>
                   </div>

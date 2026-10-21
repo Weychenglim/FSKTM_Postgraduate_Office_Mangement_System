@@ -24,6 +24,7 @@ for (const [sourceStatus, destination] of [['PENDING_COORDINATOR', 'history'], [
   assert.equal(source.get('status'), sourceStatus, 'View transitions do not mutate the previous query');
 }
 const first = render();
+assert.doesNotMatch(first, /Submission period|Check period|Application availability/, 'Availability belongs beside the page action, outside the records list');
 assert.match(first, /aria-label="Request views"/);
 assert.match(first, /aria-pressed="true"[^>]*>Requests/);
 assert.doesNotMatch(first, /Dr Historical/);
@@ -63,6 +64,7 @@ const september = render('', [{ ...applications[0], date: '10 Sept 2026' }]);
 assert.doesNotMatch(september, /Invalid date/);
 assert.match(september, />10 Sept 2026<\/td>/);
 const history = render('?view=history');
+assert.doesNotMatch(history, /Application availability|Checking availability|Check period/, 'Past requests do not show current submission availability');
 assert.equal((history.match(/>View request</g) ?? []).length, 3);
 assert.match(history, /Dr Historical 0|Dr Historical 1|Dr Historical 2/);
 assert.doesNotMatch(history, /Dr Proposed|2 calendar days/);
@@ -81,6 +83,10 @@ for (const routeView of ['overview', 'applications', 'research'] as const) {
   assert.equal((page.match(/>Refresh</g) ?? []).length, 0, `${routeView} has no manual refresh action`);
   assert.doesNotMatch(page, /Refresh teams|Refresh research changes/);
 }
-const detail = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView="applications" initialApplicationId="1" /></MemoryRouter>);
+const detail = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView="applications" initialApplicationId="1" onNavigateToList={() => {}} /></MemoryRouter>);
 assert.doesNotMatch(detail, /New application|>Refresh</);
+const overviewDetail = renderToStaticMarkup(<MemoryRouter><StudentSupervisorAppointment routeView="applications" initialApplicationId="1" backLabel="Back to My supervisors" onNavigateToList={() => {}} /></MemoryRouter>);
+assert.match(overviewDetail, /Back to My supervisors/, 'An exact request keeps the overview return label while loading');
+assert.doesNotMatch(overviewDetail, /Back to Applications/);
+assert.match(detail, /Back to Applications/, 'Direct request links retain the Applications fallback');
 console.log('Student application partitions, supervisor identity, filters, paging without manual refresh pass');

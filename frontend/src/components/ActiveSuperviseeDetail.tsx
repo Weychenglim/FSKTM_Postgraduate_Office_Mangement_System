@@ -8,6 +8,7 @@ import { BookOpen, Calendar, Info, Mail, Send, User } from 'lucide-react';
 
 import type { ActiveSuperviseeRow } from '../types';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
+import { ResearchAbstract } from './ResearchAbstract';
 
 interface ActiveSuperviseeDetailProps {
   onBack: () => void;
@@ -126,10 +127,7 @@ export const ActiveSuperviseeDetail: React.FC<
             label="Research area"
             value={supervisee.researchArea}
           />
-          <DetailField
-            label="Research abstract"
-            value={supervisee.researchAbstract}
-          />
+          <dl><div><dt className="card-label">Research abstract</dt><dd className="mt-3"><ResearchAbstract value={supervisee.researchAbstract} /></dd></div></dl>
         </div>
       </div>}
     </section>

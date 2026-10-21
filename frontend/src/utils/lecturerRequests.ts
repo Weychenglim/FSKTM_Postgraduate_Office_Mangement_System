@@ -1,5 +1,6 @@
 import type { SupervisorRequest, SupervisorRequestHistoryRow } from '../types';
 import type { CoSupervisorNomination, SupervisoryWorkspace } from '../types/coSupervision';
+import { appointmentRequestStatusLabel } from './appointmentRequestStatus';
 
 export type RequestGroup = 'review' | 'coordinator' | 'other' | 'history';
 export function requestCalendarDay(value: string): string {
@@ -17,17 +18,9 @@ export function requestGroup(status: string, canDecide: boolean): RequestGroup {
   return 'other';
 }
 
-export function requestStatusLabel(status: string, canDecide = false): string {
-  if (requestGroup(status, canDecide) === 'review') return 'Awaiting your review';
-  const labels: Record<string, string> = {
-    SUBMITTED_TO_SUPERVISOR: 'Awaiting Supervisor review', SUBMITTED_TO_CO_SUPERVISOR: 'Awaiting supporting supervisor',
-    PENDING_SUPERVISOR: 'Awaiting supervisor endorsement', PENDING_COORDINATOR: 'Awaiting Coordinator approval',
-    PENDING_SOURCE_COORDINATOR: 'Awaiting source Coordinator', PENDING_DESTINATION_COORDINATOR: 'Awaiting destination Coordinator',
-    APPROVED: 'Approved', REJECTED_BY_SUPERVISOR: 'Rejected by Supervisor', REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
-    REJECTED_BY_CO_SUPERVISOR: 'Rejected by supporting supervisor', REJECTED: 'Rejected', CANCELLED: 'Cancelled',
-    CANCELLED_BY_STUDENT: 'Cancelled by Student', CANCELLED_BY_OFFICE: 'Cancelled by Office',
-  };
-  return labels[status] ?? status.replaceAll('_', ' ').toLowerCase();
+// Review capability changes actions, not the label of the same recorded status.
+export function requestStatusLabel(status: string, _canDecide = false): string {
+  return appointmentRequestStatusLabel(status);
 }
 
 export interface LecturerAppointmentRow {

@@ -25,7 +25,7 @@ assert.equal(
 );
 assert.equal(
   formatWaitingText({ waitingDays: 1, waitingOn: 'SELECTED_PANEL' }),
-  'Waiting on Selected Panel for 1 day',
+  'Waiting on Panel for 1 day',
 );
 assert.equal(
   formatWaitingText({ waitingDays: 0, waitingOn: 'SUPERVISOR' }),

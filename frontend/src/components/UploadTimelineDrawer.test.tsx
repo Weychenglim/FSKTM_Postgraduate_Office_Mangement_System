@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { UploadTimelineDrawer } from './UploadTimelineDrawer';
+import { TimelineBar } from './TimelineBar';
+const markup = renderToStaticMarkup(<UploadTimelineDrawer isOpen onClose={() => {}} semesterId={42} semesterLabel="Semester II 2099/2100" />);
+assert.match(markup, /Semester II 2099\/2100/);
+assert.match(markup, />Preview<\/span>/);
+assert.doesNotMatch(markup, />Confirm Import<|Validate and Import|were committed/);
+assert.match(markup, /without changing the timeline/);
+assert.match(markup, /Activity Code and Period ID/);
+const ended = renderToStaticMarkup(<TimelineBar label="Ended event" gridStart={1} gridSpan={1} status="Ended" />);
+assert.match(ended, /bg-slate-200/);
+assert.match(ended, /Ended/);
+assert.doesNotMatch(ended, /Completed/);
+console.log('Timeline import renders preview before confirmation and ended events retain neutral styling.');

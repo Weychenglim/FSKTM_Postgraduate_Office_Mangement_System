@@ -1,3 +1,4 @@
+import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
 import React from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ResearchAmendments } from './ResearchAmendments';
@@ -64,6 +65,7 @@ export function LecturerResearchWorkspace(props: React.ComponentProps<typeof Res
   return <ResearchAmendments {...props} role={props.role ?? 'Lecturer'} requestView={params.get('view') === 'history' ? 'history' : 'requests'}
     requestSearch={params.get('q') ?? ''} requestPage={Number(params.get('page')) || 1} requestPageSize={workspacePageSize(params.get('size'))}
     onRequestViewChange={value => setParams(current => researchViewParams(current,value,props.role === 'Programme Coordinator'||props.role === 'Office Staff/Admin'),{replace:false,state:location.state})} onRequestSearch={value => setFilter('q', value)}
+    onRequestReset={()=>setParams(current=>{const next=clearAppointmentFilterParams(current);next.delete('student');return next;},{replace:true,state:location.state})}
     onRequestPage={value => setFilter('page', String(value), false)}
     onRequestPageSize={value => setFilter('size', String(value))}
     researchFilters={researchFilters} onResearchFilter={(key,value) => setFilter(key,value)}

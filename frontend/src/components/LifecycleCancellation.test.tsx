@@ -35,7 +35,7 @@ const submitted = { workflowStatus: 'CANCELLED_BY_OFFICE', status: 'Cancelled', 
   cancellationReason: record.cancellationReason } satisfies SubmittedRecommendation;
 const timeline = buildTimeline(submitted);
 assert.equal(timeline.find(item => item.id === 'panel')?.state, 'completed');
-assert.equal(timeline.find(item => item.id === 'panel')?.label, 'Selected Panel Review');
+assert.equal(timeline.find(item => item.id === 'panel')?.label, 'Panel Review');
 assert.doesNotMatch(timeline.find(item => item.id === 'coordinator')?.detail ?? '', /Not reached/);
 assert.match(timeline.find(item => item.id === 'coordinator')?.detail ?? '', /cancelled/i);
 assert.equal(timeline.find(item => item.id === 'coordinator')?.state, 'cancelled');

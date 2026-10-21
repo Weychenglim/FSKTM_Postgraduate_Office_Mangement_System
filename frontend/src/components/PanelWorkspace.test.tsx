@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+const nav=await import('./PanelWorkspaceNavigation').catch(()=>null);
+assert.ok(nav,'Panel roles need consistent purpose-specific navigation');
+const {PanelWorkspaceNavigation,panelWorkspaceTabs,panelWorkspaceSection}=nav;
+assert.equal(typeof nav.panelSuperviseeDetailParams, 'function', 'Viewing a Panel must have a distinct route from starting a nomination');
+const detailParams=nav.panelSuperviseeDetailParams(new URLSearchParams('panelSection=requests&student=OLD&q=retained'),'PG001');
+assert.equal(detailParams.get('panelStudent'),'PG001');
+assert.equal(detailParams.has('student'),false,'The shared App student parameter starts a nomination and must not be used for details');
+assert.equal(detailParams.get('q'),'retained');
+assert.equal(detailParams.get('panelSection'),'supervisees');
+assert.deepEqual(panelWorkspaceTabs('office').map(v=>v.label),['Needs attention','Appointment requests','Panel assignments']);
+assert.deepEqual(panelWorkspaceTabs('coordinator').map(v=>v.label),['Appointment requests','Panel assignments']);
+assert.deepEqual(panelWorkspaceTabs('lecturer').map(v=>v.label),['Appointment requests','My supervisees','My Panel students']);
+assert.equal(panelWorkspaceSection('office',null),'attention');
+assert.equal(panelWorkspaceSection('coordinator','supervisees'),'requests');
+const html=renderToStaticMarkup(<PanelWorkspaceNavigation role="office" section="attention" onChange={()=>{}}/>);
+assert.match(html,/aria-current="page"/);assert.match(html,/Needs attention/);
+const module=await import('./PanelBrowse').catch(()=>null);assert.ok(module,'Panel lists need one shared filtered table');
+const {PanelBrowse,filterPanelBrowse}=module;
+const active={id:1,studentId:'PG1',studentName:'One',programme:'Computing',semester:'Semester I',proposedTopic:'Title',recommendedMember:'Dr Panel',recommendedMemberId:'L1',submittedDate:'15 Oct 2026',submittedAt:'2026-10-15T00:00:00Z',status:'PENDING_COORDINATOR',waitingDays:3};
+const closed={...active,id:2,status:'REJECTED_BY_PANEL'};
+assert.equal(filterPanelBrowse([active,closed],{view:'requests'}).length,1);
+assert.equal(filterPanelBrowse([active,closed],{view:'history'})[0].id,2);
+assert.equal(filterPanelBrowse([active],{view:'requests',q:'l1'})[0].id,1);
+const table=renderToStaticMarkup(<PanelBrowse scope="test" title="Appointment requests" records={[active,closed]} onOpen={()=>{}}/>);
+assert.match(table,/Awaiting|Pending/);assert.match(table,/Rows per page/);assert.match(table,/Find a request/);assert.doesNotMatch(table,/>REJECTED_BY_PANEL<|>PENDING_COORDINATOR</);
+console.log('Panel role landing/navigation, request partition and shared browse rendering passed');
+
+const earlyNomination={...active,id:3,status:'APPROVED',submittedAt:'2026-01-01T00:00:00Z',appointmentDate:'2026-10-01',appointmentLifecycle:{appointmentId:3,status:'ACTIVE'}};
+const laterNomination={...earlyNomination,id:4,submittedAt:'2026-09-01T00:00:00Z',appointmentDate:'2026-09-15',appointmentLifecycle:{appointmentId:4,status:'ACTIVE'}};
+assert.equal(filterPanelBrowse([laterNomination,earlyNomination],{view:'requests',appointments:true,sort:'newest'})[0].id,3,'Appointment sorting follows confirmation, not nomination dates');
+
+assert.doesNotMatch(table,/View student record/,'Student navigation belongs inside the exact record');
+assert.equal((table.match(/>View request<\/span>/g)??[]).length,1,'Each Panel request row has one record action');

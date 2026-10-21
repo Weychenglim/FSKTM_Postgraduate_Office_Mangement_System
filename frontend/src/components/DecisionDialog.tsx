@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {X} from 'lucide-react';
 import {PortalModal, useModalTitle} from './PortalModal';
 import {PortalButton, PortalToast} from './PortalPrimitives';
 import {useRecordDraft} from './RecordDraft';
@@ -27,7 +28,7 @@ export interface DecisionDialogProps {
 
 /** Keep this host mounted after closure so the single outcome toast stays visible. */
 export function DecisionDialog({isOpen, decisionKey, title, context, message, children, confirmLabel,
-  cancelLabel='Back', kind='review', tone='info', canConfirm=true, busy=false, dirty=false,
+  cancelLabel='Cancel', kind='review', tone='info', canConfirm=true, busy=false, dirty=false,
   successMessage, onClose, onConfirm, onReload}: DecisionDialogProps) {
   const titleId = useModalTitle();
   const feedback = useDecisionFeedback();
@@ -86,15 +87,21 @@ export function DecisionDialog({isOpen, decisionKey, title, context, message, ch
 
   return <>
     <PortalToast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)}/>
-    <PortalModal isOpen={isOpen} onClose={requestClose} busy={pending} labelledBy={titleId} className="max-w-lg p-6 md:p-8">
+    <PortalModal isOpen={isOpen} onClose={requestClose} busy={pending} labelledBy={titleId} className="max-w-lg overscroll-contain p-6 md:p-8">
       <form onSubmit={event => {event.preventDefault(); void confirm();}} className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500">{kind==='review' ? 'Review decision' : 'Confirm your action'}</p>
-          <h2 id={titleId} className="text-lg font-semibold leading-snug text-brand-navy">{title}</h2>
-          {context ? <div className="text-sm font-semibold leading-relaxed text-brand-navy break-words">{context}</div> : null}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
+            <p className="text-xs font-bold text-slate-700">{kind==='review' ? 'Review decision' : 'Confirm your action'}</p>
+            <h2 id={titleId} className="text-lg font-semibold leading-snug text-brand-navy">{title}</h2>
+            {context ? <div className="text-sm font-semibold leading-relaxed text-brand-navy">{context}</div> : null}
+          </div>
+          <button type="button" onClick={requestClose} disabled={pending} aria-label="Close dialog"
+            className="icon-button h-9 w-9 shrink-0 disabled:cursor-not-allowed disabled:opacity-50">
+            <X className="h-4 w-4" aria-hidden="true"/>
+          </button>
         </div>
-        <div className="text-xs font-normal leading-relaxed text-slate-700">{message}</div>
-        {children ? <fieldset disabled={pending || blocked} className="space-y-4">{children}</fieldset> : null}
+        <div className="text-xs font-normal leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{message}</div>
+        {children ? <fieldset disabled={pending || blocked} className="decision-dialog-fields min-w-0 space-y-4">{children}</fieldset> : null}
         {error ? <div role="alert" className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs leading-relaxed text-rose-800">
           <p>{error}</p>{blocked ? <p>Review the latest record and your access before making another decision.</p> : null}
         </div> : null}

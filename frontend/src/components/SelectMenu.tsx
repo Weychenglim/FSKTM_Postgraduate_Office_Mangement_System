@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import {
   firstEnabledIndex,
@@ -33,13 +33,22 @@ interface SelectMenuProps<T extends string> {
   options: SelectMenuOption<T>[];
   onChange: (value: T) => void;
   placeholder?: string;
+  /** Opt-in search inside the popup; other selectors retain select-only behaviour. */
+  searchPlaceholder?: string;
+  showSelectedDescription?: boolean;
   /** Toolbar filters read "Prefix: value", e.g. "Programme: All". */
   prefix?: string;
   variant?: 'field' | 'filter';
   size?: 'sm' | 'md';
   disabled?: boolean;
   className?: string;
+  controlRef?: React.Ref<HTMLButtonElement>;
+  title?: string;
   'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
+  'aria-required'?: boolean;
+  'aria-invalid'?: React.AriaAttributes['aria-invalid'];
 }
 
 const MENU_GAP = 6;
@@ -57,29 +66,44 @@ const FILTER_MAX_WIDTH = 420;
 export const SelectMenu = <T extends string>({
   id,
   value,
-  options,
+  options: allOptions,
   onChange,
   placeholder = 'Select an option',
+  searchPlaceholder,
+  showSelectedDescription = true,
   prefix,
   variant = 'field',
   size = 'md',
   disabled = false,
   className = '',
+  controlRef,
+  title,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-required': ariaRequired,
+  'aria-invalid': ariaInvalid,
 }: SelectMenuProps<T>) => {
+  const reducedMotion = useReducedMotion();
   const baseId = useId();
   const listId = `${baseId}-list`;
   const optionId = (index: number) => `${baseId}-option-${index}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
   const typed = useRef({ text: '', at: 0 });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const [openUp, setOpenUp] = useState(false);
 
+  const options = searchPlaceholder && query.trim()
+    ? allOptions.filter(option => !option.value || `${option.label} ${option.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
+    : allOptions;
   const selectedIndex = options.findIndex((option) => option.value === value);
-  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const selected = allOptions.find(option => option.value === value);
 
   const place = useCallback(() => {
     const trigger = triggerRef.current;
@@ -97,7 +121,7 @@ export const SelectMenu = <T extends string>({
       left,
       minWidth,
       maxWidth,
-      maxHeight: Math.max(120, Math.min(MENU_MAX_HEIGHT, up ? above : below)),
+      maxHeight: Math.max(0, Math.min(MENU_MAX_HEIGHT, up ? above : below)),
       ...(up ? { bottom: window.innerHeight - rect.top + MENU_GAP } : { top: rect.bottom + MENU_GAP }),
     });
   }, [variant]);
@@ -106,7 +130,7 @@ export const SelectMenu = <T extends string>({
     if (!open) return;
     place();
     const update = (event: Event) => {
-      if (event.target instanceof Node && listRef.current?.contains(event.target)) return;
+      if (event.target instanceof Node && (popupRef.current ?? listRef.current)?.contains(event.target)) return;
       place();
     };
     window.addEventListener('resize', update);
@@ -121,7 +145,7 @@ export const SelectMenu = <T extends string>({
     if (!open) return;
     const closeOnOutsidePress = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target) || (popupRef.current ?? listRef.current)?.contains(target)) return;
       setOpen(false);
     };
     document.addEventListener('pointerdown', closeOnOutsidePress);
@@ -130,22 +154,44 @@ export const SelectMenu = <T extends string>({
 
   useEffect(() => {
     if (!open || active < 0) return;
-    document.getElementById(optionId(active))?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    const item = list?.children.item(active) as HTMLElement | null;
+    if (!list || !item) return;
+    if (item.offsetTop < list.scrollTop) list.scrollTop = item.offsetTop;
+    else if (item.offsetTop + item.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = item.offsetTop + item.offsetHeight - list.clientHeight;
+    }
   }, [open, active]);
+
+  useEffect(() => {
+    if (open && (!options[active] || options[active].disabled)) setActive(firstEnabledIndex(options));
+  }, [open, options, active]);
 
   useEffect(() => {
     if (disabled) setOpen(false);
   }, [disabled]);
 
+  useEffect(() => {
+    if (open && searchPlaceholder) searchRef.current?.focus({preventScroll:true});
+  }, [open, searchPlaceholder]);
+
+  useEffect(() => {
+    if (searchPlaceholder) {
+      const match = query.trim() ? options.findIndex(option=>!!option.value&&!option.disabled) : selectedIndex;
+      setActive(match >= 0 ? match : firstEnabledIndex(options));
+    }
+  }, [query]);
+
   const openAt = (index: number) => {
-    setActive(index);
+    setQuery('');
+    setActive(options[index] && !options[index].disabled ? index : firstEnabledIndex(options));
     setOpen(true);
   };
 
   const choose = (index: number, keepFocus = true) => {
     const option = options[index];
-    setOpen(false);
     if (!option || option.disabled) return;
+    setOpen(false);
     if (option.value !== value) onChange(option.value);
     if (keepFocus) triggerRef.current?.focus();
   };
@@ -157,9 +203,12 @@ export const SelectMenu = <T extends string>({
     return typeaheadIndex(options, text, open ? active : selectedIndex);
   };
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+  const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    // A portalled list remains part of the surrounding dialog in React's event tree.
+    if (open) event.stopPropagation();
     const printable = event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
     const typing = Date.now() - typed.current.at <= 600 && typed.current.text !== '';
+    if (event.target === searchRef.current && !['ArrowDown','ArrowUp','Enter','Escape','Tab','PageDown','PageUp'].includes(event.key)) return;
 
     if (!open) {
       if (event.key === 'ArrowDown' || event.key === 'Enter' || (event.key === ' ' && !typing)) {
@@ -221,9 +270,19 @@ export const SelectMenu = <T extends string>({
       case 'Escape':
         event.preventDefault();
         setOpen(false);
+        if (searchPlaceholder) triggerRef.current?.focus();
         break;
       case 'Tab':
-        choose(active, false);
+        if (searchPlaceholder) {
+          event.preventDefault();
+          const trigger = triggerRef.current;
+          const scope = trigger?.closest('dialog') ?? document;
+          const stops = Array.from(scope.querySelectorAll<HTMLElement>('button,input,select,textarea,a[href],[tabindex]'))
+            .filter(element=>element.tabIndex>=0&&!element.matches(':disabled')&&!popupRef.current?.contains(element)&&element.getClientRects().length>0);
+          const index = trigger ? stops.indexOf(trigger) : -1;
+          (stops[index+(event.shiftKey?-1:1)] ?? trigger)?.focus();
+        } else choose(active, false);
+        setOpen(false);
         break;
       default:
         if (printable) {
@@ -244,15 +303,24 @@ export const SelectMenu = <T extends string>({
   return (
     <>
       <button
-        ref={triggerRef}
+        ref={(element) => {
+          triggerRef.current = element;
+          if (typeof controlRef === 'function') controlRef(element);
+          else if (controlRef) controlRef.current = element;
+        }}
         id={id}
         type="button"
-        role="combobox"
-        aria-haspopup="listbox"
+        role={searchPlaceholder ? undefined : 'combobox'}
+        aria-haspopup={searchPlaceholder ? 'dialog' : 'listbox'}
         aria-expanded={open}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
+        aria-controls={open ? searchPlaceholder ? `${listId}-popup` : listId : undefined}
+        aria-activedescendant={!searchPlaceholder && open && active >= 0 ? optionId(active) : undefined}
         aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        aria-required={ariaRequired}
+        aria-invalid={ariaInvalid}
+        title={title}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openAt(selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options)))}
         onKeyDown={onKeyDown}
@@ -273,7 +341,7 @@ export const SelectMenu = <T extends string>({
           <span className="flex items-center gap-2.5 min-w-0">
             {selected.leading}
             <span className="truncate text-slate-800 font-bold">{triggerText}</span>
-            {selected.description && size === 'md' && (
+            {showSelectedDescription && selected.description && size === 'md' && (
               <span className="hidden sm:inline truncate text-[11px] font-semibold text-slate-400">
                 {selected.description}
               </span>
@@ -291,7 +359,53 @@ export const SelectMenu = <T extends string>({
       {/* Closes at once, like a native list, so two lists never overlap. */}
       {open &&
         createPortal(
-          <motion.ul
+          searchPlaceholder ? <div ref={popupRef} id={`${listId}-popup`} role="dialog" aria-label={ariaLabel ?? placeholder}
+            style={menuStyle} className="portal-select-menu fixed z-[10020] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl text-left font-sans">
+            <div className="shrink-0 border-b border-slate-200 p-3">
+              <input ref={searchRef} type="search" role="combobox" aria-label={searchPlaceholder} aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                placeholder={searchPlaceholder} value={query} onChange={event=>setQuery(event.target.value)} onKeyDown={onKeyDown}
+                className="form-control form-control-md w-full"/>
+            </div>
+            <ul ref={listRef} id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} onMouseDown={event=>event.preventDefault()}
+              className={`relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 ${THIN_SCROLLBAR}`}>
+            {options.map((option, index) => {
+              const isSelected = index === selectedIndex;
+              const isActive = index === active;
+              return (
+                <li
+                  key={option.value || `option-${index}`}
+                  id={optionId(index)}
+                  role="option"
+                  aria-selected={isSelected}
+                  aria-disabled={option.disabled || undefined}
+                  onMouseMove={() => !option.disabled && index !== active && setActive(index)}
+                  onClick={() => choose(index)}
+                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 select-none transition-colors ${
+                    option.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                  } ${isActive ? 'bg-slate-100' : isSelected ? 'bg-blue-50/70' : ''}`}
+                >
+                  {option.leading}
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block text-sm leading-snug ${
+                        isSelected ? 'font-semibold text-brand-navy' : 'font-medium text-slate-700'
+                      }`}
+                    >
+                      {option.label}
+                    </span>
+                    {option.description && (
+                      <span className="block text-xs font-normal leading-relaxed text-slate-500 mt-0.5">
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
+                  {isSelected && <Check aria-hidden="true" className="w-4 h-4 shrink-0 text-indigo-600" />}
+                </li>
+              );
+            })}
+            </ul>
+            {query.trim() && !options.some(option=>!!option.value) ? <p role="status" className="shrink-0 px-4 pb-3 text-sm text-slate-600">No events match your search.</p> : null}
+          </div> : <motion.ul
             ref={listRef}
             id={listId}
             role="listbox"
@@ -299,10 +413,10 @@ export const SelectMenu = <T extends string>({
             tabIndex={-1}
             initial={{ opacity: 0, y: openUp ? 4 : -4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.12 }}
+            transition={{ duration: reducedMotion ? 0 : 0.12 }}
             style={menuStyle}
             onMouseDown={(event) => event.preventDefault()}
-            className={`fixed z-[10020] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] font-sans text-left ${THIN_SCROLLBAR}`}
+            className={`portal-select-menu fixed z-[10020] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/90 bg-white p-1.5 shadow-[0_8px_28px_-6px_rgba(15,23,42,0.18),0_2px_6px_rgba(15,23,42,0.04)] font-sans text-left normal-case tracking-normal ${THIN_SCROLLBAR}`}
           >
             {options.map((option, index) => {
               const isSelected = index === selectedIndex;
@@ -318,19 +432,19 @@ export const SelectMenu = <T extends string>({
                   onClick={() => choose(index)}
                   className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 select-none transition-colors ${
                     option.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
-                  } ${isActive ? 'bg-slate-100' : ''}`}
+                  } ${isActive ? 'bg-slate-100' : isSelected ? 'bg-blue-50/70' : ''}`}
                 >
                   {option.leading}
                   <span className="min-w-0 flex-1">
                     <span
                       className={`block text-xs leading-snug ${
-                        isSelected ? 'font-extrabold text-brand-navy' : 'font-semibold text-slate-700'
+                        isSelected ? 'font-semibold text-brand-navy' : 'font-medium text-slate-700'
                       }`}
                     >
                       {option.label}
                     </span>
                     {option.description && (
-                      <span className="block text-[10.5px] font-semibold text-slate-400 mt-0.5">
+                      <span className="block text-[11px] font-normal leading-relaxed text-slate-500 mt-0.5">
                         {option.description}
                       </span>
                     )}
@@ -340,7 +454,8 @@ export const SelectMenu = <T extends string>({
               );
             })}
           </motion.ul>,
-          document.body,
+          // Native modal dialogs occupy the top layer, above body portals.
+          triggerRef.current?.closest('dialog[open]') ?? document.body,
         )}
     </>
   );

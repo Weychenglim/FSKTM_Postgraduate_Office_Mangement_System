@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { OfficeSupervisorTools, officeToolsMenuLeft } from './OfficeSupervisorTools';
+import { OfficePanelTools } from './OfficePanelTools';
 for (const [left, right, viewport, expected] of [
   [0, 120, 320, 16],
   [200, 320, 320, -152],
@@ -28,6 +29,12 @@ try {
   for (const label of ['Tools', 'Research records', 'Workload monitoring', 'Document requirements', 'Monitoring', 'Configuration', 'Research profiles, corrections and request history', 'Current supervisory workloads and capacity']) assert.ok(html.includes(label), label);
   assert.doesNotMatch(html, /Capacity reassessments|Records administration|Export appointment records|More tools/);
   assert.equal(fetches, 0, 'Rendering the secondary tools does not load the full appointment dataset');
+  const panel = renderToStaticMarkup(<OfficePanelTools onWorkload={() => { throw new Error('Do not navigate during render'); }} />);
+  for (const label of ['Monitoring', 'Workload monitoring', 'Current Panel workloads and capacity']) assert.ok(panel.includes(label), label);
+  assert.match(panel, /role="group"[^>]*aria-label="Office Panel tools"[^>]*hidden=""/);
+  assert.match(panel, /<button[^>]*aria-expanded="false"[^>]*aria-controls="([^"]+)"/);
+  assert.doesNotMatch(panel, /<summary|Research records|Document requirements|Manage capacity|Configuration/);
+  assert.equal(fetches, 0, 'Panel Tools does not fetch records');
 } finally {
   globalThis.fetch = originalFetch;
 }

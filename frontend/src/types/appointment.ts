@@ -74,6 +74,7 @@ export type SupervisorAppointmentStatus =
   | 'Cancelled';
 
 export interface SupervisorRecord extends WorkflowAgeingMetadata {
+  initiatedByOffice?: boolean;
   workflowStatus?: SupervisorApplicationWorkflowStatus;
   submittedAt?: string;
   rejectionReason?: string;
@@ -118,6 +119,7 @@ export type PanelAppointmentStatus =
   | 'Cancelled';
 
 export interface PanelRecord extends WorkflowAgeingMetadata {
+  recommendation?: PanelRecommendationDraft;
   recordId: string;
   id: string; // student ID, e.g. "MEA2301184"
   studentName: string;
@@ -217,6 +219,10 @@ export interface SupervisorWorkloadRecord extends AppointmentCapacityMetadata {
 // Lecturer-facing panel appointment views (UC20-UC23)
 // A student assigned to a lecturer acting as panel member.
 export interface PanelAssignment extends WorkflowAgeingMetadata {
+  recommendation?: PanelRecommendationDraft;
+  appointmentLifecycle?: AppointmentLifecycle | null;
+  panelMemberName?: string;
+  panelMemberId?: string;
   appointmentId: number;
   studentId: string;
   studentName: string;
@@ -253,6 +259,15 @@ export type PanelRecommendationStatus =
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
+  studentEmail?: string;
+  supervisorEmail?: string;
+  panelMemberEmail?: string;
+  panelMemberDepartment?: string;
+  replacedPanelMember?: string | null;
+  replacedAppointmentStatus?: string | null;
+  canReview?: boolean;
+  appointmentDate?: string | null;
+  canEndAppointment?: boolean;
   id?: number | string;
   studentId: string;
   studentName: string;
@@ -294,6 +309,7 @@ export interface CoordinatorPanelWorkspace {
 }
 
 export interface PanelRecommendationSupervisee {
+  studentUserId?: number;
   studentId: string;
   studentName: string;
   programme: string;
@@ -373,6 +389,7 @@ export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
 
 // A submitted panel recommendation record shown in the history list.
 export interface SubmittedRecommendation extends WorkflowAgeingMetadata {
+  recommendation?: PanelRecommendationDraft;
   id: string;
   recommendationId?: number | string;
   studentName: string;
@@ -440,6 +457,7 @@ export type StudentSupervisorApplicationStatus =
   | 'APPROVED';
 
 export interface StudentSupervisorApplication extends WorkflowAgeingMetadata {
+  initiatedByOffice?: boolean;
   studentId?: string;
   studentName?: string;
   programme?: string;
@@ -487,6 +505,7 @@ export interface SupervisorWorkflowEvent {
 }
 
 export interface SupervisorApplicationRecord extends WorkflowAgeingMetadata {
+  initiatedByOffice?: boolean;
   projectCourseCodes?: string;
   id: number;
   studentId: string;

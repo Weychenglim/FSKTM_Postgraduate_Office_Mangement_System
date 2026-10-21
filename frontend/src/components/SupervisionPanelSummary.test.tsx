@@ -16,7 +16,7 @@ const waiting=show({...base,canRecommend:false,pending:{id:10,status:'SUBMITTED_
 assert.match(waiting,/Awaiting Panel review|View recommendation/);
 assert.doesNotMatch(waiting,/Recommend Panel|Replace Panel|Confirmed Panel/);
 const replacement=show({...base,current,canRecommend:false,pending:{id:10,status:'PENDING_COORDINATOR',replacement:true,canView:true}});
-assert.match(replacement,/Confirmed Panel|Replacement pending|Awaiting Coordinator confirmation/);
+assert.match(replacement,/Confirmed Panel|Replacement pending|Awaiting Coordinator approval/);
 assert.doesNotMatch(replacement,/>Replace Panel<|>Recommend Panel</);
 const unknown=show();
 assert.match(unknown,/Panel information unavailable/);

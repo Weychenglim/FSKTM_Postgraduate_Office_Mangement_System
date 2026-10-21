@@ -1,4 +1,6 @@
 import type { SupervisorDocumentRequirement } from '../types';
+import type { SupervisorSectionAInput } from '../types/supervisorSectionA';
+import type { SupervisorResearchIntent } from '../types/supervisorResearchIntent';
 
 export const SUPERVISOR_DOCUMENT_MAX_FILES = 5;
 export const SUPERVISOR_DOCUMENT_MAX_TOTAL_BYTES = 10 * 1024 * 1024;
@@ -54,6 +56,8 @@ export function buildSupervisorApplicationFormData(
     projectCourseCodes?: string;
     replacesAppointmentId?: number | null;
     replacementReason?: string;
+    sectionA?: SupervisorSectionAInput;
+    researchIntent?: SupervisorResearchIntent;
   },
   files: Map<string, File>,
 ): FormData {
@@ -63,6 +67,8 @@ export function buildSupervisorApplicationFormData(
   body.append('researchArea', fields.researchArea);
   body.append('researchAbstract', fields.researchAbstract);
   body.append('projectCourseCodes', (fields.projectCourseCodes ?? '').trim());
+  if (fields.sectionA) body.append('sectionA', JSON.stringify(fields.sectionA));
+  if (fields.researchIntent) body.append('researchIntent', JSON.stringify(fields.researchIntent));
   if (fields.replacesAppointmentId) {
     body.append('replacesAppointmentId', String(fields.replacesAppointmentId));
   }

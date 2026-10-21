@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PortalSelect } from './PortalSelect';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText,
@@ -941,7 +942,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     
                       {/* Select box block inside */}
                       <div className="relative mt-1">
-                        <select
+                        <PortalSelect
                           aria-label="Template Status Option"
                           value={editorStatus}
                           onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
@@ -950,7 +951,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                           <option value="Active">● Active / Live</option>
                           <option value="Draft">● Draft / Sandbox</option>
                           <option value="Archived">● Archived / Retired</option>
-                        </select>
+                        </PortalSelect>
                       </div>
                     </div>
 

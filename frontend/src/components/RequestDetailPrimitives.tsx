@@ -5,7 +5,7 @@ import { formatRequestRecordedAt, formatRequestDisplayDate } from './ApprovalPro
 import { requestStatusLabel } from '../utils/lecturerRequests';
 
 export function readableRecordStatus(value: string): string {
-  const labels: Record<string,string> = {PENDING_SUPERVISOR:'Awaiting Supervisor review',ACTIVE:'Active',ENDED:'Ended',COMPLETED:'Completed',WITHDRAWN:'Withdrawn',REPLACED:'Replaced'};
+  const labels: Record<string,string> = {ACTIVE:'Active',ENDED:'Ended',COMPLETED:'Completed',WITHDRAWN:'Withdrawn',REPLACED:'Replaced'};
   return labels[value] ?? requestStatusLabel(value);
 }
 
@@ -37,10 +37,11 @@ export function RequestMetadata({ submittedAt, submittedBy, statusLabel, statusT
   </div>;
 }
 
-export function RequestDetailCard({ children, progress, actions, audit, padding }: { children: React.ReactNode; progress?: React.ReactNode; actions?: React.ReactNode; audit?: React.ReactNode; padding?: React.ComponentProps<typeof PortalCard>['padding'] }) {
+export function RequestDetailCard({ children, progress, actions, audit, padding }: { children?: React.ReactNode; progress?: React.ReactNode; actions?: React.ReactNode; audit?: React.ReactNode; padding?: React.ComponentProps<typeof PortalCard>['padding'] }) {
+  const hasContent = React.Children.toArray(children).length > 0;
   return <PortalCard padding={padding} className="divide-y divide-slate-200">
-    <div className="space-y-6 pb-6">{children}</div>
-    {progress ? <div className="py-6">{progress}</div> : null}
+    {hasContent ? <div className="space-y-6 pb-6">{children}</div> : null}
+    {progress ? <div className={hasContent ? 'py-6' : 'pb-6'}>{progress}</div> : null}
     {actions ? <div className="py-6">{actions}</div> : null}
     {audit ? <div className="pt-6">{audit}</div> : null}
   </PortalCard>;

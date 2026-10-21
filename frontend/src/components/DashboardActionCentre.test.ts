@@ -12,6 +12,13 @@ const dashboardFiles = [
 for (const fileName of dashboardFiles) {
   const source = readFileSync(resolve('src/components', fileName), 'utf8');
 
+  if (fileName === 'AdministrationDashboard.tsx') {
+    assert.match(source, /useOfficeRead\(getOfficeAttention\)/);
+    assert.match(source, /officeAttentionPreview/);
+    assert.match(source, /officeAttentionCategoryRoute/);
+    assert.match(source, /OfficeCalendarPreview/);
+    continue;
+  }
   assert.match(
     source,
     /<MonitoringTasksCard/,
@@ -47,7 +54,7 @@ assert.match(
 
 const appSource = readFileSync(resolve('src/App.tsx'), 'utf8');
 assert.equal(
-  (appSource.match(/onNavigateToRoute=\{navigate\}/g) ?? []).length,
+  (appSource.match(/onNavigateToRoute=\{(?:navigate|navigateOfficeRoute)\}/g) ?? []).length,
   dashboardFiles.length + 3,
   'App should wire exact routes into every role dashboard, reports, progress dossiers, and reconciliation',
 );
@@ -60,7 +67,7 @@ const capacityEntryFiles = [
   'WorkflowReconciliationCentre.tsx',
 ];
 for (const fileName of capacityEntryFiles) {
-  const source = readFileSync(resolve('src/components', fileName), 'utf8');
+  const source = readFileSync(resolve('src/components', fileName), 'utf8') + (fileName === 'AdministrationDashboard.tsx' ? readFileSync(resolve('src/utils/officeDashboard.ts'), 'utf8') : '');
   assert.match(
     source,
     /dashboardLecturerCapacity|onOpenCapacity/,

@@ -1,3 +1,4 @@
+import { PortalSelect } from './PortalSelect';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Filter,
@@ -13,6 +14,7 @@ import type {
   UserRole,
   WorkflowReport,
   WorkflowReportFilters,
+  WorkflowReportAttentionItem,
 } from '../types';
 import { downloadWorkflowReport, getWorkflowReport } from '../services';
 import {
@@ -25,6 +27,7 @@ import {
 } from '../utils/workflowReports';
 import { APP_ROUTES, routeForStudentProgress } from '../constants/routes';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { useListState } from './ListState';
 import {
   PageHeader,
   PortalButton,
@@ -38,6 +41,54 @@ interface WorkflowReportsProps {
   onBack: () => void;
   onNavigateToRoute: (route: string) => void;
   onOpenReconciliation?: () => void;
+  onOpenDossier?: (studentId: string) => void;
+}
+
+export function ReportAttentionState({ item }: { item: WorkflowReportAttentionItem }) {
+  if (item.kind === 'LECTURER_CAPACITY') return <>{reportLabel(item.capacityState ?? 'Capacity review')}{item.capacityRole ? ` · ${reportLabel(item.capacityRole)}` : ''}</>;
+  if (item.kind === 'WAITING') return <>{item.waitingDays ?? 0} days - {reportLabel(item.waitingOn ?? 'Waiting')}</>;
+  if (item.kind === 'PARTICIPANT_LIFECYCLE') return <>{reportLabel(item.participantStatus ?? 'Lifecycle review')}</>;
+  if (item.kind === 'RECONCILIATION') return <>Blocking data inconsistency</>;
+  return <>{item.dueAt && item.deadlineState === 'OVERDUE' ? `Overdue - ${item.dueAt}` : item.dueAt ? `${reportLabel(item.deadlineState ?? 'Deadline')} - ${item.dueAt}` : 'Deadline not recorded'}</>;
+}
+
+function useReportViewState<T>(office: boolean, field: string, initial: T) {
+  const stored = useListState('OfficeWorkflowReports', field, initial);
+  const local = useState(initial);
+  return office ? stored : local;
+}
+
+export function getOfficeReportAttentionPage(items: WorkflowReportAttentionItem[], requestedPage: number) {
+  const pageCount = Math.max(1, Math.ceil(items.length / 10));
+  const page = Math.min(pageCount, Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1));
+  return { page, pageCount, rows: items.slice((page - 1) * 10, page * 10) };
+}
+
+export function OfficeReportBreakdown({ report, section, onNavigate }: { report: WorkflowReport; section: string; onNavigate: (route: string) => void }) {
+  if (section === 'attention') return null;
+  if (section === 'appointments') return <section aria-label="Appointment workflow breakdowns" className="space-y-5">
+    {report.supervisor && <WorkflowSection title="Supervisor appointments" summary={report.supervisor} />}
+    {report.panel && <WorkflowSection title="Panel appointments" summary={report.panel} />}
+    {report.researchAmendments && <WorkflowSection title="Research amendments and transfers" summary={report.researchAmendments} />}
+    {!report.supervisor && !report.panel && !report.researchAmendments && <EmptyState title="No appointment breakdowns" description="No authorised appointment summaries are available for these filters." />}
+  </section>;
+  if (section === 'evaluations') return report.marks ? <PortalCard padding="md">
+    <h2 className="section-label mb-4">Evaluations</h2>
+    <p className="card-description mb-5">{report.marks.total} tasks · {report.overview.overdueMarks} overdue against recorded deadlines.</p>
+    <div className="grid gap-6 lg:grid-cols-3"><Distribution title="Task status" values={report.marks.statusCounts} total={report.marks.total} /><Distribution title="Deadline state" values={report.marks.deadlineStateCounts} total={report.marks.total} /><Distribution title="Evaluator role" values={report.marks.evaluatorRoleCounts} total={report.marks.total} /></div>
+  </PortalCard> : <EmptyState title="No evaluations in scope" description="No evaluation summary is available for the applied filters." />;
+  if (section === 'calendar') return report.timeline ? <PortalCard padding="md">
+    <h2 className="section-label mb-4">Calendar entries</h2><p className="card-description mb-5">Current calendar state; an ended event does not confirm completion of student work.</p>
+    <div className="grid gap-6 lg:grid-cols-3"><Distribution title="Calendar status" values={Object.fromEntries(Object.entries(report.timeline.statusCounts).map(([key, value]) => [key === 'COMPLETED' ? 'ENDED' : key, value]))} total={report.timeline.total} /><Distribution title="Research project" values={report.timeline.levelCounts} total={report.timeline.total} /><Distribution title="Audience" values={report.timeline.targetRoleCounts} total={report.timeline.total} /></div>
+  </PortalCard> : <EmptyState title="No calendar entries in scope" description="No calendar summary is available for the applied filters." />;
+  return <PortalCard padding="md" className="space-y-5">
+    <h2 className="section-label">Office capacity</h2>
+    {report.capacity ? <>
+      <p className="card-description">Faculty-wide lecturer role entries for {report.capacity.semesterCode}. Programme and report date filters do not narrow this capacity summary. A lecturer with both roles appears in each role count. Workload occupation spans semesters.</p>
+      <div className="grid gap-6 lg:grid-cols-2"><Distribution title="Supervisor role entries" values={report.capacity.supervisor} total={Object.values(report.capacity.supervisor).reduce((sum, count) => sum + count, 0)} /><Distribution title="Panel role entries" values={report.capacity.panel} total={Object.values(report.capacity.panel).reduce((sum, count) => sum + count, 0)} /></div>
+      <PortalButton size="sm" onClick={() => onNavigate(`${APP_ROUTES.dashboardLecturerCapacity}?semester=${report.capacity?.semesterId}`)}>Review capacity</PortalButton>
+    </> : <p className="card-description">Choose a specific semester or the active semester to see the available faculty capacity summary.</p>}
+  </PortalCard>;
 }
 
 const Distribution: React.FC<{
@@ -121,15 +172,23 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   onBack,
   onNavigateToRoute,
   onOpenReconciliation,
+  onOpenDossier,
 }) => {
+  const office = currentUserRole === 'Office Staff/Admin';
   const [report, setReport] = useState<WorkflowReport | null>(null);
-  const [filters, setFilters] = useState<WorkflowReportFilters>({ semester: 'active' });
-  const [draftFilters, setDraftFilters] = useState<WorkflowReportFilters>({ semester: 'active' });
+  const [filters, setFilters] = useReportViewState<WorkflowReportFilters>(office, 'filters', { semester: 'active' });
+  const [draftFilters, setDraftFilters] = useReportViewState<WorkflowReportFilters>(office, 'draftFilters', { semester: 'active' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [attentionPage, setAttentionPage] = useReportViewState(office, 'attentionPage', 1);
+  const [officeSection, setOfficeSection] = useReportViewState(office, 'section', 'attention');
+  const attentionView = getOfficeReportAttentionPage(report?.attention ?? [], attentionPage);
+  const attentionPageCount = attentionView.pageCount;
+  const visibleAttentionPage = attentionView.page;
+  const attentionItems = office ? attentionView.rows : report?.attention ?? [];
 
   const loadReport = useCallback(() => {
     setLoading(true);
@@ -156,10 +215,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
       return;
     }
     setValidationError(null);
+    setAttentionPage(1);
     setFilters({ ...draftFilters });
   };
 
   const resetFilters = () => {
+    setAttentionPage(1);
     setValidationError(null);
     setDraftFilters({ semester: 'active' });
     setFilters({ semester: 'active' });
@@ -242,7 +303,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           )}
 
           {report.participantLifecycle && (
-            <PortalCard padding="md" className="rounded-lg">
+            <PortalCard data-office-preserve padding="md" className="rounded-lg">
               <h3 className="section-label mb-5">Participant Lifecycle</h3>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
                 {Object.entries(report.participantLifecycle).map(([label, value]) => (
@@ -261,7 +322,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
     <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
       <PortalToast message={toast} />
       <PageHeader
-        title="Workflow Analytics"
+        title={office ? 'Workflow reports' : 'Workflow Analytics'}
         subtitle={currentUserRole === 'Lecturer' ? 'Review waiting requests and assigned evaluation work, then explore workflow outcomes.' : 'Current persisted state across authorised workflow, marks, and timeline records.'}
         backLabel="Back to Dashboard"
         onBack={onBack}
@@ -290,63 +351,67 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           <Filter aria-hidden="true" className="w-4 h-4 text-blue-600" />
           <h2 className="section-label">Report filters</h2>
         </div>
-        <form onSubmit={event => { event.preventDefault(); applyFilters(); }} className="filter-toolbar grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-          <label className="form-label space-y-1.5">
-            <span>Start date</span>
-            <input
-              type="date"
-              value={draftFilters.startDate ?? ''}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
-              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            />
-          </label>
-          <label className="form-label space-y-1.5">
-            <span>End date</span>
-            <input
-              type="date"
-              value={draftFilters.endDate ?? ''}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
-              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            />
-          </label>
-          <label className="form-label space-y-1.5">
-            <span>Academic semester</span>
-            <select
-              value={draftFilters.semester ?? 'active'}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
-              className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
-            >
-              <option value="active">Active semester</option>
-              <option value="all">All semesters</option>
-              <option value="unassigned">Legacy / Unassigned</option>
-              {report?.filters.availableSemesters.map((semester) => (
-                <option key={semester.semesterCode} value={semester.semesterCode}>
-                  {semester.semester}
-                </option>
-              ))}
-            </select>
-          </label>
-          {currentUserRole === 'Office Staff/Admin' && (
-            <label className="form-label space-y-1.5">
-              <span>Programme</span>
-              <select
-                value={draftFilters.programme ?? ''}
-                onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
+        <form onSubmit={event => { event.preventDefault(); applyFilters(); }} className="space-y-4">
+          <div className="filter-toolbar flex flex-wrap gap-4 items-end">
+            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
+              <span>Start date</span>
+              <input
+                type="date"
+                value={draftFilters.startDate ?? ''}
+                onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
+                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+              />
+            </label>
+            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
+              <span>End date</span>
+              <input
+                type="date"
+                value={draftFilters.endDate ?? ''}
+                onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
+                className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+              />
+            </label>
+            <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
+              <span>Academic semester</span>
+              <PortalSelect
+                value={draftFilters.semester ?? 'active'}
+                onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
                 className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
               >
-                <option value="">All authorised programmes</option>
-                {report?.filters.availableProgrammes.map((programme) => (
-                  <option key={programme} value={programme}>{programme}</option>
+                <option value="active">Active semester</option>
+                <option value="all">All semesters</option>
+                <option value="unassigned">Legacy / Unassigned</option>
+                {report?.filters.availableSemesters.map((semester) => (
+                  <option key={semester.semesterCode} value={semester.semesterCode}>
+                    {semester.semester}
+                  </option>
                 ))}
-              </select>
+              </PortalSelect>
             </label>
-          )}
-          <div className="flex gap-2">
-            <PortalButton type="submit" variant="primary" icon={Filter} disabled={loading}>Apply filters</PortalButton>
-            <PortalButton variant="secondary" icon={RefreshCw} disabled={loading} onClick={resetFilters}>Reset filters</PortalButton>
+            {currentUserRole === 'Office Staff/Admin' && (
+              <label className="form-label min-w-0 flex-[1_1_12rem] space-y-1.5">
+                <span>Programme</span>
+                <PortalSelect
+                  value={draftFilters.programme ?? ''}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
+                  className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                >
+                  <option value="">All authorised programmes</option>
+                  {report?.filters.availableProgrammes.map((programme) => (
+                    <option key={programme} value={programme}>{programme}</option>
+                  ))}
+                </PortalSelect>
+              </label>
+            )}
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="card-description min-w-0" aria-live="polite">Showing: {report?.filters.selectedSemester && filters.semester === report.filters.semester ? report.filters.selectedSemester.semester : filters.semester === 'all' ? 'All semesters' : filters.semester === 'unassigned' ? 'Legacy / Unassigned' : filters.semester === 'active' ? 'Active semester' : filters.semester}; {filters.startDate || 'Any start date'} to {filters.endDate || 'any end date'}{filters.programme ? `; ${filters.programme}` : ''}.</p>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <PortalButton size="sm" className="shrink-0 whitespace-nowrap" variant="secondary" icon={RefreshCw} disabled={loading} onClick={resetFilters}>Reset filters</PortalButton>
+              <PortalButton size="sm" className="shrink-0 whitespace-nowrap" type="submit" variant="primary" icon={Filter} disabled={loading}>Apply filters</PortalButton>
+            </div>
           </div>
         </form>
-        <p className="card-description mt-3" aria-live="polite">Showing: {report?.filters.selectedSemester && filters.semester === report.filters.semester ? report.filters.selectedSemester.semester : filters.semester === 'all' ? 'All semesters' : filters.semester === 'unassigned' ? 'Legacy / Unassigned' : filters.semester === 'active' ? 'Active semester' : filters.semester}; {filters.startDate || 'Any start date'} to {filters.endDate || 'any end date'}{filters.programme ? `; ${filters.programme}` : ''}.</p>
         {buildWorkflowReportQuery(draftFilters) !== buildWorkflowReportQuery(filters) ? <p className="card-description mt-1 text-amber-700">Filter changes have not been applied. Downloads use the applied filters.</p> : null}
         {validationError && (
           <p role="alert" className="card-value text-rose-600 mt-3">{validationError}</p>
@@ -360,6 +425,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
       ) : !report ? null : (
         <>
           {currentUserRole === 'Lecturer' ? <LecturerReportSummary report={report} onNavigateToRoute={onNavigateToRoute} /> : statisticCards}
+          {office && <nav aria-label="Report sections" className="flex flex-wrap gap-2">
+            {Object.entries({ attention: 'Attention', appointments: 'Appointment workflows', evaluations: 'Evaluations', calendar: 'Calendar', capacity: 'Office capacity' }).map(([key, label]) => (
+              <PortalButton key={key} size="sm" aria-pressed={officeSection === key} variant={officeSection === key ? 'primary' : 'secondary'} onClick={() => setOfficeSection(key)}>{label}</PortalButton>
+            ))}
+          </nav>}
+          {(!office || officeSection === 'attention') && <>
           <PortalCard id="workflow-attention" role="region" aria-label="Records requiring attention" padding="none" className="rounded-lg overflow-hidden scroll-mt-24">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
               <Clock3 className="w-4 h-4 text-amber-600" />
@@ -383,12 +454,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {report.attention.map((item) => (
+                    {attentionItems.map((item) => (
                       <tr key={`${item.recordType}-${item.recordId}`} className="data-row">
                         <td className="data-td-strong">{item.label}</td>
                         <td className="data-td">{item.programme}</td>
                         <td className="data-td">
-                          {item.kind === 'WAITING'
+                          {office ? <ReportAttentionState item={item} /> : item.kind === 'WAITING'
                             ? `${item.waitingDays ?? 0} days - ${reportLabel(item.waitingOn ?? 'Waiting')}`
                             : item.kind === 'PARTICIPANT_LIFECYCLE'
                               ? reportLabel(item.participantStatus ?? 'Lifecycle review')
@@ -402,7 +473,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                               <PortalButton
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => onNavigateToRoute(routeForStudentProgress(item.studentId ?? undefined))}
+                                onClick={() => office && onOpenDossier && item.studentId ? onOpenDossier(item.studentId) : onNavigateToRoute(routeForStudentProgress(item.studentId ?? undefined))}
                               >
                                 View student record
                               </PortalButton>
@@ -410,7 +481,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                             <PortalButton
                               size="sm"
                               variant="ghost"
-                              onClick={() => onNavigateToRoute(resolveWorkflowReportRecordRoute(item))}
+                              onClick={() => onNavigateToRoute(office && item.kind === 'LECTURER_CAPACITY' ? `${APP_ROUTES.dashboardLecturerCapacity}?${new URLSearchParams({ ...(report.capacity ? { semester: String(report.capacity.semesterId) } : {}), lecturer: item.recordId }).toString()}` : resolveWorkflowReportRecordRoute(item))}
                             >
                               {item.recordType.startsWith('CO_SUPERVISOR_') ? 'View team' : 'Open'}
                             </PortalButton>
@@ -423,11 +494,27 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
               </div>
             )}
           </PortalCard>
+          {office && report.attention.length > 10 && <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Attention pagination">
+            <p className="card-description">{(visibleAttentionPage - 1) * 10 + 1}–{Math.min(visibleAttentionPage * 10, report.attention.length)} of {report.attention.length} attention records · Page {visibleAttentionPage} of {attentionPageCount}</p>
+            <div className="flex gap-2"><PortalButton size="sm" disabled={visibleAttentionPage === 1} onClick={() => setAttentionPage(visibleAttentionPage - 1)}>Previous</PortalButton><PortalButton size="sm" disabled={visibleAttentionPage === attentionPageCount} onClick={() => setAttentionPage(visibleAttentionPage + 1)}>Next</PortalButton></div>
+          </div>}
+          </>}
           {currentUserRole === 'Lecturer' ? <details className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
             <summary className="section-label cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">Workflow breakdowns and summary statistics</summary>
             <p className="card-description">Within the applied filters, this includes Supervisor requests and co-supervisor nominations involving you, Panel recommendations naming you, research changes for students you currently supervise, your assigned evaluations and shared Lecturer milestones. Counts are records, not students; waiting times include other reviewers.</p>
             {statisticCards}{breakdowns}
-          </details> : breakdowns}
+          </details> : office ? <OfficeReportBreakdown report={report} section={officeSection} onNavigate={onNavigateToRoute} /> : breakdowns}
+          {office && report.participantLifecycle && <PortalCard data-office-preserve padding="md" className="rounded-lg">
+            <h3 className="section-label mb-5">Participant Lifecycle</h3>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+              {Object.entries(report.participantLifecycle).map(([label, value]) => (
+                <div key={label} className="rounded-md bg-slate-50 p-3">
+                  <span className="card-label block">{reportLabel(label)}</span>
+                  <strong className="card-value mt-1 block">{value}</strong>
+                </div>
+              ))}
+            </div>
+          </PortalCard>}
         </>
       )}
     </div>

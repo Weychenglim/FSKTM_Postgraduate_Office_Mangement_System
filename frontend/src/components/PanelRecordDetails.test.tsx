@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import type {PanelRecommendationDraft} from '../types';
+const module=await import('./PanelRecordDetails').catch(()=>null);
+assert.ok(module,'All staff Panel hosts need one shared record renderer');
+const {PanelRecommendationDetail,PanelAppointmentRecordCard,panelRecordMetadata}=module;
+const record:PanelRecommendationDraft={id:71,studentId:'PG71',studentName:'Same student',programme:'Computing',semester:'Semester I',proposedTopic:'Recorded title',researchArea:'Networks',abstract:'Recorded abstract',supervisorName:'Dr Supervisor',recommendedMember:'Dr Panel',recommendedMemberId:'LP71',status:'SUBMITTED_TO_PANEL',submittedDate:'15 Oct 2026',submittedAt:'2026-10-15T00:00:00Z',justification:'Recorded justification',workflow:[{id:1,action:'SUBMIT',actorName:'Actual submitter',actorRole:'Lecturer',reason:'',previousStatus:'',newStatus:'SUBMITTED_TO_PANEL',createdAt:'2026-10-15T00:00:00Z'}]};
+const html=renderToStaticMarkup(<PanelRecommendationDetail record={record} actions={<button>Authorised action</button>}/>);
+for(const text of ['Same student','PG71','Computing','Dr Supervisor','Dr Panel','Recorded title','Networks','Recorded abstract','Recorded justification','Approval progress','Authorised action','Audit history'])assert.ok(html.includes(text),text);
+assert.ok(html.indexOf('Research details')>=0 && html.indexOf('Research details')<html.indexOf('Approval progress'));
+assert.ok(html.indexOf('Approval progress')<html.indexOf('Authorised action'));
+assert.match(html,/<details/);assert.doesNotMatch(html,/<details[^>]*open/);
+assert.doesNotMatch(html,/REC-71|PENDING_COORDINATOR|SUBMITTED_TO_PANEL|2025\/2026|No related files|Evaluation Summary/);
+assert.equal(panelRecordMetadata(record).submittedBy,'Actual submitter');
+const legacy=renderToStaticMarkup(<PanelRecommendationDetail record={{...record,status:'APPROVED',workflow:[]}}/>);
+assert.match(legacy,/Detailed approval history is unavailable/);
+assert.doesNotMatch(legacy,/Audit history/);
+const absent=renderToStaticMarkup(<PanelAppointmentRecordCard record={record}/>);assert.equal(absent,'','A pending nomination has no appointment card');
+const appointed={...record,appointmentLifecycle:{appointmentId:90,status:'ENDED' as const,endOutcome:'WITHDRAWN' as const,endReason:'Recorded ending',endedAt:'2026-10-15T01:00:00Z',endedBy:'Office',supersedesAppointmentId:null,replacementAppointmentId:null,lifecycle:[]}};
+const card=renderToStaticMarkup(<PanelAppointmentRecordCard record={appointed}/>);assert.match(card,/Appointment record/);assert.match(card,/Recorded ending/);assert.doesNotMatch(card,/>WITHDRAWN</);
+assert.doesNotMatch(card,/Administrative details/,'Panel lifecycle details do not add an administrative card');
+console.log('Shared Panel record hierarchy, metadata, audit and separate lifecycle passed');
+
+const replaced=renderToStaticMarkup(<PanelRecommendationDetail record={{...record,status:'APPROVED',replacesAppointmentId:12,replacementReason:'New expertise',replacedPanelMember:'Dr Previous',replacedAppointmentStatus:'ENDED'}}/>);
+assert.match(replaced,/Previous Panel member/);assert.doesNotMatch(replaced,/Current Panel member/);

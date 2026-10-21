@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import type {PanelRecommendationDraft} from '../types';
+const module = await import('./panelPresentation').catch(()=>null);
+assert.ok(module, 'Panel records need a factual shared presentation adapter');
+const {buildPanelApprovalSteps,toOfficePanelPresentation,toAssignmentPanelPresentation,toSubmittedPanelPresentation}=module;
+const row:PanelRecommendationDraft={id:71,studentId:'PG71',studentName:'Same student',programme:'Computing',semester:'Semester I 2026/2027',proposedTopic:'Same title',researchArea:'Networks',abstract:'Line one\nLine two',supervisorName:'Dr Supervisor',recommendedMember:'Dr Panel',recommendedMemberId:'LP71',status:'PENDING_COORDINATOR',submittedDate:'15 Oct 2026',submittedAt:'2026-10-15T00:00:00Z',panelDecisionAt:'2026-10-15T01:00:00Z',waitingDays:2,workflow:[{id:1,action:'SUBMIT',actorName:'Dr Supervisor',actorRole:'Lecturer',reason:'',previousStatus:'',newStatus:'SUBMITTED_TO_PANEL',createdAt:'2026-10-15T00:00:00Z'},{id:2,action:'ACCEPT',actorName:'Dr Panel',actorRole:'Lecturer',reason:'',previousStatus:'SUBMITTED_TO_PANEL',newStatus:'PENDING_COORDINATOR',createdAt:'2026-10-15T01:00:00Z'}]};
+let steps=buildPanelApprovalSteps(row);
+assert.deepEqual(steps.map(s=>[s.id,s.state]),[['submitted','completed'],['panel','completed'],['coordinator','current'],['outcome','upcoming']]);
+assert.equal(steps[1].actorName,'Dr Panel');
+assert.match(steps[2].description??'',/2 calendar days/);
+steps=buildPanelApprovalSteps({...row,status:'REJECTED_BY_PANEL',workflow:[],panelDecisionAt:null});
+assert.equal(steps[1].state,'rejected');assert.equal(steps[2].state,'not_reached');assert.equal(steps[1].actorName,undefined);
+steps=buildPanelApprovalSteps({...row,status:'CANCELLED_BY_OFFICE',workflow:[],selectedPanelDecision:null,panelDecisionAt:null});
+assert.equal(steps[1].state,'not_reached');assert.equal(steps[2].state,'not_reached');assert.equal(steps[3].state,'cancelled');
+steps=buildPanelApprovalSteps({...row,status:'APPROVED',workflow:[],panelDecisionAt:null,coordinatorDecisionAt:null});
+assert.equal(steps[1].state,'unknown','A terminal status does not prove historical reviewer details');
+assert.equal(steps[2].state,'unknown');
+const office=toOfficePanelPresentation({recordId:'recommendation-71',id:'PG71',studentName:'Same student',programme:'Computing',semester:row.semester!,supervisor:'Dr Supervisor',panelMember:'Dr Panel',status:'Pending',updatedDate:'15 Oct 2026',recommendation:row});
+const assigned=toAssignmentPanelPresentation({appointmentId:90,studentId:'PG71',studentName:'Same student',researchTitle:'Same title',supervisor:'Dr Supervisor',appointmentDate:'15 Oct 2026',status:'ACTIVE',recommendation:row});
+assert.deepEqual(office,assigned,'Shared exact recommendation content does not depend on the staff host');
+assert.equal(toSubmittedPanelPresentation({id:'REC-71',recommendationId:71,studentId:'PG71',studentName:'Same student',researchTitle:'Same title',recommendedPanel:'Dr Panel',status:'Rejected',date:'15 Oct 2026',semester:''}).status,'UNKNOWN','A display outcome cannot invent which reviewer rejected');
+console.log('Panel factual progress, uncertainty and staff DTO normalization passed');
+
+assert.equal(module.canActOnPanelRecord({...row,canReview:false},'PROGRAMME_COORDINATOR'),false,'A monitoring record never grants a Coordinator review');
+assert.equal(module.canActOnPanelRecord({...row,canReview:true},'PROGRAMME_COORDINATOR'),true);

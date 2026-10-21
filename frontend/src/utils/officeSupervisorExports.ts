@@ -1,7 +1,8 @@
 import { getSupervisorAppointments } from '../services/appointmentsApi';
 import type { BrowsePage, BrowseParams } from '../services/coordinatorWorkspaceApi';
 import type { SupervisorRecord } from '../types';
-import { downloadCsv, type CsvColumn } from './csvExport';
+import { downloadExcel } from './excelExport';
+import type { CsvColumn } from './csvExport';
 
 export type { CsvColumn } from './csvExport';
 
@@ -29,7 +30,7 @@ const appointmentColumns: CsvColumn<SupervisorRecord>[] = [
 /** The legacy full-record request is deliberately deferred until export. */
 export async function exportAllOfficeAppointmentRecords(): Promise<number> {
   const records = await getSupervisorAppointments();
-  downloadCsv('supervisor_appointments_report.csv', records, appointmentColumns);
+  await downloadExcel('supervisor_appointments_report.xlsx', records, appointmentColumns);
   return records.length;
 }
 
@@ -62,6 +63,6 @@ export async function exportOfficeBrowsePage<T>(
     }
     rows.push(...result.results);
   }
-  downloadCsv(filename, rows, columns);
+  await downloadExcel(filename, rows, columns);
   return rows.length;
 }

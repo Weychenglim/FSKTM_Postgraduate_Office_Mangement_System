@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PortalSelect } from './PortalSelect';
 import React, { useState, useEffect } from 'react';
 import { 
   MessageSquareCode, 
@@ -259,7 +260,7 @@ export const AcademicFAQEditor: React.FC = () => {
                 Intent Category
               </label>
               <div className="relative">
-                <select
+                <PortalSelect
                   value={intentCategory}
                   onChange={(e) => setIntentCategory(e.target.value)}
                   className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -268,12 +269,8 @@ export const AcademicFAQEditor: React.FC = () => {
                   <option value="Marks Submission">Marks Submission</option>
                   <option value="Enrollment & Fees">Enrollment & Fees</option>
                   <option value="General Evaluation">General Evaluation</option>
-                </select>
-                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                </PortalSelect>
+
               </div>
             </div>
 

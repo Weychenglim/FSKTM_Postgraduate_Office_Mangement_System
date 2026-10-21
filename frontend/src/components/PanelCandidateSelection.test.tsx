@@ -8,6 +8,8 @@ const student = { studentName: 'Student', studentId: 'PG001', programme: 'Progra
 const candidate: PanelCandidate = { staffId: 'LECT001', name: 'Eligible Lecturer', department: 'Department', workloadCount: 0, workloadLimit: 5, canSubmit: true, availability: 'Available', workloadHelpText: '' };
 const render = (candidates: PanelCandidate[]) => renderToStaticMarkup(<RecommendPanelMemberDrawer isOpen student={student} candidates={candidates} onClose={() => {}} onSubmit={() => {}} />);
 const initial = render([candidate]);
+assert.match(initial, /aria-label="Recommendation availability"/);
+assert.doesNotMatch(initial, /Submission period|Check period|Application availability/);
 assert.doesNotMatch(initial, /id="candidate-highlight-card"/, 'An eligible candidate must not be chosen automatically');
 assert.match(initial, /Choose a panel member/);
 assert.match(initial, /role="combobox"/);

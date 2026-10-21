@@ -1,6 +1,7 @@
 import React from 'react';
 import type { StudentResearchProfileSummary } from '../types/appointment';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
+import { ResearchAbstract } from './ResearchAbstract';
 
 /** The student's current saved profile, shared by both appointment overviews. */
 export function StudentResearchProfileSection({ profile }: { profile: StudentResearchProfileSummary }) {
@@ -17,7 +18,7 @@ export function StudentResearchProfileSection({ profile }: { profile: StudentRes
             <dd className={`${typography.body} [overflow-wrap:anywhere]`}>{value?.trim() || 'Not recorded'}</dd></div>)}
       </div>
       <div className="space-y-2"><dt className={typography.label}>Abstract</dt>
-        <dd className={`${typography.body} max-w-prose whitespace-pre-wrap [overflow-wrap:anywhere]`}>{profile.abstract?.trim() || 'Not recorded'}</dd>
+        <dd><ResearchAbstract value={profile.abstract} /></dd>
       </div>
     </dl>
   </section>;

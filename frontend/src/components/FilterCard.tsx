@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PortalSelect } from './PortalSelect';
 import React from 'react';
 import { Upload, CheckCircle2 } from 'lucide-react';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
@@ -45,7 +46,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
             Semester
           </label>
           <div className="relative">
-            <select
+            <PortalSelect
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
               className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -55,12 +56,8 @@ export const FilterCard: React.FC<FilterCardProps> = ({
                   {opt.label}
                 </option>
               ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+            </PortalSelect>
+
           </div>
         </div>
 
@@ -70,7 +67,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
             Evaluation Stage
           </label>
           <div className="relative">
-            <select
+            <PortalSelect
               value={stage}
               onChange={(e) => setStage(e.target.value)}
               className="form-control form-control-md appearance-none pr-10 cursor-pointer"
@@ -80,12 +77,8 @@ export const FilterCard: React.FC<FilterCardProps> = ({
                   {opt.label}
                 </option>
               ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+            </PortalSelect>
+
           </div>
         </div>
       </div>

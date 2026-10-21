@@ -24,7 +24,9 @@ const reports = fs.readFileSync(new URL('./WorkflowReports.tsx', import.meta.url
 assert.match(routes, /dashboardReports:\s*'\/dashboard\/reports'/);
 assert.match(app, /WorkflowReports/);
 assert.match(app, /isDashboardReportsRoute/);
-assert.match(adminDashboard, /View Workflow Reports/);
+assert.match(adminDashboard, /onClick=\{\(\)=>navigate\(APP_ROUTES.dashboardReports\)\}>View Workflow Reports/);
+assert.doesNotMatch(adminDashboard, /label:'Workflow reports'/);
+assert.match(adminDashboard, /Manage Participants/);
 assert.match(lecturerDashboard, /View Workflow Reports/);
 assert.match(coordinatorDashboard, /View Workflow Reports/);
 assert.doesNotMatch(studentDashboard, /View Workflow Reports/);

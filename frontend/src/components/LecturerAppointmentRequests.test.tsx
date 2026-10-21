@@ -43,3 +43,17 @@ const shell = renderToStaticMarkup(<MemoryRouter initialEntries={['/supervisor-a
 assert.match(shell, /aria-pressed="true"[^>]*>History/);
 assert.doesNotMatch(shell, /Back to Requests|Back to Supervisor Appointments/);
 console.log('Combined appointment records, review counts, retained tracking and independent History passed');
+
+const { lecturerRequestViewParams, lecturerRequestViewRows } = await import('./LecturerAppointmentRequests');
+assert.equal(typeof lecturerRequestViewParams, 'function', 'Supervisor view changes need a filter transition that clears incompatible status');
+const pendingFilters = new URLSearchParams('q=applicant&type=primary&semester=Semester+I&from=2026-10-01&size=25&status=PENDING_COORDINATOR&page=2');
+const historyFilters = lecturerRequestViewParams(pendingFilters, 'history', rows);
+assert.equal(historyFilters.toString(), 'q=applicant&type=primary&semester=Semester+I&from=2026-10-01&size=25&view=history');
+assert.equal(pendingFilters.get('status'), 'PENDING_COORDINATOR', 'Switching views leaves the originating list entry intact');
+const historyRows = lecturerRequestViewRows(rows, 'history');
+assert.deepEqual(historyRows.map(row => row.studentName), ['Resolved applicant']);
+assert.match(renderToStaticMarkup(<LecturerAppointmentRequestList rows={historyRows} history onOpen={() => {}} />), /Resolved applicant/);
+assert.deepEqual([...new Set(historyRows.map(row => row.status))], ['REJECTED_BY_COORDINATOR'], 'History offers only final outcome statuses');
+assert.equal(lecturerRequestViewParams(new URLSearchParams('status=REJECTED_BY_COORDINATOR&page=2'), 'history', rows).toString(), 'status=REJECTED_BY_COORDINATOR&view=history', 'Compatible statuses remain selected');
+assert.equal(lecturerRequestViewParams(new URLSearchParams('status=REJECTED_BY_COORDINATOR&page=2'), 'requests', rows).toString(), 'view=requests');
+assert.ok(lecturerRequestViewRows(rows, 'requests').some(row => row.status === 'PENDING_COORDINATOR'), 'Accepted requests awaiting Coordinator remain ongoing');
