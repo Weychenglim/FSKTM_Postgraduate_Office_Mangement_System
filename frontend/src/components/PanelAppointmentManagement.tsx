@@ -51,6 +51,7 @@ import { getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
+import { Select } from './Select';
 
 // Interfaces for our Dataset (PanelRecord now lives in src/types).
 export interface AttentionItem {
@@ -503,7 +504,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                       Programme
                     </label>
                     <div className="relative">
-                      <select
+                      <Select
                         id="programme-selection-field"
                         value={programmeFilter}
                         onChange={(e) => setProgrammeFilter(e.target.value)}
@@ -513,8 +514,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                         {PROGRAMME_OPTIONS.map((programme) => (
                           <option key={programme}>{programme}</option>
                         ))}
-                      </select>
-                      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                      </Select>
                     </div>
                   </div>
 
@@ -524,7 +524,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                       Semester
                     </label>
                     <div className="relative">
-                      <select
+                      <Select
                         id="semester-selection-field"
                         value={semesterFilter}
                         onChange={(e) => setSemesterFilter(e.target.value)}
@@ -533,8 +533,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                         {semesterOptions.map((semester) => (
                           <option key={semester}>{semester}</option>
                         ))}
-                      </select>
-                      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                      </Select>
                     </div>
                   </div>
 
@@ -543,7 +542,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                       Order
                     </label>
                     <div className="relative">
-                      <select
+                      <Select
                         id="panel-record-order"
                         value={recordOrder}
                         onChange={(event) => {
@@ -554,8 +553,7 @@ export const PanelAppointmentManagement: React.FC<PanelAppointmentManagementProp
                       >
                         <option value="default">Default order</option>
                         <option value="longest">Longest waiting</option>
-                      </select>
-                      <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                      </Select>
                     </div>
                   </div>
 

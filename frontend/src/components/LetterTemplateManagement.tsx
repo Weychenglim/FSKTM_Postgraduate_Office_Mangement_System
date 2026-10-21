@@ -43,6 +43,7 @@ import {
   deleteLetterTemplate,
   getLetterRequestCounts,
 } from '../services';
+import { Select } from './Select';
 
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
@@ -910,7 +911,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                     />
                   </Field>
                   <Field label="Status" htmlFor="letter-template-status" hint={STATUS_HINT[editorStatus]}>
-                    <select
+                    <Select
                       id="letter-template-status"
                       aria-label="Template Status Option"
                       value={editorStatus}
@@ -920,7 +921,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       <option value="Active">Active</option>
                       <option value="Draft">Draft</option>
                       <option value="Archived">Archived</option>
-                    </select>
+                    </Select>
                   </Field>
                 </section>
 

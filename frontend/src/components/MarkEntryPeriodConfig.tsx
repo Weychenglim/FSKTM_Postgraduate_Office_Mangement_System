@@ -55,6 +55,7 @@ import {
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { malaysiaDeadline, formatMalaysiaDateTime as displayDateTime } from '../utils/malaysiaDateTime';
+import { Select } from './Select';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -494,7 +495,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
               </label>
               <label className="form-label block">
                 Academic semester
-                <select
+                <Select
                   required
                   disabled={!draftEditable}
                   value={form.semesterId}
@@ -507,11 +508,11 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                       {semester.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="form-label block">
                 Rubric version
-                <select
+                <Select
                   required
                   disabled={!draftEditable}
                   value={form.rubricId}
@@ -524,7 +525,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                       {rubric.name} · v{rubric.version} · {rubric.targetMark} marks
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <fieldset disabled={!draftEditable} className="space-y-3 rounded-lg border border-slate-200 p-3">
                 <legend className="px-1 text-xs font-bold text-slate-700">Programme scope</legend>

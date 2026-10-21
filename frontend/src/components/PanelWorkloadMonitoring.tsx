@@ -34,6 +34,7 @@ import { PanelWorkloadRecord } from '../types';
 import { downloadCsv } from '../utils/csvExport';
 import { getPanelWorkloadSummary, getPanelWorkloadUtilization } from '../utils/panelWorkloadRecords';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
+import { Select } from './Select';
 
 interface PanelWorkloadMonitoringProps {
   onBack: () => void;
@@ -244,7 +245,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
             <div>
               <label htmlFor="dept-selection" className="form-label block">Department</label>
               <div className="relative">
-                <select
+                <Select
                   id="dept-selection"
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
@@ -253,15 +254,14 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   {departmentOptions.map((department) => (
                     <option key={department}>{department}</option>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                </Select>
               </div>
             </div>
 
             <div>
               <label htmlFor="status-selection" className="form-label block">Workload Status</label>
               <div className="relative">
-                <select
+                <Select
                   id="status-selection"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -271,8 +271,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
                   <option>Available</option>
                   <option>Near Limit</option>
                   <option>Full Load</option>
-                </select>
-                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4.5 h-4.5 pointer-events-none" />
+                </Select>
               </div>
             </div>
           </div>

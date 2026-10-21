@@ -24,6 +24,7 @@ import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SupervisorRequestHistoryRow } from '../types';
 import { getSupervisorRequestHistory } from '../services';
+import { Select } from './Select';
 
 // ==================== COMPONENT SPECIFICATION ====================
 
@@ -216,7 +217,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
               Decision
             </label>
             <div className="relative">
-              <select
+              <Select
                 className="form-control form-control-sm appearance-none cursor-pointer"
                 value={decisionFilter}
                 onChange={(e) => setDecisionFilter(e.target.value)}
@@ -225,8 +226,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Cancelled">Cancelled</option>
-              </select>
-              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </Select>
             </div>
           </div>
 
@@ -236,7 +236,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
               Semester
             </label>
             <div className="relative">
-              <select
+              <Select
                 className="form-control form-control-sm appearance-none cursor-pointer"
                 value={semesterFilter}
                 onChange={(e) => setSemesterFilter(e.target.value)}
@@ -245,8 +245,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
                 {semesterOptions.filter(s => s !== 'All').map(sem => (
                   <option key={sem} value={sem}>{sem}</option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </Select>
             </div>
           </div>
 

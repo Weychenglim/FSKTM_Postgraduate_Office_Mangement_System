@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PortalButton } from './PortalPrimitives';
+import { Select } from './Select';
 
 interface TimelineEntry {
   id: string;
@@ -163,15 +164,14 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                     Category classification
                   </label>
                   <div className="relative">
-                    <select
+                    <Select
                       value={category}
                       onChange={(e) => setCategory(e.target.value as any)}
                       className="form-control form-control-sm appearance-none pr-9 cursor-pointer"
                     >
                       <option value="Research Project (P1)">Research Project (P1)</option>
                       <option value="Research Project (P2)">Research Project (P2)</option>
-                    </select>
-                    <Layers className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+                    </Select>
                   </div>
                 </div>
 

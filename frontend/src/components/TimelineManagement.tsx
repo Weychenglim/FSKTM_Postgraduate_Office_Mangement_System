@@ -35,6 +35,7 @@ import { ErrorState, LoadingState } from './StateViews';
 import { UploadTimelineDrawer } from './UploadTimelineDrawer';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
 import { formatSemesterLifecycle } from '../utils/academicSemesters';
+import { Select } from './Select';
 
 // TimelineEntry now lives in src/types.
 
@@ -370,7 +371,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
       <div className="flex flex-wrap items-end justify-between gap-3 border-y border-slate-200 bg-white px-4 py-3">
         <label className="form-label min-w-[260px]">
           Timeline semester
-          <select
+          <Select
             value={selectedSemesterId ?? ''}
             onChange={(event) => setSelectedSemesterId(Number(event.target.value))}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
@@ -381,7 +382,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
                 {semester.label} - {formatSemesterLifecycle(semester.effectiveStatus)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <PortalButton
           variant="secondary"
@@ -467,7 +468,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
           {/* Select filter 1: Category */}
           <div className="md:col-span-2 relative">
-            <select
+            <Select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
@@ -475,12 +476,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               <option value="All">Category: All</option>
               <option value="Research Project (P1)">Research Project (P1)</option>
               <option value="Research Project (P2)">Research Project (P2)</option>
-            </select>
+            </Select>
           </div>
 
           {/* Select filter 2: Status */}
           <div className="md:col-span-2 relative">
-            <select
+            <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
@@ -490,12 +491,12 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               <option value="Active">Active</option>
               <option value="Deadline">Deadline</option>
               <option value="Upcoming">Upcoming</option>
-            </select>
+            </Select>
           </div>
 
           {/* Select filter 3: Target Role */}
           <div className="md:col-span-2 relative">
-            <select
+            <Select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="form-control form-control-sm appearance-none cursor-pointer"
@@ -503,7 +504,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
               <option value="All">Target Role: All</option>
               <option value="STUDENT">Student</option>
               <option value="LECTURER">Lecturer</option>
-            </select>
+            </Select>
           </div>
 
           {/* Action Trigger Filter criteria */}

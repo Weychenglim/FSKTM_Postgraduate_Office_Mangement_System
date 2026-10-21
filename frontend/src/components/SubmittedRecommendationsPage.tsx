@@ -30,6 +30,7 @@ import { LoadingState, ErrorState } from './StateViews';
 import { PageHeader } from './PortalPrimitives';
 import { SubmittedRecommendation } from '../types';
 import { getPanelRecommendations } from '../services';
+import { Select } from './Select';
 
 // ==================== DATA DEFINITIONS & INTERFACES ====================
 
@@ -270,7 +271,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
               Status
             </label>
             <div className="relative">
-              <select
+              <Select
                 id="filter-select-status"
                 className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 text-xs text-slate-705 text-slate-700 font-bold focus:outline-none appearance-none cursor-pointer"
                 value={selectedStatus}
@@ -281,8 +282,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                 <option value="Pending Approval">Pending Approval</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Cancelled">Cancelled</option>
-              </select>
-              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </Select>
             </div>
           </div>
 
@@ -292,7 +292,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
               Semester
             </label>
             <div className="relative">
-              <select
+              <Select
                 id="filter-select-semester"
                 className="w-full bg-[#f8fafc]/80 hover:bg-[#f1f5f9]/40 focus:bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 text-xs text-slate-750 text-slate-700 font-bold focus:outline-none appearance-none cursor-pointer"
                 value={selectedSemester}
@@ -303,8 +303,7 @@ export const SubmittedRecommendationsPage: React.FC<SubmittedRecommendationsPage
                     {semOption}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              </Select>
             </div>
           </div>
 

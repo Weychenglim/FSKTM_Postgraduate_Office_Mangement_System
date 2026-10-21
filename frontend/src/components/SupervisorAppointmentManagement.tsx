@@ -52,6 +52,7 @@ import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
 import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { SupervisorRequestDetail, supervisorRequestMetadata, type SupervisorRequestPresentation } from './SupervisorRequestDetail';
 import { SupervisorAppointmentRecordCard, toOfficeAppointmentPresentation } from './SupervisorAppointmentRecordCard';
+import { Select } from './Select';
 
 export function officeRequestPresentation(record: SupervisorRecord): SupervisorRequestPresentation {
   const events=record.workflow??[];
@@ -312,10 +313,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Appointment records">
         <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} onClick={handleExportData}>Export records</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />
         <RequestFilters search={searchQuery} onSearch={setSearchQuery} searchLabel="Find a record" searchPlaceholder="Student name, matric number, supervisor or research title">
-          <label className="form-label">Programme<select className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Semester<select className="form-control form-control-sm mt-1" value={semesterFilter} onChange={event => setSemesterFilter(event.target.value)}><option>All Semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Status<select className="form-control form-control-sm mt-1" value={activeTab} onChange={event => { setActiveTab(event.target.value as typeof activeTab); setCurrentPage(1); }}>{(['All Records','No Supervisor','Pending','Approved','Ended','Rejected','Cancelled','Workload Alert'] as const).map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Sort<select className="form-control form-control-sm mt-1" value={sortOrder} onChange={event => { setSortOrder(event.target.value as typeof sortOrder); setCurrentPage(1); }}><option value="default">Default order</option><option value="longestWaiting">Longest waiting</option></select></label>
+          <label className="form-label">Programme<Select className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</Select></label>
+          <label className="form-label">Semester<Select className="form-control form-control-sm mt-1" value={semesterFilter} onChange={event => setSemesterFilter(event.target.value)}><option>All Semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</Select></label>
+          <label className="form-label">Status<Select className="form-control form-control-sm mt-1" value={activeTab} onChange={event => { setActiveTab(event.target.value as typeof activeTab); setCurrentPage(1); }}>{(['All Records','No Supervisor','Pending','Approved','Ended','Rejected','Cancelled','Workload Alert'] as const).map(value => <option key={value}>{value}</option>)}</Select></label>
+          <label className="form-label">Sort<Select className="form-control form-control-sm mt-1" value={sortOrder} onChange={event => { setSortOrder(event.target.value as typeof sortOrder); setCurrentPage(1); }}><option value="default">Default order</option><option value="longestWaiting">Longest waiting</option></Select></label>
           <div className="flex items-end gap-2"><PortalButton size="sm" onClick={handleResetFilters}>Reset filters</PortalButton><PortalButton size="sm" variant="primary" onClick={handleApplyFilters}>Apply filters</PortalButton></div>
         </RequestFilters>
         {loading ? <LoadingState message="Loading appointment records…" /> : error ? <ErrorState message={error} onRetry={loadRecords} /> : <>

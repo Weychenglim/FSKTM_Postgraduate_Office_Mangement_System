@@ -20,6 +20,7 @@ import {
   MarkRecordStatusTab,
 } from '../utils/markRecords';
 import { formatDeadlineText } from '../utils/workflowAgeing';
+import { Select } from './Select';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -279,7 +280,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Programme
             </label>
-            <select
+            <Select
               value={programmeFilter}
               onChange={(e) => setProgrammeFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -288,7 +289,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {programmeOptions.map((programme) => (
                 <option key={programme} value={programme}>{programme}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Semester dropdown selector */}
@@ -296,7 +297,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Semester
             </label>
-            <select
+            <Select
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -305,7 +306,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {semesterOptions.map((semester) => (
                 <option key={semester} value={semester}>{semester}</option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -315,7 +316,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Status
             </label>
-            <select
+            <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -325,7 +326,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               <option value="Draft">Draft Saved</option>
               <option value="Not Started">Not Started</option>
               <option value="Overdue">Overdue</option>
-            </select>
+            </Select>
           </div>
 
           {/* Panel Member select */}
@@ -333,7 +334,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
             <label className="form-label">
               Panel Member
             </label>
-            <select
+            <Select
               value={panelFilter}
               onChange={(e) => setPanelFilter(e.target.value)}
               className="form-control form-control-md cursor-pointer"
@@ -342,7 +343,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
               {evaluatorOptions.map((member) => (
                 <option key={member} value={member}>{member}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Core Apply Filters Action Trigger */}

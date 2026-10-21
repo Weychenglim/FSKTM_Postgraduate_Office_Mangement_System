@@ -4,6 +4,7 @@ import { PortalButton } from './PortalPrimitives';
 import { requestStatusLabel, type RequestGroup } from '../utils/lecturerRequests';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
+import { Select } from './Select';
 
 export function WorkspaceSectionHeader({ title, description, actions }: { title?: string; description?: string; actions?: React.ReactNode }) {
   return <header className="flex flex-wrap items-center justify-between gap-3">
@@ -17,7 +18,7 @@ export const WORKSPACE_PAGE_SIZE = 10;
 export function workspacePageSize(value: unknown) { return [10, 25, 50].includes(Number(value)) ? Number(value) : WORKSPACE_PAGE_SIZE; }
 export function WorkspacePagination({ page, pageCount, total, noun, onPage, pageSize = WORKSPACE_PAGE_SIZE, onPageSize }: { page: number; pageCount: number; total: number; noun: string; onPage: (page: number) => void; pageSize?: number; onPageSize?: (size: number) => void }) {
   return total > 0 && (pageCount > 1 || onPageSize) ? <div className="flex flex-wrap items-center justify-between gap-3">
-    {onPageSize ? <label className="card-description flex items-center gap-2">Rows per page<select className="form-control form-control-sm w-20" value={pageSize} onChange={event => onPageSize(Number(event.target.value))}>{[10, 25, 50].map(size => <option key={size} value={size}>{size}</option>)}</select></label> : null}
+    {onPageSize ? <label className="card-description flex items-center gap-2">Rows per page<Select className="form-control form-control-sm w-20" value={pageSize} onChange={event => onPageSize(Number(event.target.value))}>{[10, 25, 50].map(size => <option key={size} value={size}>{size}</option>)}</Select></label> : null}
     <p className="card-description">Page {page} of {pageCount} · {total} {total === 1 && noun.endsWith('s') ? noun.slice(0, -1) : noun}</p>
     {pageCount > 1 ? <div className="flex gap-2"><PortalButton size="sm" disabled={page === 1} onClick={() => onPage(page - 1)}>Previous</PortalButton><PortalButton size="sm" disabled={page === pageCount} onClick={() => onPage(page + 1)}>Next</PortalButton></div> : null}
   </div> : null;
@@ -63,9 +64,9 @@ export function RequestFilters({ search, onSearch, type, onType, status = '', on
   return <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
     <label className="form-label min-w-48 flex-1">{searchLabel}<input className="form-control form-control-sm mt-1" type="search" value={search} placeholder={searchPlaceholder} onChange={event => onSearch(event.target.value)} /></label>
     {children}
-    {onType ? <label className="form-label">Request type<select className="form-control form-control-sm mt-1" value={type} onChange={event => onType(event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="supporting">Supporting supervisor</option></select></label> : null}
-    {onStatus ? <label className="form-label">Status<select className="form-control form-control-sm mt-1" value={status} onChange={event => onStatus(event.target.value)}><option value="">All statuses</option>{statuses.map(value => <option key={value} value={value}>{requestStatusLabel(value)}</option>)}</select></label> : null}
-    {onSemester ? <label className="form-label">Semester<select className="form-control form-control-sm mt-1" value={semester} onChange={event => onSemester(event.target.value)}><option value="">All semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</select></label> : null}
+    {onType ? <label className="form-label">Request type<Select className="form-control form-control-sm mt-1" value={type} onChange={event => onType(event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="supporting">Supporting supervisor</option></Select></label> : null}
+    {onStatus ? <label className="form-label">Status<Select className="form-control form-control-sm mt-1" value={status} onChange={event => onStatus(event.target.value)}><option value="">All statuses</option>{statuses.map(value => <option key={value} value={value}>{requestStatusLabel(value)}</option>)}</Select></label> : null}
+    {onSemester ? <label className="form-label">Semester<Select className="form-control form-control-sm mt-1" value={semester} onChange={event => onSemester(event.target.value)}><option value="">All semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</Select></label> : null}
     {onFrom ? <label className="form-label">Submitted on or after<input className="form-control form-control-sm mt-1" type="date" value={from} onChange={event => onFrom(event.target.value)} /></label> : null}
   </div>;
 }

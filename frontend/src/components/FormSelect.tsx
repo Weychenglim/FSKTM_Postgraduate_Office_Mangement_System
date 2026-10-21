@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { Select } from './Select';
 
 interface Option {
   value: string;
@@ -31,9 +32,9 @@ export const FormSelect: React.FC<FormSelectProps> = ({
         {label}
       </label>
       <div className="relative">
-        <select
+        <Select
           id={id}
-          className={`form-control form-control-md appearance-none pr-10 cursor-pointer ${error ? 'form-control-error' : ''} ${className}`}
+          className={`form-control form-control-md ${error ? 'form-control-error' : ''} ${className}`}
           {...props}
         >
           {options.map((opt) => (
@@ -41,13 +42,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
               {opt.label}
             </option>
           ))}
-        </select>
-        {/* Custom arrow decoration icon */}
-        <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-500">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        </Select>
       </div>
       {error && (
         <span id={`select-err-${id}`} className="card-description text-red-500 mt-1.5">

@@ -11,6 +11,7 @@ import {requestStatusLabel} from '../utils/lecturerRequests';
 import {formatMalaysiaDate} from '../utils/malaysiaDateTime';
 import {exportOfficeBrowsePage} from '../utils/officeSupervisorExports';
 import type {CsvColumn} from '../utils/csvExport';
+import { Select } from './Select';
 
 const categories = [
   {key:'students',title:'Without supervisor',unit:'students',description:'Active students without an active primary supervisor.',count:'withoutSupervisor'},
@@ -79,8 +80,8 @@ function OfficeAttentionBrowse({category,refreshVersion,capacitySemester,onStude
     <WorkspaceSectionHeader title={categories.find(item=>item.key===category)!.title} description={description} actions={<PortalButton size="sm" disabled={result.loading||!!result.error||exporting} isLoading={exporting} onClick={()=>void exportRecords()}>Export matching records</PortalButton>}/>
     {category==='workload'?<div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <label className="form-label">Find a supervisor<input className="form-control form-control-sm mt-1" type="search" placeholder="Name, staff number or department" value={f.q} onChange={e=>f.change(f.setQ)(e.target.value)}/></label>
-      <label className="form-label">Reason<select className="form-control form-control-sm mt-1" value={f.status} onChange={e=>f.change(f.setStatus)(e.target.value)}><option value="">All reasons</option>{Object.entries(workloadReasons).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>
-      <label className="form-label">Sort by<select className="form-control form-control-sm mt-1" value={f.sort} onChange={e=>{f.setSort(e.target.value);f.setPage(1);}}><option value="name">Supervisor name</option><option value="load">Highest load first</option></select></label>
+      <label className="form-label">Reason<Select className="form-control form-control-sm mt-1" value={f.status} onChange={e=>f.change(f.setStatus)(e.target.value)}><option value="">All reasons</option>{Object.entries(workloadReasons).map(([value,label])=><option value={value} key={value}>{label}</option>)}</Select></label>
+      <label className="form-label">Sort by<Select className="form-control form-control-sm mt-1" value={f.sort} onChange={e=>{f.setSort(e.target.value);f.setPage(1);}}><option value="name">Supervisor name</option><option value="load">Highest load first</option></Select></label>
     </div><div className="mt-3 flex justify-end"><PortalButton size="sm" onClick={f.reset}>Clear filters</PortalButton></div></div>
     :<CoordinatorFiltersBar filters={category==='students'?{...f,type:f.status,setType:f.setStatus}:f} facets={result.data?.facets} requests={category==='waiting'} includeStatusAndDates={category==='waiting'} searchLabel="Find a student" searchPlaceholder="Student name or matric number"
       typeLabel={category==='students'?'Application progress':'Request type'} typeOptions={category==='students'?[['','All students'],['none','No ongoing application'],['in_progress','Application in progress']]:[['all','All types'],['primary','Primary supervisor'],['supporting','Supporting supervisor'],['research','Research change'],['transfer','Programme transfer']]}

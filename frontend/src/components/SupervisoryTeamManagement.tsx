@@ -27,6 +27,7 @@ import type {ActiveSuperviseeRow} from '../types';
 import {endSupervisorAppointment} from '../services/appointmentsApi';
 import {SupervisorAppointmentRecordCard,toCoordinatorAppointmentPresentation,type SupervisorAppointmentPresentation} from './SupervisorAppointmentRecordCard';
 import {ViewStudentRecordAction,readableRecordStatus} from './RequestDetailPrimitives';
+import { Select } from './Select';
 
 const inputClass = 'form-control form-control-sm mt-1';
 const labels: Record<CoSupervisorAction, string> = { accept: 'Accept', reject: 'Reject', approve: 'Approve', 'coordinator-reject': 'Reject', cancel: 'Cancel nomination' };
@@ -157,10 +158,10 @@ function NominationForm({ team, replacement, busy, onSubmit, onCancel }: {
     <h4 className="section-label">{replacement ? `Replace ${replacement.supervisor.name}` : 'Nominate a co-supervisor'}</h4>
     <p className="card-description">{replacement ? 'The current appointment continues until the replacement is approved. ' : ''}The lecturer accepts before programme coordinator approval. Each approved appointment uses one supervision slot.</p>
     {loading ? <LoadingState message="Loading eligible lecturers…" /> : error ? <ErrorState message={error} onRetry={() => setAttempt(value => value + 1)} /> : <label className="form-label block">Lecturer
-      <select className={inputClass} required value={candidateId} disabled={busy} onChange={event => setCandidateId(event.target.value)}>
+      <Select className={inputClass} required value={candidateId} disabled={busy} onChange={event => setCandidateId(event.target.value)}>
         <option value="">Select a lecturer</option>
         {candidates.map(candidate => <option key={candidate.id} value={candidate.id} disabled={!candidate.selectable}>{candidate.name} · {candidate.activeLoad}/{candidate.limit ?? 'Unconfigured'} · {candidate.reason || candidate.capacityState.replaceAll('_', ' ').toLowerCase()}{candidate.unavailableUntil ? ` until ${candidate.unavailableUntil}` : ''}</option>)}
-      </select>
+      </Select>
     </label>}
     {!loading && !error && candidates.length === 0 ? <p className="card-description">No eligible lecturers are available.</p> : null}
     <label className="form-label block">Justification<textarea className={inputClass} required rows={3} value={justification} disabled={busy} onChange={event => setJustification(event.target.value)} /></label>
@@ -434,7 +435,7 @@ export function SupervisoryTeamManagement({ onChanged, role, refreshVersion = 0,
         try { return await completeDecision(() => edit.kind === 'end' ? endCoSupervisor(edit.appointment.id, outcome, reason.trim()) : decideCoSupervisor(edit.nomination.id, edit.action, reason.trim()), async () => { await load(true); onChanged?.(); }); }
         finally { mutating.current = false; setBusy(false); }
       }}>
-      {edit?.kind === 'end' ? <label className="form-label block">Outcome<select className={inputClass} value={outcome} onChange={event => setOutcome(event.target.value as CoSupervisorOutcome)} disabled={busy}><option value="COMPLETED">Completed</option><option value="WITHDRAWN">Withdrawn</option><option value="OTHER">Other</option></select></label> : null}
+      {edit?.kind === 'end' ? <label className="form-label block">Outcome<Select className={inputClass} value={outcome} onChange={event => setOutcome(event.target.value as CoSupervisorOutcome)} disabled={busy}><option value="COMPLETED">Completed</option><option value="WITHDRAWN">Withdrawn</option><option value="OTHER">Other</option></Select></label> : null}
       {edit && edit.kind !== 'nominate' && (edit.kind === 'end' || !['accept', 'approve'].includes(edit.action)) ? <label className="form-label block">Reason (required)<textarea required className={inputClass} rows={3} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
     </DecisionDialog>
     </div>

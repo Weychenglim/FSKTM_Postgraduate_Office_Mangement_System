@@ -38,6 +38,7 @@ import {
 } from '../utils/workflowReconciliation';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { Select } from './Select';
 
 interface WorkflowReconciliationCentreProps {
   onBack: () => void;
@@ -212,28 +213,28 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
               onChange={(event) => setFilter('search', event.target.value)}
             />
           </label>
-          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
+          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.module ?? ''} onChange={(event) => setFilter('module', event.target.value)}>
             <option value="">All modules</option>
             <option value="DASHBOARD">Dashboard / Timeline</option>
             <option value="SUPERVISOR_APPOINTMENTS">Supervisor</option>
             <option value="PANEL_APPOINTMENTS">Panel</option>
             <option value="MARKS">Marks</option>
             <option value="WORKFLOW_TRACKING">Workflow Tracking</option>
-          </select>
-          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
+          </Select>
+          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
             <option value="">All severities</option>
             <option value="BLOCKING">Blocking</option>
             <option value="WARNING">Warning</option>
-          </select>
-          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
+          </Select>
+          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.repairability ?? ''} onChange={(event) => setFilter('repairability', event.target.value)}>
             <option value="">All repair states</option>
             <option value="REPAIRABLE">Repairable</option>
             <option value="REVIEW_REQUIRED">Review required</option>
-          </select>
-          <select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
+          </Select>
+          <Select className="form-control form-control-md font-sans not-italic normal-case tracking-normal text-xs font-bold" value={filters.programme ?? ''} onChange={(event) => setFilter('programme', event.target.value)}>
             <option value="">All programmes</option>
             {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
+          </Select>
         </div>
 
         {loading ? (
@@ -322,14 +323,14 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? (
                   <section className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
                     <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2 className="h-4 w-4" /><h3 className="section-label text-emerald-800">Verified repair available</h3></div>
-                    <select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
+                    <Select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={selectedResolution?.action ?? ''} onChange={(event) => setSelectedResolution(preview.allowedResolutions.find((item) => item.action === event.target.value) ?? null)}>
                       {preview.allowedResolutions.map((item) => <option key={item.action} value={item.action}>{item.label}</option>)}
-                    </select>
+                    </Select>
                     {selectedResolution?.requiresProgramme && (
-                      <select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
+                      <Select className="form-control form-control-md w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" value={programme} onChange={(event) => setProgramme(event.target.value)}>
                         <option value="">Select managed programme</option>
                         {data?.availableProgrammes.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </select>
+                      </Select>
                     )}
                     <textarea className="form-control form-control-md min-h-24 w-full bg-white font-sans not-italic normal-case tracking-normal text-xs font-bold" placeholder="Mandatory reason for this repair" value={reason} onChange={(event) => setReason(event.target.value)} />
                     <label className="card-description flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3">

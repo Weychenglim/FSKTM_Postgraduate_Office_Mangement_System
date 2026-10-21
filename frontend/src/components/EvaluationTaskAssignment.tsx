@@ -46,6 +46,7 @@ import {
   getMarksAssignmentStudents,
   marksMutationErrorMessage,
 } from '../utils/marksProductionManagement';
+import { Select } from './Select';
 
 interface EvaluationTaskAssignmentProps {
   onBack: () => void;
@@ -380,7 +381,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-5">
                 <label className="form-label block">
                   <span className="form-label block">Evaluation Period</span>
-                  <select
+                  <Select
                     className="form-control form-control-md"
                     value={selectedPeriodId}
                     onChange={(event) => {
@@ -394,7 +395,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                         {period.name} · {period.semester} · {formatPeriodTargeting(period)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
 
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs">
@@ -476,7 +477,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="flex flex-wrap gap-3">
                 <label className="form-label block">
                   <span className="form-label block">Role</span>
-                  <select
+                  <Select
                     className="form-control form-control-sm min-w-[150px]"
                     value={roleFilter}
                     onChange={(event) => setRoleFilter(event.target.value as typeof ALL_ROLES | EvaluationTaskRole)}
@@ -485,11 +486,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="SUPERVISOR">Supervisor</option>
                     <option value="PANEL">Panel</option>
                     <option value="BACKUP">Backup</option>
-                  </select>
+                  </Select>
                 </label>
                 <label className="form-label block">
                   <span className="form-label block">Status</span>
-                  <select
+                  <Select
                     className="form-control form-control-sm min-w-[150px]"
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value as typeof ALL_STATUSES | EvaluationPreviewStatus)}
@@ -498,7 +499,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                     <option value="NOT_STARTED">Not Started</option>
                     <option value="DRAFT">Draft</option>
                     <option value="SUBMITTED">Submitted</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </div>
@@ -623,7 +624,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Evaluation Period</span>
-                    <select
+                    <Select
                       className="form-control form-control-md"
                       value={backupForm.periodId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -637,12 +638,12 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                       {periods.map((period) => (
                         <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="form-label block">
                     <span className="form-label block">Student</span>
-                    <select
+                    <Select
                       className="form-control form-control-md"
                       value={backupForm.studentId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -657,7 +658,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {student.studentName} · {student.studentId}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedBackupStudent && (
                       <p className="card-description mt-2">
                         {selectedBackupStudent.researchTitle}
@@ -667,7 +668,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Backup Lecturer</span>
-                    <select
+                    <Select
                       className="form-control form-control-md"
                       value={backupForm.evaluatorId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -681,7 +682,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {lecturer.fullName} · {lecturer.staffId || lecturer.email}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedBackupLecturer && (
                       <p className="card-description mt-2">
                         {selectedBackupLecturer.department || 'Department not recorded'} · {selectedBackupLecturer.email}
@@ -691,7 +692,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
                   <label className="form-label block">
                     <span className="form-label block">Original Task Covered</span>
-                    <select
+                    <Select
                       className="form-control form-control-md"
                       value={backupForm.originalTaskId}
                       onChange={(event) => setBackupForm((current) => ({
@@ -705,7 +706,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                           {roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)} · {task.panelMember}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="form-label block">

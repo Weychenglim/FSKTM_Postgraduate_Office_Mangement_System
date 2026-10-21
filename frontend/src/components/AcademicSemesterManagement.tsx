@@ -48,6 +48,7 @@ import {
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
+import { Select } from './Select';
 
 interface AcademicSemesterManagementProps {
   onBack: () => void;
@@ -376,7 +377,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
           </label>
           <label className="form-label">
             Term
-            <select
+            <Select
               value={form.term}
               disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => setForm({ ...form, term: event.target.value as AcademicSemesterInput['term'] })}
@@ -385,7 +386,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
               <option value="SEMESTER_I">Semester I</option>
               <option value="SEMESTER_II">Semester II</option>
               <option value="SPECIAL">Special semester</option>
-            </select>
+            </Select>
           </label>
           <label className="form-label">
             Starts on

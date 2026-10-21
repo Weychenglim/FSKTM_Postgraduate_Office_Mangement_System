@@ -6,6 +6,7 @@ import { PortalButton } from './PortalPrimitives';
 import { requestStatusLabel } from '../utils/lecturerRequests';
 import { WorkspacePagination } from './RequestWorkspacePrimitives';
 import type { BrowsePage, BrowseParams } from '../services/coordinatorWorkspaceApi';
+import { Select } from './Select';
 
 export function useCoordinatorFilters(key: string, initialSort = 'waiting', initial: BrowseParams = {}) {
   const [q, setQ] = useListState(key, 'search', String(initial.q ?? ''));
@@ -30,15 +31,15 @@ export function CoordinatorFiltersBar({ filters: f, facets, history = false, req
   return <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
     <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <label className="form-label min-w-0">{searchLabel}<input className="form-control form-control-sm mt-1" type="search" value={f.q} placeholder={searchPlaceholder} onChange={event => f.change(f.setQ)(event.target.value)} /></label>
-      <label className="form-label min-w-0">Programme<select className="form-control form-control-sm mt-1" value={f.programme} onChange={e => f.change(f.setProgramme)(e.target.value)}><option value="">{office?"All programmes":"All managed programmes"}</option>{facets?.programmes.map(value => <option key={value}>{value}</option>)}</select></label>
-      <label className="form-label min-w-0">{semesterLabel}<select className="form-control form-control-sm mt-1" value={f.semester} onChange={e => f.change(f.setSemester)(e.target.value)}><option value="">All {semesterLabel==='Semester'?'semesters':'intake semesters'}</option>{facets?.semesters.map(value => <option key={value}>{value}</option>)}</select></label>
-      {typeOptions ? <label className="form-label min-w-0">{typeLabel}<select className="form-control form-control-sm mt-1" value={f.type} onChange={e => f.change(f.setType)(e.target.value)}>{typeOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label> : null}
+      <label className="form-label min-w-0">Programme<Select className="form-control form-control-sm mt-1" value={f.programme} onChange={e => f.change(f.setProgramme)(e.target.value)}><option value="">{office?"All programmes":"All managed programmes"}</option>{facets?.programmes.map(value => <option key={value}>{value}</option>)}</Select></label>
+      <label className="form-label min-w-0">{semesterLabel}<Select className="form-control form-control-sm mt-1" value={f.semester} onChange={e => f.change(f.setSemester)(e.target.value)}><option value="">All {semesterLabel==='Semester'?'semesters':'intake semesters'}</option>{facets?.semesters.map(value => <option key={value}>{value}</option>)}</Select></label>
+      {typeOptions ? <label className="form-label min-w-0">{typeLabel}<Select className="form-control form-control-sm mt-1" value={f.type} onChange={e => f.change(f.setType)(e.target.value)}>{typeOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</Select></label> : null}
       {includeStatusAndDates ? <>
-        <label className="form-label min-w-0">Status<select className="form-control form-control-sm mt-1" value={f.status} onChange={e => f.change(f.setStatus)(e.target.value)}><option value="">All statuses</option>{facets?.statuses.map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</select></label>
+        <label className="form-label min-w-0">Status<Select className="form-control form-control-sm mt-1" value={f.status} onChange={e => f.change(f.setStatus)(e.target.value)}><option value="">All statuses</option>{facets?.statuses.map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</Select></label>
         <label className="form-label min-w-0">{dateLabel ?? (history ? 'Outcome' : 'Submitted')} on or after<input type="date" className="form-control form-control-sm mt-1" value={f.from} onChange={e => f.change(f.setFrom)(e.target.value)} /></label>
         <label className="form-label min-w-0">{dateLabel ?? (history ? 'Outcome' : 'Submitted')} on or before<input type="date" className="form-control form-control-sm mt-1" value={f.to} onChange={e => f.change(f.setTo)(e.target.value)} /></label>
       </> : null}
-      <label className="form-label min-w-0">Sort by<select className="form-control form-control-sm mt-1" value={f.sort} onChange={e => {f.setSort(e.target.value);f.setPage(1);}}>{sortOptions ? sortOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>) : <>{requests && !history ? <option value="waiting">Longest waiting at this stage</option> : null}<option value="newest">{history ? 'Recently recorded' : 'Newest first'}</option><option value="oldest">Oldest first</option></>}</select></label>
+      <label className="form-label min-w-0">Sort by<Select className="form-control form-control-sm mt-1" value={f.sort} onChange={e => {f.setSort(e.target.value);f.setPage(1);}}>{sortOptions ? sortOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>) : <>{requests && !history ? <option value="waiting">Longest waiting at this stage</option> : null}<option value="newest">{history ? 'Recently recorded' : 'Newest first'}</option><option value="oldest">Oldest first</option></>}</Select></label>
     </div>
     <div className="mt-3 flex justify-end"><PortalButton size="sm" onClick={f.reset}>Clear filters</PortalButton></div>
   </div>;

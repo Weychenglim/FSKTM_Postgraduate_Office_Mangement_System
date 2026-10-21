@@ -31,6 +31,7 @@ import {
 } from './PortalPrimitives';
 import { RightDrawer } from './RightDrawer';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { Select } from './Select';
 
 interface SupervisorWorkloadMonitoringProps {
   onBack: () => void;
@@ -253,7 +254,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                 </label>
                 <label className="form-label space-y-1.5">
                   <span className="form-label block">Department</span>
-                  <select
+                  <Select
                     value={selectedDepartment}
                     onChange={(event) => setSelectedDepartment(event.target.value)}
                     className="form-control form-control-sm"
@@ -262,11 +263,11 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     {departments.map((department) => (
                       <option key={department}>{department}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label className="form-label space-y-1.5">
                   <span className="form-label block">Workload Status</span>
-                  <select
+                  <Select
                     value={selectedStatus}
                     onChange={(event) => setSelectedStatus(event.target.value)}
                     className="form-control form-control-sm"
@@ -275,7 +276,7 @@ export const SupervisorWorkloadMonitoring: React.FC<
                     <option>Available</option>
                     <option>Near Limit</option>
                     <option>Full Load</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
               <div className="flex justify-end">

@@ -92,6 +92,7 @@ import { WorkflowAuditLog } from './WorkflowAuditLog';
 import { compareLongestWaiting, formatWaitingText } from '../utils/workflowAgeing';
 import { AppointmentEndControl } from './AppointmentEndControl';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
+import { Select } from './Select';
 
 // ==================== SUB-COMPONENTS & TYPES ====================
 
@@ -1006,9 +1007,9 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
               actions={<PortalButton size="sm" onClick={onNavigateToSubmitted}>View Submitted Recommendations</PortalButton>}>
               {eligibleSupervisees.length > 0 ? <>
                 <label className="form-label block">Select Supervisee
-                  <select className="form-control form-control-sm mt-1" value={selectedSuperviseeId ?? ''} onChange={event => setSelectedSuperviseeId(event.target.value)}>
+                  <Select className="form-control form-control-sm mt-1" value={selectedSuperviseeId ?? ''} onChange={event => setSelectedSuperviseeId(event.target.value)}>
                     {eligibleSupervisees.map(student => <option key={student.studentId} value={student.studentId}>{student.studentName} · {student.studentId}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 {recommendationStudent && <LecturerPanelSuperviseeCard student={recommendationStudent}
                   status={currentRecommendation ? PANEL_RECOMMENDATION_STATUS_LABELS[currentRecommendation.status] : selectedSupervisee?.panelAppointmentId ? 'Panel Active' : 'Recommendation Needed'}

@@ -8,6 +8,7 @@ import {
 } from '../utils/panelRecommendationRecords';
 import { PANEL_RECOMMENDATION_STATUS_LABELS } from '../utils/panelRecommendationWorkflow';
 import { StatusBadge } from './PortalPrimitives';
+import { Select } from './Select';
 
 interface PanelRecommendationRecordsTableProps {
   title: string;
@@ -77,7 +78,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
               className="form-control form-control-sm pl-10"
             />
           </div>
-          <select
+          <Select
             value={statusGroup}
             onChange={(event) => {
               setStatusGroup(event.target.value as PanelRecommendationRecordGroup);
@@ -90,7 +91,7 @@ export const PanelRecommendationRecordsTable: React.FC<PanelRecommendationRecord
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
             <option value="Cancelled">Cancelled</option>
-          </select>
+          </Select>
         </div>
 
         <div className="overflow-x-auto">

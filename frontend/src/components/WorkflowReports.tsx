@@ -32,6 +32,7 @@ import {
   PortalToast,
   StatusBadge,
 } from './PortalPrimitives';
+import { Select } from './Select';
 
 interface WorkflowReportsProps {
   currentUserRole: UserRole;
@@ -311,7 +312,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           </label>
           <label className="form-label space-y-1.5">
             <span>Academic semester</span>
-            <select
+            <Select
               value={draftFilters.semester ?? 'active'}
               onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}
               className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
@@ -324,12 +325,12 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                   {semester.semester}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {currentUserRole === 'Office Staff/Admin' && (
             <label className="form-label space-y-1.5">
               <span>Programme</span>
-              <select
+              <Select
                 value={draftFilters.programme ?? ''}
                 onChange={(event) => setDraftFilters((current) => ({ ...current, programme: event.target.value }))}
                 className="form-control form-control-md w-full font-sans not-italic normal-case tracking-normal text-xs font-bold"
@@ -338,7 +339,7 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
                 {report?.filters.availableProgrammes.map((programme) => (
                   <option key={programme} value={programme}>{programme}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <div className="flex gap-2">
