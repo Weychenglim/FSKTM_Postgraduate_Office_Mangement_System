@@ -80,47 +80,51 @@ export const OfficeFieldsEditor: React.FC<OfficeFieldsEditorProps> = ({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-amber-200/80 bg-amber-50/40 p-4">
+    <div className="space-y-4">
       <div>
-        <p className="text-[10px] font-extrabold text-amber-800 tracking-wider uppercase">Office-Filled Fields</p>
-        <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
+        <h3 className="section-label">Office-filled fields</h3>
+        <p className="card-description mt-1">
           Details the portal does not hold, such as attendance from another system. The office types them in when it
-          approves a request. Click a field to insert its tag.
+          approves the letter.
         </p>
       </div>
 
-      {fields.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="Office-filled fields">
+      {fields.length > 0 ? (
+        <ul className="rounded-xl border border-slate-200" aria-label="Office-filled fields">
           {fields.map((field) => (
-            <li
-              key={field.name}
-              className="inline-flex items-center rounded-lg border border-amber-300 bg-amber-100/70 text-amber-900 shadow-3xs"
-            >
-              <button
-                type="button"
-                onClick={() => onInsert(`{{${field.name}}}`)}
-                title={field.hint || `Insert {{${field.name}}}`}
-                className="pl-3 pr-2 py-1.5 text-[10px] font-extrabold tracking-wide cursor-pointer hover:text-amber-950"
-              >
-                + {field.label} <span className="font-mono font-bold text-amber-700">{`{{${field.name}}}`}</span>
-              </button>
+            <li key={field.name} className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-4 py-3 first:border-t-0">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold text-slate-800">{field.label}</p>
+                <p className="text-[11px] font-semibold text-slate-400">
+                  <code>{`{{${field.name}}}`}</code>
+                  {field.hint ? ` · ${field.hint}` : ''}
+                </p>
+              </div>
+              <PortalButton size="sm" icon={Plus} onClick={() => onInsert(`{{${field.name}}}`)}>
+                Insert
+              </PortalButton>
               <button
                 type="button"
                 onClick={() => removeField(field)}
                 aria-label={`Remove the field ${field.label}`}
-                className="mr-1 p-1 rounded text-amber-700 hover:bg-amber-200/70 cursor-pointer"
+                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 cursor-pointer"
               >
-                <X aria-hidden="true" className="w-3 h-3" />
+                <X aria-hidden="true" className="w-4 h-4" />
               </button>
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-[12px] font-semibold text-slate-400">
+          No office-filled fields. Add one below if the letter needs a detail the portal does not hold.
+        </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
-        <label className="sm:col-span-4 block">
-          <span className="sr-only">Field label</span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="space-y-1.5">
+          <label htmlFor="office-field-label" className="form-label block">Label</label>
           <input
+            id="office-field-label"
             type="text"
             value={label}
             maxLength={MAX_LABEL}
@@ -128,13 +132,14 @@ export const OfficeFieldsEditor: React.FC<OfficeFieldsEditorProps> = ({
               setLabel(e.target.value);
               setError(null);
             }}
-            placeholder="Label, e.g. Attendance (%)"
-            className="form-control form-control-sm"
+            placeholder="For example: Attendance (%)"
+            className="form-control form-control-md"
           />
-        </label>
-        <label className="sm:col-span-3 block">
-          <span className="sr-only">Tag name</span>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="office-field-tag" className="form-label block">Tag name</label>
           <input
+            id="office-field-tag"
             type="text"
             value={tagName}
             maxLength={40}
@@ -143,29 +148,34 @@ export const OfficeFieldsEditor: React.FC<OfficeFieldsEditorProps> = ({
               setNameEdited(true);
               setError(null);
             }}
-            placeholder="TAG_NAME"
-            className="form-control form-control-sm font-mono"
+            placeholder="Filled in from the label"
+            className="form-control form-control-md font-mono"
           />
-        </label>
-        <label className="sm:col-span-3 block">
-          <span className="sr-only">Hint for the office (optional)</span>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="office-field-hint" className="form-label block">Hint for the office (optional)</label>
           <input
+            id="office-field-hint"
             type="text"
             value={hint}
             maxLength={MAX_HINT}
             onChange={(e) => setHint(e.target.value)}
-            placeholder="Hint (optional)"
-            className="form-control form-control-sm"
+            placeholder="For example: From the attendance system"
+            className="form-control form-control-md"
           />
-        </label>
-        <PortalButton size="sm" icon={Plus} onClick={addField} className="sm:col-span-2 h-[38px]">
-          Add
-        </PortalButton>
+        </div>
       </div>
 
-      {(error || problem) && (
-        <p role="alert" className="text-[11px] font-bold text-rose-600">{error ?? problem}</p>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {error || problem ? (
+          <p role="alert" className="text-[11px] font-bold text-rose-600">{error ?? problem}</p>
+        ) : (
+          <p className="text-[11px] font-semibold text-slate-400">Adding a field also puts its tag in the letter at the cursor.</p>
+        )}
+        <PortalButton icon={Plus} onClick={addField}>
+          Add field
+        </PortalButton>
+      </div>
     </div>
   );
 };
