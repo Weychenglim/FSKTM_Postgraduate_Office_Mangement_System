@@ -5,26 +5,19 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileText,
-  Search,
-  Plus,
-  Trash2,
-  Check,
-  Eye,
+  ArrowLeft,
   Bold,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileText,
   Italic,
-  Underline,
   List,
-  Image as ImageIcon,
-  CheckCircle,
-  HelpCircle,
-  Clock,
-  User,
-  SlidersHorizontal,
-  RefreshCcw,
-  Sparkles
+  Plus,
+  Search,
+  Trash2,
+  Underline,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { SelectMenu } from './SelectMenu';
@@ -50,7 +43,6 @@ import {
   deleteLetterTemplate,
   getLetterRequestCounts,
 } from '../services';
-import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 const describePlaceholderProblems = ({ unknown, malformed }: { unknown: string[]; malformed: string[] }) =>
   [
@@ -83,22 +75,70 @@ const PURPOSE_NOTE: Partial<Record<LetterPurpose, string>> = {
     'Goes to the student and the panel member, with the supervisor in copy and a notice to each. Students cannot request it, and only one template can be active for it.',
 };
 
-const PURPOSE_SHORT: Record<LetterPurpose, string> = {
-  REQUEST: '',
-  SUPERVISOR_APPOINTMENT: 'Sent automatically: supervisor appointments',
-  PANEL_APPOINTMENT: 'Sent automatically: panel appointments',
+const PURPOSE_CHIP: Record<LetterPurpose, string> = {
+  REQUEST: 'Student request',
+  SUPERVISOR_APPOINTMENT: 'Sent on supervisor approval',
+  PANEL_APPOINTMENT: 'Sent on panel approval',
+};
+
+const STATUS_HINT: Record<LetterTemplateStatus, string> = {
+  Active: 'In use. Students can request it, or it is sent automatically.',
+  Draft: 'Not in use yet. Nobody can request or receive it.',
+  Archived: 'Kept for the record, no longer used.',
 };
 
 // Editor fields a 400 response can point at; anything else goes to the toast.
 const EDITOR_FIELDS = ['name', 'description', 'referencePrefix', 'content', 'customFields', 'purpose', 'signatoryName', 'signatoryTitle'] as const;
 type EditorField = (typeof EDITOR_FIELDS)[number];
 
-type LeaveTarget = { kind: 'select'; template: LetterTemplate } | { kind: 'create' };
+// Where unsaved edits were about to go when the office was asked to confirm.
+type LeaveTarget = { kind: 'select'; template: LetterTemplate } | { kind: 'create' } | { kind: 'list' };
 
-// Distinct placeholder tags used in a template body.
-const countPlaceholdersUsed = (text: string) => new Set(text.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+interface EditorValues {
+  name: string;
+  type: string;
+  description: string;
+  referencePrefix: string;
+  content: string;
+  customFields: LetterCustomField[];
+  status: LetterTemplateStatus;
+  purpose: LetterPurpose;
+  signatoryName: string;
+  signatoryTitle: string;
+}
 
-// LetterTemplate now lives in src/types.
+// A new template is only saved when the office presses Save.
+const BLANK_TEMPLATE: EditorValues = {
+  name: '',
+  type: 'Academic Certification',
+  description: '',
+  referencePrefix: '',
+  content: 'Dear Sir/Madam,\n\nThis is to confirm that {{STUDENT_NAME}} ({{STUDENT_ID}}) is a student of {{PROGRAMME_NAME}}.',
+  customFields: [],
+  status: 'Draft',
+  purpose: 'REQUEST',
+  signatoryName: '',
+  signatoryTitle: '',
+};
+
+const valuesOf = (template: LetterTemplate): EditorValues => ({
+  name: template.name,
+  type: template.type,
+  description: template.description,
+  referencePrefix: template.referencePrefix ?? '',
+  content: template.content ?? '',
+  customFields: template.customFields ?? [],
+  status: template.status,
+  purpose: template.purpose ?? 'REQUEST',
+  signatoryName: template.signatoryName ?? '',
+  signatoryTitle: template.signatoryTitle ?? '',
+});
+
+const STATUS_TONE: Record<LetterTemplateStatus, 'brand' | 'warning' | 'neutral'> = {
+  Active: 'brand',
+  Draft: 'neutral',
+  Archived: 'warning',
+};
 
 export type OfficeLetterView = 'templates' | 'requests' | 'issued';
 
@@ -121,6 +161,18 @@ interface LetterTemplateManagementProps {
   onOpenRequest?: (id: string) => void;
   onCloseRequest?: () => void;
 }
+
+const Field: React.FC<{ label: string; htmlFor?: string; hint?: string; error?: string; children: React.ReactNode }> = ({ label, htmlFor, hint, error, children }) => (
+  <div className="space-y-1.5">
+    <label htmlFor={htmlFor} className="form-label block">{label}</label>
+    {children}
+    {error ? (
+      <p role="alert" className="text-[11px] font-bold text-rose-600">{error}</p>
+    ) : hint ? (
+      <p className="text-[11px] font-semibold text-slate-400 leading-snug">{hint}</p>
+    ) : null}
+  </div>
+);
 
 export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> = ({
   canViewIssuedLetters = false,
@@ -148,24 +200,25 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     loadRequestCounts();
   }, [loadRequestCounts]);
 
-  // Toast notifications state
   const [toast, setToast] = useState<string | null>(null);
   const triggerToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
-  // 1. Templates loaded from lettersApi (mock-backed today).
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Selected state
+  // The template open in the editor; `creating` is a new one not saved yet.
   const [selectedTemplate, setSelectedTemplate] = useState<LetterTemplate | null>(null);
+  const [creating, setCreating] = useState(false);
+  const editorOpen = creating || selectedTemplate !== null;
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<'write' | 'preview'>('write');
+  const [insertOpen, setInsertOpen] = useState(false);
 
-  // Editable Form Inputs matching the current selection
   const [editorName, setEditorName] = useState('');
   const [editorType, setEditorType] = useState('');
   const [editorDescription, setEditorDescription] = useState('');
@@ -189,15 +242,13 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   // so a placeholder lands at the cursor (not the end) and the caret follows it.
   const editorTextareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCursorRef = useRef<number | null>(null);
+  const insertMenuRef = useRef<HTMLDivElement>(null);
 
   const loadTemplates = useCallback(() => {
     setLoading(true);
     setError(null);
     getLetterTemplates()
-      .then((data) => {
-        setTemplates(data);
-        setSelectedTemplate((current) => current ?? data[0] ?? null);
-      })
+      .then(setTemplates)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load letter templates.'))
       .finally(() => setLoading(false));
   }, []);
@@ -210,17 +261,17 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     getLetterPlaceholders().then(setPlaceholders).catch(() => setPlaceholders(null));
   }, []);
 
-  const loadEditor = (template: LetterTemplate) => {
-    setEditorName(template.name);
-    setEditorType(template.type);
-    setEditorDescription(template.description);
-    setEditorPrefix(template.referencePrefix ?? '');
-    setEditorContent(template.content ?? '');
-    setEditorFields(template.customFields ?? []);
-    setEditorStatus(template.status);
-    setEditorPurpose(template.purpose ?? 'REQUEST');
-    setEditorSignatoryName(template.signatoryName ?? '');
-    setEditorSignatoryTitle(template.signatoryTitle ?? '');
+  const loadValues = (values: EditorValues) => {
+    setEditorName(values.name);
+    setEditorType(values.type);
+    setEditorDescription(values.description);
+    setEditorPrefix(values.referencePrefix);
+    setEditorContent(values.content);
+    setEditorFields(values.customFields);
+    setEditorStatus(values.status);
+    setEditorPurpose(values.purpose);
+    setEditorSignatoryName(values.signatoryName);
+    setEditorSignatoryTitle(values.signatoryTitle);
     setProblems({});
   };
 
@@ -228,21 +279,22 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   // saving (same template, fresh copy) never wipes what is being typed.
   const selectedId = selectedTemplate?.id;
   useEffect(() => {
-    if (selectedTemplate) loadEditor(selectedTemplate);
+    if (selectedTemplate) loadValues(valuesOf(selectedTemplate));
   }, [selectedId]);
 
+  const saved = selectedTemplate ? valuesOf(selectedTemplate) : BLANK_TEMPLATE;
   const isDirty =
-    !!selectedTemplate &&
-    (editorName !== selectedTemplate.name ||
-      editorType !== selectedTemplate.type ||
-      editorDescription !== selectedTemplate.description ||
-      editorPrefix !== (selectedTemplate.referencePrefix ?? '') ||
-      editorContent !== (selectedTemplate.content ?? '') ||
-      JSON.stringify(editorFields) !== JSON.stringify(selectedTemplate.customFields ?? []) ||
-      editorStatus !== selectedTemplate.status ||
-      editorPurpose !== (selectedTemplate.purpose ?? 'REQUEST') ||
-      editorSignatoryName !== (selectedTemplate.signatoryName ?? '') ||
-      editorSignatoryTitle !== (selectedTemplate.signatoryTitle ?? ''));
+    editorOpen &&
+    (editorName !== saved.name ||
+      editorType !== saved.type ||
+      editorDescription !== saved.description ||
+      editorPrefix !== saved.referencePrefix ||
+      editorContent !== saved.content ||
+      JSON.stringify(editorFields) !== JSON.stringify(saved.customFields) ||
+      editorStatus !== saved.status ||
+      editorPurpose !== saved.purpose ||
+      editorSignatoryName !== saved.signatoryName ||
+      editorSignatoryTitle !== saved.signatoryTitle);
 
   // After an inserted tag changes the content, refocus the textarea and move the
   // caret to just after the tag (no-op for normal typing; the ref stays null then).
@@ -257,6 +309,23 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     }
   }, [editorContent]);
 
+  // Close the Insert detail menu on an outside click or Escape.
+  useEffect(() => {
+    if (!insertOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setInsertOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [insertOpen]);
+
   // Available placeholder tags come from the server's registry, the same list
   // it validates against; the local copy covers the moment before it loads.
   // Appointment tags show only for the kind of letter that can use them.
@@ -264,21 +333,20 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     placeholders?.filter((p) => !p.purposes || p.purposes.includes(editorPurpose)) ??
     placeholdersFor(editorPurpose).map((p) => ({ ...p, source: '' }))
   ).map((p) => ({
-    label: `+ ${p.label}`,
+    label: p.label,
     tag: p.tag,
     source: p.source,
     appointment: Boolean(placeholderPurposeHint(p.tag)),
   }));
   const tagGroups = [
-    { title: 'Student record', tags: placeholderTags.filter((p) => !p.appointment) },
-    { title: 'Appointment', tags: placeholderTags.filter((p) => p.appointment) },
+    { title: 'From the student record', tags: placeholderTags.filter((p) => !p.appointment) },
+    { title: 'From the appointment', tags: placeholderTags.filter((p) => p.appointment) },
+    { title: 'Typed in by the office', tags: editorFields.map((f) => ({ label: f.label || f.name, tag: `{{${f.name}}}`, source: f.hint ?? '', appointment: false })) },
   ].filter((group) => group.tags.length > 0);
   const closing = letterClosing({ purpose: editorPurpose, signatoryName: editorSignatoryName, signatoryTitle: editorSignatoryTitle });
   const automatic = isAppointmentLetter(editorPurpose);
 
-  // Quick Insertion Helper: insert the tag at the caret (or over the current
-  // selection), not at the end. Falls back to appending if the textarea ref is
-  // somehow unavailable.
+  // Insert the tag at the caret (or over the current selection), not at the end.
   const handleInsertTag = (tag: string) => {
     const textarea = editorTextareaRef.current;
     const start = textarea?.selectionStart ?? editorContent.length;
@@ -287,19 +355,18 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     const before = editorContent.slice(0, start);
     const after = editorContent.slice(end);
     // Pad with a single space only where the tag would otherwise touch a word.
-    const lead = before.length && !/\s$/.test(before) ? ' ' : '';
-    const trail = after.length && !/^\s/.test(after) ? ' ' : '';
+    const lead = before.length && !/[\s(]$/.test(before) ? ' ' : '';
+    const trail = after.length && !/^[\s).,;:]/.test(after) ? ' ' : '';
     const insertion = `${lead}${tag}${trail}`;
 
+    setMode('write');
+    setInsertOpen(false);
     setEditorContent(before + insertion + after);
-    // Place the caret just after the inserted tag once React has re-rendered.
     pendingCursorRef.current = before.length + insertion.length;
-    triggerToast(`Inserted placeholder tag: ${tag}`);
   };
 
-  // Actions, persisted through the letters API.
   const handleSaveTemplate = async () => {
-    if (!selectedTemplate || saving) return;
+    if (!editorOpen || saving) return;
     if (!editorName.trim()) {
       setProblems((current) => ({ ...current, name: 'Please enter a template name.' }));
       triggerToast('Error: Please enter a template name.');
@@ -318,15 +385,24 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       signatoryName: editorSignatoryName,
       signatoryTitle: editorSignatoryTitle,
     };
+    const body = {
+      ...submitted,
+      name: submitted.name.trim(),
+      referencePrefix: submitted.referencePrefix.trim(),
+      signatoryName: submitted.signatoryName.trim(),
+      signatoryTitle: submitted.signatoryTitle.trim(),
+    };
     setSaving(true);
     try {
-      const updated = await updateLetterTemplate(selectedTemplate.id, {
-        ...submitted,
-        name: submitted.name.trim(),
-        referencePrefix: submitted.referencePrefix.trim(),
-        signatoryName: submitted.signatoryName.trim(),
-        signatoryTitle: submitted.signatoryTitle.trim(),
-      });
+      if (!selectedTemplate) {
+        const created = await createLetterTemplate(body);
+        setTemplates((prev) => [created, ...prev]);
+        setCreating(false);
+        setSelectedTemplate(created);
+        triggerToast(`Template "${created.name}" created.`);
+        return;
+      }
+      const updated = await updateLetterTemplate(selectedTemplate.id, body);
       setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setSelectedTemplate(updated);
       // Take the saved value of each field, unless it was edited while saving.
@@ -351,45 +427,44 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     }
   };
 
-  const createTemplate = async () => {
+  const openTemplate = (template: LetterTemplate) => {
+    setCreating(false);
+    setMode('write');
+    if (template.id === selectedTemplate?.id) loadValues(valuesOf(template));
+    setSelectedTemplate(template);
+  };
+
+  const startNew = () => {
+    setSelectedTemplate(null);
+    setCreating(true);
+    setMode('write');
+    loadValues(BLANK_TEMPLATE);
+  };
+
+  const backToList = () => {
+    setSelectedTemplate(null);
+    setCreating(false);
+    setProblems({});
+  };
+
+  // Leaving unsaved edits asks first.
+  const requestLeave = (target: LeaveTarget) => {
     if (saving) return;
-    setSaving(true);
-    try {
-      const created = await createLetterTemplate({
-        name: 'New Custom Letter Template',
-        type: 'Academic Certification',
-        status: 'Draft',
-        description: 'Custom letters drafted for secretariat administration.',
-        content: 'To Whom It May Concern,\n\nWrite your template body here using {{STUDENT_NAME}}.',
-      });
-      setTemplates((prev) => [created, ...prev]);
-      setSelectedTemplate(created);
-      triggerToast('Created a new draft template.');
-    } catch (e) {
-      triggerToast(e instanceof Error ? `Create failed: ${e.message}` : 'Create failed.');
-    } finally {
-      setSaving(false);
+    if (isDirty) {
+      setPendingLeave(target);
+      return;
     }
-  };
-
-  // Switching away from unsaved edits asks first.
-  const requestSelect = (template: LetterTemplate) => {
-    if (saving || template.id === selectedTemplate?.id) return;
-    if (isDirty) setPendingLeave({ kind: 'select', template });
-    else setSelectedTemplate(template);
-  };
-
-  const requestCreate = () => {
-    if (saving) return;
-    if (isDirty) setPendingLeave({ kind: 'create' });
-    else void createTemplate();
+    if (target.kind === 'select') openTemplate(target.template);
+    else if (target.kind === 'create') startNew();
+    else backToList();
   };
 
   const confirmLeave = () => {
     const target = pendingLeave;
     setPendingLeave(null);
-    if (target?.kind === 'select') setSelectedTemplate(target.template);
-    else if (target?.kind === 'create') void createTemplate();
+    if (target?.kind === 'select') openTemplate(target.template);
+    else if (target?.kind === 'create') startNew();
+    else if (target?.kind === 'list') backToList();
   };
 
   const handleDeleteTemplate = async () => {
@@ -399,7 +474,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     try {
       await deleteLetterTemplate(deleted.id);
       setTemplates((prev) => prev.filter((t) => t.id !== deleted.id));
-      setSelectedTemplate(null);
+      backToList();
       triggerToast(`Deleted "${deleted.name}".`);
     } catch (e) {
       triggerToast(e instanceof Error ? `Delete failed: ${e.message}` : 'Delete failed.');
@@ -410,9 +485,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   };
 
   const handleDiscardChanges = () => {
-    if (!selectedTemplate) return;
-    loadEditor(selectedTemplate);
-    triggerToast('Reverted unsaved changes back to the saved template.');
+    loadValues(saved);
+    triggerToast('Changes discarded.');
   };
 
   const handleCheckPlaceholders = () => {
@@ -423,13 +497,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       return;
     }
     clearProblem('content');
-    const used = countPlaceholdersUsed(editorContent);
-    triggerToast(`All ${used} placeholder${used === 1 ? '' : 's'} in this template are supported.`);
+    const used = new Set(editorContent.match(/\{\{[A-Z_]+\}\}/g) ?? []).size;
+    triggerToast(`All ${used} detail${used === 1 ? '' : 's'} in this letter are supported.`);
   };
 
   // Wrap the current selection (or insert a stub) with a markup marker, e.g.
-  // **bold**, *italic*, __underline__. The wrapped text stays selected so the
-  // author can immediately re-style or keep typing.
+  // **bold**, *italic*, __underline__.
   const wrapSelection = (marker: string, label: string) => {
     const textarea = editorTextareaRef.current;
     const start = textarea?.selectionStart ?? editorContent.length;
@@ -439,9 +512,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
     const after = editorContent.slice(end);
 
     setEditorContent(`${before}${marker}${selected}${marker}${after}`);
-    // Re-select the inner text (between the markers) after re-render.
     pendingCursorRef.current = before.length + marker.length + selected.length;
-    triggerToast(`Applied ${label} formatting.`);
   };
 
   // Turn the current line(s) into a bullet list (toggles a "- " prefix).
@@ -464,10 +535,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
     setEditorContent(before + newBlock + after);
     pendingCursorRef.current = (before + newBlock).length;
-    triggerToast(allBulleted ? 'Removed bullet list.' : 'Formatted as a bullet list.');
   };
 
-  // Filter computation
   const query = searchQuery.trim().toLowerCase();
   const archivedCount = templates.filter(t => t.status === 'Archived').length;
   const filteredTemplates = templates.filter(t =>
@@ -480,15 +549,24 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
   const typeOptions = editorType && !LETTER_TYPES.includes(editorType) ? [...LETTER_TYPES, editorType] : LETTER_TYPES;
   const referencePreview = `${(editorPrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
+  const toolButton = 'p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer';
 
   return (
-    <div id="letter-template-management" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
+    <div id="letter-template-management" className="space-y-6 text-left font-sans text-brand-navy text-xs pb-12">
 
       <PortalToast message={toast} />
 
       {!(showRequests && openRequestId) && (
         <>
-          <PageHeader title="Letter Generation" subtitle={PAGE_SUBTITLE[activeView]} />
+          <PageHeader
+            title="Letter Generation"
+            subtitle={PAGE_SUBTITLE[activeView]}
+            actions={activeView === 'templates' && !editorOpen ? (
+              <PortalButton variant="primary" icon={Plus} disabled={saving} onClick={() => requestLeave({ kind: 'create' })}>
+                New template
+              </PortalButton>
+            ) : undefined}
+          />
 
           {canViewIssuedLetters && (
             <SegmentedControl
@@ -502,7 +580,7 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
               labels={{
                 templates: 'Templates',
                 requests: requestCounts?.Pending ? `Requests (${requestCounts.Pending})` : 'Requests',
-                issued: 'Issued Letters',
+                issued: 'Issued letters',
               }}
             />
           )}
@@ -522,168 +600,278 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
       {showIssued && <IssuedLettersRegister onMessage={triggerToast} onOpenTemplates={() => changeView('templates')} />}
 
-      {/* Main Grid containing left and right pane cards. Kept mounted while the
-          register is open so unsaved template edits survive a tab switch. */}
-      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ${activeView !== 'templates' ? 'hidden' : ''}`}>
-        
-        {/* LEFT COLUMN: TEMPLATES LIBRARY (lg:col-span-4) */}
-        <div id="templates-library-column" className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 text-left shadow-3xs">
-
-            {/* Library Panel Header */}
-            <div className="flex items-center justify-between">
-              <h2 className="section-label">Templates Library</h2>
-              <span className="text-[11px] font-semibold text-slate-400">
-                {templates.length} template{templates.length === 1 ? '' : 's'}
-              </span>
-            </div>
-
-            {/* Filter searching bar */}
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type="text"
-                placeholder="Search by name or type..."
-                value={searchQuery}
-                aria-label="Filter templates"
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="form-control form-control-sm pl-9 pr-3"
-              />
-            </div>
-
-            {archivedCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowArchived(!showArchived)}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-              >
-                {showArchived ? 'Hide archived templates' : `Show archived templates (${archivedCount})`}
-              </button>
-            )}
-
-            {/* Template Card Buttons list */}
-            <div className={`space-y-3 max-h-[580px] overflow-y-auto pr-1 ${THIN_SCROLLBAR}`}>
-              {loading ? (
-                <LoadingState message="Loading templates…" />
-              ) : error ? (
-                <ErrorState message={error} onRetry={loadTemplates} />
-              ) : filteredTemplates.length === 0 ? (
-                <div className="card-value py-8 text-center">
-                  No matching templates found.
-                </div>
-              ) : (
-                filteredTemplates.map((tpl) => {
-                  const isSelected = selectedTemplate?.id === tpl.id;
-                  const isActive = tpl.status === 'Active';
-                  return (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => requestSelect(tpl)}
-                      aria-current={isSelected ? 'true' : undefined}
-                      className={`w-full text-left p-4 rounded-xl border transition-all duration-150 cursor-pointer block ${
-                        isSelected 
-                          ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-905 shadow-3xs' 
-                          : 'bg-white border-slate-200 hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-900 text-xs truncate max-w-[180px]">
-                          {tpl.name}
-                        </span>
-                        
-                        {/* Status chip */}
-                        <StatusBadge
-                          tone={isActive ? 'brand' : tpl.status === 'Archived' ? 'warning' : 'neutral'}
-                          className="px-2 py-0.5 text-[8px] rounded-md"
-                        >
-                          {tpl.status}
-                        </StatusBadge>
-                      </div>
-
-                      {tpl.purpose && PURPOSE_SHORT[tpl.purpose] && (
-                        <p className="mt-1 text-[10px] font-bold text-indigo-700">{PURPOSE_SHORT[tpl.purpose]}</p>
-                      )}
-
-                      {/* Description blurb */}
-                      <p className="text-[10px] text-slate-450 font-medium leading-relaxed mt-1.5 line-clamp-2">
-                        {tpl.description}
-                      </p>
-
-                      {/* Footer log details */}
-                      <div className="mt-3 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-400">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" />
-                          <span>{tpl.lastModified}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <User className="w-2.5 h-2.5" />
-                          <span>{tpl.modifiedBy}</span>
-                        </div>
-                      </div>
-
-                    </button>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Create a new template on the backend */}
-            <PortalButton
-              type="button"
-              disabled={saving}
-              onClick={requestCreate}
-              variant="secondary"
-              size="md"
-              icon={Plus}
-              fullWidth
-            >
-              Create New Template
-            </PortalButton>
-
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: TEMPLATE EDITOR (lg:col-span-8) */}
-        <div id="template-editor-column" className="lg:col-span-8 space-y-4">
-          {!selectedTemplate ? (
-            !loading && (
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center shadow-3xs">
-                <FileText className="w-6 h-6 text-slate-300 mx-auto" />
-                <p className="mt-3 text-sm font-black text-slate-700">No template selected</p>
-                <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                  Choose a template from the library, or create a new one.
+      {/* Kept mounted while another tab is open, so unsaved edits survive a tab switch. */}
+      <div className={activeView !== 'templates' ? 'hidden' : ''}>
+        {!editorOpen ? (
+          <section aria-labelledby="templates-heading" className="app-card">
+            <div className="flex flex-col gap-3 px-5 pt-5 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 id="templates-heading" className="section-label">Templates</h2>
+                <p className="card-description mt-1">
+                  {templates.length} template{templates.length === 1 ? '' : 's'}. Open one to change its wording or settings.
                 </p>
               </div>
-            )
-          ) : (
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs text-left">
+              <div className="relative w-full sm:w-72">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  placeholder="Search templates"
+                  value={searchQuery}
+                  aria-label="Filter templates"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="form-control form-control-sm pl-9 pr-3"
+                />
+              </div>
+            </div>
 
-              {/* Core editor forms wrapper container */}
-              <div className="p-6 md:p-8 space-y-6">
+            {loading ? (
+              <LoadingState message="Loading templates…" />
+            ) : error ? (
+              <ErrorState message={error} onRetry={loadTemplates} />
+            ) : filteredTemplates.length === 0 ? (
+              <p className="border-t border-slate-100 py-10 text-center card-value">No matching templates found.</p>
+            ) : (
+              <ul>
+                {filteredTemplates.map((tpl) => (
+                  <li key={tpl.id} className="border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => requestLeave({ kind: 'select', template: tpl })}
+                      className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50/70 cursor-pointer"
+                    >
+                      <span className="w-9 h-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 flex items-center justify-center shrink-0">
+                        <FileText aria-hidden="true" className="w-4 h-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-[14px] font-bold text-slate-800">{tpl.name}</span>
+                          <StatusBadge tone={STATUS_TONE[tpl.status]} className="px-2 py-0.5 text-[9px] rounded-md">{tpl.status}</StatusBadge>
+                        </span>
+                        {tpl.description && <span className="card-description mt-0.5 block truncate">{tpl.description}</span>}
+                      </span>
+                      <span className="hidden md:block w-48 shrink-0 text-[12px] font-semibold text-slate-600">{PURPOSE_CHIP[tpl.purpose ?? 'REQUEST']}</span>
+                      <span className="hidden lg:block w-56 shrink-0 text-[12px] font-semibold text-slate-400">
+                        Changed {tpl.lastModified}{tpl.modifiedBy ? ` by ${tpl.modifiedBy}` : ''}
+                      </span>
+                      <ChevronRight aria-hidden="true" className="w-4 h-4 shrink-0 text-slate-300" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-                <div className="flex items-center gap-3 select-none">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5 text-brand-navy" />
-                  </div>
-                  <div>
-                    <h2 className="section-label">Template Editor</h2>
-                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                      Edit the wording, placeholders and status of the selected template.
-                    </p>
-                  </div>
+            {archivedCount > 0 && (
+              <div className="border-t border-slate-100 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setShowArchived(!showArchived)}
+                  className="text-[12px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                >
+                  {showArchived ? 'Hide archived templates' : `Show archived templates (${archivedCount})`}
+                </button>
+              </div>
+            )}
+          </section>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => requestLeave({ kind: 'list' })}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                >
+                  <ArrowLeft aria-hidden="true" className="w-3.5 h-3.5" />
+                  Back to templates
+                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-extrabold text-slate-900">{editorName.trim() || (creating ? 'New template' : 'Untitled template')}</h2>
+                  <StatusBadge tone={STATUS_TONE[editorStatus]} className="px-2 py-0.5 text-[9px] rounded-md">{editorStatus}</StatusBadge>
+                  {isDirty && <span className="text-[12px] font-semibold text-amber-700">Unsaved changes</span>}
                 </div>
-              
-                {/* Row 1: Template Name & Letter Type drop downs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
-                  {/* Template Name input */}
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-name" className="form-label block">
-                      Template Name
-                    </label>
+                {selectedTemplate && (
+                  <p className="text-[12px] font-semibold text-slate-400">
+                    Last changed {selectedTemplate.lastModified}{selectedTemplate.modifiedBy ? ` by ${selectedTemplate.modifiedBy}` : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedTemplate && (
+                  <PortalButton variant="ghost" icon={Trash2} onClick={() => setConfirmingDelete(true)} disabled={saving}>
+                    Delete
+                  </PortalButton>
+                )}
+                {isDirty && (
+                  <PortalButton onClick={handleDiscardChanges} disabled={saving}>
+                    Discard changes
+                  </PortalButton>
+                )}
+                <PortalButton variant="primary" icon={Check} onClick={() => void handleSaveTemplate()} isLoading={saving}>
+                  {creating ? 'Create template' : 'Save template'}
+                </PortalButton>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+              <div className="space-y-6 lg:col-span-8 min-w-0">
+                <section aria-labelledby="letter-body-heading" className="app-card">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-3">
+                    <div>
+                      <h3 id="letter-body-heading" className="section-label">Letter</h3>
+                      <p className="card-description mt-1">The letterhead, reference, date and signature are added for you.</p>
+                    </div>
+                    <SegmentedControl<'write' | 'preview'>
+                      options={['write', 'preview'] as const}
+                      value={mode}
+                      onChange={setMode}
+                      labels={{ write: 'Write', preview: 'Preview' }}
+                    />
+                  </div>
+
+                  {mode === 'write' ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-1 border-y border-slate-100 bg-slate-50/60 px-4 py-2">
+                        <button type="button" onClick={() => wrapSelection('**', 'bold')} className={toolButton} title="Bold" aria-label="Bold">
+                          <Bold className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => wrapSelection('*', 'italic')} className={toolButton} title="Italic" aria-label="Italic">
+                          <Italic className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => wrapSelection('__', 'underline')} className={toolButton} title="Underline" aria-label="Underline">
+                          <Underline className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={toggleBulletList} className={toolButton} title="Bullet list" aria-label="Bullet list">
+                          <List className="w-4 h-4" />
+                        </button>
+                        <span aria-hidden="true" className="mx-2 h-5 w-px bg-slate-200" />
+                        <div ref={insertMenuRef} className="relative">
+                          <button
+                            type="button"
+                            aria-haspopup="true"
+                            aria-expanded={insertOpen}
+                            onClick={() => setInsertOpen((open) => !open)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:border-slate-300 cursor-pointer"
+                          >
+                            <Plus aria-hidden="true" className="w-3.5 h-3.5" />
+                            Insert detail
+                            <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
+                          </button>
+                          {insertOpen && (
+                            <div className="absolute left-0 z-20 mt-2 w-72 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                              {tagGroups.map((group) => (
+                                <div key={group.title} className="py-1">
+                                  <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{group.title}</p>
+                                  {group.tags.map((p) => (
+                                    <button
+                                      key={p.tag}
+                                      type="button"
+                                      onClick={() => handleInsertTag(p.tag)}
+                                      title={p.source || undefined}
+                                      className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-[12px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                                    >
+                                      <span>{p.label}</span>
+                                      <code className="text-[10px] text-slate-400">{p.tag}</code>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCheckPlaceholders}
+                          className="ml-auto text-[12px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                        >
+                          Check details
+                        </button>
+                      </div>
+                      <textarea
+                        ref={editorTextareaRef}
+                        rows={16}
+                        value={editorContent}
+                        onChange={(e) => {
+                          setEditorContent(e.target.value);
+                          clearProblem('content');
+                        }}
+                        aria-label="Letter content"
+                        aria-invalid={problems.content ? true : undefined}
+                        aria-describedby={problems.content ? 'letter-template-content-error' : 'letter-template-content-hint'}
+                        className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                        placeholder="Write the letter. Use Insert detail for the student's name, matric number and other details."
+                      />
+                      <p id="letter-template-content-hint" className="border-t border-slate-100 px-5 py-3 text-[11px] font-semibold text-slate-400">
+                        **bold**, *italic*, __underline__ and "- " for a list. Details in {'{{'}BRACES{'}}'} are filled in for each student.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="border-t border-slate-100 bg-slate-100/70 p-4 sm:p-6">
+                      <div className="bg-white border border-slate-200 rounded p-6 sm:p-8 shadow-sm min-h-[420px] text-[12px] text-slate-700 leading-relaxed max-w-2xl mx-auto">
+                        <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 select-none">
+                            <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-12 w-auto object-contain" />
+                            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
+                              {LETTERHEAD.faculty}
+                            </span>
+                          </div>
+                          <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
+                            {LETTERHEAD.addressLines.map((line) => (
+                              <span key={line} className="block">{line}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-baseline gap-4 font-semibold text-slate-600 mb-5">
+                          <div>Our Ref: <span className="font-mono">{referencePreview}</span></div>
+                          <div>Date: <span className="font-mono">{'{{CURRENT_DATE}}'}</span></div>
+                        </div>
+                        {editorContent.trim() ? (
+                          <div
+                            className="leading-relaxed"
+                            dangerouslySetInnerHTML={{
+                              __html: renderLetterBodyHtml(editorContent, {
+                                highlightPlaceholders: true,
+                                officeFields: editorFields.map((f) => f.name),
+                              }),
+                            }}
+                          />
+                        ) : (
+                          <p className="text-slate-400 italic">Nothing written yet.</p>
+                        )}
+                        <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">{closing.disclaimer}</p>
+                        <div className="mt-8 pt-6 border-t border-slate-100 space-y-1">
+                          <div className="w-24 border-b border-slate-400 h-6 select-none" />
+                          <p className="font-extrabold text-slate-950">{closing.signatoryName}</p>
+                          <p className="text-slate-500 uppercase tracking-wide text-[9px] font-black leading-none select-none">{closing.signatoryOffice}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {problems.content && (
+                    <p id="letter-template-content-error" role="alert" className="border-t border-rose-100 bg-rose-50 px-5 py-3 text-[12px] font-bold text-rose-700">
+                      {problems.content}
+                    </p>
+                  )}
+                </section>
+
+                <section className="app-card p-5">
+                    <OfficeFieldsEditor
+                      fields={editorFields}
+                      onChange={(fields) => {
+                        setEditorFields(fields);
+                        clearProblem('customFields');
+                      }}
+                      onInsert={handleInsertTag}
+                      isUsed={(tag) => editorContent.includes(tag)}
+                      problem={problems.customFields}
+                      onMessage={triggerToast}
+                    />
+                </section>
+              </div>
+
+              <aside className="space-y-6 lg:col-span-4 min-w-0">
+                <section aria-labelledby="template-details-heading" className="app-card p-5 space-y-4">
+                  <h3 id="template-details-heading" className="section-label">Details</h3>
+                  <Field label="Template name" htmlFor="letter-template-name" error={problems.name}>
                     <input
                       id="letter-template-name"
                       type="text"
@@ -694,83 +882,14 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         clearProblem('name');
                       }}
                       aria-invalid={problems.name ? true : undefined}
-                      aria-describedby={problems.name ? 'letter-template-name-error' : undefined}
                       className="form-control form-control-md"
-                      placeholder="Enter descriptive template title..."
+                      placeholder="For example: Confirmation of Enrolment"
                     />
-                    {problems.name && (
-                      <p id="letter-template-name-error" role="alert" className="text-[11px] font-bold text-rose-600">
-                        {problems.name}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Letter Type custom selection dropdown */}
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-type" className="form-label block">
-                      Letter Type
-                    </label>
-                    <SelectMenu
-                      id="letter-template-type"
-                      value={editorType}
-                      options={typeOptions.map((type) => ({ value: type, label: type }))}
-                      onChange={setEditorType}
-                    />
-                  </div>
-
-                </div>
-
-                {/* What the template is for: student requests, or a letter sent by itself on approval */}
-                <fieldset className="space-y-2">
-                  <legend className="form-label block mb-1.5">Used For</legend>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {PURPOSE_OPTIONS.map((option) => {
-                      const chosen = editorPurpose === option.value;
-                      return (
-                        <label
-                          key={option.value}
-                          className={`flex gap-2.5 items-start rounded-xl border p-3 cursor-pointer transition ${
-                            chosen ? 'border-brand-navy bg-slate-50 ring-1 ring-brand-navy' : 'border-slate-200 hover:bg-slate-50/60'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="letter-template-purpose"
-                            value={option.value}
-                            checked={chosen}
-                            onChange={() => {
-                              setEditorPurpose(option.value);
-                              clearProblem('purpose');
-                            }}
-                            className="mt-0.5 accent-[#0c1424]"
-                          />
-                          <span className="space-y-0.5">
-                            <span className="block text-[12px] font-extrabold text-slate-800">{option.label}</span>
-                            <span className="block text-[10.5px] font-semibold text-slate-500 leading-snug">{option.description}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {PURPOSE_NOTE[editorPurpose] && (
-                    <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-semibold text-blue-900">
-                      {PURPOSE_NOTE[editorPurpose]}
-                    </p>
-                  )}
-                  {problems.purpose && (
-                    <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.purpose}</p>
-                  )}
-                </fieldset>
-
-                {/* Row 1b: what students see in the template list, and the reference number prefix */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-description" className="form-label block">
-                      Short Description
-                    </label>
-                    <input
+                  </Field>
+                  <Field label="Short description" htmlFor="letter-template-description" hint="Students see this when choosing a letter." error={problems.description}>
+                    <textarea
                       id="letter-template-description"
-                      type="text"
+                      rows={2}
                       value={editorDescription}
                       maxLength={500}
                       onChange={(e) => {
@@ -778,19 +897,70 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         clearProblem('description');
                       }}
                       aria-invalid={problems.description ? true : undefined}
-                      aria-describedby={problems.description ? 'letter-template-description-error' : undefined}
-                      className="form-control form-control-md"
-                      placeholder="What this letter is for..."
+                      className="form-control form-control-md resize-none"
+                      placeholder="What this letter is for"
                     />
-                    {problems.description && (
-                      <p id="letter-template-description-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.description}</p>
-                    )}
-                  </div>
+                  </Field>
+                  <Field label="Letter type" htmlFor="letter-template-type">
+                    <SelectMenu
+                      id="letter-template-type"
+                      value={editorType}
+                      options={typeOptions.map((type) => ({ value: type, label: type }))}
+                      onChange={setEditorType}
+                    />
+                  </Field>
+                  <Field label="Status" htmlFor="letter-template-status" hint={STATUS_HINT[editorStatus]}>
+                    <select
+                      id="letter-template-status"
+                      aria-label="Template Status Option"
+                      value={editorStatus}
+                      onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
+                      className="form-control form-control-md cursor-pointer"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Draft">Draft</option>
+                      <option value="Archived">Archived</option>
+                    </select>
+                  </Field>
+                </section>
 
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-prefix" className="form-label block">
-                      Reference Prefix
-                    </label>
+                <section className="app-card p-5">
+                  <fieldset className="space-y-3">
+                    <legend className="section-label mb-3">Used For</legend>
+                    {PURPOSE_OPTIONS.map((option) => (
+                      <label key={option.value} className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="letter-template-purpose"
+                          value={option.value}
+                          checked={editorPurpose === option.value}
+                          onChange={() => {
+                            setEditorPurpose(option.value);
+                            clearProblem('purpose');
+                          }}
+                          className="mt-1 accent-[#0c1424]"
+                        />
+                        <span>
+                          <span className="block text-[13px] font-bold text-slate-800">{option.label}</span>
+                          <span className="block text-[11px] font-semibold text-slate-500 leading-snug">{option.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                    {PURPOSE_NOTE[editorPurpose] && (
+                      <p className="rounded-lg bg-blue-50 px-3 py-2 text-[11px] font-semibold text-blue-900">{PURPOSE_NOTE[editorPurpose]}</p>
+                    )}
+                    {problems.purpose && <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.purpose}</p>}
+                  </fieldset>
+                </section>
+
+                <section aria-labelledby="template-numbering-heading" className="app-card p-5 space-y-4">
+                  <h3 id="template-numbering-heading" className="section-label">Reference and signature</h3>
+                  <Field
+                    label="Reference prefix"
+                    htmlFor="letter-template-prefix"
+                    hint={`Numbered ${referencePreview}; the last digits are given when ${automatic ? 'the letter is sent' : 'the office approves a request'}.`}
+                    error={problems.referencePrefix}
+                  >
                     <input
                       id="letter-template-prefix"
                       type="text"
@@ -801,27 +971,11 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                         clearProblem('referencePrefix');
                       }}
                       aria-invalid={problems.referencePrefix ? true : undefined}
-                      aria-describedby={problems.referencePrefix ? 'letter-template-prefix-error' : 'letter-template-prefix-hint'}
                       className="form-control form-control-md"
                       placeholder={DEFAULT_REFERENCE_PREFIX}
                     />
-                    {problems.referencePrefix ? (
-                      <p id="letter-template-prefix-error" role="alert" className="text-[11px] font-bold text-rose-600">{problems.referencePrefix}</p>
-                    ) : (
-                      <p id="letter-template-prefix-hint" className="text-[10px] font-semibold text-slate-400">
-                        Letters are numbered {referencePreview}; the last digits are issued
-                        {automatic ? ' when the letter is issued.' : ' when the office approves a request.'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Who signs the letter; blank keeps the faculty default */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-signatory-name" className="form-label block">
-                      Signed By (Name)
-                    </label>
+                  </Field>
+                  <Field label="Signed by (name)" htmlFor="letter-template-signatory-name" hint="Leave blank to use the faculty default." error={problems.signatoryName}>
                     <input
                       id="letter-template-signatory-name"
                       type="text"
@@ -835,14 +989,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       className="form-control form-control-md"
                       placeholder={LETTERHEAD.signatoryName}
                     />
-                    {problems.signatoryName && (
-                      <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.signatoryName}</p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="letter-template-signatory-title" className="form-label block">
-                      Signed By (Title)
-                    </label>
+                  </Field>
+                  <Field label="Signed by (title)" htmlFor="letter-template-signatory-title" error={problems.signatoryTitle}>
                     <input
                       id="letter-template-signatory-title"
                       type="text"
@@ -856,301 +1004,12 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
                       className="form-control form-control-md"
                       placeholder={LETTERHEAD.signatoryOffice}
                     />
-                    {problems.signatoryTitle && (
-                      <p role="alert" className="text-[11px] font-bold text-rose-600">{problems.signatoryTitle}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 2: Placeholder Tag insertions block */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between select-none">
-                    <label className="form-label block">
-                      Placeholder Tags
-                    </label>
-                    <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wide">
-                      Click to insert at cursor position
-                    </span>
-                  </div>
-
-                  {/* Horizontal tags block list, grouped by where the value comes from */}
-                  {tagGroups.map((group) => (
-                    <div key={group.title} className="space-y-1.5">
-                      {tagGroups.length > 1 && (
-                        <p className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-500">{group.title}</p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        {group.tags.map((p) => (
-                          <button
-                            key={p.tag}
-                            type="button"
-                            onClick={() => handleInsertTag(p.tag)}
-                            title={p.source || undefined}
-                            className={`px-3 py-1.5 border text-[10px] font-extrabold tracking-wide rounded-lg transition duration-150 cursor-pointer inline-flex items-center gap-1 shadow-3xs ${
-                              p.appointment
-                                ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-800'
-                                : 'bg-[#eff6ff] hover:bg-[#dbeafe] border-blue-200 text-blue-700 hover:text-blue-800'
-                            }`}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Row 2b: values the office types in when it approves a request */}
-                <OfficeFieldsEditor
-                  fields={editorFields}
-                  onChange={(fields) => {
-                    setEditorFields(fields);
-                    clearProblem('customFields');
-                  }}
-                  onInsert={handleInsertTag}
-                  isUsed={(tag) => editorContent.includes(tag)}
-                  problem={problems.customFields}
-                  onMessage={triggerToast}
-                />
-
-                {/* Simulated RTF Editor Window Area starting with rich toolbar */}
-                <div className="border border-slate-205 rounded-xl overflow-hidden bg-white shadow-3xs">
-                
-                  {/* Formatting Tools Panel bar header */}
-                  <div className="bg-slate-50 border-b border-slate-205 px-4 py-2 flex items-center justify-between select-none">
-                    <div className="flex items-center gap-1">
-                    
-                      <button
-                        type="button"
-                        onClick={() => wrapSelection('**', 'bold')}
-                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                        title="Bold (**text**)"
-                      >
-                        <Bold className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => wrapSelection('*', 'italic')}
-                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                        title="Italic (*text*)"
-                      >
-                        <Italic className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => wrapSelection('__', 'underline')}
-                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 hover:text-slate-950 transition"
-                        title="Underline (__text__)"
-                      >
-                        <Underline className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Splitter bar line separator */}
-                      <div className="w-px h-4 bg-slate-250 mx-1.5" />
-
-                      <button
-                        type="button"
-                        onClick={toggleBulletList}
-                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                        title="Bullet list (- item)"
-                      >
-                        <List className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => triggerToast('The official faculty letterhead is applied automatically to every letter.')}
-                        className="p-1.5 rounded hover:bg-slate-200/65 text-slate-500 transition"
-                        title="Faculty letterhead (applied automatically)"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                      </button>
-
-                    </div>
-
-                    <div className="text-[10px] text-slate-400 font-bold">
-                      **bold** · *italic* · __underline__ · - list
-                    </div>
-                  </div>
-
-                  {/* Edit Area Input Textarea */}
-                  <textarea
-                    ref={editorTextareaRef}
-                    rows={8}
-                    value={editorContent}
-                    onChange={(e) => {
-                      setEditorContent(e.target.value);
-                      clearProblem('content');
-                    }}
-                    aria-label="Letter content"
-                    aria-invalid={problems.content ? true : undefined}
-                    aria-describedby={problems.content ? 'letter-template-content-error' : undefined}
-                    className="w-full p-4 text-xs font-semibold text-slate-705 placeholder:text-slate-400 bg-slate-500/5 focus:outline-none focus:bg-white resize-none leading-relaxed transition"
-                    placeholder="Draft your main letter content using placeholder keys..."
-                  />
-
-                </div>
-
-                {problems.content && (
-                  <p id="letter-template-content-error" role="alert" className="-mt-4 text-[11px] font-bold text-rose-600">
-                    {problems.content}
-                  </p>
-                )}
-
-                {/* Dynamic Simulated A4 Document sheet Paper Block exactly as in layout mockup */}
-                <div className="border border-slate-200 rounded-xl bg-slate-100/70 p-4">
-                
-                  {/* A4 Paper mockup layout */}
-                  <div className="bg-white border border-slate-250/60 rounded p-6 shadow-sm relative min-h-[380px] text-left text-[11px] text-slate-700 leading-relaxed font-sans max-w-2xl mx-auto">
-                  
-                    {/* Faculty official letterhead: the fixed institutional header,
-                        shared with the student preview and the printed letter. */}
-                    <div className="border-b-2 border-double border-slate-800 pb-3 mb-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 select-none">
-                        <img
-                          src={LETTERHEAD.logoPath}
-                          alt="Universiti Malaya"
-                          className="h-12 w-auto object-contain"
-                        />
-                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[130px]">
-                          {LETTERHEAD.faculty}
-                        </span>
-                      </div>
-                      <div className="text-right text-[8px] font-bold text-slate-400 leading-relaxed max-w-[200px] select-none">
-                        {LETTERHEAD.addressLines.map((line) => (
-                          <span key={line} className="block">{line}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Reference and date, laid out as on the printed letter */}
-                    <div className="flex justify-between items-baseline gap-4 font-semibold text-slate-600 mb-5">
-                      <div>
-                        Our Ref:{' '}
-                        <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black">
-                          {referencePreview}
-                        </span>
-                      </div>
-                      <div>
-                        Date:{' '}
-                        <span className="bg-brand-navy text-[#a5b4fc] text-[9.5px] px-1.5 py-0.5 rounded font-mono font-black">
-                          {"{{CURRENT_DATE}}"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Main Formed dynamic document body preview (markup rendered;
-                        placeholders highlighted so the author can see their tags).
-                        The salutation is part of the body, exactly as it prints. */}
-                    {editorContent.trim() ? (
-                      <div
-                        className="leading-relaxed"
-                        dangerouslySetInnerHTML={{
-                          __html: renderLetterBodyHtml(editorContent, {
-                            highlightPlaceholders: true,
-                            officeFields: editorFields.map((f) => f.name),
-                          }),
-                        }}
-                      />
-                    ) : (
-                      <p className="text-slate-400 italic">No message content drafted yet...</p>
-                    )}
-
-                    <p className="text-slate-500 font-semibold text-[10px] leading-relaxed select-none mt-5">
-                      {closing.disclaimer}
-                    </p>
-
-                    {/* Signature footer stamp line block */}
-                    <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-1">
-                      <div className="w-24 border-b border-slate-400 h-6 select-none" />
-                      <p className="font-extrabold text-slate-950 block">{closing.signatoryName}</p>
-                      <p className="text-slate-450 uppercase tracking-wide text-[9px] font-black leading-none select-none">
-                        {closing.signatoryOffice}
-                      </p>
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* Bottom statistics dashboard indicators card block inside editor */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                  {/* Mini card: Placeholders used count */}
-                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left select-none">
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                        Placeholders Used
-                      </span>
-                      <p className="text-xl font-extrabold text-brand-navy mt-1 leading-none">
-                        {countPlaceholdersUsed(editorContent)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
-                      <Sparkles className="w-4 h-4 animate-spin-slow" />
-                    </div>
-                  </div>
-
-                  {/* Mini card: Template status control */}
-                  <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-xl flex items-center justify-between text-left">
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
-                        Template Status
-                      </span>
-                    
-                      {/* Select box block inside */}
-                      <div className="relative mt-1">
-                        <select
-                          aria-label="Template Status Option"
-                          value={editorStatus}
-                          onChange={(e) => setEditorStatus(e.target.value as LetterTemplateStatus)}
-                          className="bg-transparent border-none text-xs font-black text-brand-navy hover:text-[#2563eb] appearance-none focus:outline-none pr-5 cursor-pointer leading-tight"
-                        >
-                          <option value="Active">● Active / Live</option>
-                          <option value="Draft">● Draft / Sandbox</option>
-                          <option value="Archived">● Archived / Retired</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
-                      <CheckCircle className="w-4 h-4" />
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Action buttons row block */}
-                <div className="border-t border-slate-100 pt-5 flex flex-col md:flex-row items-center justify-between gap-4">
-
-                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <PortalButton variant="secondary" size="md" onClick={handleDiscardChanges} disabled={!isDirty || saving}>
-                      Discard Changes
-                    </PortalButton>
-                    <PortalButton variant="danger" size="md" icon={Trash2} onClick={() => setConfirmingDelete(true)} disabled={saving}>
-                      Delete
-                    </PortalButton>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <PortalButton variant="secondary" size="md" onClick={handleCheckPlaceholders}>
-                      Check Placeholders
-                    </PortalButton>
-                    <PortalButton variant="primary" size="md" icon={Check} onClick={handleSaveTemplate} disabled={saving}>
-                      {saving ? 'Saving…' : 'Save Template'}
-                    </PortalButton>
-                  </div>
-
-                </div>
-
-              </div>
-
+                  </Field>
+                </section>
+              </aside>
             </div>
-          )}
-        </div>
-
+          </div>
+        )}
       </div>
 
       <PortalConfirmModal
@@ -1177,9 +1036,9 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
       <PortalConfirmModal
         isOpen={pendingLeave !== null}
         title="Discard unsaved changes?"
-        message={`Your changes to "${selectedTemplate?.name ?? 'this template'}" have not been saved.`}
-        confirmLabel="Discard Changes"
-        cancelLabel="Keep Editing"
+        message={`Your changes to "${editorName.trim() || 'this template'}" have not been saved.`}
+        confirmLabel="Discard changes"
+        cancelLabel="Keep editing"
         tone="warning"
         onConfirm={confirmLeave}
         onCancel={() => setPendingLeave(null)}
