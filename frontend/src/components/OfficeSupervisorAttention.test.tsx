@@ -18,7 +18,8 @@ const student:any={id:91,matricNo:'NEVER-APPLIED',studentName:'No Application St
 const pending={...student,id:92,matricNo:'PENDING-92',pendingStatus:'PENDING_COORDINATOR',applicationId:8,reason:'Application in progress'};
 const students=renderToStaticMarkup(<attention.OfficeAttentionTable category="students" rows={[student,pending]} onStudent={id=>actions.push(id)} onRequest={()=>{}} onWorkload={()=>{}}/>);
 assert.match(students,/No ongoing application|Application in progress/);
-assert.match(students,/View student/);
+assert.equal((students.match(/>View details<\/span>/g)??[]).length,2);
+assert.doesNotMatch(students,/>View student<|>View request</);
 assert.doesNotMatch(students,/Waiting at this stage|Approve|Reject/);
 const waiting=renderToStaticMarkup(<attention.OfficeAttentionTable category="waiting" rows={[{key:'research-4',id:4,kind:'research',studentId:91,studentName:'Research Student',matricNo:'R1',programme:'Programme A',candidateName:'Primary Supervisor',status:'PENDING_SUPERVISOR',submittedAt:'2026-10-01',waitingDays:12,waitingOn:'Supervisor'}]} onStudent={()=>{}} onRequest={()=>{}} onWorkload={()=>{}}/>);
 assert.match(waiting,/Research change|12 calendar days|Supervisor|View request/);

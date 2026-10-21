@@ -1,4 +1,4 @@
-import { isKnownAppPath } from '../constants/routes';
+import { APP_ROUTES, isKnownAppPath } from '../constants/routes';
 
 export type RecordReturn = { path: string; label: string; historyIndex?: number };
 
@@ -30,11 +30,27 @@ export function recordBackSteps(currentIndex: unknown, source: RecordReturn): nu
     ? Number(currentIndex) - source.historyIndex! : 0;
 }
 
+/** Student requests can be opened from the supervisory overview or the Applications list. */
+export function studentSupervisorRequestReturn(pathname: string, search: string, value: unknown, historyIndex?: unknown): RecordReturn {
+  const fallback = { path: APP_ROUTES.supervisorAppointmentApplications + search, label: 'Applications' };
+  const isOverview = pathname === APP_ROUTES.supervisorAppointments;
+  const source = isOverview || pathname === APP_ROUTES.supervisorAppointmentApplications
+    ? { path: pathname + search, label: isOverview ? 'My supervisors' : 'Applications', historyIndex }
+    : value;
+  return recordReturn(source, fallback, APP_ROUTES.supervisorAppointments);
+}
+
 export function recordNavigationState(path: string, label: string) {
   return { recordReturn: { path, label } };
 }
 
-export function recordSourceLabel(path: string): string {
+export function recordSourceLabel(path: string, search = ''): string {
+  if (path === APP_ROUTES.panelAppointments) {
+    const params = new URLSearchParams(search);
+    if (params.get('panelSection') === 'appointments') return params.has('panelLecturer') ? 'Panel students' : 'Panel assignments';
+  }
+  if (path.startsWith('/supervisor-appointments/student-')) return 'Supervisor appointment overview';
+  if (path.startsWith('/panel-appointments/records/profile-')) return 'Panel appointment overview';
   if (path === '/supervisor-appointments/requests') return 'Appointment requests';
   if (/^\/supervisor-appointments\/research-changes\//.test(path)) return 'Research change request';
   if (/^\/supervisor-appointments\/supervisees\//.test(path)) return 'Supervision details';
@@ -47,4 +63,13 @@ export function recordSourceLabel(path: string): string {
   if (path.startsWith('/marks')) return 'Marks Entry';
   if (path.startsWith('/registry')) return 'Student Registry';
   return 'Dashboard';
+}
+
+/** Preserve browse context while keeping an exact record's own parameters authoritative. */
+export function recordPathWithSearch(path:string,search:string):string {
+  const [pathname,query='']=path.split('?',2);
+  const params=new URLSearchParams(search);
+  for(const [key,value] of new URLSearchParams(query))params.set(key,value);
+  const merged=params.toString();
+  return pathname+(merged?`?${merged}`:'');
 }

@@ -47,7 +47,7 @@ export interface SemesterCapacityPlan {
   semesterCode: string;
   semesterLabel: string;
   version: number;
-  lifecycleStatus: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
+  lifecycleStatus: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED' | 'DISCARDED';
   origin: 'CREATED' | 'COPIED_FORWARD' | 'MIGRATED_BASELINE';
   supersedesId: number | null;
   successorIds: number[];

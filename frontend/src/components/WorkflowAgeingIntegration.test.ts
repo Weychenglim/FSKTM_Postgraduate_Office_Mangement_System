@@ -5,16 +5,17 @@ import { resolve } from 'node:path';
 const readComponent = (name: string) =>
   readFileSync(resolve('src/components', name), 'utf8');
 
-const panelMonitoring = readComponent('PanelAppointmentManagement.tsx');
-assert.match(panelMonitoring, />Longest waiting</);
-assert.match(panelMonitoring, />Waiting</);
-assert.match(panelMonitoring, /header: 'Waiting Since'/);
-assert.match(panelMonitoring, /header: 'Waiting Days'/);
-assert.match(panelMonitoring, /header: 'Waiting On'/);
-
-const panelApprovals = readComponent('LecturerPanelAppointments.tsx');
-assert.match(panelApprovals, /\.sort\(compareLongestWaiting\)/);
-assert.match(panelApprovals, /formatWaitingText\(recommendation\)/);
+const {filterPanelBrowse,PanelBrowse}=await import('./PanelBrowse');
+const React=await import('react');
+const {renderToStaticMarkup}=await import('react-dom/server');
+const request={id:1,studentId:'PG1',studentName:'Waiting student',programme:'Computing',proposedTopic:'Research',recommendedMember:'Panel member',recommendedMemberId:'L1',submittedDate:'15 Oct 2026',status:'SUBMITTED_TO_PANEL' as const,waitingDays:2};
+const older={...request,id:2,studentName:'Older student',waitingDays:9};
+assert.equal(filterPanelBrowse([request,older],{view:'requests',sort:'waiting'})[0].id,2,'The longest current stage wait sorts first');
+const panelTable=renderToStaticMarkup(React.createElement(PanelBrowse,{scope:'ageing-contract',title:'Panel requests',records:[request,older],onOpen:()=>{}}));
+assert.match(panelTable,/Longest waiting at this stage/);
+assert.match(panelTable,/Waiting at this stage/);
+assert.match(panelTable,/9 calendar days/);
+assert.doesNotMatch(panelTable,/Overdue/,'Waiting age does not manufacture an overdue policy');
 
 const studentPanel = readComponent('StudentPanelAppointment.tsx');
 assert.match(studentPanel, /formatWaitingText\(appointment\)/);

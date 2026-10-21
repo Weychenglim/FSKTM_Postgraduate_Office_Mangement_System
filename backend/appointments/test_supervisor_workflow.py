@@ -22,6 +22,7 @@ from announcements.models import Notification
 from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
 
+from .research_intent_test_helpers import valid_research_intent_json
 from .models import (
     AppointmentWorkflowEvent,
     PanelAppointment,
@@ -147,6 +148,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "researchTitle": "Configurable postgraduate workflow",
                 "researchArea": "Human-Centred Artificial Intelligence",
                 "researchAbstract": "A sufficiently detailed research abstract.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [
                     SimpleUploadedFile(
                         "proposal.pdf",
@@ -242,6 +244,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
                 "researchTitle": "Missing research area",
                 "researchAbstract": "The application should fail before persistence.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [
                     SimpleUploadedFile(
                         "proposal.pdf",
@@ -313,6 +316,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "researchTitle": "Capacity guarded workflow",
                 "researchArea": "Software Engineering",
                 "researchAbstract": "A direct identifier must not bypass capacity.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [
                     SimpleUploadedFile(
                         "proposal.pdf",
@@ -454,6 +458,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "researchTitle": "No active semester",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This request must not be accepted.",
+                "researchIntent": valid_research_intent_json(),
             },
             format="json",
         )
@@ -698,6 +703,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "researchTitle": "Second active request",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This must be rejected while another request is active.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [],
             },
             format="json",

@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+const {InformationalEventExtension}=await import('./InformationalEventExtension').catch(()=>assert.fail('Calendar-owned event extension dialog is required'));
+assert.equal(renderToStaticMarkup(<InformationalEventExtension entry={null} onClose={()=>{}} onReload={async()=>{}}/>),'');
+const {submitDeadlineExtension}=await import('../utils/operationalDeadlineExtension');
+const calls:{url:string;body:unknown}[]=[];
+globalThis.fetch=(async(url,init)=>{calls.push({url:String(url),body:JSON.parse(String(init?.body))});return new Response(JSON.stringify({}));}) as typeof fetch;
+await submitDeadlineExtension({kind:'event',id:8,closesAt:'2026-10-20'},'everyone','2026-10-23','Faculty approval',{});
+assert.deepEqual(calls[0],{url:'/api/dashboard/timeline/entries/8/extend/',body:{deadlineEnd:'2026-10-23',reason:'Faculty approval',expectedDeadlineEnd:'2026-10-20'}});
+await assert.rejects(()=>submitDeadlineExtension({kind:'event',id:8,closesAt:'2026-10-20'},'everyone','2026-10-20','Same day',{}),/later/);
+assert.equal(calls.length,1);
+console.log('Calendar extension preserves audited complete Malaysia-day semantics');

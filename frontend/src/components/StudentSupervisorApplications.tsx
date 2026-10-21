@@ -1,3 +1,5 @@
+import {clearAppointmentFilterParams} from '../utils/appointmentFilters';
+import { PortalSelect } from './PortalSelect';
 import React from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { Eye } from 'lucide-react';
@@ -55,8 +57,8 @@ function StudentApplicationWorkspace({ applications, onViewApplication }: Studen
   const filtered = !!query || type !== 'all' || !!status || !!from;
   return <section aria-label="Supervisor applications" className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <WorkspaceSectionHeader title="Applications" description="Follow your supervisor requests and review their recorded outcomes." actions={<RequestViewSwitch view={view} reviewCount={0} onChange={value => setParams(current => studentApplicationViewParams(current, value), { state: location.state })} />} />
-    <RequestFilters search={search} onSearch={value => setFilter('q', value)} searchPlaceholder="Supervisor name, research title or request reference" status={status} statuses={statuses} onStatus={value => setFilter('status', value)} from={from} onFrom={value => setFilter('from', value)}>
-      <label className="form-label">Request type<select className="form-control form-control-sm mt-1" value={type} onChange={event => setFilter('type', event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="replacement">Replacement supervisor</option></select></label>
+    <RequestFilters onReset={()=>setParams(current=>clearAppointmentFilterParams(current),{replace:true,state:location.state})} search={search} onSearch={value => setFilter('q', value)} searchPlaceholder="Supervisor name, research title or request reference" status={status} statuses={statuses} onStatus={value => setFilter('status', value)} from={from} onFrom={value => setFilter('from', value)}>
+      <label className="form-label">Request type<PortalSelect className="form-control form-control-sm mt-1" value={type} onChange={event => setFilter('type', event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="replacement">Replacement supervisor</option></PortalSelect></label>
     </RequestFilters>
     {visible.length ? <WorkspaceRecordTable identityLabel="Supervisor" label="Supervisor application records" rows={visible.slice((page - 1) * pageSize, page * pageSize).map(app => ({
       key: app.id, studentName: app.supervisor,

@@ -6,6 +6,7 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from . import test_supervisor_workflow as workflow
+from .research_intent_test_helpers import valid_research_intent_json
 from .models import SupervisorApplication, SupervisorAppointment
 
 
@@ -31,6 +32,7 @@ class ApplicationCourseCodeTests(APITestCase):
                 "researchTitle": "Course-code evidence",
                 "researchArea": "Software Engineering",
                 "researchAbstract": "A synthetic application for course-code coverage.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [SimpleUploadedFile(
                     "proposal.pdf", b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF",
                     content_type="application/pdf",

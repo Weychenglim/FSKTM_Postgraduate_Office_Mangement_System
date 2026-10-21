@@ -14,9 +14,16 @@ export type TimelineCategory =
   | 'Research Project (P1)'
   | 'Research Project (P2)';
 
-export type TimelineStatus = 'Completed' | 'Active' | 'Deadline' | 'Upcoming';
+export type TimelineStatus = 'Ended' | 'Active' | 'Deadline' | 'Upcoming';
 export type TimelineRole = 'STUDENT' | 'LECTURER' | 'OFFICE_STAFF';
 export type TimelineLevel = 'P1' | 'P2';
+
+export interface LinkedPeriodStatus {
+  lifecycleStatus: string;
+  scheduleStatus: 'UPCOMING' | 'OPEN' | 'ENDED';
+  /** Null for Marks, whose evaluation rules are independent. */
+  datesEnforced: boolean | null;
+}
 
 export interface TimelineEntry {
   id: string;
@@ -27,6 +34,9 @@ export interface TimelineEntry {
   endDate: string;
   targetRole: TimelineRole[];
   status: TimelineStatus;
+  operationalPeriodId?: number | null;
+  marksPeriodId?: number | null;
+  linkedPeriodStatus?: LinkedPeriodStatus | null;
 }
 
 export interface SemesterTimelineEntry {
@@ -41,6 +51,9 @@ export interface SemesterTimelineEntry {
   weekLabel: string;
   targetRoles: TimelineRole[];
   status: TimelineStatus;
+  operationalPeriodId?: number | null;
+  marksPeriodId?: number | null;
+  linkedPeriodStatus?: LinkedPeriodStatus | null;
   displayOrder: number;
 }
 
@@ -62,6 +75,27 @@ export interface ActiveSemesterTimeline {
   levels: SemesterTimelineLevelGroup[];
 }
 
+export interface TimelinePreviewRow {
+  level: TimelineLevel;
+  step: number;
+  title: string;
+  detail: string;
+  action: string;
+  deadlineStart: string;
+  deadlineEnd: string;
+  targetRoles: TimelineRole[];
+  operationalPeriodId: number | null;
+  marksPeriodId: number | null;
+}
+
+export interface TimelineUploadPreview {
+  previewToken: string;
+  warnings: string[];
+  rows: TimelinePreviewRow[];
+  importedCount: number;
+  requiresAcknowledgement: boolean;
+}
+
 export interface TimelineUploadResult {
   importedCount: number;
   timeline: ActiveSemesterTimeline;
@@ -70,8 +104,11 @@ export interface TimelineUploadResult {
 export interface TimelineAuditLog {
   id: number;
   actorName: string;
-  action: 'UPLOAD' | 'REPLACE' | 'ADD_ENTRY' | 'EDIT_ENTRY' | 'DELETE_ENTRY';
+  action: 'UPLOAD' | 'REPLACE' | 'ADD_ENTRY' | 'EDIT_ENTRY' | 'DELETE_ENTRY' | 'EXTEND';
   summary: string;
+  reason?: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
   createdAt: string;
   entryId: number | null;
   timelineId: number;

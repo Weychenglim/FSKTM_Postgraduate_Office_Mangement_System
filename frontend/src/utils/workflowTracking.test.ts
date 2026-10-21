@@ -3,6 +3,10 @@ import {
   notificationTargetToRoute,
 } from './workflowTracking';
 
+if (canStudentCancelSupervisorApplication('SUBMITTED_TO_SUPERVISOR', true)) {
+  throw new Error('Students cannot cancel an Office-initiated replacement.');
+}
+
 if (!canStudentCancelSupervisorApplication('SUBMITTED_TO_SUPERVISOR')) {
   throw new Error('A student should be able to cancel before supervisor action.');
 }

@@ -1,3 +1,5 @@
+import { PortalSelect } from './PortalSelect';
+import { RequestStatusBadge } from './RequestStatusBadge';
 import {completeDecision} from '../utils/decisionSubmission';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
@@ -27,7 +29,7 @@ import {
   Eye,
   AlertCircle
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, PortalCard, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -41,7 +43,7 @@ import {
 } from '../services';
 import { AppointmentEndControl } from './AppointmentEndControl';
 import { findSupervisorRecordByRouteKey, supervisorRecordRouteKey } from '../utils/supervisorAppointmentRoutes';
-import { downloadCsv } from '../utils/csvExport';
+import { useExcelExport } from '../utils/useExcelExport';
 import { SupervisoryTeamManagement } from './SupervisoryTeamManagement';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { AppointmentSummaryCard } from './AppointmentPrimitives';
@@ -51,6 +53,7 @@ import { requestStatusLabel } from '../utils/lecturerRequests';
 import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
 import { RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { SupervisorRequestDetail, supervisorRequestMetadata, type SupervisorRequestPresentation } from './SupervisorRequestDetail';
+import {OfficeSupervisorReplacementForm} from './OfficeSupervisorReplacementForm';
 import { SupervisorAppointmentRecordCard, toOfficeAppointmentPresentation } from './SupervisorAppointmentRecordCard';
 
 export function officeRequestPresentation(record: SupervisorRecord): SupervisorRequestPresentation {
@@ -61,6 +64,7 @@ export function officeRequestPresentation(record: SupervisorRecord): SupervisorR
     : record.status==='Ended'?events.at(-1)?.newStatus||'UNKNOWN':record.status.toUpperCase());
   return {applicationId:record.applicationId,reference:record.applicationId!=null?'SV-REQ-'+String(record.applicationId).padStart(5,'0'):undefined,
     status,submittedAt:record.submittedAt||submitted?.createdAt,submittedBy:submitted?.actorName,
+    initiatedByOffice:record.initiatedByOffice??(!!record.replacesAppointmentId&&submitted?.actorRole==='Office Staff/Admin'),
     studentName:record.studentName,studentId:record.studentId,programme:record.programme,semester:record.semester,
     proposedSupervisor:record.supervisor,researchTitle:record.researchTopic,researchArea:record.researchArea,
     researchAbstract:record.abstract,projectCourseCodes:record.projectCourseCodes,replacementReason:record.replacementReason,
@@ -70,14 +74,7 @@ export function officeRequestPresentation(record: SupervisorRecord): SupervisorR
 
 export function OfficeAppointmentAdministration({record:r,onEnd}:{record:SupervisorRecord;onEnd:React.ComponentProps<typeof AppointmentEndControl>['onSubmit']}) {
   const hasAppointment=!!r.appointmentLifecycle||!!r.appointmentId;
-  const fields=[['Supervisor workload',r.workloadLimit],['Panel member',r.panelMemberName],['Panel appointment date',r.panelAssignedDate]].filter(([,value])=>!!value);
-  return <>
-    {hasAppointment?<SupervisorAppointmentRecordCard record={toOfficeAppointmentPresentation(r)} onEnd={r.appointmentLifecycle?.status==='ACTIVE'?onEnd:undefined}/>:null}
-    {r.email||fields.length?<PortalCard><details><summary className="card-value cursor-pointer">Administrative details</summary><dl className="grid gap-4 pt-4 sm:grid-cols-2">
-      {r.email?<div><dt className="card-label">Student email</dt><dd className="card-description mt-1 break-words"><a className="text-brand-navy underline" href={'mailto:'+r.email}>{r.email}</a></dd></div>:null}
-      {fields.map(([label,value])=><div key={label}><dt className="card-label">{label}</dt><dd className="card-description mt-1">{value}</dd></div>)}
-    </dl></details></PortalCard>:null}
-  </>;
+  return hasAppointment?<SupervisorAppointmentRecordCard record={toOfficeAppointmentPresentation(r)} onEnd={r.appointmentLifecycle?.status==='ACTIVE'?onEnd:undefined}/>:null;
 }
 
 export function filterOfficeSupervisorRecords(records: SupervisorRecord[], filters: { search: string; programme: string; semester: string; status: string }) {
@@ -91,7 +88,7 @@ export function OfficeSupervisorRecordTable({ records, onOpen, onDossier }: { re
   const columns = ['Student','Programme','Supervisor','Current stage','Waiting at this stage','Updated','Action'];
   const stage = (row: SupervisorRecord) => row.status === 'Ended' ? 'Ended' : row.workflow?.length ? requestStatusLabel(row.workflow[row.workflow.length - 1].newStatus) : row.status === 'Pending' ? row.waitingOn === 'PROGRAMME_COORDINATOR' || row.waitingOn === 'COORDINATOR' ? 'Awaiting Coordinator approval' : 'Awaiting Supervisor review' : row.status;
   return <table className="data-table block lg:table" aria-label="Appointment records"><thead className="hidden lg:table-header-group"><tr className="data-thead bg-slate-50">{columns.map(value => <th key={value} scope="col" className="data-th">{value}</th>)}</tr></thead><tbody className="block space-y-3 lg:table-row-group lg:space-y-0">{records.map(row => <tr key={row.applicationId != null ? `application-${row.applicationId}` : supervisorRecordRouteKey(row)} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0">{[
-    <><p>{row.studentName}</p><p className="card-caption mt-1">{row.studentId}</p></>, row.programme, row.supervisor || 'Not assigned', stage(row),
+    <><p>{row.studentName}</p><p className="card-caption mt-1">{row.studentId}</p></>, row.programme, row.supervisor || 'Not assigned', <RequestStatusBadge status={row.status === 'Ended' ? 'ENDED' : row.workflowStatus ?? row.workflow?.at(-1)?.newStatus ?? row.status} label={stage(row)}/>,
     formatRequestStageWaiting(row.status === 'Ended' ? row.status : row.workflow?.at(-1)?.newStatus ?? row.status, row.waitingDays, row.status === 'Pending'), row.updatedDate,
     <div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" onClick={() => onDossier(row)}>View student record</PortalButton><PortalButton size="sm" onClick={() => onOpen(row)}>{row.status === 'Approved' || row.status === 'Ended' ? 'View supervision' : row.status === 'No Supervisor' ? 'View record' : 'View request'}</PortalButton></div>
   ].map((cell,index) => <td key={columns[index]} className={`${index === 0 ? 'data-td-strong' : 'data-td'} block min-w-0 break-words lg:table-cell ${index === 0 || index === 6 ? 'col-span-2' : ''}`}>
@@ -131,6 +128,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
 }) => {
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [primaryReplacement,setPrimaryReplacement]=useState<{appointmentId:number;studentId:string}|null>(null);
+  const [replacementNotice,setReplacementNotice]=useState<string|null>(null);
+  useEffect(()=>{setPrimaryReplacement(null);setReplacementNotice(null);},[routeTeamStudentId,routeView]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -228,8 +228,9 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const navigateToList = onNavigateToList ?? (() => undefined);
 
   // Handles export interaction
-  const handleExportData = () => {
-    downloadCsv('supervisor_appointments_report.csv', orderedFilteredRecords, [
+  const excel = useExcelExport();
+  const handleExportData = async () => {
+    const exported = await excel.download('supervisor_appointments_report.xlsx', orderedFilteredRecords, [
       { header: 'Student ID', value: (record) => record.studentId },
       { header: 'Student Name', value: (record) => record.studentName },
       { header: 'Programme', value: (record) => record.programme },
@@ -249,7 +250,8 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       { header: 'Replacement Reason', value: (record) => record.replacementReason || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
-    showToast(`Downloaded supervisor_appointments_report.csv with ${orderedFilteredRecords.length} records.`);
+    if (!exported) { showToast('Excel export could not be completed. Try again.'); return; }
+    showToast(`Downloaded supervisor_appointments_report.xlsx with ${orderedFilteredRecords.length} records.`);
   };
 
   if (routeView === 'workload') {
@@ -289,12 +291,15 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       metadata={<RequestMetadata {...supervisorRequestMetadata(request)} statusLabel={ended?'Appointment ended':hasRequest?supervisorRequestMetadata(request).statusLabel:r.status} statusTone={ended||!hasRequest?'neutral':supervisorRequestMetadata(request).statusTone}/>}
       backLabel={backLabel} onBack={navigateToList}>
       <PortalToast message={toastMessage}/>
-      <SupervisorRequestDetail request={request} showApproval={hasRequest} actions={onNavigateToDossier?<ViewStudentRecordAction studentId={r.studentId} onOpen={onNavigateToDossier}/>:undefined} administration={administration}/>
+      <SupervisorRequestDetail request={request} showApproval={hasRequest} contextAction={onNavigateToDossier?<ViewStudentRecordAction studentId={r.studentId} onOpen={onNavigateToDossier}/>:undefined} administration={administration}/>
     </RecordPage>;
   }
 
+  if (routeView === 'teamDetail' && primaryReplacement?.studentId===routeTeamStudentId) return <OfficeSupervisorReplacementForm appointmentId={primaryReplacement.appointmentId} onBack={()=>setPrimaryReplacement(null)} onSubmitted={()=>{setPrimaryReplacement(null);setReplacementNotice('Replacement requested. The proposed supervisor will review it next.');setTeamRefresh(value=>value+1);}}/>;
   if (routeView === 'teamDetail') return <RecordPage title="Supervision details" backLabel="Back to Supervisory teams" onBack={onNavigateToTeams ?? navigateToList}>
-    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} showResearchChanges={false} showRefresh={false} />
+    {replacementNotice?<p role="status" className="card-description rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{replacementNotice}</p>:null}
+    <SupervisoryTeamManagement role="Office Staff/Admin" view="detail" routeStudentId={routeTeamStudentId} onNavigateToDossier={onNavigateToDossier} onNavigateToPanelRequest={onNavigateToPanelRequest} showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh}
+      onChangePrimarySupervisor={routeTeamStudentId?appointmentId=>{setReplacementNotice(null);setPrimaryReplacement({appointmentId,studentId:routeTeamStudentId});}:undefined}/>
   </RecordPage>;
   const programmes = [...new Set(records.map(row => row.programme).filter(Boolean))];
   const semesters = [...new Set(records.map(row => row.semester).filter((value): value is string => !!value))];
@@ -310,13 +315,13 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <AppointmentSummaryCard title="Workload alerts" value={recordSummary.workloadAlerts} description="Lecturers near their supervision limit." />
       </div> : null}
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Appointment records">
-        <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} onClick={handleExportData}>Export records</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />
-        <RequestFilters search={searchQuery} onSearch={setSearchQuery} searchLabel="Find a record" searchPlaceholder="Student name, matric number, supervisor or research title">
-          <label className="form-label">Programme<select className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Semester<select className="form-control form-control-sm mt-1" value={semesterFilter} onChange={event => setSemesterFilter(event.target.value)}><option>All Semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Status<select className="form-control form-control-sm mt-1" value={activeTab} onChange={event => { setActiveTab(event.target.value as typeof activeTab); setCurrentPage(1); }}>{(['All Records','No Supervisor','Pending','Approved','Ended','Rejected','Cancelled','Workload Alert'] as const).map(value => <option key={value}>{value}</option>)}</select></label>
-          <label className="form-label">Sort<select className="form-control form-control-sm mt-1" value={sortOrder} onChange={event => { setSortOrder(event.target.value as typeof sortOrder); setCurrentPage(1); }}><option value="default">Default order</option><option value="longestWaiting">Longest waiting</option></select></label>
-          <div className="flex items-end gap-2"><PortalButton size="sm" onClick={handleResetFilters}>Reset filters</PortalButton><PortalButton size="sm" variant="primary" onClick={handleApplyFilters}>Apply filters</PortalButton></div>
+        <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} variant="primary" isLoading={excel.busy} onClick={()=>void handleExportData()}>Export Excel</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />
+        <RequestFilters onReset={handleResetFilters} search={searchQuery} onSearch={setSearchQuery} searchLabel="Find a record" searchPlaceholder="Student name, matric number, supervisor or research title">
+          <label className="form-label">Programme<PortalSelect className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</PortalSelect></label>
+          <label className="form-label">Semester<PortalSelect className="form-control form-control-sm mt-1" value={semesterFilter} onChange={event => setSemesterFilter(event.target.value)}><option>All Semesters</option>{semesters.map(value => <option key={value}>{value}</option>)}</PortalSelect></label>
+          <label className="form-label">Status<PortalSelect className="form-control form-control-sm mt-1" value={activeTab} onChange={event => { setActiveTab(event.target.value as typeof activeTab); setCurrentPage(1); }}>{(['All Records','No Supervisor','Pending','Approved','Ended','Rejected','Cancelled','Workload Alert'] as const).map(value => <option key={value}>{value}</option>)}</PortalSelect></label>
+          <label className="form-label">Sort<PortalSelect className="form-control form-control-sm mt-1" value={sortOrder} onChange={event => { setSortOrder(event.target.value as typeof sortOrder); setCurrentPage(1); }}><option value="default">Default order</option><option value="longestWaiting">Longest waiting</option></PortalSelect></label>
+          <div className="flex items-end gap-2"><PortalButton size="sm" variant="primary" onClick={handleApplyFilters}>Apply filters</PortalButton></div>
         </RequestFilters>
         {loading ? <LoadingState message="Loading appointment records…" /> : error ? <ErrorState message={error} onRetry={loadRecords} /> : <>
           {paginatedRecords.length ? <OfficeSupervisorRecordTable records={paginatedRecords} onOpen={record => onNavigateToRecord?.(record.applicationId!=null?`request-${record.applicationId}`:supervisorRecordRouteKey(record))} onDossier={record => onNavigateToDossier?.(record.studentId)} /> : <EmptyState title="No matching records" description="Adjust the filters to see more records." />}

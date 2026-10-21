@@ -33,8 +33,8 @@ const roleLabels: Record<TimelineRole, string> = {
   OFFICE_STAFF: 'Office Staff',
 };
 
-const statusTone: Record<TimelineStatus, 'success' | 'brand' | 'warning' | 'danger'> = {
-  Completed: 'success',
+const statusTone: Record<TimelineStatus, 'neutral' | 'brand' | 'warning' | 'danger'> = {
+  Ended: 'neutral',
   Active: 'brand',
   Upcoming: 'warning',
   Deadline: 'danger',

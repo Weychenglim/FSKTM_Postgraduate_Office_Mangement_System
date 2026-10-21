@@ -1,0 +1,145 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+#appointment-preview { --ap-bg:light-dark(#f1f5f9,#0e1628); --ap-surface:light-dark(#ffffff,#172033); --ap-soft:light-dark(#f8fafc,#202d41); --ap-text:light-dark(#0c1424,#edf2f9); --ap-muted:light-dark(#64748b,#a6b4c9); --ap-border:light-dark(#e2e8f0,#354258); --ap-active:light-dark(#0c1424,#dbe7f6); --ap-active-text:light-dark(#ffffff,#0c1424); --ap-link:light-dark(#2563eb,#93bfff); --ap-good:light-dark(#166534,#bbf7d0); --ap-good-bg:light-dark(#ecfdf5,#183c35); font:400 12px/1.6 Inter,ui-sans-serif,system-ui,sans-serif; color:var(--ap-text); background:var(--ap-bg); border:1px solid var(--ap-border); border-radius:14px; overflow:clip; }
+#appointment-preview * { box-sizing:border-box; }
+#appointment-preview button,#appointment-preview input,#appointment-preview select,#appointment-preview summary { font-family:inherit; font-size:12px; }
+#appointment-preview button,#appointment-preview summary { cursor:default; }
+#appointment-preview button { color:inherit; }
+#appointment-preview button:focus-visible,#appointment-preview input:focus-visible,#appointment-preview select:focus-visible,#appointment-preview summary:focus-visible { outline:2px solid var(--ap-link); outline-offset:3px; }
+#appointment-preview .ap-top { display:flex; gap:18px; align-items:center; justify-content:space-between; padding:14px 100px 14px 20px; background:var(--ap-surface); border-bottom:1px solid var(--ap-border); }
+#appointment-preview .ap-brand { font-weight:800; letter-spacing:.04em; }
+#appointment-preview .ap-brand small { display:block; color:var(--ap-muted); font-size:11px; font-weight:400; letter-spacing:0; }
+#appointment-preview .ap-role { display:flex; align-items:center; gap:8px; color:var(--ap-muted); }
+#appointment-preview select,#appointment-preview input { min-width:0; width:100%; padding:10px 11px; border:1px solid var(--ap-border); border-radius:9px; background:var(--ap-surface); color:var(--ap-text); }
+#appointment-preview .ap-role select { width:auto; padding:7px 10px; }
+#appointment-preview .ap-layout { display:grid; grid-template-columns:174px minmax(0,1fr); }
+#appointment-preview aside { padding:22px 12px; border-right:1px solid var(--ap-border); background:var(--ap-surface); }
+#appointment-preview .ap-side-label { color:var(--ap-muted); padding:0 10px 10px; font-size:11px; }
+#appointment-preview .ap-side { display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:transparent; border:0; border-radius:8px; padding:12px 10px; margin-bottom:5px; font-weight:600; }
+#appointment-preview .ap-side[aria-current=page] { background:var(--ap-active); color:var(--ap-active-text); }
+#appointment-preview main { min-width:0; padding:26px; }
+#appointment-preview h1 { margin:0; font-size:24px; line-height:1.3; font-weight:800; letter-spacing:-.03em; }
+#appointment-preview h2 { margin:0; font-size:15px; line-height:1.5; font-weight:600; }
+#appointment-preview p { margin:5px 0 0; }
+#appointment-preview .ap-muted { color:var(--ap-muted); }
+#appointment-preview .ap-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
+#appointment-preview .ap-tabs { display:flex; flex-wrap:wrap; gap:7px; padding-bottom:16px; margin-bottom:22px; border-bottom:1px solid var(--ap-border); }
+#appointment-preview .ap-tab { border:0; background:transparent; border-radius:8px; padding:10px 12px; font-weight:600; }
+#appointment-preview .ap-tab[aria-current=page] { background:var(--ap-active); color:var(--ap-active-text); }
+#appointment-preview .ap-card { background:var(--ap-surface); border:1px solid var(--ap-border); border-radius:14px; padding:20px; }
+#appointment-preview .ap-card-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:15px; margin-bottom:19px; }
+#appointment-preview .ap-count { color:var(--ap-muted); white-space:nowrap; }
+#appointment-preview .ap-filter { border:1px solid var(--ap-border); border-radius:11px; padding:14px; background:var(--ap-soft); margin-bottom:18px; }
+#appointment-preview .ap-fields { display:grid; grid-template-columns:minmax(160px,1.7fr) minmax(110px,1fr) minmax(135px,1fr); gap:12px; }
+#appointment-preview label { display:flex; flex-direction:column; gap:6px; min-width:0; font-weight:600; }
+#appointment-preview .ap-filter-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-top:13px; padding-top:12px; border-top:1px solid var(--ap-border); }
+#appointment-preview .ap-filter-foot>div { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+#appointment-preview .ap-sort { display:flex; flex-direction:row; align-items:center; gap:7px; color:var(--ap-muted); font-weight:400; }
+#appointment-preview .ap-sort select { width:auto; padding:7px 9px; }
+#appointment-preview .ap-button { padding:8px 11px; border:1px solid var(--ap-border); border-radius:8px; background:var(--ap-surface); font-weight:600; white-space:nowrap; }
+#appointment-preview .ap-button:hover { background:var(--ap-soft); }
+#appointment-preview .ap-primary { background:var(--ap-active); color:var(--ap-active-text); border-color:var(--ap-active); }
+#appointment-preview .ap-primary:hover { background:var(--ap-active); opacity:.9; }
+#appointment-preview .ap-text-button { border:0; padding:7px 0; background:transparent; color:var(--ap-link); font-weight:600; }
+#appointment-preview .ap-back { margin-bottom:15px; }
+#appointment-preview .ap-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+#appointment-preview .ap-table th { text-align:left; padding:10px 10px; border-bottom:1px solid var(--ap-border); color:var(--ap-muted); font-size:11px; font-weight:600; }
+#appointment-preview .ap-table td { padding:15px 10px; border-bottom:1px solid var(--ap-border); vertical-align:middle; overflow-wrap:anywhere; }
+#appointment-preview .ap-name { font-weight:600; }
+#appointment-preview .ap-id { color:var(--ap-muted); font-size:11px; margin-top:2px; }
+#appointment-preview .ap-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:16px; color:var(--ap-muted); }
+#appointment-preview .ap-status { display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; color:var(--ap-good); background:var(--ap-good-bg); }
+#appointment-preview .ap-facts { display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:20px; }
+#appointment-preview .ap-facts dt { color:var(--ap-muted); font-weight:600; }
+#appointment-preview .ap-facts dd { margin:5px 0 0; }
+#appointment-preview .ap-detail-stack { display:grid; gap:18px; }
+#appointment-preview .ap-mobile-module { display:none; }
+#appointment-preview .ap-empty { padding:25px 0; text-align:center; color:var(--ap-muted); }
+#appointment-preview .ap-tools { position:relative; }
+#appointment-preview .ap-tools summary { list-style:none; }
+#appointment-preview .ap-tools[open]>div { position:absolute; right:0; z-index:3; margin-top:7px; width:190px; padding:10px; background:var(--ap-surface); border:1px solid var(--ap-border); border-radius:9px; }
+#appointment-preview .ap-tools p { padding:6px; margin:0; }
+#appointment-preview .ap-note { margin-top:13px; color:var(--ap-muted); font-size:11px; }
+@media(max-width:800px) { #appointment-preview .ap-layout { grid-template-columns:1fr; } #appointment-preview aside { border-right:0; border-bottom:1px solid var(--ap-border); padding:12px 18px; } #appointment-preview .ap-side-label,#appointment-preview .ap-side { display:none; } #appointment-preview .ap-mobile-module { display:flex; flex-direction:row; align-items:center; gap:10px; } #appointment-preview .ap-mobile-module select { flex:1; } #appointment-preview main { padding:20px; } #appointment-preview .ap-fields { grid-template-columns:minmax(140px,1.5fr) minmax(110px,1fr) minmax(120px,1fr); } }
+@media(max-width:540px) { #appointment-preview .ap-top { flex-wrap:wrap; padding-right:96px; gap:10px; } #appointment-preview .ap-role { flex-wrap:wrap; } #appointment-preview .ap-role select { max-width:100%; } #appointment-preview main { padding:18px 12px; } #appointment-preview .ap-card { padding:16px; } #appointment-preview h1 { font-size:21px; } #appointment-preview .ap-fields { grid-template-columns:1fr; } #appointment-preview .ap-table thead { display:none; } #appointment-preview .ap-table,#appointment-preview .ap-table tbody { display:block; } #appointment-preview .ap-table tr { display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--ap-border); padding:12px 0; gap:10px; } #appointment-preview .ap-table td { display:block; border:0; padding:0; } #appointment-preview .ap-table td:first-child,#appointment-preview .ap-table td:last-child { grid-column:1/-1; } #appointment-preview .ap-table td[data-label]:not(:first-child):not(:last-child)::before { content:attr(data-label); display:block; font-size:11px; color:var(--ap-muted); margin-bottom:3px; } #appointment-preview .ap-facts { grid-template-columns:1fr; } #appointment-preview .ap-page-head { flex-wrap:wrap; } #appointment-preview .ap-button { min-height:40px; } }
+</style>
+<div id="appointment-preview" aria-label="Proposed consistent Supervisor and Panel workspaces">
+  <header class="ap-top"><div class="ap-brand">FSKTM<small>Postgraduate management</small></div><label class="ap-role">Role<select id="ap-role" aria-label="Preview staff role"><option value="office">Office Staff</option><option value="coordinator">Programme Coordinator</option></select></label></header>
+  <div class="ap-layout">
+    <aside aria-label="Appointment modules"><div class="ap-side-label">Appointments</div><button type="button" class="ap-side" data-module="supervisor">Supervisor Appointments</button><button type="button" class="ap-side" data-module="panel" aria-current="page">Panel Appointments</button><label class="ap-mobile-module">Module<select id="ap-mobile-module"><option value="panel">Panel Appointments</option><option value="supervisor">Supervisor Appointments</option></select></label></aside>
+    <main id="ap-content"></main>
+  </div>
+</div>
+<script>
+(() => {
+  const root=document.getElementById('appointment-preview');
+  const content=root.querySelector('#ap-content');
+  const lecturers=[{id:'L001',name:'Dr Aisha Rahman'},{id:'L002',name:'Dr Balan Kumar'},{id:'L003',name:'Dr Mei Tan'}];
+  const students=[
+    {id:'PG2026001',name:'Nur Aina',programme:'Cyber Security',supervisor:'L001',support:'L002',panel:'L003',date:'02 Oct 2026',period:'current',title:'Privacy in connected learning systems'},
+    {id:'PG2026002',name:'Daniel Lee',programme:'Cyber Security',supervisor:'L001',support:'',panel:'L002',date:'04 Oct 2026',period:'current',title:'Detecting network threats with machine learning'},
+    {id:'PG2026003',name:'Siti Farah',programme:'Data Science',supervisor:'L002',support:'L003',panel:'L001',date:'06 Oct 2026',period:'current',title:'Forecasting urban travel demand'},
+    {id:'PG2026004',name:'Amir Hakim',programme:'Data Science',supervisor:'L002',support:'',panel:'L001',date:'08 Oct 2026',period:'current',title:'Interpretable models for educational data'},
+    {id:'PG2025005',name:'Lina Wong',programme:'Cyber Security',supervisor:'L001',support:'L003',panel:'L002',date:'15 Oct 2025',ended:'12 Oct 2026',period:'past',title:'Secure access to distributed research data'}
+  ];
+  const saved=globalThis.openai?.widgetState?.privateContent;
+  const state={module:saved?.module==='supervisor'?'supervisor':'panel',role:saved?.role==='coordinator'?'coordinator':'office',section:'assignments',period:'current',query:'',programme:'',sort:'name',lecturer:null,student:null};
+  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const person=id=>lecturers.find(row=>row.id===id);
+  const inScope=row=>state.role!=='coordinator'||row.programme==='Cyber Security';
+  const related=(row,id)=>state.module==='panel'?row.panel===id:row.supervisor===id||row.support===id;
+  const destination=()=>state.module==='panel'?'Panel assignments':'Supervisory teams';
+  function persist(){globalThis.openai?.setWidgetState?.({modelContent:{preview:'Consistent appointment workspaces',module:state.module,role:state.role},privateContent:{module:state.module,role:state.role}})?.catch(()=>{});}
+  function filteredRows(id){return students.filter(row=>{
+    if(!inScope(row)||row.period!==state.period||state.programme&&row.programme!==state.programme||id&&!related(row,id))return false;
+    const names=id?person(id).name+' '+id:lecturers.filter(lecturer=>related(row,lecturer.id)).map(lecturer=>lecturer.name+' '+lecturer.id).join(' ');
+    return !state.query||[row.name,row.id,names].join(' ').toLowerCase().includes(state.query.toLowerCase().trim());
+  });}
+  function grouped(){return lecturers.map(lecturer=>({...lecturer,rows:filteredRows(lecturer.id)})).filter(lecturer=>lecturer.rows.length)
+    .sort((a,b)=>state.sort==='students'?b.rows.length-a.rows.length||a.name.localeCompare(b.name):a.name.localeCompare(b.name));}
+  function options(values,current){return values.map(([value,label])=>`<option value="${esc(value)}" ${value===current?'selected':''}>${esc(label)}</option>`).join('');}
+  function tools(){return state.role==='office'?'<details class="ap-tools"><summary class="ap-button">Tools ▾</summary><div><p>Workload monitoring</p><p>Manage capacity</p></div></details>':state.module==='supervisor'?'<button type="button" class="ap-button" data-extra="capacity">Capacity reassessments</button>':'';}
+  function navigation(){const tabs=state.role==='office'?[['attention','Needs attention'],['requests','Appointment requests'],['assignments',destination()]]:[['requests','Appointment requests'],['assignments',destination()],...(state.module==='supervisor'?[['transfers','Programme transfers']]:[])];
+    return `<nav class="ap-tabs" aria-label="${state.module==='panel'?'Panel':'Supervisor'} workspace">${tabs.map(([id,label])=>`<button type="button" class="ap-tab" data-section="${id}" ${state.section===id?'aria-current="page"':''}>${label}</button>`).join('')}</nav>`;}
+  function controls(){return `<div class="ap-filter"><div class="ap-fields"><label>Find a student or lecturer<input id="ap-search" type="search" placeholder="Name, matric or staff number" value="${esc(state.query)}"></label>
+    ${state.role==='office'?`<label>Programme<select id="ap-programme">${options([['','All programmes'],['Cyber Security','Cyber Security'],['Data Science','Data Science']],state.programme)}</select></label>`:'<label>Programme<input value="Cyber Security" readonly aria-label="Managed programme"></label>'}
+    <label>Appointments<select id="ap-period">${options([['current','Current appointments'],['past','Past appointments']],state.period)}</select></label></div>
+    <div class="ap-filter-foot"><label class="ap-sort">Sort by<select id="ap-sort">${options([['name',state.lecturer?'Student name':'Lecturer name'],...(!state.lecturer?[['students','Most students']]:[])],state.sort)}</select></label><div><button type="button" class="ap-text-button" data-clear>Clear filters</button><button type="button" class="ap-button ap-primary" data-export>Export Excel</button></div></div></div>`;}
+  function lecturerTable(){const groups=grouped();return groups.length?`<table class="ap-table" aria-label="Lecturers and matching students"><thead><tr><th style="width:42%">${state.module==='panel'?'Panel lecturer':'Supervisor'}</th>${state.module==='supervisor'?'<th>Primary students</th><th>Supporting students</th>':'<th>Students</th>'}<th>Action</th></tr></thead><tbody>${groups.map(group=>`<tr><td><div class="ap-name">${group.name}</div><div class="ap-id">${group.id}</div></td>${state.module==='supervisor'?`<td data-label="Primary students">${group.rows.filter(row=>row.supervisor===group.id).length}</td><td data-label="Supporting students">${group.rows.filter(row=>row.support===group.id).length}</td>`:`<td data-label="Students">${group.rows.length}</td>`}<td><button type="button" class="ap-button" data-lecturer="${group.id}">View students</button></td></tr>`).join('')}</tbody></table>`:'<p class="ap-empty" role="status">No matching lecturers. Adjust the filters to see more records.</p>';}
+  function studentTable(){const rows=filteredRows(state.lecturer).sort((a,b)=>a.name.localeCompare(b.name));return rows.length?`<table class="ap-table" aria-label="Students assigned to selected lecturer"><thead><tr><th style="width:29%">Student</th><th>Programme</th><th>${state.module==='supervisor'?'Relationship':'Appointed on'}</th><th>Action</th></tr></thead><tbody>${rows.map(row=>`<tr><td><div class="ap-name">${row.name}</div><div class="ap-id">${row.id}</div></td><td data-label="Programme">${row.programme}</td><td data-label="${state.module==='supervisor'?'Relationship':'Appointed on'}">${state.module==='supervisor'?(row.supervisor===state.lecturer?'Primary':'Supporting'):row.date}</td><td><button type="button" class="ap-button" data-student="${row.id}">${state.module==='supervisor'?'View supervision':'View appointment'}</button></td></tr>`).join('')}</tbody></table>`:'<p class="ap-empty" role="status">No matching students for this lecturer.</p>';}
+  function updateResults(){const slot=content.querySelector('#ap-table-slot');if(!slot)return;slot.innerHTML=state.lecturer?studentTable():lecturerTable();const total=state.lecturer?filteredRows(state.lecturer).length:grouped().length;content.querySelector('#ap-result-count').textContent=`${total} ${state.lecturer?'students':'lecturers'} shown`;content.querySelector('#ap-page-count').textContent=`Page 1 of 1 · ${total} ${state.lecturer?'students':'lecturers'}`;}
+  function detail(){const row=students.find(item=>item.id===state.student);const supervisor=person(row.supervisor),panel=person(row.panel);return `<button type="button" class="ap-text-button ap-back" data-back-students>‹ Back to ${person(state.lecturer).name}'s students</button><div class="ap-page-head"><div><h1>${state.module==='panel'?'Panel appointment':'Supervision details'}</h1><p class="ap-muted">${row.name} · ${row.id}</p></div></div><div class="ap-detail-stack"><section class="ap-card"><h2>Appointment record</h2><dl class="ap-facts"><div><dt>Student</dt><dd>${row.name}</dd></div><div><dt>Programme</dt><dd>${row.programme}</dd></div><div><dt>${state.module==='panel'?'Appointed Panel lecturer':'Primary supervisor'}</dt><dd>${state.module==='panel'?panel.name:supervisor.name}</dd></div>${state.module==='supervisor'?`<div><dt>Supporting supervisor</dt><dd>${person(row.support)?.name||'Not appointed'}</dd></div>`:''}<div><dt>Appointment status</dt><dd><span class="ap-status">${row.period==='current'?'Active':'Ended'}</span></dd></div><div><dt>Appointed on</dt><dd>${row.date}</dd></div>${row.ended?`<div><dt>Ended on</dt><dd>${row.ended}</dd></div>`:''}</dl></section><section class="ap-card"><h2>Research</h2><p>${row.title}</p></section></div>`;}
+  function assignments(){const selected=person(state.lecturer);return `${selected?`<button type="button" class="ap-text-button ap-back" data-back-lecturers>‹ Back to ${destination()}</button><div class="ap-page-head"><div><h1>${selected.name}</h1><p class="ap-muted">${selected.id} · ${state.module==='panel'?'Panel lecturer':'Supervisor'}</p></div></div>`:''}<section class="ap-card"><header class="ap-card-head"><div><h2>${selected?'Students':state.module==='panel'?'Panel lecturers':'Supervisors'}</h2><p class="ap-muted">${state.role==='coordinator'?'Within your managed programme.':'Across programmes.'} Counts reflect the selected filters.</p></div><span id="ap-result-count" class="ap-count" aria-live="polite"></span></header>${controls()}<div id="ap-table-slot"></div><footer class="ap-footer"><span>Rows per page: 10</span><span id="ap-page-count"></span></footer></section>`;}
+  function otherSection(){const heading=state.section==='requests'?'Appointment requests':state.section==='attention'?'Needs attention':'Programme transfers';return `<section class="ap-card"><header class="ap-card-head"><h2>${heading}</h2></header><p class="ap-muted">${state.section==='requests'?'Review pending appointment requests and recorded decisions.':state.section==='attention'?'Follow up on students awaiting an appointment and requests awaiting action.':'Review transfers within your authorised programme scope.'}</p></section>`;}
+  function render(){root.querySelectorAll('[data-module]').forEach(button=>{if(button.dataset.module===state.module)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});root.querySelector('#ap-mobile-module').value=state.module;root.querySelector('#ap-role').value=state.role;
+    if(state.student){content.innerHTML=detail();return;}
+    const moduleName=state.module==='panel'?'Panel':'Supervisor';
+    content.innerHTML=`${state.lecturer?'':`<div class="ap-page-head"><div><h1>${moduleName} Appointments</h1><p class="ap-muted">${state.role==='office'?'Monitor requests and appointed lecturers across programmes.':'Review requests and appointed lecturers in Cyber Security.'}</p></div>${tools()}</div>${navigation()}`}${state.section==='assignments'?assignments():otherSection()}`;
+    updateResults();
+  }
+  function resetRoute(){state.section='assignments';state.lecturer=null;state.student=null;state.query='';state.programme='';state.period='current';state.sort='name';}
+  root.addEventListener('click',event=>{const target=event.target.closest('button');if(!target)return;
+    if(target.dataset.module){state.module=target.dataset.module;resetRoute();}
+    else if(target.dataset.section){state.section=target.dataset.section;state.lecturer=null;state.student=null;}
+    else if(target.dataset.lecturer){state.rootSort=state.sort;state.lecturer=target.dataset.lecturer;state.sort='name';}
+    else if(target.dataset.student){state.student=target.dataset.student;}
+    else if(target.hasAttribute('data-back-students'))state.student=null;
+    else if(target.hasAttribute('data-back-lecturers')){state.lecturer=null;state.student=null;state.sort=state.rootSort||'name';}
+    else if(target.hasAttribute('data-clear')){state.query='';state.programme='';state.period='current';state.sort='name';}
+    else if(target.hasAttribute('data-export')){target.textContent='Preview only';setTimeout(()=>{if(target.isConnected)target.textContent='Export Excel';},1200);return;}
+    else if(target.dataset.extra){target.textContent='Existing tool retained';return;}
+    else return;
+    render();persist();
+  });
+  root.addEventListener('input',event=>{if(event.target.id==='ap-search'){state.query=event.target.value;updateResults();}});
+  root.addEventListener('change',event=>{
+    if(event.target.id==='ap-role'){state.role=event.target.value;resetRoute();render();persist();}
+    else if(event.target.id==='ap-mobile-module'){state.module=event.target.value;resetRoute();render();persist();}
+    else if(event.target.id==='ap-programme'){state.programme=event.target.value;updateResults();}
+    else if(event.target.id==='ap-period'){state.period=event.target.value;updateResults();}
+    else if(event.target.id==='ap-sort'){state.sort=event.target.value;updateResults();}
+  });
+  globalThis.addEventListener('openai:set_globals',event=>{const restored=event.detail?.globals?.widgetState?.privateContent;if(!restored)return;state.module=restored.module==='supervisor'?'supervisor':'panel';state.role=restored.role==='coordinator'?'coordinator':'office';resetRoute();render();});
+  render();
+})();
+</script>

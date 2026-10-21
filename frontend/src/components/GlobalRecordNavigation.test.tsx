@@ -32,7 +32,7 @@ const announcements = renderToStaticMarkup(<AnnouncementManagement />);
 assert.match(announcements, /New announcement/, 'Announcements starts with a list and an explicit compose action');
 assert.doesNotMatch(announcements, /Content Body/, 'The composer is a separate record page');
 page(<SupervisorAppointmentManagement routeView="detail" routeRecordId="17" onNavigateToList={() => {}} />, 'Office supervisor loading');
-page(<PanelAppointmentManagement routeView="detail" routeRecordId="17" onNavigateToList={() => {}} />, 'Office panel loading');
+page(<MemoryRouter><PanelAppointmentManagement routeView="detail" routeRecordId="17" onNavigateToList={() => {}} /></MemoryRouter>, 'Office panel loading');
 page(<MarkEntryRecordDetail recordId="17" onBack={() => {}} />, 'Office marks loading');
 page(<MemoryRouter><StaffResearchWorkspace role="Programme Coordinator" routeView="detail" routeRequestId="17" /></MemoryRouter>, 'Coordinator research notification');
 console.log('Global records and loading states retain one heading and labelled return; announcements starts with its list');

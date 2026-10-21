@@ -1,0 +1,17 @@
+import { request } from './apiClient';
+import type { OperationalActivity, OperationalAvailability, OperationalException, OperationalExceptionCandidate, OperationalPeriod, OperationalPeriodPayload, OperationalPeriodsResponse } from '../types/operationalPeriods';
+const base = '/academics/operational-periods/';
+export const getOperationalPeriods = (semesterId: number) => request<OperationalPeriodsResponse>(`${base}?semesterId=${semesterId}`);
+export const createOperationalPeriod = (payload: OperationalPeriodPayload) => request<OperationalPeriod>(base,{method:'POST',body:JSON.stringify(payload)});
+export const updateOperationalPeriod = (id:number,payload:Partial<OperationalPeriodPayload>&{expectedRevision:number;reason:string}) => request<OperationalPeriod>(`${base}${id}/`,{method:'PATCH',body:JSON.stringify(payload)});
+export const transitionOperationalPeriod = (id:number,action:'close'|'archive',expectedRevision:number,reason:string) => request<OperationalPeriod>(`${base}${id}/${action}/`,{method:'POST',body:JSON.stringify({expectedRevision,reason})});
+export const publishOperationalPeriod = (id:number, expectedRevision:number) => request<OperationalPeriod>(`${base}${id}/publish/`,{method:'POST',body:JSON.stringify({expectedRevision})});
+export const extendOperationalPeriod = (id:number,payload:{closesAt:string;reason:string;expectedRevision:number}) => request<OperationalPeriod>(`${base}${id}/extend/`,{method:'POST',body:JSON.stringify(payload)});
+export const setOperationalEnforcement = (payload:{semesterId:number;activity:OperationalActivity;enabled:boolean;reason:string}) => request(`${base}enforcement/`,{method:'POST',body:JSON.stringify(payload)});
+export const getOperationalAvailability = (activity:OperationalActivity,studentId?:number) => request<OperationalAvailability>(`${base}availability/?activity=${activity}${studentId===undefined?'':`&studentId=${studentId}`}`);
+export const getOperationalExceptionCandidates = (id:number) => request<{candidates:OperationalExceptionCandidate[]}>(`${base}${id}/exception-candidates/`);
+export const getOperationalExceptions = (id:number) => request<{exceptions:OperationalException[]}>(`${base}${id}/exceptions/`);
+export const grantOperationalException = (id:number,payload:{studentId:number;participantId:number;deadline:string;reason:string}) => request<OperationalException>(`${base}${id}/exceptions/`,{method:'POST',body:JSON.stringify(payload)});
+export const revokeOperationalException = (id:number,reason:string) => request<OperationalException>(`/academics/operational-exceptions/${id}/revoke/`,{method:'POST',body:JSON.stringify({reason})});
+export const extendInformationalTimelineEntry = (id:number,payload:{deadlineEnd:string;reason:string;expectedDeadlineEnd?:string}) => request(`/dashboard/timeline/entries/${id}/extend/`,{method:'POST',body:JSON.stringify(payload)});
+export const linkTimelinePeriod = (entryId:number,kind:'appointment'|'marks',periodId:number) => request(`/dashboard/timeline/entries/${entryId}/`,{method:'PATCH',body:JSON.stringify({operationalPeriodId:kind==='appointment'?periodId:null,marksPeriodId:kind==='marks'?periodId:null})});

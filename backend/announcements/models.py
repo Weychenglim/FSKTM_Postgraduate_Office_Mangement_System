@@ -17,7 +17,7 @@ import os
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
-from django.utils.timezone import localtime
+from django.utils.timezone import localtime, now
 
 
 class Announcement(models.Model):
@@ -137,6 +137,45 @@ class WeeklySummaryLog(models.Model):
 
     def __str__(self):
         return f"Summary for {self.user_id} (week of {self.week_start})"
+
+
+class DeadlineReminderRun(models.Model):
+    """Operational evidence for the scheduled deadline command, never student data."""
+    started_at = models.DateTimeField(default=now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    timeline_count = models.PositiveIntegerField(default=0)
+    marks_count = models.PositiveIntegerField(default=0)
+    operation_count = models.PositiveIntegerField(default=0)
+    email_delivered = models.PositiveIntegerField(default=0)
+    email_failed = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+
+
+def visible_notifications(user):
+    """Current-role projection also protects staff history after an account role change."""
+    rows = Notification.objects.filter(recipient=user)
+    if user.role == user.Role.STUDENT:
+        rows = rows.exclude(
+            Q(target_module='MARKS')
+            | Q(record_type__in=('CO_SUPERVISOR_NOMINATION', 'EVALUATION_PERIOD',
+                                 'EVALUATION_TASK', 'MARK_ENTRY', 'TASK_COMPLETION_WINDOW'))
+            | Q(record_type='OPERATIONAL_PERIOD', target_module='PANEL_APPOINTMENTS')
+        )
+    return rows
+
+
+class DeadlineEmailDelivery(models.Model):
+    """Durable optional email copy; the in-app notification is authoritative."""
+    notification = models.OneToOneField('announcements.Notification', on_delete=models.CASCADE,
+                                        related_name='deadline_email_delivery')
+    link = models.CharField(max_length=255)
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=now)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=255, blank=True)
 
 
 class Notification(models.Model):

@@ -4,6 +4,7 @@
  */
 
 import type { CapacityState, PanelRecommendationStatus, SubmittedRecommendation } from '../types';
+import { appointmentRequestStatusLabel } from './appointmentRequestStatus';
 
 export const mergeSubmittedPanelHistory = (
   current: SubmittedRecommendation[],
@@ -36,13 +37,13 @@ export interface PanelRecommendationStatusRecord {
 }
 
 export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatus, string> = {
-  SUBMITTED_TO_PANEL: 'Submitted to Panel',
-  REJECTED_BY_PANEL: 'Rejected by Panel',
-  PENDING_COORDINATOR: 'Pending Coordinator',
-  REJECTED_BY_COORDINATOR: 'Rejected by Coordinator',
-  CANCELLED_BY_SUPERVISOR: 'Cancelled by Supervisor',
-  CANCELLED_BY_OFFICE: 'Cancelled by Office',
-  APPROVED: 'Confirmed',
+  SUBMITTED_TO_PANEL: appointmentRequestStatusLabel('SUBMITTED_TO_PANEL'),
+  REJECTED_BY_PANEL: appointmentRequestStatusLabel('REJECTED_BY_PANEL'),
+  PENDING_COORDINATOR: appointmentRequestStatusLabel('PENDING_COORDINATOR'),
+  REJECTED_BY_COORDINATOR: appointmentRequestStatusLabel('REJECTED_BY_COORDINATOR'),
+  CANCELLED_BY_SUPERVISOR: appointmentRequestStatusLabel('CANCELLED_BY_SUPERVISOR'),
+  CANCELLED_BY_OFFICE: appointmentRequestStatusLabel('CANCELLED_BY_OFFICE'),
+  APPROVED: appointmentRequestStatusLabel('APPROVED'),
 };
 
 const REJECTED_STATUSES: PanelRecommendationStatus[] = [
@@ -145,7 +146,7 @@ export const getPanelCandidateValidationMessage = ({
   isSupervisor,
   hasNotes = true,
 }: PanelCandidateValidationInput): string => {
-  if (isSupervisor) return 'The selected panel member cannot be the student supervisor.';
+  if (isSupervisor) return 'The proposed Panel member cannot be the student supervisor.';
   if (capacityState === 'TEMPORARILY_UNAVAILABLE') {
     const resumeDate = formatUnavailableUntil(unavailableUntil);
     return resumeDate
@@ -170,6 +171,6 @@ export const getPanelCandidateValidationMessage = ({
   ) {
     return 'This lecturer has reached the panel workload limit. Please choose another panel member.';
   }
-  if (!hasNotes) return 'Add justification notes before submitting to the selected panel member.';
-  return 'This recommendation is ready to be submitted to the selected panel member for acceptance.';
+  if (!hasNotes) return 'Add justification notes before submitting to the Panel member.';
+  return 'This recommendation is ready to be submitted to the Panel member for acceptance.';
 };

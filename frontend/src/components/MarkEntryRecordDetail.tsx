@@ -27,6 +27,7 @@ import { SubmittedMarksActions, MarkCorrectionHistoryView } from './SubmittedMar
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
+  backLabel?: string;
   recordId: string;
 }
 
@@ -51,6 +52,7 @@ const entryStatusLabel = (status: MarkRecordDetail['entry']['status']) => ({
 
 export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   onBack,
+  backLabel = 'Back to Mark Entry Records',
   recordId,
 }) => {
   const [record, setRecord] = useState<MarkRecordDetail | null>(null);
@@ -88,14 +90,14 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   }, [loadRecord]);
 
   if (loading && !record) {
-    return <RecordPage title="Mark Entry Record Detail" backLabel="Back to Mark Entry Records" onBack={onBack}><LoadingState message="Loading mark record..." /></RecordPage>;
+    return <RecordPage title="Mark Entry Record Detail" backLabel={backLabel} onBack={onBack}><LoadingState message="Loading mark record..." /></RecordPage>;
   }
 
   if (!record) {
     return (
         <RecordPage
           title="Mark Entry Record Detail"
-          backLabel="Back to Mark Entry Records"
+          backLabel={backLabel}
           onBack={onBack}
         >
         <ErrorState
@@ -113,7 +115,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
       <RecordPage
         title="Mark Entry Record Detail"
         subtitle={`${record.recordId} · persisted evaluator submission and audit history`}
-        backLabel="Back to Mark Entry Records"
+        backLabel={backLabel}
         onBack={onBack}
         actions={(
           <StatusBadge tone={record.assignment.lifecycleStatus === 'ACTIVE' ? getStatusBadgeTone(statusLabel) : record.assignment.lifecycleStatus === 'PAUSED' ? 'warning' : 'neutral'} dot>

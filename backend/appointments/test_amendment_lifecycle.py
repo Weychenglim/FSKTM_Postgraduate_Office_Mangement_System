@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -82,17 +81,11 @@ class AmendmentLifecycleTests(APITestCase):
 
     def test_transfer_blocks_primary_replacement_submission(self):
         self.request_amendment('TRANSFER')
-        self.client.force_authenticate(user=self.student_user)
-        response = self.client.post('/api/appointments/supervisor/applications/', {
+        self.client.force_authenticate(user=self.office)
+        response = self.client.post(f'/api/appointments/supervisor/appointments/{self.supervisor_appointment.pk}/replacement/', {
             'proposedSupervisorId': self.new_supervisor.lecturer.staff_no,
-            'researchTitle': self.profile.proposed_topic,
-            'researchArea': self.profile.research_area,
-            'researchAbstract': self.profile.abstract,
-            'replacesAppointmentId': self.supervisor_appointment.pk,
-            'replacementReason': 'Primary change.',
-            'documents': [SimpleUploadedFile('proposal.pdf', b'%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF', content_type='application/pdf')],
-            'requirementCodes': ['research-proposal'],
-        }, format='multipart')
+            'reason': 'Primary change.',
+        }, format='json')
         self.assertEqual(response.status_code, 409, response.data)
         self.assertEqual(self.student.supervisor_applications.count(), 1)
 

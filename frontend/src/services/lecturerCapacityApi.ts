@@ -43,6 +43,12 @@ export function getSemesterCapacityPlan(planId: number): Promise<SemesterCapacit
   return request<SemesterCapacityPlan>(`/academics/capacity-plans/${planId}/`);
 }
 
+export function discardSemesterCapacityPlan(planId: number, command: CapacityPublishCommand & { confirmed: true }): Promise<SemesterCapacityPlan> {
+  return request<SemesterCapacityPlan>(`/academics/capacity-plans/${planId}/discard/`, {
+    method: 'POST', body: JSON.stringify(command),
+  });
+}
+
 export function updateLecturerCapacityEntry(
   planId: number,
   lecturerId: number,

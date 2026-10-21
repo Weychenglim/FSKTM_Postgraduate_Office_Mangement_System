@@ -157,6 +157,7 @@ class SemesterCapacityPlan(models.Model):
         DRAFT = "DRAFT", "Draft"
         PUBLISHED = "PUBLISHED", "Published"
         SUPERSEDED = "SUPERSEDED", "Superseded"
+        DISCARDED = "DISCARDED", "Discarded"
 
     class Origin(models.TextChoices):
         CREATED = "CREATED", "Created"
@@ -894,6 +895,7 @@ class LecturerCapacityAudit(models.Model):
     class Action(models.TextChoices):
         PLAN_CREATE = "PLAN_CREATE", "Plan create"
         PLAN_COPY = "PLAN_COPY", "Plan copy"
+        PLAN_DISCARD = "PLAN_DISCARD", "Plan discard"
         ENTRY_UPDATE = "ENTRY_UPDATE", "Entry update"
         PUBLISH = "PUBLISH", "Publish"
         SUPERSEDE = "SUPERSEDE", "Supersede"
@@ -949,3 +951,5 @@ class LecturerCapacityAudit(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError(CAPACITY_AUDIT_IMMUTABLE_ERROR)
+
+from .operational_period_models import (OperationalPeriod, OperationalEnforcement, OperationalException, OperationalPeriodAudit)  # noqa: E402,F401

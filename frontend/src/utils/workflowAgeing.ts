@@ -17,7 +17,7 @@ import type { DeadlineMetadata } from '../types/marks';
 const WAITING_ON_LABELS: Record<WorkflowWaitingOn, string> = {
   CO_SUPERVISOR: 'Co-supervisor',
   SUPERVISOR: 'Supervisor',
-  SELECTED_PANEL: 'Selected Panel',
+  SELECTED_PANEL: 'Panel',
   PROGRAMME_COORDINATOR: 'Programme Coordinator',
   COORDINATOR: 'Programme Coordinator',
   SOURCE_COORDINATOR: 'Source Programme Coordinator',

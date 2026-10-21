@@ -11,7 +11,8 @@ type SupervisorWorkflowStatus =
 
 export const canStudentCancelSupervisorApplication = (
   status: SupervisorWorkflowStatus,
-) => status === 'SUBMITTED_TO_SUPERVISOR';
+  initiatedByOffice = false,
+) => !initiatedByOffice && status === 'SUBMITTED_TO_SUPERVISOR';
 
 interface WorkflowNotificationTarget {
   targetModule?: string;

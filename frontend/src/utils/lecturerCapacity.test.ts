@@ -99,7 +99,7 @@ assert.equal(
 );
 
 const workspaceSource = readFileSync(
-  resolve('src/components/LecturerCapacityManagement.tsx'),
+  resolve('src/components/OfficeCapacityWorkspace.tsx'),
   'utf8',
 );
 for (const apiName of [
@@ -110,8 +110,6 @@ for (const apiName of [
   'cloneSemesterCapacityPlan',
   'publishSemesterCapacityPlan',
   'getLecturerAvailabilityWindows',
-  'createLecturerAvailabilityWindow',
-  'cancelLecturerAvailabilityWindow',
   'getLecturerCapacityAudits',
 ]) {
   assert.match(workspaceSource, new RegExp(apiName));
@@ -122,11 +120,14 @@ assert.match(workspaceSource, /ErrorState/);
 assert.match(workspaceSource, /EmptyState/);
 assert.match(workspaceSource, /DRAFT/);
 assert.match(workspaceSource, /PUBLISHED/);
-assert.match(workspaceSource, /SUPERSEDED/);
 assert.match(workspaceSource, /SUPERVISOR/);
 assert.match(workspaceSource, /PANEL/);
 assert.match(workspaceSource, /publishReason/);
-assert.match(workspaceSource, /cancelReason/);
 assert.match(workspaceSource, /readinessErrors/);
+assert.doesNotMatch(workspaceSource,/createLecturerAvailabilityWindow|cancelLecturerAvailabilityWindow/,'Office no longer creates or cancels lecturer-owned restrictions');
+const selfAvailabilitySource=readFileSync(resolve('src/components/LecturerAvailabilityPage.tsx'),'utf8');
+assert.match(selfAvailabilitySource,/DecisionDialog/);
+assert.match(selfAvailabilitySource,/createLecturerAvailability/);
+assert.match(selfAvailabilitySource,/cancelLecturerAvailability/);
 
 console.log('lecturer capacity utility tests passed');

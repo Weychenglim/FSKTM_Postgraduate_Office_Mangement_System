@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import * as management from './LecturerCapacityManagement';
+import type {LecturerCapacityEntry} from '../types';
+assert.equal(typeof management.CapacityRoleSummary,'function','Selected limits must be rendered separately from operational resolution');
+const entry={supervisorLimit:9,panelLimit:null,supervisor:{limit:3,activeLoad:2,reservedLoad:0,state:'AVAILABLE'},panel:null} as LecturerCapacityEntry;
+const html=renderToStaticMarkup(<management.CapacityRoleSummary entry={entry} role="SUPERVISOR"/>);
+assert.match(html,/Selected version limit/); assert.match(html,/>9</);
+assert.match(html,/Published policy limit/); assert.match(html,/>3</);
+const missing=renderToStaticMarkup(<management.CapacityRoleSummary entry={{...entry,supervisorLimit:null}} role="SUPERVISOR"/>);
+assert.match(missing,/Not configured/);
+const zero=renderToStaticMarkup(<management.CapacityRoleSummary entry={{...entry,supervisorLimit:0}} role="SUPERVISOR"/>);
+assert.match(zero,/>0</);
+console.log('Capacity selected-version limits remain distinct from operational Published limits');

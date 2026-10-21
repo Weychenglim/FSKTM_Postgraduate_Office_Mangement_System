@@ -182,6 +182,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
       <ActiveSemesterContext />
 
+      <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="section-heading">Your capacity and availability</h2><PortalButton size="sm" onClick={()=>onNavigateToRoute?.(APP_ROUTES.dashboardMyAvailability)}>Manage availability</PortalButton></div>
       <section className="grid gap-3 md:grid-cols-2" aria-label="Your semester capacity">
         {[
           { label: 'Supervisor capacity', value: supervisorCapacity },
@@ -211,6 +213,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
           </div>
         ))}
       </section>
+      </div>
 
       <DashboardTimeline
         showManageTimeline={false}

@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import * as capacity from './officeCapacityManagement';
+import type { AcademicSemester, SemesterCapacityPlan } from '../types';
+
+assert.equal(typeof capacity.readCompleteCapacityHistory, 'function', 'Every bounded history page must remain reachable beyond 100');
+const values = Array.from({length:237}, (_,id)=>({id}));
+const calls: {limit:number;offset:number}[]=[];
+const complete = await capacity.readCompleteCapacityHistory(async query => { calls.push(query); return values.slice(query.offset,query.offset+query.limit); });
+assert.equal(complete.length,237); assert.deepEqual(calls,[{limit:100,offset:0},{limit:100,offset:100},{limit:100,offset:200}]);
+await assert.rejects(capacity.readCompleteCapacityHistory(async query => { if(query.offset > 0) throw new Error('Historical read unavailable'); return values.slice(0,100); }), /Historical read unavailable/, 'A failed later page cannot claim complete history');
+const exactCalls:number[]=[];
+const exact=await capacity.readCompleteCapacityHistory(async query => { exactCalls.push(query.offset); return values.slice(0,200).slice(query.offset,query.offset+query.limit); });
+assert.equal(exact.length,200); assert.deepEqual(exactCalls,[0,100,200]);
+const empty=await capacity.readCompleteCapacityHistory(async()=>[]); assert.deepEqual(empty,[]);
+const plan = (id:number, semesterId:number, lifecycleStatus:SemesterCapacityPlan['lifecycleStatus'], isCurrentPublished=false) => ({id,semesterId,lifecycleStatus,isCurrentPublished} as SemesterCapacityPlan);
+assert.equal(capacity.publishedOperationalPolicy([plan(3,1,'DRAFT'),plan(2,1,'PUBLISHED',true),plan(1,1,'SUPERSEDED')])?.id,2);
+assert.equal(capacity.publishedOperationalPolicy([plan(3,1,'DRAFT')]),null);
+const semester=(id:number,endsOn:string)=>({id,endsOn,startsOn:'2026-01-01'} as AcademicSemester);
+const target={id:9,startsOn:'2026-10-01'} as AcademicSemester;
+const sourceCalls:number[]=[];
+const source=await capacity.findEligiblePriorCapacitySource([semester(2,'2026-09-01'),semester(3,'2026-09-01'),semester(4,'2026-11-01'),semester(1,'2026-06-01')],target,async id=>{sourceCalls.push(id);return id===3 ? [plan(8,3,'DRAFT')] : [plan(7,id,'PUBLISHED',true)];});
+assert.equal(source?.id,7); assert.equal(source?.semesterId,2); assert.deepEqual(sourceCalls,[3,2]);
+assert.equal(capacity.canCancelHistoricalRestriction({isCancelled:false}),true);
+assert.equal(capacity.canCancelHistoricalRestriction({isCancelled:true}),false);
+console.log('Complete bounded capacity history, published authority, strict prior copy selection and historical cancellation tests passed');

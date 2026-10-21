@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {PROGRAMME_OPTIONS} from '../constants/programmes';
+import * as access from './operationalPeriodAccess';
+assert.equal(typeof access.getOperationalProgrammeOptions,'function','Appointment periods need approved programmes even with no student records');
+assert.deepEqual(access.getOperationalProgrammeOptions([]),[...PROGRAMME_OPTIONS]);
+const existing=['Legacy Computing Programme',PROGRAMME_OPTIONS[0].toLowerCase(),'legacy computing programme'];
+const combined=access.getOperationalProgrammeOptions(existing);
+assert.ok(combined.includes('Legacy Computing Programme'));
+assert.ok(combined.includes(PROGRAMME_OPTIONS[0]));
+assert.equal(combined.length,PROGRAMME_OPTIONS.length+1);
+assert.equal(new Set(combined.map(value=>value.trim().toLowerCase())).size,combined.length);
+console.log('Operational programme choices include the approved catalogue, preserve legacy cohorts and deduplicate case-insensitively');

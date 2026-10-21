@@ -13,6 +13,7 @@ import {
   SemesterTimelineEntry,
   TimelineEntry,
   TimelineUploadResult,
+  TimelineUploadPreview,
 } from '../types';
 import { request, requestBlob } from './apiClient';
 
@@ -58,6 +59,9 @@ export function timelineEntryToLegacy(entry: SemesterTimelineEntry): TimelineEnt
     endDate: formatDisplayDate(entry.deadlineEnd),
     targetRole: entry.targetRoles,
     status: entry.status,
+    operationalPeriodId: entry.operationalPeriodId,
+    marksPeriodId: entry.marksPeriodId,
+    linkedPeriodStatus: entry.linkedPeriodStatus,
   };
 }
 
@@ -71,17 +75,25 @@ export async function getActiveTimeline(semesterId?: number): Promise<ActiveSeme
   return request<ActiveSemesterTimeline>(`/dashboard/timeline/active/${query}`);
 }
 
+export async function previewTimelineFile(file: File, semesterId: number): Promise<TimelineUploadPreview> {
+  const body = new FormData();
+  body.append('semesterId', String(semesterId));
+  body.append('file', file);
+  return request<TimelineUploadPreview>('/dashboard/timeline/upload/preview/', { method: 'POST', body });
+}
+
 export async function uploadTimelineFile(
   file: File,
   semesterId: number,
+  previewToken: string,
+  acknowledgeWarnings: boolean,
 ): Promise<TimelineUploadResult> {
   const body = new FormData();
   body.append('semesterId', String(semesterId));
   body.append('file', file);
-  return request<TimelineUploadResult>('/dashboard/timeline/upload/', {
-    method: 'POST',
-    body,
-  });
+  body.append('previewToken', previewToken);
+  body.append('acknowledgeWarnings', String(acknowledgeWarnings));
+  return request<TimelineUploadResult>('/dashboard/timeline/upload/', { method: 'POST', body });
 }
 
 export async function createTimelineEntry(
@@ -133,8 +145,8 @@ export async function getTimelineAuditLogs(semesterId?: number): Promise<Timelin
   return result.logs;
 }
 
-export async function downloadTimelineTemplate(): Promise<Blob> {
-  return requestBlob('/dashboard/timeline/template/');
+export async function downloadTimelineTemplate(semesterId?: number): Promise<Blob> {
+  return requestBlob(`/dashboard/timeline/template/${semesterId ? `?semesterId=${semesterId}` : ''}`);
 }
 
 export async function getDashboardTasks(): Promise<{ tasks: DashboardTask[] }> {

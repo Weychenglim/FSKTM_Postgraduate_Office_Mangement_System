@@ -39,11 +39,12 @@ assert.match(app, /dashboardProgressMatch/);
 assert.match(studentDashboard, /View My Academic Record/);
 assert.match(reports, /View student record/);
 assert.match(supervisor, /View student record/);
-assert.match(panel, /View student record/);
+assert.match(panel, /onOpenStudent=\{onNavigateToDossier\}/);
+assert.doesNotMatch(fs.readFileSync(new URL('./PanelBrowse.tsx', import.meta.url),'utf8'), /View student record/, 'Panel tables keep one record action; student navigation lives inside details');
 assert.match(marks, /View student record/);
 assert.match(coordinatorSupervisor, /View student record/);
 assert.match(lecturerSupervisor, /View student record/);
-assert.match(lecturerPanel, /View student record/);
+assert.match(lecturerPanel, /onOpenStudent=\{onNavigateToDossier\}/);
 assert.match(lecturerMarks, /View student record/);
 
 assert.match(dossier, /Student Progress Dossier/);

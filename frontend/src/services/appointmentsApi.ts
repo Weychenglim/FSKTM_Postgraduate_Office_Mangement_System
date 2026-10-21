@@ -162,6 +162,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
   return recommendations.map((r) => ({
     id: r.id !== undefined ? `REC-${String(r.id).padStart(4, '0')}` : String(r.studentId),
     recommendationId: r.id,
+    recommendation: r,
     studentName: r.studentName,
     studentId: r.studentId,
     researchTitle: r.proposedTopic,
@@ -176,7 +177,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
       ? 'Rejected'
       : 'Pending Approval',
     workflowStatus: r.status,
-    semester: r.semester || 'Sem 1 2025/2026',
+    semester: r.semester || '',
     programme: r.programme,
     researchArea: r.researchArea,
     abstract: r.abstract,
@@ -437,6 +438,7 @@ export function toStudentSupervisorApplication(
       : 'PENDING REVIEW';
   return {
     applicationId: record.id,
+    initiatedByOffice: record.initiatedByOffice,
     id: `SV-APP-${String(record.id).padStart(5, '0')}`,
     studentId: record.studentId,
     studentName: record.studentName,

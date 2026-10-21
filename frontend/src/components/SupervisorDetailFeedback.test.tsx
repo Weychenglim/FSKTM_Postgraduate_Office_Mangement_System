@@ -32,12 +32,15 @@ for(const status of ['ACTIVE','ENDED'] as const){
  assert.equal(normalized(render(<OfficeAppointmentAdministration record={officeApplicationRecord(endedRecord)} onEnd={async()=>{}}/>)),normalized(render(<CoordinatorApplicationLifecycle record={endedRecord} onEnd={async()=>{}}/>)));
 }
 const legacy=render(<SupervisorRequestDetail request={toSupervisorRequestPresentation({...record,workflow:[]})}/>);
-const primaryAbstractClass=legacy.match(/Research abstract<\/dt><dd class="([^"]+)"/)?.[1];
+const primaryAbstractClass=legacy.match(/data-research-abstract[^>]*><p class="([^"]+)"/)?.[1];
 const requestedAbstract=render(<RequestedChangesComparison before={{programme:'Computing',title:'Same',abstract:'Old'}} after={{programme:'Computing',title:'Same',abstract:'New'}}/>);
-const comparisonAbstractClass=requestedAbstract.match(/Requested abstract<\/dt><dd class="([^"]+)"/)?.[1];
+const comparisonAbstractClass=requestedAbstract.match(/data-research-abstract[^>]*><p class="([^"]+)"/)?.[1];
 assert.ok(primaryAbstractClass?.includes('font-normal') && !primaryAbstractClass.includes('card-value'),'Long research text must not use bold key-fact styling');
-assert.equal(primaryAbstractClass?.replace(/mt-\d/g,''),comparisonAbstractClass?.replace(/mt-\d/g,''),'Primary and research change abstracts use the same text hierarchy');
-assert.doesNotMatch(legacy,/Submission actor:|Decision details:|>Not recorded<|Audit history\(0|Coordinator approval/,'Legacy records do not pretend to have a detailed approval history');
+for(const token of ['text-sm','font-normal','leading-7','text-slate-700']) {
+  assert.ok(primaryAbstractClass?.includes(token) && comparisonAbstractClass?.includes(token),'Primary and research change abstracts retain the same readable text hierarchy');
+}
+assert.doesNotMatch(legacy,/Submission actor:|Decision details:|Audit history\(0|Coordinator approval/,'Legacy records do not pretend to have a detailed approval history');
+assert.doesNotMatch(legacy.slice(legacy.indexOf('Approval progress')),/>Not recorded</,'Missing course codes may be explicit without adding placeholder approval details');
 assert.match(legacy,/Detailed approval history is unavailable/);
 assert.equal(normalized(render(<SupervisorRequestDetail request={officeRequestPresentation(officeApplicationRecord({...record,workflow:[]}))}/>)),normalized(legacy),'Office and Lecturer show the same legacy request body for the same persisted application');
 const workspace:SupervisoryWorkspace={primaryApplication:record,teams:[{studentId:99,matricNo:record.studentId,studentName:record.studentName,programme:record.programme,studentStatus:'ACTIVE',primarySupervisor:{id:9,name:record.proposedSupervisor},primaryAppointmentId:5,research:{title:'Current title',area:'Networks',abstract:'Current abstract'},appointments:[],nominations:[],canNominate:false}],appointments:[],nominations:[]};

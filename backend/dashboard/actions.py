@@ -20,6 +20,7 @@ from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
 
 from .models import SemesterTimeline, SemesterTimelineEntry
+from .serializers import TimelineEntrySerializer
 from .reconciliation import detect_reconciliation_issues
 from .co_supervision_tracking import co_supervisor_actions
 
@@ -274,24 +275,30 @@ def _timeline_actions(user, now):
         timeline__is_active=True,
         timeline__academic_semester=semester,
         target_roles__contains=[role],
-    ).select_related("timeline")
+    ).select_related("timeline", "marks_period", "operational_period")
+    if user.role == User.Role.STUDENT:
+        entries = entries.filter(marks_period__isnull=True)
     today = timezone.localdate(now)
     actions = []
     for entry in entries:
-        if today > entry.deadline_end:
+        start, end = entry.projected_dates
+        display_status = TimelineEntrySerializer().get_status(entry)
+        if today > end or display_status == SemesterTimelineEntry.Status.ENDED:
             continue
-        days_until_due = (entry.deadline_end - today).days
-        if days_until_due == 0:
+        days_until_due = (end - today).days
+        if display_status == SemesterTimelineEntry.Status.UPCOMING:
+            deadline_state = "UPCOMING"
+        elif days_until_due == 0:
             display_status = SemesterTimelineEntry.Status.DEADLINE
             deadline_state = "DUE_TODAY"
-        elif entry.deadline_start <= today:
+        elif start <= today:
             display_status = SemesterTimelineEntry.Status.ACTIVE
             deadline_state = "UPCOMING"
         else:
             display_status = SemesterTimelineEntry.Status.UPCOMING
             deadline_state = "UPCOMING"
         metadata = {
-            "dueAt": entry.deadline_end,
+            "dueAt": end,
             "daysUntilDue": days_until_due,
             "deadlineState": deadline_state,
         }
@@ -311,7 +318,7 @@ def _timeline_actions(user, now):
     return actions
 
 
-def _reconciliation_actions(user):
+def _reconciliation_actions(user, *, include_programme=False):
     if user.role != User.Role.OFFICE_ADMIN:
         return []
     return [
@@ -328,6 +335,7 @@ def _reconciliation_actions(user):
             targetModule="DASHBOARD",
             recordType="RECONCILIATION_ISSUE",
             recordId=issue.issue_id,
+            **({'programme': issue.programme or 'Faculty-wide'} if include_programme else {}),
         )
         for issue in detect_reconciliation_issues()
         if issue.severity == "BLOCKING"
@@ -395,7 +403,7 @@ def _sort_key(task):
     return (5, due_value, task["id"])
 
 
-def build_dashboard_tasks(user, *, now=None):
+def build_dashboard_tasks(user, *, now=None, limit=MAX_DASHBOARD_ACTIONS):
     from .amendment_tracking import amendment_actions
     now = now or timezone.now()
     semester = current_effective_semester()
@@ -415,7 +423,7 @@ def build_dashboard_tasks(user, *, now=None):
         *_mark_actions(user, now),
         *_timeline_actions(user, now),
         *_capacity_actions(user, semester),
-        *_reconciliation_actions(user),
+        *(_reconciliation_actions(user, include_programme=True) if limit is None else _reconciliation_actions(user)),
     ]
     if user.role == User.Role.OFFICE_ADMIN:
         tasks.append(
@@ -432,4 +440,4 @@ def build_dashboard_tasks(user, *, now=None):
                 targetModule="DASHBOARD",
             )
         )
-    return sorted(tasks, key=_sort_key)[:MAX_DASHBOARD_ACTIONS]
+    return sorted(tasks, key=_sort_key)[:limit]

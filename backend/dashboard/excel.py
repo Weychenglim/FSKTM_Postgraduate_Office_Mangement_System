@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from io import BytesIO
 
 from django.utils import timezone
@@ -49,11 +50,11 @@ def parse_target_roles(value):
 
 
 def derive_status(deadline_start, deadline_end):
-    today = timezone.localdate()
+    today = timezone.localdate(timezone=ZoneInfo("Asia/Kuala_Lumpur"))
     if today < deadline_start:
         return SemesterTimelineEntry.Status.UPCOMING
     if today > deadline_end:
-        return SemesterTimelineEntry.Status.COMPLETED
+        return SemesterTimelineEntry.Status.ENDED
     if deadline_start == deadline_end:
         return SemesterTimelineEntry.Status.DEADLINE
     return SemesterTimelineEntry.Status.ACTIVE
@@ -73,7 +74,7 @@ def parse_timeline_workbook(uploaded_file):
     if missing:
         return [], [f"Missing required columns: {', '.join(missing)}"]
 
-    column_index = {header: headers.index(header) for header in REQUIRED_HEADERS}
+    column_index = {header: index for index, header in enumerate(headers)}
     next_step_by_level = {"P1": 0, "P2": 0}
 
     for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
@@ -81,8 +82,8 @@ def parse_timeline_workbook(uploaded_file):
             continue
 
         def get(header):
-            index = column_index[header]
-            return row[index] if index < len(row) else None
+            index = column_index.get(header)
+            return row[index] if index is not None and index < len(row) else None
 
         row_errors = []
         level = str(get("Level") or "").strip().upper()
@@ -142,6 +143,8 @@ def parse_timeline_workbook(uploaded_file):
                 "target_roles": target_roles,
                 "status": derive_status(deadline_start, deadline_end),
                 "display_order": len(parsed_rows) + 1,
+                "activity_code": str(get("Activity Code") or "").strip().upper(),
+                "period_id": str(get("Period ID") or "").strip(),
             }
         )
 
@@ -151,7 +154,9 @@ def parse_timeline_workbook(uploaded_file):
     return parsed_rows, errors
 
 
-def build_template_workbook():
+def build_template_workbook(semester=None):
+    start = semester.starts_on if semester else timezone.localdate(timezone=ZoneInfo("Asia/Kuala_Lumpur"))
+    end = semester.ends_on if semester else start + timedelta(days=30)
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Timeline"
@@ -162,8 +167,8 @@ def build_template_workbook():
             "Supervisor appointment request",
             "Students submit appointment of supervisor forms.",
             "Student / Supervisor",
-            date(2026, 3, 16),
-            date(2026, 3, 20),
+            start,
+            min(start + timedelta(days=4), end),
             "Week 2",
             "STUDENT,LECTURER",
         ]
@@ -174,8 +179,8 @@ def build_template_workbook():
             "Final presentation",
             "Students complete the final presentation.",
             "Student / Supervisor / Examiner",
-            date(2026, 6, 8),
-            date(2026, 7, 3),
+            max(start, end - timedelta(days=7)),
+            end,
             "Week 13 - 15",
             "STUDENT,LECTURER",
         ]

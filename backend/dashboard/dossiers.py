@@ -233,24 +233,43 @@ def _supervisor_records(student, user, visibility, now):
     }
 
 
-def _public_panel_status(recommendation):
-    if recommendation.status in PanelRecommendation.WORKLOAD_RESERVED_STATUSES:
-        return "FACULTY_PROCESSING"
-    if recommendation.status == PanelRecommendation.Status.APPROVED:
-        return "APPROVED"
-    if recommendation.status in {
-        PanelRecommendation.Status.REJECTED_BY_PANEL,
-        PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
-    }:
-        return "REJECTED"
-    if recommendation.status == PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR:
-        return "CANCELLED"
-    return recommendation.status
+def _student_panel_records(profile):
+    """Publish appointment results, never the faculty's nomination attempts."""
+    from appointments.student_panel import current_student_panel_records
+
+    current, pending = current_student_panel_records(profile)
+    base = {
+        "waitingSince": None, "waitingDays": None,
+        "targetModule": "PANEL_APPOINTMENTS", "recordType": "PANEL_APPOINTMENT",
+    }
+
+    def appointment_record(appointment):
+        return {
+            **base,
+            "status": "CONFIRMED" if appointment.status == PanelAppointment.Status.ACTIVE else appointment.status,
+            "appointment": {
+                "appointmentDate": appointment.appointment_date.isoformat(),
+                "status": appointment.status,
+                "panelMember": appointment.panel_member.full_name,
+                "endedAt": _iso(appointment.ended_at),
+            },
+        }
+
+    records = [appointment_record(current)] if current else []
+    if not current and pending:
+        records.append({**base, "status": "FACULTY_PROCESSING", "appointment": None})
+    history = PanelAppointment.objects.filter(profile=profile).exclude(
+        status=PanelAppointment.Status.ACTIVE,
+    ).select_related("panel_member").order_by("-appointment_date", "-pk")
+    records.extend(appointment_record(appointment) for appointment in history)
+    return {"records": records}
 
 
 def _panel_records(profile, user, visibility, now):
     if profile is None:
         return {"currentRecordId": None, "records": []}
+    if visibility == "PUBLIC":
+        return _student_panel_records(profile)
     recommendations_query = (
         PanelRecommendation.objects.filter(profile=profile)
         .select_related(
@@ -281,54 +300,27 @@ def _panel_records(profile, user, visibility, now):
         waiting = panel_waiting_metadata(
             recommendation,
             now=now,
-            public=visibility == "PUBLIC",
+            public=False,
         )
-        if visibility == "PUBLIC":
-            record = {
-                "status": _public_panel_status(recommendation),
-                "rejectionReason": (
-                    recommendation.display_rejection_reason or None
-                    if recommendation.status
-                    in {
-                        PanelRecommendation.Status.REJECTED_BY_PANEL,
-                        PanelRecommendation.Status.REJECTED_BY_COORDINATOR,
-                    }
-                    else None
-                ),
-                "cancellationReason": (
-                    recommendation.cancellation_reason or None
-                    if recommendation.status
-                    == PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR
-                    else None
-                ),
-                "waitingSince": _iso(waiting["waitingSince"]),
-                "waitingDays": waiting["waitingDays"],
-                "targetModule": "PANEL_APPOINTMENTS",
-                "recordType": "PANEL_RECOMMENDATION",
-                **_semester_metadata(recommendation.academic_semester),
-            }
-        else:
-            record = {
-                "recordId": str(recommendation.pk),
-                "status": recommendation.status,
-                "supervisor": recommendation.supervisor.full_name,
-                "recommendedMember": recommendation.recommended_member.full_name,
-                "submittedAt": _iso(recommendation.submitted_at),
-                "panelDecisionAt": _iso(recommendation.panel_decided_at),
-                "coordinatorDecisionAt": _iso(
-                    recommendation.coordinator_decided_at
-                ),
-                "cancelledAt": _iso(recommendation.cancelled_at),
-                "rejectionReason": recommendation.display_rejection_reason or None,
-                "cancellationReason": recommendation.cancellation_reason or None,
-                "waitingSince": _iso(waiting["waitingSince"]),
-                "waitingDays": waiting["waitingDays"],
-                "waitingOn": waiting["waitingOn"],
-                "targetModule": "PANEL_APPOINTMENTS",
-                "recordType": "PANEL_RECOMMENDATION",
-                "workflow": _workflow(recommendation.workflow_events.all()),
-                **_semester_metadata(recommendation.academic_semester),
-            }
+        record = {
+            "recordId": str(recommendation.pk),
+            "status": recommendation.status,
+            "supervisor": recommendation.supervisor.full_name,
+            "recommendedMember": recommendation.recommended_member.full_name,
+            "submittedAt": _iso(recommendation.submitted_at),
+            "panelDecisionAt": _iso(recommendation.panel_decided_at),
+            "coordinatorDecisionAt": _iso(recommendation.coordinator_decided_at),
+            "cancelledAt": _iso(recommendation.cancelled_at),
+            "rejectionReason": recommendation.display_rejection_reason or None,
+            "cancellationReason": recommendation.cancellation_reason or None,
+            "waitingSince": _iso(waiting["waitingSince"]),
+            "waitingDays": waiting["waitingDays"],
+            "waitingOn": waiting["waitingOn"],
+            "targetModule": "PANEL_APPOINTMENTS",
+            "recordType": "PANEL_RECOMMENDATION",
+            "workflow": _workflow(recommendation.workflow_events.all()),
+            **_semester_metadata(recommendation.academic_semester),
+        }
         try:
             appointment = recommendation.panel_appointment
         except PanelAppointment.DoesNotExist:
@@ -706,7 +698,8 @@ def build_student_progress_dossier(user, student_id, now=None):
     panel_current = None
     if panel and panel.get("records"):
         if visibility == "PUBLIC":
-            panel_current = panel["records"][0]
+            panel_current = next((row for row in panel["records"]
+                                  if row["status"] in {"CONFIRMED", "FACULTY_PROCESSING"}), None)
         elif panel.get("currentRecordId"):
             panel_current = next(
                 (

@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { appointmentDetailTypography as text } from './AppointmentPrimitives';
 import { Check, Circle, CircleHelp, Minus, X } from 'lucide-react';
 import type { ApprovalStep } from '../utils/approvalProcess';
 import { formatMalaysiaDate, formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
@@ -34,12 +35,12 @@ export function ApprovalProcess({ steps, title = 'Approval progress' }: { steps:
   const outcome = steps.find(step=>step.id==='outcome');
   const terminal = outcome && ['completed','rejected','cancelled'].includes(outcome.state);
   const hasReviewDetails = reviews.some(step=>step.actorName||step.occurredAt);
-  if (terminal && !hasReviewDetails) return <section aria-labelledby={titleId} className="space-y-2"><h2 id={titleId} className="section-label">{title}</h2><p className="card-value">{states[outcome.state].label}</p><p className="card-description">{outcome.description?.replace(/ (Cancellation|Deciding) stage: Not recorded\./,'')}</p>{outcome.actorName?<p className="card-description">{[outcome.actorName,outcome.actorRole].filter(Boolean).join(' · ')}</p>:null}{formatRequestRecordedAt(outcome.occurredAt)!=='Not recorded'?<p className="card-caption">{formatRequestDisplayDate(outcome.occurredAt)}</p>:null}<p className="card-description text-slate-500">Detailed approval history is unavailable for this record.</p>{outcome.reason?<p className="card-description whitespace-pre-wrap">Reason: {outcome.reason}</p>:null}</section>;
-  if (outcome?.state==='unknown' && !hasReviewDetails && !steps.some(step=>step.state==='current')) return <section aria-labelledby={titleId}><h2 id={titleId} className="section-label">{title}</h2><p className="card-description mt-2">Approval history is unavailable.</p></section>;
+  if (terminal && !hasReviewDetails) return <section aria-labelledby={titleId} className="space-y-2"><h2 id={titleId} className={text.heading}>{title}</h2><p className="card-value">{states[outcome.state].label}</p><p className="card-description">{outcome.description?.replace(/ (Cancellation|Deciding) stage: Not recorded\./,'')}</p>{outcome.actorName?<p className="card-description">{[outcome.actorName,outcome.actorRole].filter(Boolean).join(' · ')}</p>:null}{formatRequestRecordedAt(outcome.occurredAt)!=='Not recorded'?<p className="card-caption">{formatRequestDisplayDate(outcome.occurredAt)}</p>:null}<p className="card-description text-slate-500">Detailed approval history is unavailable for this record.</p>{outcome.reason?<p className="card-description whitespace-pre-wrap">Reason: {outcome.reason}</p>:null}</section>;
+  if (outcome?.state==='unknown' && !hasReviewDetails && !steps.some(step=>step.state==='current')) return <section aria-labelledby={titleId}><h2 id={titleId} className={text.heading}>{title}</h2><p className="card-description mt-2">Approval history is unavailable.</p></section>;
   const missingDetails = steps.some(step=>step.showRecordedDetails!==false && ['completed','rejected','cancelled'].includes(step.state) && (!step.actorName||formatRequestRecordedAt(step.occurredAt)==='Not recorded'));
   const placeholder = (description?:string) => !description || /^(Submission actor:|Decision details:|Stage history:)/.test(description);
   return <section aria-labelledby={titleId} className="space-y-4">
-    <h2 id={titleId} className="section-label">{title}</h2>
+    <h2 id={titleId} className={text.heading}>{title}</h2>
     {steps.length ? <ol className="space-y-0">{steps.map((step, index) => {
       const { label, tone, icon: Icon } = states[step.state];
       return <li key={step.id} aria-current={step.state === 'current' ? 'step' : undefined} className="relative flex gap-3 pb-5 last:pb-0">
