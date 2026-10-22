@@ -29,6 +29,7 @@ import {
 import { isAppointmentLetter, letterClosing, letterDataFromIssued, openLetterWindow, printLetterInWindow, renderLetterBodyHtml } from '../utils/letterDocument';
 import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLetters';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 type OutputAction = 'view' | 'print' | 'pdf';
 
@@ -123,8 +124,8 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
   const titleId = useModalTitle();
   const sentTo = recipientsLine(letter.recipients);
   return (
-    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0">
-      <div className="drawer-header sticky top-0 z-10">
+    <PortalModal isOpen onClose={onClose} labelledBy={titleId} className="max-w-4xl p-0 open:flex open:flex-col">
+      <div className="drawer-header shrink-0">
         <div className="min-w-0">
           <h2 id={titleId} className="section-label truncate">{letter.templateName}</h2>
           <p className="mt-0.5 text-[11px] font-semibold text-slate-500 truncate">
@@ -147,7 +148,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
         </div>
       </div>
 
-      <div className="bg-slate-100/70 p-4 sm:p-6 space-y-4">
+      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-100/70 p-4 sm:p-6 space-y-4 ${THIN_SCROLLBAR}`}>
         {letter.status === 'Revoked' && (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[11px] font-semibold text-rose-700">
             {letter.replacedById
@@ -169,7 +170,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
         />
       </div>
 
-      <div className="drawer-footer sticky bottom-0 z-10 flex-wrap">
+      <div className="drawer-footer shrink-0 flex-wrap">
         {actions}
         <PortalButton variant="secondary" onClick={onClose}>Close</PortalButton>
       </div>

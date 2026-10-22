@@ -9,12 +9,12 @@
 // reason. Approval issues the reference number; either way the student is told.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Eye, MessageSquareText, Search, Send, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Eye, MessageSquareText, Printer, Search, Send, XCircle } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterPages } from './LetterPages';
-import { LetterStatusBadge, LetterView, shortDate } from './IssuedLetters';
+import { LetterStatusBadge, LetterView, shortDate, useLetterOutput } from './IssuedLetters';
 import { GeneratedLetter, GeneratedLetterStatus, LetterRequestCounts, LetterRequestField } from '../types';
 import {
   approvalFieldErrors,
@@ -283,8 +283,8 @@ const LetterRequestReview: React.FC<{
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [rejectSaving, setRejectSaving] = useState(false);
-  const [viewing, setViewing] = useState(false);
   const decided = useRef(false);
+  const output = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -424,62 +424,41 @@ const LetterRequestReview: React.FC<{
       ) : error || !request ? (
         <ErrorState message={error ?? 'Could not open this request.'} onRetry={load} />
       ) : request.status !== 'Pending' ? (
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs space-y-3 max-w-xl">
-          <div className="flex items-center gap-2">
-            <LetterStatusBadge status={request.status} replaced={Boolean(request.replacedById)} />
-            <span className="text-[12px] font-semibold text-slate-600">
-              This request was already {request.status === 'Issued' ? 'approved' : request.status.toLowerCase()}
-              {request.decidedBy ? ` by ${request.decidedBy}` : ''}
-              {request.decidedAt ? ` on ${shortDate(request.decidedAt)}` : ''}.
-            </span>
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <div className="xl:col-span-5 space-y-6">
+            <RequestSummary request={request} automatic={automatic} sentTo={sentTo} />
+            <DecisionSummary
+              request={request}
+              printing={output.isBusy(request, 'print')}
+              downloading={output.isBusy(request, 'pdf')}
+              onPrint={() => void output.printLetter(request)}
+              onDownload={() => void output.downloadPdf(request)}
+            />
           </div>
-          {request.rejectReason && <p className="text-[12px] font-semibold text-rose-600">Reason: {request.rejectReason}</p>}
-          {request.status === 'Issued' && (
-            <PortalButton variant="secondary" size="sm" icon={Eye} onClick={() => setViewing(true)}>
-              View letter
-            </PortalButton>
-          )}
-          {viewing && <LetterView letter={request} onClose={() => setViewing(false)} />}
+
+          <section aria-labelledby="request-letter-heading" className="xl:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
+            <h2 id="request-letter-heading" className="section-label">{request.content ? 'The letter as issued' : 'The letter'}</h2>
+            {request.content ? (
+              <div className="rounded-xl bg-slate-100/70 border border-slate-200 p-3 sm:p-4">
+                <LetterPages
+                  reference={request.referenceNumber}
+                  referenceText={request.referenceNumber}
+                  date={request.date}
+                  bodyHtml={renderLetterBodyHtml(request.content)}
+                  closing={letterClosing(request)}
+                />
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-[13px] font-semibold text-slate-400">
+                No letter was made, because the request was {request.status === 'Withdrawn' ? 'withdrawn by the student' : 'rejected'}.
+              </p>
+            )}
+          </section>
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-5 space-y-6">
-            <section aria-labelledby="request-details-heading" className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
-              <h2 id="request-details-heading" className="section-label">Request</h2>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[12px]">
-                <dt className="font-semibold text-slate-400">Student</dt>
-                <dd className="font-bold text-slate-800">{request.studentName} <span className="font-mono text-slate-500">({request.matricNumber})</span></dd>
-                <dt className="font-semibold text-slate-400">Programme</dt>
-                <dd className="font-semibold text-slate-700">{request.programName || '-'}</dd>
-                <dt className="font-semibold text-slate-400">Letter</dt>
-                <dd className="font-semibold text-slate-700">{request.templateName} <span className="text-slate-400">({request.letterType})</span></dd>
-                <dt className="font-semibold text-slate-400">{automatic ? 'Made' : 'Requested'}</dt>
-                <dd className="font-semibold text-slate-700">{shortDate(request.requestedAt)}</dd>
-                {sentTo && (
-                  <>
-                    <dt className="font-semibold text-slate-400">Goes to</dt>
-                    <dd className="font-semibold text-slate-700">{sentTo}</dd>
-                  </>
-                )}
-              </dl>
-              {request.templateStatus && request.templateStatus !== 'Active' && (
-                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
-                  This template is now {request.templateStatus}. Approving still uses its current wording.
-                </p>
-              )}
-              {!automatic && (
-                <div>
-                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">Note from the student</p>
-                  {request.note ? (
-                    <blockquote className="rounded-xl border-l-4 border-indigo-300 bg-indigo-50/50 px-4 py-3 text-[12px] font-semibold text-slate-700 whitespace-pre-line">
-                      {request.note}
-                    </blockquote>
-                  ) : (
-                    <p className="text-[12px] font-semibold text-slate-400">No note.</p>
-                  )}
-                </div>
-              )}
-            </section>
+            <RequestSummary request={request} automatic={automatic} sentTo={sentTo} />
 
             <section aria-labelledby="request-values-heading" className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
               <div>
@@ -600,6 +579,108 @@ const LetterRequestReview: React.FC<{
         onCancel={() => setRejecting(false)}
       />
     </RecordPage>
+  );
+};
+
+const RequestSummary: React.FC<{ request: GeneratedLetter; automatic: boolean; sentTo: string }> = ({ request, automatic, sentTo }) => (
+  <section aria-labelledby="request-details-heading" className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
+    <h2 id="request-details-heading" className="section-label">Request</h2>
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[12px]">
+      <dt className="font-semibold text-slate-400">Student</dt>
+      <dd className="font-bold text-slate-800">{request.studentName} <span className="font-mono text-slate-500">({request.matricNumber})</span></dd>
+      <dt className="font-semibold text-slate-400">Programme</dt>
+      <dd className="font-semibold text-slate-700">{request.programName || '-'}</dd>
+      <dt className="font-semibold text-slate-400">Letter</dt>
+      <dd className="font-semibold text-slate-700">{request.templateName} <span className="text-slate-400">({request.letterType})</span></dd>
+      <dt className="font-semibold text-slate-400">{automatic ? 'Made' : 'Requested'}</dt>
+      <dd className="font-semibold text-slate-700">{shortDate(request.requestedAt)}</dd>
+      {sentTo && (
+        <>
+          <dt className="font-semibold text-slate-400">Goes to</dt>
+          <dd className="font-semibold text-slate-700">{sentTo}</dd>
+        </>
+      )}
+    </dl>
+    {request.templateStatus && request.templateStatus !== 'Active' && (
+      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
+        This template is now {request.templateStatus}. Approving still uses its current wording.
+      </p>
+    )}
+    {!automatic && (
+      <div>
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">Note from the student</p>
+        {request.note ? (
+          <blockquote className="rounded-xl border-l-4 border-indigo-300 bg-indigo-50/50 px-4 py-3 text-[12px] font-semibold text-slate-700 whitespace-pre-line">
+            {request.note}
+          </blockquote>
+        ) : (
+          <p className="text-[12px] font-semibold text-slate-400">No note.</p>
+        )}
+      </div>
+    )}
+  </section>
+);
+
+const OUTCOME_VERB: Record<string, string> = { Issued: 'Approved', Rejected: 'Rejected', Withdrawn: 'Withdrawn', Revoked: 'Approved' };
+
+// Who decided, when, and what came of it, for a request that is no longer waiting.
+const DecisionSummary: React.FC<{
+  request: GeneratedLetter;
+  printing: boolean;
+  downloading: boolean;
+  onPrint: () => void;
+  onDownload: () => void;
+}> = ({ request, printing, downloading, onPrint, onDownload }) => {
+  const automatic = isAppointmentLetter(request.purpose);
+  const verb = automatic && OUTCOME_VERB[request.status] === 'Approved' ? 'Issued' : OUTCOME_VERB[request.status] ?? request.status;
+  const decidedOn = request.status === 'Withdrawn' ? request.withdrawnAt : request.decidedAt;
+  const typed = Object.entries(request.officeValues ?? {}).filter(([, value]) => value);
+  return (
+    <section aria-labelledby="request-outcome-heading" className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="request-outcome-heading" className="section-label">Outcome</h2>
+        <LetterStatusBadge status={request.status} replaced={Boolean(request.replacedById)} />
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[12px]">
+        <dt className="font-semibold text-slate-400">{verb}</dt>
+        <dd className="font-semibold text-slate-700">
+          {decidedOn ? shortDate(decidedOn) : '-'}
+          {request.status !== 'Withdrawn' && request.decidedBy ? ` by ${request.decidedBy}` : ''}
+        </dd>
+        {request.referenceNumber && (
+          <>
+            <dt className="font-semibold text-slate-400">Reference</dt>
+            <dd className="font-mono font-bold text-slate-800">{request.referenceNumber}</dd>
+          </>
+        )}
+        {request.status === 'Revoked' && (
+          <>
+            <dt className="font-semibold text-slate-400">{request.replacedById ? 'Replaced' : 'Revoked'}</dt>
+            <dd className="font-semibold text-slate-700">{shortDate(request.revokedAt)}</dd>
+          </>
+        )}
+        {typed.map(([name, value]) => (
+          <React.Fragment key={name}>
+            <dt className="font-semibold text-slate-400">{name.charAt(0) + name.slice(1).toLowerCase().replace(/_/g, ' ')}</dt>
+            <dd className="font-semibold text-slate-700">{value}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+      {request.status === 'Rejected' && request.rejectReason && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] font-semibold text-rose-700">Reason given to the student: {request.rejectReason}</p>
+      )}
+      {request.status === 'Revoked' && request.revokeReason && (
+        <p className={`rounded-xl border px-4 py-3 text-[12px] font-semibold ${request.replacedById ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+          {request.replacedById ? request.revokeReason : `Reason: ${request.revokeReason}`} It is no longer valid.
+        </p>
+      )}
+      {request.status === 'Issued' && (
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+          <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={printing} onClick={onPrint}>Print</PortalButton>
+          <PortalButton variant="secondary" size="sm" icon={Download} isLoading={downloading} onClick={onDownload}>Download PDF</PortalButton>
+        </div>
+      )}
+    </section>
   );
 };
 

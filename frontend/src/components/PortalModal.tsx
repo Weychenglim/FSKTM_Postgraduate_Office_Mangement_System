@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
 export function PortalModal({ isOpen, onClose, busy = false, labelledBy, children, className = 'max-w-lg p-6' }: {
   isOpen: boolean; onClose: () => void; busy?: boolean; labelledBy?: string; children: React.ReactNode; className?: string;
@@ -21,7 +22,7 @@ export function PortalModal({ isOpen, onClose, busy = false, labelledBy, childre
       const bounds = event.currentTarget.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) close.current();
     }}
-    className={`m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white text-left font-sans shadow-xl backdrop:bg-slate-950/45 backdrop:backdrop-blur-[2px] ${className}`}>
+    className={`m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] overflow-y-auto ${THIN_SCROLLBAR} rounded-2xl border border-slate-200 bg-white text-left font-sans shadow-xl backdrop:bg-slate-950/45 backdrop:backdrop-blur-[2px] ${className}`}>
     {children}
   </dialog>;
   return typeof document === 'undefined' ? node : createPortal(node, document.body);
