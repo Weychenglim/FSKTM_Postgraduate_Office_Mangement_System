@@ -139,6 +139,6 @@ for (const file of ['StaffLecturersRegistry', 'StaffAccountForm', 'StaffAccountP
 }
 
 // a dropdown inside a dialog (Change programme) opens inside that dialog, so it can be clicked
-assert.match(readFileSync(resolve('src/components/SelectMenu.tsx'), 'utf8'), /triggerRef\.current\?\.closest\('dialog'\) \?\? document\.body/);
+assert.match(readFileSync(resolve('src/components/SelectMenu.tsx'), 'utf8'), /triggerRef\.current\?\.closest\('dialog(?:\[open\])?'\) \?\? document\.body/);
 
 console.log('staffAccounts.test.ts passed');

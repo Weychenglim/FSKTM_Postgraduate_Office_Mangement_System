@@ -18,7 +18,7 @@ assert.match(registry, /programme: '',/, 'the programme field starts empty so th
 // WAI-ARIA select-only combobox: focus stays on the button.
 for (const contract of [
   /role="combobox"/,
-  /aria-haspopup="listbox"/,
+  /aria-haspopup=(?:"listbox"|\{[^}]*'listbox'\})/,
   /aria-expanded=\{open\}/,
   /aria-activedescendant=/,
   /role="listbox"/,
