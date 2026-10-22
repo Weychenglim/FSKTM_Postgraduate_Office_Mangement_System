@@ -23,6 +23,7 @@ from accounts.models import Coordinator, Lecturer, Student, User
 from accounts.programmes import APPROVED_PROGRAMMES
 from announcements.models import Notification
 from appointments import test_supervisor_workflow as workflow
+from appointments.research_intent_test_helpers import valid_research_intent_json
 from appointments.models import (
     PanelAppointment,
     PanelRecommendation,
@@ -621,6 +622,7 @@ class ApprovalFlowLetterTests(APITestCase):
                 "researchTitle": "Letters on approval",
                 "researchArea": "Software Engineering",
                 "researchAbstract": "A synthetic application for appointment letters.",
+                "researchIntent": valid_research_intent_json(),
                 "documents": [SimpleUploadedFile(
                     "proposal.pdf", b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF", content_type="application/pdf",
                 )],
@@ -628,7 +630,7 @@ class ApprovalFlowLetterTests(APITestCase):
             },
             format="multipart",
         )
-        self.assertEqual(submitted.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(submitted.status_code, status.HTTP_201_CREATED, submitted.data)
         application_id = submitted.data["id"]
         self.assertEqual(self.accept_by_supervisor(application_id).status_code, status.HTTP_200_OK)
         self.assertFalse(GeneratedLetter.objects.exists())
